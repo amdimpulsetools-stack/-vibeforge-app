@@ -65,18 +65,18 @@ export default function AccountPage() {
     setSaving(true);
 
     const supabase = createClient();
-    const { error } = await supabase.from("user_profiles").upsert(
-      {
-        id: user.id,
+    const { error } = await supabase
+      .from("user_profiles")
+      .update({
         full_name: values.full_name,
         phone: values.phone || null,
-      },
-      { onConflict: "id" }
-    );
+      })
+      .eq("id", user.id);
 
     setSaving(false);
 
     if (error) {
+      console.error("Error updating profile:", error);
       toast.error("Error al guardar los cambios");
       return;
     }
