@@ -7,9 +7,11 @@ import { cn } from "@/lib/utils";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
 import { useState } from "react";
+import { useLanguage } from "@/components/language-provider";
 import {
   LayoutDashboard,
   Settings,
+  UserCircle,
   LogOut,
   ChevronLeft,
   Zap,
@@ -17,7 +19,7 @@ import {
 } from "lucide-react";
 
 interface NavItem {
-  title: string;
+  titleKey: string;
   href: string;
   icon: LucideIcon;
 }
@@ -26,21 +28,23 @@ interface NavItem {
 // PERSONALIZA: Agrega aquí las rutas de tu app
 // ================================================
 const navItems: NavItem[] = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  // { title: "Pacientes", href: "/patients", icon: Users },
-  // { title: "Citas", href: "/appointments", icon: Calendar },
-  { title: "Settings", href: "/settings", icon: Settings },
+  { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
+  // { titleKey: "Pacientes", href: "/patients", icon: Users },
+  // { titleKey: "Citas", href: "/appointments", icon: Calendar },
+  { titleKey: "nav.account", href: "/account", icon: UserCircle },
+  { titleKey: "nav.settings", href: "/settings", icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useLanguage();
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    toast.success("Sesión cerrada");
+    toast.success(t("nav.logout_success"));
     router.push("/login");
     router.refresh();
   };
@@ -95,7 +99,7 @@ export function Sidebar() {
                 )}
               >
                 <item.icon className="h-[18px] w-[18px] shrink-0" />
-                {!collapsed && <span>{item.title}</span>}
+                {!collapsed && <span>{t(item.titleKey)}</span>}
               </span>
             </Link>
           );
@@ -112,7 +116,7 @@ export function Sidebar() {
           )}
         >
           <LogOut className="h-[18px] w-[18px] shrink-0" />
-          {!collapsed && <span>Cerrar sesión</span>}
+          {!collapsed && <span>{t("nav.logout")}</span>}
         </button>
       </div>
     </aside>
