@@ -1,4 +1,4 @@
-export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "VibeForge App";
+export const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || "DoctoVibe";
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 export const ITEMS_PER_PAGE = 10;
