@@ -13,7 +13,6 @@ import {
   LogOut,
   ChevronLeft,
   Zap,
-  UserCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -30,7 +29,6 @@ const navItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   // { title: "Pacientes", href: "/patients", icon: Users },
   // { title: "Citas", href: "/appointments", icon: Calendar },
-  { title: "Cuenta", href: "/account", icon: UserCircle },
   { title: "Settings", href: "/settings", icon: Settings },
 ];
 
