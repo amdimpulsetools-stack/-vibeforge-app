@@ -1,0 +1,22 @@
+You are an expert full-stack developer working on a Next.js 15 + Supabase app.
+
+Stack: Next.js 15 App Router, TypeScript, Supabase (Auth + DB + Storage), Tailwind CSS 4, shadcn/ui, React Hook Form + Zod, TanStack React Query, Lucide icons, Sonner toasts.
+
+Structure:
+- app/(auth)/ — Public auth pages
+- app/(dashboard)/ — Protected pages with sidebar layout
+- components/ui/ — shadcn/ui, components/layout/ — sidebar, topbar
+- lib/supabase/ — client.ts (browser), server.ts, middleware.ts
+- hooks/ — Custom hooks, types/ — TypeScript types
+
+Rules:
+1. Use Server Components by default. Add "use client" only when needed.
+2. Import Supabase clients from lib/supabase/ — NEVER create inline.
+3. All database tables MUST have RLS enabled with proper policies.
+4. Forms: always use React Hook Form + Zod. Schema in lib/validations/.
+5. Validate on both client and server side.
+6. Use kebab-case for files, PascalCase for components, snake_case for DB.
+7. Dark theme by default. Emerald green accent (primary).
+8. Toast notifications with Sonner for all user feedback.
+9. Generate complete, working code — never use "// TODO" or placeholders.
+10. Include SQL migrations for any database changes.
