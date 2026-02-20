@@ -282,6 +282,7 @@ export interface Database {
           id: string;
           patient_name: string;
           patient_phone: string | null;
+          patient_id: string | null;
           doctor_id: string;
           office_id: string;
           service_id: string;
@@ -300,6 +301,7 @@ export interface Database {
           id?: string;
           patient_name: string;
           patient_phone?: string | null;
+          patient_id?: string | null;
           doctor_id: string;
           office_id: string;
           service_id: string;
@@ -318,6 +320,7 @@ export interface Database {
           id?: string;
           patient_name?: string;
           patient_phone?: string | null;
+          patient_id?: string | null;
           doctor_id?: string;
           office_id?: string;
           service_id?: string;
@@ -330,6 +333,105 @@ export interface Database {
           responsible?: string | null;
           notes?: string | null;
           updated_at?: string;
+        };
+      };
+      patients: {
+        Row: {
+          id: string;
+          dni: string | null;
+          first_name: string;
+          last_name: string;
+          phone: string | null;
+          email: string | null;
+          status: "active" | "inactive";
+          origin: string | null;
+          adicional_1: string | null;
+          adicional_2: string | null;
+          viene_desde: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          dni?: string | null;
+          first_name: string;
+          last_name: string;
+          phone?: string | null;
+          email?: string | null;
+          status?: "active" | "inactive";
+          origin?: string | null;
+          adicional_1?: string | null;
+          adicional_2?: string | null;
+          viene_desde?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          dni?: string | null;
+          first_name?: string;
+          last_name?: string;
+          phone?: string | null;
+          email?: string | null;
+          status?: "active" | "inactive";
+          origin?: string | null;
+          adicional_1?: string | null;
+          adicional_2?: string | null;
+          viene_desde?: string | null;
+          notes?: string | null;
+          updated_at?: string;
+        };
+      };
+      patient_tags: {
+        Row: {
+          id: string;
+          patient_id: string;
+          tag: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          patient_id: string;
+          tag: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          patient_id?: string;
+          tag?: string;
+        };
+      };
+      patient_payments: {
+        Row: {
+          id: string;
+          patient_id: string;
+          appointment_id: string | null;
+          amount: number;
+          payment_method: string | null;
+          notes: string | null;
+          payment_date: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          patient_id: string;
+          appointment_id?: string | null;
+          amount: number;
+          payment_method?: string | null;
+          notes?: string | null;
+          payment_date?: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          patient_id?: string;
+          appointment_id?: string | null;
+          amount?: number;
+          payment_method?: string | null;
+          notes?: string | null;
+          payment_date?: string;
         };
       };
     };

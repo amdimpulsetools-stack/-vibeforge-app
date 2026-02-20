@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -13,8 +13,9 @@ import type {
   Service,
   LookupValue,
   AppointmentWithRelations,
+  Patient,
 } from "@/types/admin";
-import { X, Loader2, AlertTriangle } from "lucide-react";
+import { X, Loader2, AlertTriangle, Search, UserCheck, UserPlus } from "lucide-react";
 
 interface AppointmentFormModalProps {
   defaults: {
@@ -47,18 +48,23 @@ export function AppointmentFormModal({
 }: AppointmentFormModalProps) {
   const { t } = useLanguage();
   const [saving, setSaving] = useState(false);
-  const [conflictWarning, setConflictWarning] = useState<string | null>(null);
+  const [searchingPatient, setSearchingPatient] = useState(false);
+  const [foundPatient, setFoundPatient] = useState<Patient | null>(null);
+  const [patientSearched, setPatientSearched] = useState(false);
 
   const {
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<AppointmentFormData>({
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
       patient_name: "",
       patient_phone: "",
+      patient_dni: "",
+      patient_id: "",
       doctor_id: "",
       office_id: defaults?.officeId ?? "",
       service_id: "",
@@ -76,7 +82,6 @@ export function AppointmentFormModal({
   const selectedService = services.find((s) => s.id === selectedServiceId);
   const duration = selectedService?.duration_minutes ?? 30;
 
-  // Calculate end_time based on start_time + service duration
   const watchedStartTime = watch("start_time");
   const endTime = useMemo(() => {
     if (!watchedStartTime) return "";
@@ -87,15 +92,38 @@ export function AppointmentFormModal({
     return `${endH.toString().padStart(2, "0")}:${endM.toString().padStart(2, "0")}`;
   }, [watchedStartTime, duration]);
 
-  // Check conflicts on form values
   const watchedDate = watch("appointment_date");
   const watchedOffice = watch("office_id");
   const watchedDoctor = watch("doctor_id");
 
+  // Search patient by DNI
+  const searchPatientByDni = useCallback(async (dni: string) => {
+    if (!dni || dni.trim().length < 3) return;
+    setSearchingPatient(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("patients")
+      .select("*")
+      .eq("dni", dni.trim())
+      .single();
+
+    setSearchingPatient(false);
+    setPatientSearched(true);
+
+    if (data) {
+      setFoundPatient(data as Patient);
+      setValue("patient_id", data.id);
+      setValue("patient_name", `${data.first_name} ${data.last_name}`);
+      setValue("patient_phone", data.phone ?? "");
+    } else {
+      setFoundPatient(null);
+      setValue("patient_id", "");
+    }
+  }, [setValue]);
+
   const checkConflicts = () => {
     if (!watchedDate || !watchedStartTime || !endTime) return null;
 
-    // Check office conflict
     const officeConflict = existingAppointments.find(
       (a) =>
         a.appointment_date === watchedDate &&
@@ -108,7 +136,6 @@ export function AppointmentFormModal({
       return t("scheduler.conflict_error");
     }
 
-    // Check doctor conflict (same doctor, different office, same time)
     if (watchedDoctor) {
       const doctorConflict = existingAppointments.find(
         (a) =>
@@ -130,7 +157,6 @@ export function AppointmentFormModal({
   const conflict = checkConflicts();
 
   const onSubmit = async (values: AppointmentFormData) => {
-    // Block if office conflict
     const officeConflict = existingAppointments.find(
       (a) =>
         a.appointment_date === values.appointment_date &&
@@ -147,9 +173,43 @@ export function AppointmentFormModal({
     setSaving(true);
     const supabase = createClient();
 
+    // Auto-create patient if DNI provided but not found
+    let patientId = values.patient_id || null;
+    if (!patientId && values.patient_dni && values.patient_dni.trim()) {
+      const nameParts = values.patient_name.trim().split(" ");
+      const firstName = nameParts[0] || values.patient_name;
+      const lastName = nameParts.slice(1).join(" ") || "-";
+
+      const { data: newPatient, error: patientError } = await supabase
+        .from("patients")
+        .insert({
+          dni: values.patient_dni.trim(),
+          first_name: firstName,
+          last_name: lastName,
+          phone: values.patient_phone || null,
+        })
+        .select()
+        .single();
+
+      if (patientError) {
+        // If DNI already exists, try to find the patient
+        if (patientError.code === "23505") {
+          const { data: existingPatient } = await supabase
+            .from("patients")
+            .select("*")
+            .eq("dni", values.patient_dni.trim())
+            .single();
+          if (existingPatient) patientId = existingPatient.id;
+        }
+      } else if (newPatient) {
+        patientId = newPatient.id;
+      }
+    }
+
     const { error } = await supabase.from("appointments").insert({
       patient_name: values.patient_name,
       patient_phone: values.patient_phone || null,
+      patient_id: patientId,
       doctor_id: values.doctor_id,
       office_id: values.office_id,
       service_id: values.service_id,
@@ -201,7 +261,53 @@ export function AppointmentFormModal({
             </div>
           )}
 
-          {/* Patient */}
+          {/* DNI Search */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">{t("scheduler.patient_dni")}</label>
+            <div className="flex gap-2">
+              <input
+                {...register("patient_dni")}
+                className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                placeholder="12345678"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    searchPatientByDni(watch("patient_dni") ?? "");
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => searchPatientByDni(watch("patient_dni") ?? "")}
+                disabled={searchingPatient}
+                className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
+              >
+                {searchingPatient ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </button>
+            </div>
+            {/* Patient search result indicator */}
+            {patientSearched && (
+              <div className={`flex items-center gap-1.5 text-xs ${foundPatient ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400"}`}>
+                {foundPatient ? (
+                  <>
+                    <UserCheck className="h-3.5 w-3.5" />
+                    {t("patients.patient_found")}: {foundPatient.first_name} {foundPatient.last_name}
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-3.5 w-3.5" />
+                    {t("patients.patient_new")}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Patient Name & Phone */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t("scheduler.patient_name")} *</label>
@@ -223,6 +329,9 @@ export function AppointmentFormModal({
               />
             </div>
           </div>
+
+          {/* Hidden patient_id */}
+          <input type="hidden" {...register("patient_id")} />
 
           {/* Date & Time */}
           <div className="grid gap-4 sm:grid-cols-3">

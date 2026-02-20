@@ -25,11 +25,38 @@ export type Appointment = Database["public"]["Tables"]["appointments"]["Row"];
 export type AppointmentInsert = Database["public"]["Tables"]["appointments"]["Insert"];
 export type AppointmentUpdate = Database["public"]["Tables"]["appointments"]["Update"];
 
+export type Patient = Database["public"]["Tables"]["patients"]["Row"];
+export type PatientInsert = Database["public"]["Tables"]["patients"]["Insert"];
+export type PatientUpdate = Database["public"]["Tables"]["patients"]["Update"];
+
+export type PatientTag = Database["public"]["Tables"]["patient_tags"]["Row"];
+export type PatientTagInsert = Database["public"]["Tables"]["patient_tags"]["Insert"];
+
+export type PatientPayment = Database["public"]["Tables"]["patient_payments"]["Row"];
+export type PatientPaymentInsert = Database["public"]["Tables"]["patient_payments"]["Insert"];
+export type PatientPaymentUpdate = Database["public"]["Tables"]["patient_payments"]["Update"];
+
 // Appointment con relaciones para el scheduler
 export type AppointmentWithRelations = Appointment & {
   doctors: Doctor;
   offices: Office;
   services: Service;
+  patients?: Patient | null;
+};
+
+// Patient con tags y relaciones
+export type PatientWithTags = Patient & {
+  patient_tags: PatientTag[];
+};
+
+// Patient con historial completo
+export type PatientWithHistory = PatientWithTags & {
+  appointments: (Appointment & {
+    doctors: Doctor;
+    services: Service;
+    offices: Office;
+  })[];
+  patient_payments: PatientPayment[];
 };
 
 export type LookupCategory = Database["public"]["Tables"]["lookup_categories"]["Row"];
@@ -101,4 +128,20 @@ export const DAYS_OF_WEEK = [
   { value: 5, label: "Viernes" },
   { value: 6, label: "Sábado" },
   { value: 0, label: "Domingo" },
+] as const;
+
+// Colores de estado de paciente
+export const PATIENT_STATUS_COLORS: Record<string, string> = {
+  active: "#22c55e",
+  inactive: "#9ca3af",
+};
+
+// Tags predefinidos comunes
+export const COMMON_PATIENT_TAGS = [
+  "VIP",
+  "Fertilidad",
+  "Gestante",
+  "Control",
+  "Cirugía",
+  "Nuevo",
 ] as const;

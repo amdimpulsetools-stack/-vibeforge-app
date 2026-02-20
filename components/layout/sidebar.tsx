@@ -23,6 +23,7 @@ import {
   ClipboardList,
   ListOrdered,
   CalendarDays,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 
@@ -48,6 +49,7 @@ function isNavGroup(entry: NavEntry): entry is NavGroup {
 const navEntries: NavEntry[] = [
   { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
   { titleKey: "nav.scheduler", href: "/scheduler", icon: CalendarDays },
+  { titleKey: "nav.patients", href: "/patients", icon: Users },
   {
     titleKey: "nav.admin",
     icon: ShieldCheck,
