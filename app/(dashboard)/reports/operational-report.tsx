@@ -4,32 +4,173 @@ import { useMemo } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations } from "@/types/admin";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  LineChart,
-  Line,
-  AreaChart,
-  Area,
-} from "recharts";
-import {
   Clock,
   Building2,
-  Activity,
   Star,
   Calendar,
-  TrendingUp,
 } from "lucide-react";
 
 interface OperationalReportProps {
   appointments: AppointmentWithRelations[];
   dateFrom: string;
   dateTo: string;
+}
+
+// Native SVG area chart
+function AreaChartSVG({
+  data,
+  keys,
+  colors,
+  height = 240,
+}: {
+  data: Record<string, string | number>[];
+  keys: string[];
+  colors: string[];
+  height?: number;
+}) {
+  const paddingLeft = 40;
+  const paddingBottom = 40;
+  const paddingTop = 10;
+  const paddingRight = 10;
+  const width = 500;
+  const chartH = height - paddingTop - paddingBottom;
+  const chartW = width - paddingLeft - paddingRight;
+
+  const maxVal = Math.max(
+    1,
+    ...data.flatMap((d) => keys.map((k) => Number(d[k] ?? 0)))
+  );
+
+  const stepX = data.length > 1 ? chartW / (data.length - 1) : chartW;
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }}>
+      {/* Y gridlines */}
+      {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
+        const y = paddingTop + chartH * (1 - frac);
+        return (
+          <g key={frac}>
+            <line x1={paddingLeft} x2={paddingLeft + chartW} y1={y} y2={y} stroke="hsl(var(--border))" strokeWidth={0.5} strokeDasharray="3 3" />
+            <text x={paddingLeft - 4} y={y + 4} textAnchor="end" fontSize={9} fill="hsl(var(--muted-foreground))">{Math.round(maxVal * frac)}</text>
+          </g>
+        );
+      })}
+
+      {/* Areas + lines */}
+      {keys.map((k, ki) => {
+        const points = data.map((d, i) => {
+          const x = paddingLeft + (data.length > 1 ? i * stepX : chartW / 2);
+          const val = Number(d[k] ?? 0);
+          const y = paddingTop + chartH - (val / maxVal) * chartH;
+          return { x, y };
+        });
+
+        const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+        const areaPath = `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartH} L ${points[0].x} ${paddingTop + chartH} Z`;
+
+        return (
+          <g key={k}>
+            <path d={areaPath} fill={colors[ki]} fillOpacity={0.15} />
+            <path d={linePath} fill="none" stroke={colors[ki]} strokeWidth={2} />
+            {points.map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r={2} fill={colors[ki]} />
+            ))}
+          </g>
+        );
+      })}
+
+      {/* X labels */}
+      {data.map((d, i) => {
+        const x = paddingLeft + (data.length > 1 ? i * stepX : chartW / 2);
+        const showLabel = data.length <= 15 || i % Math.ceil(data.length / 12) === 0;
+        if (!showLabel) return null;
+        return (
+          <text key={i} x={x} y={paddingTop + chartH + 14} textAnchor="middle" fontSize={8} fill="hsl(var(--muted-foreground))">
+            {String(d.date ?? d.name ?? "")}
+          </text>
+        );
+      })}
+
+      {/* X axis */}
+      <line x1={paddingLeft} x2={paddingLeft + chartW} y1={paddingTop + chartH} y2={paddingTop + chartH} stroke="hsl(var(--border))" strokeWidth={1} />
+    </svg>
+  );
+}
+
+// Native SVG bar chart
+function BarChartSVG({
+  data,
+  keys,
+  colors,
+  height = 240,
+}: {
+  data: Record<string, string | number>[];
+  keys: string[];
+  colors: string[];
+  height?: number;
+}) {
+  const paddingLeft = 50;
+  const paddingBottom = 40;
+  const paddingTop = 10;
+  const paddingRight = 10;
+  const width = 500;
+  const chartH = height - paddingTop - paddingBottom;
+  const chartW = width - paddingLeft - paddingRight;
+
+  const maxVal = Math.max(
+    1,
+    ...data.flatMap((d) => keys.map((k) => Number(d[k] ?? 0)))
+  );
+
+  const groupW = chartW / Math.max(data.length, 1);
+  const barW = Math.max(4, (groupW / (keys.length + 1)) * 0.85);
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }}>
+      {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
+        const y = paddingTop + chartH * (1 - frac);
+        return (
+          <g key={frac}>
+            <line x1={paddingLeft} x2={paddingLeft + chartW} y1={y} y2={y} stroke="hsl(var(--border))" strokeWidth={0.5} strokeDasharray="3 3" />
+            <text x={paddingLeft - 4} y={y + 4} textAnchor="end" fontSize={9} fill="hsl(var(--muted-foreground))">{Math.round(maxVal * frac)}</text>
+          </g>
+        );
+      })}
+      {data.map((d, gi) => {
+        const groupX = paddingLeft + gi * groupW + groupW / 2;
+        const totalBarW = keys.length * barW + (keys.length - 1) * 2;
+        const startX = groupX - totalBarW / 2;
+        return (
+          <g key={gi}>
+            {keys.map((k, ki) => {
+              const val = Number(d[k] ?? 0);
+              const bh = (val / maxVal) * chartH;
+              const bx = startX + ki * (barW + 2);
+              const by = paddingTop + chartH - bh;
+              return <rect key={k} x={bx} y={by} width={barW} height={bh} fill={colors[ki]} rx={2} />;
+            })}
+            <text x={groupX} y={paddingTop + chartH + 14} textAnchor="middle" fontSize={8} fill="hsl(var(--muted-foreground))">
+              {String(d.hour ?? d.name ?? "")}
+            </text>
+          </g>
+        );
+      })}
+      <line x1={paddingLeft} x2={paddingLeft + chartW} y1={paddingTop + chartH} y2={paddingTop + chartH} stroke="hsl(var(--border))" strokeWidth={1} />
+    </svg>
+  );
+}
+
+function ChartLegend({ items }: { items: { label: string; color: string }[] }) {
+  return (
+    <div className="flex flex-wrap gap-3 mt-2">
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: item.color }} />
+          {item.label}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export function OperationalReport({
@@ -172,51 +313,22 @@ export function OperationalReport({
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Daily trend area chart */}
         <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold mb-4">{t("reports.daily_trend")}</h3>
+          <h3 className="text-sm font-semibold mb-3">{t("reports.daily_trend")}</h3>
           {dailyTrend.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <AreaChart data={dailyTrend} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: "11px" }} />
-                <Area
-                  type="monotone"
-                  dataKey="completed"
-                  name="Atendidos"
-                  stroke="#22c55e"
-                  fill="#22c55e"
-                  fillOpacity={0.2}
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="scheduled"
-                  name="Programados"
-                  stroke="#3b82f6"
-                  fill="#3b82f6"
-                  fillOpacity={0.1}
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="cancelled"
-                  name="Cancelados"
-                  stroke="#ef4444"
-                  fill="#ef4444"
-                  fillOpacity={0.1}
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <>
+              <AreaChartSVG
+                data={dailyTrend}
+                keys={["completed", "scheduled", "cancelled"]}
+                colors={["#22c55e", "#3b82f6", "#ef4444"]}
+              />
+              <ChartLegend
+                items={[
+                  { label: "Atendidos", color: "#22c55e" },
+                  { label: "Programados", color: "#3b82f6" },
+                  { label: "Cancelados", color: "#ef4444" },
+                ]}
+              />
+            </>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">{t("common.no_results")}</p>
           )}
@@ -224,23 +336,13 @@ export function OperationalReport({
 
         {/* Peak hours */}
         <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold mb-4">{t("reports.peak_hours")}</h3>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={peakHoursData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="hour" tick={{ fontSize: 10 }} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: "hsl(var(--card))",
-                  border: "1px solid hsl(var(--border))",
-                  borderRadius: "8px",
-                  fontSize: "12px",
-                }}
-              />
-              <Bar dataKey="citas" name="Citas" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <h3 className="text-sm font-semibold mb-3">{t("reports.peak_hours")}</h3>
+          <BarChartSVG
+            data={peakHoursData}
+            keys={["citas"]}
+            colors={["#8b5cf6"]}
+          />
+          <ChartLegend items={[{ label: "Citas", color: "#8b5cf6" }]} />
         </div>
       </div>
 
