@@ -24,6 +24,7 @@ import {
   ListOrdered,
   CalendarDays,
   Users,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,6 +51,7 @@ const navEntries: NavEntry[] = [
   { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
   { titleKey: "nav.scheduler", href: "/scheduler", icon: CalendarDays },
   { titleKey: "nav.patients", href: "/patients", icon: Users },
+  { titleKey: "nav.reports", href: "/reports", icon: BarChart3 },
   {
     titleKey: "nav.admin",
     icon: ShieldCheck,
