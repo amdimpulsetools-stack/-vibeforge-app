@@ -8,13 +8,20 @@ import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useLanguage } from "@/components/language-provider";
+import { useUserProfile } from "@/hooks/use-user-profile";
 import {
   LayoutDashboard,
   Settings,
   UserCircle,
   LogOut,
   ChevronLeft,
+  ChevronDown,
   Zap,
+  ShieldCheck,
+  Building2,
+  Stethoscope,
+  ClipboardList,
+  ListOrdered,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,13 +31,32 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-// ================================================
-// PERSONALIZA: Agrega aquí las rutas de tu app
-// ================================================
-const navItems: NavItem[] = [
+interface NavGroup {
+  titleKey: string;
+  icon: LucideIcon;
+  adminOnly?: boolean;
+  items: NavItem[];
+}
+
+type NavEntry = NavItem | NavGroup;
+
+function isNavGroup(entry: NavEntry): entry is NavGroup {
+  return "items" in entry;
+}
+
+const navEntries: NavEntry[] = [
   { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
-  // { titleKey: "Pacientes", href: "/patients", icon: Users },
-  // { titleKey: "Citas", href: "/appointments", icon: Calendar },
+  {
+    titleKey: "nav.admin",
+    icon: ShieldCheck,
+    adminOnly: true,
+    items: [
+      { titleKey: "nav.admin_offices", href: "/admin/offices", icon: Building2 },
+      { titleKey: "nav.admin_doctors", href: "/admin/doctors", icon: Stethoscope },
+      { titleKey: "nav.admin_services", href: "/admin/services", icon: ClipboardList },
+      { titleKey: "nav.admin_lookups", href: "/admin/lookups", icon: ListOrdered },
+    ],
+  },
   { titleKey: "nav.account", href: "/account", icon: UserCircle },
   { titleKey: "nav.settings", href: "/settings", icon: Settings },
 ];
@@ -39,7 +65,19 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useLanguage();
+  const { isAdmin } = useUserProfile();
   const [collapsed, setCollapsed] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  const isPathActive = (href: string) =>
+    pathname === href || pathname.startsWith(href + "/");
+
+  const isGroupActive = (group: NavGroup) =>
+    group.items.some((item) => isPathActive(item.href));
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -47,6 +85,73 @@ export function Sidebar() {
     toast.success(t("nav.logout_success"));
     router.push("/login");
     router.refresh();
+  };
+
+  const renderNavItem = (item: NavItem) => {
+    const isActive = isPathActive(item.href);
+    return (
+      <Link key={item.href} href={item.href}>
+        <span
+          className={cn(
+            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+            "hover:bg-accent hover:text-accent-foreground",
+            isActive
+              ? "bg-primary/10 text-primary font-medium"
+              : "text-muted-foreground",
+            collapsed && "justify-center px-2"
+          )}
+        >
+          <item.icon className="h-[18px] w-[18px] shrink-0" />
+          {!collapsed && <span>{t(item.titleKey)}</span>}
+        </span>
+      </Link>
+    );
+  };
+
+  const renderNavGroup = (group: NavGroup) => {
+    if (group.adminOnly && !isAdmin) return null;
+
+    const groupActive = isGroupActive(group);
+    const isExpanded = expandedGroups[group.titleKey] ?? groupActive;
+
+    return (
+      <div key={group.titleKey}>
+        <button
+          onClick={() => {
+            if (collapsed) {
+              setCollapsed(false);
+              setExpandedGroups((prev) => ({ ...prev, [group.titleKey]: true }));
+            } else {
+              toggleGroup(group.titleKey);
+            }
+          }}
+          className={cn(
+            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+            "hover:bg-accent hover:text-accent-foreground",
+            groupActive ? "text-primary font-medium" : "text-muted-foreground",
+            collapsed && "justify-center px-2"
+          )}
+        >
+          <group.icon className="h-[18px] w-[18px] shrink-0" />
+          {!collapsed && (
+            <>
+              <span className="flex-1 text-left">{t(group.titleKey)}</span>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 transition-transform",
+                  isExpanded && "rotate-180"
+                )}
+              />
+            </>
+          )}
+        </button>
+        {!collapsed && isExpanded && (
+          <div className="ml-4 mt-1 space-y-1 border-l border-border pl-2">
+            {group.items.map(renderNavItem)}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -83,27 +188,10 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 p-2">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link key={item.href} href={item.href}>
-              <span
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  isActive
-                    ? "bg-primary/10 text-primary font-medium"
-                    : "text-muted-foreground",
-                  collapsed && "justify-center px-2"
-                )}
-              >
-                <item.icon className="h-[18px] w-[18px] shrink-0" />
-                {!collapsed && <span>{t(item.titleKey)}</span>}
-              </span>
-            </Link>
-          );
-        })}
+      <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+        {navEntries.map((entry) =>
+          isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)
+        )}
       </nav>
 
       {/* Footer */}
