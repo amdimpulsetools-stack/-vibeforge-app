@@ -277,6 +277,61 @@ export interface Database {
           updated_at?: string;
         };
       };
+      appointments: {
+        Row: {
+          id: string;
+          patient_name: string;
+          patient_phone: string | null;
+          doctor_id: string;
+          office_id: string;
+          service_id: string;
+          appointment_date: string;
+          start_time: string;
+          end_time: string;
+          status: "scheduled" | "confirmed" | "completed" | "cancelled";
+          origin: string | null;
+          payment_method: string | null;
+          responsible: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          patient_name: string;
+          patient_phone?: string | null;
+          doctor_id: string;
+          office_id: string;
+          service_id: string;
+          appointment_date: string;
+          start_time: string;
+          end_time: string;
+          status?: "scheduled" | "confirmed" | "completed" | "cancelled";
+          origin?: string | null;
+          payment_method?: string | null;
+          responsible?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          patient_name?: string;
+          patient_phone?: string | null;
+          doctor_id?: string;
+          office_id?: string;
+          service_id?: string;
+          appointment_date?: string;
+          start_time?: string;
+          end_time?: string;
+          status?: "scheduled" | "confirmed" | "completed" | "cancelled";
+          origin?: string | null;
+          payment_method?: string | null;
+          responsible?: string | null;
+          notes?: string | null;
+          updated_at?: string;
+        };
+      };
     };
   };
 }

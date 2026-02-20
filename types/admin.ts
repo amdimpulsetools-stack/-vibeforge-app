@@ -21,6 +21,17 @@ export type DoctorService = Database["public"]["Tables"]["doctor_services"]["Row
 export type DoctorSchedule = Database["public"]["Tables"]["doctor_schedules"]["Row"];
 export type DoctorScheduleInsert = Database["public"]["Tables"]["doctor_schedules"]["Insert"];
 
+export type Appointment = Database["public"]["Tables"]["appointments"]["Row"];
+export type AppointmentInsert = Database["public"]["Tables"]["appointments"]["Insert"];
+export type AppointmentUpdate = Database["public"]["Tables"]["appointments"]["Update"];
+
+// Appointment con relaciones para el scheduler
+export type AppointmentWithRelations = Appointment & {
+  doctors: Doctor;
+  offices: Office;
+  services: Service;
+};
+
 export type LookupCategory = Database["public"]["Tables"]["lookup_categories"]["Row"];
 export type LookupValue = Database["public"]["Tables"]["lookup_values"]["Row"];
 export type LookupValueInsert = Database["public"]["Tables"]["lookup_values"]["Insert"];
@@ -67,6 +78,19 @@ export const LOOKUP_SLUGS = {
   APPOINTMENT_STATUS: "appointment_status",
   RESPONSIBLE: "responsible",
 } as const;
+
+// Colores de estado de cita
+export const APPOINTMENT_STATUS_COLORS: Record<string, string> = {
+  scheduled: "#9ca3af",
+  confirmed: "#3b82f6",
+  completed: "#22c55e",
+  cancelled: "#ef4444",
+};
+
+// Intervalos del scheduler
+export const SCHEDULER_START_HOUR = 8;
+export const SCHEDULER_END_HOUR = 20;
+export const SCHEDULER_INTERVAL = 30;
 
 // Días de la semana (lunes primero)
 export const DAYS_OF_WEEK = [
