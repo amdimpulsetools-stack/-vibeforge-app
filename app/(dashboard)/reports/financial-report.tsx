@@ -4,20 +4,9 @@ import { useMemo } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, PatientPayment } from "@/types/admin";
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import {
   Download,
   DollarSign,
   Users,
-  TrendingUp,
   XCircle,
 } from "lucide-react";
 
@@ -40,6 +29,132 @@ interface DoctorProductivity {
   avgPerAppointment: number;
 }
 
+// Simple SVG bar chart — no external dependencies
+function BarChartSVG({
+  data,
+  keys,
+  colors,
+  height = 240,
+}: {
+  data: Record<string, string | number>[];
+  keys: string[];
+  colors: string[];
+  height?: number;
+}) {
+  const paddingLeft = 40;
+  const paddingBottom = 40;
+  const paddingTop = 10;
+  const paddingRight = 10;
+  const width = 500;
+  const chartH = height - paddingTop - paddingBottom;
+  const chartW = width - paddingLeft - paddingRight;
+
+  const maxVal = Math.max(
+    1,
+    ...data.flatMap((d) => keys.map((k) => Number(d[k] ?? 0)))
+  );
+
+  const groupW = chartW / data.length;
+  const barW = Math.max(4, (groupW / (keys.length + 1)) * 0.85);
+
+  return (
+    <svg
+      viewBox={`0 0 ${width} ${height}`}
+      className="w-full"
+      style={{ height }}
+    >
+      {/* Y gridlines */}
+      {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
+        const y = paddingTop + chartH * (1 - frac);
+        return (
+          <g key={frac}>
+            <line
+              x1={paddingLeft}
+              x2={paddingLeft + chartW}
+              y1={y}
+              y2={y}
+              stroke="hsl(var(--border))"
+              strokeWidth={0.5}
+              strokeDasharray="3 3"
+            />
+            <text
+              x={paddingLeft - 4}
+              y={y + 4}
+              textAnchor="end"
+              fontSize={9}
+              fill="hsl(var(--muted-foreground))"
+            >
+              {Math.round(maxVal * frac)}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* Bars */}
+      {data.map((d, gi) => {
+        const groupX = paddingLeft + gi * groupW + groupW / 2;
+        const totalBarW = keys.length * barW + (keys.length - 1) * 2;
+        const startX = groupX - totalBarW / 2;
+
+        return (
+          <g key={gi}>
+            {keys.map((k, ki) => {
+              const val = Number(d[k] ?? 0);
+              const bh = (val / maxVal) * chartH;
+              const bx = startX + ki * (barW + 2);
+              const by = paddingTop + chartH - bh;
+              return (
+                <rect
+                  key={k}
+                  x={bx}
+                  y={by}
+                  width={barW}
+                  height={bh}
+                  fill={colors[ki]}
+                  rx={2}
+                />
+              );
+            })}
+            <text
+              x={groupX}
+              y={paddingTop + chartH + 14}
+              textAnchor="middle"
+              fontSize={9}
+              fill="hsl(var(--muted-foreground))"
+            >
+              {String(d.name).split(" ").slice(0, 2).join(" ")}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* X axis */}
+      <line
+        x1={paddingLeft}
+        x2={paddingLeft + chartW}
+        y1={paddingTop + chartH}
+        y2={paddingTop + chartH}
+        stroke="hsl(var(--border))"
+        strokeWidth={1}
+      />
+    </svg>
+  );
+}
+
+// Legend component
+function ChartLegend({ items }: { items: { label: string; color: string }[] }) {
+  return (
+    <div className="flex flex-wrap gap-3 mt-2">
+      {items.map((item) => (
+        <div key={item.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: item.color }} />
+          {item.label}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function FinancialReport({
   appointments,
   payments,
@@ -48,7 +163,6 @@ export function FinancialReport({
 }: FinancialReportProps) {
   const { t } = useLanguage();
 
-  // Doctor productivity breakdown
   const doctorData = useMemo(() => {
     const map = new Map<string, DoctorProductivity>();
 
@@ -86,7 +200,6 @@ export function FinancialReport({
       }
     });
 
-    // Calculate avg
     map.forEach((doc) => {
       const activeAppts = doc.attended + doc.confirmed;
       doc.avgPerAppointment = activeAppts > 0 ? doc.revenue / activeAppts : 0;
@@ -95,28 +208,23 @@ export function FinancialReport({
     return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
   }, [appointments]);
 
-  // Summary KPIs
   const totalRevenue = doctorData.reduce((sum, d) => sum + d.revenue, 0);
   const totalAttended = doctorData.reduce((sum, d) => sum + d.attended, 0);
   const totalCancelled = doctorData.reduce((sum, d) => sum + d.cancelled, 0);
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
 
-  // Chart data for bar chart
   const chartData = doctorData.map((d) => ({
-    name: d.name.split(" ").slice(0, 2).join(" "),
+    name: d.name,
     Atendidos: d.attended,
     Confirmados: d.confirmed,
     Cancelados: d.cancelled,
-    Programados: d.scheduled,
   }));
 
-  // Revenue chart data
   const revenueChartData = doctorData.map((d) => ({
-    name: d.name.split(" ").slice(0, 2).join(" "),
+    name: d.name,
     Facturado: Number(d.revenue.toFixed(2)),
   }));
 
-  // CSV export
   const exportCSV = () => {
     const headers = [
       "Doctor",
@@ -139,7 +247,6 @@ export function FinancialReport({
       d.avgPerAppointment.toFixed(2),
     ]);
 
-    // Add totals row
     rows.push([
       "TOTAL",
       appointments.length,
@@ -199,27 +306,22 @@ export function FinancialReport({
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Appointments by doctor */}
         <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold mb-4">{t("reports.appointments_by_doctor")}</h3>
+          <h3 className="text-sm font-semibold mb-3">{t("reports.appointments_by_doctor")}</h3>
           {chartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={chartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: "11px" }} />
-                <Bar dataKey="Atendidos" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Confirmados" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="Cancelados" fill="#ef4444" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <>
+              <BarChartSVG
+                data={chartData}
+                keys={["Atendidos", "Confirmados", "Cancelados"]}
+                colors={["#22c55e", "#3b82f6", "#ef4444"]}
+              />
+              <ChartLegend
+                items={[
+                  { label: "Atendidos", color: "#22c55e" },
+                  { label: "Confirmados", color: "#3b82f6" },
+                  { label: "Cancelados", color: "#ef4444" },
+                ]}
+              />
+            </>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">{t("common.no_results")}</p>
           )}
@@ -227,25 +329,16 @@ export function FinancialReport({
 
         {/* Revenue by doctor */}
         <div className="rounded-xl border border-border bg-card p-4">
-          <h3 className="text-sm font-semibold mb-4">{t("reports.revenue_by_doctor")}</h3>
+          <h3 className="text-sm font-semibold mb-3">{t("reports.revenue_by_doctor")}</h3>
           {revenueChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={revenueChartData} margin={{ top: 5, right: 10, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip
-                  formatter={(value) => [`S/. ${Number(value ?? 0).toFixed(2)}`, "Facturado"]}
-                  contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
-                    border: "1px solid hsl(var(--border))",
-                    borderRadius: "8px",
-                    fontSize: "12px",
-                  }}
-                />
-                <Bar dataKey="Facturado" fill="#10b981" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <>
+              <BarChartSVG
+                data={revenueChartData}
+                keys={["Facturado"]}
+                colors={["#10b981"]}
+              />
+              <ChartLegend items={[{ label: "Facturado (S/.)", color: "#10b981" }]} />
+            </>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">{t("common.no_results")}</p>
           )}
@@ -313,7 +406,6 @@ export function FinancialReport({
                   </td>
                 </tr>
               ))}
-              {/* Totals row */}
               {doctorData.length > 0 && (
                 <tr className="bg-muted/50 font-bold">
                   <td className="px-4 py-2.5">TOTAL</td>
