@@ -206,6 +206,10 @@ export function AppointmentFormModal({
       }
     }
 
+    // Capture service price at appointment creation time
+    const serviceForPrice = services.find((s) => s.id === values.service_id);
+    const priceSnapshot = serviceForPrice ? Number(serviceForPrice.base_price) : null;
+
     const { error } = await supabase.from("appointments").insert({
       patient_name: values.patient_name,
       patient_phone: values.patient_phone || null,
@@ -221,6 +225,7 @@ export function AppointmentFormModal({
       payment_method: values.payment_method || null,
       responsible: values.responsible || null,
       notes: values.notes || null,
+      price_snapshot: priceSnapshot,
     });
 
     setSaving(false);

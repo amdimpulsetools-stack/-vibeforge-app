@@ -25,6 +25,7 @@ import {
   CalendarDays,
   Users,
   BarChart3,
+  History,
   type LucideIcon,
 } from "lucide-react";
 
@@ -49,7 +50,14 @@ function isNavGroup(entry: NavEntry): entry is NavGroup {
 
 const navEntries: NavEntry[] = [
   { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { titleKey: "nav.scheduler", href: "/scheduler", icon: CalendarDays },
+  {
+    titleKey: "nav.scheduler",
+    icon: CalendarDays,
+    items: [
+      { titleKey: "nav.scheduler_calendar", href: "/scheduler", icon: CalendarDays },
+      { titleKey: "nav.scheduler_history", href: "/scheduler/history", icon: History },
+    ],
+  },
   { titleKey: "nav.patients", href: "/patients", icon: Users },
   { titleKey: "nav.reports", href: "/reports", icon: BarChart3 },
   {

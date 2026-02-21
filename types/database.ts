@@ -294,6 +294,9 @@ export interface Database {
           payment_method: string | null;
           responsible: string | null;
           notes: string | null;
+          edited_by_name: string | null;
+          edited_at: string | null;
+          price_snapshot: number | null;
           created_at: string;
           updated_at: string;
         };
@@ -313,6 +316,9 @@ export interface Database {
           payment_method?: string | null;
           responsible?: string | null;
           notes?: string | null;
+          edited_by_name?: string | null;
+          edited_at?: string | null;
+          price_snapshot?: number | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -332,6 +338,9 @@ export interface Database {
           payment_method?: string | null;
           responsible?: string | null;
           notes?: string | null;
+          edited_by_name?: string | null;
+          edited_at?: string | null;
+          price_snapshot?: number | null;
           updated_at?: string;
         };
       };

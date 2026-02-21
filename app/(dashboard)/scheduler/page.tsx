@@ -294,6 +294,11 @@ export default function SchedulerPage() {
             onClose={handleCloseSidebar}
             onUpdate={handleSaved}
             onReschedule={() => setShowReschedule(true)}
+            doctors={doctors}
+            services={services}
+            lookupOrigins={lookupOrigins}
+            lookupPayments={lookupPayments}
+            lookupResponsibles={lookupResponsibles}
           />
         )}
       </div>

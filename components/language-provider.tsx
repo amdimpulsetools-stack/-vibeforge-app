@@ -161,7 +161,21 @@ const translations: Record<Language, Record<string, string>> = {
     "schedule.add_block": "Agregar bloque",
     "schedule.remove_block": "Eliminar",
 
+    // Scheduler history
+    "nav.scheduler_calendar": "Agenda",
+    "nav.scheduler_history": "Histórico de citas",
+    "history.title": "Histórico de Citas",
+    "history.subtitle": "Registro cronológico de todas las citas",
+    "history.filters": "Filtros",
+    "history.date_from": "Desde",
+    "history.date_to": "Hasta",
+    "history.records": "registros",
+    "history.price": "Precio",
+    "history.price_locked": "Precio bloqueado al momento de la cita",
+
     // Scheduler (module 2)
+    "scheduler.editing": "Editando",
+    "scheduler.edited_label": "editó:",
     "scheduler.title": "Agenda",
     "scheduler.today": "Hoy",
     "scheduler.day_view": "Día",
@@ -468,7 +482,21 @@ const translations: Record<Language, Record<string, string>> = {
     "schedule.add_block": "Add block",
     "schedule.remove_block": "Remove",
 
+    // Scheduler history
+    "nav.scheduler_calendar": "Schedule",
+    "nav.scheduler_history": "Appointment History",
+    "history.title": "Appointment History",
+    "history.subtitle": "Chronological record of all appointments",
+    "history.filters": "Filters",
+    "history.date_from": "From",
+    "history.date_to": "To",
+    "history.records": "records",
+    "history.price": "Price",
+    "history.price_locked": "Price locked at appointment time",
+
     // Scheduler (module 2)
+    "scheduler.editing": "Editing",
+    "scheduler.edited_label": "edited:",
     "scheduler.title": "Schedule",
     "scheduler.today": "Today",
     "scheduler.day_view": "Day",
