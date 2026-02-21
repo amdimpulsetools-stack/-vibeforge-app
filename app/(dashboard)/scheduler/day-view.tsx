@@ -195,20 +195,18 @@ export function DayView({
                         <p className="text-xs font-bold truncate text-foreground leading-tight">
                           {startAppt.patient_name}
                         </p>
-                        {/* Service name — only rendered when the relation has data */}
-                        {startAppt.services?.name && (
-                          <p className="text-[10px] font-semibold truncate text-primary leading-tight">
-                            {startAppt.services.name}
-                          </p>
-                        )}
+                        {/* Service name — always shown, emerald for contrast */}
+                        <p className="text-[11px] font-semibold truncate text-emerald-600 dark:text-emerald-400 leading-tight">
+                          {startAppt.services?.name ?? "—"}
+                        </p>
                         {/* Doctor — shown on 2+ slot appointments to avoid overflow */}
-                        {durationSlots >= 2 && startAppt.doctors?.full_name && (
+                        {durationSlots >= 2 && (
                           <p className="text-[10px] text-muted-foreground truncate leading-tight">
                             <span
                               className="inline-block h-1.5 w-1.5 rounded-full mr-1 shrink-0"
                               style={{ backgroundColor: startAppt.doctors?.color }}
                             />
-                            {startAppt.doctors.full_name}
+                            {startAppt.doctors?.full_name ?? "—"}
                           </p>
                         )}
                       </button>

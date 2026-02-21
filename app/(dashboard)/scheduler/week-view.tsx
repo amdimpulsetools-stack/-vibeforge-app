@@ -220,13 +220,13 @@ export function WeekView({
                           {startAppt.start_time.slice(0, 5)} {startAppt.patient_name}
                         </p>
                         {durationSlots > 1 && (
-                          <p className="text-[10px] text-primary/80 truncate font-medium">
-                            {startAppt.services?.name}
+                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 truncate font-medium">
+                            {startAppt.services?.name ?? "—"}
                           </p>
                         )}
                         {durationSlots > 2 && (
                           <p className="text-[10px] text-muted-foreground truncate">
-                            {startAppt.doctors?.full_name}
+                            {startAppt.doctors?.full_name ?? "—"}
                           </p>
                         )}
                       </button>
