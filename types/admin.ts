@@ -81,6 +81,18 @@ export type LookupCategoryWithValues = LookupCategory & {
   lookup_values: LookupValue[];
 };
 
+// Schedule block (bloqueo de horarios en el scheduler)
+export type ScheduleBlock = {
+  id: string;
+  block_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  office_id: string | null;
+  all_day: boolean;
+  reason: string | null;
+  created_at: string;
+};
+
 // Paleta de colores para doctores
 export const DOCTOR_COLORS = [
   { label: "Azul", value: "#3b82f6" },

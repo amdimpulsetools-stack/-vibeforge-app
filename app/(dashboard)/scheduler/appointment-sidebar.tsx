@@ -20,13 +20,14 @@ import {
   AlertCircle,
   Loader2,
   FileText,
+  RefreshCw,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface AppointmentSidebarProps {
   appointment: AppointmentWithRelations;
   onClose: () => void;
   onUpdate: () => void;
+  onReschedule?: () => void;
 }
 
 const STATUS_ICONS = {
@@ -40,6 +41,7 @@ export function AppointmentSidebar({
   appointment,
   onClose,
   onUpdate,
+  onReschedule,
 }: AppointmentSidebarProps) {
   const { t } = useLanguage();
   const [updating, setUpdating] = useState(false);
@@ -110,7 +112,7 @@ export function AppointmentSidebar({
           </span>
         </div>
 
-        {/* Patient */}
+        {/* Details */}
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <User className="h-4 w-4 text-muted-foreground" />
@@ -125,7 +127,6 @@ export function AppointmentSidebar({
             </div>
           </div>
 
-          {/* Date & Time */}
           <div className="flex items-center gap-3">
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm">{appointment.appointment_date}</p>
@@ -137,7 +138,6 @@ export function AppointmentSidebar({
             </p>
           </div>
 
-          {/* Doctor */}
           <div className="flex items-center gap-3">
             <Stethoscope className="h-4 w-4 text-muted-foreground" />
             <div className="flex items-center gap-2">
@@ -149,19 +149,16 @@ export function AppointmentSidebar({
             </div>
           </div>
 
-          {/* Office */}
           <div className="flex items-center gap-3">
             <Building2 className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm">{appointment.offices?.name}</p>
           </div>
 
-          {/* Service */}
           <div className="flex items-center gap-3">
             <ClipboardList className="h-4 w-4 text-muted-foreground" />
             <p className="text-sm">{appointment.services?.name}</p>
           </div>
 
-          {/* Notes */}
           {appointment.notes && (
             <div className="flex items-start gap-3">
               <FileText className="h-4 w-4 text-muted-foreground mt-0.5" />
@@ -169,7 +166,6 @@ export function AppointmentSidebar({
             </div>
           )}
 
-          {/* Origin / Payment / Responsible */}
           {(appointment.origin || appointment.payment_method || appointment.responsible) && (
             <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5 text-xs text-muted-foreground">
               {appointment.origin && (
@@ -186,38 +182,52 @@ export function AppointmentSidebar({
         </div>
 
         {/* Action buttons */}
-        {appointment.status !== "cancelled" && (
-          <div className="space-y-2 pt-2 border-t border-border">
-            {appointment.status === "scheduled" && (
-              <button
-                onClick={() => updateStatus("confirmed")}
-                disabled={updating}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50 transition-colors"
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {t("scheduler.confirm")}
-              </button>
-            )}
-            {(appointment.status === "scheduled" || appointment.status === "confirmed") && (
-              <button
-                onClick={() => updateStatus("completed")}
-                disabled={updating}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50 transition-colors"
-              >
-                {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                {t("scheduler.complete")}
-              </button>
-            )}
+        <div className="space-y-2 pt-2 border-t border-border">
+          {/* Reschedule — always shown for non-cancelled */}
+          {appointment.status !== "cancelled" && onReschedule && (
             <button
-              onClick={() => updateStatus("cancelled")}
+              onClick={onReschedule}
               disabled={updating}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
             >
-              {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-              {t("scheduler.cancel_appointment")}
+              <RefreshCw className="h-4 w-4" />
+              Reprogramar
             </button>
-          </div>
-        )}
+          )}
+
+          {appointment.status !== "cancelled" && (
+            <>
+              {appointment.status === "scheduled" && (
+                <button
+                  onClick={() => updateStatus("confirmed")}
+                  disabled={updating}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white hover:bg-blue-600 disabled:opacity-50 transition-colors"
+                >
+                  {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {t("scheduler.confirm")}
+                </button>
+              )}
+              {(appointment.status === "scheduled" || appointment.status === "confirmed") && (
+                <button
+                  onClick={() => updateStatus("completed")}
+                  disabled={updating}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+                >
+                  {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {t("scheduler.complete")}
+                </button>
+              )}
+              <button
+                onClick={() => updateStatus("cancelled")}
+                disabled={updating}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+              >
+                {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                {t("scheduler.cancel_appointment")}
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

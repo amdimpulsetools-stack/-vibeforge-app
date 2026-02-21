@@ -32,9 +32,9 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
-  TrendingUp,
   Megaphone,
   Save,
+  Edit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -44,7 +44,7 @@ interface PatientDrawerProps {
   onUpdate: () => void;
 }
 
-type DrawerTab = "history" | "finances" | "marketing";
+type DrawerTab = "info" | "history" | "finances" | "marketing";
 
 type AppointmentWithDetails = Appointment & {
   doctors: Doctor;
@@ -54,12 +54,22 @@ type AppointmentWithDetails = Appointment & {
 
 export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps) {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<DrawerTab>("history");
+  const [activeTab, setActiveTab] = useState<DrawerTab>("info");
   const [appointments, setAppointments] = useState<AppointmentWithDetails[]>([]);
   const [payments, setPayments] = useState<PatientPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTag, setNewTag] = useState("");
   const [addingTag, setAddingTag] = useState(false);
+
+  // ===== PERSONAL INFO STATE =====
+  const [infoFirstName, setInfoFirstName] = useState(patient.first_name ?? "");
+  const [infoLastName, setInfoLastName] = useState(patient.last_name ?? "");
+  const [infoDni, setInfoDni] = useState(patient.dni ?? "");
+  const [infoPhone, setInfoPhone] = useState(patient.phone ?? "");
+  const [infoEmail, setInfoEmail] = useState(patient.email ?? "");
+  const [infoNotes, setInfoNotes] = useState(patient.notes ?? "");
+  const [infoStatus, setInfoStatus] = useState(patient.status ?? "active");
+  const [savingInfo, setSavingInfo] = useState(false);
 
   // Marketing fields
   const [adicional1, setAdicional1] = useState(patient.adicional_1 ?? "");
@@ -101,8 +111,15 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     fetchHistory();
   }, [fetchHistory]);
 
-  // Update marketing fields when patient changes
+  // Sync fields when patient changes
   useEffect(() => {
+    setInfoFirstName(patient.first_name ?? "");
+    setInfoLastName(patient.last_name ?? "");
+    setInfoDni(patient.dni ?? "");
+    setInfoPhone(patient.phone ?? "");
+    setInfoEmail(patient.email ?? "");
+    setInfoNotes(patient.notes ?? "");
+    setInfoStatus(patient.status ?? "active");
     setAdicional1(patient.adicional_1 ?? "");
     setAdicional2(patient.adicional_2 ?? "");
     setVieneDesde(patient.viene_desde ?? "");
@@ -115,7 +132,41 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
   const pendingBalance = totalServiceCost - totalPaid;
 
-  // Add tag
+  // ===== HANDLERS =====
+
+  const handleSaveInfo = async () => {
+    if (!infoFirstName.trim() || !infoLastName.trim()) {
+      toast.error("Nombre y apellido son requeridos");
+      return;
+    }
+    setSavingInfo(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("patients")
+      .update({
+        first_name: infoFirstName.trim(),
+        last_name: infoLastName.trim(),
+        dni: infoDni.trim() || null,
+        phone: infoPhone.trim() || null,
+        email: infoEmail.trim() || null,
+        notes: infoNotes.trim() || null,
+        status: infoStatus,
+      })
+      .eq("id", patient.id);
+
+    setSavingInfo(false);
+    if (error) {
+      if (error.code === "23505") {
+        toast.error("Este DNI ya está registrado en otro paciente");
+      } else {
+        toast.error(t("patients.save_error"));
+      }
+      return;
+    }
+    toast.success(t("patients.save_success"));
+    onUpdate();
+  };
+
   const handleAddTag = async (tagValue: string) => {
     if (!tagValue.trim()) return;
     setAddingTag(true);
@@ -133,14 +184,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     onUpdate();
   };
 
-  // Remove tag
   const handleRemoveTag = async (tagId: string) => {
     const supabase = createClient();
     await supabase.from("patient_tags").delete().eq("id", tagId);
     onUpdate();
   };
 
-  // Save marketing
   const handleSaveMarketing = async () => {
     setSavingMarketing(true);
     const supabase = createClient();
@@ -162,7 +211,6 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     onUpdate();
   };
 
-  // Save payment
   const handleSavePayment = async () => {
     if (!paymentAmount || Number(paymentAmount) <= 0) return;
     setSavingPayment(true);
@@ -191,6 +239,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   };
 
   const tabs: { key: DrawerTab; label: string; icon: typeof Clock }[] = [
+    { key: "info", label: "Datos", icon: Edit2 },
     { key: "history", label: t("patients.tab_history"), icon: Clock },
     { key: "finances", label: t("patients.tab_finances"), icon: DollarSign },
     { key: "marketing", label: t("patients.tab_marketing"), icon: Megaphone },
@@ -268,9 +317,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           ))}
           {/* Quick add common tags */}
           <div className="relative group">
-            <button
-              className="flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-            >
+            <button className="flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary transition-colors">
               <Tag className="h-3 w-3" />
               <Plus className="h-3 w-3" />
             </button>
@@ -324,13 +371,13 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border">
+      <div className="flex border-b border-border overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
             className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors border-b-2",
+              "flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors border-b-2 shrink-0",
               activeTab === tab.key
                 ? "border-primary text-primary"
                 : "border-transparent text-muted-foreground hover:text-foreground"
@@ -344,14 +391,111 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
       {/* Tab content */}
       <div className="flex-1 overflow-y-auto p-4">
-        {loading ? (
-          <div className="flex items-center justify-center py-10">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+
+        {/* ===== INFO TAB (EDIT PATIENT) ===== */}
+        {activeTab === "info" && (
+          <div className="space-y-4">
+            <p className="text-xs text-muted-foreground">Edita los datos personales del paciente.</p>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">{t("patients.first_name")} *</label>
+                <input
+                  value={infoFirstName}
+                  onChange={(e) => setInfoFirstName(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  placeholder="Juan"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">{t("patients.last_name")} *</label>
+                <input
+                  value={infoLastName}
+                  onChange={(e) => setInfoLastName(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  placeholder="Pérez"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">{t("patients.dni")}</label>
+              <input
+                value={infoDni}
+                onChange={(e) => setInfoDni(e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                placeholder="12345678"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">{t("patients.phone")}</label>
+                <input
+                  value={infoPhone}
+                  onChange={(e) => setInfoPhone(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  placeholder="+51 999 999 999"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">{t("patients.email")}</label>
+                <input
+                  type="email"
+                  value={infoEmail}
+                  onChange={(e) => setInfoEmail(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  placeholder="paciente@email.com"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Estado</label>
+              <select
+                value={infoStatus}
+                onChange={(e) => setInfoStatus(e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              >
+                <option value="active">{t("patients.active")}</option>
+                <option value="inactive">{t("patients.inactive")}</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">{t("patients.notes")}</label>
+              <textarea
+                value={infoNotes}
+                onChange={(e) => setInfoNotes(e.target.value)}
+                rows={3}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
+                placeholder="Observaciones internas..."
+              />
+            </div>
+
+            <button
+              onClick={handleSaveInfo}
+              disabled={savingInfo}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
+            >
+              {savingInfo ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {t("common.save")}
+            </button>
           </div>
-        ) : activeTab === "history" ? (
-          /* ===== HISTORY TAB ===== */
+        )}
+
+        {/* ===== HISTORY TAB ===== */}
+        {activeTab === "history" && (
           <div className="space-y-3">
-            {appointments.length === 0 ? (
+            {loading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : appointments.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 {t("patients.history_empty")}
               </p>
@@ -407,142 +551,154 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               })
             )}
           </div>
-        ) : activeTab === "finances" ? (
-          /* ===== FINANCES TAB ===== */
+        )}
+
+        {/* ===== FINANCES TAB ===== */}
+        {activeTab === "finances" && (
           <div className="space-y-4">
-            {/* Summary cards */}
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-lg border border-border p-3 text-center">
-                <p className="text-[10px] uppercase text-muted-foreground">{t("patients.service_price")}</p>
-                <p className="mt-1 text-base font-bold">S/. {totalServiceCost.toFixed(2)}</p>
+            {loading ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
               </div>
-              <div className="rounded-lg border border-border p-3 text-center">
-                <p className="text-[10px] uppercase text-muted-foreground">{t("patients.total_paid")}</p>
-                <p className="mt-1 text-base font-bold text-emerald-600">S/. {totalPaid.toFixed(2)}</p>
-              </div>
-              <div className={cn(
-                "rounded-lg border p-3 text-center",
-                pendingBalance > 0 ? "border-red-500/30 bg-red-500/5" : "border-border"
-              )}>
-                <p className="text-[10px] uppercase text-muted-foreground">{t("patients.pending_balance")}</p>
-                <p className={cn(
-                  "mt-1 text-base font-bold",
-                  pendingBalance > 0 ? "text-red-600" : "text-foreground"
-                )}>
-                  S/. {pendingBalance.toFixed(2)}
-                </p>
-              </div>
-            </div>
-
-            {/* Add payment */}
-            <button
-              onClick={() => setShowPaymentForm(!showPaymentForm)}
-              className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-muted-foreground/40 py-2 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" />
-              {t("patients.add_payment")}
-            </button>
-
-            {showPaymentForm && (
-              <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{t("patients.payment_amount")} *</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={paymentAmount}
-                      onChange={(e) => setPaymentAmount(e.target.value)}
-                      className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                      placeholder="0.00"
-                    />
+            ) : (
+              <>
+                {/* Summary cards */}
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-lg border border-border p-3 text-center">
+                    <p className="text-[10px] uppercase text-muted-foreground">{t("patients.service_price")}</p>
+                    <p className="mt-1 text-base font-bold">S/. {totalServiceCost.toFixed(2)}</p>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{t("patients.payment_date")}</label>
-                    <input
-                      type="date"
-                      value={paymentDate}
-                      onChange={(e) => setPaymentDate(e.target.value)}
-                      className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    />
+                  <div className="rounded-lg border border-border p-3 text-center">
+                    <p className="text-[10px] uppercase text-muted-foreground">{t("patients.total_paid")}</p>
+                    <p className="mt-1 text-base font-bold text-emerald-600">S/. {totalPaid.toFixed(2)}</p>
+                  </div>
+                  <div className={cn(
+                    "rounded-lg border p-3 text-center",
+                    pendingBalance > 0 ? "border-red-500/30 bg-red-500/5" : "border-border"
+                  )}>
+                    <p className="text-[10px] uppercase text-muted-foreground">{t("patients.pending_balance")}</p>
+                    <p className={cn(
+                      "mt-1 text-base font-bold",
+                      pendingBalance > 0 ? "text-red-600" : "text-foreground"
+                    )}>
+                      S/. {pendingBalance.toFixed(2)}
+                    </p>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs text-muted-foreground">{t("patients.payment_method")}</label>
-                  <input
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value)}
-                    className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    placeholder="Efectivo, Tarjeta, etc."
-                  />
-                </div>
-                {appointments.length > 0 && (
-                  <div className="space-y-1">
-                    <label className="text-xs text-muted-foreground">Cita asociada</label>
-                    <select
-                      value={paymentAppointmentId}
-                      onChange={(e) => setPaymentAppointmentId(e.target.value)}
-                      className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    >
-                      <option value="">-- Ninguna --</option>
-                      {appointments
-                        .filter((a) => a.status !== "cancelled")
-                        .map((a) => (
-                          <option key={a.id} value={a.id}>
-                            {a.appointment_date} — {a.services?.name} — S/. {Number(a.services?.base_price ?? 0).toFixed(2)}
-                          </option>
-                        ))}
-                    </select>
+
+                {/* Add payment */}
+                <button
+                  onClick={() => setShowPaymentForm(!showPaymentForm)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-muted-foreground/40 py-2 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {t("patients.add_payment")}
+                </button>
+
+                {showPaymentForm && (
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">{t("patients.payment_amount")} *</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={paymentAmount}
+                          onChange={(e) => setPaymentAmount(e.target.value)}
+                          className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">{t("patients.payment_date")}</label>
+                        <input
+                          type="date"
+                          value={paymentDate}
+                          onChange={(e) => setPaymentDate(e.target.value)}
+                          className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">{t("patients.payment_method")}</label>
+                      <input
+                        value={paymentMethod}
+                        onChange={(e) => setPaymentMethod(e.target.value)}
+                        className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        placeholder="Efectivo, Tarjeta, etc."
+                      />
+                    </div>
+                    {appointments.length > 0 && (
+                      <div className="space-y-1">
+                        <label className="text-xs text-muted-foreground">Cita asociada</label>
+                        <select
+                          value={paymentAppointmentId}
+                          onChange={(e) => setPaymentAppointmentId(e.target.value)}
+                          className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        >
+                          <option value="">-- Ninguna --</option>
+                          {appointments
+                            .filter((a) => a.status !== "cancelled")
+                            .map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.appointment_date} — {a.services?.name} — S/. {Number(a.services?.base_price ?? 0).toFixed(2)}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                    )}
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setShowPaymentForm(false)}
+                        className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors"
+                      >
+                        {t("common.cancel")}
+                      </button>
+                      <button
+                        onClick={handleSavePayment}
+                        disabled={savingPayment || !paymentAmount || Number(paymentAmount) <= 0}
+                        className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
+                      >
+                        {savingPayment ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
+                        {t("common.save")}
+                      </button>
+                    </div>
                   </div>
                 )}
-                <div className="flex justify-end gap-2">
-                  <button
-                    onClick={() => setShowPaymentForm(false)}
-                    className="rounded px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors"
-                  >
-                    {t("common.cancel")}
-                  </button>
-                  <button
-                    onClick={handleSavePayment}
-                    disabled={savingPayment || !paymentAmount || Number(paymentAmount) <= 0}
-                    className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
-                  >
-                    {savingPayment ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-                    {t("common.save")}
-                  </button>
-                </div>
-              </div>
-            )}
 
-            {/* Payments list */}
-            {payments.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Pagos registrados
-                </h4>
-                {payments.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
-                  >
-                    <div>
-                      <p className="text-xs font-medium">S/. {Number(p.amount).toFixed(2)}</p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {p.payment_date} {p.payment_method && `• ${p.payment_method}`}
-                      </p>
-                      {p.notes && (
-                        <p className="text-[10px] text-muted-foreground">{p.notes}</p>
-                      )}
-                    </div>
-                    <DollarSign className="h-4 w-4 text-emerald-500" />
+                {/* Payments list */}
+                {payments.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Pagos registrados
+                    </h4>
+                    {payments.map((p) => (
+                      <div
+                        key={p.id}
+                        className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                      >
+                        <div>
+                          <p className="text-xs font-medium">S/. {Number(p.amount).toFixed(2)}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {p.payment_date} {p.payment_method && `• ${p.payment_method}`}
+                          </p>
+                          {p.notes && (
+                            <p className="text-[10px] text-muted-foreground">{p.notes}</p>
+                          )}
+                        </div>
+                        <DollarSign className="h-4 w-4 text-emerald-500" />
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
-        ) : (
-          /* ===== MARKETING TAB ===== */
+        )}
+
+        {/* ===== MARKETING TAB ===== */}
+        {activeTab === "marketing" && (
           <div className="space-y-4">
             <div className="space-y-3">
               <div className="space-y-1.5">

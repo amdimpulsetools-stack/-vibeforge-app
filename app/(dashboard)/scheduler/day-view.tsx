@@ -2,7 +2,7 @@
 
 import { format } from "date-fns";
 import { useLanguage } from "@/components/language-provider";
-import type { AppointmentWithRelations, Office } from "@/types/admin";
+import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
 import {
   SCHEDULER_START_HOUR,
   SCHEDULER_END_HOUR,
@@ -10,14 +10,18 @@ import {
   APPOINTMENT_STATUS_COLORS,
 } from "@/types/admin";
 import { cn } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { Plus, Lock } from "lucide-react";
+import { useRef, useState, useEffect } from "react";
 
 interface DayViewProps {
   date: Date;
   appointments: AppointmentWithRelations[];
   offices: Office[];
+  blocks: ScheduleBlock[];
   onSlotClick: (date: Date, time: string, officeId: string) => void;
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
+  onAppointmentDrop?: (appointmentId: string, date: Date, time: string, officeId: string) => void;
+  onUnblock?: (blockId: string) => void;
 }
 
 function generateTimeSlots() {
@@ -62,18 +66,50 @@ function isSlotOccupied(
   });
 }
 
+function getBlockForSlot(
+  blocks: ScheduleBlock[],
+  dateStr: string,
+  officeId: string,
+  slotTime: string
+): ScheduleBlock | null {
+  return (
+    blocks.find((b) => {
+      if (b.block_date !== dateStr) return false;
+      if (b.office_id && b.office_id !== officeId) return false;
+      if (b.all_day) return true;
+      const start = b.start_time?.slice(0, 5) ?? "00:00";
+      const end = b.end_time?.slice(0, 5) ?? "23:59";
+      return slotTime >= start && slotTime < end;
+    }) ?? null
+  );
+}
+
+type ContextMenu = { x: number; y: number; blockId: string; reason?: string | null };
+
 export function DayView({
   date,
   appointments,
   offices,
+  blocks,
   onSlotClick,
   onAppointmentClick,
+  onAppointmentDrop,
+  onUnblock,
 }: DayViewProps) {
-  const { t } = useLanguage();
   const dateStr = format(date, "yyyy-MM-dd");
+  const dragApptId = useRef<string | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<{ time: string; officeId: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const handler = () => setContextMenu(null);
+    window.addEventListener("click", handler);
+    return () => window.removeEventListener("click", handler);
+  }, [contextMenu]);
 
   return (
-    <div className="min-w-[600px]">
+    <div className="min-w-[600px]" onClick={() => setContextMenu(null)}>
       {/* Column headers */}
       <div className="sticky top-0 z-10 flex border-b border-border bg-card">
         <div className="w-20 shrink-0 border-r border-border" />
@@ -106,21 +142,12 @@ export function DayView({
 
               {/* Office columns */}
               {offices.map((office) => {
-                const startAppt = getAppointmentForSlot(
-                  appointments,
-                  dateStr,
-                  office.id,
-                  time
-                );
-                const occupied = isSlotOccupied(
-                  appointments,
-                  dateStr,
-                  office.id,
-                  time
-                );
+                const startAppt = getAppointmentForSlot(appointments, dateStr, office.id, time);
+                const occupied = isSlotOccupied(appointments, dateStr, office.id, time);
+                const block = getBlockForSlot(blocks, dateStr, office.id, time);
 
+                // ---- APPOINTMENT starting here ----
                 if (startAppt) {
-                  // Calculate height based on duration
                   const startMinutes =
                     parseInt(startAppt.start_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.start_time.slice(3, 5));
@@ -128,18 +155,36 @@ export function DayView({
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
                   const durationSlots = (endMinutes - startMinutes) / SCHEDULER_INTERVAL;
-                  const statusColor =
-                    APPOINTMENT_STATUS_COLORS[startAppt.status] ?? "#9ca3af";
+                  const statusColor = APPOINTMENT_STATUS_COLORS[startAppt.status] ?? "#9ca3af";
 
                   return (
                     <div
                       key={office.id}
                       className="relative flex-1 border-r border-border p-0.5"
                       style={{ height: `${40}px` }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverSlot({ time, officeId: office.id });
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setDragOverSlot(null);
+                        const apptId = dragApptId.current;
+                        if (apptId && onAppointmentDrop) {
+                          onAppointmentDrop(apptId, date, time, office.id);
+                        }
+                        dragApptId.current = null;
+                      }}
                     >
                       <button
+                        draggable
+                        onDragStart={(e) => {
+                          dragApptId.current = startAppt.id;
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragEnd={() => { dragApptId.current = null; setDragOverSlot(null); }}
                         onClick={() => onAppointmentClick(startAppt)}
-                        className="absolute inset-x-0.5 top-0.5 z-[5] rounded-lg bg-orange-100/90 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800/50 px-2 py-1 text-left transition-all hover:shadow-md overflow-hidden"
+                        className="absolute inset-x-0.5 top-0.5 z-[5] cursor-grab active:cursor-grabbing rounded-lg bg-orange-100/90 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800/50 px-2 py-1 text-left transition-all hover:shadow-md overflow-hidden"
                         style={{
                           height: `${durationSlots * 40 - 4}px`,
                           borderLeftWidth: "5px",
@@ -164,8 +209,8 @@ export function DayView({
                   );
                 }
 
+                // ---- OCCUPIED (continuation) ----
                 if (occupied) {
-                  // Slot occupied by a multi-slot appointment (not the start)
                   return (
                     <div
                       key={office.id}
@@ -175,13 +220,66 @@ export function DayView({
                   );
                 }
 
-                // Empty slot
+                // ---- BLOCKED slot ----
+                if (block) {
+                  return (
+                    <div
+                      key={office.id}
+                      className="relative flex-1 border-r border-border"
+                      style={{ height: "40px" }}
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        setContextMenu({ x: e.clientX, y: e.clientY, blockId: block.id, reason: block.reason });
+                      }}
+                    >
+                      <div
+                        className="absolute inset-0 flex items-center justify-center"
+                        style={{
+                          backgroundImage:
+                            "repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(107,114,128,0.12) 4px, rgba(107,114,128,0.12) 8px)",
+                          backgroundColor: "rgba(107,114,128,0.06)",
+                        }}
+                      >
+                        {time.endsWith(":00") && (
+                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60 pointer-events-none">
+                            <Lock className="h-3 w-3" />
+                            {block.reason ?? "Bloqueado"}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // ---- EMPTY slot (drop target + click to create) ----
+                const isDropTarget =
+                  dragOverSlot?.time === time && dragOverSlot?.officeId === office.id;
+
                 return (
                   <div
                     key={office.id}
-                    className="group relative flex-1 cursor-pointer border-r border-border transition-colors hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
+                    className={cn(
+                      "group relative flex-1 cursor-pointer border-r border-border transition-colors",
+                      isDropTarget
+                        ? "bg-primary/20 ring-1 ring-inset ring-primary"
+                        : "hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
+                    )}
                     style={{ height: "40px" }}
                     onClick={() => onSlotClick(date, time, office.id)}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOverSlot({ time, officeId: office.id });
+                    }}
+                    onDragLeave={() => setDragOverSlot(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setDragOverSlot(null);
+                      const apptId = dragApptId.current;
+                      if (apptId && onAppointmentDrop) {
+                        onAppointmentDrop(apptId, date, time, office.id);
+                      }
+                      dragApptId.current = null;
+                    }}
                   >
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <Plus className="h-4 w-4 text-emerald-500" />
@@ -193,6 +291,28 @@ export function DayView({
           );
         })}
       </div>
+
+      {/* Context menu for unblocking (right-click on blocked slot) */}
+      {contextMenu && onUnblock && (
+        <div
+          className="fixed z-50 rounded-lg border border-border bg-card shadow-lg py-1 min-w-[160px]"
+          style={{ top: contextMenu.y, left: contextMenu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {contextMenu.reason && (
+            <div className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border">
+              {contextMenu.reason}
+            </div>
+          )}
+          <button
+            onClick={() => { onUnblock(contextMenu.blockId); setContextMenu(null); }}
+            className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            <Lock className="h-4 w-4" />
+            Desbloquear
+          </button>
+        </div>
+      )}
     </div>
   );
 }

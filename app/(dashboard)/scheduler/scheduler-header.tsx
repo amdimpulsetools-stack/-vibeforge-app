@@ -12,8 +12,8 @@ import {
   Plus,
   CalendarDays,
   Clock,
-  Users,
   Percent,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +23,7 @@ interface SchedulerHeaderProps {
   onDateChange: (date: Date) => void;
   onViewModeChange: (mode: ViewMode) => void;
   onNewAppointment: () => void;
+  onNewBlock?: () => void;
   appointments: AppointmentWithRelations[];
 }
 
@@ -32,6 +33,7 @@ export function SchedulerHeader({
   onDateChange,
   onViewModeChange,
   onNewAppointment,
+  onNewBlock,
   appointments,
 }: SchedulerHeaderProps) {
   const { t } = useLanguage();
@@ -61,7 +63,7 @@ export function SchedulerHeader({
 
   return (
     <div className="border-b border-border bg-card px-4 py-3 space-y-3">
-      {/* Top row: navigation + actions */}
+      {/* Top row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
@@ -92,7 +94,7 @@ export function SchedulerHeader({
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {/* View toggle */}
           <div className="flex gap-1 rounded-lg bg-muted p-1">
             <button
@@ -119,6 +121,18 @@ export function SchedulerHeader({
             </button>
           </div>
 
+          {/* Bloquear button */}
+          {onNewBlock && (
+            <button
+              onClick={onNewBlock}
+              className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors"
+            >
+              <Lock className="h-4 w-4" />
+              Bloquear
+            </button>
+          )}
+
+          {/* Nueva cita */}
           <button
             onClick={onNewAppointment}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"

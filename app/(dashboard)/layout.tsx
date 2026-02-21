@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { AiAssistantPanel } from "@/components/ai-assistant-panel";
 
 export default function DashboardLayout({
   children,
@@ -13,6 +14,7 @@ export default function DashboardLayout({
         <Topbar />
         <main className="flex-1 overflow-auto p-6">{children}</main>
       </div>
+      <AiAssistantPanel />
     </div>
   );
 }
