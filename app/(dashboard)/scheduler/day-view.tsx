@@ -10,7 +10,7 @@ import {
   APPOINTMENT_STATUS_COLORS,
 } from "@/types/admin";
 import { cn } from "@/lib/utils";
-import { Plus, Lock } from "lucide-react";
+import { Plus, Lock, LockOpen, Coffee } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
 
 interface DayViewProps {
@@ -222,6 +222,14 @@ export function DayView({
 
                 // ---- BLOCKED slot ----
                 if (block) {
+                  const isBreakTime = block.reason === "__break_time__";
+                  const stripeColor = isBreakTime
+                    ? "rgba(59,130,246,0.15)"
+                    : "rgba(107,114,128,0.12)";
+                  const bgColor = isBreakTime
+                    ? "rgba(59,130,246,0.05)"
+                    : "rgba(107,114,128,0.06)";
+
                   return (
                     <div
                       key={office.id}
@@ -233,18 +241,48 @@ export function DayView({
                       }}
                     >
                       <div
-                        className="absolute inset-0 flex items-center justify-center"
+                        className="absolute inset-0 flex items-center justify-between px-1.5"
                         style={{
-                          backgroundImage:
-                            "repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(107,114,128,0.12) 4px, rgba(107,114,128,0.12) 8px)",
-                          backgroundColor: "rgba(107,114,128,0.06)",
+                          backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 4px, ${stripeColor} 4px, ${stripeColor} 8px)`,
+                          backgroundColor: bgColor,
                         }}
                       >
-                        {time.endsWith(":00") && (
-                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground/60 pointer-events-none">
-                            <Lock className="h-3 w-3" />
-                            {block.reason ?? "Bloqueado"}
+                        {/* Label — only on :00 marks to avoid clutter */}
+                        {time.endsWith(":00") ? (
+                          <span
+                            className={`flex items-center gap-1 text-[10px] pointer-events-none ${
+                              isBreakTime
+                                ? "text-blue-500/70"
+                                : "text-muted-foreground/60"
+                            }`}
+                          >
+                            {isBreakTime ? (
+                              <Coffee className="h-3 w-3" />
+                            ) : (
+                              <Lock className="h-3 w-3" />
+                            )}
+                            {isBreakTime ? "Break Time" : (block.reason ?? "Bloqueado")}
                           </span>
+                        ) : (
+                          <span />
+                        )}
+
+                        {/* Unlock button — always visible on every slot */}
+                        {onUnblock && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onUnblock(block.id);
+                            }}
+                            title={isBreakTime ? "Configurar Break Time" : "Desbloquear horario"}
+                            className={`rounded p-0.5 transition-colors ${
+                              isBreakTime
+                                ? "text-blue-400/50 hover:bg-blue-500/20 hover:text-blue-500"
+                                : "text-muted-foreground/40 hover:bg-background/70 hover:text-foreground"
+                            }`}
+                          >
+                            <LockOpen className="h-3 w-3" />
+                          </button>
                         )}
                       </div>
                     </div>
@@ -301,14 +339,14 @@ export function DayView({
         >
           {contextMenu.reason && (
             <div className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border">
-              {contextMenu.reason}
+              {contextMenu.reason === "__break_time__" ? "Break Time" : contextMenu.reason}
             </div>
           )}
           <button
             onClick={() => { onUnblock(contextMenu.blockId); setContextMenu(null); }}
             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
           >
-            <Lock className="h-4 w-4" />
+            <LockOpen className="h-4 w-4" />
             Desbloquear
           </button>
         </div>

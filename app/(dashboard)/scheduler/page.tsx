@@ -21,8 +21,44 @@ import { AppointmentSidebar } from "./appointment-sidebar";
 import { AppointmentFormModal } from "./appointment-form-modal";
 import { RescheduleModal } from "./reschedule-modal";
 import { BlockDialog } from "./block-dialog";
+import {
+  BreakTimeDialog,
+  loadBreakTimeConfig,
+  DEFAULT_BREAK_TIME_CONFIG,
+  type BreakTimeConfig,
+} from "./break-time-dialog";
 
 export type ViewMode = "day" | "week";
+
+function generateBreakTimeBlocks(
+  config: BreakTimeConfig,
+  startDate: string,
+  endDate: string
+): ScheduleBlock[] {
+  if (!config.enabled) return [];
+  const result: ScheduleBlock[] = [];
+  // Use noon to avoid DST/timezone edge cases when computing day-of-week
+  const cursor = new Date(startDate + "T12:00:00");
+  const end = new Date(endDate + "T12:00:00");
+  while (cursor <= end) {
+    const dow = cursor.getDay(); // 0=Sun … 6=Sat
+    if (config.days.includes(dow)) {
+      const dateStr = cursor.toISOString().split("T")[0];
+      result.push({
+        id: `bt-${dateStr}`,
+        block_date: dateStr,
+        start_time: config.startTime,
+        end_time: config.endTime,
+        office_id: null,
+        all_day: false,
+        reason: "__break_time__",
+        created_at: "",
+      });
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return result;
+}
 
 export default function SchedulerPage() {
   const { t } = useLanguage();
@@ -52,6 +88,10 @@ export default function SchedulerPage() {
 
   // Block dialog
   const [showBlockDialog, setShowBlockDialog] = useState(false);
+
+  // Break time
+  const [showBreakTimeDialog, setShowBreakTimeDialog] = useState(false);
+  const [breakTimeConfig, setBreakTimeConfig] = useState<BreakTimeConfig>(DEFAULT_BREAK_TIME_CONFIG);
 
   // Fetch master data once
   useEffect(() => {
@@ -91,6 +131,11 @@ export default function SchedulerPage() {
     };
 
     fetchMasterData();
+  }, []);
+
+  // Load break time config from localStorage (client-side only)
+  useEffect(() => {
+    setBreakTimeConfig(loadBreakTimeConfig());
   }, []);
 
   // Date range helpers
@@ -231,6 +276,12 @@ export default function SchedulerPage() {
 
   // Unblock a schedule block
   const handleUnblock = async (blockId: string) => {
+    // Break time virtual blocks → open config dialog instead of deleting
+    if (blockId.startsWith("bt-")) {
+      setShowBreakTimeDialog(true);
+      return;
+    }
+
     const supabase = createClient();
     const { error } = await supabase
       .from("schedule_blocks")
@@ -248,6 +299,13 @@ export default function SchedulerPage() {
   // Block dialog date pre-selection
   const blockDialogDefaultDate = format(currentDate, "yyyy-MM-dd");
 
+  // Merge DB blocks with virtual break time blocks for rendering
+  const { startDate: rangeStart, endDate: rangeEnd } = getDateRange();
+  const allBlocks = [
+    ...blocks,
+    ...generateBreakTimeBlocks(breakTimeConfig, rangeStart, rangeEnd),
+  ];
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
       <SchedulerHeader
@@ -260,6 +318,8 @@ export default function SchedulerPage() {
           setShowForm(true);
         }}
         onNewBlock={() => setShowBlockDialog(true)}
+        onBreakTime={() => setShowBreakTimeDialog(true)}
+        breakTimeEnabled={breakTimeConfig.enabled}
         appointments={appointments}
       />
 
@@ -270,7 +330,7 @@ export default function SchedulerPage() {
               date={currentDate}
               appointments={appointments}
               offices={offices}
-              blocks={blocks}
+              blocks={allBlocks}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
               onAppointmentDrop={handleAppointmentDrop}
@@ -340,6 +400,20 @@ export default function SchedulerPage() {
           onSaved={() => {
             setShowBlockDialog(false);
             fetchBlocks();
+          }}
+        />
+      )}
+
+      {/* Break time dialog */}
+      {showBreakTimeDialog && (
+        <BreakTimeDialog
+          onClose={() => setShowBreakTimeDialog(false)}
+          onSaved={(config) => {
+            setBreakTimeConfig(config);
+            setShowBreakTimeDialog(false);
+            toast.success(
+              config.enabled ? "Break Time activado" : "Break Time desactivado"
+            );
           }}
         />
       )}

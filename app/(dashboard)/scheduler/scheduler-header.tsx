@@ -14,6 +14,7 @@ import {
   Clock,
   Percent,
   Lock,
+  Coffee,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -24,6 +25,8 @@ interface SchedulerHeaderProps {
   onViewModeChange: (mode: ViewMode) => void;
   onNewAppointment: () => void;
   onNewBlock?: () => void;
+  onBreakTime?: () => void;
+  breakTimeEnabled?: boolean;
   appointments: AppointmentWithRelations[];
 }
 
@@ -34,6 +37,8 @@ export function SchedulerHeader({
   onViewModeChange,
   onNewAppointment,
   onNewBlock,
+  onBreakTime,
+  breakTimeEnabled,
   appointments,
 }: SchedulerHeaderProps) {
   const { t } = useLanguage();
@@ -129,6 +134,25 @@ export function SchedulerHeader({
             >
               <Lock className="h-4 w-4" />
               Bloquear
+            </button>
+          )}
+
+          {/* Break Time button */}
+          {onBreakTime && (
+            <button
+              onClick={onBreakTime}
+              className={cn(
+                "flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                breakTimeEnabled
+                  ? "border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20"
+                  : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <Coffee className="h-4 w-4" />
+              Break Time
+              {breakTimeEnabled && (
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
+              )}
             </button>
           )}
 
