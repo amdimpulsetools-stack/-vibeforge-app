@@ -191,22 +191,26 @@ export function DayView({
                           borderLeftColor: statusColor,
                         }}
                       >
-                        {/* Patient name — bold, prominent */}
+                        {/* Patient name — bold, always shown */}
                         <p className="text-xs font-bold truncate text-foreground leading-tight">
                           {startAppt.patient_name}
                         </p>
-                        {/* Service name — primary color, second line */}
-                        <p className="text-[10px] font-semibold truncate text-primary leading-tight">
-                          {startAppt.services?.name}
-                        </p>
-                        {/* Doctor — color dot + name */}
-                        <p className="text-[10px] text-muted-foreground truncate leading-tight">
-                          <span
-                            className="inline-block h-1.5 w-1.5 rounded-full mr-1 shrink-0"
-                            style={{ backgroundColor: startAppt.doctors?.color }}
-                          />
-                          {startAppt.doctors?.full_name}
-                        </p>
+                        {/* Service name — only rendered when the relation has data */}
+                        {startAppt.services?.name && (
+                          <p className="text-[10px] font-semibold truncate text-primary leading-tight">
+                            {startAppt.services.name}
+                          </p>
+                        )}
+                        {/* Doctor — shown on 2+ slot appointments to avoid overflow */}
+                        {durationSlots >= 2 && startAppt.doctors?.full_name && (
+                          <p className="text-[10px] text-muted-foreground truncate leading-tight">
+                            <span
+                              className="inline-block h-1.5 w-1.5 rounded-full mr-1 shrink-0"
+                              style={{ backgroundColor: startAppt.doctors?.color }}
+                            />
+                            {startAppt.doctors.full_name}
+                          </p>
+                        )}
                       </button>
                     </div>
                   );

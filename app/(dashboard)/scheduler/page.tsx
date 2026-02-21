@@ -44,7 +44,7 @@ function generateBreakTimeBlocks(
   while (cursor <= end) {
     const dow = cursor.getDay(); // 0=Sun … 6=Sat
     if (config.days.includes(dow)) {
-      const dateStr = cursor.toISOString().split("T")[0];
+      const dateStr = format(cursor, "yyyy-MM-dd");
       result.push({
         id: `bt-${dateStr}`,
         block_date: dateStr,
@@ -134,6 +134,9 @@ export default function SchedulerPage() {
           .eq("is_active", true)
           .order("display_order"),
       ]);
+
+      if (doctorServicesRes.error) console.error("[scheduler] doctor_services fetch error:", doctorServicesRes.error);
+      if (doctorSchedulesRes.error) console.error("[scheduler] doctor_schedules fetch error:", doctorSchedulesRes.error);
 
       setOffices(officesRes.data ?? []);
       setDoctors(doctorsRes.data ?? []);
