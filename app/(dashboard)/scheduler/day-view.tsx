@@ -191,18 +191,21 @@ export function DayView({
                           borderLeftColor: statusColor,
                         }}
                       >
-                        <p className="text-xs font-semibold truncate text-foreground">
-                          {startAppt.start_time.slice(0, 5)} {startAppt.patient_name}
+                        {/* Patient name — bold, prominent */}
+                        <p className="text-xs font-bold truncate text-foreground leading-tight">
+                          {startAppt.patient_name}
                         </p>
-                        <p className="text-xs text-muted-foreground truncate">
+                        {/* Service name — primary color, second line */}
+                        <p className="text-[10px] font-semibold truncate text-primary leading-tight">
+                          {startAppt.services?.name}
+                        </p>
+                        {/* Doctor — color dot + name */}
+                        <p className="text-[10px] text-muted-foreground truncate leading-tight">
                           <span
-                            className="inline-block h-2 w-2 rounded-full mr-1"
+                            className="inline-block h-1.5 w-1.5 rounded-full mr-1 shrink-0"
                             style={{ backgroundColor: startAppt.doctors?.color }}
                           />
                           {startAppt.doctors?.full_name}
-                        </p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {startAppt.services?.name}
                         </p>
                       </button>
                     </div>

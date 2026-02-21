@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -14,8 +14,15 @@ import type {
   LookupValue,
   AppointmentWithRelations,
   Patient,
+  DoctorSchedule,
 } from "@/types/admin";
-import { X, Loader2, AlertTriangle, Search, UserCheck, UserPlus } from "lucide-react";
+import { DAYS_OF_WEEK } from "@/types/admin";
+import { X, Loader2, AlertTriangle, Search, UserCheck, UserPlus, CheckCircle2 } from "lucide-react";
+
+interface DoctorServiceEntry {
+  doctor_id: string;
+  service_id: string;
+}
 
 interface AppointmentFormModalProps {
   defaults: {
@@ -26,6 +33,8 @@ interface AppointmentFormModalProps {
   offices: Office[];
   doctors: Doctor[];
   services: Service[];
+  doctorServices: DoctorServiceEntry[];
+  doctorSchedules: Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[];
   lookupOrigins: LookupValue[];
   lookupPayments: LookupValue[];
   lookupResponsibles: LookupValue[];
@@ -39,6 +48,8 @@ export function AppointmentFormModal({
   offices,
   doctors,
   services,
+  doctorServices,
+  doctorSchedules,
   lookupOrigins,
   lookupPayments,
   lookupResponsibles,
@@ -95,6 +106,60 @@ export function AppointmentFormModal({
   const watchedDate = watch("appointment_date");
   const watchedOffice = watch("office_id");
   const watchedDoctor = watch("doctor_id");
+
+  // ─── Reset service when doctor changes ───────────────────────────────────
+  const prevDoctorRef = useRef(watchedDoctor);
+  useEffect(() => {
+    if (prevDoctorRef.current !== watchedDoctor) {
+      setValue("service_id", "");
+      prevDoctorRef.current = watchedDoctor;
+    }
+  }, [watchedDoctor, setValue]);
+
+  // ─── Service filter by doctor ─────────────────────────────────────────────
+  const doctorServiceIds = useMemo(() => {
+    if (!watchedDoctor) return new Set<string>();
+    return new Set(
+      doctorServices
+        .filter((ds) => ds.doctor_id === watchedDoctor)
+        .map((ds) => ds.service_id)
+    );
+  }, [watchedDoctor, doctorServices]);
+
+  const filteredServices = watchedDoctor
+    ? services.filter((s) => doctorServiceIds.has(s.id))
+    : [];
+
+  // ─── Doctor schedule validation ───────────────────────────────────────────
+  const appointmentDow = useMemo(() => {
+    if (!watchedDate) return null;
+    return new Date(watchedDate + "T12:00:00").getDay();
+  }, [watchedDate]);
+
+  const doctorScheduleForDay = useMemo(() => {
+    if (!watchedDoctor || appointmentDow === null) return null;
+    return (
+      doctorSchedules.find(
+        (ds) => ds.doctor_id === watchedDoctor && ds.day_of_week === appointmentDow
+      ) ?? null
+    );
+  }, [watchedDoctor, appointmentDow, doctorSchedules]);
+
+  const doctorAvailableDays = useMemo(() => {
+    if (!watchedDoctor) return [];
+    const dows = new Set(
+      doctorSchedules
+        .filter((ds) => ds.doctor_id === watchedDoctor)
+        .map((ds) => ds.day_of_week)
+    );
+    return DAYS_OF_WEEK.filter((d) => dows.has(d.value)).map((d) => d.label);
+  }, [watchedDoctor, doctorSchedules]);
+
+  const doctorDayError =
+    !!watchedDoctor &&
+    !!watchedDate &&
+    appointmentDow !== null &&
+    !doctorScheduleForDay;
 
   // Search patient by DNI
   const searchPatientByDni = useCallback(async (dni: string) => {
@@ -157,6 +222,11 @@ export function AppointmentFormModal({
   const conflict = checkConflicts();
 
   const onSubmit = async (values: AppointmentFormData) => {
+    if (doctorDayError) {
+      toast.error("El doctor no atiende en el día seleccionado");
+      return;
+    }
+
     const officeConflict = existingAppointments.find(
       (a) =>
         a.appointment_date === values.appointment_date &&
@@ -375,6 +445,34 @@ export function AppointmentFormModal({
             </div>
           </div>
 
+          {/* Doctor schedule alert */}
+          {doctorDayError && (
+            <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium">El doctor no atiende este día</p>
+                {doctorAvailableDays.length > 0 && (
+                  <p className="text-xs mt-0.5 text-destructive/80">
+                    Días disponibles: {doctorAvailableDays.join(", ")}
+                  </p>
+                )}
+                {doctorAvailableDays.length === 0 && (
+                  <p className="text-xs mt-0.5 text-destructive/80">
+                    No tiene días de atención configurados
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Doctor schedule info (valid day) */}
+          {!doctorDayError && doctorScheduleForDay && (
+            <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+              Horario del doctor: {doctorScheduleForDay.start_time.slice(0, 5)} — {doctorScheduleForDay.end_time.slice(0, 5)}
+            </div>
+          )}
+
           {/* Doctor, Office, Service */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -417,14 +515,23 @@ export function AppointmentFormModal({
             <label className="text-sm font-medium">{t("scheduler.service")} *</label>
             <select
               {...register("service_id")}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              disabled={!watchedDoctor}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
             >
-              <option value="">-- {t("scheduler.service")} --</option>
-              {services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} ({s.duration_minutes} {t("common.minutes_short")}) — S/. {Number(s.base_price).toFixed(2)}
-                </option>
-              ))}
+              {!watchedDoctor ? (
+                <option value="">— Primero selecciona un doctor —</option>
+              ) : filteredServices.length === 0 ? (
+                <option value="">— Sin servicios asignados —</option>
+              ) : (
+                <>
+                  <option value="">-- {t("scheduler.service")} --</option>
+                  {filteredServices.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.duration_minutes} {t("common.minutes_short")}) — S/. {Number(s.base_price).toFixed(2)}
+                    </option>
+                  ))}
+                </>
+              )}
             </select>
             {errors.service_id && (
               <p className="text-xs text-destructive">{errors.service_id.message}</p>
@@ -500,7 +607,7 @@ export function AppointmentFormModal({
           </button>
           <button
             onClick={handleSubmit(onSubmit)}
-            disabled={saving || !!conflict?.includes("Conflicto")}
+            disabled={saving || !!conflict?.includes("Conflicto") || doctorDayError}
             className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}

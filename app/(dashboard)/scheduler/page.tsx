@@ -12,6 +12,7 @@ import type {
   Service,
   LookupValue,
   ScheduleBlock,
+  DoctorSchedule,
 } from "@/types/admin";
 import { SCHEDULER_START_HOUR, SCHEDULER_END_HOUR, SCHEDULER_INTERVAL } from "@/types/admin";
 import { SchedulerHeader } from "./scheduler-header";
@@ -69,6 +70,8 @@ export default function SchedulerPage() {
   const [offices, setOffices] = useState<Office[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [doctorServices, setDoctorServices] = useState<{ doctor_id: string; service_id: string }[]>([]);
+  const [doctorSchedules, setDoctorSchedules] = useState<Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[]>([]);
   const [lookupOrigins, setLookupOrigins] = useState<LookupValue[]>([]);
   const [lookupPayments, setLookupPayments] = useState<LookupValue[]>([]);
   const [lookupResponsibles, setLookupResponsibles] = useState<LookupValue[]>([]);
@@ -97,34 +100,46 @@ export default function SchedulerPage() {
   useEffect(() => {
     const fetchMasterData = async () => {
       const supabase = createClient();
-      const [officesRes, doctorsRes, servicesRes, originsRes, paymentsRes, responsiblesRes] =
-        await Promise.all([
-          supabase.from("offices").select("*").eq("is_active", true).order("display_order"),
-          supabase.from("doctors").select("*").eq("is_active", true).order("full_name"),
-          supabase.from("services").select("*").eq("is_active", true).order("name"),
-          supabase
-            .from("lookup_values")
-            .select("*, lookup_categories!inner(slug)")
-            .eq("lookup_categories.slug", "origin")
-            .eq("is_active", true)
-            .order("display_order"),
-          supabase
-            .from("lookup_values")
-            .select("*, lookup_categories!inner(slug)")
-            .eq("lookup_categories.slug", "payment_method")
-            .eq("is_active", true)
-            .order("display_order"),
-          supabase
-            .from("lookup_values")
-            .select("*, lookup_categories!inner(slug)")
-            .eq("lookup_categories.slug", "responsible")
-            .eq("is_active", true)
-            .order("display_order"),
-        ]);
+      const [
+        officesRes,
+        doctorsRes,
+        servicesRes,
+        doctorServicesRes,
+        doctorSchedulesRes,
+        originsRes,
+        paymentsRes,
+        responsiblesRes,
+      ] = await Promise.all([
+        supabase.from("offices").select("*").eq("is_active", true).order("display_order"),
+        supabase.from("doctors").select("*").eq("is_active", true).order("full_name"),
+        supabase.from("services").select("*").eq("is_active", true).order("name"),
+        supabase.from("doctor_services").select("doctor_id, service_id"),
+        supabase.from("doctor_schedules").select("doctor_id, day_of_week, start_time, end_time"),
+        supabase
+          .from("lookup_values")
+          .select("*, lookup_categories!inner(slug)")
+          .eq("lookup_categories.slug", "origin")
+          .eq("is_active", true)
+          .order("display_order"),
+        supabase
+          .from("lookup_values")
+          .select("*, lookup_categories!inner(slug)")
+          .eq("lookup_categories.slug", "payment_method")
+          .eq("is_active", true)
+          .order("display_order"),
+        supabase
+          .from("lookup_values")
+          .select("*, lookup_categories!inner(slug)")
+          .eq("lookup_categories.slug", "responsible")
+          .eq("is_active", true)
+          .order("display_order"),
+      ]);
 
       setOffices(officesRes.data ?? []);
       setDoctors(doctorsRes.data ?? []);
       setServices(servicesRes.data ?? []);
+      setDoctorServices((doctorServicesRes.data as { doctor_id: string; service_id: string }[]) ?? []);
+      setDoctorSchedules((doctorSchedulesRes.data as Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[]) ?? []);
       setLookupOrigins((originsRes.data as LookupValue[]) ?? []);
       setLookupPayments((paymentsRes.data as LookupValue[]) ?? []);
       setLookupResponsibles((responsiblesRes.data as LookupValue[]) ?? []);
@@ -341,6 +356,7 @@ export default function SchedulerPage() {
               currentDate={currentDate}
               appointments={appointments}
               offices={offices}
+              blocks={allBlocks}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
             />
@@ -370,6 +386,8 @@ export default function SchedulerPage() {
           offices={offices}
           doctors={doctors}
           services={services}
+          doctorServices={doctorServices}
+          doctorSchedules={doctorSchedules}
           lookupOrigins={lookupOrigins}
           lookupPayments={lookupPayments}
           lookupResponsibles={lookupResponsibles}

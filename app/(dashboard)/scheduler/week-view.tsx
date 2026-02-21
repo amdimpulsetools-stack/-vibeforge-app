@@ -3,7 +3,7 @@
 import { format, addDays, startOfWeek, isToday, isSameDay } from "date-fns";
 import { es } from "date-fns/locale";
 import { useLanguage } from "@/components/language-provider";
-import type { AppointmentWithRelations, Office } from "@/types/admin";
+import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
 import {
   SCHEDULER_START_HOUR,
   SCHEDULER_END_HOUR,
@@ -11,14 +11,31 @@ import {
   APPOINTMENT_STATUS_COLORS,
 } from "@/types/admin";
 import { cn } from "@/lib/utils";
-import { Plus } from "lucide-react";
+import { Plus, Coffee, Lock } from "lucide-react";
 
 interface WeekViewProps {
   currentDate: Date;
   appointments: AppointmentWithRelations[];
   offices: Office[];
+  blocks: ScheduleBlock[];
   onSlotClick: (date: Date, time: string, officeId: string) => void;
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
+}
+
+function getBlockForDay(
+  blocks: ScheduleBlock[],
+  dateStr: string,
+  slotTime: string
+): ScheduleBlock | null {
+  return (
+    blocks.find((b) => {
+      if (b.block_date !== dateStr) return false;
+      if (b.all_day) return true;
+      const start = b.start_time?.slice(0, 5) ?? "00:00";
+      const end = b.end_time?.slice(0, 5) ?? "23:59";
+      return slotTime >= start && slotTime < end;
+    }) ?? null
+  );
 }
 
 function generateTimeSlots() {
@@ -37,6 +54,7 @@ export function WeekView({
   currentDate,
   appointments,
   offices,
+  blocks,
   onSlotClick,
   onAppointmentClick,
 }: WeekViewProps) {
@@ -110,6 +128,49 @@ export function WeekView({
               {weekDays.map((day) => {
                 const dateStr = format(day, "yyyy-MM-dd");
                 const today = isToday(day);
+                const block = getBlockForDay(blocks, dateStr, time);
+
+                // ---- BLOCKED slot ----
+                if (block) {
+                  const isBreakTime = block.reason === "__break_time__";
+                  const stripeColor = isBreakTime
+                    ? "rgba(59,130,246,0.15)"
+                    : "rgba(107,114,128,0.12)";
+                  const bgColor = isBreakTime
+                    ? "rgba(59,130,246,0.05)"
+                    : "rgba(107,114,128,0.06)";
+
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className="relative flex-1 border-r border-border"
+                      style={{ height: "32px" }}
+                    >
+                      <div
+                        className="absolute inset-0 flex items-center justify-center"
+                        style={{
+                          backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 4px, ${stripeColor} 4px, ${stripeColor} 8px)`,
+                          backgroundColor: bgColor,
+                        }}
+                      >
+                        {isHour && (
+                          <span
+                            className={`flex items-center gap-0.5 text-[9px] pointer-events-none ${
+                              isBreakTime ? "text-blue-500/60" : "text-muted-foreground/50"
+                            }`}
+                          >
+                            {isBreakTime ? (
+                              <Coffee className="h-2.5 w-2.5" />
+                            ) : (
+                              <Lock className="h-2.5 w-2.5" />
+                            )}
+                            {isBreakTime ? "Break" : (block.reason ?? "Bloq.")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
 
                 // Find appointment starting at this slot
                 const startAppt = appointments.find(
@@ -159,6 +220,11 @@ export function WeekView({
                           {startAppt.start_time.slice(0, 5)} {startAppt.patient_name}
                         </p>
                         {durationSlots > 1 && (
+                          <p className="text-[10px] text-primary/80 truncate font-medium">
+                            {startAppt.services?.name}
+                          </p>
+                        )}
+                        {durationSlots > 2 && (
                           <p className="text-[10px] text-muted-foreground truncate">
                             {startAppt.doctors?.full_name}
                           </p>

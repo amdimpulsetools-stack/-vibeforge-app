@@ -26,6 +26,7 @@ import {
   Users,
   BarChart3,
   History,
+  Settings2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -69,6 +70,7 @@ const navEntries: NavEntry[] = [
       { titleKey: "nav.admin_doctors", href: "/admin/doctors", icon: Stethoscope },
       { titleKey: "nav.admin_services", href: "/admin/services", icon: ClipboardList },
       { titleKey: "nav.admin_lookups", href: "/admin/lookups", icon: ListOrdered },
+      { titleKey: "nav.admin_variables", href: "/admin/global-variables", icon: Settings2 },
     ],
   },
   { titleKey: "nav.account", href: "/account", icon: UserCircle },

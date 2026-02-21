@@ -23,7 +23,8 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.admin_offices": "Consultorios",
     "nav.admin_doctors": "Doctores",
     "nav.admin_services": "Servicios",
-    "nav.admin_lookups": "Variables Globales",
+    "nav.admin_lookups": "Catálogos",
+    "nav.admin_variables": "Variables Globales",
 
     // Account page
     "account.title": "Mi cuenta",
@@ -344,7 +345,8 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.admin_offices": "Offices",
     "nav.admin_doctors": "Doctors",
     "nav.admin_services": "Services",
-    "nav.admin_lookups": "Global Variables",
+    "nav.admin_lookups": "Catalogs",
+    "nav.admin_variables": "Global Variables",
 
     // Account page
     "account.title": "My Account",
