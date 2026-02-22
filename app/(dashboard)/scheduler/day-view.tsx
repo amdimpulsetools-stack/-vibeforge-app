@@ -205,10 +205,7 @@ export function DayView({
                           {startAppt.patient_name}
                         </p>
                         <p className="text-[11px] truncate text-muted-foreground leading-tight">
-                          {startAppt.doctors?.full_name ?? "—"}
-                        </p>
-                        <p className="text-[10px] truncate text-muted-foreground/80 leading-tight">
-                          {startAppt.services?.name ?? "—"}
+                          {startAppt.doctors?.full_name ?? "—"} · {startAppt.services?.name ?? "—"}
                         </p>
                       </button>
                     </div>
