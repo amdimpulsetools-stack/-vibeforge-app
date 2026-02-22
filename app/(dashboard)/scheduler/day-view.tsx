@@ -86,6 +86,13 @@ function getBlockForSlot(
 
 type ContextMenu = { x: number; y: number; blockId: string; reason?: string | null };
 
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export function DayView({
   date,
   appointments,
@@ -155,7 +162,7 @@ export function DayView({
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
                   const durationSlots = (endMinutes - startMinutes) / SCHEDULER_INTERVAL;
-                  const statusColor = APPOINTMENT_STATUS_COLORS[startAppt.status] ?? "#9ca3af";
+                  const doctorColor = startAppt.doctors?.color ?? "#9ca3af";
 
                   return (
                     <div
@@ -184,31 +191,25 @@ export function DayView({
                         }}
                         onDragEnd={() => { dragApptId.current = null; setDragOverSlot(null); }}
                         onClick={() => onAppointmentClick(startAppt)}
-                        className="absolute inset-x-0.5 top-0.5 z-[5] cursor-grab active:cursor-grabbing rounded-lg bg-orange-100/90 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800/50 px-2 py-1 text-left transition-all hover:shadow-md overflow-hidden"
+                        className="absolute inset-x-0.5 top-0.5 z-[5] cursor-grab active:cursor-grabbing rounded-lg px-2 py-0.5 text-left transition-all hover:shadow-md overflow-hidden flex flex-col justify-center"
                         style={{
                           height: `${durationSlots * 40 - 4}px`,
-                          borderLeftWidth: "5px",
-                          borderLeftColor: statusColor,
+                          borderLeft: `4px solid ${doctorColor}`,
+                          backgroundColor: hexToRgba(doctorColor, 0.12),
+                          border: `1px solid ${hexToRgba(doctorColor, 0.3)}`,
+                          borderLeftWidth: "4px",
+                          borderLeftColor: doctorColor,
                         }}
                       >
-                        {/* Patient name — bold, always shown */}
                         <p className="text-xs font-bold truncate text-foreground leading-tight">
                           {startAppt.patient_name}
                         </p>
-                        {/* Service name — always shown, emerald for contrast */}
-                        <p className="text-[11px] font-semibold truncate text-emerald-600 dark:text-emerald-400 leading-tight">
+                        <p className="text-[11px] truncate text-muted-foreground leading-tight">
+                          {startAppt.doctors?.full_name ?? "—"}
+                        </p>
+                        <p className="text-[10px] truncate text-muted-foreground/80 leading-tight">
                           {startAppt.services?.name ?? "—"}
                         </p>
-                        {/* Doctor — shown on 2+ slot appointments to avoid overflow */}
-                        {durationSlots >= 2 && (
-                          <p className="text-[10px] text-muted-foreground truncate leading-tight">
-                            <span
-                              className="inline-block h-1.5 w-1.5 rounded-full mr-1 shrink-0"
-                              style={{ backgroundColor: startAppt.doctors?.color }}
-                            />
-                            {startAppt.doctors?.full_name ?? "—"}
-                          </p>
-                        )}
                       </button>
                     </div>
                   );
