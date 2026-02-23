@@ -39,6 +39,7 @@ interface AppointmentFormModalProps {
   lookupPayments: LookupValue[];
   lookupResponsibles: LookupValue[];
   existingAppointments: AppointmentWithRelations[];
+  organizationId: string;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -54,6 +55,7 @@ export function AppointmentFormModal({
   lookupPayments,
   lookupResponsibles,
   existingAppointments,
+  organizationId,
   onClose,
   onSaved,
 }: AppointmentFormModalProps) {
@@ -257,6 +259,7 @@ export function AppointmentFormModal({
           first_name: firstName,
           last_name: lastName,
           phone: values.patient_phone || null,
+          organization_id: organizationId,
         })
         .select()
         .single();
@@ -296,6 +299,7 @@ export function AppointmentFormModal({
       responsible: values.responsible || null,
       notes: values.notes || null,
       price_snapshot: priceSnapshot,
+      organization_id: organizationId,
     });
 
     setSaving(false);

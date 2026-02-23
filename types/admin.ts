@@ -1,5 +1,14 @@
 import type { Database } from "./database";
 
+// Organization types
+export type Organization = Database["public"]["Tables"]["organizations"]["Row"];
+export type OrganizationInsert = Database["public"]["Tables"]["organizations"]["Insert"];
+export type OrganizationUpdate = Database["public"]["Tables"]["organizations"]["Update"];
+
+export type OrganizationMember = Database["public"]["Tables"]["organization_members"]["Row"];
+export type OrganizationMemberInsert = Database["public"]["Tables"]["organization_members"]["Insert"];
+export type OrgRole = "owner" | "admin" | "member";
+
 // Aliases de tabla
 export type Office = Database["public"]["Tables"]["offices"]["Row"];
 export type OfficeInsert = Database["public"]["Tables"]["offices"]["Insert"];
@@ -90,6 +99,7 @@ export type ScheduleBlock = {
   office_id: string | null;
   all_day: boolean;
   reason: string | null;
+  organization_id: string;
   created_at: string;
 };
 

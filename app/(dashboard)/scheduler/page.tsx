@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useOrganization } from "@/components/organization-provider";
 import { format, addDays, startOfWeek } from "date-fns";
 import { toast } from "sonner";
 import type {
@@ -53,6 +54,7 @@ function generateBreakTimeBlocks(
         office_id: null,
         all_day: false,
         reason: "__break_time__",
+        organization_id: "",
         created_at: "",
       });
     }
@@ -63,6 +65,7 @@ function generateBreakTimeBlocks(
 
 export default function SchedulerPage() {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
@@ -395,6 +398,7 @@ export default function SchedulerPage() {
           lookupPayments={lookupPayments}
           lookupResponsibles={lookupResponsibles}
           existingAppointments={appointments}
+          organizationId={organizationId}
           onClose={handleFormClose}
           onSaved={handleSaved}
         />
@@ -417,6 +421,7 @@ export default function SchedulerPage() {
         <BlockDialog
           defaultDate={blockDialogDefaultDate}
           offices={offices}
+          organizationId={organizationId}
           onClose={() => setShowBlockDialog(false)}
           onSaved={() => {
             setShowBlockDialog(false);

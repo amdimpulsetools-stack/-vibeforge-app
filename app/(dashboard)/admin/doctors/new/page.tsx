@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useOrganization } from "@/components/organization-provider";
 import { toast } from "sonner";
 import { doctorSchema, type DoctorFormData } from "@/lib/validations/doctor";
 import { DOCTOR_COLORS } from "@/types/admin";
@@ -15,6 +16,7 @@ import { ArrowLeft, Loader2, Check } from "lucide-react";
 
 export default function NewDoctorPage() {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const router = useRouter();
   const [saving, setSaving] = useState(false);
 
@@ -47,6 +49,7 @@ export default function NewDoctorPage() {
         cmp: values.cmp,
         color: values.color,
         is_active: values.is_active,
+        organization_id: organizationId,
       })
       .select("id")
       .single();

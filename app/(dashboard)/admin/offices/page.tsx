@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useOrganization } from "@/components/organization-provider";
 import { toast } from "sonner";
 import { officeSchema, type OfficeFormData } from "@/lib/validations/office";
 import type { Office } from "@/types/admin";
@@ -192,6 +193,7 @@ function OfficeForm({
   onCancel: () => void;
 }) {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const [saving, setSaving] = useState(false);
 
   const {
@@ -231,6 +233,7 @@ function OfficeForm({
         name: values.name,
         description: values.description || null,
         is_active: values.is_active,
+        organization_id: organizationId,
       });
 
       if (error) {

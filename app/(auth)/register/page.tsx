@@ -10,6 +10,7 @@ import { Loader2, Zap } from "lucide-react";
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
+  const [orgName, setOrgName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,7 +25,7 @@ export default function RegisterPage() {
       email,
       password,
       options: {
-        data: { full_name: fullName },
+        data: { full_name: fullName, org_name: orgName || "Mi Clínica" },
         emailRedirectTo: `${window.location.origin}/api/auth/callback`,
       },
     });
@@ -65,6 +66,20 @@ export default function RegisterPage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
+                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="orgName" className="text-sm font-medium">
+                Nombre de tu clínica
+              </label>
+              <input
+                id="orgName"
+                type="text"
+                placeholder="Mi Clínica"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
                 className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>

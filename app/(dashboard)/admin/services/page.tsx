@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useOrganization } from "@/components/organization-provider";
 import { toast } from "sonner";
 import {
   serviceSchema,
@@ -347,6 +348,7 @@ function ServiceForm({
   onCancel: () => void;
 }) {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const [saving, setSaving] = useState(false);
 
   const {
@@ -387,7 +389,7 @@ function ServiceForm({
         return;
       }
     } else {
-      const { error } = await supabase.from("services").insert(payload);
+      const { error } = await supabase.from("services").insert({ ...payload, organization_id: organizationId });
       if (error) {
         toast.error(t("services.save_error"));
         setSaving(false);
@@ -496,6 +498,7 @@ function CategoryForm({
   onCancel: () => void;
 }) {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const [saving, setSaving] = useState(false);
 
   const {
@@ -530,7 +533,7 @@ function CategoryForm({
         return;
       }
     } else {
-      const { error } = await supabase.from("service_categories").insert(payload);
+      const { error } = await supabase.from("service_categories").insert({ ...payload, organization_id: organizationId });
       if (error) {
         toast.error(error.message);
         setSaving(false);

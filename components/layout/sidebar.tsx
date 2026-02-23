@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { useUserProfile } from "@/hooks/use-user-profile";
+import { useOrganization } from "@/components/organization-provider";
 import {
   LayoutDashboard,
   Settings,
@@ -81,7 +82,9 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useLanguage();
-  const { isAdmin } = useUserProfile();
+  const { isAdmin: isLegacyAdmin } = useUserProfile();
+  const { organization, isOrgAdmin } = useOrganization();
+  const isAdmin = isOrgAdmin || isLegacyAdmin;
   const [collapsed, setCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
@@ -180,11 +183,13 @@ export function Sidebar() {
       {/* Header */}
       <div className="flex h-14 items-center border-b border-border px-3">
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Zap className="h-4 w-4" />
             </div>
-            <span className="text-sm font-bold">{APP_NAME}</span>
+            <div className="min-w-0">
+              <span className="block text-sm font-bold truncate">{organization?.name ?? APP_NAME}</span>
+            </div>
           </div>
         )}
         <button

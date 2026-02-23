@@ -37,6 +37,7 @@ import {
   Edit2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOrganization } from "@/components/organization-provider";
 
 interface PatientDrawerProps {
   patient: PatientWithTags;
@@ -54,6 +55,7 @@ type AppointmentWithDetails = Appointment & {
 
 export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps) {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const [activeTab, setActiveTab] = useState<DrawerTab>("info");
   const [appointments, setAppointments] = useState<AppointmentWithDetails[]>([]);
   const [payments, setPayments] = useState<PatientPayment[]>([]);
@@ -173,7 +175,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     const supabase = createClient();
     const { error } = await supabase
       .from("patient_tags")
-      .insert({ patient_id: patient.id, tag: tagValue.trim() });
+      .insert({ patient_id: patient.id, tag: tagValue.trim(), organization_id: organizationId });
 
     setAddingTag(false);
     if (error) {
@@ -216,6 +218,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     setSavingPayment(true);
     const supabase = createClient();
     const { error } = await supabase.from("patient_payments").insert({
+      organization_id: organizationId,
       patient_id: patient.id,
       appointment_id: paymentAppointmentId || null,
       amount: Number(paymentAmount),

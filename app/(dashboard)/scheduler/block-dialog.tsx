@@ -10,6 +10,7 @@ import { X, Loader2, Lock } from "lucide-react";
 interface BlockDialogProps {
   defaultDate?: string;
   offices: Office[];
+  organizationId: string;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -27,7 +28,7 @@ function generateTimeOptions() {
 
 const TIME_OPTIONS = generateTimeOptions();
 
-export function BlockDialog({ defaultDate, offices, onClose, onSaved }: BlockDialogProps) {
+export function BlockDialog({ defaultDate, offices, organizationId, onClose, onSaved }: BlockDialogProps) {
   const today = new Date().toISOString().split("T")[0];
   const [blockDate, setBlockDate] = useState(defaultDate ?? today);
   const [allDay, setAllDay] = useState(false);
@@ -51,6 +52,7 @@ export function BlockDialog({ defaultDate, offices, onClose, onSaved }: BlockDia
       end_time: allDay ? null : endTime,
       office_id: officeId === "all" ? null : officeId,
       reason: reason.trim() || null,
+      organization_id: organizationId,
     });
 
     setSaving(false);

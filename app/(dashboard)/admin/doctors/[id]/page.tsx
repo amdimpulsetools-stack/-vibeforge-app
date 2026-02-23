@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useOrganization } from "@/components/organization-provider";
 import { toast } from "sonner";
 import { doctorSchema, type DoctorFormData } from "@/lib/validations/doctor";
 import { DOCTOR_COLORS, DAYS_OF_WEEK } from "@/types/admin";
@@ -282,6 +283,7 @@ function ServicesTab({
   onUpdate: () => void;
 }) {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const [selected, setSelected] = useState<Set<string>>(new Set(assignedServiceIds));
   const [saving, setSaving] = useState(false);
 
@@ -309,6 +311,7 @@ function ServicesTab({
       const inserts = Array.from(selected).map((service_id) => ({
         doctor_id: doctorId,
         service_id,
+        organization_id: organizationId,
       }));
       const { error } = await supabase.from("doctor_services").insert(inserts);
       if (error) {
@@ -404,6 +407,7 @@ function ScheduleTab({
   onUpdate: () => void;
 }) {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const [blocks, setBlocks] = useState(
     schedules.map((s) => ({
       id: s.id,
@@ -453,6 +457,7 @@ function ScheduleTab({
         start_time: b.start_time,
         end_time: b.end_time,
         office_id: b.office_id || null,
+        organization_id: organizationId,
       }));
       const { error } = await supabase.from("doctor_schedules").insert(inserts);
       if (error) {

@@ -8,6 +8,7 @@ import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
 import { patientSchema, type PatientFormData } from "@/lib/validations/patient";
 import { X, Loader2 } from "lucide-react";
+import { useOrganization } from "@/components/organization-provider";
 
 interface PatientFormModalProps {
   onClose: () => void;
@@ -16,6 +17,7 @@ interface PatientFormModalProps {
 
 export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const [saving, setSaving] = useState(false);
 
   const {
@@ -44,6 +46,7 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
     const supabase = createClient();
 
     const { error } = await supabase.from("patients").insert({
+      organization_id: organizationId,
       dni: values.dni || null,
       first_name: values.first_name,
       last_name: values.last_name,

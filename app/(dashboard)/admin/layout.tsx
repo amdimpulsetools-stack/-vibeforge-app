@@ -13,13 +13,27 @@ export default async function AdminLayout({
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("user_profiles")
+  // Check org-level admin role (owner or admin)
+  const { data: membership } = await supabase
+    .from("organization_members")
     .select("role")
-    .eq("id", user.id)
+    .eq("user_id", user.id)
+    .limit(1)
     .single();
 
-  if (profile?.role !== "admin") redirect("/dashboard");
+  const isOrgAdmin =
+    membership?.role === "owner" || membership?.role === "admin";
+
+  // Fallback: also check legacy user_profiles.role
+  if (!isOrgAdmin) {
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    if (profile?.role !== "admin") redirect("/dashboard");
+  }
 
   return <>{children}</>;
 }

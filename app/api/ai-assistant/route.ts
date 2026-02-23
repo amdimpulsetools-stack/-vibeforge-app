@@ -4,15 +4,16 @@ import { createClient } from "@/lib/supabase/server";
 const SCHEMA_CONTEXT = `
 Eres un generador de SQL para una clínica médica. Tu ÚNICA tarea es generar la consulta SQL necesaria para responder la pregunta del usuario.
 
-ESQUEMA DE LA BASE DE DATOS:
-- patients: id, first_name, last_name, dni, phone, email, status (active/inactive), notes, viene_desde, adicional_1, adicional_2, created_at
-- appointments: id, patient_name, patient_phone, patient_id, doctor_id, office_id, service_id, appointment_date (YYYY-MM-DD), start_time, end_time, status (scheduled/confirmed/completed/cancelled), origin, payment_method, responsible, notes, created_at
-- doctors: id, full_name, color, specialty, is_active
-- offices: id, name, display_order, is_active
-- services: id, name, base_price, duration_minutes, is_active, category_id
-- patient_payments: id, patient_id, appointment_id, amount, payment_method, payment_date, notes
-- patient_tags: id, patient_id, tag
-- schedule_blocks: id, block_date, start_time, end_time, office_id, all_day, reason
+ESQUEMA DE LA BASE DE DATOS (Multi-Tenant — cada tabla tiene organization_id, RLS filtra automáticamente):
+- patients: id, first_name, last_name, dni, phone, email, status (active/inactive), notes, viene_desde, adicional_1, adicional_2, organization_id, created_at
+- appointments: id, patient_name, patient_phone, patient_id, doctor_id, office_id, service_id, appointment_date (YYYY-MM-DD), start_time, end_time, status (scheduled/confirmed/completed/cancelled), origin, payment_method, responsible, notes, organization_id, created_at
+- doctors: id, full_name, cmp, color, is_active, organization_id
+- offices: id, name, display_order, is_active, organization_id
+- services: id, name, base_price, duration_minutes, is_active, category_id, organization_id
+- patient_payments: id, patient_id, appointment_id, amount, payment_method, payment_date, notes, organization_id
+- patient_tags: id, patient_id, tag, organization_id
+- schedule_blocks: id, block_date, start_time, end_time, office_id, all_day, reason, organization_id
+NOTA: No filtres por organization_id en tus queries — las políticas RLS lo hacen automáticamente.
 
 REGLAS ESTRICTAS:
 1. Responde ÚNICAMENTE con el bloque SQL entre triple backticks. Sin explicaciones.

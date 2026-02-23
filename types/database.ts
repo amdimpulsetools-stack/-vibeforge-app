@@ -4,6 +4,62 @@
 export interface Database {
   public: {
     Tables: {
+      organizations: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          logo_url: string | null;
+          plan: "free" | "pro" | "enterprise";
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug: string;
+          logo_url?: string | null;
+          plan?: "free" | "pro" | "enterprise";
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          slug?: string;
+          logo_url?: string | null;
+          plan?: "free" | "pro" | "enterprise";
+          is_active?: boolean;
+          updated_at?: string;
+        };
+      };
+      organization_members: {
+        Row: {
+          id: string;
+          user_id: string;
+          organization_id: string;
+          role: "owner" | "admin" | "member";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          organization_id: string;
+          role?: "owner" | "admin" | "member";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          user_id?: string;
+          organization_id?: string;
+          role?: "owner" | "admin" | "member";
+          updated_at?: string;
+        };
+      };
       user_profiles: {
         Row: {
           id: string;
@@ -39,6 +95,7 @@ export interface Database {
           description: string | null;
           is_active: boolean;
           display_order: number;
+          organization_id: string;
           created_at: string;
           updated_at: string;
         };
@@ -48,6 +105,7 @@ export interface Database {
           description?: string | null;
           is_active?: boolean;
           display_order?: number;
+          organization_id: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -57,6 +115,7 @@ export interface Database {
           description?: string | null;
           is_active?: boolean;
           display_order?: number;
+          organization_id?: string;
           updated_at?: string;
         };
       };
@@ -67,6 +126,7 @@ export interface Database {
           description: string | null;
           is_active: boolean;
           display_order: number;
+          organization_id: string;
           created_at: string;
           updated_at: string;
         };
@@ -76,6 +136,7 @@ export interface Database {
           description?: string | null;
           is_active?: boolean;
           display_order?: number;
+          organization_id: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -85,6 +146,7 @@ export interface Database {
           description?: string | null;
           is_active?: boolean;
           display_order?: number;
+          organization_id?: string;
           updated_at?: string;
         };
       };
@@ -97,6 +159,7 @@ export interface Database {
           duration_minutes: number;
           is_active: boolean;
           display_order: number;
+          organization_id: string;
           created_at: string;
           updated_at: string;
         };
@@ -108,6 +171,7 @@ export interface Database {
           duration_minutes?: number;
           is_active?: boolean;
           display_order?: number;
+          organization_id: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -119,6 +183,7 @@ export interface Database {
           duration_minutes?: number;
           is_active?: boolean;
           display_order?: number;
+          organization_id?: string;
           updated_at?: string;
         };
       };
@@ -130,6 +195,7 @@ export interface Database {
           photo_url: string | null;
           color: string;
           is_active: boolean;
+          organization_id: string;
           created_at: string;
           updated_at: string;
         };
@@ -140,6 +206,7 @@ export interface Database {
           photo_url?: string | null;
           color?: string;
           is_active?: boolean;
+          organization_id: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -150,6 +217,7 @@ export interface Database {
           photo_url?: string | null;
           color?: string;
           is_active?: boolean;
+          organization_id?: string;
           updated_at?: string;
         };
       };
@@ -158,18 +226,21 @@ export interface Database {
           id: string;
           doctor_id: string;
           service_id: string;
+          organization_id: string;
           created_at: string;
         };
         Insert: {
           id?: string;
           doctor_id: string;
           service_id: string;
+          organization_id: string;
           created_at?: string;
         };
         Update: {
           id?: string;
           doctor_id?: string;
           service_id?: string;
+          organization_id?: string;
         };
       };
       doctor_schedules: {
@@ -181,6 +252,7 @@ export interface Database {
           end_time: string;
           office_id: string | null;
           is_active: boolean;
+          organization_id: string;
           created_at: string;
           updated_at: string;
         };
@@ -192,6 +264,7 @@ export interface Database {
           end_time: string;
           office_id?: string | null;
           is_active?: boolean;
+          organization_id: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -203,6 +276,7 @@ export interface Database {
           end_time?: string;
           office_id?: string | null;
           is_active?: boolean;
+          organization_id?: string;
           updated_at?: string;
         };
       };
@@ -213,6 +287,7 @@ export interface Database {
           name: string;
           description: string | null;
           is_system: boolean;
+          organization_id: string;
           created_at: string;
           updated_at: string;
         };
@@ -222,6 +297,7 @@ export interface Database {
           name: string;
           description?: string | null;
           is_system?: boolean;
+          organization_id: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -231,6 +307,7 @@ export interface Database {
           name?: string;
           description?: string | null;
           is_system?: boolean;
+          organization_id?: string;
           updated_at?: string;
         };
       };
@@ -246,6 +323,7 @@ export interface Database {
           is_active: boolean;
           is_default: boolean;
           metadata: Record<string, unknown> | null;
+          organization_id: string;
           created_at: string;
           updated_at: string;
         };
@@ -260,6 +338,7 @@ export interface Database {
           is_active?: boolean;
           is_default?: boolean;
           metadata?: Record<string, unknown> | null;
+          organization_id: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -274,6 +353,7 @@ export interface Database {
           is_active?: boolean;
           is_default?: boolean;
           metadata?: Record<string, unknown> | null;
+          organization_id?: string;
           updated_at?: string;
         };
       };
@@ -297,6 +377,7 @@ export interface Database {
           edited_by_name: string | null;
           edited_at: string | null;
           price_snapshot: number | null;
+          organization_id: string;
           created_at: string;
           updated_at: string;
         };
@@ -319,6 +400,7 @@ export interface Database {
           edited_by_name?: string | null;
           edited_at?: string | null;
           price_snapshot?: number | null;
+          organization_id: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -341,6 +423,7 @@ export interface Database {
           edited_by_name?: string | null;
           edited_at?: string | null;
           price_snapshot?: number | null;
+          organization_id?: string;
           updated_at?: string;
         };
       };
@@ -358,6 +441,7 @@ export interface Database {
           adicional_2: string | null;
           viene_desde: string | null;
           notes: string | null;
+          organization_id: string;
           created_at: string;
           updated_at: string;
         };
@@ -374,6 +458,7 @@ export interface Database {
           adicional_2?: string | null;
           viene_desde?: string | null;
           notes?: string | null;
+          organization_id: string;
           created_at?: string;
           updated_at?: string;
         };
@@ -390,6 +475,7 @@ export interface Database {
           adicional_2?: string | null;
           viene_desde?: string | null;
           notes?: string | null;
+          organization_id?: string;
           updated_at?: string;
         };
       };
@@ -398,18 +484,21 @@ export interface Database {
           id: string;
           patient_id: string;
           tag: string;
+          organization_id: string;
           created_at: string;
         };
         Insert: {
           id?: string;
           patient_id: string;
           tag: string;
+          organization_id: string;
           created_at?: string;
         };
         Update: {
           id?: string;
           patient_id?: string;
           tag?: string;
+          organization_id?: string;
         };
       };
       patient_payments: {
@@ -421,6 +510,7 @@ export interface Database {
           payment_method: string | null;
           notes: string | null;
           payment_date: string;
+          organization_id: string;
           created_at: string;
         };
         Insert: {
@@ -431,6 +521,7 @@ export interface Database {
           payment_method?: string | null;
           notes?: string | null;
           payment_date?: string;
+          organization_id: string;
           created_at?: string;
         };
         Update: {
@@ -441,6 +532,78 @@ export interface Database {
           payment_method?: string | null;
           notes?: string | null;
           payment_date?: string;
+          organization_id?: string;
+        };
+      };
+      schedule_blocks: {
+        Row: {
+          id: string;
+          block_date: string;
+          start_time: string | null;
+          end_time: string | null;
+          office_id: string | null;
+          all_day: boolean;
+          reason: string | null;
+          created_by: string | null;
+          organization_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          block_date: string;
+          start_time?: string | null;
+          end_time?: string | null;
+          office_id?: string | null;
+          all_day?: boolean;
+          reason?: string | null;
+          created_by?: string | null;
+          organization_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          block_date?: string;
+          start_time?: string | null;
+          end_time?: string | null;
+          office_id?: string | null;
+          all_day?: boolean;
+          reason?: string | null;
+          created_by?: string | null;
+          organization_id?: string;
+        };
+      };
+      global_variables: {
+        Row: {
+          id: string;
+          name: string;
+          key: string;
+          value: string;
+          description: string | null;
+          sort_order: number;
+          is_active: boolean;
+          organization_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          key: string;
+          value?: string;
+          description?: string | null;
+          sort_order?: number;
+          is_active?: boolean;
+          organization_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          key?: string;
+          value?: string;
+          description?: string | null;
+          sort_order?: number;
+          is_active?: boolean;
+          organization_id?: string;
         };
       };
     };

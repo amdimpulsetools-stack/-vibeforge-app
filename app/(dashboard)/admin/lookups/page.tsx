@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useOrganization } from "@/components/organization-provider";
 import { toast } from "sonner";
 import { lookupValueSchema, type LookupValueFormData } from "@/lib/validations/lookup";
 import { LOOKUP_SLUGS } from "@/types/admin";
@@ -264,6 +265,7 @@ function LookupValueForm({
   onCancel: () => void;
 }) {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const [saving, setSaving] = useState(false);
 
   const {
@@ -303,7 +305,7 @@ function LookupValueForm({
         return;
       }
     } else {
-      const { error } = await supabase.from("lookup_values").insert(payload);
+      const { error } = await supabase.from("lookup_values").insert({ ...payload, organization_id: organizationId });
       if (error) {
         toast.error(t("lookups.save_error") + ": " + error.message);
         setSaving(false);
