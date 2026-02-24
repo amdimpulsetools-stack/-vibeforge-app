@@ -92,6 +92,14 @@ const translations: Record<Language, Record<string, string>> = {
     // Dashboard
     "dashboard.welcome": "Bienvenido de vuelta",
     "dashboard.stats": "Estadísticas",
+    "dashboard.total_patients": "Pacientes totales",
+    "dashboard.today_appointments": "Citas de hoy",
+    "dashboard.active_doctors": "Doctores activos",
+    "dashboard.monthly_appointments": "Citas este mes",
+    "dashboard.vs_last_month": "vs. mes anterior",
+    "dashboard.today_schedule": "Agenda de hoy",
+    "dashboard.view_scheduler": "Ver agenda completa",
+    "dashboard.no_appointments_today": "No hay citas programadas para hoy",
 
     // Admin hub
     "admin.title": "Administración",
@@ -470,6 +478,14 @@ const translations: Record<Language, Record<string, string>> = {
     // Dashboard
     "dashboard.welcome": "Welcome back",
     "dashboard.stats": "Statistics",
+    "dashboard.total_patients": "Total patients",
+    "dashboard.today_appointments": "Today's appointments",
+    "dashboard.active_doctors": "Active doctors",
+    "dashboard.monthly_appointments": "This month",
+    "dashboard.vs_last_month": "vs. last month",
+    "dashboard.today_schedule": "Today's schedule",
+    "dashboard.view_scheduler": "View full schedule",
+    "dashboard.no_appointments_today": "No appointments scheduled for today",
 
     // Admin hub
     "admin.title": "Administration",

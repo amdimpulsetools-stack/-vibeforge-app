@@ -36,6 +36,7 @@ interface NavItem {
   titleKey: string;
   href: string;
   icon: LucideIcon;
+  adminOnly?: boolean;
 }
 
 interface NavGroup {
@@ -52,7 +53,7 @@ function isNavGroup(entry: NavEntry): entry is NavGroup {
 }
 
 const navEntries: NavEntry[] = [
-  { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard, adminOnly: true },
   {
     titleKey: "nav.scheduler",
     icon: CalendarDays,
@@ -108,6 +109,7 @@ export function Sidebar() {
   };
 
   const renderNavItem = (item: NavItem) => {
+    if (item.adminOnly && !isAdmin) return null;
     const isActive = isPathActive(item.href);
     return (
       <Link key={item.href} href={item.href}>
