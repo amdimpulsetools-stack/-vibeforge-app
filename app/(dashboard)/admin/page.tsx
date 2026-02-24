@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AdminPageContent } from "./admin-page-content";
 
-const COUNT_TABLES = ["offices", "doctors", "services", "lookup_values"] as const;
+const COUNT_TABLES = ["offices", "doctors", "services", "lookup_values", "organization_members"] as const;
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -21,6 +21,7 @@ export default async function AdminPage() {
       doctorCount={counts[1]}
       serviceCount={counts[2]}
       lookupCount={counts[3]}
+      memberCount={counts[4]}
     />
   );
 }

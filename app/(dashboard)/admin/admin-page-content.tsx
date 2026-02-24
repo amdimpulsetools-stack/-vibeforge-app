@@ -7,6 +7,7 @@ import {
   Stethoscope,
   ClipboardList,
   ListOrdered,
+  UsersRound,
   ArrowRight,
 } from "lucide-react";
 
@@ -15,6 +16,7 @@ interface AdminPageContentProps {
   doctorCount: number;
   serviceCount: number;
   lookupCount: number;
+  memberCount: number;
 }
 
 export function AdminPageContent({
@@ -22,6 +24,7 @@ export function AdminPageContent({
   doctorCount,
   serviceCount,
   lookupCount,
+  memberCount,
 }: AdminPageContentProps) {
   const { t } = useLanguage();
 
@@ -53,6 +56,13 @@ export function AdminPageContent({
       href: "/admin/lookups",
       icon: ListOrdered,
       count: lookupCount,
+    },
+    {
+      title: t("admin.members_card"),
+      desc: t("admin.members_desc"),
+      href: "/admin/members",
+      icon: UsersRound,
+      count: memberCount,
     },
   ];
 
