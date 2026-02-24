@@ -283,6 +283,10 @@ function LookupValueForm({
   });
 
   const onSubmit = async (data: LookupValueFormData) => {
+    if (!value && !organizationId) {
+      toast.error("No se encontró la organización. Recarga la página.");
+      return;
+    }
     setSaving(true);
     const supabase = createClient();
 

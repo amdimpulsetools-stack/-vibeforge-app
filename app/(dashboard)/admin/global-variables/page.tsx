@@ -189,6 +189,7 @@ export default function GlobalVariablesPage() {
     const sourceId = dragId.current;
     dragId.current = null;
     if (!sourceId || sourceId === targetId) return;
+    if (!organizationId) return;
 
     // Re-order locally
     const reordered = [...variables];
@@ -211,6 +212,7 @@ export default function GlobalVariablesPage() {
       key: variables.find((v) => v.id === id)?.key ?? "",
       value: variables.find((v) => v.id === id)?.value ?? "",
       is_active: variables.find((v) => v.id === id)?.is_active ?? true,
+      organization_id: organizationId,
     }));
 
     const { error } = await supabase
