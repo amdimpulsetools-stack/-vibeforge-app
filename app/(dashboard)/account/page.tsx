@@ -13,7 +13,9 @@ import {
   type ProfileFormData,
   type PasswordFormData,
 } from "@/lib/validations/account";
+import { usePlan } from "@/hooks/use-plan";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   Loader2,
   User,
@@ -21,11 +23,40 @@ import {
   Lock,
   Eye,
   EyeOff,
+  Zap,
+  Crown,
+  Rocket,
+  CalendarDays,
+  Users,
+  Stethoscope,
+  Building2,
+  AlertTriangle,
 } from "lucide-react";
+
+const PLAN_ICONS: Record<string, typeof Zap> = {
+  starter: Zap,
+  professional: Rocket,
+  enterprise: Crown,
+};
+
+const PLAN_BADGE: Record<string, string> = {
+  starter: "bg-emerald-500/10 text-emerald-500",
+  professional: "bg-blue-500/10 text-blue-500",
+  enterprise: "bg-amber-500/10 text-amber-500",
+};
+
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  active: { label: "Activo", color: "bg-emerald-500/10 text-emerald-500" },
+  trialing: { label: "Prueba gratuita", color: "bg-blue-500/10 text-blue-500" },
+  past_due: { label: "Pago pendiente", color: "bg-amber-500/10 text-amber-500" },
+  cancelled: { label: "Cancelado", color: "bg-muted text-muted-foreground" },
+  expired: { label: "Expirado", color: "bg-destructive/10 text-destructive" },
+};
 
 export default function AccountPage() {
   const { user, loading: userLoading } = useUser();
   const { t } = useLanguage();
+  const { plan, subscription, usage, daysRemaining, loading: planLoading } = usePlan();
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
@@ -294,6 +325,103 @@ export default function AccountPage() {
           </div>
         </div>
 
+        {/* Current Plan */}
+        {!planLoading && plan && subscription && (
+          <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {(() => {
+                  const PlanIcon = PLAN_ICONS[plan.slug] ?? Zap;
+                  return <PlanIcon className="h-5 w-5 text-primary" />;
+                })()}
+                <h2 className="text-lg font-semibold">Plan actual</h2>
+              </div>
+              <span
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium",
+                  STATUS_LABELS[subscription.status]?.color ?? "bg-muted text-muted-foreground"
+                )}
+              >
+                {STATUS_LABELS[subscription.status]?.label ?? subscription.status}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-4">
+              <span
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold",
+                  PLAN_BADGE[plan.slug] ?? "bg-muted text-muted-foreground"
+                )}
+              >
+                {plan.name}
+              </span>
+              {plan.price_monthly > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  ${plan.price_monthly}/mes
+                </span>
+              )}
+              {plan.price_monthly === 0 && (
+                <span className="text-sm text-muted-foreground">Gratis</span>
+              )}
+            </div>
+
+            {/* Days remaining */}
+            {daysRemaining !== null && (
+              <div
+                className={cn(
+                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
+                  daysRemaining <= 3
+                    ? "bg-destructive/10 text-destructive"
+                    : daysRemaining <= 7
+                      ? "bg-amber-500/10 text-amber-600"
+                      : "bg-muted text-muted-foreground"
+                )}
+              >
+                {daysRemaining <= 7 && <AlertTriangle className="h-4 w-4" />}
+                <CalendarDays className="h-4 w-4" />
+                <span>
+                  {daysRemaining === 0
+                    ? "Tu plan vence hoy"
+                    : daysRemaining === 1
+                      ? "Tu plan vence mañana"
+                      : `${daysRemaining} días restantes`}
+                </span>
+              </div>
+            )}
+
+            {/* Usage summary */}
+            {usage && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <UsageStat
+                  icon={Users}
+                  label="Miembros"
+                  current={usage.members}
+                  limit={plan.max_members}
+                />
+                <UsageStat
+                  icon={Stethoscope}
+                  label="Doctores"
+                  current={usage.doctors}
+                  limit={plan.max_doctors}
+                />
+                <UsageStat
+                  icon={Building2}
+                  label="Consultorios"
+                  current={usage.offices}
+                  limit={plan.max_offices}
+                />
+              </div>
+            )}
+
+            <a
+              href="/select-plan"
+              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+            >
+              Cambiar plan
+            </a>
+          </div>
+        )}
+
         {/* Profile form */}
         <form
           onSubmit={handleSubmit(onSubmitProfile)}
@@ -433,6 +561,50 @@ export default function AccountPage() {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function UsageStat({
+  icon: Icon,
+  label,
+  current,
+  limit,
+}: {
+  icon: typeof Users;
+  label: string;
+  current: number;
+  limit: number | null;
+}) {
+  const pct = limit ? (current / limit) * 100 : 0;
+  const isNear = limit !== null && pct >= 80;
+  const isAt = limit !== null && current >= limit;
+
+  return (
+    <div className="rounded-lg border border-border bg-background p-3 space-y-1.5">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </div>
+      <div className="flex items-baseline gap-1">
+        <span className={cn("text-lg font-bold", isAt && "text-destructive", isNear && !isAt && "text-amber-500")}>
+          {current}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          / {limit ?? "∞"}
+        </span>
+      </div>
+      {limit !== null && (
+        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+          <div
+            className={cn(
+              "h-full rounded-full transition-all",
+              isAt ? "bg-destructive" : isNear ? "bg-amber-500" : "bg-primary"
+            )}
+            style={{ width: `${Math.min(pct, 100)}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 }
