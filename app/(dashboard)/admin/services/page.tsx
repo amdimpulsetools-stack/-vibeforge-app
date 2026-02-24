@@ -367,6 +367,10 @@ function ServiceForm({
   });
 
   const onSubmit = async (values: ServiceFormData) => {
+    if (!service && !organizationId) {
+      toast.error("No se encontró la organización. Recarga la página.");
+      return;
+    }
     setSaving(true);
     const supabase = createClient();
 
@@ -384,14 +388,16 @@ function ServiceForm({
         .update(payload)
         .eq("id", service.id);
       if (error) {
-        toast.error(t("services.save_error"));
+        console.error("Service update error:", error);
+        toast.error(t("services.save_error") + ": " + error.message);
         setSaving(false);
         return;
       }
     } else {
       const { error } = await supabase.from("services").insert({ ...payload, organization_id: organizationId });
       if (error) {
-        toast.error(t("services.save_error"));
+        console.error("Service insert error:", error);
+        toast.error(t("services.save_error") + ": " + error.message);
         setSaving(false);
         return;
       }
@@ -514,6 +520,10 @@ function CategoryForm({
   });
 
   const onSubmit = async (values: ServiceCategoryFormData) => {
+    if (!category && !organizationId) {
+      toast.error("No se encontró la organización. Recarga la página.");
+      return;
+    }
     setSaving(true);
     const supabase = createClient();
 

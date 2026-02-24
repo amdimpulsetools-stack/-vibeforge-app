@@ -198,7 +198,8 @@ function ProfileTab({ doctor, onSave }: { doctor: Doctor; onSave: () => void }) 
 
     setSaving(false);
     if (error) {
-      toast.error(t("doctors.save_error"));
+      console.error("Doctor update error:", error);
+      toast.error(t("doctors.save_error") + ": " + error.message);
       return;
     }
     toast.success(t("doctors.save_success"));
@@ -300,6 +301,10 @@ function ServicesTab({
   };
 
   const handleSave = async () => {
+    if (!organizationId) {
+      toast.error("No se encontró la organización. Recarga la página.");
+      return;
+    }
     setSaving(true);
     const supabase = createClient();
 
@@ -315,7 +320,8 @@ function ServicesTab({
       }));
       const { error } = await supabase.from("doctor_services").insert(inserts);
       if (error) {
-        toast.error(t("doctors.save_error"));
+        console.error("Doctor services insert error:", error);
+        toast.error(t("doctors.save_error") + ": " + error.message);
         setSaving(false);
         return;
       }
@@ -443,6 +449,10 @@ function ScheduleTab({
   };
 
   const handleSave = async () => {
+    if (!organizationId) {
+      toast.error("No se encontró la organización. Recarga la página.");
+      return;
+    }
     setSaving(true);
     const supabase = createClient();
 
@@ -461,6 +471,7 @@ function ScheduleTab({
       }));
       const { error } = await supabase.from("doctor_schedules").insert(inserts);
       if (error) {
+        console.error("Doctor schedules insert error:", error);
         toast.error(t("doctors.save_error") + ": " + error.message);
         setSaving(false);
         return;

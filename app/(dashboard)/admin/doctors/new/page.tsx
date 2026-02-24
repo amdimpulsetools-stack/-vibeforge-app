@@ -39,6 +39,10 @@ export default function NewDoctorPage() {
   const selectedColor = watch("color");
 
   const onSubmit = async (values: DoctorFormData) => {
+    if (!organizationId) {
+      toast.error("No se encontró la organización. Recarga la página.");
+      return;
+    }
     setSaving(true);
     const supabase = createClient();
 
@@ -55,7 +59,8 @@ export default function NewDoctorPage() {
       .single();
 
     if (error) {
-      toast.error(t("doctors.save_error"));
+      console.error("Doctor insert error:", error);
+      toast.error(t("doctors.save_error") + ": " + error.message);
       setSaving(false);
       return;
     }

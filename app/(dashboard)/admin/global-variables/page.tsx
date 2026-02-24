@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useOrganization } from "@/components/organization-provider";
 import { toast } from "sonner";
 import {
   Settings2,
@@ -40,6 +41,7 @@ const emptyNew = () => ({
 });
 
 export default function GlobalVariablesPage() {
+  const { organizationId } = useOrganization();
   const [variables, setVariables] = useState<GlobalVariable[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditState | null>(null);
@@ -135,6 +137,10 @@ export default function GlobalVariablesPage() {
       toast.error("Nombre y clave son requeridos");
       return;
     }
+    if (!organizationId) {
+      toast.error("No se encontró la organización. Recarga la página.");
+      return;
+    }
 
     setSaving(true);
     const supabase = createClient();
@@ -150,6 +156,7 @@ export default function GlobalVariablesPage() {
         value: newVar.value.trim(),
         description: newVar.description.trim() || null,
         sort_order: maxOrder,
+        organization_id: organizationId,
       })
       .select()
       .single();
