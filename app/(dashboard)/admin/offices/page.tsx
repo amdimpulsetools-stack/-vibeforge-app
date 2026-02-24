@@ -6,6 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgRole } from "@/hooks/use-org-role";
+import { RoleGate } from "@/components/role-gate";
 import { toast } from "sonner";
 import { officeSchema, type OfficeFormData } from "@/lib/validations/office";
 import type { Office } from "@/types/admin";
@@ -21,6 +23,7 @@ import {
 
 export default function OfficesPage() {
   const { t } = useLanguage();
+  const { isAdmin } = useOrgRole();
   const [offices, setOffices] = useState<Office[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -90,16 +93,18 @@ export default function OfficesPage() {
           <h1 className="text-3xl font-bold tracking-tight">{t("offices.title")}</h1>
           <p className="text-muted-foreground">{t("offices.subtitle")}</p>
         </div>
-        <button
-          onClick={() => {
-            setShowAddForm(true);
-            setEditingId(null);
-          }}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-        >
-          <Plus className="h-4 w-4" />
-          {t("offices.add")}
-        </button>
+        <RoleGate minRole="admin">
+          <button
+            onClick={() => {
+              setShowAddForm(true);
+              setEditingId(null);
+            }}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            <Plus className="h-4 w-4" />
+            {t("offices.add")}
+          </button>
+        </RoleGate>
       </div>
 
       {showAddForm && (
@@ -151,30 +156,35 @@ export default function OfficesPage() {
                 </div>
                 <div className="flex items-center gap-3">
                   <button
-                    onClick={() => handleToggleActive(office)}
+                    onClick={() => isAdmin && handleToggleActive(office)}
+                    disabled={!isAdmin}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                       office.is_active
                         ? "bg-emerald-500/10 text-emerald-500"
                         : "bg-muted text-muted-foreground"
-                    }`}
+                    } ${!isAdmin ? "cursor-default" : ""}`}
                   >
                     {office.is_active ? t("common.active") : t("common.inactive")}
                   </button>
-                  <button
-                    onClick={() => {
-                      setEditingId(office.id);
-                      setShowAddForm(false);
-                    }}
-                    className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(office.id)}
-                    className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setEditingId(office.id);
+                        setShowAddForm(false);
+                      }}
+                      className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => handleDelete(office.id)}
+                      className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             )}

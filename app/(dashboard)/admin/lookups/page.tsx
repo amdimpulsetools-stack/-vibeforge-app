@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgRole } from "@/hooks/use-org-role";
 import { toast } from "sonner";
 import { lookupValueSchema, type LookupValueFormData } from "@/lib/validations/lookup";
 import { LOOKUP_SLUGS } from "@/types/admin";
@@ -31,6 +32,7 @@ const TAB_CONFIG = [
 
 export default function LookupsPage() {
   const { t } = useLanguage();
+  const { isAdmin } = useOrgRole();
   const [categories, setCategories] = useState<(LookupCategory & { lookup_values: LookupValue[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSlug, setActiveSlug] = useState<string>(LOOKUP_SLUGS.ORIGIN);
@@ -102,6 +104,7 @@ export default function LookupsPage() {
           category={activeCategory}
           showColor={activeTabConfig?.showColor ?? false}
           onUpdate={fetchData}
+          isAdmin={isAdmin}
         />
       )}
     </div>
@@ -112,10 +115,12 @@ function LookupValueList({
   category,
   showColor,
   onUpdate,
+  isAdmin,
 }: {
   category: LookupCategory & { lookup_values: LookupValue[] };
   showColor: boolean;
   onUpdate: () => void;
+  isAdmin: boolean;
 }) {
   const { t } = useLanguage();
   const [showForm, setShowForm] = useState(false);
@@ -152,16 +157,18 @@ function LookupValueList({
         <p className="text-sm text-muted-foreground">
           {category.description}
         </p>
-        <button
-          onClick={() => {
-            setShowForm(true);
-            setEditingValue(null);
-          }}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-        >
-          <Plus className="h-4 w-4" />
-          {t("lookups.add_value")}
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => {
+              setShowForm(true);
+              setEditingValue(null);
+            }}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            <Plus className="h-4 w-4" />
+            {t("lookups.add_value")}
+          </button>
+        )}
       </div>
 
       {showForm && (
@@ -216,31 +223,37 @@ function LookupValueList({
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => handleToggleActive(item)}
+                onClick={() => isAdmin && handleToggleActive(item)}
+                disabled={!isAdmin}
                 className={cn(
                   "rounded-full px-3 py-1 text-xs font-medium transition-colors",
                   item.is_active
                     ? "bg-emerald-500/10 text-emerald-500"
-                    : "bg-muted text-muted-foreground"
+                    : "bg-muted text-muted-foreground",
+                  !isAdmin && "cursor-default"
                 )}
               >
                 {item.is_active ? t("common.active") : t("common.inactive")}
               </button>
-              <button
-                onClick={() => {
-                  setEditingValue(item);
-                  setShowForm(true);
-                }}
-                className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <Pencil className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => handleDelete(item.id)}
-                className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    setEditingValue(item);
+                    setShowForm(true);
+                  }}
+                  className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => handleDelete(item.id)}
+                  className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
         ))}

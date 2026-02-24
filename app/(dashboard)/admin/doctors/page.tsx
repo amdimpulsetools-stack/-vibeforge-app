@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useOrgRole } from "@/hooks/use-org-role";
+import { RoleGate } from "@/components/role-gate";
 import { toast } from "sonner";
 import type { Doctor } from "@/types/admin";
 import Link from "next/link";
@@ -17,6 +19,7 @@ import {
 
 export default function DoctorsPage() {
   const { t } = useLanguage();
+  const { isAdmin } = useOrgRole();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -82,13 +85,15 @@ export default function DoctorsPage() {
           <h1 className="text-3xl font-bold tracking-tight">{t("doctors.title")}</h1>
           <p className="text-muted-foreground">{t("doctors.subtitle")}</p>
         </div>
-        <Link
-          href="/admin/doctors/new"
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-        >
-          <Plus className="h-4 w-4" />
-          {t("doctors.add")}
-        </Link>
+        <RoleGate minRole="admin">
+          <Link
+            href="/admin/doctors/new"
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            <Plus className="h-4 w-4" />
+            {t("doctors.add")}
+          </Link>
+        </RoleGate>
       </div>
 
       {doctors.length > 0 && (
@@ -140,27 +145,32 @@ export default function DoctorsPage() {
                 title={t("doctors.color")}
               />
               <button
-                onClick={() => handleToggleActive(doctor)}
+                onClick={() => isAdmin && handleToggleActive(doctor)}
+                disabled={!isAdmin}
                 className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                   doctor.is_active
                     ? "bg-emerald-500/10 text-emerald-500"
                     : "bg-muted text-muted-foreground"
-                }`}
+                } ${!isAdmin ? "cursor-default" : ""}`}
               >
                 {doctor.is_active ? t("doctors.active") : t("doctors.inactive")}
               </button>
-              <Link
-                href={`/admin/doctors/${doctor.id}`}
-                className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-              >
-                <Pencil className="h-4 w-4" />
-              </Link>
-              <button
-                onClick={() => handleDelete(doctor.id)}
-                className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {isAdmin && (
+                <Link
+                  href={`/admin/doctors/${doctor.id}`}
+                  className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <Pencil className="h-4 w-4" />
+                </Link>
+              )}
+              {isAdmin && (
+                <button
+                  onClick={() => handleDelete(doctor.id)}
+                  className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
         ))}

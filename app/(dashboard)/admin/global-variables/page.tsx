@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgRole } from "@/hooks/use-org-role";
 import { toast } from "sonner";
 import {
   Settings2,
@@ -42,6 +43,7 @@ const emptyNew = () => ({
 
 export default function GlobalVariablesPage() {
   const { organizationId } = useOrganization();
+  const { isAdmin } = useOrgRole();
   const [variables, setVariables] = useState<GlobalVariable[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditState | null>(null);
@@ -280,9 +282,9 @@ export default function GlobalVariablesPage() {
 
     return (
       <span
-        onClick={() => startEdit(id, field, value)}
-        title="Click para editar"
-        className={`cursor-text rounded px-1 py-0.5 hover:bg-accent transition-colors ${className}`}
+        onClick={() => isAdmin && startEdit(id, field, value)}
+        title={isAdmin ? "Click para editar" : undefined}
+        className={`rounded px-1 py-0.5 transition-colors ${isAdmin ? "cursor-text hover:bg-accent" : ""} ${className}`}
       >
         {value || (
           <span className="text-muted-foreground/50 italic text-xs">
@@ -308,13 +310,15 @@ export default function GlobalVariablesPage() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setShowAdd(!showAdd)}
-          className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-        >
-          <Plus className="h-4 w-4" />
-          Nueva variable
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowAdd(!showAdd)}
+            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            <Plus className="h-4 w-4" />
+            Nueva variable
+          </button>
+        )}
       </div>
 
       {/* Add form */}
@@ -422,8 +426,8 @@ export default function GlobalVariablesPage() {
               {variables.map((variable) => (
                 <tr
                   key={variable.id}
-                  draggable
-                  onDragStart={() => handleDragStart(variable.id)}
+                  draggable={isAdmin}
+                  onDragStart={() => isAdmin && handleDragStart(variable.id)}
                   onDragOver={(e) => handleDragOver(e, variable.id)}
                   onDrop={() => handleDrop(variable.id)}
                   onDragEnd={handleDragEnd}
@@ -434,8 +438,8 @@ export default function GlobalVariablesPage() {
                   } ${!variable.is_active ? "opacity-50" : ""}`}
                 >
                   {/* Drag handle */}
-                  <td className="px-3 py-3 cursor-grab active:cursor-grabbing">
-                    <GripVertical className="h-4 w-4 text-muted-foreground/40 hover:text-muted-foreground transition-colors" />
+                  <td className={`px-3 py-3 ${isAdmin ? "cursor-grab active:cursor-grabbing" : ""}`}>
+                    <GripVertical className={`h-4 w-4 transition-colors ${isAdmin ? "text-muted-foreground/40 hover:text-muted-foreground" : "text-muted-foreground/20"}`} />
                   </td>
 
                   {/* Name */}
@@ -483,9 +487,10 @@ export default function GlobalVariablesPage() {
                   {/* Active toggle */}
                   <td className="px-4 py-3 text-center">
                     <button
-                      onClick={() => toggleActive(variable)}
-                      title={variable.is_active ? "Desactivar" : "Activar"}
-                      className="mx-auto block transition-colors"
+                      onClick={() => isAdmin && toggleActive(variable)}
+                      disabled={!isAdmin}
+                      title={isAdmin ? (variable.is_active ? "Desactivar" : "Activar") : undefined}
+                      className={`mx-auto block transition-colors ${!isAdmin ? "cursor-default opacity-60" : ""}`}
                     >
                       {variable.is_active ? (
                         <ToggleRight className="h-5 w-5 text-emerald-500" />
@@ -497,24 +502,26 @@ export default function GlobalVariablesPage() {
 
                   {/* Delete */}
                   <td className="px-4 py-3">
-                    {deletingId === variable.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                    ) : (
-                      <button
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              `¿Eliminar la variable "${variable.name}"? Esta acción no se puede deshacer.`
-                            )
-                          ) {
-                            handleDelete(variable.id);
-                          }
-                        }}
-                        className="rounded p-1 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
-                        title="Eliminar variable"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                    {isAdmin && (
+                      deletingId === variable.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                      ) : (
+                        <button
+                          onClick={() => {
+                            if (
+                              window.confirm(
+                                `¿Eliminar la variable "${variable.name}"? Esta acción no se puede deshacer.`
+                              )
+                            ) {
+                              handleDelete(variable.id);
+                            }
+                          }}
+                          className="rounded p-1 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10 transition-colors"
+                          title="Eliminar variable"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      )
                     )}
                   </td>
                 </tr>

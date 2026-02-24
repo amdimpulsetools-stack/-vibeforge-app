@@ -6,6 +6,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgRole } from "@/hooks/use-org-role";
+import { RoleGate } from "@/components/role-gate";
 import { toast } from "sonner";
 import {
   serviceSchema,
@@ -32,6 +34,7 @@ import {
 
 export default function ServicesPage() {
   const { t } = useLanguage();
+  const { isAdmin } = useOrgRole();
   const [services, setServices] = useState<(Service & { service_categories: ServiceCategory })[]>([]);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -151,18 +154,20 @@ export default function ServicesPage() {
       {/* Services Tab */}
       {activeTab === "services" && (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <button
-              onClick={() => {
-                setShowServiceForm(true);
-                setEditingService(null);
-              }}
-              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-            >
-              <Plus className="h-4 w-4" />
-              {t("services.add")}
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setShowServiceForm(true);
+                  setEditingService(null);
+                }}
+                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+              >
+                <Plus className="h-4 w-4" />
+                {t("services.add")}
+              </button>
+            </div>
+          )}
 
           {showServiceForm && (
             <div className="rounded-xl border border-border bg-card p-6">
@@ -224,30 +229,35 @@ export default function ServicesPage() {
                       </div>
                       <div className="flex items-center gap-3">
                         <button
-                          onClick={() => handleToggleServiceActive(service)}
+                          onClick={() => isAdmin && handleToggleServiceActive(service)}
+                          disabled={!isAdmin}
                           className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                             service.is_active
                               ? "bg-emerald-500/10 text-emerald-500"
                               : "bg-muted text-muted-foreground"
-                          }`}
+                          } ${!isAdmin ? "cursor-default" : ""}`}
                         >
                           {service.is_active ? t("common.active") : t("common.inactive")}
                         </button>
-                        <button
-                          onClick={() => {
-                            setEditingService(service);
-                            setShowServiceForm(true);
-                          }}
-                          className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteService(service.id)}
-                          className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {isAdmin && (
+                          <button
+                            onClick={() => {
+                              setEditingService(service);
+                              setShowServiceForm(true);
+                            }}
+                            className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button
+                            onClick={() => handleDeleteService(service.id)}
+                            className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -261,18 +271,20 @@ export default function ServicesPage() {
       {/* Categories Tab */}
       {activeTab === "categories" && (
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <button
-              onClick={() => {
-                setShowCategoryForm(true);
-                setEditingCategory(null);
-              }}
-              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-            >
-              <Plus className="h-4 w-4" />
-              {t("services.add_category")}
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setShowCategoryForm(true);
+                  setEditingCategory(null);
+                }}
+                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+              >
+                <Plus className="h-4 w-4" />
+                {t("services.add_category")}
+              </button>
+            </div>
+          )}
 
           {showCategoryForm && (
             <div className="rounded-xl border border-border bg-card p-6">
@@ -310,23 +322,25 @@ export default function ServicesPage() {
                     <p className="text-sm text-muted-foreground">{cat.description}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => {
-                      setEditingCategory(cat);
-                      setShowCategoryForm(true);
-                    }}
-                    className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteCategory(cat.id)}
-                    className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setEditingCategory(cat);
+                        setShowCategoryForm(true);
+                      }}
+                      className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteCategory(cat.id)}
+                      className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

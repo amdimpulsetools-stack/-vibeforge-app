@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgRole } from "@/hooks/use-org-role";
 import {
   LayoutDashboard,
   Settings,
@@ -83,8 +84,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useLanguage();
-  const { organization, isOrgAdmin } = useOrganization();
-  const isAdmin = isOrgAdmin;
+  const { organization } = useOrganization();
+  const { isAdmin } = useOrgRole();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
