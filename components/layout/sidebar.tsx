@@ -182,9 +182,17 @@ export function Sidebar() {
       <div className="flex h-14 items-center border-b border-border px-3">
         {!collapsed && (
           <div className="flex items-center gap-2 min-w-0">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Zap className="h-4 w-4" />
-            </div>
+            {organization?.logo_url ? (
+              <img
+                src={organization.logo_url}
+                alt=""
+                className="h-7 w-7 shrink-0 rounded-lg object-cover"
+              />
+            ) : (
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Zap className="h-4 w-4" />
+              </div>
+            )}
             <div className="min-w-0">
               <span className="block text-sm font-bold truncate">{organization?.name ?? APP_NAME}</span>
             </div>
