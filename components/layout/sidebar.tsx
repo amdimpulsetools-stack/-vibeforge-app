@@ -8,7 +8,6 @@ import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
 import { useState } from "react";
 import { useLanguage } from "@/components/language-provider";
-import { useUserProfile } from "@/hooks/use-user-profile";
 import { useOrganization } from "@/components/organization-provider";
 import {
   LayoutDashboard,
@@ -82,9 +81,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useLanguage();
-  const { isAdmin: isLegacyAdmin } = useUserProfile();
   const { organization, isOrgAdmin } = useOrganization();
-  const isAdmin = isOrgAdmin || isLegacyAdmin;
+  const isAdmin = isOrgAdmin;
   const [collapsed, setCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 

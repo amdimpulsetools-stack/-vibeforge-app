@@ -24,16 +24,7 @@ export default async function AdminLayout({
   const isOrgAdmin =
     membership?.role === "owner" || membership?.role === "admin";
 
-  // Fallback: also check legacy user_profiles.role
-  if (!isOrgAdmin) {
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (profile?.role !== "admin") redirect("/dashboard");
-  }
+  if (!isOrgAdmin) redirect("/dashboard");
 
   return <>{children}</>;
 }

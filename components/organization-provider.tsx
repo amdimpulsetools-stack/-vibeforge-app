@@ -47,7 +47,9 @@ export function OrganizationProvider({
 
     const fetchOrg = async () => {
       const supabase = createClient();
-      const { data } = await supabase
+
+      // Try to fetch existing org membership
+      const { data, error } = await supabase
         .from("organization_members")
         .select("organization_id, role, organizations(*)")
         .eq("user_id", user.id)
@@ -59,6 +61,39 @@ export function OrganizationProvider({
         const role = data.role as OrgRole;
         setState({
           organizationId: data.organization_id,
+          organization: org,
+          orgRole: role,
+          isOrgAdmin: role === "owner" || role === "admin",
+          loading: false,
+        });
+        return;
+      }
+
+      // No org membership found — attempt self-healing via RPC
+      console.warn("No organization membership found, attempting auto-repair...");
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        "ensure_user_has_org"
+      );
+
+      if (rpcError) {
+        console.error("Failed to auto-create organization:", rpcError.message);
+        setState((s) => ({ ...s, loading: false }));
+        return;
+      }
+
+      // Re-fetch org membership after self-healing
+      const { data: retryData } = await supabase
+        .from("organization_members")
+        .select("organization_id, role, organizations(*)")
+        .eq("user_id", user.id)
+        .limit(1)
+        .single();
+
+      if (retryData) {
+        const org = retryData.organizations as unknown as Organization;
+        const role = retryData.role as OrgRole;
+        setState({
+          organizationId: retryData.organization_id,
           organization: org,
           orgRole: role,
           isOrgAdmin: role === "owner" || role === "admin",
