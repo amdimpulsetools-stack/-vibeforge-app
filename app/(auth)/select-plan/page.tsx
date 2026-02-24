@@ -97,34 +97,36 @@ export default function SelectPlanPage() {
       }
 
       // Check if they already have an org with subscription
-      const { data: membership } = await supabase
+      const { data: members } = await supabase
         .from("organization_members")
         .select("organization_id")
         .eq("user_id", user.id)
-        .limit(1)
-        .single();
+        .limit(1);
 
-      if (membership) {
-        const { data: sub } = await supabase
+      if (members && members.length > 0) {
+        const { data: subs } = await supabase
           .from("organization_subscriptions")
-          .select("id")
-          .eq("organization_id", membership.organization_id)
+          .select("id, status")
+          .eq("organization_id", members[0].organization_id)
           .in("status", ["active", "trialing"])
-          .limit(1)
-          .single();
+          .limit(1);
 
-        if (sub) {
+        if (subs && subs.length > 0) {
           setHasSubscription(true);
           router.push("/dashboard");
           return;
         }
       }
 
-      // Fetch plans
-      const res = await fetch("/api/plans");
-      if (res.ok) {
-        const data = await res.json();
-        setPlans(data);
+      // Fetch plans directly via Supabase client
+      const { data: plansData } = await supabase
+        .from("plans")
+        .select("*")
+        .eq("is_active", true)
+        .order("display_order");
+
+      if (plansData) {
+        setPlans(plansData);
       }
       setLoading(false);
     };

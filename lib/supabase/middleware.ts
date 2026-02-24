@@ -53,27 +53,29 @@ export async function updateSession(request: NextRequest) {
 
   // Check if authenticated user accessing dashboard needs a plan
   if (user && !isPublic && !isSelectPlan && !request.nextUrl.pathname.startsWith("/api")) {
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id")
-      .eq("user_id", user.id)
-      .limit(1)
-      .single();
+    try {
+      const { data: members } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .limit(1);
 
-    if (membership) {
-      const { data: sub } = await supabase
-        .from("organization_subscriptions")
-        .select("id")
-        .eq("organization_id", membership.organization_id)
-        .in("status", ["active", "trialing"])
-        .limit(1)
-        .single();
+      if (members && members.length > 0) {
+        const { data: subs } = await supabase
+          .from("organization_subscriptions")
+          .select("id")
+          .eq("organization_id", members[0].organization_id)
+          .in("status", ["active", "trialing"])
+          .limit(1);
 
-      if (!sub) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/select-plan";
-        return NextResponse.redirect(url);
+        if (!subs || subs.length === 0) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/select-plan";
+          return NextResponse.redirect(url);
+        }
       }
+    } catch {
+      // If subscription check fails, let user through to avoid blocking
     }
   }
 
