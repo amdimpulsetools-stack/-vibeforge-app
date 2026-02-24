@@ -69,9 +69,9 @@ CREATE TRIGGER set_updated_at_org_subs
 -- 3. RLS policies
 ALTER TABLE plans ENABLE ROW LEVEL SECURITY;
 
--- Plans are readable by all authenticated users (public catalog)
+-- Plans are a public catalog (readable by everyone including unauthenticated)
 CREATE POLICY "plans_select" ON plans FOR SELECT
-  USING (auth.uid() IS NOT NULL);
+  USING (true);
 
 -- Only super-admins can modify plans (via service role / direct DB)
 -- No insert/update/delete policies for regular users
@@ -164,8 +164,8 @@ RETURNS JSON AS $$
     'appointments_this_month', (
       SELECT count(*) FROM appointments
       WHERE organization_id = org_id
-        AND date >= date_trunc('month', now())
-        AND date < date_trunc('month', now()) + interval '1 month'
+        AND appointment_date >= date_trunc('month', now())
+        AND appointment_date < date_trunc('month', now()) + interval '1 month'
     )
   );
 $$ LANGUAGE sql SECURITY DEFINER STABLE;
