@@ -39,6 +39,10 @@ export default async function DashboardPage() {
   const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
   const lastMonthStart = format(startOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
   const lastMonthEnd = format(endOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
+  const weekStart = format(subDays(now, 6), "yyyy-MM-dd");
+  const prevWeekStart = format(subDays(now, 13), "yyyy-MM-dd");
+  const prevWeekEnd = format(subDays(now, 7), "yyyy-MM-dd");
+  const yesterday = format(subDays(now, 1), "yyyy-MM-dd");
 
   const [
     patientsRes,
@@ -59,6 +63,8 @@ export default async function DashboardPage() {
     completedApptsThisMonthRes,
     // Revenue last month: completed appointments with price_snapshot
     completedApptsLastMonthRes,
+    // Recent appointments (last 14 days) for week/today period calculations
+    recentApptsRes,
   ] = await Promise.all([
     // Total patients
     supabase
@@ -149,17 +155,23 @@ export default async function DashboardPage() {
     // Revenue this month: price_snapshot with fallback to service base_price
     supabase
       .from("appointments")
-      .select("price_snapshot, services(base_price)")
+      .select("appointment_date, price_snapshot, services(base_price)")
       .gte("appointment_date", monthStart)
       .lte("appointment_date", monthEnd)
       .eq("status", "completed"),
     // Revenue last month: price_snapshot with fallback to service base_price
     supabase
       .from("appointments")
-      .select("price_snapshot, services(base_price)")
+      .select("appointment_date, price_snapshot, services(base_price)")
       .gte("appointment_date", lastMonthStart)
       .lte("appointment_date", lastMonthEnd)
       .eq("status", "completed"),
+    // Recent appointments (last 14 days) with status for period calculations
+    supabase
+      .from("appointments")
+      .select("appointment_date, status")
+      .gte("appointment_date", prevWeekStart)
+      .lte("appointment_date", today),
   ]);
 
   // Basic stats
@@ -177,82 +189,116 @@ export default async function DashboardPage() {
         ? 100
         : 0;
 
-  // Financial — revenue from completed appointments
-  // Use price_snapshot if available, fallback to service's base_price for older appointments
-  const revenueThisMonth = (completedApptsThisMonthRes.data ?? []).reduce(
-    (sum, a) => {
+  // ── Helpers ────────────────────────────────────────────────────
+  const computeRevenue = (appts: any[]) =>
+    appts.reduce((sum, a) => {
       const price = a.price_snapshot ?? Number((a.services as any)?.base_price ?? 0);
       return sum + price;
-    },
-    0
-  );
-  const revenueLastMonth = (completedApptsLastMonthRes.data ?? []).reduce(
-    (sum, a) => {
-      const price = a.price_snapshot ?? Number((a.services as any)?.base_price ?? 0);
-      return sum + price;
-    },
-    0
-  );
-  const revenueGrowth =
-    revenueLastMonth > 0
-      ? Math.round(
-          ((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100
-        )
-      : revenueThisMonth > 0
+    }, 0);
+
+  const computeGrowth = (current: number, previous: number) =>
+    previous > 0
+      ? Math.round(((current - previous) / previous) * 100)
+      : current > 0
         ? 100
         : 0;
 
-  // Completed / Cancelled counts
+  const slotsPerDoctorPerDay = 12;
+
+  const countWorkingDays = (start: Date, end: Date) =>
+    eachDayOfInterval({ start, end }).filter((d) => {
+      const day = getDay(d);
+      return day !== 0 && day !== 6;
+    }).length;
+
+  // ── Combined revenue data (both months) ──────────────────────
+  const allCompletedAppts = [
+    ...(completedApptsThisMonthRes.data ?? []),
+    ...(completedApptsLastMonthRes.data ?? []),
+  ];
+  const recentAppts = recentApptsRes.data ?? [];
+
+  // ── MONTH period ─────────────────────────────────────────────
+  const revenueThisMonth = computeRevenue(completedApptsThisMonthRes.data ?? []);
+  const revenueLastMonth = computeRevenue(completedApptsLastMonthRes.data ?? []);
   const completedMonth = appointmentsCompletedMonthRes.count ?? 0;
   const cancelledMonth = appointmentsCancelledMonthRes.count ?? 0;
+  const monthWorkingDays = countWorkingDays(startOfMonth(now), endOfMonth(now));
+  const monthCapacity = activeDoctors * monthWorkingDays * slotsPerDoctorPerDay;
 
-  // Average ticket = revenue / completed appointments
-  const avgTicket =
-    completedMonth > 0 ? Math.round(revenueThisMonth / completedMonth) : 0;
+  const monthFinancial = {
+    revenue: revenueThisMonth,
+    revenueGrowth: computeGrowth(revenueThisMonth, revenueLastMonth),
+    avgTicket: completedMonth > 0 ? Math.round(revenueThisMonth / completedMonth) : 0,
+    completedCount: completedMonth,
+    completionRate: thisMonthAppts > 0 ? Math.round((completedMonth / thisMonthAppts) * 100) : 0,
+    cancelledCount: cancelledMonth,
+    cancellationRate: thisMonthAppts > 0 ? Math.round((cancelledMonth / thisMonthAppts) * 100) : 0,
+    occupancyRate: monthCapacity > 0
+      ? Math.min(100, Math.round(((thisMonthAppts - cancelledMonth) / monthCapacity) * 100))
+      : 0,
+  };
 
-  // Patient growth
+  // ── WEEK period (last 7 days) ────────────────────────────────
+  const weekCompletedAppts = allCompletedAppts.filter(
+    (a) => a.appointment_date >= weekStart && a.appointment_date <= today
+  );
+  const prevWeekCompletedAppts = allCompletedAppts.filter(
+    (a) => a.appointment_date >= prevWeekStart && a.appointment_date <= prevWeekEnd
+  );
+  const weekRevenue = computeRevenue(weekCompletedAppts);
+  const weekRecentAppts = recentAppts.filter((a) => a.appointment_date >= weekStart);
+  const weekTotal = weekRecentAppts.length;
+  const weekCompletedCount = weekRecentAppts.filter((a) => a.status === "completed").length;
+  const weekCancelled = weekRecentAppts.filter((a) => a.status === "cancelled").length;
+  const weekWorkingDays = countWorkingDays(subDays(now, 6), now);
+  const weekCapacity = activeDoctors * weekWorkingDays * slotsPerDoctorPerDay;
+
+  const weekFinancial = {
+    revenue: weekRevenue,
+    revenueGrowth: computeGrowth(weekRevenue, computeRevenue(prevWeekCompletedAppts)),
+    avgTicket: weekCompletedCount > 0 ? Math.round(weekRevenue / weekCompletedCount) : 0,
+    completedCount: weekCompletedCount,
+    completionRate: weekTotal > 0 ? Math.round((weekCompletedCount / weekTotal) * 100) : 0,
+    cancelledCount: weekCancelled,
+    cancellationRate: weekTotal > 0 ? Math.round((weekCancelled / weekTotal) * 100) : 0,
+    occupancyRate: weekCapacity > 0
+      ? Math.min(100, Math.round(((weekTotal - weekCancelled) / weekCapacity) * 100))
+      : 0,
+  };
+
+  // ── TODAY period ─────────────────────────────────────────────
+  const todayCompletedAppts = allCompletedAppts.filter((a) => a.appointment_date === today);
+  const yesterdayCompletedAppts = allCompletedAppts.filter((a) => a.appointment_date === yesterday);
+  const todayRevenue = computeRevenue(todayCompletedAppts);
+  const todayRecentAppts = recentAppts.filter((a) => a.appointment_date === today);
+  const todayTotal = todayAppts;
+  const todayCompletedCount = todayRecentAppts.filter((a) => a.status === "completed").length;
+  const todayCancelled = todayRecentAppts.filter((a) => a.status === "cancelled").length;
+  const todayIsWorkday = getDay(now) !== 0 && getDay(now) !== 6;
+  const todayCapacity = todayIsWorkday ? activeDoctors * slotsPerDoctorPerDay : 0;
+
+  const todayFinancial = {
+    revenue: todayRevenue,
+    revenueGrowth: computeGrowth(todayRevenue, computeRevenue(yesterdayCompletedAppts)),
+    avgTicket: todayCompletedCount > 0 ? Math.round(todayRevenue / todayCompletedCount) : 0,
+    completedCount: todayCompletedCount,
+    completionRate: todayTotal > 0 ? Math.round((todayCompletedCount / todayTotal) * 100) : 0,
+    cancelledCount: todayCancelled,
+    cancellationRate: todayTotal > 0 ? Math.round((todayCancelled / todayTotal) * 100) : 0,
+    occupancyRate: todayCapacity > 0
+      ? Math.min(100, Math.round(((todayTotal - todayCancelled) / todayCapacity) * 100))
+      : 0,
+  };
+
+  // ── Operational stats (always monthly) ───────────────────────
   const newPatientsThisMonth = patientsThisMonthRes.count ?? 0;
   const newPatientsLastMonth = patientsLastMonthRes.count ?? 0;
-  const patientGrowth =
-    newPatientsLastMonth > 0
-      ? Math.round(
-          ((newPatientsThisMonth - newPatientsLastMonth) /
-            newPatientsLastMonth) *
-            100
-        )
-      : newPatientsThisMonth > 0
-        ? 100
-        : 0;
+  const patientGrowth = computeGrowth(newPatientsThisMonth, newPatientsLastMonth);
 
-  // Completion / Cancellation rates
-  const completionRate =
-    thisMonthAppts > 0 ? Math.round((completedMonth / thisMonthAppts) * 100) : 0;
-  const cancellationRate =
-    thisMonthAppts > 0
-      ? Math.round((cancelledMonth / thisMonthAppts) * 100)
-      : 0;
-
-  // No-shows
   const noShows = (noShowsRes.data ?? []).length;
   const noShowRate =
     thisMonthAppts > 0 ? Math.round((noShows / thisMonthAppts) * 100) : 0;
-
-  // Occupancy rate: effective appointments / estimated capacity
-  const daysInCurrentMonth = eachDayOfInterval({
-    start: startOfMonth(now),
-    end: endOfMonth(now),
-  });
-  const workingDays = daysInCurrentMonth.filter((d) => {
-    const day = getDay(d);
-    return day !== 0 && day !== 6; // Exclude weekends
-  }).length;
-  const slotsPerDoctorPerDay = 12; // ~12 appointments/day per doctor
-  const estimatedCapacity = activeDoctors * workingDays * slotsPerDoctorPerDay;
-  const effectiveAppts = thisMonthAppts - cancelledMonth;
-  const occupancyRate =
-    estimatedCapacity > 0
-      ? Math.min(100, Math.round((effectiveAppts / estimatedCapacity) * 100))
-      : 0;
 
   // Top treatments
   const treatmentCounts = new Map<string, { count: number; revenue: number }>();
@@ -301,18 +347,15 @@ export default async function DashboardPage() {
         thisMonthAppts,
         growth,
         activeOffices,
-        revenueThisMonth,
-        revenueGrowth,
-        avgTicket,
         newPatientsThisMonth,
         patientGrowth,
-        completionRate,
-        cancellationRate,
-        completedMonth,
-        cancelledMonth,
         noShows,
         noShowRate,
-        occupancyRate,
+      }}
+      financialByPeriod={{
+        month: monthFinancial,
+        week: weekFinancial,
+        today: todayFinancial,
       }}
       todayAppointments={(todayListRes.data ?? []) as any}
       topTreatments={topTreatments}

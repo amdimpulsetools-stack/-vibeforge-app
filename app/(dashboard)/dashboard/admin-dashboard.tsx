@@ -50,6 +50,17 @@ interface HeatmapPoint {
   count: number;
 }
 
+interface FinancialPeriodStats {
+  revenue: number;
+  revenueGrowth: number;
+  avgTicket: number;
+  completedCount: number;
+  completionRate: number;
+  cancelledCount: number;
+  cancellationRate: number;
+  occupancyRate: number;
+}
+
 interface AdminDashboardProps {
   userName: string;
   stats: {
@@ -59,19 +70,12 @@ interface AdminDashboardProps {
     thisMonthAppts: number;
     growth: number;
     activeOffices: number;
-    revenueThisMonth: number;
-    revenueGrowth: number;
-    avgTicket: number;
     newPatientsThisMonth: number;
     patientGrowth: number;
-    completionRate: number;
-    cancellationRate: number;
-    completedMonth: number;
-    cancelledMonth: number;
     noShows: number;
     noShowRate: number;
-    occupancyRate: number;
   };
+  financialByPeriod: Record<"month" | "week" | "today", FinancialPeriodStats>;
   todayAppointments: UpcomingAppointment[];
   topTreatments: TopTreatment[];
   heatmapData: HeatmapPoint[];
@@ -336,6 +340,7 @@ function TopTreatmentsTable({
 export function AdminDashboard({
   userName,
   stats,
+  financialByPeriod,
   todayAppointments,
   topTreatments,
   heatmapData,
@@ -345,6 +350,7 @@ export function AdminDashboard({
   const formatTime = (time: string) => time.slice(0, 5);
   const isEs = language === "es";
   const [period, setPeriod] = useState<"month" | "week" | "today">("month");
+  const fin = financialByPeriod[period];
 
   const periodLabels = {
     month: isEs ? "Mes" : "Month",
@@ -402,17 +408,23 @@ export function AdminDashboard({
         />
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard
-            title={isEs ? "Ingresos del mes" : "Monthly revenue"}
-            value={formatCurrency(stats.revenueThisMonth)}
+            title={isEs
+              ? { month: "Ingresos del mes", week: "Ingresos (7 días)", today: "Ingresos de hoy" }[period]
+              : { month: "Monthly revenue", week: "Revenue (7 days)", today: "Today's revenue" }[period]
+            }
+            value={formatCurrency(fin.revenue)}
             icon={DollarSign}
             color="text-emerald-400"
             bgColor="bg-emerald-500/10"
-            growth={stats.revenueGrowth}
-            subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
+            growth={fin.revenueGrowth}
+            subtitle={isEs
+              ? { month: "vs. mes anterior", week: "vs. 7 días ant.", today: "vs. ayer" }[period]
+              : { month: "vs. last month", week: "vs. prev. 7 days", today: "vs. yesterday" }[period]
+            }
           />
           <KpiCard
             title={isEs ? "Ticket promedio" : "Avg. ticket"}
-            value={formatCurrency(stats.avgTicket)}
+            value={formatCurrency(fin.avgTicket)}
             icon={Target}
             color="text-blue-400"
             bgColor="bg-blue-500/10"
@@ -420,23 +432,23 @@ export function AdminDashboard({
           />
           <KpiCard
             title={isEs ? "Citas completadas" : "Completed appts"}
-            value={stats.completedMonth.toLocaleString()}
+            value={fin.completedCount.toLocaleString()}
             icon={CheckCircle2}
             color="text-emerald-400"
             bgColor="bg-emerald-500/10"
-            subtitle={`${stats.completionRate}% ${isEs ? "del total" : "of total"}`}
+            subtitle={`${fin.completionRate}% ${isEs ? "del total" : "of total"}`}
           />
           <KpiCard
             title={isEs ? "Cancelaciones" : "Cancellations"}
-            value={stats.cancelledMonth.toLocaleString()}
+            value={fin.cancelledCount.toLocaleString()}
             icon={XCircle}
             color="text-red-400"
             bgColor="bg-red-500/10"
-            subtitle={`${stats.cancellationRate}% ${isEs ? "tasa" : "rate"}`}
+            subtitle={`${fin.cancellationRate}% ${isEs ? "tasa" : "rate"}`}
           />
           <KpiCard
             title={isEs ? "Tasa de ocupación" : "Occupancy rate"}
-            value={`${stats.occupancyRate}%`}
+            value={`${fin.occupancyRate}%`}
             icon={Gauge}
             color="text-amber-400"
             bgColor="bg-amber-500/10"
