@@ -97,25 +97,55 @@ async function callAnthropic(
   system: string,
   userMessage: string,
   maxTokens = 512
-): Promise<string | null> {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-5-20250929",
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: "user", content: userMessage }],
-    }),
-  });
+): Promise<{ text: string | null; error?: string }> {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAYS = [1000, 2000, 4000];
 
-  if (!res.ok) return null;
-  const data = await res.json();
-  return data.content?.[0]?.text ?? null;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-5-20250929",
+          max_tokens: maxTokens,
+          system,
+          messages: [{ role: "user", content: userMessage }],
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        return { text: data.content?.[0]?.text ?? null };
+      }
+
+      // Retry on 500/529 (server error / overloaded)
+      if ((res.status >= 500 || res.status === 429) && attempt < MAX_RETRIES) {
+        console.warn(`Anthropic API error ${res.status}, retrying (${attempt + 1}/${MAX_RETRIES})...`);
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+        continue;
+      }
+
+      // Non-retryable or exhausted retries
+      const errorBody = await res.text().catch(() => "Unknown error");
+      console.error(`Anthropic API error ${res.status}:`, errorBody);
+      return { text: null, error: `Error del servicio de IA (${res.status})` };
+    } catch (err) {
+      if (attempt < MAX_RETRIES) {
+        console.warn(`Anthropic fetch error, retrying (${attempt + 1}/${MAX_RETRIES})...`, err);
+        await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt]));
+        continue;
+      }
+      console.error("Anthropic fetch error after retries:", err);
+      return { text: null, error: "No se pudo conectar con el servicio de IA" };
+    }
+  }
+
+  return { text: null, error: "Error del servicio de IA tras múltiples intentos" };
 }
 
 export async function POST(req: NextRequest) {
@@ -145,28 +175,31 @@ export async function POST(req: NextRequest) {
     }
 
     // ── PASO 1: Generar SQL ──────────────────────────────────────────────────
-    const sqlGenResponse = await callAnthropic(apiKey, SCHEMA_CONTEXT, message, 512);
+    const sqlGenResult = await callAnthropic(apiKey, SCHEMA_CONTEXT, message, 512);
 
-    if (!sqlGenResponse) {
-      return NextResponse.json({ error: "Error al contactar el servicio de IA" }, { status: 502 });
+    if (!sqlGenResult.text) {
+      return NextResponse.json(
+        { error: sqlGenResult.error ?? "Error al contactar el servicio de IA" },
+        { status: 502 }
+      );
     }
 
     // If no SQL needed, answer directly
-    if (sqlGenResponse.includes("NO_SQL_NEEDED")) {
-      const directAnswer = await callAnthropic(
+    if (sqlGenResult.text.includes("NO_SQL_NEEDED")) {
+      const directResult = await callAnthropic(
         apiKey,
         ANSWER_CONTEXT,
         `Pregunta: ${message}\n\nNo se requiere consultar la base de datos para responder esto.`,
         256
       );
       return NextResponse.json({
-        response: directAnswer ?? "No tengo información para responder esa pregunta.",
+        response: directResult.text ?? "No tengo información para responder esa pregunta.",
         data: null,
         sql: null,
       });
     }
 
-    const sql = extractSqlFromResponse(sqlGenResponse);
+    const sql = extractSqlFromResponse(sqlGenResult.text);
 
     if (!sql) {
       return NextResponse.json({
@@ -219,7 +252,7 @@ export async function POST(req: NextRequest) {
         ? `Datos obtenidos:\n${JSON.stringify(queryData, null, 2)}`
         : "La consulta no retornó resultados.";
 
-    const naturalAnswer = await callAnthropic(
+    const answerResult = await callAnthropic(
       apiKey,
       ANSWER_CONTEXT,
       `Pregunta del usuario: "${message}"\n\n${dataContext}`,
@@ -227,7 +260,7 @@ export async function POST(req: NextRequest) {
     );
 
     return NextResponse.json({
-      response: naturalAnswer ?? "No pude interpretar los resultados.",
+      response: answerResult.text ?? "No pude interpretar los resultados.",
       data: queryData,
       sql,
       sqlError: null,

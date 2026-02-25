@@ -148,10 +148,17 @@ export async function POST(request: NextRequest) {
   }
 
   // Remove from their current org if they have one (user can only be in one org)
-  await supabase
+  const { error: deleteError } = await supabase
     .from("organization_members")
     .delete()
     .eq("user_id", targetUserId);
+
+  if (deleteError) {
+    return NextResponse.json(
+      { error: "Error al remover membresía anterior: " + deleteError.message },
+      { status: 500 }
+    );
+  }
 
   // Insert member into this org
   const { data: newMember, error } = await supabase

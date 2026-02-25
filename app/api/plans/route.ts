@@ -66,11 +66,18 @@ export async function POST(request: Request) {
   }
 
   // Deactivate current subscription(s)
-  await supabase
+  const { error: deactivateError } = await supabase
     .from("organization_subscriptions")
     .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
     .eq("organization_id", membership.organization_id)
     .in("status", ["active", "trialing"]);
+
+  if (deactivateError) {
+    return NextResponse.json(
+      { error: "Error al desactivar suscripción actual: " + deactivateError.message },
+      { status: 500 }
+    );
+  }
 
   // Create new subscription
   const { data: subscription, error: subError } = await supabase
