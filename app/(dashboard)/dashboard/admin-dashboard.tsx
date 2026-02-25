@@ -287,15 +287,15 @@ export function AdminDashboard({
       </section>
 
       {/* ═══════════════════════════════════════════════════════════ */}
-      {/* OPERATIONAL KPIs                                           */}
+      {/* OPERATIONAL + MARKETING KPIs — single row                 */}
       {/* ═══════════════════════════════════════════════════════════ */}
       <section>
         <SectionHeader
           icon={Activity}
-          title={isEs ? "Operacional" : "Operational"}
+          title={isEs ? "Operacional & Marketing" : "Operational & Marketing"}
           color="bg-blue-500/10 text-blue-400"
         />
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <KpiCard
             title={isEs ? "Citas de hoy" : "Today's appts"}
             value={stats.todayAppts.toLocaleString()}
@@ -312,25 +312,12 @@ export function AdminDashboard({
             growth={stats.growth}
             subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
           />
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* MARKETING KPIs                                             */}
-      {/* ═══════════════════════════════════════════════════════════ */}
-      <section>
-        <SectionHeader
-          icon={Megaphone}
-          title="Marketing"
-          color="bg-purple-500/10 text-purple-400"
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
           <KpiCard
             title={isEs ? "Pacientes totales" : "Total patients"}
             value={stats.totalPatients.toLocaleString()}
             icon={Users}
-            color="text-blue-400"
-            bgColor="bg-blue-500/10"
+            color="text-cyan-400"
+            bgColor="bg-cyan-500/10"
           />
           <KpiCard
             title={isEs ? "Nuevos este mes" : "New this month"}
