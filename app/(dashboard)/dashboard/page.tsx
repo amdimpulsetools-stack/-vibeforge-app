@@ -1,6 +1,15 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AdminDashboard } from "./admin-dashboard";
+import {
+  format,
+  subDays,
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  eachDayOfInterval,
+  parseISO,
+} from "date-fns";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -10,7 +19,6 @@ export default async function DashboardPage() {
 
   if (!user) redirect("/login");
 
-  // Get membership + role
   const { data: membership } = await supabase
     .from("organization_members")
     .select("role, organization_id")
@@ -21,36 +29,34 @@ export default async function DashboardPage() {
   if (!membership) redirect("/login");
 
   const role = membership.role as "owner" | "admin" | "member";
+  if (role === "member") redirect("/scheduler");
 
-  // Receptionist (member) → redirect straight to scheduler
-  if (role === "member") {
-    redirect("/scheduler");
-  }
-
-  // Admin / Owner → fetch real stats
-  const today = new Date().toISOString().split("T")[0];
-  const monthStart = new Date(
-    new Date().getFullYear(),
-    new Date().getMonth(),
-    1
-  )
-    .toISOString()
-    .split("T")[0];
-  const lastMonthStart = new Date(
-    new Date().getFullYear(),
-    new Date().getMonth() - 1,
-    1
-  )
-    .toISOString()
-    .split("T")[0];
+  // Date ranges
+  const now = new Date();
+  const today = format(now, "yyyy-MM-dd");
+  const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
+  const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
+  const lastMonthStart = format(startOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
+  const lastMonthEnd = format(endOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
+  const thirtyDaysAgo = format(subDays(now, 29), "yyyy-MM-dd");
 
   const [
     patientsRes,
     doctorsRes,
     todayApptsRes,
-    thisMonthRes,
-    lastMonthRes,
+    thisMonthApptsRes,
+    lastMonthApptsRes,
     todayListRes,
+    paymentsThisMonthRes,
+    paymentsLastMonthRes,
+    patientsThisMonthRes,
+    patientsLastMonthRes,
+    last30ApptsRes,
+    last30PaymentsRes,
+    allPatientsWithOriginRes,
+    officesRes,
+    appointmentsCompletedMonthRes,
+    appointmentsCancelledMonthRes,
   ] = await Promise.all([
     // Total patients
     supabase
@@ -70,14 +76,15 @@ export default async function DashboardPage() {
     supabase
       .from("appointments")
       .select("*", { count: "exact", head: true })
-      .gte("appointment_date", monthStart),
+      .gte("appointment_date", monthStart)
+      .lte("appointment_date", monthEnd),
     // Last month's appointment count
     supabase
       .from("appointments")
       .select("*", { count: "exact", head: true })
       .gte("appointment_date", lastMonthStart)
-      .lt("appointment_date", monthStart),
-    // Today's appointments with relations (for the list)
+      .lte("appointment_date", lastMonthEnd),
+    // Today's appointment list
     supabase
       .from("appointments")
       .select(
@@ -86,21 +93,204 @@ export default async function DashboardPage() {
       .eq("appointment_date", today)
       .order("start_time", { ascending: true })
       .limit(20),
+    // Payments this month
+    supabase
+      .from("patient_payments")
+      .select("amount, payment_date")
+      .gte("payment_date", monthStart)
+      .lte("payment_date", monthEnd),
+    // Payments last month
+    supabase
+      .from("patient_payments")
+      .select("amount")
+      .gte("payment_date", lastMonthStart)
+      .lte("payment_date", lastMonthEnd),
+    // New patients this month
+    supabase
+      .from("patients")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", monthStart),
+    // New patients last month
+    supabase
+      .from("patients")
+      .select("*", { count: "exact", head: true })
+      .gte("created_at", lastMonthStart)
+      .lt("created_at", monthStart),
+    // Last 30 days appointments (for trend chart)
+    supabase
+      .from("appointments")
+      .select("appointment_date, status, price_snapshot")
+      .gte("appointment_date", thirtyDaysAgo)
+      .lte("appointment_date", today)
+      .order("appointment_date"),
+    // Last 30 days payments (for revenue trend)
+    supabase
+      .from("patient_payments")
+      .select("amount, payment_date")
+      .gte("payment_date", thirtyDaysAgo)
+      .lte("payment_date", today),
+    // Patients with origin (for marketing)
+    supabase
+      .from("patients")
+      .select("origin, created_at")
+      .not("origin", "is", null),
+    // Active offices count
+    supabase
+      .from("offices")
+      .select("*", { count: "exact", head: true })
+      .eq("is_active", true),
+    // Completed appointments this month
+    supabase
+      .from("appointments")
+      .select("*", { count: "exact", head: true })
+      .gte("appointment_date", monthStart)
+      .lte("appointment_date", monthEnd)
+      .eq("status", "completed"),
+    // Cancelled appointments this month
+    supabase
+      .from("appointments")
+      .select("*", { count: "exact", head: true })
+      .gte("appointment_date", monthStart)
+      .lte("appointment_date", monthEnd)
+      .eq("status", "cancelled"),
   ]);
 
+  // Basic stats
   const totalPatients = patientsRes.count ?? 0;
   const activeDoctors = doctorsRes.count ?? 0;
   const todayAppts = todayApptsRes.count ?? 0;
-  const thisMonthAppts = thisMonthRes.count ?? 0;
-  const lastMonthAppts = lastMonthRes.count ?? 0;
+  const thisMonthAppts = thisMonthApptsRes.count ?? 0;
+  const lastMonthAppts = lastMonthApptsRes.count ?? 0;
+  const activeOffices = officesRes.count ?? 0;
 
-  // Calculate growth percentage
   const growth =
     lastMonthAppts > 0
       ? Math.round(((thisMonthAppts - lastMonthAppts) / lastMonthAppts) * 100)
       : thisMonthAppts > 0
         ? 100
         : 0;
+
+  // Financial
+  const revenueThisMonth = (paymentsThisMonthRes.data ?? []).reduce(
+    (sum, p) => sum + (p.amount ?? 0),
+    0
+  );
+  const revenueLastMonth = (paymentsLastMonthRes.data ?? []).reduce(
+    (sum, p) => sum + (p.amount ?? 0),
+    0
+  );
+  const revenueGrowth =
+    revenueLastMonth > 0
+      ? Math.round(
+          ((revenueThisMonth - revenueLastMonth) / revenueLastMonth) * 100
+        )
+      : revenueThisMonth > 0
+        ? 100
+        : 0;
+
+  // Average ticket
+  const completedMonth = appointmentsCompletedMonthRes.count ?? 0;
+  const cancelledMonth = appointmentsCancelledMonthRes.count ?? 0;
+  const avgTicket =
+    completedMonth > 0 ? Math.round(revenueThisMonth / completedMonth) : 0;
+
+  // Patient growth
+  const newPatientsThisMonth = patientsThisMonthRes.count ?? 0;
+  const newPatientsLastMonth = patientsLastMonthRes.count ?? 0;
+  const patientGrowth =
+    newPatientsLastMonth > 0
+      ? Math.round(
+          ((newPatientsThisMonth - newPatientsLastMonth) /
+            newPatientsLastMonth) *
+            100
+        )
+      : newPatientsThisMonth > 0
+        ? 100
+        : 0;
+
+  // Completion rate
+  const completionRate =
+    thisMonthAppts > 0 ? Math.round((completedMonth / thisMonthAppts) * 100) : 0;
+  const cancellationRate =
+    thisMonthAppts > 0
+      ? Math.round((cancelledMonth / thisMonthAppts) * 100)
+      : 0;
+
+  // Build 30-day trend data
+  const days = eachDayOfInterval({
+    start: parseISO(thirtyDaysAgo),
+    end: now,
+  });
+
+  const apptsByDate = new Map<string, { total: number; completed: number; revenue: number }>();
+  for (const day of days) {
+    apptsByDate.set(format(day, "yyyy-MM-dd"), { total: 0, completed: 0, revenue: 0 });
+  }
+
+  for (const appt of last30ApptsRes.data ?? []) {
+    const d = appt.appointment_date;
+    const entry = apptsByDate.get(d);
+    if (entry) {
+      entry.total++;
+      if (appt.status === "completed") {
+        entry.completed++;
+        entry.revenue += appt.price_snapshot ?? 0;
+      }
+    }
+  }
+
+  for (const pay of last30PaymentsRes.data ?? []) {
+    const d = pay.payment_date;
+    const entry = apptsByDate.get(d);
+    if (entry) {
+      entry.revenue += pay.amount ?? 0;
+    }
+  }
+
+  // For revenue trend, only count from payments (not price_snapshot) to avoid double-counting
+  const revenueByDate = new Map<string, number>();
+  for (const day of days) {
+    revenueByDate.set(format(day, "yyyy-MM-dd"), 0);
+  }
+  for (const pay of last30PaymentsRes.data ?? []) {
+    const d = pay.payment_date;
+    const current = revenueByDate.get(d) ?? 0;
+    revenueByDate.set(d, current + (pay.amount ?? 0));
+  }
+
+  const trendData = days.map((day) => {
+    const key = format(day, "yyyy-MM-dd");
+    const entry = apptsByDate.get(key)!;
+    return {
+      date: format(day, "dd MMM"),
+      dateShort: format(day, "dd"),
+      appointments: entry.total,
+      completed: entry.completed,
+      revenue: revenueByDate.get(key) ?? 0,
+    };
+  });
+
+  // Origin distribution (marketing)
+  const originCounts: Record<string, number> = {};
+  for (const p of allPatientsWithOriginRes.data ?? []) {
+    if (p.origin) {
+      originCounts[p.origin] = (originCounts[p.origin] ?? 0) + 1;
+    }
+  }
+  const originData = Object.entries(originCounts)
+    .map(([name, value]) => ({ name, value }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 6);
+
+  // Appointments by status this month (for donut)
+  const statusDistribution = [
+    { name: "completed", value: completedMonth },
+    {
+      name: "confirmed",
+      value: (thisMonthApptsRes.count ?? 0) - completedMonth - cancelledMonth,
+    },
+    { name: "cancelled", value: cancelledMonth },
+  ].filter((s) => s.value > 0);
 
   return (
     <AdminDashboard
@@ -111,7 +301,20 @@ export default async function DashboardPage() {
         todayAppts,
         thisMonthAppts,
         growth,
+        activeOffices,
+        revenueThisMonth,
+        revenueGrowth,
+        avgTicket,
+        newPatientsThisMonth,
+        patientGrowth,
+        completionRate,
+        cancellationRate,
+        completedMonth,
+        cancelledMonth,
       }}
+      trendData={trendData}
+      originData={originData}
+      statusDistribution={statusDistribution}
       todayAppointments={(todayListRes.data ?? []) as any}
     />
   );
