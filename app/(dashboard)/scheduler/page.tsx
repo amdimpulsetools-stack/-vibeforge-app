@@ -260,6 +260,21 @@ export default function SchedulerPage() {
     const newEndTime = `${Math.floor(newEndMin / 60).toString().padStart(2, "0")}:${(newEndMin % 60).toString().padStart(2, "0")}`;
     const newDateStr = format(targetDate, "yyyy-MM-dd");
 
+    // Check schedule blocks & break time
+    const blockHit = allBlocks.find((b) => {
+      if (b.block_date !== newDateStr) return false;
+      if (b.office_id && b.office_id !== targetOfficeId) return false;
+      if (b.all_day) return true;
+      const bStart = b.start_time?.slice(0, 5) ?? "00:00";
+      const bEnd = b.end_time?.slice(0, 5) ?? "23:59";
+      return targetTime < bEnd && newEndTime > bStart;
+    });
+    if (blockHit) {
+      const isBreak = blockHit.reason === "__break_time__";
+      toast.error(isBreak ? "No se puede mover: horario de Break Time" : `Horario bloqueado: ${blockHit.reason ?? "Bloqueado"}`);
+      return;
+    }
+
     // Conflict check (exclude self)
     const conflict = appointments.find(
       (a) =>
@@ -411,6 +426,7 @@ export default function SchedulerPage() {
           offices={offices}
           doctors={doctors}
           existingAppointments={appointments}
+          blocks={allBlocks}
           onClose={() => setShowReschedule(false)}
           onSaved={handleSaved}
         />

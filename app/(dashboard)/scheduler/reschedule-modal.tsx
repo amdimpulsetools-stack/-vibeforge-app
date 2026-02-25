@@ -3,15 +3,17 @@
 import { useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import type { AppointmentWithRelations, Office, Doctor } from "@/types/admin";
+import type { AppointmentWithRelations, Office, Doctor, ScheduleBlock } from "@/types/admin";
 import { SCHEDULER_START_HOUR, SCHEDULER_END_HOUR, SCHEDULER_INTERVAL } from "@/types/admin";
 import { X, Loader2, CalendarDays, Clock, RefreshCw } from "lucide-react";
+import { loadBreakTimeConfig } from "./break-time-dialog";
 
 interface RescheduleModalProps {
   appointment: AppointmentWithRelations;
   offices: Office[];
   doctors: Doctor[];
   existingAppointments: AppointmentWithRelations[];
+  blocks: ScheduleBlock[];
   onClose: () => void;
   onSaved: () => void;
 }
@@ -33,6 +35,7 @@ export function RescheduleModal({
   offices,
   doctors,
   existingAppointments,
+  blocks,
   onClose,
   onSaved,
 }: RescheduleModalProps) {
@@ -59,6 +62,34 @@ export function RescheduleModal({
 
   // Conflict check (exclude this appointment itself)
   const conflict = useMemo(() => {
+    // Check schedule blocks (DB blocks)
+    const blockConflict = blocks.find((b) => {
+      if (b.block_date !== newDate) return false;
+      if (b.office_id && b.office_id !== newOfficeId) return false;
+      if (b.all_day) return true;
+      const bStart = b.start_time?.slice(0, 5) ?? "00:00";
+      const bEnd = b.end_time?.slice(0, 5) ?? "23:59";
+      return newTime < bEnd && newEndTime > bStart;
+    });
+    if (blockConflict) {
+      const isBreak = blockConflict.reason === "__break_time__";
+      return isBreak
+        ? "Ese horario está dentro del Break Time"
+        : `Horario bloqueado: ${blockConflict.reason ?? "Bloqueado"}`;
+    }
+
+    // Check break time config for dates not yet in blocks (e.g. future dates)
+    const breakConfig = loadBreakTimeConfig();
+    if (breakConfig.enabled) {
+      const selectedDate = new Date(newDate + "T12:00:00");
+      const dow = selectedDate.getDay();
+      if (breakConfig.days.includes(dow)) {
+        if (newTime < breakConfig.endTime && newEndTime > breakConfig.startTime) {
+          return "Ese horario está dentro del Break Time";
+        }
+      }
+    }
+
     const others = existingAppointments.filter((a) => a.id !== appointment.id);
 
     const officeConflict = others.find(
@@ -80,7 +111,7 @@ export function RescheduleModal({
     if (doctorConflict) return "El doctor ya tiene una cita en ese horario";
 
     return null;
-  }, [newDate, newTime, newEndTime, newOfficeId, newDoctorId, existingAppointments, appointment.id]);
+  }, [newDate, newTime, newEndTime, newOfficeId, newDoctorId, existingAppointments, appointment.id, blocks]);
 
   const handleSave = async () => {
     if (conflict) return;

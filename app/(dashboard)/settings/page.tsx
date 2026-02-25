@@ -20,7 +20,20 @@ import {
   Camera,
   Loader2,
   Lock,
+  Clock,
 } from "lucide-react";
+
+const TIME_INDICATOR_KEY = "vibeforge_time_indicator";
+
+export function loadTimeIndicatorSetting(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const stored = localStorage.getItem(TIME_INDICATOR_KEY);
+    return stored !== null ? stored === "true" : true;
+  } catch {
+    return true;
+  }
+}
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
@@ -33,6 +46,7 @@ export default function SettingsPage() {
   } = useOrganization();
 
   const [saving, setSaving] = useState(false);
+  const [timeIndicator, setTimeIndicator] = useState(() => loadTimeIndicatorSetting());
   const [logoUrl, setLogoUrl] = useState<string | null>(
     organization?.logo_url ?? null
   );
@@ -429,6 +443,50 @@ export default function SettingsPage() {
               </div>
             </button>
           </div>
+        </div>
+
+        {/* Scheduler */}
+        <div className="rounded-xl border border-border bg-card p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Clock className="h-5 w-5 text-primary" />
+            <h2 className="text-lg font-semibold">
+              {language === "es" ? "Agenda" : "Scheduler"}
+            </h2>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            {language === "es"
+              ? "Personaliza el comportamiento de la agenda"
+              : "Customize scheduler behavior"}
+          </p>
+
+          <label className="flex items-center justify-between select-none">
+            <div>
+              <p className="text-sm font-medium">
+                {language === "es"
+                  ? "Línea de hora actual"
+                  : "Current time line"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {language === "es"
+                  ? "Muestra una línea roja que se mueve en tiempo real indicando la hora actual en la agenda"
+                  : "Shows a red line that moves in real-time indicating the current time in the scheduler"}
+              </p>
+            </div>
+            <div className="relative ml-4 shrink-0">
+              <input
+                type="checkbox"
+                checked={timeIndicator}
+                onChange={(e) => {
+                  const val = e.target.checked;
+                  setTimeIndicator(val);
+                  localStorage.setItem(TIME_INDICATOR_KEY, String(val));
+                }}
+                className="sr-only peer"
+              />
+              <div className="h-6 w-11 rounded-full bg-muted peer-checked:bg-primary transition-colors" />
+              <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+            </div>
+          </label>
         </div>
       </div>
     </div>
