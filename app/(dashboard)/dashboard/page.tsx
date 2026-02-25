@@ -39,8 +39,6 @@ export default async function DashboardPage() {
   const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
   const lastMonthStart = format(startOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
   const lastMonthEnd = format(endOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
-  const thirtyDaysAgo = format(subDays(now, 29), "yyyy-MM-dd");
-  const sevenDaysAgo = format(subDays(now, 6), "yyyy-MM-dd");
 
   const [
     patientsRes,
@@ -49,21 +47,18 @@ export default async function DashboardPage() {
     thisMonthApptsRes,
     lastMonthApptsRes,
     todayListRes,
-    paymentsThisMonthRes,
-    paymentsLastMonthRes,
     patientsThisMonthRes,
     patientsLastMonthRes,
-    last30ApptsRes,
-    last30PaymentsRes,
-    allPatientsWithOriginRes,
     officesRes,
     appointmentsCompletedMonthRes,
     appointmentsCancelledMonthRes,
-    // New queries
     noShowsRes,
     topTreatmentsRawRes,
     heatmapRawRes,
-    newPatientsLast7Res,
+    // Revenue: completed appointments this month with price_snapshot
+    completedApptsThisMonthRes,
+    // Revenue last month: completed appointments with price_snapshot
+    completedApptsLastMonthRes,
   ] = await Promise.all([
     // Total patients
     supabase
@@ -100,18 +95,6 @@ export default async function DashboardPage() {
       .eq("appointment_date", today)
       .order("start_time", { ascending: true })
       .limit(20),
-    // Payments this month
-    supabase
-      .from("patient_payments")
-      .select("amount, payment_date")
-      .gte("payment_date", monthStart)
-      .lte("payment_date", monthEnd),
-    // Payments last month
-    supabase
-      .from("patient_payments")
-      .select("amount")
-      .gte("payment_date", lastMonthStart)
-      .lte("payment_date", lastMonthEnd),
     // New patients this month
     supabase
       .from("patients")
@@ -123,37 +106,19 @@ export default async function DashboardPage() {
       .select("*", { count: "exact", head: true })
       .gte("created_at", lastMonthStart)
       .lt("created_at", monthStart),
-    // Last 30 days appointments (for trend chart)
-    supabase
-      .from("appointments")
-      .select("appointment_date, status, price_snapshot")
-      .gte("appointment_date", thirtyDaysAgo)
-      .lte("appointment_date", today)
-      .order("appointment_date"),
-    // Last 30 days payments (for revenue trend)
-    supabase
-      .from("patient_payments")
-      .select("amount, payment_date")
-      .gte("payment_date", thirtyDaysAgo)
-      .lte("payment_date", today),
-    // Patients with origin (for marketing)
-    supabase
-      .from("patients")
-      .select("origin, created_at")
-      .not("origin", "is", null),
     // Active offices count
     supabase
       .from("offices")
       .select("*", { count: "exact", head: true })
       .eq("is_active", true),
-    // Completed appointments this month
+    // Completed appointments this month (count)
     supabase
       .from("appointments")
       .select("*", { count: "exact", head: true })
       .gte("appointment_date", monthStart)
       .lte("appointment_date", monthEnd)
       .eq("status", "completed"),
-    // Cancelled appointments this month
+    // Cancelled appointments this month (count)
     supabase
       .from("appointments")
       .select("*", { count: "exact", head: true })
@@ -173,17 +138,26 @@ export default async function DashboardPage() {
       .select("service_id, services(name), price_snapshot, status")
       .gte("appointment_date", monthStart)
       .lte("appointment_date", monthEnd),
-    // Heatmap: last 90 days appointments with start_time for day/hour distribution
+    // Heatmap: last 90 days appointments with start_time
     supabase
       .from("appointments")
       .select("appointment_date, start_time")
       .gte("appointment_date", format(subDays(now, 89), "yyyy-MM-dd"))
       .lte("appointment_date", today),
-    // New patients last 7 days (for sparkline)
+    // Revenue this month: price_snapshot from completed appointments
     supabase
-      .from("patients")
-      .select("created_at")
-      .gte("created_at", sevenDaysAgo),
+      .from("appointments")
+      .select("price_snapshot")
+      .gte("appointment_date", monthStart)
+      .lte("appointment_date", monthEnd)
+      .eq("status", "completed"),
+    // Revenue last month: price_snapshot from completed appointments
+    supabase
+      .from("appointments")
+      .select("price_snapshot")
+      .gte("appointment_date", lastMonthStart)
+      .lte("appointment_date", lastMonthEnd)
+      .eq("status", "completed"),
   ]);
 
   // Basic stats
@@ -201,13 +175,13 @@ export default async function DashboardPage() {
         ? 100
         : 0;
 
-  // Financial
-  const revenueThisMonth = (paymentsThisMonthRes.data ?? []).reduce(
-    (sum, p) => sum + (p.amount ?? 0),
+  // Financial — revenue from completed appointments' price_snapshot
+  const revenueThisMonth = (completedApptsThisMonthRes.data ?? []).reduce(
+    (sum, a) => sum + (a.price_snapshot ?? 0),
     0
   );
-  const revenueLastMonth = (paymentsLastMonthRes.data ?? []).reduce(
-    (sum, p) => sum + (p.amount ?? 0),
+  const revenueLastMonth = (completedApptsLastMonthRes.data ?? []).reduce(
+    (sum, a) => sum + (a.price_snapshot ?? 0),
     0
   );
   const revenueGrowth =
@@ -219,9 +193,11 @@ export default async function DashboardPage() {
         ? 100
         : 0;
 
-  // Average ticket
+  // Completed / Cancelled counts
   const completedMonth = appointmentsCompletedMonthRes.count ?? 0;
   const cancelledMonth = appointmentsCancelledMonthRes.count ?? 0;
+
+  // Average ticket = revenue / completed appointments
   const avgTicket =
     completedMonth > 0 ? Math.round(revenueThisMonth / completedMonth) : 0;
 
@@ -239,7 +215,7 @@ export default async function DashboardPage() {
         ? 100
         : 0;
 
-  // Completion rate
+  // Completion / Cancellation rates
   const completionRate =
     thisMonthAppts > 0 ? Math.round((completedMonth / thisMonthAppts) * 100) : 0;
   const cancellationRate =
@@ -252,39 +228,22 @@ export default async function DashboardPage() {
   const noShowRate =
     thisMonthAppts > 0 ? Math.round((noShows / thisMonthAppts) * 100) : 0;
 
-  // No-show sparkline (last 7 days)
-  const last7Days = eachDayOfInterval({
-    start: subDays(now, 6),
-    end: now,
+  // Occupancy rate: effective appointments / estimated capacity
+  const daysInCurrentMonth = eachDayOfInterval({
+    start: startOfMonth(now),
+    end: endOfMonth(now),
   });
-  const noShowsByDate = new Map<string, number>();
-  for (const day of last7Days) {
-    noShowsByDate.set(format(day, "yyyy-MM-dd"), 0);
-  }
-  for (const appt of noShowsRes.data ?? []) {
-    const d = appt.appointment_date;
-    if (noShowsByDate.has(d)) {
-      noShowsByDate.set(d, (noShowsByDate.get(d) ?? 0) + 1);
-    }
-  }
-  const noShowSparkline = last7Days.map((day) => ({
-    value: noShowsByDate.get(format(day, "yyyy-MM-dd")) ?? 0,
-  }));
-
-  // New patients sparkline (last 7 days)
-  const newPatientsByDate = new Map<string, number>();
-  for (const day of last7Days) {
-    newPatientsByDate.set(format(day, "yyyy-MM-dd"), 0);
-  }
-  for (const p of newPatientsLast7Res.data ?? []) {
-    const d = format(parseISO(p.created_at), "yyyy-MM-dd");
-    if (newPatientsByDate.has(d)) {
-      newPatientsByDate.set(d, (newPatientsByDate.get(d) ?? 0) + 1);
-    }
-  }
-  const newPatientSparkline = last7Days.map((day) => ({
-    value: newPatientsByDate.get(format(day, "yyyy-MM-dd")) ?? 0,
-  }));
+  const workingDays = daysInCurrentMonth.filter((d) => {
+    const day = getDay(d);
+    return day !== 0 && day !== 6; // Exclude weekends
+  }).length;
+  const slotsPerDoctorPerDay = 12; // ~12 appointments/day per doctor
+  const estimatedCapacity = activeDoctors * workingDays * slotsPerDoctorPerDay;
+  const effectiveAppts = thisMonthAppts - cancelledMonth;
+  const occupancyRate =
+    estimatedCapacity > 0
+      ? Math.min(100, Math.round((effectiveAppts / estimatedCapacity) * 100))
+      : 0;
 
   // Top treatments
   const treatmentCounts = new Map<string, { count: number; revenue: number }>();
@@ -306,9 +265,8 @@ export default async function DashboardPage() {
   const heatmapMap = new Map<string, number>();
   for (const appt of heatmapRawRes.data ?? []) {
     const date = parseISO(appt.appointment_date);
-    // getDay: 0=Sun, we need Mon=0 for display
     const jsDay = getDay(date);
-    const dayIndex = jsDay === 0 ? 6 : jsDay - 1; // Mon=0, Tue=1, ..., Sun=6
+    const dayIndex = jsDay === 0 ? 6 : jsDay - 1;
     const hour = parseInt(appt.start_time?.slice(0, 2) ?? "0", 10);
     if (hour >= 8 && hour <= 20) {
       const key = `${dayIndex}-${hour}`;
@@ -322,82 +280,6 @@ export default async function DashboardPage() {
       heatmapData.push({ day, hour, count: heatmapMap.get(key) ?? 0 });
     }
   }
-
-  // Build 30-day trend data
-  const days = eachDayOfInterval({
-    start: parseISO(thirtyDaysAgo),
-    end: now,
-  });
-
-  const apptsByDate = new Map<string, { total: number; completed: number; revenue: number }>();
-  for (const day of days) {
-    apptsByDate.set(format(day, "yyyy-MM-dd"), { total: 0, completed: 0, revenue: 0 });
-  }
-
-  for (const appt of last30ApptsRes.data ?? []) {
-    const d = appt.appointment_date;
-    const entry = apptsByDate.get(d);
-    if (entry) {
-      entry.total++;
-      if (appt.status === "completed") {
-        entry.completed++;
-        entry.revenue += appt.price_snapshot ?? 0;
-      }
-    }
-  }
-
-  for (const pay of last30PaymentsRes.data ?? []) {
-    const d = pay.payment_date;
-    const entry = apptsByDate.get(d);
-    if (entry) {
-      entry.revenue += pay.amount ?? 0;
-    }
-  }
-
-  // For revenue trend, only count from payments (not price_snapshot) to avoid double-counting
-  const revenueByDate = new Map<string, number>();
-  for (const day of days) {
-    revenueByDate.set(format(day, "yyyy-MM-dd"), 0);
-  }
-  for (const pay of last30PaymentsRes.data ?? []) {
-    const d = pay.payment_date;
-    const current = revenueByDate.get(d) ?? 0;
-    revenueByDate.set(d, current + (pay.amount ?? 0));
-  }
-
-  const trendData = days.map((day) => {
-    const key = format(day, "yyyy-MM-dd");
-    const entry = apptsByDate.get(key)!;
-    return {
-      date: format(day, "dd MMM"),
-      dateShort: format(day, "dd"),
-      appointments: entry.total,
-      completed: entry.completed,
-      revenue: revenueByDate.get(key) ?? 0,
-    };
-  });
-
-  // Origin distribution (marketing)
-  const originCounts: Record<string, number> = {};
-  for (const p of allPatientsWithOriginRes.data ?? []) {
-    if (p.origin) {
-      originCounts[p.origin] = (originCounts[p.origin] ?? 0) + 1;
-    }
-  }
-  const originData = Object.entries(originCounts)
-    .map(([name, value]) => ({ name, value }))
-    .sort((a, b) => b.value - a.value)
-    .slice(0, 6);
-
-  // Appointments by status this month (for donut)
-  const statusDistribution = [
-    { name: "completed", value: completedMonth },
-    {
-      name: "confirmed",
-      value: (thisMonthApptsRes.count ?? 0) - completedMonth - cancelledMonth,
-    },
-    { name: "cancelled", value: cancelledMonth },
-  ].filter((s) => s.value > 0);
 
   return (
     <AdminDashboard
@@ -420,13 +302,9 @@ export default async function DashboardPage() {
         cancelledMonth,
         noShows,
         noShowRate,
+        occupancyRate,
       }}
-      trendData={trendData}
-      originData={originData}
-      statusDistribution={statusDistribution}
       todayAppointments={(todayListRes.data ?? []) as any}
-      noShowSparkline={noShowSparkline}
-      newPatientSparkline={newPatientSparkline}
       topTreatments={topTreatments}
       heatmapData={heatmapData}
     />
