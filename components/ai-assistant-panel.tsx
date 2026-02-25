@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Bot, X, Send, Loader2, Download, ChevronRight, Database } from "lucide-react";
+import { Bot, X, Send, Loader2, Download, ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -254,7 +254,7 @@ export function AiAssistantPanel() {
         )}
         title="Asistente IA"
       >
-        {open ? <X className="h-5 w-5" /> : <Database className="h-5 w-5" />}
+        {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
       </button>
 
       {/* Panel */}
@@ -268,7 +268,7 @@ export function AiAssistantPanel() {
         <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-card">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-              <Database className="h-4 w-4 text-primary" />
+              <Sparkles className="h-4 w-4 text-primary" />
             </div>
             <div>
               <p className="text-sm font-semibold">AI Database Assistant</p>

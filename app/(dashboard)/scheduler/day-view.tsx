@@ -11,7 +11,8 @@ import {
 } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Lock, LockOpen, Coffee } from "lucide-react";
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
+import { loadTimeIndicatorSetting } from "@/app/(dashboard)/settings/page";
 
 interface DayViewProps {
   date: Date;
@@ -108,6 +109,29 @@ export function DayView({
   const [dragOverSlot, setDragOverSlot] = useState<{ time: string; officeId: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
+  // Current time indicator
+  const [now, setNow] = useState(() => new Date());
+  const [showTimeIndicator, setShowTimeIndicator] = useState(false);
+
+  useEffect(() => {
+    setShowTimeIndicator(loadTimeIndicatorSetting());
+  }, []);
+
+  useEffect(() => {
+    if (!showTimeIndicator) return;
+    const interval = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(interval);
+  }, [showTimeIndicator]);
+
+  const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const gridStartMinutes = SCHEDULER_START_HOUR * 60;
+  const gridEndMinutes = SCHEDULER_END_HOUR * 60;
+  const timeLineVisible =
+    showTimeIndicator && isToday && currentMinutes >= gridStartMinutes && currentMinutes < gridEndMinutes;
+  // Each slot is 40px, each slot is SCHEDULER_INTERVAL minutes
+  const timeLineTop = ((currentMinutes - gridStartMinutes) / SCHEDULER_INTERVAL) * 40;
+
   useEffect(() => {
     if (!contextMenu) return;
     const handler = () => setContextMenu(null);
@@ -131,7 +155,7 @@ export function DayView({
       </div>
 
       {/* Time grid */}
-      <div>
+      <div className="relative">
         {TIME_SLOTS.map((time) => {
           const isHour = time.endsWith(":00");
           return (
@@ -331,6 +355,21 @@ export function DayView({
             </div>
           );
         })}
+
+        {/* Current time indicator line */}
+        {timeLineVisible && (
+          <div
+            className="pointer-events-none absolute left-0 right-0 z-20 flex items-center"
+            style={{ top: `${timeLineTop}px` }}
+          >
+            <div className="w-20 shrink-0 flex justify-end pr-1">
+              <span className="rounded bg-red-500 px-1 py-0.5 text-[10px] font-bold text-white leading-none">
+                {now.getHours().toString().padStart(2, "0")}:{now.getMinutes().toString().padStart(2, "0")}
+              </span>
+            </div>
+            <div className="flex-1 h-0.5 bg-red-500 shadow-sm shadow-red-500/50" />
+          </div>
+        )}
       </div>
 
       {/* Context menu for unblocking (right-click on blocked slot) */}
