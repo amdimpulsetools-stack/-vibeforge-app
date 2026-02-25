@@ -80,6 +80,15 @@
   body {
     @apply bg-background text-foreground antialiased;
   }
+  button,
+  [role="button"],
+  a,
+  select,
+  [type="checkbox"],
+  [type="radio"],
+  label[for] {
+    cursor: pointer;
+  }
 }
 
 /* Scrollbar personalizado */
