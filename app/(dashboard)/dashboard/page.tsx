@@ -9,6 +9,7 @@ import {
   subMonths,
   eachDayOfInterval,
   parseISO,
+  getDay,
 } from "date-fns";
 
 export default async function DashboardPage() {
@@ -39,6 +40,7 @@ export default async function DashboardPage() {
   const lastMonthStart = format(startOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
   const lastMonthEnd = format(endOfMonth(subMonths(now, 1)), "yyyy-MM-dd");
   const thirtyDaysAgo = format(subDays(now, 29), "yyyy-MM-dd");
+  const sevenDaysAgo = format(subDays(now, 6), "yyyy-MM-dd");
 
   const [
     patientsRes,
@@ -57,6 +59,11 @@ export default async function DashboardPage() {
     officesRes,
     appointmentsCompletedMonthRes,
     appointmentsCancelledMonthRes,
+    // New queries
+    noShowsRes,
+    topTreatmentsRawRes,
+    heatmapRawRes,
+    newPatientsLast7Res,
   ] = await Promise.all([
     // Total patients
     supabase
@@ -153,6 +160,30 @@ export default async function DashboardPage() {
       .gte("appointment_date", monthStart)
       .lte("appointment_date", monthEnd)
       .eq("status", "cancelled"),
+    // No-shows: past appointments this month still scheduled/confirmed
+    supabase
+      .from("appointments")
+      .select("appointment_date")
+      .gte("appointment_date", monthStart)
+      .lt("appointment_date", today)
+      .in("status", ["scheduled", "confirmed"]),
+    // Top treatments: appointments this month with service info
+    supabase
+      .from("appointments")
+      .select("service_id, services(name), price_snapshot, status")
+      .gte("appointment_date", monthStart)
+      .lte("appointment_date", monthEnd),
+    // Heatmap: last 90 days appointments with start_time for day/hour distribution
+    supabase
+      .from("appointments")
+      .select("appointment_date, start_time")
+      .gte("appointment_date", format(subDays(now, 89), "yyyy-MM-dd"))
+      .lte("appointment_date", today),
+    // New patients last 7 days (for sparkline)
+    supabase
+      .from("patients")
+      .select("created_at")
+      .gte("created_at", sevenDaysAgo),
   ]);
 
   // Basic stats
@@ -215,6 +246,82 @@ export default async function DashboardPage() {
     thisMonthAppts > 0
       ? Math.round((cancelledMonth / thisMonthAppts) * 100)
       : 0;
+
+  // No-shows
+  const noShows = (noShowsRes.data ?? []).length;
+  const noShowRate =
+    thisMonthAppts > 0 ? Math.round((noShows / thisMonthAppts) * 100) : 0;
+
+  // No-show sparkline (last 7 days)
+  const last7Days = eachDayOfInterval({
+    start: subDays(now, 6),
+    end: now,
+  });
+  const noShowsByDate = new Map<string, number>();
+  for (const day of last7Days) {
+    noShowsByDate.set(format(day, "yyyy-MM-dd"), 0);
+  }
+  for (const appt of noShowsRes.data ?? []) {
+    const d = appt.appointment_date;
+    if (noShowsByDate.has(d)) {
+      noShowsByDate.set(d, (noShowsByDate.get(d) ?? 0) + 1);
+    }
+  }
+  const noShowSparkline = last7Days.map((day) => ({
+    value: noShowsByDate.get(format(day, "yyyy-MM-dd")) ?? 0,
+  }));
+
+  // New patients sparkline (last 7 days)
+  const newPatientsByDate = new Map<string, number>();
+  for (const day of last7Days) {
+    newPatientsByDate.set(format(day, "yyyy-MM-dd"), 0);
+  }
+  for (const p of newPatientsLast7Res.data ?? []) {
+    const d = format(parseISO(p.created_at), "yyyy-MM-dd");
+    if (newPatientsByDate.has(d)) {
+      newPatientsByDate.set(d, (newPatientsByDate.get(d) ?? 0) + 1);
+    }
+  }
+  const newPatientSparkline = last7Days.map((day) => ({
+    value: newPatientsByDate.get(format(day, "yyyy-MM-dd")) ?? 0,
+  }));
+
+  // Top treatments
+  const treatmentCounts = new Map<string, { count: number; revenue: number }>();
+  for (const appt of topTreatmentsRawRes.data ?? []) {
+    const name = (appt.services as any)?.name ?? "Sin servicio";
+    const entry = treatmentCounts.get(name) ?? { count: 0, revenue: 0 };
+    entry.count++;
+    if (appt.status === "completed") {
+      entry.revenue += appt.price_snapshot ?? 0;
+    }
+    treatmentCounts.set(name, entry);
+  }
+  const topTreatments = Array.from(treatmentCounts.entries())
+    .map(([name, data]) => ({ name, ...data }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
+  // Heatmap data (day of week x hour)
+  const heatmapMap = new Map<string, number>();
+  for (const appt of heatmapRawRes.data ?? []) {
+    const date = parseISO(appt.appointment_date);
+    // getDay: 0=Sun, we need Mon=0 for display
+    const jsDay = getDay(date);
+    const dayIndex = jsDay === 0 ? 6 : jsDay - 1; // Mon=0, Tue=1, ..., Sun=6
+    const hour = parseInt(appt.start_time?.slice(0, 2) ?? "0", 10);
+    if (hour >= 8 && hour <= 20) {
+      const key = `${dayIndex}-${hour}`;
+      heatmapMap.set(key, (heatmapMap.get(key) ?? 0) + 1);
+    }
+  }
+  const heatmapData: { day: number; hour: number; count: number }[] = [];
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 8; hour <= 20; hour++) {
+      const key = `${day}-${hour}`;
+      heatmapData.push({ day, hour, count: heatmapMap.get(key) ?? 0 });
+    }
+  }
 
   // Build 30-day trend data
   const days = eachDayOfInterval({
@@ -311,11 +418,17 @@ export default async function DashboardPage() {
         cancellationRate,
         completedMonth,
         cancelledMonth,
+        noShows,
+        noShowRate,
       }}
       trendData={trendData}
       originData={originData}
       statusDistribution={statusDistribution}
       todayAppointments={(todayListRes.data ?? []) as any}
+      noShowSparkline={noShowSparkline}
+      newPatientSparkline={newPatientSparkline}
+      topTreatments={topTreatments}
+      heatmapData={heatmapData}
     />
   );
 }

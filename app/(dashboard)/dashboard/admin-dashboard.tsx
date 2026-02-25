@@ -14,10 +14,12 @@ import {
   CheckCircle2,
   XCircle,
   BarChart3,
-  Megaphone,
   Activity,
   FileText,
   Target,
+  UserX,
+  Stethoscope,
+  Calendar,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -61,6 +63,22 @@ interface StatusPoint {
   value: number;
 }
 
+interface SparklinePoint {
+  value: number;
+}
+
+interface TopTreatment {
+  name: string;
+  count: number;
+  revenue: number;
+}
+
+interface HeatmapPoint {
+  day: number;
+  hour: number;
+  count: number;
+}
+
 interface AdminDashboardProps {
   userName: string;
   stats: {
@@ -79,11 +97,17 @@ interface AdminDashboardProps {
     cancellationRate: number;
     completedMonth: number;
     cancelledMonth: number;
+    noShows: number;
+    noShowRate: number;
   };
   trendData: TrendPoint[];
   originData: OriginPoint[];
   statusDistribution: StatusPoint[];
   todayAppointments: TodayAppointment[];
+  noShowSparkline: SparklinePoint[];
+  newPatientSparkline: SparklinePoint[];
+  topTreatments: TopTreatment[];
+  heatmapData: HeatmapPoint[];
 }
 
 // ─── Constants ──────────────────────────────────────────────────
@@ -108,6 +132,9 @@ const STATUS_LABELS_EN: Record<string, string> = {
   completed: "Completed",
   cancelled: "Cancelled",
 };
+
+const DAYS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const DAYS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -192,6 +219,305 @@ function KpiCard({
   );
 }
 
+// ─── Mini Sparkline ─────────────────────────────────────────────
+
+function MiniSparkline({
+  data,
+  color,
+  height = 40,
+}: {
+  data: SparklinePoint[];
+  color: string;
+  height?: number;
+}) {
+  if (data.length === 0) return null;
+  const max = Math.max(...data.map((d) => d.value), 1);
+  const width = 120;
+  const points = data
+    .map((d, i) => {
+      const x = (i / Math.max(data.length - 1, 1)) * width;
+      const y = height - (d.value / max) * (height - 4);
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  const areaPoints = `0,${height} ${points} ${width},${height}`;
+
+  return (
+    <svg width={width} height={height} className="overflow-visible">
+      <defs>
+        <linearGradient id={`spark-${color}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity={0.3} />
+          <stop offset="100%" stopColor={color} stopOpacity={0} />
+        </linearGradient>
+      </defs>
+      <polygon
+        points={areaPoints}
+        fill={`url(#spark-${color})`}
+      />
+      <polyline
+        points={points}
+        fill="none"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// ─── Sidebar Stat Card ──────────────────────────────────────────
+
+function SidebarStatCard({
+  title,
+  value,
+  rate,
+  icon: Icon,
+  color,
+  bgColor,
+  sparkData,
+  sparkColor,
+}: {
+  title: string;
+  value: number;
+  rate: number;
+  icon: typeof DollarSign;
+  color: string;
+  bgColor: string;
+  sparkData: SparklinePoint[];
+  sparkColor: string;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${bgColor}`}>
+          <Icon className={`h-3.5 w-3.5 ${color}`} />
+        </div>
+        <span className="text-xs font-medium text-muted-foreground">{title}</span>
+      </div>
+      <div className="flex items-end justify-between">
+        <div>
+          <span className="text-2xl font-bold">{value}</span>
+          <span className={`ml-2 text-sm font-medium ${color}`}>{rate}%</span>
+        </div>
+        <MiniSparkline data={sparkData} color={sparkColor} height={32} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Mini Calendar ──────────────────────────────────────────────
+
+function MiniCalendar({ isEs }: { isEs: boolean }) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const today = now.getDate();
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  // Adjust so Monday = 0
+  const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+
+  const dayNames = isEs
+    ? ["L", "M", "X", "J", "V", "S", "D"]
+    : ["M", "T", "W", "T", "F", "S", "S"];
+
+  const monthNames = isEs
+    ? ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+    : ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  const cells: (number | null)[] = [];
+  for (let i = 0; i < startOffset; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10">
+          <Calendar className="h-3.5 w-3.5 text-blue-400" />
+        </div>
+        <span className="text-xs font-medium text-muted-foreground">
+          {monthNames[month]} {year}
+        </span>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {dayNames.map((d, i) => (
+          <div key={i} className="text-[10px] font-medium text-muted-foreground py-1">
+            {d}
+          </div>
+        ))}
+        {cells.map((d, i) => (
+          <div
+            key={i}
+            className={`text-[11px] py-1 rounded ${
+              d === today
+                ? "bg-emerald-500 text-white font-bold"
+                : d
+                  ? "text-foreground"
+                  : ""
+            }`}
+          >
+            {d ?? ""}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Heatmap ────────────────────────────────────────────────────
+
+function AppointmentHeatmap({
+  data,
+  isEs,
+}: {
+  data: HeatmapPoint[];
+  isEs: boolean;
+}) {
+  const dayLabels = isEs ? DAYS_ES : DAYS_EN;
+  const hours = Array.from({ length: 13 }, (_, i) => i + 8); // 8 AM to 8 PM
+  const maxCount = Math.max(...data.map((d) => d.count), 1);
+
+  const getColor = (count: number) => {
+    if (count === 0) return "bg-muted/30";
+    const intensity = count / maxCount;
+    if (intensity < 0.25) return "bg-emerald-500/20";
+    if (intensity < 0.5) return "bg-emerald-500/40";
+    if (intensity < 0.75) return "bg-emerald-500/60";
+    return "bg-emerald-500/90";
+  };
+
+  const getCount = (day: number, hour: number) => {
+    return data.find((d) => d.day === day && d.hour === hour)?.count ?? 0;
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10">
+          <BarChart3 className="h-3.5 w-3.5 text-amber-400" />
+        </div>
+        <h3 className="text-sm font-semibold">
+          {isEs ? "Mapa de calor de citas" : "Appointments heatmap"}
+        </h3>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[320px]">
+          {/* Header row */}
+          <div className="grid gap-1" style={{ gridTemplateColumns: `48px repeat(${hours.length}, 1fr)` }}>
+            <div />
+            {hours.map((h) => (
+              <div key={h} className="text-[10px] text-center text-muted-foreground font-medium">
+                {h}:00
+              </div>
+            ))}
+          </div>
+
+          {/* Data rows */}
+          {dayLabels.map((dayLabel, dayIndex) => (
+            <div
+              key={dayIndex}
+              className="grid gap-1 mt-1"
+              style={{ gridTemplateColumns: `48px repeat(${hours.length}, 1fr)` }}
+            >
+              <div className="text-[11px] text-muted-foreground font-medium flex items-center">
+                {dayLabel}
+              </div>
+              {hours.map((hour) => {
+                const count = getCount(dayIndex, hour);
+                return (
+                  <div
+                    key={hour}
+                    className={`aspect-square rounded-sm ${getColor(count)} transition-colors`}
+                    title={`${dayLabel} ${hour}:00 — ${count} ${isEs ? "citas" : "appts"}`}
+                  />
+                );
+              })}
+            </div>
+          ))}
+
+          {/* Legend */}
+          <div className="flex items-center justify-end gap-1 mt-3">
+            <span className="text-[10px] text-muted-foreground mr-1">
+              {isEs ? "Menos" : "Less"}
+            </span>
+            <div className="h-3 w-3 rounded-sm bg-muted/30" />
+            <div className="h-3 w-3 rounded-sm bg-emerald-500/20" />
+            <div className="h-3 w-3 rounded-sm bg-emerald-500/40" />
+            <div className="h-3 w-3 rounded-sm bg-emerald-500/60" />
+            <div className="h-3 w-3 rounded-sm bg-emerald-500/90" />
+            <span className="text-[10px] text-muted-foreground ml-1">
+              {isEs ? "Más" : "More"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Top Treatments ─────────────────────────────────────────────
+
+function TopTreatmentsTable({
+  treatments,
+  isEs,
+}: {
+  treatments: TopTreatment[];
+  isEs: boolean;
+}) {
+  const maxCount = Math.max(...treatments.map((t) => t.count), 1);
+
+  return (
+    <div className="rounded-xl border border-border bg-card">
+      <div className="flex items-center gap-2 border-b border-border px-5 py-4">
+        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-500/10">
+          <Stethoscope className="h-3.5 w-3.5 text-purple-400" />
+        </div>
+        <h3 className="text-sm font-semibold">
+          {isEs ? "Top tratamientos" : "Top treatments"}
+        </h3>
+      </div>
+      {treatments.length === 0 ? (
+        <div className="p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            {isEs ? "Sin datos" : "No data"}
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {treatments.map((t, i) => (
+            <div key={i} className="px-5 py-3">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-sm font-medium truncate flex-1 mr-4">
+                  {t.name}
+                </span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-xs text-muted-foreground">
+                    {t.count} {isEs ? "citas" : "appts"}
+                  </span>
+                  <span className="text-xs font-medium text-emerald-400">
+                    {formatCurrency(t.revenue)}
+                  </span>
+                </div>
+              </div>
+              <div className="h-1.5 rounded-full bg-muted/50 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-purple-500/60 transition-all"
+                  style={{ width: `${(t.count / maxCount) * 100}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Custom tooltip ─────────────────────────────────────────────
 
 function ChartTooltip({ active, payload, label }: any) {
@@ -215,6 +541,10 @@ export function AdminDashboard({
   stats,
   trendData,
   todayAppointments,
+  noShowSparkline,
+  newPatientSparkline,
+  topTreatments,
+  heatmapData,
 }: AdminDashboardProps) {
   const { t, language } = useLanguage();
   const statusLabels = language === "es" ? STATUS_LABELS_ES : STATUS_LABELS_EN;
@@ -222,7 +552,7 @@ export function AdminDashboard({
   const isEs = language === "es";
 
   return (
-    <div className="space-y-8 pb-8">
+    <div className="space-y-6 pb-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -241,285 +571,301 @@ export function AdminDashboard({
       </div>
 
       {/* ═══════════════════════════════════════════════════════════ */}
-      {/* FINANCIAL KPIs                                             */}
+      {/* MAIN LAYOUT: Content + Sidebar                            */}
       {/* ═══════════════════════════════════════════════════════════ */}
-      <section>
-        <SectionHeader
-          icon={DollarSign}
-          title={isEs ? "Financiero" : "Financial"}
-          color="bg-emerald-500/10 text-emerald-400"
-        />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard
-            title={isEs ? "Ingresos del mes" : "Monthly revenue"}
-            value={formatCurrency(stats.revenueThisMonth)}
-            icon={DollarSign}
-            color="text-emerald-400"
-            bgColor="bg-emerald-500/10"
-            growth={stats.revenueGrowth}
-            subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
-          />
-          <KpiCard
-            title={isEs ? "Ticket promedio" : "Avg. ticket"}
-            value={formatCurrency(stats.avgTicket)}
-            icon={Target}
-            color="text-blue-400"
-            bgColor="bg-blue-500/10"
-            subtitle={isEs ? "por cita completada" : "per completed appt"}
-          />
-          <KpiCard
-            title={isEs ? "Citas completadas" : "Completed appts"}
-            value={stats.completedMonth.toLocaleString()}
-            icon={CheckCircle2}
-            color="text-emerald-400"
-            bgColor="bg-emerald-500/10"
-            subtitle={`${stats.completionRate}% ${isEs ? "del total" : "of total"}`}
-          />
-          <KpiCard
-            title={isEs ? "Cancelaciones" : "Cancellations"}
-            value={stats.cancelledMonth.toLocaleString()}
-            icon={XCircle}
-            color="text-red-400"
-            bgColor="bg-red-500/10"
-            subtitle={`${stats.cancellationRate}% ${isEs ? "tasa" : "rate"}`}
-          />
-        </div>
-      </section>
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-6">
+        {/* ─── LEFT: Main Content ──────────────────────────────── */}
+        <div className="space-y-6 min-w-0">
+          {/* FINANCIAL KPIs */}
+          <section>
+            <SectionHeader
+              icon={DollarSign}
+              title={isEs ? "Financiero" : "Financial"}
+              color="bg-emerald-500/10 text-emerald-400"
+            />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <KpiCard
+                title={isEs ? "Ingresos del mes" : "Monthly revenue"}
+                value={formatCurrency(stats.revenueThisMonth)}
+                icon={DollarSign}
+                color="text-emerald-400"
+                bgColor="bg-emerald-500/10"
+                growth={stats.revenueGrowth}
+                subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
+              />
+              <KpiCard
+                title={isEs ? "Ticket promedio" : "Avg. ticket"}
+                value={formatCurrency(stats.avgTicket)}
+                icon={Target}
+                color="text-blue-400"
+                bgColor="bg-blue-500/10"
+                subtitle={isEs ? "por cita completada" : "per completed appt"}
+              />
+              <KpiCard
+                title={isEs ? "Citas completadas" : "Completed appts"}
+                value={stats.completedMonth.toLocaleString()}
+                icon={CheckCircle2}
+                color="text-emerald-400"
+                bgColor="bg-emerald-500/10"
+                subtitle={`${stats.completionRate}% ${isEs ? "del total" : "of total"}`}
+              />
+              <KpiCard
+                title={isEs ? "Cancelaciones" : "Cancellations"}
+                value={stats.cancelledMonth.toLocaleString()}
+                icon={XCircle}
+                color="text-red-400"
+                bgColor="bg-red-500/10"
+                subtitle={`${stats.cancellationRate}% ${isEs ? "tasa" : "rate"}`}
+              />
+            </div>
+          </section>
 
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* OPERATIONAL + MARKETING KPIs — single row                 */}
-      {/* ═══════════════════════════════════════════════════════════ */}
-      <section>
-        <SectionHeader
-          icon={Activity}
-          title={isEs ? "Operacional & Marketing" : "Operational & Marketing"}
-          color="bg-blue-500/10 text-blue-400"
-        />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <KpiCard
-            title={isEs ? "Citas de hoy" : "Today's appts"}
-            value={stats.todayAppts.toLocaleString()}
-            icon={CalendarDays}
-            color="text-blue-400"
-            bgColor="bg-blue-500/10"
+          {/* OPERATIONAL + MARKETING KPIs */}
+          <section>
+            <SectionHeader
+              icon={Activity}
+              title={isEs ? "Operacional & Marketing" : "Operational & Marketing"}
+              color="bg-blue-500/10 text-blue-400"
+            />
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <KpiCard
+                title={isEs ? "Citas de hoy" : "Today's appts"}
+                value={stats.todayAppts.toLocaleString()}
+                icon={CalendarDays}
+                color="text-blue-400"
+                bgColor="bg-blue-500/10"
+              />
+              <KpiCard
+                title={isEs ? "Citas este mes" : "Monthly appts"}
+                value={stats.thisMonthAppts.toLocaleString()}
+                icon={CalendarDays}
+                color="text-purple-400"
+                bgColor="bg-purple-500/10"
+                growth={stats.growth}
+                subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
+              />
+              <KpiCard
+                title={isEs ? "Pacientes totales" : "Total patients"}
+                value={stats.totalPatients.toLocaleString()}
+                icon={Users}
+                color="text-cyan-400"
+                bgColor="bg-cyan-500/10"
+              />
+              <KpiCard
+                title={isEs ? "Nuevos este mes" : "New this month"}
+                value={stats.newPatientsThisMonth.toLocaleString()}
+                icon={UserPlus}
+                color="text-emerald-400"
+                bgColor="bg-emerald-500/10"
+                growth={stats.patientGrowth}
+                subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
+              />
+            </div>
+          </section>
+
+          {/* TREND CHART */}
+          <section>
+            <div className="rounded-xl border border-border bg-card p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10">
+                  <BarChart3 className="h-3.5 w-3.5 text-amber-400" />
+                </div>
+                <h3 className="text-sm font-semibold">
+                  {isEs ? "Tendencias (30 días)" : "Trends (30 days)"}
+                </h3>
+              </div>
+              <div className="h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData}>
+                    <defs>
+                      <linearGradient id="colorAppts" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                      <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis
+                      dataKey="dateShort"
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={4}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      tickLine={false}
+                      axisLine={false}
+                      allowDecimals={false}
+                    />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="appointments"
+                      name={isEs ? "Total" : "Total"}
+                      stroke="#3b82f6"
+                      fillOpacity={1}
+                      fill="url(#colorAppts)"
+                      strokeWidth={2}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="completed"
+                      name={isEs ? "Completadas" : "Completed"}
+                      stroke="#10b981"
+                      fillOpacity={1}
+                      fill="url(#colorCompleted)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </section>
+
+          {/* BOTTOM ROW: Agenda + Top Treatments | Heatmap */}
+          <section className="grid gap-6 lg:grid-cols-2">
+            {/* Left: Agenda de hoy + Top Tratamientos */}
+            <div className="space-y-6">
+              {/* Agenda de hoy */}
+              <div className="rounded-xl border border-border bg-card">
+                <div className="flex items-center justify-between border-b border-border px-5 py-4">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-4 w-4 text-muted-foreground" />
+                    <h2 className="font-semibold">{t("dashboard.today_schedule")}</h2>
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                      {todayAppointments.length}
+                    </span>
+                  </div>
+                  <Link
+                    href="/scheduler"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    {t("dashboard.view_scheduler")}
+                    <ArrowRight className="h-3 w-3" />
+                  </Link>
+                </div>
+
+                {todayAppointments.length === 0 ? (
+                  <div className="p-8 text-center">
+                    <CalendarDays className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
+                    <p className="text-sm text-muted-foreground">
+                      {t("dashboard.no_appointments_today")}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="divide-y divide-border max-h-[300px] overflow-y-auto">
+                    {todayAppointments.map((appt) => (
+                      <div
+                        key={appt.id}
+                        className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-muted/50"
+                      >
+                        <div className="w-20 shrink-0 text-xs font-mono text-muted-foreground">
+                          {formatTime(appt.start_time)}
+                        </div>
+                        <div
+                          className="h-2 w-2 shrink-0 rounded-full"
+                          style={{
+                            backgroundColor: appt.doctors?.color ?? "#6b7280",
+                          }}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">
+                            {appt.patient_name}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground">
+                            {appt.services?.name ?? ""}
+                          </p>
+                        </div>
+                        <span
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            STATUS_COLORS[appt.status] ?? STATUS_COLORS.scheduled
+                          }`}
+                        >
+                          {statusLabels[appt.status] ?? appt.status}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Top Treatments */}
+              <TopTreatmentsTable treatments={topTreatments} isEs={isEs} />
+            </div>
+
+            {/* Right: Heatmap */}
+            <div>
+              <AppointmentHeatmap data={heatmapData} isEs={isEs} />
+            </div>
+          </section>
+        </div>
+
+        {/* ─── RIGHT: Sidebar ──────────────────────────────────── */}
+        <div className="space-y-4">
+          {/* Mini Calendar */}
+          <MiniCalendar isEs={isEs} />
+
+          {/* No Shows Card */}
+          <SidebarStatCard
+            title={isEs ? "No shows" : "No shows"}
+            value={stats.noShows}
+            rate={stats.noShowRate}
+            icon={UserX}
+            color="text-orange-400"
+            bgColor="bg-orange-500/10"
+            sparkData={noShowSparkline}
+            sparkColor="#f97316"
           />
-          <KpiCard
-            title={isEs ? "Citas este mes" : "Monthly appts"}
-            value={stats.thisMonthAppts.toLocaleString()}
-            icon={CalendarDays}
-            color="text-purple-400"
-            bgColor="bg-purple-500/10"
-            growth={stats.growth}
-            subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
-          />
-          <KpiCard
-            title={isEs ? "Pacientes totales" : "Total patients"}
-            value={stats.totalPatients.toLocaleString()}
-            icon={Users}
-            color="text-cyan-400"
-            bgColor="bg-cyan-500/10"
-          />
-          <KpiCard
-            title={isEs ? "Nuevos este mes" : "New this month"}
-            value={stats.newPatientsThisMonth.toLocaleString()}
+
+          {/* New Patients Card */}
+          <SidebarStatCard
+            title={isEs ? "Nuevos pacientes" : "New patients"}
+            value={stats.newPatientsThisMonth}
+            rate={stats.patientGrowth}
             icon={UserPlus}
             color="text-emerald-400"
             bgColor="bg-emerald-500/10"
-            growth={stats.patientGrowth}
-            subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
+            sparkData={newPatientSparkline}
+            sparkColor="#10b981"
           />
-        </div>
-      </section>
 
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* CHARTS ROW                                                 */}
-      {/* ═══════════════════════════════════════════════════════════ */}
-      <section>
-        <SectionHeader
-          icon={BarChart3}
-          title={isEs ? "Tendencias (30 días)" : "Trends (30 days)"}
-          color="bg-amber-500/10 text-amber-400"
-        />
-
-        <div className="rounded-xl border border-border bg-card p-5">
-          <h3 className="mb-4 text-sm font-semibold">
-            {isEs ? "Citas diarias" : "Daily appointments"}
-          </h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="colorAppts" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis
-                  dataKey="dateShort"
-                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                  tickLine={false}
-                  axisLine={false}
-                  interval={4}
-                />
-                <YAxis
-                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-                />
-                <Tooltip content={<ChartTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="appointments"
-                  name={isEs ? "Total" : "Total"}
-                  stroke="#3b82f6"
-                  fillOpacity={1}
-                  fill="url(#colorAppts)"
-                  strokeWidth={2}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="completed"
-                  name={isEs ? "Completadas" : "Completed"}
-                  stroke="#10b981"
-                  fillOpacity={1}
-                  fill="url(#colorCompleted)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </section>
-
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* TODAY'S SCHEDULE + QUICK REPORTS                           */}
-      {/* ═══════════════════════════════════════════════════════════ */}
-      <section className="grid gap-6 lg:grid-cols-3">
-        {/* Today's Appointments - 2 cols */}
-        <div className="lg:col-span-2 rounded-xl border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border px-5 py-4">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              <h2 className="font-semibold">{t("dashboard.today_schedule")}</h2>
-              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                {todayAppointments.length}
-              </span>
+          {/* Quick Links */}
+          <div className="rounded-xl border border-border bg-card">
+            <div className="border-b border-border px-4 py-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                {isEs ? "Acceso rápido" : "Quick access"}
+              </h3>
             </div>
-            <Link
-              href="/scheduler"
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-            >
-              {t("dashboard.view_scheduler")}
-              <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-
-          {todayAppointments.length === 0 ? (
-            <div className="p-12 text-center">
-              <CalendarDays className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
-              <p className="text-sm text-muted-foreground">
-                {t("dashboard.no_appointments_today")}
-              </p>
+            <div className="p-2 space-y-0.5">
+              <QuickLink
+                href="/reports"
+                icon={BarChart3}
+                label={isEs ? "Reportes" : "Reports"}
+                color="text-emerald-400"
+                bgColor="bg-emerald-500/10"
+              />
+              <QuickLink
+                href="/scheduler"
+                icon={CalendarDays}
+                label={isEs ? "Agenda" : "Scheduler"}
+                color="text-blue-400"
+                bgColor="bg-blue-500/10"
+              />
+              <QuickLink
+                href="/patients"
+                icon={Users}
+                label={isEs ? "Pacientes" : "Patients"}
+                color="text-cyan-400"
+                bgColor="bg-cyan-500/10"
+              />
             </div>
-          ) : (
-            <div className="divide-y divide-border max-h-[400px] overflow-y-auto">
-              {todayAppointments.map((appt) => (
-                <div
-                  key={appt.id}
-                  className="flex items-center gap-4 px-5 py-3 transition-colors hover:bg-muted/50"
-                >
-                  <div className="w-24 shrink-0 text-sm font-mono text-muted-foreground">
-                    {formatTime(appt.start_time)} - {formatTime(appt.end_time)}
-                  </div>
-                  <div
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{
-                      backgroundColor: appt.doctors?.color ?? "#6b7280",
-                    }}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {appt.patient_name}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {appt.doctors?.full_name}
-                      {appt.services?.name ? ` · ${appt.services.name}` : ""}
-                      {appt.offices?.name ? ` · ${appt.offices.name}` : ""}
-                    </p>
-                  </div>
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                      STATUS_COLORS[appt.status] ?? STATUS_COLORS.scheduled
-                    }`}
-                  >
-                    {statusLabels[appt.status] ?? appt.status}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Quick Reports Access - 1 col */}
-        <div className="rounded-xl border border-border bg-card">
-          <div className="border-b border-border px-5 py-4">
-            <h2 className="font-semibold">
-              {isEs ? "Acceso rápido" : "Quick access"}
-            </h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {isEs ? "Reportes y herramientas" : "Reports & tools"}
-            </p>
-          </div>
-          <div className="p-3 space-y-1">
-            <QuickLink
-              href="/reports"
-              icon={BarChart3}
-              label={isEs ? "Reporte financiero" : "Financial report"}
-              description={isEs ? "Ingresos, productividad" : "Revenue, productivity"}
-              color="text-emerald-400"
-              bgColor="bg-emerald-500/10"
-            />
-            <QuickLink
-              href="/reports"
-              icon={Megaphone}
-              label={isEs ? "Reporte marketing" : "Marketing report"}
-              description={isEs ? "Orígenes, conversión" : "Origins, conversion"}
-              color="text-purple-400"
-              bgColor="bg-purple-500/10"
-            />
-            <QuickLink
-              href="/reports"
-              icon={Activity}
-              label={isEs ? "Reporte operacional" : "Operational report"}
-              description={isEs ? "Ocupación, tendencias" : "Occupancy, trends"}
-              color="text-blue-400"
-              bgColor="bg-blue-500/10"
-            />
-            <QuickLink
-              href="/scheduler"
-              icon={CalendarDays}
-              label={isEs ? "Agenda" : "Scheduler"}
-              description={isEs ? "Gestionar citas" : "Manage appointments"}
-              color="text-amber-400"
-              bgColor="bg-amber-500/10"
-            />
-            <QuickLink
-              href="/patients"
-              icon={Users}
-              label={isEs ? "Pacientes" : "Patients"}
-              description={isEs ? "Base de datos" : "Patient database"}
-              color="text-cyan-400"
-              bgColor="bg-cyan-500/10"
-            />
           </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
@@ -530,34 +876,29 @@ function QuickLink({
   href,
   icon: Icon,
   label,
-  description,
   color,
   bgColor,
 }: {
   href: string;
   icon: typeof DollarSign;
   label: string;
-  description: string;
   color: string;
   bgColor: string;
 }) {
   return (
     <Link
       href={href}
-      className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-muted/50 group"
+      className="flex items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/50 group"
     >
       <div
-        className={`flex h-9 w-9 items-center justify-center rounded-lg ${bgColor}`}
+        className={`flex h-7 w-7 items-center justify-center rounded-lg ${bgColor}`}
       >
-        <Icon className={`h-4 w-4 ${color}`} />
+        <Icon className={`h-3.5 w-3.5 ${color}`} />
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium group-hover:text-primary transition-colors">
-          {label}
-        </p>
-        <p className="text-xs text-muted-foreground truncate">{description}</p>
-      </div>
-      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      <span className="text-sm font-medium group-hover:text-primary transition-colors">
+        {label}
+      </span>
+      <ArrowRight className="ml-auto h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
     </Link>
   );
 }
