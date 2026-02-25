@@ -132,10 +132,10 @@ export default async function DashboardPage() {
       .gte("appointment_date", monthStart)
       .lt("appointment_date", today)
       .in("status", ["scheduled", "confirmed"]),
-    // Top treatments: appointments this month with service info
+    // Top treatments: appointments this month with service info + base_price
     supabase
       .from("appointments")
-      .select("service_id, services(name), price_snapshot, status")
+      .select("service_id, services(name, base_price), price_snapshot, status")
       .gte("appointment_date", monthStart)
       .lte("appointment_date", monthEnd),
     // Heatmap: last 90 days appointments with start_time
@@ -144,17 +144,17 @@ export default async function DashboardPage() {
       .select("appointment_date, start_time")
       .gte("appointment_date", format(subDays(now, 89), "yyyy-MM-dd"))
       .lte("appointment_date", today),
-    // Revenue this month: price_snapshot from completed appointments
+    // Revenue this month: price_snapshot with fallback to service base_price
     supabase
       .from("appointments")
-      .select("price_snapshot")
+      .select("price_snapshot, services(base_price)")
       .gte("appointment_date", monthStart)
       .lte("appointment_date", monthEnd)
       .eq("status", "completed"),
-    // Revenue last month: price_snapshot from completed appointments
+    // Revenue last month: price_snapshot with fallback to service base_price
     supabase
       .from("appointments")
-      .select("price_snapshot")
+      .select("price_snapshot, services(base_price)")
       .gte("appointment_date", lastMonthStart)
       .lte("appointment_date", lastMonthEnd)
       .eq("status", "completed"),
@@ -175,13 +175,20 @@ export default async function DashboardPage() {
         ? 100
         : 0;
 
-  // Financial — revenue from completed appointments' price_snapshot
+  // Financial — revenue from completed appointments
+  // Use price_snapshot if available, fallback to service's base_price for older appointments
   const revenueThisMonth = (completedApptsThisMonthRes.data ?? []).reduce(
-    (sum, a) => sum + (a.price_snapshot ?? 0),
+    (sum, a) => {
+      const price = a.price_snapshot ?? Number((a.services as any)?.base_price ?? 0);
+      return sum + price;
+    },
     0
   );
   const revenueLastMonth = (completedApptsLastMonthRes.data ?? []).reduce(
-    (sum, a) => sum + (a.price_snapshot ?? 0),
+    (sum, a) => {
+      const price = a.price_snapshot ?? Number((a.services as any)?.base_price ?? 0);
+      return sum + price;
+    },
     0
   );
   const revenueGrowth =
@@ -248,11 +255,12 @@ export default async function DashboardPage() {
   // Top treatments
   const treatmentCounts = new Map<string, { count: number; revenue: number }>();
   for (const appt of topTreatmentsRawRes.data ?? []) {
-    const name = (appt.services as any)?.name ?? "Sin servicio";
+    const svc = appt.services as any;
+    const name = svc?.name ?? "Sin servicio";
     const entry = treatmentCounts.get(name) ?? { count: 0, revenue: 0 };
     entry.count++;
     if (appt.status === "completed") {
-      entry.revenue += appt.price_snapshot ?? 0;
+      entry.revenue += appt.price_snapshot ?? Number(svc?.base_price ?? 0);
     }
     treatmentCounts.set(name, entry);
   }
