@@ -5,7 +5,6 @@ import { formatCurrency } from "@/lib/utils";
 import {
   Users,
   CalendarDays,
-  Stethoscope,
   TrendingUp,
   TrendingDown,
   Clock,
@@ -14,29 +13,21 @@ import {
   UserPlus,
   CheckCircle2,
   XCircle,
-  Building2,
   BarChart3,
   Megaphone,
   Activity,
   FileText,
   Target,
-  Percent,
 } from "lucide-react";
 import Link from "next/link";
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
 } from "recharts";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -117,10 +108,6 @@ const STATUS_LABELS_EN: Record<string, string> = {
   completed: "Completed",
   cancelled: "Cancelled",
 };
-
-const PIE_COLORS = ["#10b981", "#3b82f6", "#ef4444", "#f59e0b", "#8b5cf6", "#ec4899"];
-
-const ORIGIN_COLORS = ["#10b981", "#3b82f6", "#f59e0b", "#8b5cf6", "#ec4899", "#06b6d4"];
 
 // ─── Helpers ────────────────────────────────────────────────────
 
@@ -227,18 +214,12 @@ export function AdminDashboard({
   userName,
   stats,
   trendData,
-  originData,
-  statusDistribution,
   todayAppointments,
 }: AdminDashboardProps) {
   const { t, language } = useLanguage();
   const statusLabels = language === "es" ? STATUS_LABELS_ES : STATUS_LABELS_EN;
   const formatTime = (time: string) => time.slice(0, 5);
   const isEs = language === "es";
-
-  const statusLabelMap: Record<string, string> = isEs
-    ? { completed: "Completadas", confirmed: "Pendientes", cancelled: "Canceladas" }
-    : { completed: "Completed", confirmed: "Pending", cancelled: "Cancelled" };
 
   return (
     <div className="space-y-8 pb-8">
@@ -314,7 +295,7 @@ export function AdminDashboard({
           title={isEs ? "Operacional" : "Operational"}
           color="bg-blue-500/10 text-blue-400"
         />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <KpiCard
             title={isEs ? "Citas de hoy" : "Today's appts"}
             value={stats.todayAppts.toLocaleString()}
@@ -331,20 +312,6 @@ export function AdminDashboard({
             growth={stats.growth}
             subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
           />
-          <KpiCard
-            title={isEs ? "Doctores activos" : "Active doctors"}
-            value={stats.activeDoctors.toLocaleString()}
-            icon={Stethoscope}
-            color="text-cyan-400"
-            bgColor="bg-cyan-500/10"
-          />
-          <KpiCard
-            title={isEs ? "Consultorios activos" : "Active offices"}
-            value={stats.activeOffices.toLocaleString()}
-            icon={Building2}
-            color="text-amber-400"
-            bgColor="bg-amber-500/10"
-          />
         </div>
       </section>
 
@@ -357,7 +324,7 @@ export function AdminDashboard({
           title="Marketing"
           color="bg-purple-500/10 text-purple-400"
         />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2">
           <KpiCard
             title={isEs ? "Pacientes totales" : "Total patients"}
             value={stats.totalPatients.toLocaleString()}
@@ -374,22 +341,6 @@ export function AdminDashboard({
             growth={stats.patientGrowth}
             subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
           />
-          <KpiCard
-            title={isEs ? "Tasa de completación" : "Completion rate"}
-            value={`${stats.completionRate}%`}
-            icon={Percent}
-            color="text-emerald-400"
-            bgColor="bg-emerald-500/10"
-            subtitle={isEs ? "citas completadas" : "appts completed"}
-          />
-          <KpiCard
-            title={isEs ? "Orígenes rastreados" : "Tracked origins"}
-            value={originData.length.toLocaleString()}
-            icon={Megaphone}
-            color="text-purple-400"
-            bgColor="bg-purple-500/10"
-            subtitle={isEs ? "canales activos" : "active channels"}
-          />
         </div>
       </section>
 
@@ -403,182 +354,58 @@ export function AdminDashboard({
           color="bg-amber-500/10 text-amber-400"
         />
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Appointments Trend - Area Chart */}
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-4 text-sm font-semibold">
-              {isEs ? "Citas diarias" : "Daily appointments"}
-            </h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trendData}>
-                  <defs>
-                    <linearGradient id="colorAppts" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="dateShort"
-                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={4}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                    tickLine={false}
-                    axisLine={false}
-                    allowDecimals={false}
-                  />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="appointments"
-                    name={isEs ? "Total" : "Total"}
-                    stroke="#3b82f6"
-                    fillOpacity={1}
-                    fill="url(#colorAppts)"
-                    strokeWidth={2}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="completed"
-                    name={isEs ? "Completadas" : "Completed"}
-                    stroke="#10b981"
-                    fillOpacity={1}
-                    fill="url(#colorCompleted)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Revenue Trend - Bar Chart */}
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-4 text-sm font-semibold">
-              {isEs ? "Ingresos diarios" : "Daily revenue"}
-            </h3>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis
-                    dataKey="dateShort"
-                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                    tickLine={false}
-                    axisLine={false}
-                    interval={4}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                    tickLine={false}
-                    axisLine={false}
-                  />
-                  <Tooltip content={<ChartTooltip />} />
-                  <Bar
-                    dataKey="revenue"
-                    name={isEs ? "Ingresos" : "Revenue"}
-                    fill="#10b981"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={20}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Status Distribution - Donut */}
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-4 text-sm font-semibold">
-              {isEs ? "Estado de citas (mes)" : "Appointment status (month)"}
-            </h3>
-            <div className="h-64">
-              {statusDistribution.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  {isEs ? "Sin datos este mes" : "No data this month"}
-                </div>
-              ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusDistribution.map((s) => ({
-                        ...s,
-                        displayName: statusLabelMap[s.name] ?? s.name,
-                      }))}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      dataKey="value"
-                      nameKey="displayName"
-                      stroke="none"
-                    >
-                      {statusDistribution.map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "hsl(var(--card))",
-                        border: "1px solid hsl(var(--border))",
-                        borderRadius: "8px",
-                        fontSize: "12px",
-                      }}
-                    />
-                    <Legend
-                      formatter={(value) => (
-                        <span className="text-xs text-muted-foreground">{value}</span>
-                      )}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              )}
-            </div>
-          </div>
-
-          {/* Origin Distribution - Horizontal Bar */}
-          <div className="rounded-xl border border-border bg-card p-5">
-            <h3 className="mb-4 text-sm font-semibold">
-              {isEs ? "Origen de pacientes" : "Patient origins"}
-            </h3>
-            <div className="h-64">
-              {originData.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  {isEs ? "Sin datos de origen" : "No origin data"}
-                </div>
-              ) : (
-                <div className="flex h-full flex-col justify-center gap-3 px-2">
-                  {originData.map((origin, i) => {
-                    const maxVal = originData[0]?.value ?? 1;
-                    const pct = Math.round((origin.value / maxVal) * 100);
-                    return (
-                      <div key={origin.name} className="space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="font-medium capitalize">{origin.name}</span>
-                          <span className="text-muted-foreground">{origin.value}</span>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-muted">
-                          <div
-                            className="h-2 rounded-full transition-all duration-500"
-                            style={{
-                              width: `${pct}%`,
-                              backgroundColor: ORIGIN_COLORS[i % ORIGIN_COLORS.length],
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+        <div className="rounded-xl border border-border bg-card p-5">
+          <h3 className="mb-4 text-sm font-semibold">
+            {isEs ? "Citas diarias" : "Daily appointments"}
+          </h3>
+          <div className="h-72">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData}>
+                <defs>
+                  <linearGradient id="colorAppts" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="colorCompleted" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis
+                  dataKey="dateShort"
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval={4}
+                />
+                <YAxis
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Area
+                  type="monotone"
+                  dataKey="appointments"
+                  name={isEs ? "Total" : "Total"}
+                  stroke="#3b82f6"
+                  fillOpacity={1}
+                  fill="url(#colorAppts)"
+                  strokeWidth={2}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="completed"
+                  name={isEs ? "Completadas" : "Completed"}
+                  stroke="#10b981"
+                  fillOpacity={1}
+                  fill="url(#colorCompleted)"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </section>
