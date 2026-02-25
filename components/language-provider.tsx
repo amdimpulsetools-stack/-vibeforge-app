@@ -98,8 +98,10 @@ const translations: Record<Language, Record<string, string>> = {
     "dashboard.monthly_appointments": "Citas este mes",
     "dashboard.vs_last_month": "vs. mes anterior",
     "dashboard.today_schedule": "Agenda de hoy",
+    "dashboard.upcoming_appointments": "Próximas 3 citas",
     "dashboard.view_scheduler": "Ver agenda completa",
     "dashboard.no_appointments_today": "No hay citas programadas para hoy",
+    "dashboard.no_upcoming_appointments": "No hay citas próximas",
 
     // Admin hub
     "admin.title": "Administración",
@@ -484,8 +486,10 @@ const translations: Record<Language, Record<string, string>> = {
     "dashboard.monthly_appointments": "This month",
     "dashboard.vs_last_month": "vs. last month",
     "dashboard.today_schedule": "Today's schedule",
+    "dashboard.upcoming_appointments": "Next 3 appointments",
     "dashboard.view_scheduler": "View full schedule",
     "dashboard.no_appointments_today": "No appointments scheduled for today",
+    "dashboard.no_upcoming_appointments": "No upcoming appointments",
 
     // Admin hub
     "admin.title": "Administration",

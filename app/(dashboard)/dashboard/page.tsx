@@ -86,15 +86,17 @@ export default async function DashboardPage() {
       .select("*", { count: "exact", head: true })
       .gte("appointment_date", lastMonthStart)
       .lte("appointment_date", lastMonthEnd),
-    // Today's appointment list
+    // Next 3 upcoming appointments
     supabase
       .from("appointments")
       .select(
-        "id, patient_name, start_time, end_time, status, doctors(full_name, color), offices(name), services(name)"
+        "id, patient_name, appointment_date, start_time, end_time, status, doctors(full_name, color), offices(name), services(name)"
       )
-      .eq("appointment_date", today)
+      .gte("appointment_date", today)
+      .in("status", ["scheduled", "confirmed"])
+      .order("appointment_date", { ascending: true })
       .order("start_time", { ascending: true })
-      .limit(20),
+      .limit(3),
     // New patients this month
     supabase
       .from("patients")
@@ -267,7 +269,7 @@ export default async function DashboardPage() {
   const topTreatments = Array.from(treatmentCounts.entries())
     .map(([name, data]) => ({ name, ...data }))
     .sort((a, b) => b.count - a.count)
-    .slice(0, 5);
+    .slice(0, 3);
 
   // Heatmap data (day of week x hour)
   const heatmapMap = new Map<string, number>();

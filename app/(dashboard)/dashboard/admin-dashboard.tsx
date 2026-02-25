@@ -26,9 +26,10 @@ import Link from "next/link";
 
 // ─── Types ──────────────────────────────────────────────────────
 
-interface TodayAppointment {
+interface UpcomingAppointment {
   id: string;
   patient_name: string;
+  appointment_date: string;
   start_time: string;
   end_time: string;
   status: string;
@@ -71,7 +72,7 @@ interface AdminDashboardProps {
     noShowRate: number;
     occupancyRate: number;
   };
-  todayAppointments: TodayAppointment[];
+  todayAppointments: UpcomingAppointment[];
   topTreatments: TopTreatment[];
   heatmapData: HeatmapPoint[];
 }
@@ -290,7 +291,7 @@ function TopTreatmentsTable({
           <Stethoscope className="h-3.5 w-3.5 text-purple-400" />
         </div>
         <h3 className="text-sm font-semibold">
-          {isEs ? "Top tratamientos" : "Top treatments"}
+          {isEs ? "Top 3 servicios" : "Top 3 services"}
         </h3>
       </div>
       {treatments.length === 0 ? (
@@ -498,20 +499,17 @@ export function AdminDashboard({
       </section>
 
       {/* ═══════════════════════════════════════════════════════════ */}
-      {/* BOTTOM: Agenda + Top Treatments | Heatmap                  */}
+      {/* BOTTOM: Upcoming + Top Services | Heatmap                   */}
       {/* ═══════════════════════════════════════════════════════════ */}
       <section className="grid gap-6 lg:grid-cols-2">
-        {/* Left: Agenda de hoy + Top Tratamientos */}
+        {/* Left: Próximas 3 citas + Top 3 servicios */}
         <div className="space-y-6">
-          {/* Agenda de hoy */}
+          {/* Próximas 3 citas */}
           <div className="rounded-xl border border-border bg-card">
             <div className="flex items-center justify-between border-b border-border px-5 py-4">
               <div className="flex items-center gap-2">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold">{t("dashboard.today_schedule")}</h2>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
-                  {todayAppointments.length}
-                </span>
+                <h2 className="font-semibold">{t("dashboard.upcoming_appointments")}</h2>
               </div>
               <Link
                 href="/scheduler"
@@ -526,18 +524,19 @@ export function AdminDashboard({
               <div className="p-8 text-center">
                 <CalendarDays className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
                 <p className="text-sm text-muted-foreground">
-                  {t("dashboard.no_appointments_today")}
+                  {t("dashboard.no_upcoming_appointments")}
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-border max-h-[300px] overflow-y-auto">
+              <div className="divide-y divide-border">
                 {todayAppointments.map((appt) => (
                   <div
                     key={appt.id}
                     className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-muted/50"
                   >
-                    <div className="w-20 shrink-0 text-xs font-mono text-muted-foreground">
-                      {formatTime(appt.start_time)}
+                    <div className="shrink-0 text-xs font-mono text-muted-foreground">
+                      <div>{appt.appointment_date}</div>
+                      <div>{formatTime(appt.start_time)}</div>
                     </div>
                     <div
                       className="h-2 w-2 shrink-0 rounded-full"
@@ -566,7 +565,7 @@ export function AdminDashboard({
             )}
           </div>
 
-          {/* Top Treatments */}
+          {/* Top 3 Services */}
           <TopTreatmentsTable treatments={topTreatments} isEs={isEs} />
         </div>
 
