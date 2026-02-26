@@ -379,40 +379,6 @@ export default function AccountPage() {
             )}
           </div>
 
-          {/* Professional Title selector */}
-          <div className="space-y-2">
-            <label className="text-sm font-medium">
-              Titulo profesional
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {PROFESSIONAL_TITLES.map((title) => (
-                <button
-                  key={title.value}
-                  type="button"
-                  onClick={() =>
-                    setValue(
-                      "professional_title",
-                      currentTitle === title.value ? null : title.value,
-                      { shouldDirty: true }
-                    )
-                  }
-                  className={cn(
-                    "flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all",
-                    currentTitle === title.value
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border/60 bg-background/30 text-muted-foreground hover:border-border hover:text-foreground"
-                  )}
-                >
-                  <Stethoscope className="h-3.5 w-3.5" />
-                  {title.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Los tres titulos comparten los mismos privilegios de acceso.
-            </p>
-          </div>
-
           <button
             type="submit"
             disabled={saving || !isDirty}
