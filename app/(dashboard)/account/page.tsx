@@ -10,8 +10,10 @@ import { getInitials } from "@/lib/utils";
 import {
   profileSchema,
   passwordSchema,
+  PROFESSIONAL_TITLES,
   type ProfileFormData,
   type PasswordFormData,
+  type ProfessionalTitle,
 } from "@/lib/validations/account";
 import { usePlan } from "@/hooks/use-plan";
 import { toast } from "sonner";
@@ -31,6 +33,8 @@ import {
   Stethoscope,
   Building2,
   AlertTriangle,
+  ArrowRight,
+  Sparkles,
 } from "lucide-react";
 
 const PLAN_ICONS: Record<string, typeof Zap> = {
@@ -66,11 +70,15 @@ export default function AccountPage() {
     register,
     handleSubmit,
     reset,
+    watch,
+    setValue,
     formState: { errors, isDirty },
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { full_name: "", phone: "" },
+    defaultValues: { full_name: "", phone: "", professional_title: null },
   });
+
+  const currentTitle = watch("professional_title");
 
   // Password form
   const [savingPwd, setSavingPwd] = useState(false);
@@ -96,13 +104,14 @@ export default function AccountPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from("user_profiles")
-        .select("full_name, phone, avatar_url")
+        .select("full_name, phone, avatar_url, professional_title")
         .eq("id", user.id)
         .single();
 
       reset({
         full_name: data?.full_name ?? user.user_metadata?.full_name ?? "",
         phone: data?.phone ?? "",
+        professional_title: (data?.professional_title as ProfessionalTitle) ?? null,
       });
       setAvatarUrl(data?.avatar_url ?? null);
       setProfileLoaded(true);
@@ -164,7 +173,6 @@ export default function AccountPage() {
     setUploadingAvatar(true);
     const supabase = createClient();
 
-    // Remove from storage (best effort, try common extensions)
     await supabase.storage
       .from("avatars")
       .remove([
@@ -198,6 +206,7 @@ export default function AccountPage() {
       id: user.id,
       full_name: values.full_name,
       phone: values.phone || null,
+      professional_title: values.professional_title || null,
     });
 
     setSaving(false);
@@ -240,9 +249,9 @@ export default function AccountPage() {
     return (
       <div className="space-y-6">
         <div className="h-8 w-48 animate-pulse rounded bg-muted" />
-        <div className="max-w-2xl space-y-4">
-          <div className="h-40 animate-pulse rounded-xl bg-muted" />
-          <div className="h-64 animate-pulse rounded-xl bg-muted" />
+        <div className="space-y-4">
+          <div className="h-40 animate-pulse rounded-2xl bg-muted" />
+          <div className="h-64 animate-pulse rounded-2xl bg-muted" />
         </div>
       </div>
     );
@@ -257,9 +266,14 @@ export default function AccountPage() {
         <p className="mt-1 text-muted-foreground">{t("account.subtitle")}</p>
       </div>
 
-      <div className="max-w-2xl space-y-6">
-        {/* Avatar + info */}
-        <div className="rounded-2xl border border-border/60 bg-card p-6">
+      {/* TOP ROW: User info + Plan — side by side */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* LEFT: Avatar + personal data form */}
+        <form
+          onSubmit={handleSubmit(onSubmitProfile)}
+          className="rounded-2xl border border-border/60 bg-card p-6 space-y-5"
+        >
+          {/* Avatar */}
           <div className="flex items-center gap-5">
             <div className="relative group">
               {avatarUrl ? (
@@ -294,10 +308,8 @@ export default function AccountPage() {
               />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.email}</p>
-              <p className="text-xs font-mono text-muted-foreground truncate">
-                {user?.id}
-              </p>
+              <p className="text-sm font-semibold truncate">{displayName}</p>
+              <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
               <div className="mt-2 flex items-center gap-2">
                 <button
                   type="button"
@@ -323,110 +335,10 @@ export default function AccountPage() {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Current Plan */}
-        {!planLoading && plan && subscription && (
-          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {(() => {
-                  const PlanIcon = PLAN_ICONS[plan.slug] ?? Zap;
-                  return <PlanIcon className="h-5 w-5 text-primary" />;
-                })()}
-                <h2 className="text-lg font-semibold">Plan actual</h2>
-              </div>
-              <span
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium",
-                  STATUS_LABELS[subscription.status]?.color ?? "bg-muted text-muted-foreground"
-                )}
-              >
-                {STATUS_LABELS[subscription.status]?.label ?? subscription.status}
-              </span>
-            </div>
+          <hr className="border-border/40" />
 
-            <div className="flex items-center gap-4">
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold",
-                  PLAN_BADGE[plan.slug] ?? "bg-muted text-muted-foreground"
-                )}
-              >
-                {plan.name}
-              </span>
-              {plan.price_monthly > 0 && (
-                <span className="text-sm text-muted-foreground">
-                  ${plan.price_monthly}/mes
-                </span>
-              )}
-              {plan.price_monthly === 0 && (
-                <span className="text-sm text-muted-foreground">Gratis</span>
-              )}
-            </div>
-
-            {/* Days remaining */}
-            {daysRemaining !== null && (
-              <div
-                className={cn(
-                  "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
-                  daysRemaining <= 3
-                    ? "bg-destructive/10 text-destructive"
-                    : daysRemaining <= 7
-                      ? "bg-amber-500/10 text-amber-600"
-                      : "bg-muted text-muted-foreground"
-                )}
-              >
-                {daysRemaining <= 7 && <AlertTriangle className="h-4 w-4" />}
-                <CalendarDays className="h-4 w-4" />
-                <span>
-                  {daysRemaining === 0
-                    ? "Tu plan vence hoy"
-                    : daysRemaining === 1
-                      ? "Tu plan vence mañana"
-                      : `${daysRemaining} días restantes`}
-                </span>
-              </div>
-            )}
-
-            {/* Usage summary */}
-            {usage && (
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-                <UsageStat
-                  icon={Users}
-                  label="Miembros"
-                  current={usage.members}
-                  limit={plan.max_members}
-                />
-                <UsageStat
-                  icon={Stethoscope}
-                  label="Doctores"
-                  current={usage.doctors}
-                  limit={plan.max_doctors}
-                />
-                <UsageStat
-                  icon={Building2}
-                  label="Consultorios"
-                  current={usage.offices}
-                  limit={plan.max_offices}
-                />
-              </div>
-            )}
-
-            <a
-              href="/select-plan"
-              className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-            >
-              Cambiar plan
-            </a>
-          </div>
-        )}
-
-        {/* Profile form */}
-        <form
-          onSubmit={handleSubmit(onSubmitProfile)}
-          className="rounded-2xl border border-border/60 bg-card p-6 space-y-5"
-        >
+          {/* Personal data fields */}
           <h2 className="text-lg font-semibold">
             {t("account.personal_data")}
           </h2>
@@ -440,7 +352,7 @@ export default function AccountPage() {
               type="text"
               placeholder={t("account.full_name_placeholder")}
               {...register("full_name")}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
             />
             {errors.full_name && (
               <p className="text-xs text-destructive">
@@ -458,7 +370,7 @@ export default function AccountPage() {
               type="tel"
               placeholder={t("account.phone_placeholder")}
               {...register("phone")}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
             />
             {errors.phone && (
               <p className="text-xs text-destructive">
@@ -467,99 +379,235 @@ export default function AccountPage() {
             )}
           </div>
 
+          {/* Professional Title selector */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">
+              Titulo profesional
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {PROFESSIONAL_TITLES.map((title) => (
+                <button
+                  key={title.value}
+                  type="button"
+                  onClick={() =>
+                    setValue(
+                      "professional_title",
+                      currentTitle === title.value ? null : title.value,
+                      { shouldDirty: true }
+                    )
+                  }
+                  className={cn(
+                    "flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all",
+                    currentTitle === title.value
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border/60 bg-background/30 text-muted-foreground hover:border-border hover:text-foreground"
+                  )}
+                >
+                  <Stethoscope className="h-3.5 w-3.5" />
+                  {title.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Los tres titulos comparten los mismos privilegios de acceso.
+            </p>
+          </div>
+
           <button
             type="submit"
             disabled={saving || !isDirty}
-            className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {saving ? t("account.saving") : t("account.save")}
           </button>
         </form>
 
-        {/* Password form */}
-        <form
-          onSubmit={handleSubmitPwd(onSubmitPassword)}
-          className="rounded-2xl border border-border/60 bg-card p-6 space-y-5"
-        >
-          <div className="flex items-center gap-2">
-            <Lock className="h-5 w-5 text-muted-foreground" />
-            <h2 className="text-lg font-semibold">
-              {t("account.change_password")}
-            </h2>
-          </div>
+        {/* RIGHT: Plan actual */}
+        <div className="space-y-6">
+          {!planLoading && plan && subscription && (
+            <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {(() => {
+                    const PlanIcon = PLAN_ICONS[plan.slug] ?? Zap;
+                    return <PlanIcon className="h-5 w-5 text-primary" />;
+                  })()}
+                  <h2 className="text-lg font-semibold">Plan actual</h2>
+                </div>
+                <span
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-medium",
+                    STATUS_LABELS[subscription.status]?.color ?? "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {STATUS_LABELS[subscription.status]?.label ?? subscription.status}
+                </span>
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="new_password">
-              {t("account.new_password")}
-            </label>
-            <div className="relative">
-              <input
-                id="new_password"
-                type={showPwd ? "text" : "password"}
-                placeholder={t("account.password_min")}
-                {...registerPwd("new_password")}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 pr-10 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPwd(!showPwd)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showPwd ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
+              <div className="flex items-center gap-4">
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold",
+                    PLAN_BADGE[plan.slug] ?? "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {plan.name}
+                </span>
+                {plan.price_monthly > 0 && (
+                  <span className="text-sm text-muted-foreground">
+                    ${plan.price_monthly}/mes
+                  </span>
                 )}
-              </button>
+                {plan.price_monthly === 0 && (
+                  <span className="text-sm text-muted-foreground">Gratis</span>
+                )}
+              </div>
+
+              {/* Days remaining */}
+              {daysRemaining !== null && (
+                <div
+                  className={cn(
+                    "flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm",
+                    daysRemaining <= 3
+                      ? "bg-destructive/10 text-destructive"
+                      : daysRemaining <= 7
+                        ? "bg-amber-500/10 text-amber-600"
+                        : "bg-muted text-muted-foreground"
+                  )}
+                >
+                  {daysRemaining <= 7 && <AlertTriangle className="h-4 w-4" />}
+                  <CalendarDays className="h-4 w-4" />
+                  <span>
+                    {daysRemaining === 0
+                      ? "Tu plan vence hoy"
+                      : daysRemaining === 1
+                        ? "Tu plan vence manana"
+                        : `${daysRemaining} dias restantes`}
+                  </span>
+                </div>
+              )}
+
+              {/* Usage summary */}
+              {usage && (
+                <div className="grid grid-cols-3 gap-3">
+                  <UsageStat
+                    icon={Users}
+                    label="Miembros"
+                    current={usage.members}
+                    limit={plan.max_members}
+                  />
+                  <UsageStat
+                    icon={Stethoscope}
+                    label="Doctores"
+                    current={usage.doctors}
+                    limit={plan.max_doctors}
+                  />
+                  <UsageStat
+                    icon={Building2}
+                    label="Consultorios"
+                    current={usage.offices}
+                    limit={plan.max_offices}
+                  />
+                </div>
+              )}
+
+              {/* CHANGE PLAN BUTTON — eye-catching */}
+              <a
+                href="/select-plan"
+                className="flex w-full items-center justify-center gap-2.5 rounded-xl gradient-warm px-5 py-3 text-sm font-bold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl"
+              >
+                <Sparkles className="h-4 w-4" />
+                Cambiar plan
+                <ArrowRight className="h-4 w-4" />
+              </a>
             </div>
-            {errorsPwd.new_password && (
-              <p className="text-xs text-destructive">
-                {errorsPwd.new_password.message}
-              </p>
-            )}
-          </div>
+          )}
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="confirm_password">
-              {t("account.confirm_password")}
-            </label>
-            <input
-              id="confirm_password"
-              type={showPwd ? "text" : "password"}
-              placeholder={t("account.confirm_password")}
-              {...registerPwd("confirm_password")}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-            />
-            {errorsPwd.confirm_password && (
-              <p className="text-xs text-destructive">
-                {errorsPwd.confirm_password.message}
-              </p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={savingPwd}
-            className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          {/* Password form */}
+          <form
+            onSubmit={handleSubmitPwd(onSubmitPassword)}
+            className="rounded-2xl border border-border/60 bg-card p-6 space-y-5"
           >
-            {savingPwd && <Loader2 className="h-4 w-4 animate-spin" />}
-            {t("account.change_password")}
-          </button>
-        </form>
+            <div className="flex items-center gap-2">
+              <Lock className="h-5 w-5 text-muted-foreground" />
+              <h2 className="text-lg font-semibold">
+                {t("account.change_password")}
+              </h2>
+            </div>
 
-        {/* Danger Zone */}
-        <div className="rounded-2xl border border-destructive/30 bg-card p-6">
-          <h2 className="text-lg font-semibold text-destructive mb-2">
-            {t("account.danger_zone")}
-          </h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            {t("account.danger_description")}
-          </p>
-          <button className="rounded-lg border border-destructive/30 px-4 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors">
-            {t("account.delete_account")}
-          </button>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="new_password">
+                {t("account.new_password")}
+              </label>
+              <div className="relative">
+                <input
+                  id="new_password"
+                  type={showPwd ? "text" : "password"}
+                  placeholder={t("account.password_min")}
+                  {...registerPwd("new_password")}
+                  className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 pr-10 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(!showPwd)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showPwd ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
+              {errorsPwd.new_password && (
+                <p className="text-xs text-destructive">
+                  {errorsPwd.new_password.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="confirm_password">
+                {t("account.confirm_password")}
+              </label>
+              <input
+                id="confirm_password"
+                type={showPwd ? "text" : "password"}
+                placeholder={t("account.confirm_password")}
+                {...registerPwd("confirm_password")}
+                className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+              />
+              {errorsPwd.confirm_password && (
+                <p className="text-xs text-destructive">
+                  {errorsPwd.confirm_password.message}
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={savingPwd}
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {savingPwd && <Loader2 className="h-4 w-4 animate-spin" />}
+              {t("account.change_password")}
+            </button>
+          </form>
         </div>
+      </div>
+
+      {/* Danger Zone — full width at bottom */}
+      <div className="rounded-2xl border border-destructive/30 bg-card p-6">
+        <h2 className="text-lg font-semibold text-destructive mb-2">
+          {t("account.danger_zone")}
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          {t("account.danger_description")}
+        </p>
+        <button className="rounded-xl border border-destructive/30 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors">
+          {t("account.delete_account")}
+        </button>
       </div>
     </div>
   );
@@ -581,7 +629,7 @@ function UsageStat({
   const isAt = limit !== null && current >= limit;
 
   return (
-    <div className="rounded-lg border border-border bg-background p-3 space-y-1.5">
+    <div className="rounded-xl border border-border/60 bg-background p-3 space-y-1.5">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
         <Icon className="h-3.5 w-3.5" />
         {label}
@@ -591,7 +639,7 @@ function UsageStat({
           {current}
         </span>
         <span className="text-xs text-muted-foreground">
-          / {limit ?? "∞"}
+          / {limit ?? "\u221E"}
         </span>
       </div>
       {limit !== null && (

@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+export const PROFESSIONAL_TITLES = [
+  { value: "doctor", label: "Doctor(a)" },
+  { value: "especialista", label: "Especialista" },
+  { value: "licenciada", label: "Licenciado(a)" },
+] as const;
+
+export type ProfessionalTitle = "doctor" | "especialista" | "licenciada";
+
 export const profileSchema = z.object({
   full_name: z
     .string()
@@ -10,6 +18,10 @@ export const profileSchema = z.object({
     .max(20, "El celular no puede superar 20 caracteres")
     .optional()
     .or(z.literal("")),
+  professional_title: z
+    .enum(["doctor", "especialista", "licenciada"])
+    .nullable()
+    .optional(),
 });
 
 export type ProfileFormData = z.infer<typeof profileSchema>;
