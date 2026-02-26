@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { toast } from "sonner";
-import type { AppointmentWithRelations, Doctor, Service, LookupValue } from "@/types/admin";
+import type { AppointmentWithRelations, Doctor, Service, LookupValue, PatientPayment } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
+import { cn } from "@/lib/utils";
 import {
   X,
   User,
@@ -24,7 +25,23 @@ import {
   RefreshCw,
   Pencil,
   Save,
+  Wallet,
+  Plus,
+  Banknote,
+  CreditCard,
+  Smartphone,
+  Link2,
+  ChevronDown,
 } from "lucide-react";
+
+const PERU_PAYMENT_METHODS = [
+  { value: "Yape",          Icon: Smartphone },
+  { value: "Plin",          Icon: Smartphone },
+  { value: "Visa/Tarjeta",  Icon: CreditCard },
+  { value: "Transferencia", Icon: Building2 },
+  { value: "Link de pago",  Icon: Link2 },
+  { value: "Efectivo",      Icon: Banknote },
+] as const;
 
 interface AppointmentSidebarProps {
   appointment: AppointmentWithRelations;
@@ -60,6 +77,68 @@ export function AppointmentSidebar({
   const { profile } = useUserProfile();
   const [updating, setUpdating] = useState(false);
   const [editing, setEditing] = useState(false);
+
+  // ── Payments / cobros ────────────────────────────────────────────────────
+  const [payments, setPayments] = useState<PatientPayment[]>([]);
+  const [loadingPayments, setLoadingPayments] = useState(true);
+  const [showAddPayment, setShowAddPayment] = useState(false);
+  const [payAmount, setPayAmount] = useState("");
+  const [payMethod, setPayMethod] = useState("");
+  const [payRef, setPayRef] = useState("");
+  const [savingPayment, setSavingPayment] = useState(false);
+
+  const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalPrice = appointment.price_snapshot ? Number(appointment.price_snapshot) : 0;
+  const pending = Math.max(0, totalPrice - totalPaid);
+  const paymentStatus =
+    totalPrice === 0
+      ? null
+      : totalPaid === 0
+        ? "none"
+        : totalPaid >= totalPrice
+          ? "paid"
+          : "partial";
+
+  const fetchPayments = useCallback(async () => {
+    setLoadingPayments(true);
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("patient_payments")
+      .select("*")
+      .eq("appointment_id", appointment.id)
+      .order("payment_date", { ascending: true });
+    setPayments((data as PatientPayment[]) ?? []);
+    setLoadingPayments(false);
+  }, [appointment.id]);
+
+  useEffect(() => {
+    fetchPayments();
+  }, [fetchPayments]);
+
+  const handleAddPayment = async () => {
+    if (!payAmount || Number(payAmount) <= 0) return;
+    setSavingPayment(true);
+    const supabase = createClient();
+    const { error } = await supabase.from("patient_payments").insert({
+      patient_id: appointment.patient_id ?? null,
+      appointment_id: appointment.id,
+      amount: Number(payAmount),
+      payment_method: payMethod || null,
+      notes: payRef || null,
+      payment_date: new Date().toISOString().split("T")[0],
+    });
+    setSavingPayment(false);
+    if (error) {
+      toast.error("Error al registrar pago");
+      return;
+    }
+    toast.success("Pago registrado");
+    setShowAddPayment(false);
+    setPayAmount("");
+    setPayMethod("");
+    setPayRef("");
+    fetchPayments();
+  };
 
   // Edit form state
   const [editDoctor, setEditDoctor] = useState(appointment.doctor_id);
@@ -443,6 +522,208 @@ export function AppointmentSidebar({
                   {t("scheduler.cancel_appointment")}
                 </button>
               </>
+            )}
+          </div>
+        )}
+
+        {/* ── Cobros ─────────────────────────────────────────────────────── */}
+        {!editing && (
+          <div className="border-t border-border pt-4 space-y-3">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">Cobros</span>
+              </div>
+              {/* Payment status badge */}
+              {paymentStatus === "paid" && (
+                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  Cobrado
+                </span>
+              )}
+              {paymentStatus === "partial" && (
+                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400">
+                  Anticipo
+                </span>
+              )}
+              {paymentStatus === "none" && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  Sin cobro
+                </span>
+              )}
+            </div>
+
+            {/* Price / paid / pending summary */}
+            {totalPrice > 0 && (
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-lg bg-muted/40 py-2 px-1">
+                  <p className="text-[10px] text-muted-foreground leading-tight">Total</p>
+                  <p className="text-sm font-bold">S/. {totalPrice.toFixed(2)}</p>
+                </div>
+                <div className="rounded-lg bg-emerald-500/10 py-2 px-1">
+                  <p className="text-[10px] text-emerald-700 dark:text-emerald-400 leading-tight">Pagado</p>
+                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                    S/. {totalPaid.toFixed(2)}
+                  </p>
+                </div>
+                <div className={cn("rounded-lg py-2 px-1", pending > 0 ? "bg-amber-500/10" : "bg-muted/40")}>
+                  <p className={cn("text-[10px] leading-tight", pending > 0 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+                    Pendiente
+                  </p>
+                  <p className={cn("text-sm font-bold", pending > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+                    S/. {pending.toFixed(2)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Progress bar */}
+            {totalPrice > 0 && (
+              <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${Math.min(100, (totalPaid / totalPrice) * 100)}%` }}
+                />
+              </div>
+            )}
+
+            {/* Payment list */}
+            {loadingPayments ? (
+              <div className="flex justify-center py-2">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              </div>
+            ) : payments.length > 0 ? (
+              <div className="space-y-1.5">
+                {payments.map((p) => (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium truncate">
+                        {p.payment_method || "Pago"}
+                      </p>
+                      {p.notes && (
+                        <p className="text-[10px] text-muted-foreground truncate">{p.notes}</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground">
+                        {new Date(p.payment_date + "T12:00:00").toLocaleDateString("es-PE", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </div>
+                    <span className="ml-2 shrink-0 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                      S/. {Number(p.amount).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-xs text-muted-foreground py-1">
+                Sin pagos registrados
+              </p>
+            )}
+
+            {/* Add payment */}
+            {appointment.status !== "cancelled" && (
+              showAddPayment ? (
+                <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-3">
+                  {/* Amount */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-muted-foreground shrink-0">S/.</span>
+                    <input
+                      type="number"
+                      value={payAmount}
+                      onChange={(e) => setPayAmount(e.target.value)}
+                      placeholder={pending > 0 ? pending.toFixed(2) : "0.00"}
+                      min="0"
+                      step="0.50"
+                      className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                    />
+                    {pending > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setPayAmount(pending.toFixed(2))}
+                        className="shrink-0 rounded-lg bg-primary/10 px-2 py-1.5 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        Saldo
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Payment method chips */}
+                  <div className="grid grid-cols-3 gap-1">
+                    {PERU_PAYMENT_METHODS.map(({ value, Icon }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setPayMethod((m) => (m === value ? "" : value))}
+                        className={cn(
+                          "flex items-center justify-center gap-1 rounded-lg border py-1.5 text-[11px] font-medium transition-all",
+                          payMethod === value
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
+                        )}
+                      >
+                        <Icon className="h-3 w-3" />
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Reference */}
+                  <input
+                    type="text"
+                    value={payRef}
+                    onChange={(e) => setPayRef(e.target.value)}
+                    placeholder="Nro. operación (opcional)"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  />
+
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddPayment(false);
+                        setPayAmount("");
+                        setPayMethod("");
+                        setPayRef("");
+                      }}
+                      className="flex-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddPayment}
+                      disabled={savingPayment || !payAmount || Number(payAmount) <= 0}
+                      className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+                    >
+                      {savingPayment ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Plus className="h-3 w-3" />
+                      )}
+                      Registrar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPayAmount(pending > 0 ? pending.toFixed(2) : "");
+                    setShowAddPayment(true);
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 px-3 py-2 text-xs font-medium text-muted-foreground hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  Registrar pago
+                </button>
+              )
             )}
           </div>
         )}

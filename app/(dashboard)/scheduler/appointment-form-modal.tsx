@@ -17,7 +17,31 @@ import type {
   DoctorSchedule,
 } from "@/types/admin";
 import { DAYS_OF_WEEK } from "@/types/admin";
-import { X, Loader2, AlertTriangle, Search, UserCheck, UserPlus, CheckCircle2 } from "lucide-react";
+import {
+  X,
+  Loader2,
+  AlertTriangle,
+  Search,
+  UserCheck,
+  UserPlus,
+  CheckCircle2,
+  Wallet,
+  Banknote,
+  CreditCard,
+  Smartphone,
+  Building2 as BankIcon,
+  Link2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const PERU_PAYMENT_METHODS = [
+  { value: "Yape",          Icon: Smartphone },
+  { value: "Plin",          Icon: Smartphone },
+  { value: "Visa/Tarjeta",  Icon: CreditCard },
+  { value: "Transferencia", Icon: BankIcon },
+  { value: "Link de pago",  Icon: Link2 },
+  { value: "Efectivo",      Icon: Banknote },
+] as const;
 
 interface DoctorServiceEntry {
   doctor_id: string;
@@ -65,6 +89,12 @@ export function AppointmentFormModal({
   const [foundPatient, setFoundPatient] = useState<Patient | null>(null);
   const [patientSearched, setPatientSearched] = useState(false);
 
+  // Anticipo / reserva anticipada
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositAmount, setDepositAmount] = useState("");
+  const [depositMethod, setDepositMethod] = useState("");
+  const [depositRef, setDepositRef] = useState("");
+
   const {
     register,
     handleSubmit,
@@ -94,6 +124,14 @@ export function AppointmentFormModal({
   const selectedServiceId = watch("service_id");
   const selectedService = services.find((s) => s.id === selectedServiceId);
   const duration = selectedService?.duration_minutes ?? 30;
+  const servicePrice = selectedService ? Number(selectedService.base_price) : 0;
+
+  // Auto-set deposit to 50% when service changes
+  useEffect(() => {
+    if (servicePrice > 0) {
+      setDepositAmount((servicePrice * 0.5).toFixed(2));
+    }
+  }, [selectedServiceId, servicePrice]);
 
   const watchedStartTime = watch("start_time");
   const endTime = useMemo(() => {
@@ -283,24 +321,40 @@ export function AppointmentFormModal({
     const serviceForPrice = services.find((s) => s.id === values.service_id);
     const priceSnapshot = serviceForPrice ? Number(serviceForPrice.base_price) : null;
 
-    const { error } = await supabase.from("appointments").insert({
-      patient_name: values.patient_name,
-      patient_phone: values.patient_phone || null,
-      patient_id: patientId,
-      doctor_id: values.doctor_id,
-      office_id: values.office_id,
-      service_id: values.service_id,
-      appointment_date: values.appointment_date,
-      start_time: values.start_time,
-      end_time: endTime,
-      status: values.status,
-      origin: values.origin || null,
-      payment_method: values.payment_method || null,
-      responsible: values.responsible || null,
-      notes: values.notes || null,
-      price_snapshot: priceSnapshot,
-      organization_id: organizationId,
-    });
+    const { data: newAppt, error } = await supabase
+      .from("appointments")
+      .insert({
+        patient_name: values.patient_name,
+        patient_phone: values.patient_phone || null,
+        patient_id: patientId,
+        doctor_id: values.doctor_id,
+        office_id: values.office_id,
+        service_id: values.service_id,
+        appointment_date: values.appointment_date,
+        start_time: values.start_time,
+        end_time: endTime,
+        status: values.status,
+        origin: values.origin || null,
+        payment_method: values.payment_method || null,
+        responsible: values.responsible || null,
+        notes: values.notes || null,
+        price_snapshot: priceSnapshot,
+        organization_id: organizationId,
+      })
+      .select("id")
+      .single();
+
+    // Register advance deposit if configured
+    if (!error && newAppt && depositEnabled && Number(depositAmount) > 0) {
+      await supabase.from("patient_payments").insert({
+        patient_id: patientId,
+        appointment_id: newAppt.id,
+        amount: Number(depositAmount),
+        payment_method: depositMethod || null,
+        notes: depositRef ? `Anticipo — ${depositRef}` : "Anticipo",
+        payment_date: new Date().toISOString().split("T")[0],
+      });
+    }
 
     setSaving(false);
 
@@ -541,6 +595,132 @@ export function AppointmentFormModal({
               <p className="text-xs text-destructive">{errors.service_id.message}</p>
             )}
           </div>
+
+          {/* Anticipo / Reserva anticipada */}
+          {servicePrice > 0 && (
+            <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-3">
+              {/* Price + toggle row */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Total servicio</span>
+                </div>
+                <span className="text-base font-bold text-primary">
+                  S/. {servicePrice.toFixed(2)}
+                </span>
+              </div>
+
+              {/* Toggle */}
+              <button
+                type="button"
+                onClick={() => setDepositEnabled((v) => !v)}
+                className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2 text-sm transition-colors hover:bg-accent"
+              >
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Banknote className="h-4 w-4" />
+                  Registrar anticipo (reserva)
+                </span>
+                <div
+                  className={cn(
+                    "relative h-5 w-9 rounded-full transition-colors",
+                    depositEnabled ? "bg-primary" : "bg-muted"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                      depositEnabled && "translate-x-4"
+                    )}
+                  />
+                </div>
+              </button>
+
+              {depositEnabled && (
+                <div className="space-y-3">
+                  {/* Amount */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Monto del anticipo
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-muted-foreground">S/.</span>
+                      <input
+                        type="number"
+                        value={depositAmount}
+                        onChange={(e) => setDepositAmount(e.target.value)}
+                        min="0"
+                        max={servicePrice}
+                        step="0.50"
+                        className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setDepositAmount((servicePrice * 0.5).toFixed(2))}
+                        className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+                      >
+                        50%
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDepositAmount(servicePrice.toFixed(2))}
+                        className="rounded-lg bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent transition-colors"
+                      >
+                        100%
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Payment method chips */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Método de pago
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {PERU_PAYMENT_METHODS.map(({ value, Icon }) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() =>
+                            setDepositMethod((m) => (m === value ? "" : value))
+                          }
+                          className={cn(
+                            "flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-all",
+                            depositMethod === value
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="h-3 w-3" />
+                          {value}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Reference */}
+                  <input
+                    type="text"
+                    value={depositRef}
+                    onChange={(e) => setDepositRef(e.target.value)}
+                    placeholder="Nro. operación o referencia (opcional)"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  />
+
+                  {/* Summary */}
+                  {Number(depositAmount) > 0 && (
+                    <div className="flex items-center justify-between rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 text-xs">
+                      <span className="text-amber-700 dark:text-amber-400 font-medium">
+                        Pendiente al día de la cita
+                      </span>
+                      <span className="font-bold text-amber-700 dark:text-amber-400">
+                        S/. {Math.max(0, servicePrice - Number(depositAmount)).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Lookups: Origin, Payment, Responsible */}
           <div className="grid gap-4 sm:grid-cols-3">
