@@ -7,7 +7,7 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Lock, LockOpen, Coffee } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import { loadSchedulerConfig, generateTimeSlots } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, generateTimeSlots, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
 interface DayViewProps {
   date: Date;
@@ -93,8 +93,11 @@ export function DayView({
   const [dragOverSlot, setDragOverSlot] = useState<{ time: string; officeId: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
-  // Scheduler config — read once from localStorage on mount
-  const [schedulerConfig] = useState(() => loadSchedulerConfig());
+  // Scheduler config — start with defaults, then load from localStorage after mount
+  const [schedulerConfig, setSchedulerConfig] = useState(DEFAULT_SCHEDULER_CONFIG);
+  useEffect(() => {
+    setSchedulerConfig(loadSchedulerConfig());
+  }, []);
   const TIME_SLOTS = useMemo(
     () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, schedulerConfig.interval),
     [schedulerConfig]
@@ -102,11 +105,7 @@ export function DayView({
 
   // Current time indicator
   const [now, setNow] = useState(() => new Date());
-  const [showTimeIndicator, setShowTimeIndicator] = useState(false);
-
-  useEffect(() => {
-    setShowTimeIndicator(schedulerConfig.timeIndicator);
-  }, [schedulerConfig.timeIndicator]);
+  const showTimeIndicator = schedulerConfig.timeIndicator;
 
   useEffect(() => {
     if (!showTimeIndicator) return;

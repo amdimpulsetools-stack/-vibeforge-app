@@ -7,8 +7,8 @@ import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/ad
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Coffee, Lock } from "lucide-react";
-import { useState, useMemo } from "react";
-import { loadSchedulerConfig, generateTimeSlots } from "@/lib/scheduler-config";
+import { useState, useMemo, useEffect } from "react";
+import { loadSchedulerConfig, generateTimeSlots, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
 interface WeekViewProps {
   currentDate: Date;
@@ -48,8 +48,11 @@ export function WeekView({
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  // Scheduler config — read once from localStorage on mount
-  const [schedulerConfig] = useState(() => loadSchedulerConfig());
+  // Scheduler config — start with defaults, then load from localStorage after mount
+  const [schedulerConfig, setSchedulerConfig] = useState(DEFAULT_SCHEDULER_CONFIG);
+  useEffect(() => {
+    setSchedulerConfig(loadSchedulerConfig());
+  }, []);
   const TIME_SLOTS = useMemo(
     () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, schedulerConfig.interval),
     [schedulerConfig]
