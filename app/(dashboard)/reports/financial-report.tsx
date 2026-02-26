@@ -275,6 +275,7 @@ export function FinancialReport({
   const totalAttended = doctorData.reduce((sum, d) => sum + d.attended, 0);
   const totalCancelled = doctorData.reduce((sum, d) => sum + d.cancelled, 0);
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const totalPending = totalRevenue - totalPaid;
 
   // No-shows: past appointments in range that are still scheduled/confirmed
   const today = new Date().toISOString().slice(0, 10);
@@ -346,7 +347,7 @@ export function FinancialReport({
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
         <div className="rounded-xl border border-border bg-card p-4">
           <CardTitle
             icon={DollarSign}
@@ -363,6 +364,17 @@ export function FinancialReport({
             iconClass="text-emerald-500"
           />
           <p className="mt-2 text-2xl font-bold text-emerald-600">S/. {totalPaid.toFixed(2)}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <CardTitle
+            icon={DollarSign}
+            label={t("reports.total_pending")}
+            tooltip={t("reports.tooltip_total_pending")}
+            iconClass="text-amber-500"
+          />
+          <p className={`mt-2 text-2xl font-bold ${totalPending > 0 ? "text-amber-600" : "text-emerald-600"}`}>
+            S/. {totalPending.toFixed(2)}
+          </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
           <CardTitle

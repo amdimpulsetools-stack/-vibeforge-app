@@ -63,6 +63,8 @@ export default function ReportsPage() {
       supabase
         .from("patients")
         .select("*")
+        .gte("created_at", dateFrom)
+        .lte("created_at", dateTo + "T23:59:59")
         .order("created_at"),
     ]);
 
@@ -176,6 +178,8 @@ export default function ReportsPage() {
           <MarketingReport
             appointments={appointments}
             patients={patients}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
           />
         ) : (
           <OperationalReport

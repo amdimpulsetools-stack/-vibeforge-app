@@ -13,6 +13,8 @@ import {
 interface MarketingReportProps {
   appointments: AppointmentWithRelations[];
   patients: Patient[];
+  dateFrom: string;
+  dateTo: string;
 }
 
 const CHART_COLORS = [
@@ -248,7 +250,7 @@ function ChartLegend({ items }: { items: { label: string; color: string }[] }) {
   );
 }
 
-export function MarketingReport({ appointments, patients }: MarketingReportProps) {
+export function MarketingReport({ appointments, patients, dateFrom, dateTo }: MarketingReportProps) {
   const { t } = useLanguage();
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 

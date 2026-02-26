@@ -290,14 +290,16 @@ export function OperationalReport({
     }));
   }, [activeAppointments]);
 
-  // Top services
+  // Top services (revenue only from completed appointments)
   const topServicesData = useMemo(() => {
     const map = new Map<string, { count: number; revenue: number }>();
     activeAppointments.forEach((a) => {
       const name = a.services?.name ?? "Sin servicio";
       const entry = map.get(name) ?? { count: 0, revenue: 0 };
       entry.count++;
-      entry.revenue += Number(a.services?.base_price ?? 0);
+      if (a.status === "completed") {
+        entry.revenue += Number(a.services?.base_price ?? 0);
+      }
       map.set(name, entry);
     });
     return Array.from(map.entries())
