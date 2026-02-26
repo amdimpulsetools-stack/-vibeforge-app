@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Mail } from "lucide-react";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -32,16 +32,16 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <div className="w-full max-w-md text-center space-y-4">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl">
-            ✉️
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="w-full max-w-md text-center space-y-5">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 gradient-glow">
+            <Mail className="h-7 w-7 text-primary" />
           </div>
-          <h1 className="text-xl font-bold">Revisa tu email</h1>
+          <h1 className="text-2xl font-bold">Revisa tu email</h1>
           <p className="text-sm text-muted-foreground">
-            Enviamos un enlace de recuperación a <strong>{email}</strong>
+            Enviamos un enlace de recuperacion a <strong className="text-foreground">{email}</strong>
           </p>
-          <Link href="/login" className="text-sm text-primary hover:underline">
+          <Link href="/login" className="inline-block text-sm text-primary font-medium hover:underline">
             Volver al login
           </Link>
         </div>
@@ -50,21 +50,21 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="text-2xl font-bold tracking-tight">
-            Recuperar contraseña
+          <h1 className="text-3xl font-extrabold tracking-tight">
+            Recuperar contrasena
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             Ingresa tu email y te enviaremos un enlace
           </p>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-          <form onSubmit={handleReset} className="space-y-4">
+        <div className="glass-card rounded-2xl p-7 shadow-xl">
+          <form onSubmit={handleReset} className="space-y-5">
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
+              <label htmlFor="email" className="text-sm font-semibold">
                 Email
               </label>
               <input
@@ -74,14 +74,14 @@ export default function ForgotPasswordPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="flex h-10 w-full items-center justify-center rounded-lg bg-primary text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
+              className="flex h-11 w-full items-center justify-center rounded-xl gradient-primary text-sm font-semibold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-50"
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Enviar enlace
@@ -91,7 +91,7 @@ export default function ForgotPasswordPage() {
 
         <Link
           href="/login"
-          className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-primary"
+          className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-primary transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
           Volver al login

@@ -247,10 +247,10 @@ export function AiAssistantPanel() {
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all duration-200",
+          "fixed bottom-6 right-6 z-40 flex h-13 w-13 items-center justify-center rounded-2xl shadow-xl transition-all duration-300",
           open
             ? "bg-muted text-muted-foreground rotate-180"
-            : "bg-primary text-primary-foreground hover:scale-105"
+            : "gradient-primary text-white hover:scale-105 gradient-glow"
         )}
         title="Asistente IA"
       >
@@ -260,19 +260,19 @@ export function AiAssistantPanel() {
       {/* Panel */}
       <div
         className={cn(
-          "fixed right-0 top-0 z-50 flex h-screen w-[380px] max-w-[95vw] flex-col border-l border-border bg-card shadow-2xl transition-transform duration-300",
+          "fixed right-0 top-0 z-50 flex h-screen w-[380px] max-w-[95vw] flex-col border-l border-border/60 bg-card shadow-2xl transition-transform duration-300",
           open ? "translate-x-0" : "translate-x-full"
         )}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-4 py-3 bg-card">
+        <div className="flex items-center justify-between border-b border-border/40 px-4 py-3 bg-card">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10">
-              <Sparkles className="h-4 w-4 text-primary" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl gradient-primary">
+              <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div>
               <p className="text-sm font-semibold">AI Database Assistant</p>
-              <p className="text-[10px] text-emerald-600">Solo lectura · Seguro</p>
+              <p className="text-[10px] text-primary">Solo lectura · Seguro</p>
             </div>
           </div>
           <button
@@ -301,7 +301,7 @@ export function AiAssistantPanel() {
 
         {/* Example queries (shown when only welcome message) */}
         {messages.length === 1 && (
-          <div className="border-t border-border px-4 py-3 space-y-2">
+          <div className="border-t border-border/40 px-4 py-3 space-y-2">
             <p className="text-xs text-muted-foreground font-medium">Ejemplos:</p>
             <div className="flex flex-col gap-1.5">
               {EXAMPLE_QUERIES.map((q) => (
@@ -318,7 +318,7 @@ export function AiAssistantPanel() {
         )}
 
         {/* Input */}
-        <div className="border-t border-border px-4 py-3">
+        <div className="border-t border-border/40 px-4 py-3">
           <div className="flex gap-2">
             <textarea
               ref={inputRef}
@@ -327,12 +327,12 @@ export function AiAssistantPanel() {
               onKeyDown={handleKeyDown}
               placeholder="Pregunta sobre tus datos..."
               rows={2}
-              className="flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              className="flex-1 resize-none rounded-xl border border-input bg-background/50 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
             />
             <button
               onClick={sendMessage}
               disabled={loading || !input.trim()}
-              className="flex h-auto w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40 transition-opacity"
+              className="flex h-auto w-10 shrink-0 items-center justify-center rounded-xl gradient-primary text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />

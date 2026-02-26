@@ -115,16 +115,20 @@ export function Sidebar() {
       <Link key={item.href} href={item.href}>
         <span
           className={cn(
-            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-            "hover:bg-accent hover:text-accent-foreground",
+            "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
             isActive
-              ? "bg-primary/10 text-primary font-medium"
-              : "text-muted-foreground",
+              ? "bg-primary/12 text-primary font-semibold nav-active-glow"
+              : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
             collapsed && "justify-center px-2"
           )}
         >
-          <item.icon className="h-[18px] w-[18px] shrink-0" />
-          {!collapsed && <span>{t(item.titleKey)}</span>}
+          <item.icon
+            className={cn(
+              "h-[18px] w-[18px] shrink-0 transition-colors",
+              isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+            )}
+          />
+          {!collapsed && <span className="truncate">{t(item.titleKey)}</span>}
         </span>
       </Link>
     );
@@ -148,19 +152,24 @@ export function Sidebar() {
             }
           }}
           className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-            "hover:bg-accent hover:text-accent-foreground",
-            groupActive ? "text-primary font-medium" : "text-muted-foreground",
+            "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+            "hover:bg-accent/60 hover:text-foreground",
+            groupActive ? "text-primary font-semibold" : "text-muted-foreground",
             collapsed && "justify-center px-2"
           )}
         >
-          <group.icon className="h-[18px] w-[18px] shrink-0" />
+          <group.icon
+            className={cn(
+              "h-[18px] w-[18px] shrink-0 transition-colors",
+              groupActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+            )}
+          />
           {!collapsed && (
             <>
-              <span className="flex-1 text-left">{t(group.titleKey)}</span>
+              <span className="flex-1 text-left truncate">{t(group.titleKey)}</span>
               <ChevronDown
                 className={cn(
-                  "h-4 w-4 transition-transform",
+                  "h-3.5 w-3.5 text-muted-foreground/60 transition-transform duration-200",
                   isExpanded && "rotate-180"
                 )}
               />
@@ -168,7 +177,7 @@ export function Sidebar() {
           )}
         </button>
         {!collapsed && isExpanded && (
-          <div className="ml-4 mt-1 space-y-1 border-l border-border pl-2">
+          <div className="ml-[18px] mt-0.5 space-y-0.5 border-l border-border/50 pl-3">
             {group.items.map(renderNavItem)}
           </div>
         )}
@@ -179,40 +188,45 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "flex h-screen flex-col border-r border-border bg-card transition-all duration-300",
-        collapsed ? "w-[60px]" : "w-[240px]"
+        "flex h-screen flex-col bg-sidebar-bg border-r border-border/60 transition-all duration-300 relative",
+        collapsed ? "w-[64px]" : "w-[250px]"
       )}
     >
+      {/* Subtle gradient overlay at top */}
+      <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none" />
+
       {/* Header */}
-      <div className="flex h-14 items-center border-b border-border px-3">
+      <div className="relative flex h-16 items-center border-b border-border/40 px-3">
         {!collapsed && (
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             {organization?.logo_url ? (
               <img
                 src={organization.logo_url}
                 alt=""
-                className="h-7 w-7 shrink-0 rounded-lg object-cover"
+                className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-border/50"
               />
             ) : (
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Zap className="h-4 w-4" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg gradient-primary shadow-sm">
+                <Zap className="h-4 w-4 text-white" />
               </div>
             )}
             <div className="min-w-0">
-              <span className="block text-sm font-bold truncate">{organization?.name ?? APP_NAME}</span>
+              <span className="block text-sm font-bold tracking-tight truncate">
+                {organization?.name ?? APP_NAME}
+              </span>
             </div>
           </div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
+            "flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/70 hover:bg-accent hover:text-foreground transition-all duration-200",
             collapsed ? "mx-auto" : "ml-auto"
           )}
         >
           <ChevronLeft
             className={cn(
-              "h-4 w-4 transition-transform",
+              "h-4 w-4 transition-transform duration-200",
               collapsed && "rotate-180"
             )}
           />
@@ -220,18 +234,18 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 overflow-y-auto p-2">
+      <nav className="relative flex-1 space-y-0.5 overflow-y-auto p-2.5">
         {navEntries.map((entry) =>
           isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)
         )}
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-border p-2">
+      <div className="relative border-t border-border/40 p-2.5">
         <button
           onClick={handleLogout}
           className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive",
+            "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition-all duration-200 hover:bg-destructive/10 hover:text-destructive",
             collapsed && "justify-center px-2"
           )}
         >

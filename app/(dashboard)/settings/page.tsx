@@ -170,15 +170,15 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-3xl font-extrabold tracking-tight">
           {t("settings.title")}
         </h1>
-        <p className="text-muted-foreground">{t("settings.subtitle")}</p>
+        <p className="mt-1 text-muted-foreground">{t("settings.subtitle")}</p>
       </div>
 
       <div className="max-w-2xl space-y-6">
         {/* Organization profile */}
-        <div className="rounded-xl border border-border bg-card p-6 space-y-5">
+        <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
           <div className="flex items-center gap-2">
             <Building2 className="h-5 w-5 text-primary" />
             <div>
@@ -323,7 +323,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Language */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
           <div className="flex items-center gap-2 mb-2">
             <Globe className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">{t("settings.language")}</h2>
@@ -381,7 +381,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Appearance */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
           <h2 className="text-lg font-semibold mb-2">
             {t("settings.appearance")}
           </h2>
@@ -446,7 +446,7 @@ export default function SettingsPage() {
         </div>
 
         {/* Scheduler */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
           <div className="flex items-center gap-2 mb-2">
             <Clock className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold">

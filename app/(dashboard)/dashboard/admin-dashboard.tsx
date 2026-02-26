@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-// ─── Types ──────────────────────────────────────────────────────
+// --- Types ---
 
 interface UpcomingAppointment {
   id: string;
@@ -81,13 +81,13 @@ interface AdminDashboardProps {
   heatmapData: HeatmapPoint[];
 }
 
-// ─── Constants ──────────────────────────────────────────────────
+// --- Constants ---
 
 const STATUS_COLORS: Record<string, string> = {
-  scheduled: "bg-gray-400/20 text-gray-400",
-  confirmed: "bg-blue-500/20 text-blue-400",
-  completed: "bg-emerald-500/20 text-emerald-400",
-  cancelled: "bg-red-500/20 text-red-400",
+  scheduled: "bg-muted/60 text-muted-foreground",
+  confirmed: "bg-blue-500/15 text-blue-400",
+  completed: "bg-emerald-500/15 text-emerald-400",
+  cancelled: "bg-red-500/15 text-red-400",
 };
 
 const STATUS_LABELS_ES: Record<string, string> = {
@@ -104,17 +104,17 @@ const STATUS_LABELS_EN: Record<string, string> = {
   cancelled: "Cancelled",
 };
 
-const DAYS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const DAYS_ES = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
 const DAYS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// ─── Helpers ────────────────────────────────────────────────────
+// --- Helpers ---
 
 function GrowthBadge({ value }: { value: number }) {
   if (value === 0) return <span className="text-xs text-muted-foreground">0%</span>;
   const positive = value > 0;
   return (
     <span
-      className={`inline-flex items-center gap-0.5 text-xs font-medium ${
+      className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
         positive ? "text-emerald-400" : "text-red-400"
       }`}
     >
@@ -139,11 +139,11 @@ function SectionHeader({
   color: string;
 }) {
   return (
-    <div className="flex items-center gap-2 mb-4">
-      <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${color}`}>
-        <Icon className="h-3.5 w-3.5" />
+    <div className="flex items-center gap-2.5 mb-5">
+      <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${color}`}>
+        <Icon className="h-4 w-4" />
       </div>
-      <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+      <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
         {title}
       </h2>
     </div>
@@ -168,29 +168,29 @@ function KpiCard({
   subtitle?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card p-4 transition-colors hover:bg-card/80">
+    <div className="card-hover rounded-2xl border border-border/60 bg-card p-5">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">{title}</span>
+        <span className="text-xs font-medium text-muted-foreground">{title}</span>
         <div
-          className={`flex h-8 w-8 items-center justify-center rounded-lg ${bgColor}`}
+          className={`flex h-9 w-9 items-center justify-center rounded-xl ${bgColor}`}
         >
           <Icon className={`h-4 w-4 ${color}`} />
         </div>
       </div>
-      <div className="mt-2">
-        <span className="text-2xl font-bold">{value}</span>
+      <div className="mt-3">
+        <span className="text-2xl font-extrabold tracking-tight">{value}</span>
       </div>
-      <div className="mt-1 flex items-center gap-2">
+      <div className="mt-1.5 flex items-center gap-2">
         {growth !== undefined && <GrowthBadge value={growth} />}
         {subtitle && (
-          <span className="text-xs text-muted-foreground">{subtitle}</span>
+          <span className="text-[11px] text-muted-foreground">{subtitle}</span>
         )}
       </div>
     </div>
   );
 }
 
-// ─── Heatmap ────────────────────────────────────────────────────
+// --- Heatmap ---
 
 function AppointmentHeatmap({
   data,
@@ -204,12 +204,12 @@ function AppointmentHeatmap({
   const maxCount = Math.max(...data.map((d) => d.count), 1);
 
   const getColor = (count: number) => {
-    if (count === 0) return "bg-muted/30";
+    if (count === 0) return "bg-muted/20";
     const intensity = count / maxCount;
-    if (intensity < 0.25) return "bg-emerald-500/20";
-    if (intensity < 0.5) return "bg-emerald-500/40";
-    if (intensity < 0.75) return "bg-emerald-500/60";
-    return "bg-emerald-500/90";
+    if (intensity < 0.25) return "bg-primary/15";
+    if (intensity < 0.5) return "bg-primary/30";
+    if (intensity < 0.75) return "bg-primary/50";
+    return "bg-primary/80";
   };
 
   const getCount = (day: number, hour: number) => {
@@ -217,12 +217,12 @@ function AppointmentHeatmap({
   };
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5 h-full">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500/10">
-          <BarChart3 className="h-3.5 w-3.5 text-amber-400" />
+    <div className="rounded-2xl border border-border/60 bg-card p-6 h-full">
+      <div className="flex items-center gap-2.5 mb-5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10">
+          <BarChart3 className="h-4 w-4 text-amber-400" />
         </div>
-        <h3 className="text-sm font-semibold">
+        <h3 className="text-sm font-bold">
           {isEs ? "Mapa de calor de citas" : "Appointments heatmap"}
         </h3>
       </div>
@@ -251,24 +251,24 @@ function AppointmentHeatmap({
                 return (
                   <div
                     key={hour}
-                    className={`aspect-square rounded-sm ${getColor(count)} transition-colors`}
+                    className={`aspect-square rounded-md ${getColor(count)} transition-colors`}
                     title={`${dayLabel} ${hour}:00 — ${count} ${isEs ? "citas" : "appts"}`}
                   />
                 );
               })}
             </div>
           ))}
-          <div className="flex items-center justify-end gap-1 mt-3">
+          <div className="flex items-center justify-end gap-1.5 mt-4">
             <span className="text-[10px] text-muted-foreground mr-1">
               {isEs ? "Menos" : "Less"}
             </span>
-            <div className="h-3 w-3 rounded-sm bg-muted/30" />
-            <div className="h-3 w-3 rounded-sm bg-emerald-500/20" />
-            <div className="h-3 w-3 rounded-sm bg-emerald-500/40" />
-            <div className="h-3 w-3 rounded-sm bg-emerald-500/60" />
-            <div className="h-3 w-3 rounded-sm bg-emerald-500/90" />
+            <div className="h-3 w-3 rounded-sm bg-muted/20" />
+            <div className="h-3 w-3 rounded-sm bg-primary/15" />
+            <div className="h-3 w-3 rounded-sm bg-primary/30" />
+            <div className="h-3 w-3 rounded-sm bg-primary/50" />
+            <div className="h-3 w-3 rounded-sm bg-primary/80" />
             <span className="text-[10px] text-muted-foreground ml-1">
-              {isEs ? "Más" : "More"}
+              {isEs ? "Mas" : "More"}
             </span>
           </div>
         </div>
@@ -277,7 +277,7 @@ function AppointmentHeatmap({
   );
 }
 
-// ─── Top Treatments ─────────────────────────────────────────────
+// --- Top Treatments ---
 
 function TopTreatmentsTable({
   treatments,
@@ -289,12 +289,12 @@ function TopTreatmentsTable({
   const maxCount = Math.max(...treatments.map((t) => t.count), 1);
 
   return (
-    <div className="rounded-xl border border-border bg-card">
-      <div className="flex items-center gap-2 border-b border-border px-5 py-4">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-500/10">
-          <Stethoscope className="h-3.5 w-3.5 text-purple-400" />
+    <div className="rounded-2xl border border-border/60 bg-card">
+      <div className="flex items-center gap-2.5 border-b border-border/40 px-6 py-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10">
+          <Stethoscope className="h-4 w-4 text-purple-400" />
         </div>
-        <h3 className="text-sm font-semibold">
+        <h3 className="text-sm font-bold">
           {isEs ? "Top 3 servicios" : "Top 3 services"}
         </h3>
       </div>
@@ -305,25 +305,25 @@ function TopTreatmentsTable({
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-border">
+        <div className="divide-y divide-border/40">
           {treatments.map((t, i) => (
-            <div key={i} className="px-5 py-3">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className="text-sm font-medium truncate flex-1 mr-4">
+            <div key={i} className="px-6 py-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-semibold truncate flex-1 mr-4">
                   {t.name}
                 </span>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="text-xs text-muted-foreground">
                     {t.count} {isEs ? "citas" : "appts"}
                   </span>
-                  <span className="text-xs font-medium text-emerald-400">
+                  <span className="text-xs font-bold text-primary">
                     {formatCurrency(t.revenue)}
                   </span>
                 </div>
               </div>
-              <div className="h-1.5 rounded-full bg-muted/50 overflow-hidden">
+              <div className="h-1.5 rounded-full bg-muted/30 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-purple-500/60 transition-all"
+                  className="h-full rounded-full bg-gradient-to-r from-purple-500/50 to-purple-400/70 transition-all"
                   style={{ width: `${(t.count / maxCount) * 100}%` }}
                 />
               </div>
@@ -335,7 +335,7 @@ function TopTreatmentsTable({
   );
 }
 
-// ─── Main Component ─────────────────────────────────────────────
+// --- Main Component ---
 
 export function AdminDashboard({
   userName,
@@ -354,32 +354,30 @@ export function AdminDashboard({
 
   const periodLabels = {
     month: isEs ? "Mes" : "Month",
-    week: isEs ? "Ult. 7 días" : "Last 7 days",
+    week: isEs ? "Ult. 7 dias" : "Last 7 days",
     today: isEs ? "Hoy" : "Today",
   };
 
   return (
-    <div className="space-y-6 pb-8">
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* HEADER + FILTER BUTTONS                                    */}
-      {/* ═══════════════════════════════════════════════════════════ */}
+    <div className="space-y-8 pb-8">
+      {/* HEADER + FILTER */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-extrabold tracking-tight">Dashboard</h1>
+          <p className="mt-1 text-muted-foreground">
             {t("dashboard.welcome")}, {userName.split(" ")[0] || userName}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {/* Period filter buttons */}
-          <div className="flex items-center rounded-lg border border-border bg-card p-1">
+        <div className="flex items-center gap-3">
+          {/* Period filter */}
+          <div className="flex items-center rounded-xl border border-border/60 bg-card p-1">
             {(["month", "week", "today"] as const).map((p) => (
               <button
                 key={p}
                 onClick={() => setPeriod(p)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
                   period === p
-                    ? "bg-emerald-500 text-white"
+                    ? "gradient-primary text-white shadow-sm"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -389,7 +387,7 @@ export function AdminDashboard({
           </div>
           <Link
             href="/reports"
-            className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium transition-colors hover:bg-accent"
+            className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-4 py-2.5 text-sm font-medium transition-all hover:bg-accent/50 hover:border-border"
           >
             <FileText className="h-4 w-4" />
             {isEs ? "Ver reportes" : "View reports"}
@@ -397,9 +395,7 @@ export function AdminDashboard({
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* FINANCIAL KPIs — 5 cards                                   */}
-      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* FINANCIAL KPIs */}
       <section>
         <SectionHeader
           icon={DollarSign}
@@ -409,7 +405,7 @@ export function AdminDashboard({
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <KpiCard
             title={isEs
-              ? { month: "Ingresos del mes", week: "Ingresos (7 días)", today: "Ingresos de hoy" }[period]
+              ? { month: "Ingresos del mes", week: "Ingresos (7 dias)", today: "Ingresos de hoy" }[period]
               : { month: "Monthly revenue", week: "Revenue (7 days)", today: "Today's revenue" }[period]
             }
             value={formatCurrency(fin.revenue)}
@@ -418,7 +414,7 @@ export function AdminDashboard({
             bgColor="bg-emerald-500/10"
             growth={fin.revenueGrowth}
             subtitle={isEs
-              ? { month: "vs. mes anterior", week: "vs. 7 días ant.", today: "vs. ayer" }[period]
+              ? { month: "vs. mes anterior", week: "vs. 7 dias ant.", today: "vs. ayer" }[period]
               : { month: "vs. last month", week: "vs. prev. 7 days", today: "vs. yesterday" }[period]
             }
           />
@@ -447,7 +443,7 @@ export function AdminDashboard({
             subtitle={`${fin.cancellationRate}% ${isEs ? "tasa" : "rate"}`}
           />
           <KpiCard
-            title={isEs ? "Tasa de ocupación" : "Occupancy rate"}
+            title={isEs ? "Tasa de ocupacion" : "Occupancy rate"}
             value={`${fin.occupancyRate}%`}
             icon={Gauge}
             color="text-amber-400"
@@ -457,9 +453,7 @@ export function AdminDashboard({
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* OPERATIONAL + MARKETING KPIs — 5 cards                     */}
-      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* OPERATIONAL KPIs */}
       <section>
         <SectionHeader
           icon={Activity}
@@ -510,22 +504,20 @@ export function AdminDashboard({
         </div>
       </section>
 
-      {/* ═══════════════════════════════════════════════════════════ */}
-      {/* BOTTOM: Upcoming + Top Services | Heatmap                   */}
-      {/* ═══════════════════════════════════════════════════════════ */}
+      {/* BOTTOM: Upcoming + Top Services | Heatmap */}
       <section className="grid gap-6 lg:grid-cols-2">
-        {/* Left: Próximas 3 citas + Top 3 servicios */}
+        {/* Left column */}
         <div className="space-y-6">
-          {/* Próximas 3 citas */}
-          <div className="rounded-xl border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border px-5 py-4">
-              <div className="flex items-center gap-2">
+          {/* Upcoming appointments */}
+          <div className="rounded-2xl border border-border/60 bg-card">
+            <div className="flex items-center justify-between border-b border-border/40 px-6 py-4">
+              <div className="flex items-center gap-2.5">
                 <Clock className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-semibold">{t("dashboard.upcoming_appointments")}</h2>
+                <h2 className="font-bold">{t("dashboard.upcoming_appointments")}</h2>
               </div>
               <Link
                 href="/scheduler"
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+                className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
               >
                 {t("dashboard.view_scheduler")}
                 <ArrowRight className="h-3 w-3" />
@@ -533,31 +525,31 @@ export function AdminDashboard({
             </div>
 
             {todayAppointments.length === 0 ? (
-              <div className="p-8 text-center">
-                <CalendarDays className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
+              <div className="p-10 text-center">
+                <CalendarDays className="mx-auto mb-3 h-8 w-8 text-muted-foreground/30" />
                 <p className="text-sm text-muted-foreground">
                   {t("dashboard.no_upcoming_appointments")}
                 </p>
               </div>
             ) : (
-              <div className="divide-y divide-border">
+              <div className="divide-y divide-border/30">
                 {todayAppointments.map((appt) => (
                   <div
                     key={appt.id}
-                    className="flex items-center gap-3 px-5 py-2.5 transition-colors hover:bg-muted/50"
+                    className="flex items-center gap-3 px-6 py-3 transition-colors hover:bg-muted/30"
                   >
                     <div className="shrink-0 text-xs font-mono text-muted-foreground">
                       <div>{appt.appointment_date}</div>
                       <div>{formatTime(appt.start_time)}</div>
                     </div>
                     <div
-                      className="h-2 w-2 shrink-0 rounded-full"
+                      className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-background"
                       style={{
                         backgroundColor: appt.doctors?.color ?? "#6b7280",
                       }}
                     />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">
+                      <p className="truncate text-sm font-semibold">
                         {appt.patient_name}
                       </p>
                       <p className="truncate text-xs text-muted-foreground">
@@ -565,7 +557,7 @@ export function AdminDashboard({
                       </p>
                     </div>
                     <span
-                      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                         STATUS_COLORS[appt.status] ?? STATUS_COLORS.scheduled
                       }`}
                     >

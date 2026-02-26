@@ -251,15 +251,15 @@ export default function AccountPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">
+        <h1 className="text-3xl font-extrabold tracking-tight">
           {t("account.title")}
         </h1>
-        <p className="text-muted-foreground">{t("account.subtitle")}</p>
+        <p className="mt-1 text-muted-foreground">{t("account.subtitle")}</p>
       </div>
 
       <div className="max-w-2xl space-y-6">
         {/* Avatar + info */}
-        <div className="rounded-xl border border-border bg-card p-6">
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
           <div className="flex items-center gap-5">
             <div className="relative group">
               {avatarUrl ? (
@@ -327,7 +327,7 @@ export default function AccountPage() {
 
         {/* Current Plan */}
         {!planLoading && plan && subscription && (
-          <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {(() => {
@@ -425,7 +425,7 @@ export default function AccountPage() {
         {/* Profile form */}
         <form
           onSubmit={handleSubmit(onSubmitProfile)}
-          className="rounded-xl border border-border bg-card p-6 space-y-5"
+          className="rounded-2xl border border-border/60 bg-card p-6 space-y-5"
         >
           <h2 className="text-lg font-semibold">
             {t("account.personal_data")}
@@ -480,7 +480,7 @@ export default function AccountPage() {
         {/* Password form */}
         <form
           onSubmit={handleSubmitPwd(onSubmitPassword)}
-          className="rounded-xl border border-border bg-card p-6 space-y-5"
+          className="rounded-2xl border border-border/60 bg-card p-6 space-y-5"
         >
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-muted-foreground" />
@@ -549,7 +549,7 @@ export default function AccountPage() {
         </form>
 
         {/* Danger Zone */}
-        <div className="rounded-xl border border-destructive/30 bg-card p-6">
+        <div className="rounded-2xl border border-destructive/30 bg-card p-6">
           <h2 className="text-lg font-semibold text-destructive mb-2">
             {t("account.danger_zone")}
           </h2>
