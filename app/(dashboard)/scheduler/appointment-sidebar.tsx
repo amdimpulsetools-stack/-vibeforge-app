@@ -119,17 +119,27 @@ export function AppointmentSidebar({
     if (!payAmount || Number(payAmount) <= 0) return;
     setSavingPayment(true);
     const supabase = createClient();
-    const { error } = await supabase.from("patient_payments").insert({
-      patient_id: appointment.patient_id ?? null,
+
+    // Build insert payload — only include patient_id if it's a valid UUID
+    const payload: Record<string, unknown> = {
       appointment_id: appointment.id,
       amount: Number(payAmount),
       payment_method: payMethod || null,
       notes: payRef || null,
       payment_date: new Date().toISOString().split("T")[0],
-    });
+    };
+    if (appointment.patient_id) {
+      payload.patient_id = appointment.patient_id;
+    }
+
+    const { error } = await supabase
+      .from("patient_payments")
+      .insert(payload);
+
     setSavingPayment(false);
     if (error) {
-      toast.error("Error al registrar pago");
+      console.error("Payment insert error:", error);
+      toast.error("Error al registrar pago: " + error.message);
       return;
     }
     toast.success("Pago registrado");
