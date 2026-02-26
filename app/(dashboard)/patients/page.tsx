@@ -1,19 +1,24 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
-import { toast } from "sonner";
 import type { PatientWithTags } from "@/types/admin";
 import { PATIENT_STATUS_COLORS } from "@/types/admin";
 import {
   Search,
   Plus,
   Users,
-  Filter,
+  SlidersHorizontal,
   X,
   Loader2,
   ChevronRight,
+  ChevronDown,
+  Tag,
+  Calendar,
+  DollarSign,
+  MapPin,
+  Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PatientDrawer } from "./patient-drawer";
@@ -21,20 +26,48 @@ import { PatientFormModal } from "./patient-form-modal";
 
 type StatusFilter = "all" | "active" | "inactive";
 
+// Extended patient type with appointment/payment data for filtering
+type PatientExtended = PatientWithTags & {
+  appointments: { service_id: string; status: string; price_snapshot: number | null; services: { id: string; name: string } }[];
+  patient_payments: { amount: number }[];
+};
+
 export default function PatientsPage() {
   const { t } = useLanguage();
-  const [patients, setPatients] = useState<PatientWithTags[]>([]);
+  const [patients, setPatients] = useState<PatientExtended[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedPatient, setSelectedPatient] = useState<PatientWithTags | null>(null);
   const [showForm, setShowForm] = useState(false);
 
+  // Advanced filters
+  const [showFilters, setShowFilters] = useState(false);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
+  const [serviceFilter, setServiceFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [debtFilter, setDebtFilter] = useState(false);
+  const [origenFilter, setOrigenFilter] = useState("");
+
+  // Services list for dropdown
+  const [services, setServices] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("services")
+      .select("id, name")
+      .eq("is_active", true)
+      .order("name")
+      .then(({ data }) => setServices(data ?? []));
+  }, []);
+
   const fetchPatients = useCallback(async () => {
     const supabase = createClient();
     let query = supabase
       .from("patients")
-      .select("*, patient_tags(*)")
+      .select("*, patient_tags(*), appointments(service_id, status, price_snapshot, services(id, name)), patient_payments(amount)")
       .order("last_name");
 
     if (statusFilter !== "all") {
@@ -42,7 +75,7 @@ export default function PatientsPage() {
     }
 
     const { data } = await query;
-    setPatients((data as PatientWithTags[]) ?? []);
+    setPatients((data as PatientExtended[]) ?? []);
     setLoading(false);
   }, [statusFilter]);
 
@@ -50,17 +83,91 @@ export default function PatientsPage() {
     fetchPatients();
   }, [fetchPatients]);
 
-  // Client-side search filter (name, DNI, phone)
-  const filteredPatients = patients.filter((p) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase();
-    const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
-    return (
-      fullName.includes(q) ||
-      (p.dni && p.dni.toLowerCase().includes(q)) ||
-      (p.phone && p.phone.includes(q))
-    );
-  });
+  // Derived data for filter dropdowns
+  const availableTags = useMemo(() => {
+    const tagSet = new Set<string>();
+    patients.forEach((p) => p.patient_tags.forEach((t) => tagSet.add(t.tag)));
+    return Array.from(tagSet).sort();
+  }, [patients]);
+
+  const availableOrigins = useMemo(() => {
+    const originSet = new Set<string>();
+    patients.forEach((p) => {
+      if (p.viene_desde) originSet.add(p.viene_desde);
+    });
+    return Array.from(originSet).sort();
+  }, [patients]);
+
+  // Active filter count
+  const activeFilterCount = [
+    tagFilter.length > 0,
+    serviceFilter !== "",
+    dateFrom !== "",
+    dateTo !== "",
+    debtFilter,
+    origenFilter !== "",
+  ].filter(Boolean).length;
+
+  const clearFilters = () => {
+    setTagFilter([]);
+    setServiceFilter("");
+    setDateFrom("");
+    setDateTo("");
+    setDebtFilter(false);
+    setOrigenFilter("");
+  };
+
+  // Client-side filtering
+  const filteredPatients = useMemo(() => {
+    return patients.filter((p) => {
+      // Text search
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
+        if (
+          !fullName.includes(q) &&
+          !(p.dni && p.dni.toLowerCase().includes(q)) &&
+          !(p.phone && p.phone.includes(q))
+        ) {
+          return false;
+        }
+      }
+
+      // Tag filter — patient must have ALL selected tags
+      if (tagFilter.length > 0) {
+        const patientTags = p.patient_tags.map((pt) => pt.tag);
+        if (!tagFilter.every((tag) => patientTags.includes(tag))) return false;
+      }
+
+      // Service filter — patient must have at least one non-cancelled appointment with this service
+      if (serviceFilter) {
+        const hasService = p.appointments?.some(
+          (a) => a.service_id === serviceFilter && a.status !== "cancelled"
+        );
+        if (!hasService) return false;
+      }
+
+      // Date range filter (on created_at)
+      if (dateFrom && p.created_at < dateFrom) return false;
+      if (dateTo && p.created_at > dateTo + "T23:59:59") return false;
+
+      // Debt filter
+      if (debtFilter) {
+        const totalBilled =
+          p.appointments
+            ?.filter((a) => a.status !== "cancelled")
+            .reduce((sum, a) => sum + (Number(a.price_snapshot) || 0), 0) ?? 0;
+        const totalPaid =
+          p.patient_payments?.reduce((sum, pay) => sum + Number(pay.amount), 0) ?? 0;
+        if (totalBilled - totalPaid <= 0) return false;
+      }
+
+      // Origin filter
+      if (origenFilter && p.viene_desde !== origenFilter) return false;
+
+      return true;
+    });
+  }, [patients, search, tagFilter, serviceFilter, dateFrom, dateTo, debtFilter, origenFilter]);
 
   const handleSaved = () => {
     fetchPatients();
@@ -70,7 +177,6 @@ export default function PatientsPage() {
 
   const handlePatientUpdated = () => {
     fetchPatients();
-    // Re-fetch the selected patient to refresh the drawer
     if (selectedPatient) {
       const supabase = createClient();
       supabase
@@ -82,6 +188,12 @@ export default function PatientsPage() {
           if (data) setSelectedPatient(data as PatientWithTags);
         });
     }
+  };
+
+  const toggleTag = (tag: string) => {
+    setTagFilter((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
   };
 
   return (
@@ -104,7 +216,7 @@ export default function PatientsPage() {
             </button>
           </div>
 
-          {/* Search & Filters */}
+          {/* Search & Status + Filter toggle */}
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -138,8 +250,210 @@ export default function PatientsPage() {
                   {t(`patients.filter_${f}`)}
                 </button>
               ))}
+              {/* Filter toggle */}
+              <button
+                onClick={() => setShowFilters(!showFilters)}
+                className={cn(
+                  "relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                  showFilters || activeFilterCount > 0
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:bg-accent"
+                )}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                {t("patients.filters")}
+                {activeFilterCount > 0 && (
+                  <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-bold">
+                    {activeFilterCount}
+                  </span>
+                )}
+                <ChevronDown className={cn("h-3 w-3 transition-transform", showFilters && "rotate-180")} />
+              </button>
             </div>
           </div>
+
+          {/* Advanced Filter Panel */}
+          {showFilters && (
+            <div className="mt-3 rounded-lg border border-border bg-background p-4 space-y-4">
+              {/* Row 1: Tags */}
+              <div>
+                <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Tag className="h-3.5 w-3.5" />
+                  {t("patients.filter_tags")}
+                </label>
+                {availableTags.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableTags.map((tag) => (
+                      <button
+                        key={tag}
+                        onClick={() => toggleTag(tag)}
+                        className={cn(
+                          "rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                          tagFilter.includes(tag)
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:bg-accent"
+                        )}
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-muted-foreground/60">{t("patients.filter_tags_placeholder")}</p>
+                )}
+              </div>
+
+              {/* Row 2: Service + Origin */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Stethoscope className="h-3.5 w-3.5" />
+                    {t("patients.filter_service")}
+                  </label>
+                  <select
+                    value={serviceFilter}
+                    onChange={(e) => setServiceFilter(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  >
+                    <option value="">{t("patients.filter_service_placeholder")}</option>
+                    {services.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {t("patients.filter_origin")}
+                  </label>
+                  <select
+                    value={origenFilter}
+                    onChange={(e) => setOrigenFilter(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  >
+                    <option value="">{t("patients.filter_origin_placeholder")}</option>
+                    {availableOrigins.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Row 3: Date range + Debt toggle */}
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {t("patients.filter_date_from")}
+                  </label>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                    <Calendar className="h-3.5 w-3.5" />
+                    {t("patients.filter_date_to")}
+                  </label>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <button
+                    onClick={() => setDebtFilter(!debtFilter)}
+                    className={cn(
+                      "flex w-full items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                      debtFilter
+                        ? "bg-red-500/10 text-red-500 border border-red-500/30"
+                        : "bg-muted text-muted-foreground hover:bg-accent border border-transparent"
+                    )}
+                  >
+                    <DollarSign className="h-3.5 w-3.5" />
+                    {t("patients.filter_with_debt")}
+                  </button>
+                </div>
+              </div>
+
+              {/* Clear filters */}
+              {activeFilterCount > 0 && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={clearFilters}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                    {t("patients.filter_clear")}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Active filter chips (visible when panel is collapsed) */}
+          {!showFilters && activeFilterCount > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              {tagFilter.map((tag) => (
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
+                >
+                  {tag}
+                  <button onClick={() => toggleTag(tag)} className="hover:text-primary/70">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              ))}
+              {serviceFilter && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-500">
+                  {services.find((s) => s.id === serviceFilter)?.name}
+                  <button onClick={() => setServiceFilter("")} className="hover:text-blue-400">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              )}
+              {(dateFrom || dateTo) && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2 py-0.5 text-[10px] font-medium text-orange-500">
+                  {dateFrom || "..."} — {dateTo || "..."}
+                  <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="hover:text-orange-400">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              )}
+              {debtFilter && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-500">
+                  {t("patients.filter_with_debt")}
+                  <button onClick={() => setDebtFilter(false)} className="hover:text-red-400">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              )}
+              {origenFilter && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-500">
+                  {origenFilter}
+                  <button onClick={() => setOrigenFilter("")} className="hover:text-violet-400">
+                    <X className="h-2.5 w-2.5" />
+                  </button>
+                </span>
+              )}
+              <button
+                onClick={clearFilters}
+                className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {t("patients.filter_clear")}
+              </button>
+            </div>
+          )}
         </div>
 
         {/* List */}
@@ -151,7 +465,7 @@ export default function PatientsPage() {
           ) : filteredPatients.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
               <Users className="h-12 w-12 mb-3 opacity-30" />
-              <p className="text-sm">{search ? t("common.no_results") : t("patients.no_patients")}</p>
+              <p className="text-sm">{search || activeFilterCount > 0 ? t("common.no_results") : t("patients.no_patients")}</p>
             </div>
           ) : (
             <div className="divide-y divide-border">
