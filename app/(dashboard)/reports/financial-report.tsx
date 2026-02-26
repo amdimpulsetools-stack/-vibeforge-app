@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, PatientPayment } from "@/types/admin";
 import {
@@ -8,6 +8,7 @@ import {
   DollarSign,
   Users,
   XCircle,
+  UserX,
 } from "lucide-react";
 
 interface FinancialReportProps {
@@ -29,17 +30,42 @@ interface DoctorProductivity {
   avgPerAppointment: number;
 }
 
-// Simple SVG bar chart — no external dependencies
+// ─── Tooltip state ────────────────────────────────────────────
+interface TooltipState {
+  x: number;
+  y: number;
+  lines: string[];
+}
+
+function ChartTooltip({ tooltip }: { tooltip: TooltipState | null }) {
+  if (!tooltip) return null;
+  return (
+    <div
+      className="pointer-events-none absolute z-50 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg"
+      style={{ left: tooltip.x, top: tooltip.y, transform: "translate(-50%, -110%)" }}
+    >
+      {tooltip.lines.map((line, i) => (
+        <p key={i} className="whitespace-nowrap text-xs text-popover-foreground">{line}</p>
+      ))}
+    </div>
+  );
+}
+
+// ─── Simple SVG bar chart with hover tooltip ──────────────────
 function BarChartSVG({
   data,
   keys,
   colors,
   height = 240,
+  onHover,
+  onLeave,
 }: {
   data: Record<string, string | number>[];
   keys: string[];
   colors: string[];
   height?: number;
+  onHover?: (e: React.MouseEvent, lines: string[]) => void;
+  onLeave?: () => void;
 }) {
   const paddingLeft = 40;
   const paddingBottom = 40;
@@ -112,6 +138,11 @@ function BarChartSVG({
                   height={bh}
                   fill={colors[ki]}
                   rx={2}
+                  className="cursor-pointer"
+                  style={{ transition: "opacity 0.15s" }}
+                  onMouseEnter={(e) => onHover?.(e, [`${String(d.name)}: ${k} = ${val}`])}
+                  onMouseMove={(e) => onHover?.(e, [`${String(d.name)}: ${k} = ${val}`])}
+                  onMouseLeave={onLeave}
                 />
               );
             })}
@@ -155,6 +186,26 @@ function ChartLegend({ items }: { items: { label: string; color: string }[] }) {
   );
 }
 
+// ─── Card title with tooltip ──────────────────────────────────
+function CardTitle({
+  icon: Icon,
+  label,
+  tooltip,
+  iconClass,
+}: {
+  icon: typeof DollarSign;
+  label: string;
+  tooltip: string;
+  iconClass?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground cursor-help" title={tooltip}>
+      <Icon className={`h-4 w-4 ${iconClass ?? ""}`} />
+      {label}
+    </div>
+  );
+}
+
 export function FinancialReport({
   appointments,
   payments,
@@ -162,6 +213,18 @@ export function FinancialReport({
   dateTo,
 }: FinancialReportProps) {
   const { t } = useLanguage();
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+
+  const handleHover = (e: React.MouseEvent, lines: string[]) => {
+    const rect = (e.currentTarget as SVGElement).closest(".relative")?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltip({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      lines,
+    });
+  };
+  const handleLeave = () => setTooltip(null);
 
   const doctorData = useMemo(() => {
     const map = new Map<string, DoctorProductivity>();
@@ -212,6 +275,18 @@ export function FinancialReport({
   const totalAttended = doctorData.reduce((sum, d) => sum + d.attended, 0);
   const totalCancelled = doctorData.reduce((sum, d) => sum + d.cancelled, 0);
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+
+  // No-shows: past appointments in range that are still scheduled/confirmed
+  const today = new Date().toISOString().slice(0, 10);
+  const totalNoShows = useMemo(
+    () =>
+      appointments.filter(
+        (a) =>
+          a.appointment_date < today &&
+          (a.status === "scheduled" || a.status === "confirmed")
+      ).length,
+    [appointments, today]
+  );
 
   const chartData = doctorData.map((d) => ({
     name: d.name,
@@ -271,41 +346,56 @@ export function FinancialReport({
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <DollarSign className="h-4 w-4" />
-            {t("reports.total_billed")}
-          </div>
+          <CardTitle
+            icon={DollarSign}
+            label={t("reports.total_billed")}
+            tooltip={t("reports.tooltip_total_billed")}
+          />
           <p className="mt-2 text-2xl font-bold">S/. {totalRevenue.toFixed(2)}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <DollarSign className="h-4 w-4 text-emerald-500" />
-            {t("reports.total_collected")}
-          </div>
+          <CardTitle
+            icon={DollarSign}
+            label={t("reports.total_collected")}
+            tooltip={t("reports.tooltip_total_collected")}
+            iconClass="text-emerald-500"
+          />
           <p className="mt-2 text-2xl font-bold text-emerald-600">S/. {totalPaid.toFixed(2)}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Users className="h-4 w-4" />
-            {t("reports.total_attended")}
-          </div>
+          <CardTitle
+            icon={Users}
+            label={t("reports.total_attended")}
+            tooltip={t("reports.tooltip_total_attended")}
+          />
           <p className="mt-2 text-2xl font-bold">{totalAttended}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <XCircle className="h-4 w-4 text-red-500" />
-            {t("reports.total_cancelled")}
-          </div>
+          <CardTitle
+            icon={XCircle}
+            label={t("reports.total_cancelled")}
+            tooltip={t("reports.tooltip_total_cancelled")}
+            iconClass="text-red-500"
+          />
           <p className="mt-2 text-2xl font-bold text-red-600">{totalCancelled}</p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <CardTitle
+            icon={UserX}
+            label={t("reports.total_no_shows")}
+            tooltip={t("reports.tooltip_no_shows")}
+            iconClass="text-amber-500"
+          />
+          <p className="mt-2 text-2xl font-bold text-amber-600">{totalNoShows}</p>
         </div>
       </div>
 
       {/* Charts row */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Appointments by doctor */}
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="relative rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.appointments_by_doctor")}</h3>
           {chartData.length > 0 ? (
             <>
@@ -313,6 +403,8 @@ export function FinancialReport({
                 data={chartData}
                 keys={["Atendidos", "Confirmados", "Cancelados"]}
                 colors={["#22c55e", "#3b82f6", "#ef4444"]}
+                onHover={handleHover}
+                onLeave={handleLeave}
               />
               <ChartLegend
                 items={[
@@ -325,10 +417,11 @@ export function FinancialReport({
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">{t("common.no_results")}</p>
           )}
+          <ChartTooltip tooltip={tooltip} />
         </div>
 
         {/* Revenue by doctor */}
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="relative rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.revenue_by_doctor")}</h3>
           {revenueChartData.length > 0 ? (
             <>
@@ -336,12 +429,15 @@ export function FinancialReport({
                 data={revenueChartData}
                 keys={["Facturado"]}
                 colors={["#10b981"]}
+                onHover={handleHover}
+                onLeave={handleLeave}
               />
               <ChartLegend items={[{ label: "Facturado (S/.)", color: "#10b981" }]} />
             </>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">{t("common.no_results")}</p>
           )}
+          <ChartTooltip tooltip={tooltip} />
         </div>
       </div>
 

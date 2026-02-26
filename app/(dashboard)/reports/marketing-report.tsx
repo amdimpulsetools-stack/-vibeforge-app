@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Patient } from "@/types/admin";
 import {
@@ -20,17 +20,62 @@ const CHART_COLORS = [
   "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#6366f1",
 ];
 
-// Native SVG donut chart
+// ─── Tooltip ──────────────────────────────────────────────────
+interface TooltipState {
+  x: number;
+  y: number;
+  lines: string[];
+}
+
+function ChartTooltip({ tooltip }: { tooltip: TooltipState | null }) {
+  if (!tooltip) return null;
+  return (
+    <div
+      className="pointer-events-none absolute z-50 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg"
+      style={{ left: tooltip.x, top: tooltip.y, transform: "translate(-50%, -110%)" }}
+    >
+      {tooltip.lines.map((line, i) => (
+        <p key={i} className="whitespace-nowrap text-xs text-popover-foreground">{line}</p>
+      ))}
+    </div>
+  );
+}
+
+// ─── Card title with native tooltip ───────────────────────────
+function CardTitle({
+  icon: Icon,
+  label,
+  tooltip,
+  iconClass,
+}: {
+  icon: typeof Target;
+  label: string;
+  tooltip: string;
+  iconClass?: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-xs text-muted-foreground cursor-help" title={tooltip}>
+      <Icon className={`h-4 w-4 ${iconClass ?? ""}`} />
+      {label}
+    </div>
+  );
+}
+
+// ─── Native SVG donut chart with hover ────────────────────────
 function DonutChartSVG({
   data,
   size = 220,
   innerRadius = 55,
   outerRadius = 95,
+  onHover,
+  onLeave,
 }: {
   data: { name: string; value: number }[];
   size?: number;
   innerRadius?: number;
   outerRadius?: number;
+  onHover?: (e: React.MouseEvent, lines: string[]) => void;
+  onLeave?: () => void;
 }) {
   const total = data.reduce((s, d) => s + d.value, 0);
   if (total === 0) return null;
@@ -72,7 +117,7 @@ function DonutChartSVG({
     const ly = cy + labelR * Math.sin(midAngle);
     const pct = ((d.value / total) * 100).toFixed(0);
 
-    return { path, color: CHART_COLORS[i % CHART_COLORS.length], lx, ly, pct, name: d.name, midAngle };
+    return { path, color: CHART_COLORS[i % CHART_COLORS.length], lx, ly, pct, name: d.name, value: d.value, midAngle };
   });
 
   return (
@@ -80,7 +125,16 @@ function DonutChartSVG({
       <g transform={`translate(60, 10)`}>
         {slices.map((s, i) => (
           <g key={i}>
-            <path d={s.path} fill={s.color} stroke="hsl(var(--card))" strokeWidth={1.5} />
+            <path
+              d={s.path}
+              fill={s.color}
+              stroke="hsl(var(--card))"
+              strokeWidth={1.5}
+              className="cursor-pointer"
+              onMouseEnter={(e) => onHover?.(e, [`${s.name}: ${s.value} (${s.pct}%)`])}
+              onMouseMove={(e) => onHover?.(e, [`${s.name}: ${s.value} (${s.pct}%)`])}
+              onMouseLeave={onLeave}
+            />
             {data.length <= 6 && (
               <text
                 x={s.lx}
@@ -100,17 +154,21 @@ function DonutChartSVG({
   );
 }
 
-// Reusable bar chart
+// ─── Reusable bar chart with hover ────────────────────────────
 function BarChartSVG({
   data,
   keys,
   colors,
   height = 240,
+  onHover,
+  onLeave,
 }: {
   data: Record<string, string | number>[];
   keys: string[];
   colors: string[];
   height?: number;
+  onHover?: (e: React.MouseEvent, lines: string[]) => void;
+  onLeave?: () => void;
 }) {
   const paddingLeft = 40;
   const paddingBottom = 40;
@@ -150,7 +208,21 @@ function BarChartSVG({
               const bh = (val / maxVal) * chartH;
               const bx = startX + ki * (barW + 2);
               const by = paddingTop + chartH - bh;
-              return <rect key={k} x={bx} y={by} width={barW} height={bh} fill={colors[ki]} rx={2} />;
+              return (
+                <rect
+                  key={k}
+                  x={bx}
+                  y={by}
+                  width={barW}
+                  height={bh}
+                  fill={colors[ki]}
+                  rx={2}
+                  className="cursor-pointer"
+                  onMouseEnter={(e) => onHover?.(e, [`${String(d.name)}: ${k} = ${val}`])}
+                  onMouseMove={(e) => onHover?.(e, [`${String(d.name)}: ${k} = ${val}`])}
+                  onMouseLeave={onLeave}
+                />
+              );
             })}
             <text x={groupX} y={paddingTop + chartH + 14} textAnchor="middle" fontSize={9} fill="hsl(var(--muted-foreground))">
               {String(d.name)}
@@ -178,6 +250,18 @@ function ChartLegend({ items }: { items: { label: string; color: string }[] }) {
 
 export function MarketingReport({ appointments, patients }: MarketingReportProps) {
   const { t } = useLanguage();
+  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+
+  const handleHover = (e: React.MouseEvent, lines: string[]) => {
+    const rect = (e.currentTarget as SVGElement).closest(".relative")?.getBoundingClientRect();
+    if (!rect) return;
+    setTooltip({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+      lines,
+    });
+  };
+  const handleLeave = () => setTooltip(null);
 
   // Origin distribution (from appointments)
   const originData = useMemo(() => {
@@ -259,37 +343,42 @@ export function MarketingReport({ appointments, patients }: MarketingReportProps
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Target className="h-4 w-4" />
-            {t("reports.conversion_rate")}
-          </div>
+          <CardTitle
+            icon={Target}
+            label={t("reports.conversion_rate")}
+            tooltip={t("reports.tooltip_conversion_rate")}
+          />
           <p className="mt-2 text-2xl font-bold text-emerald-600">{conversionData.conversionRate}%</p>
           <p className="text-[10px] text-muted-foreground">
             {conversionData.totalCompleted} / {conversionData.totalScheduled} {t("reports.attended")}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <TrendingUp className="h-4 w-4 text-red-500" />
-            {t("reports.cancel_rate")}
-          </div>
+          <CardTitle
+            icon={TrendingUp}
+            label={t("reports.cancel_rate")}
+            tooltip={t("reports.tooltip_cancel_rate")}
+            iconClass="text-red-500"
+          />
           <p className="mt-2 text-2xl font-bold text-red-600">{conversionData.cancelRate}%</p>
           <p className="text-[10px] text-muted-foreground">
             {conversionData.totalCancelled} {t("reports.cancelled")}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Megaphone className="h-4 w-4" />
-            {t("reports.unique_origins")}
-          </div>
+          <CardTitle
+            icon={Megaphone}
+            label={t("reports.unique_origins")}
+            tooltip={t("reports.tooltip_unique_origins")}
+          />
           <p className="mt-2 text-2xl font-bold">{originData.length}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Users className="h-4 w-4" />
-            {t("reports.total_patients")}
-          </div>
+          <CardTitle
+            icon={Users}
+            label={t("reports.total_patients")}
+            tooltip={t("reports.tooltip_total_patients")}
+          />
           <p className="mt-2 text-2xl font-bold">{newPatientsCount}</p>
         </div>
       </div>
@@ -297,11 +386,15 @@ export function MarketingReport({ appointments, patients }: MarketingReportProps
       {/* Charts row */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Origin donut chart */}
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="relative rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.origin_distribution")}</h3>
           {originData.length > 0 ? (
             <>
-              <DonutChartSVG data={originData} />
+              <DonutChartSVG
+                data={originData}
+                onHover={handleHover}
+                onLeave={handleLeave}
+              />
               <ChartLegend
                 items={originData.map((d, i) => ({
                   label: `${d.name} (${d.value})`,
@@ -312,10 +405,11 @@ export function MarketingReport({ appointments, patients }: MarketingReportProps
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">{t("common.no_results")}</p>
           )}
+          <ChartTooltip tooltip={tooltip} />
         </div>
 
         {/* Conversion by origin bar chart */}
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="relative rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.conversion_by_origin")}</h3>
           {conversionByOrigin.length > 0 ? (
             <>
@@ -323,6 +417,8 @@ export function MarketingReport({ appointments, patients }: MarketingReportProps
                 data={conversionByOrigin}
                 keys={["total", "completed"]}
                 colors={["#3b82f6", "#22c55e"]}
+                onHover={handleHover}
+                onLeave={handleLeave}
               />
               <ChartLegend
                 items={[
@@ -334,6 +430,7 @@ export function MarketingReport({ appointments, patients }: MarketingReportProps
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">{t("common.no_results")}</p>
           )}
+          <ChartTooltip tooltip={tooltip} />
         </div>
       </div>
 
