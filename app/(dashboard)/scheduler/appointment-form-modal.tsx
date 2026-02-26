@@ -356,6 +356,7 @@ export function AppointmentFormModal({
           payment_method: depositMethod || null,
           notes: depositRef ? `Anticipo — ${depositRef}` : "Anticipo",
           payment_date: new Date().toISOString().split("T")[0],
+          organization_id: organizationId,
         } as any);
 
       if (payError) {

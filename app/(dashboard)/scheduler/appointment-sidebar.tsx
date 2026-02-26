@@ -130,6 +130,7 @@ export function AppointmentSidebar({
         payment_method: payMethod || null,
         notes: payRef || null,
         payment_date: new Date().toISOString().split("T")[0],
+        organization_id: (appointment as any).organization_id,
       } as any);
 
     setSavingPayment(false);
