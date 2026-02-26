@@ -16,12 +16,20 @@ import {
   Loader2,
   Mail,
   X,
+  Stethoscope,
+  GraduationCap,
+  BriefcaseMedical,
+  Headset,
+  MessageCircle,
 } from "lucide-react";
+
+type ProfessionalTitle = "doctor" | "especialista" | "licenciada" | null;
 
 interface Member {
   id: string;
   user_id: string;
   role: "owner" | "admin" | "member";
+  professional_title: ProfessionalTitle;
   created_at: string;
   full_name: string | null;
   avatar_url: string | null;
@@ -29,19 +37,92 @@ interface Member {
   email: string | null;
 }
 
-const ROLE_CONFIG = {
-  owner: {
-    icon: Crown,
-    colorClass: "bg-amber-500/10 text-amber-500",
+/** Returns display label and style for a member based on role + professional_title */
+function getMemberDisplay(
+  member: Member,
+  t: (key: string) => string
+): { label: string; icon: typeof User; colorClass: string } {
+  if (member.role === "owner") {
+    return {
+      label: t("members.role_owner"),
+      icon: Crown,
+      colorClass: "bg-amber-500/10 text-amber-500",
+    };
+  }
+  if (member.role === "admin") {
+    return {
+      label: t("members.role_admin"),
+      icon: ShieldCheck,
+      colorClass: "bg-blue-500/10 text-blue-500",
+    };
+  }
+  // member role — differentiate by professional_title
+  switch (member.professional_title) {
+    case "doctor":
+      return {
+        label: t("members.title_doctor"),
+        icon: Stethoscope,
+        colorClass: "bg-emerald-500/10 text-emerald-500",
+      };
+    case "especialista":
+      return {
+        label: t("members.title_especialista"),
+        icon: BriefcaseMedical,
+        colorClass: "bg-violet-500/10 text-violet-500",
+      };
+    case "licenciada":
+      return {
+        label: t("members.title_licenciada"),
+        icon: GraduationCap,
+        colorClass: "bg-cyan-500/10 text-cyan-500",
+      };
+    default:
+      return {
+        label: t("members.role_receptionist"),
+        icon: Headset,
+        colorClass: "bg-orange-500/10 text-orange-500",
+      };
+  }
+}
+
+/** Invite-modal role options (all map to org role "member") */
+const MEMBER_TYPE_OPTIONS: {
+  title: ProfessionalTitle;
+  iconKey: "stethoscope" | "briefcase-medical" | "graduation-cap" | "headset";
+  labelKey: string;
+  descKey: string;
+}[] = [
+  {
+    title: "doctor",
+    iconKey: "stethoscope",
+    labelKey: "members.title_doctor",
+    descKey: "members.title_doctor_desc",
   },
-  admin: {
-    icon: ShieldCheck,
-    colorClass: "bg-blue-500/10 text-blue-500",
+  {
+    title: "especialista",
+    iconKey: "briefcase-medical",
+    labelKey: "members.title_especialista",
+    descKey: "members.title_especialista_desc",
   },
-  member: {
-    icon: User,
-    colorClass: "bg-emerald-500/10 text-emerald-500",
+  {
+    title: "licenciada",
+    iconKey: "graduation-cap",
+    labelKey: "members.title_licenciada",
+    descKey: "members.title_licenciada_desc",
   },
+  {
+    title: null,
+    iconKey: "headset",
+    labelKey: "members.role_receptionist",
+    descKey: "members.role_receptionist_desc",
+  },
+];
+
+const ICON_MAP = {
+  stethoscope: Stethoscope,
+  "briefcase-medical": BriefcaseMedical,
+  "graduation-cap": GraduationCap,
+  headset: Headset,
 };
 
 export default function MembersPage() {
@@ -52,7 +133,7 @@ export default function MembersPage() {
   const [search, setSearch] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
+  const [inviteTitle, setInviteTitle] = useState<ProfessionalTitle>("doctor");
   const [inviting, setInviting] = useState(false);
   const [changingRole, setChangingRole] = useState<string | null>(null);
 
@@ -78,7 +159,11 @@ export default function MembersPage() {
     const res = await fetch("/api/members", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
+      body: JSON.stringify({
+        email: inviteEmail.trim(),
+        role: "member",
+        professional_title: inviteTitle,
+      }),
     });
 
     setInviting(false);
@@ -97,6 +182,7 @@ export default function MembersPage() {
 
     toast.success(t("members.invite_success"));
     setInviteEmail("");
+    setInviteTitle("doctor");
     setShowInvite(false);
     fetchMembers();
   };
@@ -210,8 +296,8 @@ export default function MembersPage() {
       {/* Members list */}
       <div className="space-y-3">
         {filtered.map((member) => {
-          const roleConfig = ROLE_CONFIG[member.role];
-          const RoleIcon = roleConfig.icon;
+          const display = getMemberDisplay(member, t);
+          const DisplayIcon = display.icon;
 
           return (
             <div
@@ -247,32 +333,44 @@ export default function MembersPage() {
                 {/* Role badge / selector */}
                 {member.role === "owner" ? (
                   <span
-                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${roleConfig.colorClass}`}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${display.colorClass}`}
                   >
-                    <RoleIcon className="h-3.5 w-3.5" />
-                    {t("members.role_owner")}
+                    <DisplayIcon className="h-3.5 w-3.5" />
+                    {display.label}
                   </span>
                 ) : isAdmin ? (
-                  <select
-                    value={member.role}
-                    onChange={(e) =>
-                      handleChangeRole(
-                        member.id,
-                        e.target.value as "admin" | "member"
-                      )
-                    }
-                    disabled={changingRole === member.id}
-                    className="rounded-lg border border-input bg-background px-3 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors disabled:opacity-50"
-                  >
-                    <option value="admin">{t("members.role_admin")}</option>
-                    <option value="member">{t("members.role_member")}</option>
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${display.colorClass}`}
+                    >
+                      <DisplayIcon className="h-3.5 w-3.5" />
+                      {display.label}
+                    </span>
+                    <select
+                      value={member.role}
+                      onChange={(e) =>
+                        handleChangeRole(
+                          member.id,
+                          e.target.value as "admin" | "member"
+                        )
+                      }
+                      disabled={changingRole === member.id}
+                      className="rounded-lg border border-input bg-background px-2 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors disabled:opacity-50"
+                    >
+                      <option value="admin">
+                        {t("members.role_admin")}
+                      </option>
+                      <option value="member">
+                        {t("members.role_member")}
+                      </option>
+                    </select>
+                  </div>
                 ) : (
                   <span
-                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${roleConfig.colorClass}`}
+                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${display.colorClass}`}
                   >
-                    <RoleIcon className="h-3.5 w-3.5" />
-                    {t(`members.role_${member.role}`)}
+                    <DisplayIcon className="h-3.5 w-3.5" />
+                    {display.label}
                   </span>
                 )}
 
@@ -294,7 +392,7 @@ export default function MembersPage() {
       {/* Invite dialog (modal) */}
       {showInvite && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl">
+          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">
                 {t("members.invite_title")}
@@ -312,6 +410,7 @@ export default function MembersPage() {
             </p>
 
             <div className="space-y-4">
+              {/* Email */}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">
                   {t("members.email")}
@@ -329,49 +428,62 @@ export default function MembersPage() {
                 </div>
               </div>
 
+              {/* Role selection */}
               <div className="space-y-1.5">
                 <label className="text-sm font-medium">
                   {t("members.role")}
                 </label>
                 <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setInviteRole("member")}
-                    className={`flex items-center gap-2 rounded-lg border p-3 text-left transition-all ${
-                      inviteRole === "member"
-                        ? "border-primary bg-primary/10 ring-1 ring-primary"
-                        : "border-border hover:border-muted-foreground/30"
-                    }`}
-                  >
-                    <User className="h-4 w-4" />
-                    <div>
-                      <p className="text-sm font-medium">
-                        {t("members.role_member")}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {t("members.role_member_desc")}
-                      </p>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInviteRole("admin")}
-                    className={`flex items-center gap-2 rounded-lg border p-3 text-left transition-all ${
-                      inviteRole === "admin"
-                        ? "border-primary bg-primary/10 ring-1 ring-primary"
-                        : "border-border hover:border-muted-foreground/30"
-                    }`}
-                  >
-                    <ShieldCheck className="h-4 w-4" />
-                    <div>
-                      <p className="text-sm font-medium">
-                        {t("members.role_admin")}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {t("members.role_admin_desc")}
-                      </p>
-                    </div>
-                  </button>
+                  {MEMBER_TYPE_OPTIONS.map((opt) => {
+                    const Icon = ICON_MAP[opt.iconKey];
+                    const isSelected = inviteTitle === opt.title;
+                    return (
+                      <button
+                        key={opt.title ?? "receptionist"}
+                        type="button"
+                        onClick={() => setInviteTitle(opt.title)}
+                        className={`flex items-start gap-2.5 rounded-lg border p-3 text-left transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/10 ring-1 ring-primary"
+                            : "border-border hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div>
+                          <p className="text-sm font-medium">
+                            {t(opt.labelKey)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {t(opt.descKey)}
+                          </p>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Admin section — contact support */}
+              <div className="rounded-lg border border-border bg-muted/50 p-4">
+                <div className="flex items-start gap-3">
+                  <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-500 shrink-0" />
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium">
+                      {t("members.role_admin")}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {t("members.admin_extra_cost")}
+                    </p>
+                    <a
+                      href="https://wa.me/18094039726"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      {t("members.contact_support")}
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>

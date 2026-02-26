@@ -37,7 +37,8 @@ export async function GET() {
         full_name,
         avatar_url,
         phone,
-        email
+        email,
+        professional_title
       )
     `
     )
@@ -54,6 +55,7 @@ export async function GET() {
       avatar_url: string | null;
       phone: string | null;
       email: string | null;
+      professional_title: string | null;
     } | null;
 
     return {
@@ -65,6 +67,7 @@ export async function GET() {
       avatar_url: profile?.avatar_url ?? null,
       phone: profile?.phone ?? null,
       email: profile?.email ?? null,
+      professional_title: profile?.professional_title ?? null,
     };
   });
 
@@ -102,7 +105,11 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { email, role } = body as { email: string; role: string };
+  const { email, role, professional_title } = body as {
+    email: string;
+    role: string;
+    professional_title?: string | null;
+  };
 
   if (!email || !role) {
     return NextResponse.json(
@@ -114,6 +121,16 @@ export async function POST(request: NextRequest) {
   if (!["admin", "member"].includes(role)) {
     return NextResponse.json(
       { error: "Invalid role. Must be admin or member" },
+      { status: 400 }
+    );
+  }
+
+  if (
+    professional_title &&
+    !["doctor", "especialista", "licenciada"].includes(professional_title)
+  ) {
+    return NextResponse.json(
+      { error: "Invalid professional_title" },
       { status: 400 }
     );
   }
@@ -173,6 +190,14 @@ export async function POST(request: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Set professional_title on the user's profile
+  if (role === "member") {
+    await supabase
+      .from("user_profiles")
+      .update({ professional_title: professional_title || null })
+      .eq("id", targetUserId);
   }
 
   return NextResponse.json(newMember, { status: 201 });
