@@ -120,26 +120,22 @@ export function AppointmentSidebar({
     setSavingPayment(true);
     const supabase = createClient();
 
-    // Build insert payload — only include patient_id if it's a valid UUID
-    const payload: Record<string, unknown> = {
-      appointment_id: appointment.id,
-      amount: Number(payAmount),
-      payment_method: payMethod || null,
-      notes: payRef || null,
-      payment_date: new Date().toISOString().split("T")[0],
-    };
-    if (appointment.patient_id) {
-      payload.patient_id = appointment.patient_id;
-    }
-
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await supabase
       .from("patient_payments")
-      .insert(payload);
+      .insert({
+        patient_id: appointment.patient_id || null,
+        appointment_id: appointment.id,
+        amount: Number(payAmount),
+        payment_method: payMethod || null,
+        notes: payRef || null,
+        payment_date: new Date().toISOString().split("T")[0],
+      } as any);
 
     setSavingPayment(false);
     if (error) {
-      console.error("Payment insert error:", error);
-      toast.error("Error al registrar pago: " + error.message);
+      console.error("Payment insert error:", JSON.stringify(error));
+      toast.error("Error al registrar pago: " + (error.message || JSON.stringify(error)));
       return;
     }
     toast.success("Pago registrado");

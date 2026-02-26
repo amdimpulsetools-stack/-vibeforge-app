@@ -346,24 +346,21 @@ export function AppointmentFormModal({
 
     // Register advance deposit if configured
     if (!error && newAppt && depositEnabled && Number(depositAmount) > 0) {
-      const depositPayload: Record<string, unknown> = {
-        appointment_id: newAppt.id,
-        amount: Number(depositAmount),
-        payment_method: depositMethod || null,
-        notes: depositRef ? `Anticipo — ${depositRef}` : "Anticipo",
-        payment_date: new Date().toISOString().split("T")[0],
-      };
-      if (patientId) {
-        depositPayload.patient_id = patientId;
-      }
-
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: payError } = await supabase
         .from("patient_payments")
-        .insert(depositPayload);
+        .insert({
+          patient_id: patientId || null,
+          appointment_id: newAppt.id,
+          amount: Number(depositAmount),
+          payment_method: depositMethod || null,
+          notes: depositRef ? `Anticipo — ${depositRef}` : "Anticipo",
+          payment_date: new Date().toISOString().split("T")[0],
+        } as any);
 
       if (payError) {
-        console.error("Deposit insert error:", payError);
-        toast.error("Cita creada, pero error al registrar anticipo: " + payError.message);
+        console.error("Deposit insert error:", JSON.stringify(payError));
+        toast.error("Cita creada, pero error al registrar anticipo: " + (payError.message || JSON.stringify(payError)));
       }
     }
 
