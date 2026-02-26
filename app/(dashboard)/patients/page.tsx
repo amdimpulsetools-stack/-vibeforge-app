@@ -50,8 +50,9 @@ export default function PatientsPage() {
   const [debtFilter, setDebtFilter] = useState(false);
   const [origenFilter, setOrigenFilter] = useState("");
 
-  // Services list for dropdown
+  // Services + Origins from lookup_values
   const [services, setServices] = useState<{ id: string; name: string }[]>([]);
+  const [originOptions, setOriginOptions] = useState<{ label: string; value: string }[]>([]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -61,6 +62,17 @@ export default function PatientsPage() {
       .eq("is_active", true)
       .order("name")
       .then(({ data }) => setServices(data ?? []));
+    supabase
+      .from("lookup_values")
+      .select("*, lookup_categories!inner(slug)")
+      .eq("lookup_categories.slug", "origin")
+      .eq("is_active", true)
+      .order("display_order")
+      .then(({ data }) =>
+        setOriginOptions(
+          (data ?? []).map((v: { label: string; value: string }) => ({ label: v.label, value: v.value }))
+        )
+      );
   }, []);
 
   const fetchPatients = useCallback(async () => {
@@ -90,13 +102,6 @@ export default function PatientsPage() {
     return Array.from(tagSet).sort();
   }, [patients]);
 
-  const availableOrigins = useMemo(() => {
-    const originSet = new Set<string>();
-    patients.forEach((p) => {
-      if (p.viene_desde) originSet.add(p.viene_desde);
-    });
-    return Array.from(originSet).sort();
-  }, [patients]);
 
   // Active filter count
   const activeFilterCount = [
@@ -334,9 +339,9 @@ export default function PatientsPage() {
                     className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                   >
                     <option value="">{t("patients.filter_origin_placeholder")}</option>
-                    {availableOrigins.map((o) => (
-                      <option key={o} value={o}>
-                        {o}
+                    {originOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
                       </option>
                     ))}
                   </select>
