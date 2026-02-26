@@ -3,16 +3,11 @@
 import { format } from "date-fns";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
-import {
-  SCHEDULER_START_HOUR,
-  SCHEDULER_END_HOUR,
-  SCHEDULER_INTERVAL,
-  APPOINTMENT_STATUS_COLORS,
-} from "@/types/admin";
+import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Lock, LockOpen, Coffee } from "lucide-react";
-import { useRef, useState, useEffect, useCallback } from "react";
-import { loadTimeIndicatorSetting } from "@/app/(dashboard)/settings/page";
+import { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { loadSchedulerConfig, generateTimeSlots } from "@/lib/scheduler-config";
 
 interface DayViewProps {
   date: Date;
@@ -25,17 +20,6 @@ interface DayViewProps {
   onUnblock?: (blockId: string) => void;
 }
 
-function generateTimeSlots() {
-  const slots: string[] = [];
-  for (let h = SCHEDULER_START_HOUR; h < SCHEDULER_END_HOUR; h++) {
-    for (let m = 0; m < 60; m += SCHEDULER_INTERVAL) {
-      slots.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
-    }
-  }
-  return slots;
-}
-
-const TIME_SLOTS = generateTimeSlots();
 
 function getAppointmentForSlot(
   appointments: AppointmentWithRelations[],
@@ -109,13 +93,20 @@ export function DayView({
   const [dragOverSlot, setDragOverSlot] = useState<{ time: string; officeId: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
+  // Scheduler config — read once from localStorage on mount
+  const [schedulerConfig] = useState(() => loadSchedulerConfig());
+  const TIME_SLOTS = useMemo(
+    () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, schedulerConfig.interval),
+    [schedulerConfig]
+  );
+
   // Current time indicator
   const [now, setNow] = useState(() => new Date());
   const [showTimeIndicator, setShowTimeIndicator] = useState(false);
 
   useEffect(() => {
-    setShowTimeIndicator(loadTimeIndicatorSetting());
-  }, []);
+    setShowTimeIndicator(schedulerConfig.timeIndicator);
+  }, [schedulerConfig.timeIndicator]);
 
   useEffect(() => {
     if (!showTimeIndicator) return;
@@ -125,12 +116,12 @@ export function DayView({
 
   const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const gridStartMinutes = SCHEDULER_START_HOUR * 60;
-  const gridEndMinutes = SCHEDULER_END_HOUR * 60;
+  const gridStartMinutes = schedulerConfig.startHour * 60;
+  const gridEndMinutes = schedulerConfig.endHour * 60;
   const timeLineVisible =
     showTimeIndicator && isToday && currentMinutes >= gridStartMinutes && currentMinutes < gridEndMinutes;
-  // Each slot is 40px, each slot is SCHEDULER_INTERVAL minutes
-  const timeLineTop = ((currentMinutes - gridStartMinutes) / SCHEDULER_INTERVAL) * 40;
+  // Each slot is 40px tall; interval defines minutes-per-slot
+  const timeLineTop = ((currentMinutes - gridStartMinutes) / schedulerConfig.interval) * 40;
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -185,7 +176,7 @@ export function DayView({
                   const endMinutes =
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
-                  const durationSlots = (endMinutes - startMinutes) / SCHEDULER_INTERVAL;
+                  const durationSlots = (endMinutes - startMinutes) / schedulerConfig.interval;
                   const doctorColor = startAppt.doctors?.color ?? "#9ca3af";
 
                   return (

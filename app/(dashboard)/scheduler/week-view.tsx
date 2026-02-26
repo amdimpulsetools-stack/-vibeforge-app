@@ -1,17 +1,14 @@
 "use client";
 
-import { format, addDays, startOfWeek, isToday, isSameDay } from "date-fns";
+import { format, addDays, startOfWeek, isToday } from "date-fns";
 import { es } from "date-fns/locale";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
-import {
-  SCHEDULER_START_HOUR,
-  SCHEDULER_END_HOUR,
-  SCHEDULER_INTERVAL,
-  APPOINTMENT_STATUS_COLORS,
-} from "@/types/admin";
+import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Coffee, Lock } from "lucide-react";
+import { useState, useMemo } from "react";
+import { loadSchedulerConfig, generateTimeSlots } from "@/lib/scheduler-config";
 
 interface WeekViewProps {
   currentDate: Date;
@@ -38,17 +35,6 @@ function getBlockForDay(
   );
 }
 
-function generateTimeSlots() {
-  const slots: string[] = [];
-  for (let h = SCHEDULER_START_HOUR; h < SCHEDULER_END_HOUR; h++) {
-    for (let m = 0; m < 60; m += SCHEDULER_INTERVAL) {
-      slots.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
-    }
-  }
-  return slots;
-}
-
-const TIME_SLOTS = generateTimeSlots();
 
 export function WeekView({
   currentDate,
@@ -61,6 +47,13 @@ export function WeekView({
   const { t } = useLanguage();
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
+
+  // Scheduler config — read once from localStorage on mount
+  const [schedulerConfig] = useState(() => loadSchedulerConfig());
+  const TIME_SLOTS = useMemo(
+    () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, schedulerConfig.interval),
+    [schedulerConfig]
+  );
 
   const getAppointmentsForDay = (date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd");
@@ -194,7 +187,7 @@ export function WeekView({
                   const endMinutes =
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
-                  const durationSlots = (endMinutes - startMinutes) / SCHEDULER_INTERVAL;
+                  const durationSlots = (endMinutes - startMinutes) / schedulerConfig.interval;
                   const statusColor =
                     APPOINTMENT_STATUS_COLORS[startAppt.status] ?? "#9ca3af";
 
