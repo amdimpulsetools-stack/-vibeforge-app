@@ -28,7 +28,7 @@ type StatusFilter = "all" | "active" | "inactive";
 
 // Extended patient type with appointment/payment data for filtering
 type PatientExtended = PatientWithTags & {
-  appointments: { service_id: string; status: string; price_snapshot: number | null; services: { id: string; name: string } }[];
+  appointments: { service_id: string; status: string; price_snapshot: number | null; origin: string | null; services: { id: string; name: string } }[];
   patient_payments: { amount: number }[];
 };
 
@@ -70,7 +70,7 @@ export default function PatientsPage() {
       .order("display_order")
       .then(({ data }) =>
         setOriginOptions(
-          (data ?? []).map((v: { label: string; value: string }) => ({ label: v.label, value: v.value }))
+          (data ?? []).map((v: { label: string }) => ({ label: v.label, value: v.label }))
         )
       );
   }, []);
@@ -79,7 +79,7 @@ export default function PatientsPage() {
     const supabase = createClient();
     let query = supabase
       .from("patients")
-      .select("*, patient_tags(*), appointments(service_id, status, price_snapshot, services(id, name)), patient_payments(amount)")
+      .select("*, patient_tags(*), appointments(service_id, status, price_snapshot, origin, services(id, name)), patient_payments(amount)")
       .order("last_name");
 
     if (statusFilter !== "all") {
@@ -167,8 +167,12 @@ export default function PatientsPage() {
         if (totalBilled - totalPaid <= 0) return false;
       }
 
-      // Origin filter
-      if (origenFilter && p.viene_desde !== origenFilter) return false;
+      // Origin filter — check patient.viene_desde, patient.origin, and appointment origins
+      if (origenFilter) {
+        const matchesPatient = p.viene_desde === origenFilter || p.origin === origenFilter;
+        const matchesAppointment = p.appointments?.some((a) => a.origin === origenFilter);
+        if (!matchesPatient && !matchesAppointment) return false;
+      }
 
       return true;
     });
