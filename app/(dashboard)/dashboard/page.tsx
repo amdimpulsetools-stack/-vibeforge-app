@@ -303,13 +303,12 @@ export default async function DashboardPage() {
   // Top treatments
   const treatmentCounts = new Map<string, { count: number; revenue: number }>();
   for (const appt of topTreatmentsRawRes.data ?? []) {
+    if (appt.status !== "completed") continue;
     const svc = appt.services as any;
     const name = svc?.name ?? "Sin servicio";
     const entry = treatmentCounts.get(name) ?? { count: 0, revenue: 0 };
     entry.count++;
-    if (appt.status === "completed") {
-      entry.revenue += appt.price_snapshot ?? Number(svc?.base_price ?? 0);
-    }
+    entry.revenue += appt.price_snapshot ?? Number(svc?.base_price ?? 0);
     treatmentCounts.set(name, entry);
   }
   const allTreatments = Array.from(treatmentCounts.entries())
