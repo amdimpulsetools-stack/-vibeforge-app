@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AdminDashboard } from "./admin-dashboard";
+import { DoctorDashboardWrapper } from "./doctor-dashboard-wrapper";
 import {
   format,
   subDays,
@@ -29,8 +30,19 @@ export default async function DashboardPage() {
 
   if (!membership) redirect("/login");
 
-  const role = membership.role as "owner" | "admin" | "member";
-  if (role === "member") redirect("/scheduler");
+  const role = membership.role as "owner" | "admin" | "receptionist" | "doctor";
+
+  // Doctor role: show personal dashboard
+  if (role === "doctor") {
+    return (
+      <DoctorDashboardWrapper
+        userName={user.user_metadata?.full_name || user.email || ""}
+      />
+    );
+  }
+
+  // Receptionist: redirect to scheduler (their primary workspace)
+  if (role === "receptionist") redirect("/scheduler");
 
   // Date ranges
   const now = new Date();

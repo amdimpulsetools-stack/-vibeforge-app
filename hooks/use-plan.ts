@@ -16,11 +16,18 @@ export interface PlanInfo {
   max_patients: number | null;
   max_appointments_per_month: number | null;
   max_storage_mb: number | null;
+  max_admins: number | null;
+  max_receptionists: number | null;
+  max_doctor_members: number | null;
+  addon_price_per_office: number | null;
+  addon_price_per_member: number | null;
+  target_audience: string | null;
   feature_reports: boolean;
   feature_export: boolean;
   feature_custom_roles: boolean;
   feature_api_access: boolean;
   feature_priority_support: boolean;
+  feature_ai_assistant: boolean;
 }
 
 export interface SubscriptionInfo {
@@ -37,6 +44,11 @@ export interface OrgUsage {
   offices: number;
   patients: number;
   appointments_this_month: number;
+  admins: number;
+  receptionists: number;
+  doctor_members: number;
+  extra_offices: number;
+  extra_members: number;
 }
 
 interface UsePlanReturn {
@@ -58,12 +70,15 @@ interface UsePlanReturn {
   refetch: () => void;
 }
 
-const RESOURCE_TO_PLAN_KEY: Record<keyof OrgUsage, keyof PlanInfo> = {
+const RESOURCE_TO_PLAN_KEY: Partial<Record<keyof OrgUsage, keyof PlanInfo>> = {
   members: "max_members",
   doctors: "max_doctors",
   offices: "max_offices",
   patients: "max_patients",
   appointments_this_month: "max_appointments_per_month",
+  admins: "max_admins",
+  receptionists: "max_receptionists",
+  doctor_members: "max_doctor_members",
 };
 
 export function usePlan(): UsePlanReturn {
@@ -121,6 +136,7 @@ export function usePlan(): UsePlanReturn {
   const getLimit = (resource: keyof OrgUsage): number | null => {
     if (!plan) return null;
     const key = RESOURCE_TO_PLAN_KEY[resource];
+    if (!key) return null;
     return (plan[key] as number | null) ?? null;
   };
 

@@ -4,12 +4,15 @@ import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { usePlan, type OrgUsage } from "@/hooks/use-plan";
 
-const RESOURCE_LABELS: Record<keyof OrgUsage, string> = {
+const RESOURCE_LABELS: Partial<Record<keyof OrgUsage, string>> = {
   members: "miembros",
   doctors: "doctores",
   offices: "consultorios",
   patients: "pacientes",
   appointments_this_month: "citas este mes",
+  admins: "administradores",
+  receptionists: "recepcionistas",
+  doctor_members: "doctores (miembros)",
 };
 
 export function PlanLimitWarner() {
@@ -33,7 +36,7 @@ export function PlanLimitWarner() {
       if (limit === null) continue;
 
       const current = usage[resource];
-      const label = RESOURCE_LABELS[resource];
+      const label = RESOURCE_LABELS[resource] ?? resource;
 
       if (isAtLimit(resource)) {
         toast.warning(`Has alcanzado el límite de ${label}`, {

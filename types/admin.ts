@@ -7,7 +7,7 @@ export type OrganizationUpdate = Database["public"]["Tables"]["organizations"]["
 
 export type OrganizationMember = Database["public"]["Tables"]["organization_members"]["Row"];
 export type OrganizationMemberInsert = Database["public"]["Tables"]["organization_members"]["Insert"];
-export type OrgRole = "owner" | "admin" | "member";
+export type OrgRole = "owner" | "admin" | "receptionist" | "doctor";
 
 // Aliases de tabla
 export type Office = Database["public"]["Tables"]["offices"]["Row"];

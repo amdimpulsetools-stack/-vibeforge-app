@@ -38,9 +38,9 @@ export async function PATCH(
   const body = await request.json();
   const { role } = body as { role: string };
 
-  if (!role || !["admin", "member"].includes(role)) {
+  if (!role || !["admin", "receptionist", "doctor"].includes(role)) {
     return NextResponse.json(
-      { error: "Invalid role. Must be admin or member" },
+      { error: "Invalid role. Must be admin, receptionist, or doctor" },
       { status: 400 }
     );
   }

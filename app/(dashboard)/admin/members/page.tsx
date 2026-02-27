@@ -28,7 +28,7 @@ type ProfessionalTitle = "doctor" | "especialista" | "licenciada" | null;
 interface Member {
   id: string;
   user_id: string;
-  role: "owner" | "admin" | "member";
+  role: "owner" | "admin" | "receptionist" | "doctor";
   professional_title: ProfessionalTitle;
   created_at: string;
   full_name: string | null;
@@ -56,14 +56,15 @@ function getMemberDisplay(
       colorClass: "bg-blue-500/10 text-blue-500",
     };
   }
-  // member role — differentiate by professional_title
+  if (member.role === "receptionist") {
+    return {
+      label: t("members.role_receptionist"),
+      icon: Headset,
+      colorClass: "bg-orange-500/10 text-orange-500",
+    };
+  }
+  // doctor role — differentiate by professional_title
   switch (member.professional_title) {
-    case "doctor":
-      return {
-        label: t("members.title_doctor"),
-        icon: Stethoscope,
-        colorClass: "bg-emerald-500/10 text-emerald-500",
-      };
     case "especialista":
       return {
         label: t("members.title_especialista"),
@@ -78,39 +79,44 @@ function getMemberDisplay(
       };
     default:
       return {
-        label: t("members.role_receptionist"),
-        icon: Headset,
-        colorClass: "bg-orange-500/10 text-orange-500",
+        label: t("members.title_doctor"),
+        icon: Stethoscope,
+        colorClass: "bg-emerald-500/10 text-emerald-500",
       };
   }
 }
 
-/** Invite-modal role options (all map to org role "member") */
+/** Invite-modal options: role + optional professional_title */
 const MEMBER_TYPE_OPTIONS: {
+  role: "doctor" | "receptionist";
   title: ProfessionalTitle;
   iconKey: "stethoscope" | "briefcase-medical" | "graduation-cap" | "headset";
   labelKey: string;
   descKey: string;
 }[] = [
   {
+    role: "doctor",
     title: "doctor",
     iconKey: "stethoscope",
     labelKey: "members.title_doctor",
     descKey: "members.title_doctor_desc",
   },
   {
+    role: "doctor",
     title: "especialista",
     iconKey: "briefcase-medical",
     labelKey: "members.title_especialista",
     descKey: "members.title_especialista_desc",
   },
   {
+    role: "doctor",
     title: "licenciada",
     iconKey: "graduation-cap",
     labelKey: "members.title_licenciada",
     descKey: "members.title_licenciada_desc",
   },
   {
+    role: "receptionist",
     title: null,
     iconKey: "headset",
     labelKey: "members.role_receptionist",
@@ -133,7 +139,7 @@ export default function MembersPage() {
   const [search, setSearch] = useState("");
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteTitle, setInviteTitle] = useState<ProfessionalTitle>("doctor");
+  const [inviteOptionIdx, setInviteOptionIdx] = useState(0);
   const [inviting, setInviting] = useState(false);
   const [changingRole, setChangingRole] = useState<string | null>(null);
 
@@ -156,13 +162,14 @@ export default function MembersPage() {
     if (!inviteEmail.trim()) return;
 
     setInviting(true);
+    const selectedOption = MEMBER_TYPE_OPTIONS[inviteOptionIdx];
     const res = await fetch("/api/members", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         email: inviteEmail.trim(),
-        role: "member",
-        professional_title: inviteTitle,
+        role: selectedOption.role,
+        professional_title: selectedOption.title,
       }),
     });
 
@@ -182,14 +189,14 @@ export default function MembersPage() {
 
     toast.success(t("members.invite_success"));
     setInviteEmail("");
-    setInviteTitle("doctor");
+    setInviteOptionIdx(0);
     setShowInvite(false);
     fetchMembers();
   };
 
   const handleChangeRole = async (
     memberId: string,
-    newRole: "admin" | "member"
+    newRole: "admin" | "receptionist" | "doctor"
   ) => {
     setChangingRole(memberId);
     const res = await fetch(`/api/members/${memberId}`, {
@@ -351,7 +358,7 @@ export default function MembersPage() {
                       onChange={(e) =>
                         handleChangeRole(
                           member.id,
-                          e.target.value as "admin" | "member"
+                          e.target.value as "admin" | "receptionist" | "doctor"
                         )
                       }
                       disabled={changingRole === member.id}
@@ -360,8 +367,11 @@ export default function MembersPage() {
                       <option value="admin">
                         {t("members.role_admin")}
                       </option>
-                      <option value="member">
-                        {t("members.role_member")}
+                      <option value="receptionist">
+                        {t("members.role_receptionist")}
+                      </option>
+                      <option value="doctor">
+                        {t("members.title_doctor")}
                       </option>
                     </select>
                   </div>
@@ -434,14 +444,14 @@ export default function MembersPage() {
                   {t("members.role")}
                 </label>
                 <div className="grid grid-cols-2 gap-3">
-                  {MEMBER_TYPE_OPTIONS.map((opt) => {
+                  {MEMBER_TYPE_OPTIONS.map((opt, idx) => {
                     const Icon = ICON_MAP[opt.iconKey];
-                    const isSelected = inviteTitle === opt.title;
+                    const isSelected = inviteOptionIdx === idx;
                     return (
                       <button
-                        key={opt.title ?? "receptionist"}
+                        key={`${opt.role}-${opt.title ?? "none"}`}
                         type="button"
-                        onClick={() => setInviteTitle(opt.title)}
+                        onClick={() => setInviteOptionIdx(idx)}
                         className={`flex items-start gap-2.5 rounded-lg border p-3 text-left transition-all ${
                           isSelected
                             ? "border-primary bg-primary/10 ring-1 ring-primary"

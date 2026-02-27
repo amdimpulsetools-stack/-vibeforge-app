@@ -4,7 +4,7 @@ import { useOrganization } from "@/components/organization-provider";
 import type { OrgRole } from "@/types/admin";
 
 interface UseOrgRoleReturn {
-  /** Current user's org role: owner | admin | member | null (loading) */
+  /** Current user's org role: owner | admin | receptionist | doctor | null (loading) */
   role: OrgRole | null;
   /** True while the org context is still loading */
   loading: boolean;
@@ -12,14 +12,19 @@ interface UseOrgRoleReturn {
   isAdmin: boolean;
   /** Shorthand: role is owner */
   isOwner: boolean;
+  /** Shorthand: role is receptionist */
+  isReceptionist: boolean;
+  /** Shorthand: role is doctor */
+  isDoctor: boolean;
   /** Returns true if user's role is at least the given minimum */
   hasMinRole: (minRole: OrgRole) => boolean;
 }
 
 const ROLE_LEVEL: Record<OrgRole, number> = {
-  member: 0,
-  admin: 1,
-  owner: 2,
+  doctor: 0,
+  receptionist: 1,
+  admin: 2,
+  owner: 3,
 };
 
 export function useOrgRole(): UseOrgRoleReturn {
@@ -35,6 +40,8 @@ export function useOrgRole(): UseOrgRoleReturn {
     loading,
     isAdmin: isOrgAdmin,
     isOwner: orgRole === "owner",
+    isReceptionist: orgRole === "receptionist",
+    isDoctor: orgRole === "doctor",
     hasMinRole,
   };
 }

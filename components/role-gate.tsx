@@ -4,7 +4,7 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import type { OrgRole } from "@/types/admin";
 
 interface RoleGateProps {
-  /** Minimum role required to see children: "admin" = admin + owner, "owner" = owner only */
+  /** Minimum role: "doctor" = all, "receptionist" = recep+admin+owner, "admin" = admin+owner, "owner" = owner only */
   minRole: OrgRole;
   /** Content to render when the user has the required role */
   children: React.ReactNode;

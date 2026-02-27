@@ -118,9 +118,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!["admin", "member"].includes(role)) {
+  if (!["admin", "receptionist", "doctor"].includes(role)) {
     return NextResponse.json(
-      { error: "Invalid role. Must be admin or member" },
+      { error: "Invalid role. Must be admin, receptionist, or doctor" },
       { status: 400 }
     );
   }
@@ -192,11 +192,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Set professional_title on the user's profile
-  if (role === "member") {
+  // Set professional_title on the user's profile for doctor/specialist roles
+  if (role === "doctor") {
     await supabase
       .from("user_profiles")
-      .update({ professional_title: professional_title || null })
+      .update({ professional_title: professional_title || "doctor" })
       .eq("id", targetUserId);
   }
 

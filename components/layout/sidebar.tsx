@@ -29,6 +29,7 @@ import {
   BarChart3,
   History,
   Settings2,
+  Crown,
   type LucideIcon,
 } from "lucide-react";
 
@@ -53,7 +54,8 @@ function isNavGroup(entry: NavEntry): entry is NavGroup {
 }
 
 const navEntries: NavEntry[] = [
-  { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard, adminOnly: true },
+  // Dashboard: visible to all roles (doctor sees personal, admin sees org-wide)
+  { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
   {
     titleKey: "nav.scheduler",
     icon: CalendarDays,
@@ -63,7 +65,8 @@ const navEntries: NavEntry[] = [
     ],
   },
   { titleKey: "nav.patients", href: "/patients", icon: Users },
-  { titleKey: "nav.reports", href: "/reports", icon: BarChart3 },
+  // Reports: admin+ only
+  { titleKey: "nav.reports", href: "/reports", icon: BarChart3, adminOnly: true },
   {
     titleKey: "nav.admin",
     icon: ShieldCheck,
@@ -78,7 +81,8 @@ const navEntries: NavEntry[] = [
     ],
   },
   { titleKey: "nav.account", href: "/account", icon: UserCircle },
-  { titleKey: "nav.settings", href: "/settings", icon: Settings },
+  // Settings: admin+ only
+  { titleKey: "nav.settings", href: "/settings", icon: Settings, adminOnly: true },
 ];
 
 export function Sidebar() {
@@ -89,6 +93,23 @@ export function Sidebar() {
   const { isAdmin } = useOrgRole();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [isFounder, setIsFounder] = useState(false);
+
+  // Check founder status once
+  useState(() => {
+    const checkFounder = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("user_profiles")
+        .select("is_founder")
+        .eq("id", user.id)
+        .single();
+      if (data?.is_founder) setIsFounder(true);
+    };
+    checkFounder();
+  });
 
   const isPathActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
@@ -237,6 +258,18 @@ export function Sidebar() {
       <nav className="relative flex-1 space-y-0.5 overflow-y-auto p-2.5">
         {navEntries.map((entry) =>
           isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)
+        )}
+
+        {/* Founder link (platform superuser) */}
+        {isFounder && (
+          <>
+            <div className="my-2 border-t border-border/30" />
+            {renderNavItem({
+              titleKey: "nav.founder",
+              href: "/founder",
+              icon: Crown,
+            })}
+          </>
         )}
       </nav>
 

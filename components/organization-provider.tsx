@@ -6,7 +6,7 @@ import { useUser } from "@/hooks/use-user";
 import type { Database } from "@/types/database";
 
 type Organization = Database["public"]["Tables"]["organizations"]["Row"];
-type OrgRole = "owner" | "admin" | "member";
+type OrgRole = "owner" | "admin" | "receptionist" | "doctor";
 
 interface OrganizationContextType {
   organizationId: string | null;
