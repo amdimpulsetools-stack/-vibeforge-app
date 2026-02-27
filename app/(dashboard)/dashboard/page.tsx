@@ -99,7 +99,7 @@ export default async function DashboardPage() {
         "id, patient_name, appointment_date, start_time, end_time, status, doctors(full_name, color), offices(name), services(name)"
       )
       .gte("appointment_date", today)
-      .in("status", ["scheduled", "confirmed"])
+      .in("status", ["scheduled", "confirmed", "completed"])
       .order("appointment_date", { ascending: true })
       .order("start_time", { ascending: true })
       .limit(3),
@@ -312,9 +312,13 @@ export default async function DashboardPage() {
     }
     treatmentCounts.set(name, entry);
   }
-  const topTreatments = Array.from(treatmentCounts.entries())
-    .map(([name, data]) => ({ name, ...data }))
+  const allTreatments = Array.from(treatmentCounts.entries())
+    .map(([name, data]) => ({ name, ...data }));
+  const topTreatmentsByCount = [...allTreatments]
     .sort((a, b) => b.count - a.count)
+    .slice(0, 3);
+  const topTreatmentsByRevenue = [...allTreatments]
+    .sort((a, b) => b.revenue - a.revenue)
     .slice(0, 3);
 
   // Heatmap data (day of week x hour)
@@ -358,7 +362,8 @@ export default async function DashboardPage() {
         today: todayFinancial,
       }}
       todayAppointments={(todayListRes.data ?? []) as any}
-      topTreatments={topTreatments}
+      topTreatmentsByCount={topTreatmentsByCount}
+      topTreatmentsByRevenue={topTreatmentsByRevenue}
       heatmapData={heatmapData}
     />
   );

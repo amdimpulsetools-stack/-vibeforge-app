@@ -77,7 +77,8 @@ interface AdminDashboardProps {
   };
   financialByPeriod: Record<"month" | "week" | "today", FinancialPeriodStats>;
   todayAppointments: UpcomingAppointment[];
-  topTreatments: TopTreatment[];
+  topTreatmentsByCount: TopTreatment[];
+  topTreatmentsByRevenue: TopTreatment[];
   heatmapData: HeatmapPoint[];
 }
 
@@ -280,23 +281,54 @@ function AppointmentHeatmap({
 // --- Top Treatments ---
 
 function TopTreatmentsTable({
-  treatments,
+  treatmentsByCount,
+  treatmentsByRevenue,
   isEs,
 }: {
-  treatments: TopTreatment[];
+  treatmentsByCount: TopTreatment[];
+  treatmentsByRevenue: TopTreatment[];
   isEs: boolean;
 }) {
-  const maxCount = Math.max(...treatments.map((t) => t.count), 1);
+  const [sortBy, setSortBy] = useState<"count" | "revenue">("count");
+  const treatments = sortBy === "count" ? treatmentsByCount : treatmentsByRevenue;
+  const maxValue = Math.max(
+    ...treatments.map((t) => (sortBy === "count" ? t.count : t.revenue)),
+    1
+  );
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card">
-      <div className="flex items-center gap-2.5 border-b border-border/40 px-6 py-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10">
-          <Stethoscope className="h-4 w-4 text-purple-400" />
+      <div className="flex items-center justify-between border-b border-border/40 px-6 py-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10">
+            <Stethoscope className="h-4 w-4 text-purple-400" />
+          </div>
+          <h3 className="text-sm font-bold">
+            {isEs ? "Top 3 servicios" : "Top 3 services"}
+          </h3>
         </div>
-        <h3 className="text-sm font-bold">
-          {isEs ? "Top 3 servicios" : "Top 3 services"}
-        </h3>
+        <div className="flex items-center rounded-lg border border-border/60 bg-muted/30 p-0.5">
+          <button
+            onClick={() => setSortBy("count")}
+            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
+              sortBy === "count"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {isEs ? "Cantidad" : "Quantity"}
+          </button>
+          <button
+            onClick={() => setSortBy("revenue")}
+            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
+              sortBy === "revenue"
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {isEs ? "Valor" : "Revenue"}
+          </button>
+        </div>
       </div>
       {treatments.length === 0 ? (
         <div className="p-8 text-center">
@@ -306,29 +338,32 @@ function TopTreatmentsTable({
         </div>
       ) : (
         <div className="divide-y divide-border/40">
-          {treatments.map((t, i) => (
-            <div key={i} className="px-6 py-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold truncate flex-1 mr-4">
-                  {t.name}
-                </span>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-xs text-muted-foreground">
-                    {t.count} {isEs ? "citas" : "appts"}
+          {treatments.map((t, i) => {
+            const barValue = sortBy === "count" ? t.count : t.revenue;
+            return (
+              <div key={i} className="px-6 py-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-semibold truncate flex-1 mr-4">
+                    {t.name}
                   </span>
-                  <span className="text-xs font-bold text-primary">
-                    {formatCurrency(t.revenue)}
-                  </span>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-xs text-muted-foreground">
+                      {t.count} {isEs ? "citas" : "appts"}
+                    </span>
+                    <span className="text-xs font-bold text-primary">
+                      {formatCurrency(t.revenue)}
+                    </span>
+                  </div>
+                </div>
+                <div className="h-1.5 rounded-full bg-muted/30 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-purple-500/50 to-purple-400/70 transition-all"
+                    style={{ width: `${(barValue / maxValue) * 100}%` }}
+                  />
                 </div>
               </div>
-              <div className="h-1.5 rounded-full bg-muted/30 overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-purple-500/50 to-purple-400/70 transition-all"
-                  style={{ width: `${(t.count / maxCount) * 100}%` }}
-                />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
@@ -342,7 +377,8 @@ export function AdminDashboard({
   stats,
   financialByPeriod,
   todayAppointments,
-  topTreatments,
+  topTreatmentsByCount,
+  topTreatmentsByRevenue,
   heatmapData,
 }: AdminDashboardProps) {
   const { t, language } = useLanguage();
@@ -570,7 +606,7 @@ export function AdminDashboard({
           </div>
 
           {/* Top 3 Services */}
-          <TopTreatmentsTable treatments={topTreatments} isEs={isEs} />
+          <TopTreatmentsTable treatmentsByCount={topTreatmentsByCount} treatmentsByRevenue={topTreatmentsByRevenue} isEs={isEs} />
         </div>
 
         {/* Right: Heatmap */}
