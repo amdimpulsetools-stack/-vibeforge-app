@@ -113,7 +113,16 @@ export function WeekView({
       </div>
 
       {/* Time grid */}
-      <div>
+      <div className="relative">
+        {/* Column separator overlay — renders above cards (z-8 > z-5) so
+            vertical lines are never hidden by overflowing appointment cards */}
+        <div className="pointer-events-none absolute inset-0 z-[8] flex">
+          <div className="w-16 shrink-0 border-r border-border" />
+          {weekDays.map((day) => (
+            <div key={day.toISOString()} className="flex-1 border-r border-border" />
+          ))}
+        </div>
+
         {TIME_SLOTS.map((time) => {
           const isHour = time.endsWith(":00");
           return (
