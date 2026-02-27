@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { usePlan } from "@/hooks/use-plan";
 import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2,
   Check,
@@ -117,7 +117,22 @@ function formatStorage(mb: number | null): string {
 
 /* ───── Page ───── */
 export default function PlansPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      }
+    >
+      <PlansContent />
+    </Suspense>
+  );
+}
+
+function PlansContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { t } = useLanguage();
   const {
     plan: currentPlan,
@@ -131,6 +146,24 @@ export default function PlansPage() {
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState<string | null>(null);
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
+
+  // Handle payment callback from Mercado Pago
+  useEffect(() => {
+    const payment = searchParams.get("payment");
+    if (payment === "success") {
+      toast.success("Pago procesado correctamente. Tu plan se activara en breve.");
+      refetch();
+      // Clean up URL
+      router.replace("/dashboard/plans", { scroll: false });
+    } else if (payment === "failure" || payment === "pending") {
+      toast.info(
+        payment === "failure"
+          ? "El pago no pudo completarse. Intenta de nuevo."
+          : "Tu pago esta pendiente de confirmacion."
+      );
+      router.replace("/dashboard/plans", { scroll: false });
+    }
+  }, [searchParams, refetch, router]);
 
   useEffect(() => {
     const fetchPlans = async () => {

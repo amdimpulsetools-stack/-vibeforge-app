@@ -64,29 +64,36 @@ export async function POST(request: Request) {
   const frequencyType = "months";
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const isLocalhost = appUrl.includes("localhost") || appUrl.includes("127.0.0.1");
 
   try {
     const preApproval = getPreApprovalClient();
 
-    const result = await preApproval.create({
-      body: {
-        reason: `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`,
-        auto_recurring: {
-          frequency: frequency,
-          frequency_type: frequencyType,
-          transaction_amount: Number(price),
-          currency_id: "PEN",
-        },
-        back_url: `${appUrl}/dashboard/plans?payment=success`,
-        payer_email: user.email || "",
-        external_reference: JSON.stringify({
-          organization_id: membership.organization_id,
-          plan_id: plan.id,
-          plan_slug: plan.slug,
-          billing_cycle,
-          user_id: user.id,
-        }),
+    const preapprovalBody: Record<string, unknown> = {
+      reason: `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`,
+      auto_recurring: {
+        frequency: frequency,
+        frequency_type: frequencyType,
+        transaction_amount: Number(price),
+        currency_id: "PEN",
       },
+      payer_email: user.email || "",
+      external_reference: JSON.stringify({
+        organization_id: membership.organization_id,
+        plan_id: plan.id,
+        plan_slug: plan.slug,
+        billing_cycle,
+        user_id: user.id,
+      }),
+    };
+
+    // Mercado Pago rejects localhost URLs in back_url
+    if (!isLocalhost) {
+      preapprovalBody.back_url = `${appUrl}/dashboard/plans?payment=success`;
+    }
+
+    const result = await preApproval.create({
+      body: preapprovalBody,
     });
 
     // Store pending subscription in DB
