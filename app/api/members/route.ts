@@ -309,6 +309,7 @@ export async function POST(request: NextRequest) {
     clinicName: orgName,
   });
 
+  let emailSent = false;
   try {
     await resend.emails.send({
       from: `${orgName} <onboarding@resend.dev>`,
@@ -316,13 +317,18 @@ export async function POST(request: NextRequest) {
       subject: `Invitación a ${orgName}`,
       html,
     });
+    emailSent = true;
   } catch (emailErr) {
     console.error("Error sending invitation email:", emailErr);
-    // Don't fail the request — invitation was created, email can be resent
   }
 
   return NextResponse.json(
-    { message: "invitation_sent", token: invitation.token },
+    {
+      message: "invitation_sent",
+      token: invitation.token,
+      registerUrl,
+      email_sent: emailSent,
+    },
     { status: 201 }
   );
 }

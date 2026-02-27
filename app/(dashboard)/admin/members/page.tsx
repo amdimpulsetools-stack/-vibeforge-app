@@ -189,7 +189,15 @@ export default function MembersPage() {
 
     // Check if it was a direct add or an invitation sent
     if (data.message === "invitation_sent") {
-      toast.success(t("members.invitation_sent"));
+      if (data.email_sent === false) {
+        // Email failed — show warning with registration link
+        toast.warning(t("members.invitation_created_no_email"), {
+          duration: 15000,
+          description: data.registerUrl,
+        });
+      } else {
+        toast.success(t("members.invitation_sent"));
+      }
     } else {
       toast.success(t("members.invite_success"));
     }
