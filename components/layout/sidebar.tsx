@@ -177,7 +177,7 @@ export function Sidebar() {
           )}
         </button>
         {!collapsed && isExpanded && (
-          <div className="ml-[18px] mt-0.5 space-y-0.5 border-l border-border/50 pl-3">
+          <div className="ml-[18px] mt-0.5 space-y-0.5 pl-3">
             {group.items.map(renderNavItem)}
           </div>
         )}
