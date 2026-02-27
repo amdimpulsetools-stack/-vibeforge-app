@@ -624,6 +624,95 @@ export interface Database {
           organization_id?: string;
         };
       };
+      email_settings: {
+        Row: {
+          id: string;
+          organization_id: string;
+          sender_name: string | null;
+          sender_email: string | null;
+          reply_to_email: string | null;
+          brand_color: string;
+          email_logo_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          sender_name?: string | null;
+          sender_email?: string | null;
+          reply_to_email?: string | null;
+          brand_color?: string;
+          email_logo_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          sender_name?: string | null;
+          sender_email?: string | null;
+          reply_to_email?: string | null;
+          brand_color?: string;
+          email_logo_url?: string | null;
+          updated_at?: string;
+        };
+      };
+      email_templates: {
+        Row: {
+          id: string;
+          organization_id: string;
+          slug: string;
+          category: string;
+          name: string;
+          description: string | null;
+          subject: string;
+          body: string;
+          is_enabled: boolean;
+          channel: "email" | "whatsapp" | "both";
+          timing_value: number | null;
+          timing_unit: string | null;
+          min_plan_slug: string;
+          sort_order: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          slug: string;
+          category: string;
+          name: string;
+          description?: string | null;
+          subject?: string;
+          body?: string;
+          is_enabled?: boolean;
+          channel?: "email" | "whatsapp" | "both";
+          timing_value?: number | null;
+          timing_unit?: string | null;
+          min_plan_slug?: string;
+          sort_order?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          slug?: string;
+          category?: string;
+          name?: string;
+          description?: string | null;
+          subject?: string;
+          body?: string;
+          is_enabled?: boolean;
+          channel?: "email" | "whatsapp" | "both";
+          timing_value?: number | null;
+          timing_unit?: string | null;
+          min_plan_slug?: string;
+          sort_order?: number;
+          updated_at?: string;
+        };
+      };
     };
   };
 }

@@ -313,18 +313,22 @@ function GeneralSettings({
       email_logo_url: settings.email_logo_url,
     };
 
-    const { error } = settings.id
-      ? await supabase
-          .from("email_settings")
-          .update(payload)
-          .eq("id", settings.id)
-      : await supabase.from("email_settings").insert(payload).select().single();
+    const { data, error } = await supabase
+      .from("email_settings")
+      .upsert(payload, { onConflict: "organization_id" })
+      .select()
+      .single();
 
     setSaving(false);
 
     if (error) {
-      toast.error(t("email.save_settings_error"));
+      console.error("Email settings save error:", error);
+      toast.error(t("email.save_settings_error") + ": " + error.message);
       return;
+    }
+
+    if (data) {
+      setSettings(data as EmailSettings);
     }
 
     toast.success(t("email.save_settings_success"));
@@ -705,6 +709,7 @@ function TemplateEditor({
     timing_unit: template.timing_unit,
   });
   const [saving, setSaving] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
 
   const handleSave = async () => {
@@ -976,17 +981,58 @@ function TemplateEditor({
             </button>
             <button
               type="button"
-              onClick={() => {
-                toast.info(
+              disabled={sendingTest}
+              onClick={async () => {
+                const testEmail = prompt(
                   language === "es"
-                    ? "Envío de prueba disponible próximamente (requiere Resend)"
-                    : "Test send coming soon (requires Resend)"
+                    ? "Ingresa el correo de destino para la prueba:"
+                    : "Enter the destination email for the test:"
                 );
+                if (!testEmail) return;
+
+                setSendingTest(true);
+                try {
+                  const res = await fetch("/api/email/send-test", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                      to: testEmail,
+                      subject: previewSubject,
+                      html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">${previewBody.replace(/\n/g, "<br/>")}</div>`,
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) {
+                    toast.error(data.error || "Error al enviar");
+                  } else {
+                    toast.success(
+                      language === "es"
+                        ? `Correo de prueba enviado a ${testEmail}`
+                        : `Test email sent to ${testEmail}`
+                    );
+                  }
+                } catch {
+                  toast.error(
+                    language === "es"
+                      ? "Error al enviar el correo de prueba"
+                      : "Error sending test email"
+                  );
+                } finally {
+                  setSendingTest(false);
+                }
               }}
-              className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <Send className="h-4 w-4" />
-              {t("email.send_test")}
+              {sendingTest ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              {sendingTest
+                ? language === "es"
+                  ? "Enviando..."
+                  : "Sending..."
+                : t("email.send_test")}
             </button>
           </div>
         )}
