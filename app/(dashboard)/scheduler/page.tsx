@@ -389,6 +389,7 @@ export default function SchedulerPage() {
               offices={offices}
               blocks={allBlocks}
               paymentTotals={paymentTotals}
+              selectedAppointmentId={selectedAppointment?.id}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
               onAppointmentDrop={handleAppointmentDrop}
@@ -401,6 +402,7 @@ export default function SchedulerPage() {
               offices={offices}
               blocks={allBlocks}
               paymentTotals={paymentTotals}
+              selectedAppointmentId={selectedAppointment?.id}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
             />

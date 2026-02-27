@@ -16,8 +16,16 @@ interface WeekViewProps {
   offices: Office[];
   blocks: ScheduleBlock[];
   paymentTotals?: Record<string, number>;
+  selectedAppointmentId?: string;
   onSlotClick: (date: Date, time: string, officeId: string) => void;
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 function getBlockForDay(
@@ -43,6 +51,7 @@ export function WeekView({
   offices,
   blocks,
   paymentTotals = {},
+  selectedAppointmentId,
   onSlotClick,
   onAppointmentClick,
 }: WeekViewProps) {
@@ -170,12 +179,14 @@ export function WeekView({
                   );
                 }
 
-                // Find appointment starting at this slot
-                const startAppt = appointments.find(
+                // Find ALL appointments starting at this slot
+                const slotAppts = appointments.filter(
                   (a) =>
                     a.appointment_date === dateStr &&
                     a.start_time.slice(0, 5) === time
                 );
+                const startAppt = slotAppts[0] ?? null;
+                const extraCount = slotAppts.length - 1;
 
                 // Check if slot is occupied by ongoing appointment
                 const occupied = appointments.some((a) => {
@@ -193,8 +204,7 @@ export function WeekView({
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
                   const durationSlots = (endMinutes - startMinutes) / schedulerConfig.interval;
-                  const statusColor =
-                    APPOINTMENT_STATUS_COLORS[startAppt.status] ?? "#9ca3af";
+                  const doctorColor = startAppt.doctors?.color ?? "#9ca3af";
 
                   return (
                     <div
@@ -207,17 +217,27 @@ export function WeekView({
                     >
                       <button
                         onClick={() => onAppointmentClick(startAppt)}
-                        className="absolute inset-x-1.5 top-0.5 z-[5] rounded bg-emerald-100/90 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 px-1 py-0.5 text-left transition-all hover:shadow-md overflow-hidden"
+                        className={cn(
+                          "absolute inset-x-1.5 top-0.5 z-[5] rounded px-1 py-0.5 text-left transition-all hover:shadow-md overflow-hidden",
+                          selectedAppointmentId === startAppt.id && "ring-2 ring-primary shadow-lg z-[6]"
+                        )}
                         style={{
                           height: `${durationSlots * 32 - 4}px`,
+                          backgroundColor: hexToRgba(doctorColor, 0.12),
+                          border: `1px solid ${hexToRgba(doctorColor, 0.3)}`,
                           borderLeftWidth: "4px",
-                          borderLeftColor: statusColor,
+                          borderLeftColor: doctorColor,
                         }}
                       >
                         <div className="flex items-center gap-0.5">
                           <p className="text-[10px] font-semibold truncate text-foreground flex-1">
                             {startAppt.start_time.slice(0, 5)} {startAppt.patient_name}
                           </p>
+                          {extraCount > 0 && (
+                            <span className="shrink-0 rounded-full bg-primary px-1 text-[8px] font-bold text-primary-foreground leading-tight">
+                              +{extraCount}
+                            </span>
+                          )}
                           {startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
                             (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (
                               <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-500" />
@@ -227,7 +247,7 @@ export function WeekView({
                           )}
                         </div>
                         {durationSlots > 1 && (
-                          <p className="text-[10px] text-emerald-600 dark:text-emerald-400 truncate font-medium">
+                          <p className="text-[10px] truncate font-medium" style={{ color: doctorColor }}>
                             {startAppt.services?.name ?? "—"}
                           </p>
                         )}

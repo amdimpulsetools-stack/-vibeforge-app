@@ -15,6 +15,7 @@ interface DayViewProps {
   offices: Office[];
   blocks: ScheduleBlock[];
   paymentTotals?: Record<string, number>;
+  selectedAppointmentId?: string;
   onSlotClick: (date: Date, time: string, officeId: string) => void;
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
   onAppointmentDrop?: (appointmentId: string, date: Date, time: string, officeId: string) => void;
@@ -85,6 +86,7 @@ export function DayView({
   offices,
   blocks,
   paymentTotals = {},
+  selectedAppointmentId,
   onSlotClick,
   onAppointmentClick,
   onAppointmentDrop,
@@ -160,7 +162,9 @@ export function DayView({
             >
               {/* Time label */}
               <div className="w-20 shrink-0 border-r border-border px-2 py-2 text-right">
-                <span className="text-xs text-muted-foreground">{time}</span>
+                {isHour && (
+                  <span className="text-xs text-muted-foreground">{time}</span>
+                )}
               </div>
 
               {/* Office columns */}
@@ -207,10 +211,12 @@ export function DayView({
                         }}
                         onDragEnd={() => { dragApptId.current = null; setDragOverSlot(null); }}
                         onClick={() => onAppointmentClick(startAppt)}
-                        className="absolute inset-x-1.5 top-0.5 z-[5] cursor-grab active:cursor-grabbing rounded-lg px-2 py-0.5 text-left transition-all hover:shadow-md overflow-hidden flex flex-col justify-center"
+                        className={cn(
+                          "absolute inset-x-1.5 top-0.5 z-[5] cursor-grab active:cursor-grabbing rounded-lg px-2 py-0.5 text-left transition-all hover:shadow-md overflow-hidden flex flex-col justify-center",
+                          selectedAppointmentId === startAppt.id && "ring-2 ring-primary shadow-lg z-[6]"
+                        )}
                         style={{
                           height: `${durationSlots * 40 - 4}px`,
-                          borderLeft: `4px solid ${doctorColor}`,
                           backgroundColor: hexToRgba(doctorColor, 0.12),
                           border: `1px solid ${hexToRgba(doctorColor, 0.3)}`,
                           borderLeftWidth: "4px",
