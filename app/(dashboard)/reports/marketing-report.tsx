@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Patient } from "@/types/admin";
 import {
@@ -9,6 +9,19 @@ import {
   TrendingUp,
   Target,
 } from "lucide-react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 interface MarketingReportProps {
   appointments: AppointmentWithRelations[];
@@ -22,23 +35,31 @@ const CHART_COLORS = [
   "#ec4899", "#06b6d4", "#f97316", "#14b8a6", "#6366f1",
 ];
 
-// ─── Tooltip ──────────────────────────────────────────────────
-interface TooltipState {
-  x: number;
-  y: number;
-  lines: string[];
+// ─── Custom Recharts Tooltip ──────────────────────────────────
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+      {label && <p className="text-xs font-semibold text-popover-foreground mb-1">{label}</p>}
+      {payload.map((entry, i) => (
+        <p key={i} className="text-xs text-popover-foreground flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-sm shrink-0" style={{ backgroundColor: entry.color }} />
+          {entry.name}: {entry.value}
+        </p>
+      ))}
+    </div>
+  );
 }
 
-function ChartTooltip({ tooltip }: { tooltip: TooltipState | null }) {
-  if (!tooltip) return null;
+function PieTooltip({ active, payload }: { active?: boolean; payload?: Array<{ name: string; value: number; payload: { name: string; value: number; percent: number } }> }) {
+  if (!active || !payload?.length) return null;
+  const entry = payload[0];
+  const pct = ((entry.payload.percent ?? 0) * 100).toFixed(0);
   return (
-    <div
-      className="pointer-events-none absolute z-50 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg"
-      style={{ left: tooltip.x, top: tooltip.y, transform: "translate(-50%, -110%)" }}
-    >
-      {tooltip.lines.map((line, i) => (
-        <p key={i} className="whitespace-nowrap text-xs text-popover-foreground">{line}</p>
-      ))}
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+      <p className="text-xs text-popover-foreground">
+        {entry.payload.name}: {entry.value} ({pct}%)
+      </p>
     </div>
   );
 }
@@ -63,207 +84,44 @@ function CardTitle({
   );
 }
 
-// ─── Native SVG donut chart with hover ────────────────────────
-function DonutChartSVG({
-  data,
-  size = 220,
-  innerRadius = 55,
-  outerRadius = 95,
-  onHover,
-  onLeave,
-}: {
-  data: { name: string; value: number }[];
-  size?: number;
-  innerRadius?: number;
+// ─── Custom pie label ─────────────────────────────────────────
+function renderCustomLabel(props: {
+  cx?: number;
+  cy?: number;
+  midAngle?: number;
   outerRadius?: number;
-  onHover?: (e: React.MouseEvent, lines: string[]) => void;
-  onLeave?: () => void;
+  name?: string;
+  percent?: number;
 }) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  if (total === 0) return null;
+  const cx = props.cx ?? 0;
+  const cy = props.cy ?? 0;
+  const midAngle = props.midAngle ?? 0;
+  const outerRadius = props.outerRadius ?? 0;
+  const name = props.name ?? "";
+  const percent = props.percent ?? 0;
 
-  const cx = size / 2;
-  const cy = size / 2;
-
-  let cumulativeAngle = -Math.PI / 2;
-
-  const slices = data.map((d, i) => {
-    const angle = (d.value / total) * 2 * Math.PI;
-    const startAngle = cumulativeAngle;
-    const endAngle = cumulativeAngle + angle;
-    cumulativeAngle = endAngle;
-
-    const x1 = cx + outerRadius * Math.cos(startAngle);
-    const y1 = cy + outerRadius * Math.sin(startAngle);
-    const x2 = cx + outerRadius * Math.cos(endAngle);
-    const y2 = cy + outerRadius * Math.sin(endAngle);
-    const x3 = cx + innerRadius * Math.cos(endAngle);
-    const y3 = cy + innerRadius * Math.sin(endAngle);
-    const x4 = cx + innerRadius * Math.cos(startAngle);
-    const y4 = cy + innerRadius * Math.sin(startAngle);
-
-    const largeArc = angle > Math.PI ? 1 : 0;
-
-    const path = [
-      `M ${x1} ${y1}`,
-      `A ${outerRadius} ${outerRadius} 0 ${largeArc} 1 ${x2} ${y2}`,
-      `L ${x3} ${y3}`,
-      `A ${innerRadius} ${innerRadius} 0 ${largeArc} 0 ${x4} ${y4}`,
-      `Z`,
-    ].join(" ");
-
-    // Label position
-    const midAngle = startAngle + angle / 2;
-    const labelR = outerRadius + 18;
-    const lx = cx + labelR * Math.cos(midAngle);
-    const ly = cy + labelR * Math.sin(midAngle);
-    const pct = ((d.value / total) * 100).toFixed(0);
-
-    return { path, color: CHART_COLORS[i % CHART_COLORS.length], lx, ly, pct, name: d.name, value: d.value, midAngle };
-  });
+  const RADIAN = Math.PI / 180;
+  const radius = outerRadius + 18;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+  const pct = (percent * 100).toFixed(0);
 
   return (
-    <svg viewBox={`0 0 ${size + 120} ${size + 20}`} className="w-full" style={{ height: size + 20 }}>
-      <g transform={`translate(60, 10)`}>
-        {slices.map((s, i) => (
-          <g key={i}>
-            <path
-              d={s.path}
-              fill={s.color}
-              stroke="hsl(var(--card))"
-              strokeWidth={1.5}
-              className="cursor-pointer"
-              onMouseEnter={(e) => onHover?.(e, [`${s.name}: ${s.value} (${s.pct}%)`])}
-              onMouseMove={(e) => onHover?.(e, [`${s.name}: ${s.value} (${s.pct}%)`])}
-              onMouseLeave={onLeave}
-            />
-            {data.length <= 6 && (
-              <text
-                x={s.lx}
-                y={s.ly}
-                textAnchor={s.midAngle > Math.PI / 2 && s.midAngle < (3 * Math.PI) / 2 ? "end" : "start"}
-                fontSize={8}
-                fill="hsl(var(--muted-foreground))"
-                dominantBaseline="middle"
-              >
-                {s.name} ({s.pct}%)
-              </text>
-            )}
-          </g>
-        ))}
-      </g>
-    </svg>
-  );
-}
-
-// ─── Reusable bar chart with hover ────────────────────────────
-function BarChartSVG({
-  data,
-  keys,
-  colors,
-  height = 240,
-  onHover,
-  onLeave,
-}: {
-  data: Record<string, string | number>[];
-  keys: string[];
-  colors: string[];
-  height?: number;
-  onHover?: (e: React.MouseEvent, lines: string[]) => void;
-  onLeave?: () => void;
-}) {
-  const paddingLeft = 40;
-  const paddingBottom = 40;
-  const paddingTop = 10;
-  const paddingRight = 10;
-  const width = 500;
-  const chartH = height - paddingTop - paddingBottom;
-  const chartW = width - paddingLeft - paddingRight;
-
-  const maxVal = Math.max(
-    1,
-    ...data.flatMap((d) => keys.map((k) => Number(d[k] ?? 0)))
-  );
-
-  const groupW = chartW / Math.max(data.length, 1);
-  const barW = Math.max(4, (groupW / (keys.length + 1)) * 0.85);
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }}>
-      {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
-        const y = paddingTop + chartH * (1 - frac);
-        return (
-          <g key={frac}>
-            <line x1={paddingLeft} x2={paddingLeft + chartW} y1={y} y2={y} stroke="hsl(var(--border))" strokeWidth={0.5} strokeDasharray="3 3" />
-            <text x={paddingLeft - 4} y={y + 4} textAnchor="end" fontSize={9} fill="hsl(var(--muted-foreground))">{Math.round(maxVal * frac)}</text>
-          </g>
-        );
-      })}
-      {data.map((d, gi) => {
-        const groupX = paddingLeft + gi * groupW + groupW / 2;
-        const totalBarW = keys.length * barW + (keys.length - 1) * 2;
-        const startX = groupX - totalBarW / 2;
-        return (
-          <g key={gi}>
-            {keys.map((k, ki) => {
-              const val = Number(d[k] ?? 0);
-              const bh = (val / maxVal) * chartH;
-              const bx = startX + ki * (barW + 2);
-              const by = paddingTop + chartH - bh;
-              return (
-                <rect
-                  key={k}
-                  x={bx}
-                  y={by}
-                  width={barW}
-                  height={bh}
-                  fill={colors[ki]}
-                  rx={2}
-                  className="cursor-pointer"
-                  onMouseEnter={(e) => onHover?.(e, [`${String(d.name)}: ${k} = ${val}`])}
-                  onMouseMove={(e) => onHover?.(e, [`${String(d.name)}: ${k} = ${val}`])}
-                  onMouseLeave={onLeave}
-                />
-              );
-            })}
-            <text x={groupX} y={paddingTop + chartH + 14} textAnchor="middle" fontSize={9} fill="hsl(var(--muted-foreground))">
-              {String(d.name)}
-            </text>
-          </g>
-        );
-      })}
-      <line x1={paddingLeft} x2={paddingLeft + chartW} y1={paddingTop + chartH} y2={paddingTop + chartH} stroke="hsl(var(--border))" strokeWidth={1} />
-    </svg>
-  );
-}
-
-function ChartLegend({ items }: { items: { label: string; color: string }[] }) {
-  return (
-    <div className="flex flex-wrap gap-3 mt-2">
-      {items.map((item) => (
-        <div key={item.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: item.color }} />
-          {item.label}
-        </div>
-      ))}
-    </div>
+    <text
+      x={x}
+      y={y}
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+      fontSize={10}
+      fill="hsl(var(--muted-foreground))"
+    >
+      {name} ({pct}%)
+    </text>
   );
 }
 
 export function MarketingReport({ appointments, patients, dateFrom, dateTo }: MarketingReportProps) {
   const { t } = useLanguage();
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
-
-  const handleHover = (e: React.MouseEvent, lines: string[]) => {
-    const rect = (e.currentTarget as SVGElement).closest(".relative")?.getBoundingClientRect();
-    if (!rect) return;
-    setTooltip({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-      lines,
-    });
-  };
-  const handleLeave = () => setTooltip(null);
 
   // Origin distribution (from appointments)
   const originData = useMemo(() => {
@@ -388,51 +246,83 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
       {/* Charts row */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Origin donut chart */}
-        <div className="relative rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.origin_distribution")}</h3>
           {originData.length > 0 ? (
-            <>
-              <DonutChartSVG
-                data={originData}
-                onHover={handleHover}
-                onLeave={handleLeave}
-              />
-              <ChartLegend
-                items={originData.map((d, i) => ({
-                  label: `${d.name} (${d.value})`,
-                  color: CHART_COLORS[i % CHART_COLORS.length],
-                }))}
-              />
-            </>
+            <ResponsiveContainer width="100%" height={280}>
+              <PieChart>
+                <Pie
+                  data={originData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={55}
+                  outerRadius={95}
+                  paddingAngle={2}
+                  dataKey="value"
+                  nameKey="name"
+                  label={originData.length <= 6 ? renderCustomLabel : undefined}
+                  animationDuration={800}
+                  animationEasing="ease-out"
+                >
+                  {originData.map((_entry, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={CHART_COLORS[index % CHART_COLORS.length]}
+                      stroke="hsl(var(--card))"
+                      strokeWidth={1.5}
+                    />
+                  ))}
+                </Pie>
+                <Tooltip content={<PieTooltip />} />
+                <Legend
+                  iconType="square"
+                  iconSize={10}
+                  wrapperStyle={{ fontSize: 12 }}
+                  formatter={(value: string) => {
+                    const item = originData.find((d) => d.name === value);
+                    return item ? `${value} (${item.value})` : value;
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">{t("common.no_results")}</p>
           )}
-          <ChartTooltip tooltip={tooltip} />
         </div>
 
         {/* Conversion by origin bar chart */}
-        <div className="relative rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.conversion_by_origin")}</h3>
           {conversionByOrigin.length > 0 ? (
-            <>
-              <BarChartSVG
-                data={conversionByOrigin}
-                keys={["total", "completed"]}
-                colors={["#3b82f6", "#22c55e"]}
-                onHover={handleHover}
-                onLeave={handleLeave}
-              />
-              <ChartLegend
-                items={[
-                  { label: "Agendados", color: "#3b82f6" },
-                  { label: "Atendidos", color: "#22c55e" },
-                ]}
-              />
-            </>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={conversionByOrigin} barCategoryGap="20%">
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "hsl(var(--border))" }}
+                  tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "..." : v}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={false} />
+                <Legend
+                  iconType="square"
+                  iconSize={10}
+                  wrapperStyle={{ fontSize: 12 }}
+                />
+                <Bar dataKey="total" name="Agendados" fill="#3b82f6" radius={[4, 4, 0, 0]} animationDuration={800} animationEasing="ease-out" />
+                <Bar dataKey="completed" name="Atendidos" fill="#22c55e" radius={[4, 4, 0, 0]} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
+              </BarChart>
+            </ResponsiveContainer>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">{t("common.no_results")}</p>
           )}
-          <ChartTooltip tooltip={tooltip} />
         </div>
       </div>
 
