@@ -46,11 +46,10 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, id: data?.id });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Email send error:", err);
-    return NextResponse.json(
-      { error: "Error al enviar el correo" },
-      { status: 500 }
-    );
+    const message =
+      err instanceof Error ? err.message : "Error al enviar el correo";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

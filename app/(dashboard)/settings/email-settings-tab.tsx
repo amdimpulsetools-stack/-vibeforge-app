@@ -1011,11 +1011,13 @@ function TemplateEditor({
                         : `Test email sent to ${testEmail}`
                     );
                   }
-                } catch {
+                } catch (err) {
+                  const msg =
+                    err instanceof Error ? err.message : "Error desconocido";
                   toast.error(
-                    language === "es"
-                      ? "Error al enviar el correo de prueba"
-                      : "Error sending test email"
+                    (language === "es"
+                      ? "Error al enviar: "
+                      : "Send error: ") + msg
                   );
                 } finally {
                   setSendingTest(false);
