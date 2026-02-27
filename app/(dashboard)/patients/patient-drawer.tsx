@@ -462,9 +462,9 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               </div>
             </div>
 
-            {/* Fecha de Nacimiento */}
+            {/* Fecha de nacimiento */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium">Fecha de Nacimiento</label>
+              <label className="text-xs font-medium">Fecha de nacimiento</label>
               <input
                 type="date"
                 value={infoBirthDate}

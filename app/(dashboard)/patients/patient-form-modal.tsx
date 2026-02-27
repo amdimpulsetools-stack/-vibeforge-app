@@ -169,9 +169,9 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
             </div>
           </div>
 
-          {/* Fecha de Nacimiento */}
+          {/* Fecha de nacimiento */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">Fecha de Nacimiento</label>
+            <label className="text-sm font-medium">Fecha de nacimiento</label>
             <input
               type="date"
               {...register("birth_date")}
