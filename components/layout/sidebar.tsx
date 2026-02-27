@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
@@ -96,7 +96,7 @@ export function Sidebar() {
   const [isFounder, setIsFounder] = useState(false);
 
   // Check founder status once
-  useState(() => {
+  useEffect(() => {
     const checkFounder = async () => {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
@@ -109,7 +109,7 @@ export function Sidebar() {
       if (data?.is_founder) setIsFounder(true);
     };
     checkFounder();
-  });
+  }, []);
 
   const isPathActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
