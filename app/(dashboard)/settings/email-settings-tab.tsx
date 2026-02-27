@@ -193,6 +193,8 @@ export default function EmailSettingsTab() {
       <TemplateEditor
         template={editingTemplate}
         isLocked={isTemplateLocked(editingTemplate)}
+        emailSettings={settings}
+        clinicName={organization?.name ?? null}
         onBack={() => setEditingTemplate(null)}
         onSave={(updated) => {
           setTemplates((prev) =>
@@ -689,11 +691,15 @@ function TemplateRow({
 function TemplateEditor({
   template,
   isLocked,
+  emailSettings,
+  clinicName,
   onBack,
   onSave,
 }: {
   template: EmailTemplate;
   isLocked: boolean;
+  emailSettings: EmailSettings | null;
+  clinicName: string | null;
   onBack: () => void;
   onSave: (updated: EmailTemplate) => void;
 }) {
@@ -998,7 +1004,10 @@ function TemplateEditor({
                     body: JSON.stringify({
                       to: testEmail,
                       subject: previewSubject,
-                      html: `<div style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:20px;">${previewBody.replace(/\n/g, "<br/>")}</div>`,
+                      body: previewBody,
+                      brand_color: emailSettings?.brand_color || "#10b981",
+                      logo_url: emailSettings?.email_logo_url,
+                      clinic_name: clinicName,
                     }),
                   });
                   const data = await res.json();
