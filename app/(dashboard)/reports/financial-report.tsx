@@ -299,7 +299,7 @@ export function FinancialReport({
                   axisLine={false}
                   allowDecimals={false}
                 />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }} />
+                <Tooltip content={<CustomTooltip />} cursor={false} />
                 <Legend
                   iconType="square"
                   iconSize={10}
@@ -334,7 +334,7 @@ export function FinancialReport({
                   tickLine={false}
                   axisLine={false}
                 />
-                <Tooltip content={<RevenueTooltip />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }} />
+                <Tooltip content={<RevenueTooltip />} cursor={false} />
                 <Legend
                   iconType="square"
                   iconSize={10}

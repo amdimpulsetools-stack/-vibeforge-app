@@ -386,7 +386,7 @@ function TopTreatmentsTable({
                 axisLine={false}
                 width={120}
               />
-              <Tooltip content={<TreatmentTooltip isEs={isEs} sortBy={sortBy} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }} />
+              <Tooltip content={<TreatmentTooltip isEs={isEs} sortBy={sortBy} />} cursor={false} />
               <Bar dataKey="value" radius={[0, 6, 6, 0]} animationDuration={800} animationEasing="ease-out">
                 {chartData.map((_, i) => (
                   <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />

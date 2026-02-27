@@ -279,7 +279,7 @@ export function OperationalReport({
                 axisLine={false}
                 allowDecimals={false}
               />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }} />
+              <Tooltip content={<CustomTooltip />} cursor={false} />
               <Legend
                 iconType="square"
                 iconSize={10}
