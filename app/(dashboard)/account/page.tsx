@@ -420,14 +420,9 @@ export default function AccountPage() {
                 >
                   {plan.name}
                 </span>
-                {plan.price_monthly > 0 && (
-                  <span className="text-sm text-muted-foreground">
-                    ${plan.price_monthly}/mes
-                  </span>
-                )}
-                {plan.price_monthly === 0 && (
-                  <span className="text-sm text-muted-foreground">Gratis</span>
-                )}
+                <span className="text-sm text-muted-foreground">
+                  ${plan.price_monthly}/mes
+                </span>
               </div>
 
               {/* Days remaining */}

@@ -152,24 +152,35 @@ export default function PlansPage() {
 
     setSelecting(planId);
 
-    const res = await fetch("/api/plans", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan_id: planId }),
-    });
+    try {
+      // Use Mercado Pago checkout for plan changes
+      const res = await fetch("/api/mercadopago/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan_id: planId, billing_cycle: "monthly" }),
+      });
 
-    if (!res.ok) {
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Error al cambiar de plan");
+        setSelecting(null);
+        return;
+      }
+
       const data = await res.json();
-      toast.error(data.error || "Error al cambiar de plan");
-      setSelecting(null);
-      return;
-    }
 
-    toast.success(
-      `Plan cambiado a ${target.name}${target.slug !== "starter" ? " — 14 dias de prueba" : ""}`
-    );
-    refetch();
-    setSelecting(null);
+      if (data.init_point) {
+        toast.success(`Redirigiendo a Mercado Pago para Plan ${target.name}...`);
+        window.location.href = data.init_point;
+      } else {
+        toast.success(`Plan cambiado a ${target.name}`);
+        refetch();
+        setSelecting(null);
+      }
+    } catch {
+      toast.error("Error de conexion al procesar el pago");
+      setSelecting(null);
+    }
   };
 
   const isCurrentPlan = (planSlug: string) => currentPlan?.slug === planSlug;
@@ -233,9 +244,7 @@ export default function PlansPage() {
                 : subscription.status === "active"
                   ? "Suscripcion activa"
                   : subscription.status}
-              {currentPlan.price_monthly > 0
-                ? ` — $${currentPlan.price_monthly}/mes`
-                : " — Gratis"}
+              {` — $${currentPlan.price_monthly}/mes`}
             </p>
           </div>
           {usage && (
@@ -320,11 +329,9 @@ export default function PlansPage() {
                 {/* Price */}
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-4xl font-extrabold tracking-tight">
-                    {plan.price_monthly === 0 ? "Gratis" : `$${plan.price_monthly}`}
+                    ${plan.price_monthly}
                   </span>
-                  {plan.price_monthly > 0 && (
-                    <span className="text-sm text-muted-foreground font-medium">/mes</span>
-                  )}
+                  <span className="text-sm text-muted-foreground font-medium">/mes</span>
                 </div>
                 {plan.price_yearly && plan.price_monthly > 0 && (
                   <p className="mt-1 text-xs text-muted-foreground">
@@ -459,7 +466,7 @@ export default function PlansPage() {
         <div className="space-y-1">
           <p className="text-sm font-medium">Sin compromisos</p>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Los planes de pago incluyen 14 dias de prueba gratuita. No se requiere tarjeta de credito.
+            Pagos procesados de forma segura con Mercado Pago.
             Puedes cambiar o cancelar tu plan en cualquier momento sin penalizaciones.
           </p>
         </div>
