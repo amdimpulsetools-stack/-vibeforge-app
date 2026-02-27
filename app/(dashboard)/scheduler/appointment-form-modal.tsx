@@ -92,6 +92,7 @@ export function AppointmentFormModal({
   // Patient extra fields (used when auto-creating patient)
   const [docType, setDocType] = useState<"DNI" | "CE" | "Pasaporte">("DNI");
   const [patientEmail, setPatientEmail] = useState("");
+  const [patientBirthDate, setPatientBirthDate] = useState("");
 
   // Anticipo / reserva anticipada
   const [depositEnabled, setDepositEnabled] = useState(false);
@@ -225,6 +226,7 @@ export function AppointmentFormModal({
       setValue("patient_name", `${data.first_name} ${data.last_name}`);
       setValue("patient_phone", data.phone ?? "");
       setPatientEmail(data.email ?? "");
+      setPatientBirthDate(data.birth_date ?? "");
       if (data.document_type) setDocType(data.document_type as "DNI" | "CE" | "Pasaporte");
     } else {
       setFoundPatient(null);
@@ -305,6 +307,7 @@ export function AppointmentFormModal({
           last_name: lastName,
           phone: values.patient_phone || null,
           email: patientEmail || null,
+          birth_date: patientBirthDate || null,
           organization_id: organizationId,
         })
         .select()
@@ -323,6 +326,14 @@ export function AppointmentFormModal({
       } else if (newPatient) {
         patientId = newPatient.id;
       }
+    }
+
+    // Update birth_date for found patient if they didn't have one
+    if (patientId && patientBirthDate && foundPatient && !foundPatient.birth_date) {
+      await supabase
+        .from("patients")
+        .update({ birth_date: patientBirthDate })
+        .eq("id", patientId);
     }
 
     // Capture service price at appointment creation time
@@ -489,16 +500,27 @@ export function AppointmentFormModal({
             </div>
           </div>
 
-          {/* Email */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium">Email</label>
-            <input
-              type="email"
-              value={patientEmail}
-              onChange={(e) => setPatientEmail(e.target.value)}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-              placeholder="paciente@email.com"
-            />
+          {/* Email & Fecha de nacimiento */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Email</label>
+              <input
+                type="email"
+                value={patientEmail}
+                onChange={(e) => setPatientEmail(e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                placeholder="paciente@email.com"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Fecha de nacimiento</label>
+              <input
+                type="date"
+                value={patientBirthDate}
+                onChange={(e) => setPatientBirthDate(e.target.value)}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              />
+            </div>
           </div>
 
           {/* Hidden patient_id */}
