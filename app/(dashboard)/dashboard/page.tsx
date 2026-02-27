@@ -192,7 +192,7 @@ export default async function DashboardPage() {
   // ── Helpers ────────────────────────────────────────────────────
   const computeRevenue = (appts: any[]) =>
     appts.reduce((sum, a) => {
-      const price = a.price_snapshot ?? Number((a.services as any)?.base_price ?? 0);
+      const price = a.price_snapshot || Number((a.services as any)?.base_price ?? 0);
       return sum + price;
     }, 0);
 
@@ -308,7 +308,7 @@ export default async function DashboardPage() {
     const name = svc?.name ?? "Sin servicio";
     const entry = treatmentCounts.get(name) ?? { count: 0, revenue: 0 };
     entry.count++;
-    entry.revenue += appt.price_snapshot ?? Number(svc?.base_price ?? 0);
+    entry.revenue += appt.price_snapshot || Number(svc?.base_price ?? 0);
     treatmentCounts.set(name, entry);
   }
   const allTreatments = Array.from(treatmentCounts.entries())
