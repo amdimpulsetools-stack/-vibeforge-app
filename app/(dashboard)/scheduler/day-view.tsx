@@ -217,10 +217,8 @@ export function DayView({
                         )}
                         style={{
                           height: `${durationSlots * 40 - 4}px`,
-                          backgroundColor: hexToRgba(doctorColor, 0.12),
-                          border: `1px solid ${hexToRgba(doctorColor, 0.3)}`,
-                          borderLeftWidth: "4px",
-                          borderLeftColor: doctorColor,
+                          backgroundColor: hexToRgba(doctorColor, 0.15),
+                          borderLeft: `4px solid ${doctorColor}`,
                         }}
                       >
                         <div className="flex items-center gap-1">
