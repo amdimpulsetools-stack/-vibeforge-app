@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { generalLimiter } from "@/lib/rate-limit";
 
 // GET /api/members — list organization members
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -10,6 +11,15 @@ export async function GET() {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Rate limit: 30 requests per minute per user
+  const rl = generalLimiter(user.id);
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+    );
   }
 
   // Get user's org
@@ -83,6 +93,15 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Rate limit: 30 requests per minute per user
+  const rlPost = generalLimiter(user.id);
+  if (!rlPost.success) {
+    return NextResponse.json(
+      { error: "Too many requests" },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rlPost.reset - Date.now()) / 1000)) } }
+    );
   }
 
   // Verify caller is admin/owner

@@ -1,5 +1,5 @@
 -- =============================================
--- Migration 015: Member management helpers
+-- Migration 015b: Member management helpers
 -- Adds email to user_profiles + RPC to find user by email
 -- =============================================
 

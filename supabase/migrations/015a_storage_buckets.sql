@@ -1,5 +1,5 @@
 -- =============================================
--- MIGRATION 015: Storage Buckets for Avatars & Org Assets
+-- MIGRATION 015a: Storage Buckets for Avatars & Org Assets
 -- Creates public buckets for user avatars and organization logos
 -- =============================================
 

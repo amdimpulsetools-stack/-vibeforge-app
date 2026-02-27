@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getPreApprovalClient } from "@/lib/mercadopago/client";
 import { NextResponse } from "next/server";
+import { paymentLimiter } from "@/lib/rate-limit";
 
 /**
  * GET /api/mercadopago/subscription
@@ -15,6 +16,15 @@ export async function GET() {
 
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Rate limit: 5 requests per minute per user
+  const rlGet = paymentLimiter(user.id);
+  if (!rlGet.success) {
+    return NextResponse.json(
+      { error: "too_many_requests" },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rlGet.reset - Date.now()) / 1000)) } }
+    );
   }
 
   const { data: membership } = await supabase
@@ -83,6 +93,15 @@ export async function PUT(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Rate limit: 5 requests per minute per user
+  const rlPut = paymentLimiter(user.id);
+  if (!rlPut.success) {
+    return NextResponse.json(
+      { error: "too_many_requests" },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rlPut.reset - Date.now()) / 1000)) } }
+    );
   }
 
   const { addon_type, quantity } = await request.json();

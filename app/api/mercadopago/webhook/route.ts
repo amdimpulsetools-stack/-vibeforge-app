@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createServiceClient, type SupabaseClient } from "@supabase/supabase-js";
 import { getPreApprovalClient, getPaymentClient } from "@/lib/mercadopago/client";
 import crypto from "crypto";
+import { webhookLimiter } from "@/lib/rate-limit";
 
 /**
  * POST /api/mercadopago/webhook
@@ -12,6 +13,16 @@ import crypto from "crypto";
  * - payment: Individual payment events
  */
 export async function POST(request: Request) {
+  // Rate limit webhooks by IP (60/min — MP can burst on retries)
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "webhook";
+  const rl = webhookLimiter(ip);
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "too_many_requests" },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+    );
+  }
+
   // Use service role client for webhook operations (bypasses RLS)
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

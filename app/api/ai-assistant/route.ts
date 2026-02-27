@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { aiLimiter } from "@/lib/rate-limit";
 
 const SCHEMA_CONTEXT = `
 Eres un generador de SQL para una clínica médica. Tu ÚNICA tarea es generar la consulta SQL necesaria para responder la pregunta del usuario.
@@ -154,6 +155,18 @@ export async function POST(req: NextRequest) {
 
     if (!message || typeof message !== "string" || message.trim().length === 0) {
       return NextResponse.json({ error: "Mensaje vacío" }, { status: 400 });
+    }
+
+    // Rate limit by user (requires auth via Supabase cookie)
+    const supabaseAuth = await createClient();
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    const rateLimitKey = user?.id ?? req.headers.get("x-forwarded-for") ?? "anonymous";
+    const rl = aiLimiter(rateLimitKey);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Demasiadas solicitudes. Intenta de nuevo en un momento." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+      );
     }
 
     // Block write intents immediately

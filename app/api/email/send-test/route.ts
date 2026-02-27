@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { Resend } from "resend";
 import { buildEmailHtml } from "@/lib/email-template";
+import { emailLimiter } from "@/lib/rate-limit";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -15,6 +16,15 @@ export async function POST(req: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  // Rate limit: 3 emails per minute per user
+  const rl = emailLimiter(user.id);
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "Demasiados correos enviados. Espera un momento." },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+    );
   }
 
   const body = await req.json();

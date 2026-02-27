@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getPreApprovalClient } from "@/lib/mercadopago/client";
 import { NextResponse } from "next/server";
+import { paymentLimiter } from "@/lib/rate-limit";
 
 /**
  * POST /api/mercadopago/checkout
@@ -19,6 +20,15 @@ export async function POST(request: Request) {
 
   if (!user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  // Rate limit: 5 checkout attempts per minute per user
+  const rl = paymentLimiter(user.id);
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "too_many_requests" },
+      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+    );
   }
 
   const { plan_id, billing_cycle = "monthly" } = await request.json();
