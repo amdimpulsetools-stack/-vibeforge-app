@@ -207,7 +207,7 @@ export function WeekView({
                     >
                       <button
                         onClick={() => onAppointmentClick(startAppt)}
-                        className="absolute inset-x-0.5 top-0.5 z-[5] rounded bg-emerald-100/90 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 px-1 py-0.5 text-left transition-all hover:shadow-md overflow-hidden"
+                        className="absolute inset-x-1.5 top-0.5 z-[5] rounded bg-emerald-100/90 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/50 px-1 py-0.5 text-left transition-all hover:shadow-md overflow-hidden"
                         style={{
                           height: `${durationSlots * 32 - 4}px`,
                           borderLeftWidth: "4px",

@@ -207,7 +207,7 @@ export function DayView({
                         }}
                         onDragEnd={() => { dragApptId.current = null; setDragOverSlot(null); }}
                         onClick={() => onAppointmentClick(startAppt)}
-                        className="absolute inset-x-0.5 top-0.5 z-[5] cursor-grab active:cursor-grabbing rounded-lg px-2 py-0.5 text-left transition-all hover:shadow-md overflow-hidden flex flex-col justify-center"
+                        className="absolute inset-x-1.5 top-0.5 z-[5] cursor-grab active:cursor-grabbing rounded-lg px-2 py-0.5 text-left transition-all hover:shadow-md overflow-hidden flex flex-col justify-center"
                         style={{
                           height: `${durationSlots * 40 - 4}px`,
                           borderLeft: `4px solid ${doctorColor}`,
