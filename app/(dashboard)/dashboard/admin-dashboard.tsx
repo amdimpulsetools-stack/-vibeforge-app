@@ -23,6 +23,16 @@ import {
   Gauge,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
 
 // --- Types ---
 
@@ -278,7 +288,27 @@ function AppointmentHeatmap({
   );
 }
 
+// --- Custom tooltip for Top Treatments chart ---
+
+function TreatmentTooltip({ active, payload, isEs, sortBy }: { active?: boolean; payload?: Array<{ payload: TopTreatment }>; isEs: boolean; sortBy: string }) {
+  if (!active || !payload?.length) return null;
+  const data = payload[0].payload;
+  return (
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+      <p className="text-xs font-semibold text-popover-foreground mb-1">{data.name}</p>
+      <p className="text-xs text-popover-foreground">
+        {data.count} {isEs ? "citas" : "appts"}
+      </p>
+      <p className="text-xs text-emerald-400 font-medium">
+        {formatCurrency(data.revenue)}
+      </p>
+    </div>
+  );
+}
+
 // --- Top Treatments ---
+
+const BAR_COLORS = ["#a855f7", "#8b5cf6", "#7c3aed"];
 
 function TopTreatmentsTable({
   treatmentsByCount,
@@ -291,10 +321,11 @@ function TopTreatmentsTable({
 }) {
   const [sortBy, setSortBy] = useState<"count" | "revenue">("count");
   const treatments = sortBy === "count" ? treatmentsByCount : treatmentsByRevenue;
-  const maxValue = Math.max(
-    ...treatments.map((t) => (sortBy === "count" ? t.count : t.revenue)),
-    1
-  );
+
+  const chartData = treatments.map((t) => ({
+    ...t,
+    value: sortBy === "count" ? t.count : t.revenue,
+  }));
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card">
@@ -337,33 +368,32 @@ function TopTreatmentsTable({
           </p>
         </div>
       ) : (
-        <div className="divide-y divide-border/40">
-          {treatments.map((t, i) => {
-            const barValue = sortBy === "count" ? t.count : t.revenue;
-            return (
-              <div key={i} className="px-6 py-4">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold truncate flex-1 mr-4">
-                    {t.name}
-                  </span>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-muted-foreground">
-                      {t.count} {isEs ? "citas" : "appts"}
-                    </span>
-                    <span className="text-xs font-bold text-primary">
-                      {formatCurrency(t.revenue)}
-                    </span>
-                  </div>
-                </div>
-                <div className="h-1.5 rounded-full bg-muted/30 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-purple-500/50 to-purple-400/70 transition-all"
-                    style={{ width: `${(barValue / maxValue) * 100}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+        <div className="px-4 py-4">
+          <ResponsiveContainer width="100%" height={180}>
+            <BarChart data={chartData} layout="vertical" barCategoryGap="25%">
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+              <XAxis
+                type="number"
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                type="category"
+                dataKey="name"
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                tickLine={false}
+                axisLine={false}
+                width={120}
+              />
+              <Tooltip content={<TreatmentTooltip isEs={isEs} sortBy={sortBy} />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }} />
+              <Bar dataKey="value" radius={[0, 6, 6, 0]} animationDuration={800} animationEasing="ease-out">
+                {chartData.map((_, i) => (
+                  <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       )}
     </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations } from "@/types/admin";
 import {
@@ -9,6 +9,18 @@ import {
   Star,
   Calendar,
 } from "lucide-react";
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 interface OperationalReportProps {
   appointments: AppointmentWithRelations[];
@@ -16,22 +28,17 @@ interface OperationalReportProps {
   dateTo: string;
 }
 
-// ─── Tooltip ──────────────────────────────────────────────────
-interface TooltipState {
-  x: number;
-  y: number;
-  lines: string[];
-}
-
-function ChartTooltip({ tooltip }: { tooltip: TooltipState | null }) {
-  if (!tooltip) return null;
+// ─── Custom Recharts Tooltip ──────────────────────────────────
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ name: string; value: number; color: string }>; label?: string }) {
+  if (!active || !payload?.length) return null;
   return (
-    <div
-      className="pointer-events-none absolute z-50 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg"
-      style={{ left: tooltip.x, top: tooltip.y, transform: "translate(-50%, -110%)" }}
-    >
-      {tooltip.lines.map((line, i) => (
-        <p key={i} className="whitespace-nowrap text-xs text-popover-foreground">{line}</p>
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+      <p className="text-xs font-semibold text-popover-foreground mb-1">{label}</p>
+      {payload.map((entry, i) => (
+        <p key={i} className="text-xs text-popover-foreground flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-sm shrink-0" style={{ backgroundColor: entry.color }} />
+          {entry.name}: {entry.value}
+        </p>
       ))}
     </div>
   );
@@ -55,194 +62,6 @@ function CardTitle({
   );
 }
 
-// Native SVG area chart with hover
-function AreaChartSVG({
-  data,
-  keys,
-  colors,
-  height = 240,
-  onHover,
-  onLeave,
-}: {
-  data: Record<string, string | number>[];
-  keys: string[];
-  colors: string[];
-  height?: number;
-  onHover?: (e: React.MouseEvent, lines: string[]) => void;
-  onLeave?: () => void;
-}) {
-  const paddingLeft = 40;
-  const paddingBottom = 40;
-  const paddingTop = 10;
-  const paddingRight = 10;
-  const width = 500;
-  const chartH = height - paddingTop - paddingBottom;
-  const chartW = width - paddingLeft - paddingRight;
-
-  const maxVal = Math.max(
-    1,
-    ...data.flatMap((d) => keys.map((k) => Number(d[k] ?? 0)))
-  );
-
-  const stepX = data.length > 1 ? chartW / (data.length - 1) : chartW;
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }}>
-      {/* Y gridlines */}
-      {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
-        const y = paddingTop + chartH * (1 - frac);
-        return (
-          <g key={frac}>
-            <line x1={paddingLeft} x2={paddingLeft + chartW} y1={y} y2={y} stroke="hsl(var(--border))" strokeWidth={0.5} strokeDasharray="3 3" />
-            <text x={paddingLeft - 4} y={y + 4} textAnchor="end" fontSize={9} fill="hsl(var(--muted-foreground))">{Math.round(maxVal * frac)}</text>
-          </g>
-        );
-      })}
-
-      {/* Areas + lines */}
-      {keys.map((k, ki) => {
-        const points = data.map((d, i) => {
-          const x = paddingLeft + (data.length > 1 ? i * stepX : chartW / 2);
-          const val = Number(d[k] ?? 0);
-          const y = paddingTop + chartH - (val / maxVal) * chartH;
-          return { x, y, val };
-        });
-
-        const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-        const areaPath = `${linePath} L ${points[points.length - 1].x} ${paddingTop + chartH} L ${points[0].x} ${paddingTop + chartH} Z`;
-
-        return (
-          <g key={k}>
-            <path d={areaPath} fill={colors[ki]} fillOpacity={0.15} />
-            <path d={linePath} fill="none" stroke={colors[ki]} strokeWidth={2} />
-            {points.map((p, i) => (
-              <circle
-                key={i}
-                cx={p.x}
-                cy={p.y}
-                r={3}
-                fill={colors[ki]}
-                className="cursor-pointer"
-                onMouseEnter={(e) => onHover?.(e, [`${String(data[i].date ?? data[i].name ?? "")}: ${k} = ${p.val}`])}
-                onMouseMove={(e) => onHover?.(e, [`${String(data[i].date ?? data[i].name ?? "")}: ${k} = ${p.val}`])}
-                onMouseLeave={onLeave}
-              />
-            ))}
-          </g>
-        );
-      })}
-
-      {/* X labels */}
-      {data.map((d, i) => {
-        const x = paddingLeft + (data.length > 1 ? i * stepX : chartW / 2);
-        const showLabel = data.length <= 15 || i % Math.ceil(data.length / 12) === 0;
-        if (!showLabel) return null;
-        return (
-          <text key={i} x={x} y={paddingTop + chartH + 14} textAnchor="middle" fontSize={8} fill="hsl(var(--muted-foreground))">
-            {String(d.date ?? d.name ?? "")}
-          </text>
-        );
-      })}
-
-      {/* X axis */}
-      <line x1={paddingLeft} x2={paddingLeft + chartW} y1={paddingTop + chartH} y2={paddingTop + chartH} stroke="hsl(var(--border))" strokeWidth={1} />
-    </svg>
-  );
-}
-
-// Native SVG bar chart with hover
-function BarChartSVG({
-  data,
-  keys,
-  colors,
-  height = 240,
-  onHover,
-  onLeave,
-}: {
-  data: Record<string, string | number>[];
-  keys: string[];
-  colors: string[];
-  height?: number;
-  onHover?: (e: React.MouseEvent, lines: string[]) => void;
-  onLeave?: () => void;
-}) {
-  const paddingLeft = 50;
-  const paddingBottom = 40;
-  const paddingTop = 10;
-  const paddingRight = 10;
-  const width = 500;
-  const chartH = height - paddingTop - paddingBottom;
-  const chartW = width - paddingLeft - paddingRight;
-
-  const maxVal = Math.max(
-    1,
-    ...data.flatMap((d) => keys.map((k) => Number(d[k] ?? 0)))
-  );
-
-  const groupW = chartW / Math.max(data.length, 1);
-  const barW = Math.max(4, (groupW / (keys.length + 1)) * 0.85);
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full" style={{ height }}>
-      {[0, 0.25, 0.5, 0.75, 1].map((frac) => {
-        const y = paddingTop + chartH * (1 - frac);
-        return (
-          <g key={frac}>
-            <line x1={paddingLeft} x2={paddingLeft + chartW} y1={y} y2={y} stroke="hsl(var(--border))" strokeWidth={0.5} strokeDasharray="3 3" />
-            <text x={paddingLeft - 4} y={y + 4} textAnchor="end" fontSize={9} fill="hsl(var(--muted-foreground))">{Math.round(maxVal * frac)}</text>
-          </g>
-        );
-      })}
-      {data.map((d, gi) => {
-        const groupX = paddingLeft + gi * groupW + groupW / 2;
-        const totalBarW = keys.length * barW + (keys.length - 1) * 2;
-        const startX = groupX - totalBarW / 2;
-        return (
-          <g key={gi}>
-            {keys.map((k, ki) => {
-              const val = Number(d[k] ?? 0);
-              const bh = (val / maxVal) * chartH;
-              const bx = startX + ki * (barW + 2);
-              const by = paddingTop + chartH - bh;
-              return (
-                <rect
-                  key={k}
-                  x={bx}
-                  y={by}
-                  width={barW}
-                  height={bh}
-                  fill={colors[ki]}
-                  rx={2}
-                  className="cursor-pointer"
-                  onMouseEnter={(e) => onHover?.(e, [`${String(d.hour ?? d.name ?? "")}: ${k} = ${val}`])}
-                  onMouseMove={(e) => onHover?.(e, [`${String(d.hour ?? d.name ?? "")}: ${k} = ${val}`])}
-                  onMouseLeave={onLeave}
-                />
-              );
-            })}
-            <text x={groupX} y={paddingTop + chartH + 14} textAnchor="middle" fontSize={8} fill="hsl(var(--muted-foreground))">
-              {String(d.hour ?? d.name ?? "")}
-            </text>
-          </g>
-        );
-      })}
-      <line x1={paddingLeft} x2={paddingLeft + chartW} y1={paddingTop + chartH} y2={paddingTop + chartH} stroke="hsl(var(--border))" strokeWidth={1} />
-    </svg>
-  );
-}
-
-function ChartLegend({ items }: { items: { label: string; color: string }[] }) {
-  return (
-    <div className="flex flex-wrap gap-3 mt-2">
-      {items.map((item) => (
-        <div key={item.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="h-2.5 w-2.5 rounded-sm shrink-0" style={{ backgroundColor: item.color }} />
-          {item.label}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 export function OperationalReport({
   appointments,
@@ -250,18 +69,6 @@ export function OperationalReport({
   dateTo,
 }: OperationalReportProps) {
   const { t } = useLanguage();
-  const [tooltip, setTooltip] = useState<TooltipState | null>(null);
-
-  const handleHover = (e: React.MouseEvent, lines: string[]) => {
-    const rect = (e.currentTarget as SVGElement).closest(".relative")?.getBoundingClientRect();
-    if (!rect) return;
-    setTooltip({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-      lines,
-    });
-  };
-  const handleLeave = () => setTooltip(null);
 
   const activeAppointments = useMemo(
     () => appointments.filter((a) => a.status !== "cancelled"),
@@ -401,43 +208,86 @@ export function OperationalReport({
       {/* Charts */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Daily trend area chart */}
-        <div className="relative rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.daily_trend")}</h3>
           {dailyTrend.length > 0 ? (
-            <>
-              <AreaChartSVG
-                data={dailyTrend}
-                keys={["completed", "scheduled", "cancelled"]}
-                colors={["#22c55e", "#3b82f6", "#ef4444"]}
-                onHover={handleHover}
-                onLeave={handleLeave}
-              />
-              <ChartLegend
-                items={[
-                  { label: "Atendidos", color: "#22c55e" },
-                  { label: "Programados", color: "#3b82f6" },
-                  { label: "Cancelados", color: "#ef4444" },
-                ]}
-              />
-            </>
+            <ResponsiveContainer width="100%" height={260}>
+              <AreaChart data={dailyTrend}>
+                <defs>
+                  <linearGradient id="gradCompleted" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gradScheduled" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="gradCancelled" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={{ stroke: "hsl(var(--border))" }}
+                  interval="preserveStartEnd"
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend
+                  iconType="square"
+                  iconSize={10}
+                  wrapperStyle={{ fontSize: 12 }}
+                  formatter={(value: string) => {
+                    const labels: Record<string, string> = { completed: "Atendidos", scheduled: "Programados", cancelled: "Cancelados" };
+                    return labels[value] ?? value;
+                  }}
+                />
+                <Area type="monotone" dataKey="completed" name="Atendidos" stroke="#22c55e" fill="url(#gradCompleted)" strokeWidth={2} animationDuration={1000} animationEasing="ease-out" dot={{ r: 3, fill: "#22c55e" }} activeDot={{ r: 5 }} />
+                <Area type="monotone" dataKey="scheduled" name="Programados" stroke="#3b82f6" fill="url(#gradScheduled)" strokeWidth={2} animationDuration={1000} animationEasing="ease-out" animationBegin={300} dot={{ r: 3, fill: "#3b82f6" }} activeDot={{ r: 5 }} />
+                <Area type="monotone" dataKey="cancelled" name="Cancelados" stroke="#ef4444" fill="url(#gradCancelled)" strokeWidth={2} animationDuration={1000} animationEasing="ease-out" animationBegin={600} dot={{ r: 3, fill: "#ef4444" }} activeDot={{ r: 5 }} />
+              </AreaChart>
+            </ResponsiveContainer>
           ) : (
             <p className="py-10 text-center text-sm text-muted-foreground">{t("common.no_results")}</p>
           )}
-          <ChartTooltip tooltip={tooltip} />
         </div>
 
         {/* Peak hours */}
-        <div className="relative rounded-xl border border-border bg-card p-4">
+        <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.peak_hours")}</h3>
-          <BarChartSVG
-            data={peakHoursData}
-            keys={["citas"]}
-            colors={["#8b5cf6"]}
-            onHover={handleHover}
-            onLeave={handleLeave}
-          />
-          <ChartLegend items={[{ label: "Citas", color: "#8b5cf6" }]} />
-          <ChartTooltip tooltip={tooltip} />
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={peakHoursData} barCategoryGap="15%">
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis
+                dataKey="hour"
+                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                tickLine={false}
+                axisLine={{ stroke: "hsl(var(--border))" }}
+              />
+              <YAxis
+                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
+              <Tooltip content={<CustomTooltip />} cursor={{ fill: "hsl(var(--muted))", opacity: 0.3 }} />
+              <Legend
+                iconType="square"
+                iconSize={10}
+                wrapperStyle={{ fontSize: 12 }}
+              />
+              <Bar dataKey="citas" name="Citas" fill="#8b5cf6" radius={[4, 4, 0, 0]} animationDuration={1000} animationEasing="ease-out" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
