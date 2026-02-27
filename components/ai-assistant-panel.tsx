@@ -126,7 +126,7 @@ function MessageBubble({ message }: { message: Message }) {
           <p className="text-xs text-muted-foreground italic">No se encontraron resultados.</p>
         )}
 
-        <span className="text-[10px] text-muted-foreground/50">
+        <span className="text-[10px] text-muted-foreground/50" suppressHydrationWarning>
           {message.timestamp.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}
         </span>
       </div>
