@@ -4,22 +4,25 @@
 -- =============================================
 
 -- 1) Update test prices
--- Plan Independiente: $1/mes
+-- Plan Independiente: S/ 3.35/mes
 UPDATE plans SET
-  price_monthly = 1,
-  price_yearly = 10
+  price_monthly = 3.35,
+  price_yearly = 33.50,
+  currency = 'PEN'
 WHERE slug = 'starter';
 
--- Plan Centro Médico: $2/mes
+-- Plan Centro Médico: S/ 6.70/mes
 UPDATE plans SET
-  price_monthly = 2,
-  price_yearly = 20
+  price_monthly = 6.70,
+  price_yearly = 67.00,
+  currency = 'PEN'
 WHERE slug = 'professional';
 
--- Plan Clínica: $3/mes
+-- Plan Clínica: S/ 10.05/mes
 UPDATE plans SET
-  price_monthly = 3,
-  price_yearly = 30
+  price_monthly = 10.05,
+  price_yearly = 100.50,
+  currency = 'PEN'
 WHERE slug = 'enterprise';
 
 -- 2) Add Mercado Pago specific fields to organization_subscriptions
@@ -36,7 +39,7 @@ CREATE TABLE IF NOT EXISTS payment_history (
   subscription_id UUID REFERENCES organization_subscriptions(id) ON DELETE SET NULL,
   mp_payment_id TEXT,
   amount NUMERIC(10,2) NOT NULL,
-  currency TEXT DEFAULT 'ARS',
+  currency TEXT DEFAULT 'PEN',
   status TEXT NOT NULL CHECK (status IN ('pending', 'approved', 'rejected', 'refunded', 'cancelled')),
   payment_type TEXT CHECK (payment_type IN ('subscription', 'addon', 'one_time')),
   description TEXT,

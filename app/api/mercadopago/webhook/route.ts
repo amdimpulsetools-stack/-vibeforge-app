@@ -187,7 +187,7 @@ async function handlePaymentEvent(
     subscription_id: sub?.id || null,
     mp_payment_id: paymentId,
     amount: mpPayment.transaction_amount || 0,
-    currency: mpPayment.currency_id || "ARS",
+    currency: mpPayment.currency_id || "PEN",
     status: paymentStatus,
     payment_type: "subscription",
     description: mpPayment.description || `Pago plan - ${mpPayment.status}`,

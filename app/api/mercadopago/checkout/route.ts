@@ -75,7 +75,7 @@ export async function POST(request: Request) {
           frequency: frequency,
           frequency_type: frequencyType,
           transaction_amount: Number(price),
-          currency_id: "ARS",
+          currency_id: "PEN",
         },
         back_url: `${appUrl}/dashboard/plans?payment=success`,
         payer_email: user.email || "",

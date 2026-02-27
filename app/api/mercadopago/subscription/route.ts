@@ -170,7 +170,7 @@ export async function PUT(request: Request) {
         body: {
           auto_recurring: {
             transaction_amount: newTotal,
-            currency_id: "ARS",
+            currency_id: "PEN",
           },
         },
       });
