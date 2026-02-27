@@ -170,8 +170,7 @@
 
 /* Active nav item glow */
 .nav-active-glow {
-  box-shadow: inset 3px 0 0 oklch(0.72 0.19 165),
-              0 0 20px -6px oklch(0.72 0.19 165 / 0.2);
+  box-shadow: 0 0 20px -6px oklch(0.72 0.19 165 / 0.2);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
