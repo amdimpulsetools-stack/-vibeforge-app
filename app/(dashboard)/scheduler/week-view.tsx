@@ -6,7 +6,7 @@ import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
-import { Plus, Coffee, Lock } from "lucide-react";
+import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { loadSchedulerConfig, generateTimeSlots, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
@@ -15,6 +15,7 @@ interface WeekViewProps {
   appointments: AppointmentWithRelations[];
   offices: Office[];
   blocks: ScheduleBlock[];
+  paymentTotals?: Record<string, number>;
   onSlotClick: (date: Date, time: string, officeId: string) => void;
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
 }
@@ -41,6 +42,7 @@ export function WeekView({
   appointments,
   offices,
   blocks,
+  paymentTotals = {},
   onSlotClick,
   onAppointmentClick,
 }: WeekViewProps) {
@@ -212,9 +214,18 @@ export function WeekView({
                           borderLeftColor: statusColor,
                         }}
                       >
-                        <p className="text-[10px] font-semibold truncate text-foreground">
-                          {startAppt.start_time.slice(0, 5)} {startAppt.patient_name}
-                        </p>
+                        <div className="flex items-center gap-0.5">
+                          <p className="text-[10px] font-semibold truncate text-foreground flex-1">
+                            {startAppt.start_time.slice(0, 5)} {startAppt.patient_name}
+                          </p>
+                          {startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
+                            (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (
+                              <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-500" />
+                            ) : (paymentTotals[startAppt.id] ?? 0) > 0 ? (
+                              <CircleDollarSign className="h-2.5 w-2.5 shrink-0 text-amber-500" />
+                            ) : null
+                          )}
+                        </div>
                         {durationSlots > 1 && (
                           <p className="text-[10px] text-emerald-600 dark:text-emerald-400 truncate font-medium">
                             {startAppt.services?.name ?? "—"}

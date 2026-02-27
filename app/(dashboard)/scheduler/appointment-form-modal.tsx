@@ -89,6 +89,10 @@ export function AppointmentFormModal({
   const [foundPatient, setFoundPatient] = useState<Patient | null>(null);
   const [patientSearched, setPatientSearched] = useState(false);
 
+  // Patient extra fields (used when auto-creating patient)
+  const [docType, setDocType] = useState<"DNI" | "CE" | "Pasaporte">("DNI");
+  const [patientEmail, setPatientEmail] = useState("");
+
   // Anticipo / reserva anticipada
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [depositAmount, setDepositAmount] = useState("");
@@ -111,7 +115,7 @@ export function AppointmentFormModal({
       doctor_id: "",
       office_id: defaults?.officeId ?? "",
       service_id: "",
-      appointment_date: defaults?.date ?? "",
+      appointment_date: defaults?.date ?? new Date().toISOString().split("T")[0],
       start_time: defaults?.startTime ?? "",
       status: "scheduled",
       origin: "",
@@ -220,6 +224,8 @@ export function AppointmentFormModal({
       setValue("patient_id", data.id);
       setValue("patient_name", `${data.first_name} ${data.last_name}`);
       setValue("patient_phone", data.phone ?? "");
+      setPatientEmail(data.email ?? "");
+      if (data.document_type) setDocType(data.document_type as "DNI" | "CE" | "Pasaporte");
     } else {
       setFoundPatient(null);
       setValue("patient_id", "");
@@ -294,9 +300,11 @@ export function AppointmentFormModal({
         .from("patients")
         .insert({
           dni: values.patient_dni.trim(),
+          document_type: docType,
           first_name: firstName,
           last_name: lastName,
           phone: values.patient_phone || null,
+          email: patientEmail || null,
           organization_id: organizationId,
         })
         .select()
@@ -403,10 +411,19 @@ export function AppointmentFormModal({
             </div>
           )}
 
-          {/* DNI Search */}
+          {/* DNI Search with document type */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">{t("scheduler.patient_dni")}</label>
             <div className="flex gap-2">
+              <select
+                value={docType}
+                onChange={(e) => setDocType(e.target.value as "DNI" | "CE" | "Pasaporte")}
+                className="w-[100px] shrink-0 rounded-lg border border-input bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              >
+                <option value="DNI">DNI</option>
+                <option value="CE">CE</option>
+                <option value="Pasaporte">Pasaporte</option>
+              </select>
               <input
                 {...register("patient_dni")}
                 className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
@@ -470,6 +487,18 @@ export function AppointmentFormModal({
                 placeholder="+51 999 999 999"
               />
             </div>
+          </div>
+
+          {/* Email */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Email</label>
+            <input
+              type="email"
+              value={patientEmail}
+              onChange={(e) => setPatientEmail(e.target.value)}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              placeholder="paciente@email.com"
+            />
           </div>
 
           {/* Hidden patient_id */}

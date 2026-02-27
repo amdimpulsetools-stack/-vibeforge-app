@@ -32,6 +32,7 @@ import {
   Smartphone,
   Link2,
   ChevronDown,
+  UserX,
 } from "lucide-react";
 
 const PERU_PAYMENT_METHODS = [
@@ -55,11 +56,12 @@ interface AppointmentSidebarProps {
   lookupResponsibles?: LookupValue[];
 }
 
-const STATUS_ICONS = {
+const STATUS_ICONS: Record<string, typeof AlertCircle> = {
   scheduled: AlertCircle,
   confirmed: CheckCircle2,
   completed: CheckCircle2,
   cancelled: XCircle,
+  no_show: UserX,
 };
 
 export function AppointmentSidebar({
@@ -263,7 +265,7 @@ export function AppointmentSidebar({
         <h3 className="text-sm font-semibold">{t("scheduler.details")}</h3>
         <div className="flex items-center gap-1">
           {/* Edit toggle */}
-          {appointment.status !== "cancelled" && !editing && (
+          {appointment.status !== "cancelled" && appointment.status !== "no_show" && !editing && (
             <button
               onClick={handleStartEdit}
               className="rounded-lg p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
@@ -518,6 +520,16 @@ export function AppointmentSidebar({
                   >
                     {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                     {t("scheduler.complete")}
+                  </button>
+                )}
+                {(appointment.status === "scheduled" || appointment.status === "confirmed") && (
+                  <button
+                    onClick={() => updateStatus("no_show")}
+                    disabled={updating}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-600 hover:bg-amber-500/20 disabled:opacity-50 transition-colors"
+                  >
+                    {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserX className="h-4 w-4" />}
+                    No asistió
                   </button>
                 )}
                 <button

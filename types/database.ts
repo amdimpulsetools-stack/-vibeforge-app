@@ -369,7 +369,7 @@ export interface Database {
           appointment_date: string;
           start_time: string;
           end_time: string;
-          status: "scheduled" | "confirmed" | "completed" | "cancelled";
+          status: "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show";
           origin: string | null;
           payment_method: string | null;
           responsible: string | null;
@@ -392,7 +392,7 @@ export interface Database {
           appointment_date: string;
           start_time: string;
           end_time: string;
-          status?: "scheduled" | "confirmed" | "completed" | "cancelled";
+          status?: "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show";
           origin?: string | null;
           payment_method?: string | null;
           responsible?: string | null;
@@ -415,7 +415,7 @@ export interface Database {
           appointment_date?: string;
           start_time?: string;
           end_time?: string;
-          status?: "scheduled" | "confirmed" | "completed" | "cancelled";
+          status?: "scheduled" | "confirmed" | "completed" | "cancelled" | "no_show";
           origin?: string | null;
           payment_method?: string | null;
           responsible?: string | null;
@@ -431,10 +431,16 @@ export interface Database {
         Row: {
           id: string;
           dni: string | null;
+          document_type: "DNI" | "CE" | "Pasaporte";
           first_name: string;
           last_name: string;
           phone: string | null;
           email: string | null;
+          birth_date: string | null;
+          departamento: string | null;
+          distrito: string | null;
+          is_foreigner: boolean;
+          nationality: string | null;
           status: "active" | "inactive";
           origin: string | null;
           adicional_1: string | null;
@@ -448,10 +454,16 @@ export interface Database {
         Insert: {
           id?: string;
           dni?: string | null;
+          document_type?: "DNI" | "CE" | "Pasaporte";
           first_name: string;
           last_name: string;
           phone?: string | null;
           email?: string | null;
+          birth_date?: string | null;
+          departamento?: string | null;
+          distrito?: string | null;
+          is_foreigner?: boolean;
+          nationality?: string | null;
           status?: "active" | "inactive";
           origin?: string | null;
           adicional_1?: string | null;
@@ -465,10 +477,16 @@ export interface Database {
         Update: {
           id?: string;
           dni?: string | null;
+          document_type?: "DNI" | "CE" | "Pasaporte";
           first_name?: string;
           last_name?: string;
           phone?: string | null;
           email?: string | null;
+          birth_date?: string | null;
+          departamento?: string | null;
+          distrito?: string | null;
+          is_foreigner?: boolean;
+          nationality?: string | null;
           status?: "active" | "inactive";
           origin?: string | null;
           adicional_1?: string | null;

@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
+import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
 
 interface PatientDrawerProps {
   patient: PatientWithTags;
@@ -67,8 +68,14 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [infoFirstName, setInfoFirstName] = useState(patient.first_name ?? "");
   const [infoLastName, setInfoLastName] = useState(patient.last_name ?? "");
   const [infoDni, setInfoDni] = useState(patient.dni ?? "");
+  const [infoDocType, setInfoDocType] = useState(patient.document_type ?? "DNI");
   const [infoPhone, setInfoPhone] = useState(patient.phone ?? "");
   const [infoEmail, setInfoEmail] = useState(patient.email ?? "");
+  const [infoBirthDate, setInfoBirthDate] = useState(patient.birth_date ?? "");
+  const [infoDepartamento, setInfoDepartamento] = useState(patient.departamento ?? "");
+  const [infoDistrito, setInfoDistrito] = useState(patient.distrito ?? "");
+  const [infoIsForeigner, setInfoIsForeigner] = useState(patient.is_foreigner ?? false);
+  const [infoNationality, setInfoNationality] = useState(patient.nationality ?? "");
   const [infoNotes, setInfoNotes] = useState(patient.notes ?? "");
   const [infoStatus, setInfoStatus] = useState(patient.status ?? "active");
   const [savingInfo, setSavingInfo] = useState(false);
@@ -118,8 +125,14 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     setInfoFirstName(patient.first_name ?? "");
     setInfoLastName(patient.last_name ?? "");
     setInfoDni(patient.dni ?? "");
+    setInfoDocType(patient.document_type ?? "DNI");
     setInfoPhone(patient.phone ?? "");
     setInfoEmail(patient.email ?? "");
+    setInfoBirthDate(patient.birth_date ?? "");
+    setInfoDepartamento(patient.departamento ?? "");
+    setInfoDistrito(patient.distrito ?? "");
+    setInfoIsForeigner(patient.is_foreigner ?? false);
+    setInfoNationality(patient.nationality ?? "");
     setInfoNotes(patient.notes ?? "");
     setInfoStatus(patient.status ?? "active");
     setAdicional1(patient.adicional_1 ?? "");
@@ -149,8 +162,14 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         first_name: infoFirstName.trim(),
         last_name: infoLastName.trim(),
         dni: infoDni.trim() || null,
+        document_type: infoDocType,
         phone: infoPhone.trim() || null,
         email: infoEmail.trim() || null,
+        birth_date: infoBirthDate || null,
+        departamento: infoIsForeigner ? null : (infoDepartamento || null),
+        distrito: infoIsForeigner ? null : (infoDistrito || null),
+        is_foreigner: infoIsForeigner,
+        nationality: infoIsForeigner ? (infoNationality || null) : null,
         notes: infoNotes.trim() || null,
         status: infoStatus,
       })
@@ -267,7 +286,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                 {patient.first_name} {patient.last_name}
               </h3>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                {patient.dni && <span>DNI: {patient.dni}</span>}
+                {patient.dni && <span>{patient.document_type ?? "DNI"}: {patient.dni}</span>}
                 <span
                   className="rounded-full px-2 py-0.5 text-[10px] font-medium"
                   style={{
@@ -421,13 +440,36 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               </div>
             </div>
 
+            {/* Document type + DNI */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium">{t("patients.dni")}</label>
+              <div className="flex gap-2">
+                <select
+                  value={infoDocType}
+                  onChange={(e) => setInfoDocType(e.target.value as "DNI" | "CE" | "Pasaporte")}
+                  className="w-[100px] shrink-0 rounded-lg border border-input bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                >
+                  <option value="DNI">DNI</option>
+                  <option value="CE">CE</option>
+                  <option value="Pasaporte">Pasaporte</option>
+                </select>
+                <input
+                  value={infoDni}
+                  onChange={(e) => setInfoDni(e.target.value)}
+                  className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  placeholder="12345678"
+                />
+              </div>
+            </div>
+
+            {/* Fecha de Nacimiento */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Fecha de Nacimiento</label>
               <input
-                value={infoDni}
-                onChange={(e) => setInfoDni(e.target.value)}
+                type="date"
+                value={infoBirthDate}
+                onChange={(e) => setInfoBirthDate(e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-                placeholder="12345678"
               />
             </div>
 
@@ -453,11 +495,78 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               </div>
             </div>
 
+            {/* Extranjero checkbox */}
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="drawer_is_foreigner"
+                checked={infoIsForeigner}
+                onChange={(e) => setInfoIsForeigner(e.target.checked)}
+                className="h-4 w-4 rounded border-input text-primary focus:ring-primary/50"
+              />
+              <label htmlFor="drawer_is_foreigner" className="text-xs font-medium cursor-pointer">
+                Extranjero
+              </label>
+            </div>
+
+            {/* Foreigner: Country select */}
+            {infoIsForeigner && (
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium">País de origen</label>
+                <select
+                  value={infoNationality}
+                  onChange={(e) => setInfoNationality(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                >
+                  <option value="">-- Seleccionar país --</option>
+                  {COUNTRIES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Departamento & Distrito (only for non-foreigners) */}
+            {!infoIsForeigner && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">Departamento</label>
+                  <select
+                    value={infoDepartamento}
+                    onChange={(e) => {
+                      setInfoDepartamento(e.target.value);
+                      setInfoDistrito("");
+                    }}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  >
+                    <option value="">-- Departamento --</option>
+                    {PERU_DEPARTAMENTO_LIST.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium">Distrito</label>
+                  <select
+                    value={infoDistrito}
+                    onChange={(e) => setInfoDistrito(e.target.value)}
+                    disabled={!infoDepartamento}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <option value="">-- Distrito --</option>
+                    {(PERU_DEPARTAMENTOS[infoDepartamento] ?? []).map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label className="text-xs font-medium">Estado</label>
               <select
                 value={infoStatus}
-                onChange={(e) => setInfoStatus(e.target.value)}
+                onChange={(e) => setInfoStatus(e.target.value as "active" | "inactive")}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               >
                 <option value="active">{t("patients.active")}</option>
@@ -510,6 +619,8 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     ? CheckCircle2
                     : appt.status === "cancelled"
                     ? XCircle
+                    : appt.status === "no_show"
+                    ? AlertCircle
                     : AlertCircle;
 
                 return (

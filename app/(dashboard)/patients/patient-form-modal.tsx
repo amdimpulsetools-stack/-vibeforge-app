@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { patientSchema, type PatientFormData } from "@/lib/validations/patient";
 import { X, Loader2 } from "lucide-react";
 import { useOrganization } from "@/components/organization-provider";
+import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
 
 interface PatientFormModalProps {
   onClose: () => void;
@@ -23,15 +24,23 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     formState: { errors },
   } = useForm<PatientFormData>({
     resolver: zodResolver(patientSchema),
     defaultValues: {
       dni: "",
+      document_type: "DNI",
       first_name: "",
       last_name: "",
       phone: "",
       email: "",
+      birth_date: "",
+      departamento: "",
+      distrito: "",
+      is_foreigner: false,
+      nationality: "",
       status: "active",
       origin: "",
       adicional_1: "",
@@ -41,6 +50,17 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
     },
   });
 
+  const watchedDepartamento = watch("departamento");
+  const watchedIsForeigner = watch("is_foreigner");
+
+  const distritos = useMemo(() => {
+    if (!watchedDepartamento) return [];
+    return PERU_DEPARTAMENTOS[watchedDepartamento] ?? [];
+  }, [watchedDepartamento]);
+
+  const inputClass =
+    "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors";
+
   const onSubmit = async (values: PatientFormData) => {
     setSaving(true);
     const supabase = createClient();
@@ -48,10 +68,16 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
     const { error } = await supabase.from("patients").insert({
       organization_id: organizationId,
       dni: values.dni || null,
+      document_type: values.document_type,
       first_name: values.first_name,
       last_name: values.last_name,
       phone: values.phone || null,
       email: values.email || null,
+      birth_date: values.birth_date || null,
+      departamento: values.is_foreigner ? null : (values.departamento || null),
+      distrito: values.is_foreigner ? null : (values.distrito || null),
+      is_foreigner: values.is_foreigner,
+      nationality: values.is_foreigner ? (values.nationality || null) : null,
       status: values.status,
       origin: values.origin || null,
       adicional_1: values.adicional_1 || null,
@@ -94,14 +120,24 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
           onSubmit={handleSubmit(onSubmit)}
           className="max-h-[70vh] overflow-y-auto px-6 py-4 space-y-4"
         >
-          {/* DNI */}
+          {/* Document type + DNI */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">{t("patients.dni")}</label>
-            <input
-              {...register("dni")}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-              placeholder="12345678"
-            />
+            <div className="flex gap-2">
+              <select
+                {...register("document_type")}
+                className="w-[110px] shrink-0 rounded-lg border border-input bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              >
+                <option value="DNI">DNI</option>
+                <option value="CE">CE</option>
+                <option value="Pasaporte">Pasaporte</option>
+              </select>
+              <input
+                {...register("dni")}
+                className={`flex-1 ${inputClass.replace("w-full ", "")}`}
+                placeholder="12345678"
+              />
+            </div>
             {errors.dni && (
               <p className="text-xs text-destructive">{errors.dni.message}</p>
             )}
@@ -113,7 +149,7 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
               <label className="text-sm font-medium">{t("patients.first_name")} *</label>
               <input
                 {...register("first_name")}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={inputClass}
                 placeholder="Juan"
               />
               {errors.first_name && (
@@ -124,7 +160,7 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
               <label className="text-sm font-medium">{t("patients.last_name")} *</label>
               <input
                 {...register("last_name")}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={inputClass}
                 placeholder="Pérez"
               />
               {errors.last_name && (
@@ -133,13 +169,23 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
             </div>
           </div>
 
+          {/* Fecha de Nacimiento */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Fecha de Nacimiento</label>
+            <input
+              type="date"
+              {...register("birth_date")}
+              className={inputClass}
+            />
+          </div>
+
           {/* Phone & Email */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t("patients.phone")}</label>
               <input
                 {...register("phone")}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={inputClass}
                 placeholder="+51 999 999 999"
               />
             </div>
@@ -148,7 +194,7 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
               <input
                 {...register("email")}
                 type="email"
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={inputClass}
                 placeholder="paciente@email.com"
               />
               {errors.email && (
@@ -157,13 +203,77 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
             </div>
           </div>
 
-          {/* Origin & Notes */}
+          {/* Extranjero checkbox */}
+          <div className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              id="is_foreigner"
+              {...register("is_foreigner")}
+              className="h-4 w-4 rounded border-input text-primary focus:ring-primary/50"
+            />
+            <label htmlFor="is_foreigner" className="text-sm font-medium cursor-pointer">
+              Extranjero
+            </label>
+          </div>
+
+          {/* Foreigner: Country select */}
+          {watchedIsForeigner && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">País de origen</label>
+              <select
+                {...register("nationality")}
+                className={inputClass}
+              >
+                <option value="">-- Seleccionar país --</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Departamento & Distrito (only for non-foreigners) */}
+          {!watchedIsForeigner && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Departamento</label>
+                <select
+                  {...register("departamento")}
+                  onChange={(e) => {
+                    setValue("departamento", e.target.value);
+                    setValue("distrito", "");
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">-- Departamento --</option>
+                  {PERU_DEPARTAMENTO_LIST.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Distrito</label>
+                <select
+                  {...register("distrito")}
+                  disabled={!watchedDepartamento}
+                  className={`${inputClass} disabled:opacity-60 disabled:cursor-not-allowed`}
+                >
+                  <option value="">-- Distrito --</option>
+                  {distritos.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">{t("patients.notes")}</label>
             <textarea
               {...register("notes")}
               rows={2}
-              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
+              className={`${inputClass} resize-none`}
               placeholder="Observaciones..."
             />
           </div>

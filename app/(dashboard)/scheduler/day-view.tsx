@@ -5,7 +5,7 @@ import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
-import { Plus, Lock, LockOpen, Coffee } from "lucide-react";
+import { Plus, Lock, LockOpen, Coffee, CircleDollarSign, CheckCircle2 } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { loadSchedulerConfig, generateTimeSlots, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
@@ -14,6 +14,7 @@ interface DayViewProps {
   appointments: AppointmentWithRelations[];
   offices: Office[];
   blocks: ScheduleBlock[];
+  paymentTotals?: Record<string, number>;
   onSlotClick: (date: Date, time: string, officeId: string) => void;
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
   onAppointmentDrop?: (appointmentId: string, date: Date, time: string, officeId: string) => void;
@@ -83,6 +84,7 @@ export function DayView({
   appointments,
   offices,
   blocks,
+  paymentTotals = {},
   onSlotClick,
   onAppointmentClick,
   onAppointmentDrop,
@@ -215,9 +217,21 @@ export function DayView({
                           borderLeftColor: doctorColor,
                         }}
                       >
-                        <p className="text-xs font-bold truncate text-foreground leading-tight">
-                          {startAppt.patient_name}
-                        </p>
+                        <div className="flex items-center gap-1">
+                          <p className="text-xs font-bold truncate text-foreground leading-tight flex-1">
+                            {startAppt.patient_name}
+                          </p>
+                          {/* Payment indicator */}
+                          {startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
+                            (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (
+                              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
+                            ) : (paymentTotals[startAppt.id] ?? 0) > 0 ? (
+                              <CircleDollarSign className="h-3 w-3 shrink-0 text-amber-500" />
+                            ) : (
+                              <CircleDollarSign className="h-3 w-3 shrink-0 text-muted-foreground/40" />
+                            )
+                          )}
+                        </div>
                         <p className="text-[11px] truncate text-muted-foreground leading-tight">
                           {startAppt.doctors?.full_name ?? "—"} · {startAppt.services?.name ?? "—"}
                         </p>

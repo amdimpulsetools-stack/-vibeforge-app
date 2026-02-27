@@ -172,20 +172,41 @@ export default function SchedulerPage() {
     };
   }, [currentDate, viewMode]);
 
+  // Payment totals per appointment (for visual indicators)
+  const [paymentTotals, setPaymentTotals] = useState<Record<string, number>>({});
+
   // Fetch appointments
   const fetchAppointments = useCallback(async () => {
     const supabase = createClient();
     const { startDate, endDate } = getDateRange();
 
-    const { data } = await supabase
-      .from("appointments")
-      .select("*, doctors(*), offices(*), services(*)")
-      .gte("appointment_date", startDate)
-      .lte("appointment_date", endDate)
-      .neq("status", "cancelled")
-      .order("start_time");
+    const [apptRes, payRes] = await Promise.all([
+      supabase
+        .from("appointments")
+        .select("*, doctors(*), offices(*), services(*)")
+        .gte("appointment_date", startDate)
+        .lte("appointment_date", endDate)
+        .neq("status", "cancelled")
+        .order("start_time"),
+      supabase
+        .from("patient_payments")
+        .select("appointment_id, amount")
+        .not("appointment_id", "is", null),
+    ]);
 
-    setAppointments((data as AppointmentWithRelations[]) ?? []);
+    const appts = (apptRes.data as AppointmentWithRelations[]) ?? [];
+    setAppointments(appts);
+
+    // Aggregate payment totals per appointment
+    const totals: Record<string, number> = {};
+    const apptIds = new Set(appts.map((a) => a.id));
+    for (const p of payRes.data ?? []) {
+      if (p.appointment_id && apptIds.has(p.appointment_id)) {
+        totals[p.appointment_id] = (totals[p.appointment_id] ?? 0) + Number(p.amount);
+      }
+    }
+    setPaymentTotals(totals);
+
     setLoading(false);
   }, [getDateRange]);
 
@@ -367,6 +388,7 @@ export default function SchedulerPage() {
               appointments={appointments}
               offices={offices}
               blocks={allBlocks}
+              paymentTotals={paymentTotals}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
               onAppointmentDrop={handleAppointmentDrop}
@@ -378,6 +400,7 @@ export default function SchedulerPage() {
               appointments={appointments}
               offices={offices}
               blocks={allBlocks}
+              paymentTotals={paymentTotals}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
             />

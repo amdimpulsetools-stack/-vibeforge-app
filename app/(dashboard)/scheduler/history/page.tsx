@@ -195,6 +195,7 @@ export default function AppointmentHistoryPage() {
                 <option value="confirmed">{t("scheduler.status_confirmed")}</option>
                 <option value="completed">{t("scheduler.status_completed")}</option>
                 <option value="cancelled">{t("scheduler.status_cancelled")}</option>
+                <option value="no_show">{t("scheduler.status_no_show")}</option>
               </select>
             </div>
             <div className="space-y-1">

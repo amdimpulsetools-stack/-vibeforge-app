@@ -134,6 +134,7 @@ export const APPOINTMENT_STATUS_COLORS: Record<string, string> = {
   confirmed: "#3b82f6",
   completed: "#22c55e",
   cancelled: "#ef4444",
+  no_show: "#f59e0b",
 };
 
 // Intervalos del scheduler

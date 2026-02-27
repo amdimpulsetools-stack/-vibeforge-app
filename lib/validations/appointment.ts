@@ -10,7 +10,7 @@ export const appointmentSchema = z.object({
   service_id: z.string().uuid("Selecciona un servicio"),
   appointment_date: z.string().min(1, "Fecha obligatoria"),
   start_time: z.string().regex(/^\d{2}:\d{2}$/, "Formato HH:MM"),
-  status: z.enum(["scheduled", "confirmed", "completed", "cancelled"]).default("scheduled"),
+  status: z.enum(["scheduled", "confirmed", "completed", "cancelled", "no_show"]).default("scheduled"),
   origin: z.string().optional().or(z.literal("")),
   payment_method: z.string().optional().or(z.literal("")),
   responsible: z.string().optional().or(z.literal("")),
