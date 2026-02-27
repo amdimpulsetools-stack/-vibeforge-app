@@ -30,6 +30,7 @@ import {
   getHourOptions,
   type SchedulerConfig,
 } from "@/lib/scheduler-config";
+import EmailSettingsTab from "./email-settings-tab";
 
 type Tab = "general" | "agenda" | "correos";
 
@@ -585,23 +586,7 @@ export default function SettingsPage() {
       )}
 
       {/* ── Correos tab ──────────────────────────────────────────────────────── */}
-      {activeTab === "correos" && (
-        <div className="max-w-2xl">
-          <div className="rounded-2xl border border-border/60 bg-card p-8 flex flex-col items-center justify-center text-center space-y-3 min-h-[200px]">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-              <Mail className="h-6 w-6 text-primary" />
-            </div>
-            <h2 className="text-lg font-semibold">
-              {language === "es" ? "Configuración de correos" : "Email settings"}
-            </h2>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              {language === "es"
-                ? "Aquí podrás configurar las notificaciones y plantillas de correo electrónico para tu clínica."
-                : "Here you'll be able to configure email notifications and templates for your clinic."}
-            </p>
-          </div>
-        </div>
-      )}
+      {activeTab === "correos" && <EmailSettingsTab />}
     </div>
   );
 }
