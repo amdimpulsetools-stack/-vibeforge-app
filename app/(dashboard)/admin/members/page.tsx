@@ -173,21 +173,26 @@ export default function MembersPage() {
       }),
     });
 
+    const data = await res.json();
     setInviting(false);
 
     if (!res.ok) {
-      const data = await res.json();
-      if (data.error === "user_not_found") {
-        toast.error(t("members.user_not_found"));
-      } else if (data.error === "already_member") {
+      if (data.error === "already_member") {
         toast.error(t("members.already_member"));
+      } else if (data.error === "already_invited") {
+        toast.error(t("members.already_invited"));
       } else {
         toast.error(t("members.invite_error"));
       }
       return;
     }
 
-    toast.success(t("members.invite_success"));
+    // Check if it was a direct add or an invitation sent
+    if (data.message === "invitation_sent") {
+      toast.success(t("members.invitation_sent"));
+    } else {
+      toast.success(t("members.invite_success"));
+    }
     setInviteEmail("");
     setInviteOptionIdx(0);
     setShowInvite(false);
