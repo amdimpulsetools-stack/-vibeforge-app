@@ -146,10 +146,16 @@ export default function MembersPage() {
   const isAdmin = orgRole === "owner" || orgRole === "admin";
 
   const fetchMembers = async () => {
-    const res = await fetch("/api/members");
-    if (res.ok) {
-      const data = await res.json();
-      setMembers(data);
+    try {
+      const res = await fetch("/api/members");
+      if (res.ok) {
+        const data = await res.json();
+        setMembers(data);
+      } else {
+        toast.error(t("members.remove_error"));
+      }
+    } catch {
+      toast.error(t("members.remove_error"));
     }
     setLoading(false);
   };

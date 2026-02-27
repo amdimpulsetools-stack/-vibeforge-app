@@ -39,24 +39,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No organization" }, { status: 403 });
   }
 
-  // Fetch all members in this org with their profile info
+  // Fetch all members in this org
   const { data: members, error } = await supabase
     .from("organization_members")
-    .select(
-      `
-      id,
-      user_id,
-      role,
-      created_at,
-      user_profiles:user_id (
-        full_name,
-        avatar_url,
-        phone,
-        email,
-        professional_title
-      )
-    `
-    )
+    .select("id, user_id, role, created_at")
     .eq("organization_id", membership.organization_id)
     .order("created_at");
 
@@ -64,15 +50,23 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const enriched = (members ?? []).map((m) => {
-    const profile = m.user_profiles as unknown as {
-      full_name: string | null;
-      avatar_url: string | null;
-      phone: string | null;
-      email: string | null;
-      professional_title: string | null;
-    } | null;
+  if (!members || members.length === 0) {
+    return NextResponse.json([]);
+  }
 
+  // Fetch profiles separately to avoid PostgREST FK join issues
+  const userIds = members.map((m) => m.user_id);
+  const { data: profiles } = await supabase
+    .from("user_profiles")
+    .select("id, full_name, avatar_url, phone, email, professional_title")
+    .in("id", userIds);
+
+  const profileMap = new Map(
+    (profiles ?? []).map((p) => [p.id, p])
+  );
+
+  const enriched = members.map((m) => {
+    const profile = profileMap.get(m.user_id);
     return {
       id: m.id,
       user_id: m.user_id,
