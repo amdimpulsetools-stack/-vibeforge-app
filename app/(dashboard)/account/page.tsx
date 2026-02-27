@@ -480,7 +480,7 @@ export default function AccountPage() {
 
               {/* CHANGE PLAN BUTTON — eye-catching */}
               <a
-                href="/select-plan"
+                href="/plans"
                 className="flex w-full items-center justify-center gap-2.5 rounded-xl gradient-warm px-5 py-3 text-sm font-bold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl"
               >
                 <Sparkles className="h-4 w-4" />
