@@ -29,6 +29,7 @@ import {
   saveSchedulerConfig,
   getHourOptions,
   type SchedulerConfig,
+  type IntervalOption,
 } from "@/lib/scheduler-config";
 import EmailSettingsTab from "./email-settings-tab";
 
@@ -515,7 +516,7 @@ export default function SettingsPage() {
             </p>
           </div>
 
-          {/* Slot duration */}
+          {/* Slot duration — multi-select */}
           <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
             <div>
               <h2 className="text-lg font-semibold">
@@ -523,37 +524,50 @@ export default function SettingsPage() {
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
                 {language === "es"
-                  ? "Duración de cada bloque de tiempo en la vista diaria"
-                  : "Duration of each time block in the daily view"}
+                  ? "Selecciona uno o más tamaños de bloque. La agenda usará el más pequeño como resolución de la grilla."
+                  : "Select one or more block sizes. The scheduler will use the smallest as the grid resolution."}
               </p>
             </div>
             <div className="grid grid-cols-3 gap-3">
-              {([15, 30, 60] as const).map((mins) => (
-                <button
-                  key={mins}
-                  onClick={() => updateSchedulerConfig({ interval: mins })}
-                  className={`flex flex-col items-center gap-1 rounded-xl border p-4 transition-all ${
-                    schedulerConfig.interval === mins
-                      ? "border-primary bg-primary/10 ring-1 ring-primary"
-                      : "border-border hover:border-muted-foreground/30 hover:bg-accent"
-                  }`}
-                >
-                  <span
-                    className={`text-2xl font-extrabold ${
-                      schedulerConfig.interval === mins
-                        ? "text-primary"
-                        : "text-muted-foreground"
+              {([15, 30, 60] as const).map((mins) => {
+                const isSelected = schedulerConfig.intervals.includes(mins);
+                return (
+                  <button
+                    key={mins}
+                    onClick={() => {
+                      let next: IntervalOption[];
+                      if (isSelected) {
+                        // No permitir deseleccionar si es el único seleccionado
+                        if (schedulerConfig.intervals.length <= 1) return;
+                        next = schedulerConfig.intervals.filter((v) => v !== mins);
+                      } else {
+                        next = [...schedulerConfig.intervals, mins].sort((a, b) => a - b) as IntervalOption[];
+                      }
+                      updateSchedulerConfig({ intervals: next });
+                    }}
+                    className={`flex flex-col items-center gap-1 rounded-xl border p-4 transition-all ${
+                      isSelected
+                        ? "border-primary bg-primary/10 ring-1 ring-primary"
+                        : "border-border hover:border-muted-foreground/30 hover:bg-accent"
                     }`}
                   >
-                    {mins === 60 ? "1" : mins}
-                  </span>
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {mins === 60
-                      ? (language === "es" ? "hora" : "hour")
-                      : (language === "es" ? "minutos" : "minutes")}
-                  </span>
-                </button>
-              ))}
+                    <span
+                      className={`text-2xl font-extrabold ${
+                        isSelected
+                          ? "text-primary"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {mins === 60 ? "1" : mins}
+                    </span>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {mins === 60
+                        ? (language === "es" ? "hora" : "hour")
+                        : (language === "es" ? "minutos" : "minutes")}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

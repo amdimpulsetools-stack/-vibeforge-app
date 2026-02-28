@@ -7,29 +7,49 @@ export const SCHEDULER_CONFIG_KEYS = {
   timeIndicator: "vibeforge_time_indicator",
 };
 
+export type IntervalOption = 15 | 30 | 60;
+
 export interface SchedulerConfig {
   startHour: number;
   endHour: number;
-  interval: 15 | 30 | 60;
+  intervals: IntervalOption[];
   timeIndicator: boolean;
 }
 
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   startHour: 8,
   endHour: 20,
-  interval: 30,
+  intervals: [30],
   timeIndicator: true,
 };
+
+/** Returns the smallest selected interval (used for the grid resolution). */
+export function getActiveInterval(config: SchedulerConfig): IntervalOption {
+  return Math.min(...config.intervals) as IntervalOption;
+}
 
 export function loadSchedulerConfig(): SchedulerConfig {
   if (typeof window === "undefined") return DEFAULT_SCHEDULER_CONFIG;
   try {
     const startHour = parseInt(localStorage.getItem(SCHEDULER_CONFIG_KEYS.startHour) ?? "") || DEFAULT_SCHEDULER_CONFIG.startHour;
     const endHour = parseInt(localStorage.getItem(SCHEDULER_CONFIG_KEYS.endHour) ?? "") || DEFAULT_SCHEDULER_CONFIG.endHour;
-    const rawInterval = parseInt(localStorage.getItem(SCHEDULER_CONFIG_KEYS.interval) ?? "");
-    const interval: 15 | 30 | 60 = rawInterval === 15 ? 15 : rawInterval === 60 ? 60 : 30;
+    const rawInterval = localStorage.getItem(SCHEDULER_CONFIG_KEYS.interval) ?? "";
+    let intervals: IntervalOption[];
+    try {
+      const parsed = JSON.parse(rawInterval);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        intervals = parsed.filter((v: number) => v === 15 || v === 30 || v === 60) as IntervalOption[];
+      } else {
+        intervals = [];
+      }
+    } catch {
+      // Migrate from old single-value format
+      const num = parseInt(rawInterval);
+      intervals = num === 15 || num === 60 ? [num] : num === 30 ? [30] : [];
+    }
+    if (intervals.length === 0) intervals = DEFAULT_SCHEDULER_CONFIG.intervals;
     const timeIndicator = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.timeIndicator) ?? "true") === "true";
-    return { startHour, endHour, interval, timeIndicator };
+    return { startHour, endHour, intervals, timeIndicator };
   } catch {
     return DEFAULT_SCHEDULER_CONFIG;
   }
@@ -39,7 +59,7 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
   if (typeof window === "undefined") return;
   if (config.startHour !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.startHour, String(config.startHour));
   if (config.endHour !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.endHour, String(config.endHour));
-  if (config.interval !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.interval, String(config.interval));
+  if (config.intervals !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.interval, JSON.stringify(config.intervals));
   if (config.timeIndicator !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.timeIndicator, String(config.timeIndicator));
 }
 

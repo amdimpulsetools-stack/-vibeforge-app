@@ -8,7 +8,7 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
-import { loadSchedulerConfig, generateTimeSlots, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
 interface WeekViewProps {
   currentDate: Date;
@@ -65,7 +65,7 @@ export function WeekView({
     setSchedulerConfig(loadSchedulerConfig());
   }, []);
   const TIME_SLOTS = useMemo(
-    () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, schedulerConfig.interval),
+    () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, getActiveInterval(schedulerConfig)),
     [schedulerConfig]
   );
 
@@ -212,7 +212,7 @@ export function WeekView({
                   const endMinutes =
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
-                  const durationSlots = (endMinutes - startMinutes) / schedulerConfig.interval;
+                  const durationSlots = (endMinutes - startMinutes) / getActiveInterval(schedulerConfig);
                   const doctorColor = startAppt.doctors?.color ?? "#9ca3af";
 
                   return (

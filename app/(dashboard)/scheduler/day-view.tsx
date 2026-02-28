@@ -7,7 +7,7 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Lock, LockOpen, Coffee, CircleDollarSign, CheckCircle2 } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import { loadSchedulerConfig, generateTimeSlots, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
 interface DayViewProps {
   date: Date;
@@ -103,7 +103,7 @@ export function DayView({
     setSchedulerConfig(loadSchedulerConfig());
   }, []);
   const TIME_SLOTS = useMemo(
-    () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, schedulerConfig.interval),
+    () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, getActiveInterval(schedulerConfig)),
     [schedulerConfig]
   );
 
@@ -124,7 +124,7 @@ export function DayView({
   const timeLineVisible =
     showTimeIndicator && isToday && currentMinutes >= gridStartMinutes && currentMinutes < gridEndMinutes;
   // Each slot is 40px tall; interval defines minutes-per-slot
-  const timeLineTop = ((currentMinutes - gridStartMinutes) / schedulerConfig.interval) * 40;
+  const timeLineTop = ((currentMinutes - gridStartMinutes) / getActiveInterval(schedulerConfig)) * 40;
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -190,7 +190,7 @@ export function DayView({
                   const endMinutes =
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
-                  const durationSlots = (endMinutes - startMinutes) / schedulerConfig.interval;
+                  const durationSlots = (endMinutes - startMinutes) / getActiveInterval(schedulerConfig);
                   const doctorColor = startAppt.doctors?.color ?? "#9ca3af";
 
                   return (
