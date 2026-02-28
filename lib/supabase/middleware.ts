@@ -62,6 +62,12 @@ export async function updateSession(request: NextRequest) {
         .limit(1);
 
       if (members && members.length > 0) {
+        // Non-owner members skip plan check — plan is the owner's responsibility
+        if (members[0].role !== "owner") {
+          return supabaseResponse;
+        }
+
+        // Only owners need an active subscription
         const { data: subs } = await supabase
           .from("organization_subscriptions")
           .select("id")
@@ -71,12 +77,7 @@ export async function updateSession(request: NextRequest) {
 
         if (!subs || subs.length === 0) {
           const url = request.nextUrl.clone();
-          // Only owners can select a plan; invited members see a waiting page
-          if (members[0].role === "owner") {
-            url.pathname = "/select-plan";
-          } else {
-            url.pathname = "/waiting-for-plan";
-          }
+          url.pathname = "/select-plan";
           return NextResponse.redirect(url);
         }
       }
