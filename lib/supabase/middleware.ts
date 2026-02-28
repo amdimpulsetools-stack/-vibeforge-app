@@ -36,9 +36,10 @@ export async function updateSession(request: NextRequest) {
   );
 
   const isSelectPlan = request.nextUrl.pathname === "/select-plan";
+  const isWaitingForPlan = request.nextUrl.pathname === "/waiting-for-plan";
 
   // Redirigir a login si no autenticado y ruta protegida
-  if (!user && !isPublic && !isSelectPlan) {
+  if (!user && !isPublic && !isSelectPlan && !isWaitingForPlan) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
@@ -52,11 +53,11 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Check if authenticated user accessing dashboard needs a plan
-  if (user && !isPublic && !isSelectPlan && !request.nextUrl.pathname.startsWith("/api")) {
+  if (user && !isPublic && !isSelectPlan && !isWaitingForPlan && !request.nextUrl.pathname.startsWith("/api")) {
     try {
       const { data: members } = await supabase
         .from("organization_members")
-        .select("organization_id")
+        .select("organization_id, role")
         .eq("user_id", user.id)
         .limit(1);
 
@@ -70,7 +71,12 @@ export async function updateSession(request: NextRequest) {
 
         if (!subs || subs.length === 0) {
           const url = request.nextUrl.clone();
-          url.pathname = "/select-plan";
+          // Only owners can select a plan; invited members see a waiting page
+          if (members[0].role === "owner") {
+            url.pathname = "/select-plan";
+          } else {
+            url.pathname = "/waiting-for-plan";
+          }
           return NextResponse.redirect(url);
         }
       }
