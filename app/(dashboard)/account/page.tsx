@@ -36,7 +36,6 @@ import {
   ArrowRight,
   Sparkles,
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
 
 const PLAN_ICONS: Record<string, typeof Zap> = {
   starter: Zap,
@@ -576,16 +575,16 @@ function TrialProgressBar({
     return Math.max(days, 1);
   })();
 
+  const pct = Math.min((daysRemaining / totalDays) * 100, 100);
+
   const barColor =
-    daysRemaining <= 3 ? "#ef4444" : daysRemaining <= 7 ? "#f59e0b" : "#10b981";
+    daysRemaining <= 3 ? "bg-red-500" : daysRemaining <= 7 ? "bg-amber-500" : "bg-emerald-500";
   const textColorClass =
     daysRemaining <= 3
       ? "text-destructive"
       : daysRemaining <= 7
         ? "text-amber-500"
         : "text-emerald-500";
-
-  const data = [{ remaining: daysRemaining }];
 
   return (
     <div className="rounded-xl border border-border/60 bg-background p-3 space-y-2.5">
@@ -608,24 +607,12 @@ function TrialProgressBar({
         </span>
       </div>
 
-      <ResponsiveContainer width="100%" height={10}>
-        <BarChart
-          data={data}
-          layout="vertical"
-          barSize={10}
-          margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
-        >
-          <XAxis type="number" domain={[0, totalDays]} hide />
-          <YAxis type="category" dataKey="name" hide />
-          <Bar
-            dataKey="remaining"
-            fill={barColor}
-            radius={5}
-            background={{ fill: "rgba(128,128,128,0.15)", radius: 5 }}
-            animationDuration={800}
-          />
-        </BarChart>
-      </ResponsiveContainer>
+      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
+        <div
+          className={cn("h-full rounded-full transition-all duration-700 ease-out", barColor)}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
     </div>
   );
 }
