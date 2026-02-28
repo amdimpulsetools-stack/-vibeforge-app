@@ -17,7 +17,6 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
@@ -295,13 +294,12 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
           <h3 className="text-sm font-semibold mb-3">{t("reports.conversion_by_origin")}</h3>
           {conversionByOrigin.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={conversionByOrigin} barCategoryGap="20%">
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <BarChart data={conversionByOrigin} barCategoryGap="25%">
                 <XAxis
                   dataKey="name"
                   tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                   tickLine={false}
-                  axisLine={{ stroke: "hsl(var(--border))" }}
+                  axisLine={false}
                   tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "..." : v}
                 />
                 <YAxis
@@ -312,12 +310,12 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
                 />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
                 <Legend
-                  iconType="square"
-                  iconSize={10}
+                  iconType="circle"
+                  iconSize={8}
                   wrapperStyle={{ fontSize: 12 }}
                 />
-                <Bar dataKey="total" name="Agendados" fill="#3b82f6" radius={[4, 4, 0, 0]} animationDuration={800} animationEasing="ease-out" />
-                <Bar dataKey="completed" name="Atendidos" fill="#22c55e" radius={[4, 4, 0, 0]} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
+                <Bar dataKey="total" name="Agendados" fill="#3b82f6" radius={999} animationDuration={800} animationEasing="ease-out" />
+                <Bar dataKey="completed" name="Atendidos" fill="#22c55e" radius={999} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
               </BarChart>
             </ResponsiveContainer>
           ) : (

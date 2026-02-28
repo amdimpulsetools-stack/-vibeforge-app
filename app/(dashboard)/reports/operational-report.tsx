@@ -265,13 +265,12 @@ export function OperationalReport({
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.peak_hours")}</h3>
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={peakHoursData} barCategoryGap="15%">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+            <BarChart data={peakHoursData} barCategoryGap="25%">
               <XAxis
                 dataKey="hour"
                 tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                 tickLine={false}
-                axisLine={{ stroke: "hsl(var(--border))" }}
+                axisLine={false}
               />
               <YAxis
                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
@@ -280,12 +279,7 @@ export function OperationalReport({
                 allowDecimals={false}
               />
               <Tooltip content={<CustomTooltip />} cursor={false} />
-              <Legend
-                iconType="square"
-                iconSize={10}
-                wrapperStyle={{ fontSize: 12 }}
-              />
-              <Bar dataKey="citas" name="Citas" fill="#8b5cf6" radius={[4, 4, 0, 0]} animationDuration={1000} animationEasing="ease-out" />
+              <Bar dataKey="citas" name="Citas" fill="#10b981" radius={999} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={1000} animationEasing="ease-out" />
             </BarChart>
           </ResponsiveContainer>
         </div>

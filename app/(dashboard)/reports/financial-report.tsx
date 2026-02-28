@@ -15,7 +15,6 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
@@ -284,13 +283,12 @@ export function FinancialReport({
           <h3 className="text-sm font-semibold mb-3">{t("reports.appointments_by_doctor")}</h3>
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={chartData} barCategoryGap="20%">
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <BarChart data={chartData} barCategoryGap="25%">
                 <XAxis
                   dataKey="name"
                   tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                   tickLine={false}
-                  axisLine={{ stroke: "hsl(var(--border))" }}
+                  axisLine={false}
                   tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")}
                 />
                 <YAxis
@@ -301,13 +299,13 @@ export function FinancialReport({
                 />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
                 <Legend
-                  iconType="square"
-                  iconSize={10}
+                  iconType="circle"
+                  iconSize={8}
                   wrapperStyle={{ fontSize: 12 }}
                 />
-                <Bar dataKey="Atendidos" fill="#22c55e" radius={[4, 4, 0, 0]} animationDuration={800} animationEasing="ease-out" />
-                <Bar dataKey="Confirmados" fill="#3b82f6" radius={[4, 4, 0, 0]} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
-                <Bar dataKey="Cancelados" fill="#ef4444" radius={[4, 4, 0, 0]} animationDuration={800} animationEasing="ease-out" animationBegin={400} />
+                <Bar dataKey="Atendidos" fill="#22c55e" radius={999} animationDuration={800} animationEasing="ease-out" />
+                <Bar dataKey="Confirmados" fill="#3b82f6" radius={999} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
+                <Bar dataKey="Cancelados" fill="#ef4444" radius={999} animationDuration={800} animationEasing="ease-out" animationBegin={400} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -321,12 +319,11 @@ export function FinancialReport({
           {revenueChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={revenueChartData} barCategoryGap="30%">
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis
                   dataKey="name"
                   tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
                   tickLine={false}
-                  axisLine={{ stroke: "hsl(var(--border))" }}
+                  axisLine={false}
                   tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")}
                 />
                 <YAxis
@@ -335,12 +332,7 @@ export function FinancialReport({
                   axisLine={false}
                 />
                 <Tooltip content={<RevenueTooltip />} cursor={false} />
-                <Legend
-                  iconType="square"
-                  iconSize={10}
-                  wrapperStyle={{ fontSize: 12 }}
-                />
-                <Bar dataKey="Facturado" fill="#10b981" radius={[4, 4, 0, 0]} animationDuration={1000} animationEasing="ease-out" />
+                <Bar dataKey="Facturado" fill="#10b981" radius={999} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={1000} animationEasing="ease-out" />
               </BarChart>
             </ResponsiveContainer>
           ) : (
