@@ -36,6 +36,7 @@ import {
   ArrowRight,
   Sparkles,
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
 
 const PLAN_ICONS: Record<string, typeof Zap> = {
   starter: Zap,
@@ -425,28 +426,12 @@ export default function AccountPage() {
                 </span>
               </div>
 
-              {/* Days remaining */}
+              {/* Days remaining — visual bar */}
               {daysRemaining !== null && (
-                <div
-                  className={cn(
-                    "flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm",
-                    daysRemaining <= 3
-                      ? "bg-destructive/10 text-destructive"
-                      : daysRemaining <= 7
-                        ? "bg-amber-500/10 text-amber-600"
-                        : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {daysRemaining <= 7 && <AlertTriangle className="h-4 w-4" />}
-                  <CalendarDays className="h-4 w-4" />
-                  <span>
-                    {daysRemaining === 0
-                      ? "Tu plan vence hoy"
-                      : daysRemaining === 1
-                        ? "Tu plan vence manana"
-                        : `${daysRemaining} dias restantes`}
-                  </span>
-                </div>
+                <TrialProgressBar
+                  daysRemaining={daysRemaining}
+                  subscription={subscription}
+                />
               )}
 
               {/* Usage summary */}
@@ -570,6 +555,77 @@ export default function AccountPage() {
           {t("account.delete_account")}
         </button>
       </div>
+    </div>
+  );
+}
+
+function TrialProgressBar({
+  daysRemaining,
+  subscription,
+}: {
+  daysRemaining: number;
+  subscription: { started_at: string; trial_ends_at: string | null; expires_at: string | null };
+}) {
+  // Calculate total trial days dynamically from subscription dates
+  const totalDays = (() => {
+    const endDate = subscription.trial_ends_at || subscription.expires_at;
+    if (!endDate || !subscription.started_at) return 14;
+    const start = new Date(subscription.started_at).getTime();
+    const end = new Date(endDate).getTime();
+    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    return Math.max(days, 1);
+  })();
+
+  const barColor =
+    daysRemaining <= 3 ? "#ef4444" : daysRemaining <= 7 ? "#f59e0b" : "#10b981";
+  const textColorClass =
+    daysRemaining <= 3
+      ? "text-destructive"
+      : daysRemaining <= 7
+        ? "text-amber-500"
+        : "text-emerald-500";
+
+  const data = [{ remaining: daysRemaining }];
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-background p-3 space-y-2.5">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          {daysRemaining <= 7 && (
+            <AlertTriangle className={cn("h-3.5 w-3.5", textColorClass)} />
+          )}
+          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+          <span className="text-sm font-medium">
+            {daysRemaining === 0
+              ? "Tu plan vence hoy"
+              : daysRemaining === 1
+                ? "Tu plan vence mañana"
+                : `Te quedan ${daysRemaining} días`}
+          </span>
+        </div>
+        <span className={cn("text-xs font-semibold tabular-nums", textColorClass)}>
+          {daysRemaining}/{totalDays}
+        </span>
+      </div>
+
+      <ResponsiveContainer width="100%" height={10}>
+        <BarChart
+          data={data}
+          layout="vertical"
+          barSize={10}
+          margin={{ top: 0, right: 0, bottom: 0, left: 0 }}
+        >
+          <XAxis type="number" domain={[0, totalDays]} hide />
+          <YAxis type="category" dataKey="name" hide />
+          <Bar
+            dataKey="remaining"
+            fill={barColor}
+            radius={5}
+            background={{ fill: "rgba(128,128,128,0.15)", radius: 5 }}
+            animationDuration={800}
+          />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
