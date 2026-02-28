@@ -28,7 +28,6 @@ import {
   Bar,
   XAxis,
   YAxis,
-  CartesianGrid,
   Tooltip,
   ResponsiveContainer,
   Cell,
@@ -308,7 +307,7 @@ function TreatmentTooltip({ active, payload, isEs, sortBy }: { active?: boolean;
 
 // --- Top Treatments ---
 
-const BAR_COLORS = ["#a855f7", "#8b5cf6", "#7c3aed"];
+const BAR_COLORS = ["#10b981", "#34d399", "#6ee7b7"];
 
 function TopTreatmentsTable({
   treatmentsByCount,
@@ -331,8 +330,8 @@ function TopTreatmentsTable({
     <div className="rounded-2xl border border-border/60 bg-card">
       <div className="flex items-center justify-between border-b border-border/40 px-6 py-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/10">
-            <Stethoscope className="h-4 w-4 text-purple-400" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10">
+            <Stethoscope className="h-4 w-4 text-emerald-400" />
           </div>
           <h3 className="text-sm font-bold">
             {isEs ? "Top 3 servicios" : "Top 3 services"}
@@ -370,14 +369,8 @@ function TopTreatmentsTable({
       ) : (
         <div className="px-4 py-4">
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={chartData} layout="vertical" barCategoryGap="25%">
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
-              <XAxis
-                type="number"
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                tickLine={false}
-                axisLine={false}
-              />
+            <BarChart data={chartData} layout="vertical" barCategoryGap="30%">
+              <XAxis type="number" hide />
               <YAxis
                 type="category"
                 dataKey="name"
@@ -387,7 +380,7 @@ function TopTreatmentsTable({
                 width={120}
               />
               <Tooltip content={<TreatmentTooltip isEs={isEs} sortBy={sortBy} />} cursor={false} />
-              <Bar dataKey="value" radius={[0, 6, 6, 0]} animationDuration={800} animationEasing="ease-out">
+              <Bar dataKey="value" radius={999} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={800} animationEasing="ease-out">
                 {chartData.map((_, i) => (
                   <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
                 ))}
