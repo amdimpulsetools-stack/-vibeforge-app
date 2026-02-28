@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -67,6 +67,7 @@ export default function SettingsPage() {
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors, isDirty },
   } = useForm<OrganizationFormData>({
     resolver: zodResolver(organizationSchema),
@@ -75,6 +76,23 @@ export default function SettingsPage() {
       slug: organization?.slug ?? "",
     },
   });
+
+  // Sync form values when organization data loads asynchronously
+  useEffect(() => {
+    if (organization) {
+      reset({
+        name: organization.name ?? "",
+        slug: organization.slug ?? "",
+      });
+    }
+  }, [organization, reset]);
+
+  // Sync logo URL when organization data loads
+  useEffect(() => {
+    if (organization) {
+      setLogoUrl(organization.logo_url ?? null);
+    }
+  }, [organization]);
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -174,6 +192,7 @@ export default function SettingsPage() {
       return;
     }
 
+    reset(values);
     refetchOrg();
     toast.success(t("settings.org_save_success"));
   };
