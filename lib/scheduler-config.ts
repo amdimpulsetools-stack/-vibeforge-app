@@ -10,7 +10,7 @@ export const SCHEDULER_CONFIG_KEYS = {
 export interface SchedulerConfig {
   startHour: number;
   endHour: number;
-  interval: 15 | 30;
+  interval: 15 | 30 | 60;
   timeIndicator: boolean;
 }
 
@@ -27,7 +27,7 @@ export function loadSchedulerConfig(): SchedulerConfig {
     const startHour = parseInt(localStorage.getItem(SCHEDULER_CONFIG_KEYS.startHour) ?? "") || DEFAULT_SCHEDULER_CONFIG.startHour;
     const endHour = parseInt(localStorage.getItem(SCHEDULER_CONFIG_KEYS.endHour) ?? "") || DEFAULT_SCHEDULER_CONFIG.endHour;
     const rawInterval = parseInt(localStorage.getItem(SCHEDULER_CONFIG_KEYS.interval) ?? "");
-    const interval: 15 | 30 = rawInterval === 15 ? 15 : 30;
+    const interval: 15 | 30 | 60 = rawInterval === 15 ? 15 : rawInterval === 60 ? 60 : 30;
     const timeIndicator = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.timeIndicator) ?? "true") === "true";
     return { startHour, endHour, interval, timeIndicator };
   } catch {

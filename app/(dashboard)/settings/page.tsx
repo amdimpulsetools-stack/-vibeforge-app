@@ -527,8 +527,8 @@ export default function SettingsPage() {
                   : "Duration of each time block in the daily view"}
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              {([15, 30] as const).map((mins) => (
+            <div className="grid grid-cols-3 gap-3">
+              {([15, 30, 60] as const).map((mins) => (
                 <button
                   key={mins}
                   onClick={() => updateSchedulerConfig({ interval: mins })}
@@ -545,10 +545,12 @@ export default function SettingsPage() {
                         : "text-muted-foreground"
                     }`}
                   >
-                    {mins}
+                    {mins === 60 ? "1" : mins}
                   </span>
                   <span className="text-xs font-medium text-muted-foreground">
-                    {language === "es" ? "minutos" : "minutes"}
+                    {mins === 60
+                      ? (language === "es" ? "hora" : "hour")
+                      : (language === "es" ? "minutos" : "minutes")}
                   </span>
                 </button>
               ))}
