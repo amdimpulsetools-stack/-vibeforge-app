@@ -543,7 +543,7 @@ export function AppointmentFormModal({
               <label className="text-sm font-medium">{t("scheduler.time")} *</label>
               <input
                 type="time"
-                step="1800"
+                step="900"
                 {...register("start_time")}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               />

@@ -202,14 +202,21 @@ export function DayView({
 
                 // ---- APPOINTMENT starting here ----
                 if (startAppt) {
+                  const interval = getActiveInterval(schedulerConfig);
                   const startMinutes =
                     parseInt(startAppt.start_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.start_time.slice(3, 5));
                   const endMinutes =
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
-                  const durationSlots = (endMinutes - startMinutes) / getActiveInterval(schedulerConfig);
+                  const durationSlots = (endMinutes - startMinutes) / interval;
                   const doctorColor = startAppt.doctors?.color ?? "#9ca3af";
+
+                  // Visual offset for appointments not aligned with grid
+                  const [slotH, slotM] = time.split(":").map(Number);
+                  const slotStartMin = slotH * 60 + slotM;
+                  const offsetMinutes = startMinutes - slotStartMin;
+                  const offsetPx = (offsetMinutes / interval) * 40;
 
                   return (
                     <div
@@ -239,10 +246,11 @@ export function DayView({
                         onDragEnd={() => { dragApptId.current = null; setDragOverSlot(null); }}
                         onClick={() => onAppointmentClick(startAppt)}
                         className={cn(
-                          "absolute inset-x-1.5 top-0.5 z-[5] cursor-grab active:cursor-grabbing rounded-lg px-2 py-0.5 text-left transition-all hover:shadow-md overflow-hidden flex flex-col justify-center",
+                          "absolute inset-x-1.5 z-[5] cursor-grab active:cursor-grabbing rounded-lg px-2 py-0.5 text-left transition-all hover:shadow-md overflow-hidden flex flex-col justify-center",
                           selectedAppointmentId === startAppt.id && "ring-2 ring-primary shadow-lg z-[6]"
                         )}
                         style={{
+                          top: `${offsetPx + 2}px`,
                           height: `${durationSlots * 40 - 4}px`,
                           backgroundColor: hexToRgba(doctorColor, 0.15),
                           borderLeft: `4px solid ${doctorColor}`,

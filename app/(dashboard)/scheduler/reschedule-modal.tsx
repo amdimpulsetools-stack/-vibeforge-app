@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import type { AppointmentWithRelations, Office, Doctor, ScheduleBlock } from "@/types/admin";
 import { X, Loader2, CalendarDays, Clock, RefreshCw } from "lucide-react";
 import { loadBreakTimeConfig } from "./break-time-dialog";
-import { loadSchedulerConfig, getActiveInterval } from "@/lib/scheduler-config";
+import { loadSchedulerConfig } from "@/lib/scheduler-config";
 
 interface RescheduleModalProps {
   appointment: AppointmentWithRelations;
@@ -33,13 +33,13 @@ export function RescheduleModal({
   const [newDoctorId, setNewDoctorId] = useState(appointment.doctor_id);
   const [saving, setSaving] = useState(false);
 
-  // Generate time options based on the user's scheduler config (same as the grid)
+  // Generate time options — always 15-min intervals for scheduling flexibility
+  // (independent of the visual grid interval configured in settings)
   const timeOptions = useMemo(() => {
     const config = loadSchedulerConfig();
-    const interval = getActiveInterval(config);
     const opts: string[] = [];
     for (let h = config.startHour; h < config.endHour; h++) {
-      for (let m = 0; m < 60; m += interval) {
+      for (let m = 0; m < 60; m += 15) {
         opts.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
       }
     }
