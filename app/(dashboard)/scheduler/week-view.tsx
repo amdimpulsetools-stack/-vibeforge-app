@@ -188,11 +188,16 @@ export function WeekView({
                   );
                 }
 
-                // Find ALL appointments starting at this slot
+                // Find ALL appointments starting at this slot (exact match + non-aligned fallback)
+                const interval = getActiveInterval(schedulerConfig);
+                const [slH, slM] = time.split(":").map(Number);
+                const slotEndMin = slH * 60 + slM + interval;
+                const nextSlot = `${Math.floor(slotEndMin / 60).toString().padStart(2, "0")}:${(slotEndMin % 60).toString().padStart(2, "0")}`;
                 const slotAppts = appointments.filter(
                   (a) =>
                     a.appointment_date === dateStr &&
-                    a.start_time.slice(0, 5) === time
+                    (a.start_time.slice(0, 5) === time ||
+                     (a.start_time.slice(0, 5) > time && a.start_time.slice(0, 5) < nextSlot))
                 );
                 const startAppt = slotAppts[0] ?? null;
                 const extraCount = slotAppts.length - 1;

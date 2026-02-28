@@ -4,9 +4,9 @@ import { useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import type { AppointmentWithRelations, Office, Doctor, ScheduleBlock } from "@/types/admin";
-import { SCHEDULER_START_HOUR, SCHEDULER_END_HOUR, SCHEDULER_INTERVAL } from "@/types/admin";
 import { X, Loader2, CalendarDays, Clock, RefreshCw } from "lucide-react";
 import { loadBreakTimeConfig } from "./break-time-dialog";
+import { loadSchedulerConfig, getActiveInterval } from "@/lib/scheduler-config";
 
 interface RescheduleModalProps {
   appointment: AppointmentWithRelations;
@@ -17,18 +17,6 @@ interface RescheduleModalProps {
   onClose: () => void;
   onSaved: () => void;
 }
-
-function generateTimeOptions() {
-  const opts: string[] = [];
-  for (let h = SCHEDULER_START_HOUR; h < SCHEDULER_END_HOUR; h++) {
-    for (let m = 0; m < 60; m += SCHEDULER_INTERVAL) {
-      opts.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
-    }
-  }
-  return opts;
-}
-
-const TIME_OPTIONS = generateTimeOptions();
 
 export function RescheduleModal({
   appointment,
@@ -44,6 +32,19 @@ export function RescheduleModal({
   const [newOfficeId, setNewOfficeId] = useState(appointment.office_id);
   const [newDoctorId, setNewDoctorId] = useState(appointment.doctor_id);
   const [saving, setSaving] = useState(false);
+
+  // Generate time options based on the user's scheduler config (same as the grid)
+  const timeOptions = useMemo(() => {
+    const config = loadSchedulerConfig();
+    const interval = getActiveInterval(config);
+    const opts: string[] = [];
+    for (let h = config.startHour; h < config.endHour; h++) {
+      for (let m = 0; m < 60; m += interval) {
+        opts.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
+      }
+    }
+    return opts;
+  }, []);
 
   // Compute new end time based on original duration
   const newEndTime = useMemo(() => {
@@ -194,7 +195,7 @@ export function RescheduleModal({
                 onChange={(e) => setNewTime(e.target.value)}
                 className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               >
-                {TIME_OPTIONS.map((t) => (
+                {timeOptions.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
               </select>

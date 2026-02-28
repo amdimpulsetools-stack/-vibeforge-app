@@ -27,14 +27,32 @@ function getAppointmentForSlot(
   appointments: AppointmentWithRelations[],
   dateStr: string,
   officeId: string,
-  slotTime: string
+  slotTime: string,
+  intervalMinutes: number
 ): AppointmentWithRelations | null {
+  // First try exact match (fast path)
+  const exact = appointments.find(
+    (a) =>
+      a.appointment_date === dateStr &&
+      a.office_id === officeId &&
+      a.start_time.slice(0, 5) === slotTime
+  );
+  if (exact) return exact;
+
+  // Fallback: find appointment starting within this slot's range [slotTime, nextSlotTime)
+  // This handles appointments rescheduled to times that don't align with grid slots
+  const [sh, sm] = slotTime.split(":").map(Number);
+  const slotStartMin = sh * 60 + sm;
+  const slotEndMin = slotStartMin + intervalMinutes;
+  const nextSlot = `${Math.floor(slotEndMin / 60).toString().padStart(2, "0")}:${(slotEndMin % 60).toString().padStart(2, "0")}`;
+
   return (
     appointments.find(
       (a) =>
         a.appointment_date === dateStr &&
         a.office_id === officeId &&
-        a.start_time.slice(0, 5) === slotTime
+        a.start_time.slice(0, 5) > slotTime &&
+        a.start_time.slice(0, 5) < nextSlot
     ) ?? null
   );
 }
@@ -178,7 +196,7 @@ export function DayView({
 
               {/* Office columns */}
               {offices.map((office) => {
-                const startAppt = getAppointmentForSlot(appointments, dateStr, office.id, time);
+                const startAppt = getAppointmentForSlot(appointments, dateStr, office.id, time, getActiveInterval(schedulerConfig));
                 const occupied = isSlotOccupied(appointments, dateStr, office.id, time);
                 const block = getBlockForSlot(blocks, dateStr, office.id, time);
 
