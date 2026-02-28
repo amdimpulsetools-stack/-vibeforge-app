@@ -140,7 +140,7 @@ export const APPOINTMENT_STATUS_COLORS: Record<string, string> = {
 // Intervalos del scheduler
 export const SCHEDULER_START_HOUR = 8;
 export const SCHEDULER_END_HOUR = 20;
-export const SCHEDULER_INTERVAL = 30;
+export const SCHEDULER_INTERVAL = 15;
 
 // Días de la semana (lunes primero)
 export const DAYS_OF_WEEK = [

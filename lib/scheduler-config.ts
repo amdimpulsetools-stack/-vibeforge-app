@@ -19,7 +19,7 @@ export interface SchedulerConfig {
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   startHour: 8,
   endHour: 20,
-  intervals: [30],
+  intervals: [15],
   timeIndicator: true,
 };
 
