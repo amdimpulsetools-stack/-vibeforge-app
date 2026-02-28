@@ -543,8 +543,8 @@ export default function SettingsPage() {
               </h2>
               <p className="text-sm text-muted-foreground mt-1">
                 {language === "es"
-                  ? "Selecciona uno o más tamaños de bloque. La agenda usará el más pequeño como resolución de la grilla."
-                  : "Select one or more block sizes. The scheduler will use the smallest as the grid resolution."}
+                  ? "Define la resolución visual de la grilla. Las citas siempre se pueden agendar en intervalos de 15 minutos."
+                  : "Sets the visual grid resolution. Appointments can always be scheduled in 15-minute intervals."}
               </p>
             </div>
             <div className="grid grid-cols-5 gap-3">
