@@ -7,7 +7,7 @@ export const SCHEDULER_CONFIG_KEYS = {
   timeIndicator: "vibeforge_time_indicator",
 };
 
-export type IntervalOption = 15 | 30 | 60;
+export type IntervalOption = 15 | 20 | 30 | 45 | 60;
 
 export interface SchedulerConfig {
   startHour: number;
@@ -38,14 +38,14 @@ export function loadSchedulerConfig(): SchedulerConfig {
     try {
       const parsed = JSON.parse(rawInterval);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        intervals = parsed.filter((v: number) => v === 15 || v === 30 || v === 60) as IntervalOption[];
+        intervals = parsed.filter((v: number) => v === 15 || v === 20 || v === 30 || v === 45 || v === 60) as IntervalOption[];
       } else {
         intervals = [];
       }
     } catch {
       // Migrate from old single-value format
       const num = parseInt(rawInterval);
-      intervals = num === 15 || num === 60 ? [num] : num === 30 ? [30] : [];
+      intervals = [15, 20, 30, 45, 60].includes(num) ? [num as IntervalOption] : [];
     }
     if (intervals.length === 0) intervals = DEFAULT_SCHEDULER_CONFIG.intervals;
     const timeIndicator = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.timeIndicator) ?? "true") === "true";

@@ -528,8 +528,8 @@ export default function SettingsPage() {
                   : "Select one or more block sizes. The scheduler will use the smallest as the grid resolution."}
               </p>
             </div>
-            <div className="grid grid-cols-3 gap-3">
-              {([15, 30, 60] as const).map((mins) => {
+            <div className="grid grid-cols-5 gap-3">
+              {([15, 20, 30, 45, 60] as const).map((mins) => {
                 const isSelected = schedulerConfig.intervals.includes(mins);
                 return (
                   <button
