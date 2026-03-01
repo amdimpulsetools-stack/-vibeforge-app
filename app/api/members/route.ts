@@ -211,6 +211,34 @@ export async function POST(request: NextRequest) {
         .from("user_profiles")
         .update({ professional_title: professional_title || "doctor" })
         .eq("id", targetUserId);
+
+      // Auto-create doctor record if none exists for this user in this org
+      const { data: existingDoctorRecord } = await supabase
+        .from("doctors")
+        .select("id")
+        .eq("user_id", targetUserId)
+        .eq("organization_id", callerMembership.organization_id)
+        .limit(1)
+        .single();
+
+      if (!existingDoctorRecord) {
+        const { data: targetProfile } = await supabase
+          .from("user_profiles")
+          .select("full_name")
+          .eq("id", targetUserId)
+          .single();
+
+        const doctorName = targetProfile?.full_name || email.split("@")[0];
+        const tempCmp = `PEND-${crypto.randomUUID().slice(0, 8)}`;
+
+        await supabase.from("doctors").insert({
+          full_name: doctorName,
+          cmp: tempCmp,
+          organization_id: callerMembership.organization_id,
+          user_id: targetUserId,
+          is_active: true,
+        });
+      }
     }
 
     return NextResponse.json(newMember, { status: 201 });
