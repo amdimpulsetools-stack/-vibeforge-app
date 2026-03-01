@@ -54,6 +54,8 @@ interface AppointmentSidebarProps {
   lookupOrigins?: LookupValue[];
   lookupPayments?: LookupValue[];
   lookupResponsibles?: LookupValue[];
+  /** When true, hides all edit/delete/status actions (doctor viewing own appointment sidebar is fine; this blocks other doctors) */
+  readOnly?: boolean;
 }
 
 const STATUS_ICONS: Record<string, typeof AlertCircle> = {
@@ -74,6 +76,7 @@ export function AppointmentSidebar({
   lookupOrigins = [],
   lookupPayments = [],
   lookupResponsibles = [],
+  readOnly = false,
 }: AppointmentSidebarProps) {
   const { t } = useLanguage();
   const { profile } = useUserProfile();
@@ -264,8 +267,8 @@ export function AppointmentSidebar({
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="text-sm font-semibold">{t("scheduler.details")}</h3>
         <div className="flex items-center gap-1">
-          {/* Edit toggle */}
-          {appointment.status !== "cancelled" && appointment.status !== "no_show" && !editing && (
+          {/* Edit toggle — hidden when readOnly (doctor viewing other doctor's appointment) */}
+          {!readOnly && appointment.status !== "cancelled" && appointment.status !== "no_show" && !editing && (
             <button
               onClick={handleStartEdit}
               className="rounded-lg p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
@@ -485,8 +488,8 @@ export function AppointmentSidebar({
           </div>
         )}
 
-        {/* Action buttons — hidden while editing */}
-        {!editing && (
+        {/* Action buttons — hidden while editing or when readOnly */}
+        {!editing && !readOnly && (
           <div className="space-y-2 pt-2 border-t border-border">
             {/* Reschedule — always shown for non-cancelled */}
             {appointment.status !== "cancelled" && onReschedule && (
@@ -645,8 +648,8 @@ export function AppointmentSidebar({
               </p>
             )}
 
-            {/* Add payment */}
-            {appointment.status !== "cancelled" && (
+            {/* Add payment — hidden when readOnly */}
+            {!readOnly && appointment.status !== "cancelled" && (
               showAddPayment ? (
                 <div className="rounded-xl border border-border/60 bg-muted/20 p-3 space-y-3">
                   {/* Amount */}

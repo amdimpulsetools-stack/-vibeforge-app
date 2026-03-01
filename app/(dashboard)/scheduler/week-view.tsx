@@ -17,6 +17,8 @@ interface WeekViewProps {
   blocks: ScheduleBlock[];
   paymentTotals?: Record<string, number>;
   selectedAppointmentId?: string;
+  /** When set, appointments from other doctors are shown desaturated and non-interactive */
+  currentDoctorId?: string | null;
   onSlotClick: (date: Date, time: string, officeId: string) => void;
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
 }
@@ -52,6 +54,7 @@ export function WeekView({
   blocks,
   paymentTotals = {},
   selectedAppointmentId,
+  currentDoctorId,
   onSlotClick,
   onAppointmentClick,
 }: WeekViewProps) {
@@ -220,6 +223,9 @@ export function WeekView({
                   const durationSlots = (endMinutes - startMinutes) / getActiveInterval(schedulerConfig);
                   const doctorColor = startAppt.doctors?.color ?? "#9ca3af";
 
+                  // Doctor role: other doctors' appointments are desaturated & non-interactive
+                  const isOtherDoctorAppt = currentDoctorId != null && startAppt.doctor_id !== currentDoctorId;
+
                   return (
                     <div
                       key={day.toISOString()}
@@ -232,13 +238,17 @@ export function WeekView({
                       <button
                         onClick={() => onAppointmentClick(startAppt)}
                         className={cn(
-                          "absolute inset-x-1.5 top-0.5 z-[5] rounded px-1 py-0.5 text-left transition-all hover:shadow-md overflow-hidden",
-                          selectedAppointmentId === startAppt.id && "ring-2 ring-primary shadow-lg z-[6]"
+                          "absolute inset-x-1.5 top-0.5 z-[5] rounded px-1 py-0.5 text-left transition-all overflow-hidden",
+                          isOtherDoctorAppt
+                            ? "cursor-default"
+                            : "hover:shadow-md",
+                          selectedAppointmentId === startAppt.id && !isOtherDoctorAppt && "ring-2 ring-primary shadow-lg z-[6]"
                         )}
                         style={{
                           height: `${durationSlots * 32 - 4}px`,
                           backgroundColor: hexToRgba(doctorColor, 0.15),
                           borderLeft: `4px solid ${doctorColor}`,
+                          ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
                         }}
                       >
                         <div className="flex items-center gap-0.5">
@@ -250,7 +260,7 @@ export function WeekView({
                               +{extraCount}
                             </span>
                           )}
-                          {startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
+                          {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
                             (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (
                               <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-500" />
                             ) : (paymentTotals[startAppt.id] ?? 0) > 0 ? (

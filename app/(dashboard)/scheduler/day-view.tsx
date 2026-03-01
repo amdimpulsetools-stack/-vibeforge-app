@@ -16,6 +16,8 @@ interface DayViewProps {
   blocks: ScheduleBlock[];
   paymentTotals?: Record<string, number>;
   selectedAppointmentId?: string;
+  /** When set, appointments from other doctors are shown desaturated and non-interactive */
+  currentDoctorId?: string | null;
   onSlotClick: (date: Date, time: string, officeId: string) => void;
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
   onAppointmentDrop?: (appointmentId: string, date: Date, time: string, officeId: string) => void;
@@ -105,6 +107,7 @@ export function DayView({
   blocks,
   paymentTotals = {},
   selectedAppointmentId,
+  currentDoctorId,
   onSlotClick,
   onAppointmentClick,
   onAppointmentDrop,
@@ -218,6 +221,9 @@ export function DayView({
                   const offsetMinutes = startMinutes - slotStartMin;
                   const offsetPx = (offsetMinutes / interval) * 40;
 
+                  // Doctor role: other doctors' appointments are desaturated & non-interactive
+                  const isOtherDoctorAppt = currentDoctorId != null && startAppt.doctor_id !== currentDoctorId;
+
                   return (
                     <div
                       key={office.id}
@@ -238,22 +244,27 @@ export function DayView({
                       }}
                     >
                       <button
-                        draggable
+                        draggable={!isOtherDoctorAppt}
                         onDragStart={(e) => {
+                          if (isOtherDoctorAppt) { e.preventDefault(); return; }
                           dragApptId.current = startAppt.id;
                           e.dataTransfer.effectAllowed = "move";
                         }}
                         onDragEnd={() => { dragApptId.current = null; setDragOverSlot(null); }}
                         onClick={() => onAppointmentClick(startAppt)}
                         className={cn(
-                          "absolute inset-x-1.5 z-[5] cursor-grab active:cursor-grabbing rounded-lg px-2 py-0.5 text-left transition-all hover:shadow-md overflow-hidden flex flex-col justify-center",
-                          selectedAppointmentId === startAppt.id && "ring-2 ring-primary shadow-lg z-[6]"
+                          "absolute inset-x-1.5 z-[5] rounded-lg px-2 py-0.5 text-left transition-all overflow-hidden flex flex-col justify-center",
+                          isOtherDoctorAppt
+                            ? "cursor-default"
+                            : "cursor-grab active:cursor-grabbing hover:shadow-md",
+                          selectedAppointmentId === startAppt.id && !isOtherDoctorAppt && "ring-2 ring-primary shadow-lg z-[6]"
                         )}
                         style={{
                           top: `${offsetPx + 2}px`,
                           height: `${durationSlots * 40 - 4}px`,
                           backgroundColor: hexToRgba(doctorColor, 0.15),
                           borderLeft: `4px solid ${doctorColor}`,
+                          ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
                         }}
                       >
                         <div className="flex items-center gap-1">
@@ -261,7 +272,7 @@ export function DayView({
                             {startAppt.patient_name}
                           </p>
                           {/* Payment indicator */}
-                          {startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
+                          {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
                             (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (
                               <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
                             ) : (paymentTotals[startAppt.id] ?? 0) > 0 ? (

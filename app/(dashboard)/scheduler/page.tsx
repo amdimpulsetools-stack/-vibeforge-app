@@ -16,6 +16,7 @@ import type {
   DoctorSchedule,
 } from "@/types/admin";
 import { SCHEDULER_START_HOUR, SCHEDULER_END_HOUR, SCHEDULER_INTERVAL } from "@/types/admin";
+import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { SchedulerHeader } from "./scheduler-header";
 import { DayView } from "./day-view";
 import { WeekView } from "./week-view";
@@ -66,6 +67,7 @@ function generateBreakTimeBlocks(
 export default function SchedulerPage() {
   const { t } = useLanguage();
   const { organizationId } = useOrganization();
+  const { doctorId: currentDoctorId, isDoctor } = useCurrentDoctor();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
@@ -241,6 +243,10 @@ export default function SchedulerPage() {
   };
 
   const handleAppointmentClick = (appointment: AppointmentWithRelations) => {
+    // Doctors cannot view sidebar details of other doctors' appointments
+    if (isDoctor && currentDoctorId && appointment.doctor_id !== currentDoctorId) {
+      return;
+    }
     setSelectedAppointment(appointment);
     setShowForm(false);
   };
@@ -271,6 +277,12 @@ export default function SchedulerPage() {
   ) => {
     const appt = appointments.find((a) => a.id === appointmentId);
     if (!appt) return;
+
+    // Doctors cannot move other doctors' appointments
+    if (isDoctor && currentDoctorId && appt.doctor_id !== currentDoctorId) {
+      toast.error("No puedes mover citas de otros doctores");
+      return;
+    }
 
     // Compute new end time preserving duration
     const [sh, sm] = appt.start_time.slice(0, 5).split(":").map(Number);
@@ -390,6 +402,7 @@ export default function SchedulerPage() {
               blocks={allBlocks}
               paymentTotals={paymentTotals}
               selectedAppointmentId={selectedAppointment?.id}
+              currentDoctorId={isDoctor ? currentDoctorId : null}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
               onAppointmentDrop={handleAppointmentDrop}
@@ -403,6 +416,7 @@ export default function SchedulerPage() {
               blocks={allBlocks}
               paymentTotals={paymentTotals}
               selectedAppointmentId={selectedAppointment?.id}
+              currentDoctorId={isDoctor ? currentDoctorId : null}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
             />
@@ -421,6 +435,7 @@ export default function SchedulerPage() {
             lookupOrigins={lookupOrigins}
             lookupPayments={lookupPayments}
             lookupResponsibles={lookupResponsibles}
+            readOnly={isDoctor && currentDoctorId !== null && selectedAppointment.doctor_id !== currentDoctorId}
           />
         )}
       </div>
