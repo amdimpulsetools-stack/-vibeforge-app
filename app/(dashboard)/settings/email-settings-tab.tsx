@@ -135,7 +135,7 @@ export default function EmailSettingsTab() {
         .from("email_settings")
         .select("*")
         .eq("organization_id", organizationId)
-        .single(),
+        .maybeSingle(),
       supabase
         .from("email_templates")
         .select("*")
@@ -147,15 +147,31 @@ export default function EmailSettingsTab() {
     if (settingsRes.data) {
       setSettings(settingsRes.data as EmailSettings);
     } else {
-      // Create default settings
-      setSettings({
+      // No email_settings row exists yet — create it in DB
+      const defaultSettings: EmailSettings = {
         organization_id: organizationId,
         sender_name: organization?.name ?? null,
         sender_email: null,
         reply_to_email: null,
         brand_color: "#10b981",
         email_logo_url: organization?.logo_url ?? null,
-      });
+      };
+
+      const { data: created } = await supabase
+        .from("email_settings")
+        .upsert(
+          {
+            organization_id: organizationId,
+            sender_name: defaultSettings.sender_name,
+            brand_color: defaultSettings.brand_color,
+            email_logo_url: defaultSettings.email_logo_url,
+          },
+          { onConflict: "organization_id" }
+        )
+        .select()
+        .maybeSingle();
+
+      setSettings(created ? (created as EmailSettings) : defaultSettings);
     }
 
     if (templatesRes.data) {
@@ -301,8 +317,22 @@ function GeneralSettings({
   const inputClass =
     "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
+  const isValidEmail = (email: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
   const handleSave = async () => {
     if (!organizationId || !settings) return;
+
+    // Validate email fields before saving
+    if (settings.sender_email && !isValidEmail(settings.sender_email)) {
+      toast.error(t("email.invalid_sender_email"));
+      return;
+    }
+    if (settings.reply_to_email && !isValidEmail(settings.reply_to_email)) {
+      toast.error(t("email.invalid_reply_to_email"));
+      return;
+    }
+
     setSaving(true);
     const supabase = createClient();
 
@@ -319,7 +349,7 @@ function GeneralSettings({
       .from("email_settings")
       .upsert(payload, { onConflict: "organization_id" })
       .select()
-      .single();
+      .maybeSingle();
 
     setSaving(false);
 
