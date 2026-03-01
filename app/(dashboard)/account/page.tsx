@@ -209,6 +209,13 @@ export default function AccountPage() {
       professional_title: values.professional_title || null,
     });
 
+    // Sync name to linked doctor record (trigger handles this too,
+    // but explicit update ensures it works even without the trigger)
+    await supabase
+      .from("doctors")
+      .update({ full_name: values.full_name })
+      .eq("user_id", user.id);
+
     setSaving(false);
 
     if (error) {
