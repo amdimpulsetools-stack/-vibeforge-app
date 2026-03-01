@@ -231,13 +231,17 @@ export async function POST(request: NextRequest) {
         const doctorName = targetProfile?.full_name || email.split("@")[0];
         const tempCmp = `PEND-${crypto.randomUUID().slice(0, 8)}`;
 
-        await supabase.from("doctors").insert({
+        const { error: doctorInsertError } = await supabase.from("doctors").insert({
           full_name: doctorName,
           cmp: tempCmp,
           organization_id: callerMembership.organization_id,
           user_id: targetUserId,
           is_active: true,
         });
+
+        if (doctorInsertError) {
+          console.error("Error auto-creating doctor record:", doctorInsertError);
+        }
       }
     }
 
