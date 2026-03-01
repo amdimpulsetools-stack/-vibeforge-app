@@ -84,6 +84,9 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.org_save_success": "Organización actualizada",
     "settings.org_save_error": "Error al guardar la organización",
     "settings.org_admin_only": "Solo administradores pueden editar",
+    "settings.org_slug_taken": "Ese slug ya está en uso. Elige otro.",
+    "settings.access_denied": "No tienes permisos para acceder a esta sección",
+    "settings.access_denied_description": "Solo los administradores pueden acceder a la configuración. Contacta al administrador de tu organización si necesitas realizar cambios.",
 
     // Validation
     "validation.name_min": "El nombre debe tener al menos 2 caracteres",
@@ -569,6 +572,9 @@ const translations: Record<Language, Record<string, string>> = {
     "settings.org_save_success": "Organization updated",
     "settings.org_save_error": "Error saving organization",
     "settings.org_admin_only": "Only admins can edit",
+    "settings.org_slug_taken": "That slug is already in use. Please choose another.",
+    "settings.access_denied": "You don't have permission to access this section",
+    "settings.access_denied_description": "Only administrators can access settings. Contact your organization administrator if you need to make changes.",
 
     // Validation
     "validation.name_min": "Name must be at least 2 characters",

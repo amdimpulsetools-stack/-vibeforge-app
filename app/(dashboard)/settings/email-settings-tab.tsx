@@ -321,7 +321,7 @@ function GeneralSettings({
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleSave = async () => {
-    if (!organizationId || !settings) return;
+    if (!organizationId || !settings || !isAdmin) return;
 
     // Validate email fields before saving
     if (settings.sender_email && !isValidEmail(settings.sender_email)) {
