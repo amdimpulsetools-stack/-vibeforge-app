@@ -212,7 +212,7 @@ export async function POST(request: NextRequest) {
         .update({ professional_title: professional_title || "doctor" })
         .eq("id", targetUserId);
 
-      // Auto-create doctor record if none exists for this user in this org
+      // Auto-link or auto-create doctor record for this user in this org
       const { data: existingDoctorRecord } = await supabase
         .from("doctors")
         .select("id")
@@ -229,18 +229,43 @@ export async function POST(request: NextRequest) {
           .single();
 
         const doctorName = targetProfile?.full_name || email.split("@")[0];
-        const tempCmp = `PEND-${crypto.randomUUID().slice(0, 8)}`;
 
-        const { error: doctorInsertError } = await supabase.from("doctors").insert({
-          full_name: doctorName,
-          cmp: tempCmp,
-          organization_id: callerMembership.organization_id,
-          user_id: targetUserId,
-          is_active: true,
-        });
+        // Try to find an existing unlinked doctor record by name match
+        const { data: unlinkedDoctor } = await supabase
+          .from("doctors")
+          .select("id")
+          .is("user_id", null)
+          .eq("organization_id", callerMembership.organization_id)
+          .eq("is_active", true)
+          .ilike("full_name", doctorName.trim())
+          .limit(1)
+          .single();
 
-        if (doctorInsertError) {
-          console.error("Error auto-creating doctor record:", doctorInsertError);
+        if (unlinkedDoctor) {
+          // Link existing doctor record to this user
+          const { error: linkError } = await supabase
+            .from("doctors")
+            .update({ user_id: targetUserId })
+            .eq("id", unlinkedDoctor.id);
+
+          if (linkError) {
+            console.error("Error linking existing doctor record:", linkError);
+          }
+        } else {
+          // No match found, create a new doctor record
+          const tempCmp = `PEND-${crypto.randomUUID().slice(0, 8)}`;
+
+          const { error: doctorInsertError } = await supabase.from("doctors").insert({
+            full_name: doctorName,
+            cmp: tempCmp,
+            organization_id: callerMembership.organization_id,
+            user_id: targetUserId,
+            is_active: true,
+          });
+
+          if (doctorInsertError) {
+            console.error("Error auto-creating doctor record:", doctorInsertError);
+          }
         }
       }
     }
