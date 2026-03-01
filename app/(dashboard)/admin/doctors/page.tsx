@@ -4,21 +4,20 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
-import { RoleGate } from "@/components/role-gate";
 import { toast } from "sonner";
 import type { Doctor } from "@/types/admin";
 import Link from "next/link";
 import { getInitials } from "@/lib/utils";
 import {
   Stethoscope,
-  Plus,
   Pencil,
-  Trash2,
   Search,
+  Users,
+  Info,
 } from "lucide-react";
 
 export default function DoctorsPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { isAdmin } = useOrgRole();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,9 +25,11 @@ export default function DoctorsPage() {
 
   const fetchDoctors = async () => {
     const supabase = createClient();
+    // Only show doctors linked to organization members (user_id IS NOT NULL)
     const { data } = await supabase
       .from("doctors")
       .select("*")
+      .not("user_id", "is", null)
       .order("full_name");
     setDoctors(data ?? []);
     setLoading(false);
@@ -37,18 +38,6 @@ export default function DoctorsPage() {
   useEffect(() => {
     fetchDoctors();
   }, []);
-
-  const handleDelete = async (id: string) => {
-    if (!confirm(t("doctors.delete_confirm"))) return;
-    const supabase = createClient();
-    const { error } = await supabase.from("doctors").delete().eq("id", id);
-    if (error) {
-      toast.error(t("doctors.save_error"));
-      return;
-    }
-    toast.success(t("doctors.delete_success"));
-    fetchDoctors();
-  };
 
   const handleToggleActive = async (doctor: Doctor) => {
     const supabase = createClient();
@@ -85,15 +74,27 @@ export default function DoctorsPage() {
           <h1 className="text-3xl font-bold tracking-tight">{t("doctors.title")}</h1>
           <p className="text-muted-foreground">{t("doctors.subtitle")}</p>
         </div>
-        <RoleGate minRole="admin">
-          <Link
-            href="/admin/doctors/new"
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-          >
-            <Plus className="h-4 w-4" />
-            {t("doctors.add")}
-          </Link>
-        </RoleGate>
+      </div>
+
+      {/* Info banner: doctors are synced from members */}
+      <div className="flex items-start gap-3 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-blue-500" />
+        <div className="space-y-1">
+          <p className="text-sm text-muted-foreground">
+            {language === "es"
+              ? "Los doctores, especialistas y licenciados/as se sincronizan automáticamente desde los miembros de la organización. Para agregar nuevos profesionales, invítalos desde el panel de miembros."
+              : "Doctors, specialists and professionals are automatically synced from organization members. To add new professionals, invite them from the members panel."}
+          </p>
+          {isAdmin && (
+            <Link
+              href="/admin/members"
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+            >
+              <Users className="h-4 w-4" />
+              {language === "es" ? "Ir a miembros" : "Go to members"}
+            </Link>
+          )}
+        </div>
       </div>
 
       {doctors.length > 0 && (
@@ -162,14 +163,6 @@ export default function DoctorsPage() {
                 >
                   <Pencil className="h-4 w-4" />
                 </Link>
-              )}
-              {isAdmin && (
-                <button
-                  onClick={() => handleDelete(doctor.id)}
-                  className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
               )}
             </div>
           </div>

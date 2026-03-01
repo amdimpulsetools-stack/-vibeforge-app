@@ -53,7 +53,7 @@ interface AppointmentSidebarProps {
   services?: Service[];
   lookupOrigins?: LookupValue[];
   lookupPayments?: LookupValue[];
-  lookupResponsibles?: LookupValue[];
+  lookupResponsibles?: { id: string; label: string }[];
   /** When true, hides all edit/delete/status actions (doctor viewing own appointment sidebar is fine; this blocks other doctors) */
   readOnly?: boolean;
 }

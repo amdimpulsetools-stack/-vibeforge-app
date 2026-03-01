@@ -61,7 +61,7 @@ interface AppointmentFormModalProps {
   doctorSchedules: Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[];
   lookupOrigins: LookupValue[];
   lookupPayments: LookupValue[];
-  lookupResponsibles: LookupValue[];
+  lookupResponsibles: { id: string; label: string }[];
   existingAppointments: AppointmentWithRelations[];
   organizationId: string;
   onClose: () => void;

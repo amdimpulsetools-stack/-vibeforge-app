@@ -27,7 +27,6 @@ const TAB_CONFIG = [
   { slug: LOOKUP_SLUGS.ORIGIN, labelKey: "lookups.tab_origins", showColor: false },
   { slug: LOOKUP_SLUGS.PAYMENT_METHOD, labelKey: "lookups.tab_payment_methods", showColor: false },
   { slug: LOOKUP_SLUGS.APPOINTMENT_STATUS, labelKey: "lookups.tab_appointment_status", showColor: true },
-  { slug: LOOKUP_SLUGS.RESPONSIBLE, labelKey: "lookups.tab_responsible", showColor: false },
 ];
 
 export default function LookupsPage() {

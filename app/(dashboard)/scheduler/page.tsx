@@ -79,7 +79,7 @@ export default function SchedulerPage() {
   const [doctorSchedules, setDoctorSchedules] = useState<Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[]>([]);
   const [lookupOrigins, setLookupOrigins] = useState<LookupValue[]>([]);
   const [lookupPayments, setLookupPayments] = useState<LookupValue[]>([]);
-  const [lookupResponsibles, setLookupResponsibles] = useState<LookupValue[]>([]);
+  const [lookupResponsibles, setLookupResponsibles] = useState<{ id: string; label: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Sidebar & form state
@@ -113,7 +113,7 @@ export default function SchedulerPage() {
         doctorSchedulesRes,
         originsRes,
         paymentsRes,
-        responsiblesRes,
+        receptionistMembersRes,
       ] = await Promise.all([
         supabase.from("offices").select("*").eq("is_active", true).order("display_order"),
         supabase.from("doctors").select("*").eq("is_active", true).order("full_name"),
@@ -132,12 +132,11 @@ export default function SchedulerPage() {
           .eq("lookup_categories.slug", "payment_method")
           .eq("is_active", true)
           .order("display_order"),
+        // Fetch receptionist members as "responsables"
         supabase
-          .from("lookup_values")
-          .select("*, lookup_categories!inner(slug)")
-          .eq("lookup_categories.slug", "responsible")
-          .eq("is_active", true)
-          .order("display_order"),
+          .from("organization_members")
+          .select("id, user_id, role")
+          .eq("role", "receptionist"),
       ]);
 
       if (doctorServicesRes.error) console.error("[scheduler] doctor_services fetch error:", doctorServicesRes.error);
@@ -150,7 +149,28 @@ export default function SchedulerPage() {
       setDoctorSchedules((doctorSchedulesRes.data as Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[]) ?? []);
       setLookupOrigins((originsRes.data as LookupValue[]) ?? []);
       setLookupPayments((paymentsRes.data as LookupValue[]) ?? []);
-      setLookupResponsibles((responsiblesRes.data as LookupValue[]) ?? []);
+
+      // Build responsibles list from receptionist members + their profiles
+      const receptionists = receptionistMembersRes.data ?? [];
+      if (receptionists.length > 0) {
+        const userIds = receptionists.map((m) => m.user_id);
+        const { data: profiles } = await supabase
+          .from("user_profiles")
+          .select("id, full_name, email")
+          .in("id", userIds);
+        const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
+        setLookupResponsibles(
+          receptionists.map((m) => {
+            const profile = profileMap.get(m.user_id);
+            return {
+              id: m.id,
+              label: profile?.full_name || profile?.email || "Recepcionista",
+            };
+          })
+        );
+      } else {
+        setLookupResponsibles([]);
+      }
     };
 
     fetchMasterData();
