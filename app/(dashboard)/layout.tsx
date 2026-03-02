@@ -1,6 +1,8 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
+import { AiAssistantPanel } from "@/components/ai-assistant-panel";
 import { OrganizationProvider } from "@/components/organization-provider";
+import { PlanLimitWarner } from "@/components/plan-limit-warner";
 
 export default function DashboardLayout({
   children,
@@ -9,12 +11,14 @@ export default function DashboardLayout({
 }) {
   return (
     <OrganizationProvider>
+      <PlanLimitWarner />
       <div className="flex h-screen overflow-hidden">
         <Sidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
           <Topbar />
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+          <main className="flex-1 overflow-auto p-7">{children}</main>
         </div>
+        <AiAssistantPanel />
       </div>
     </OrganizationProvider>
   );

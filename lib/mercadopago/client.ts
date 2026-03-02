@@ -1,22 +1,27 @@
-import { MercadoPagoConfig, PreApproval, Payment } from "mercadopago";
+import { MercadoPagoConfig, Preference, PreApproval, Payment } from "mercadopago";
 
-let config: MercadoPagoConfig | null = null;
+// Singleton Mercado Pago client
+let client: MercadoPagoConfig | null = null;
 
-function getConfig() {
-  if (!config) {
-    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN || process.env.MP_ACCESS_TOKEN;
+export function getMercadoPagoClient(): MercadoPagoConfig {
+  if (!client) {
+    const accessToken = process.env.MP_ACCESS_TOKEN;
     if (!accessToken) {
-      throw new Error("MERCADOPAGO_ACCESS_TOKEN or MP_ACCESS_TOKEN is not defined");
+      throw new Error("MP_ACCESS_TOKEN is not configured");
     }
-    config = new MercadoPagoConfig({ accessToken });
+    client = new MercadoPagoConfig({ accessToken });
   }
-  return config;
+  return client;
+}
+
+export function getPreferenceClient() {
+  return new Preference(getMercadoPagoClient());
 }
 
 export function getPreApprovalClient() {
-  return new PreApproval(getConfig());
+  return new PreApproval(getMercadoPagoClient());
 }
 
 export function getPaymentClient() {
-  return new Payment(getConfig());
+  return new Payment(getMercadoPagoClient());
 }

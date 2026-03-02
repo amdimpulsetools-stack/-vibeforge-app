@@ -98,20 +98,15 @@ export function Sidebar() {
   // Check founder status once
   useEffect(() => {
     const checkFounder = async () => {
-      try {
-        const supabase = createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { data } = await supabase
-          .from("user_profiles")
-          .select("role")
-          .eq("id", user.id)
-          .single();
-        // Founders are admins with special access
-        if (data?.role === "admin") setIsFounder(true);
-      } catch {
-        // Column may not exist yet
-      }
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("user_profiles")
+        .select("is_founder")
+        .eq("id", user.id)
+        .single();
+      if (data?.is_founder) setIsFounder(true);
     };
     checkFounder();
   }, []);

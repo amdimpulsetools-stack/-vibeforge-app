@@ -1,119 +1,189 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
-import { Loader2, Zap, Check, Stethoscope } from "lucide-react";
+import {
+  Zap,
+  Check,
+  Loader2,
+  Crown,
+  Building2,
+  Users,
+  Stethoscope,
+  CalendarDays,
+  HardDrive,
+  Plus,
+  UserPlus,
+  type LucideIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface Plan {
   id: string;
   slug: string;
   name: string;
-  description: string;
+  description: string | null;
   price_monthly: number;
-  price_yearly: number;
-  currency: string;
-  max_members: number;
-  max_doctors: number;
-  max_offices: number;
-  max_patients: number;
-  max_appointments_per_month: number;
-  has_reports: boolean;
+  price_yearly: number | null;
+  max_members: number | null;
+  max_doctors: number | null;
+  max_offices: number | null;
+  max_patients: number | null;
+  max_appointments_per_month: number | null;
+  max_storage_mb: number | null;
+  max_admins: number | null;
+  max_receptionists: number | null;
+  max_doctor_members: number | null;
+  addon_price_per_office: number | null;
+  addon_price_per_member: number | null;
+  target_audience: string | null;
+  feature_reports: boolean;
+  feature_export: boolean;
+  feature_priority_support: boolean;
+  feature_ai_assistant: boolean;
+}
+
+const PLAN_ICONS: Record<string, LucideIcon> = {
+  starter: Stethoscope,
+  professional: Building2,
+  enterprise: Crown,
+};
+
+const PLAN_COLORS: Record<string, string> = {
+  starter: "border-emerald-500/50 bg-emerald-500/5",
+  professional: "border-blue-500/50 bg-blue-500/5 ring-2 ring-blue-500/20",
+  enterprise: "border-amber-500/50 bg-amber-500/5",
+};
+
+const PLAN_BADGE_COLORS: Record<string, string> = {
+  starter: "bg-emerald-500/10 text-emerald-500",
+  professional: "bg-blue-500/10 text-blue-500",
+  enterprise: "bg-amber-500/10 text-amber-500",
+};
+
+const PLAN_BTN_COLORS: Record<string, string> = {
+  starter: "bg-emerald-600 hover:bg-emerald-700",
+  professional: "bg-blue-600 hover:bg-blue-700",
+  enterprise: "bg-amber-600 hover:bg-amber-700",
+};
+
+const AUDIENCE_LABELS: Record<string, string> = {
+  independiente: "Doctor Independiente",
+  centro_medico: "Centro Médico",
+  clinica: "Clínica",
+};
+
+function formatLimit(val: number | null): string {
+  if (val === null) return "Ilimitado";
+  return val.toLocaleString();
+}
+
+function formatStorage(mb: number | null): string {
+  if (mb === null) return "Ilimitado";
+  if (mb >= 1024) return `${(mb / 1024).toFixed(0)} GB`;
+  return `${mb} MB`;
 }
 
 export default function SelectPlanPage() {
-  const [plan, setPlan] = useState<Plan | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [user, setUser] = useState<{ id: string; email: string; full_name?: string } | null>(null);
-  const [orgName, setOrgName] = useState("");
   const router = useRouter();
-  const searchParams = useSearchParams();
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selecting, setSelecting] = useState<string | null>(null);
+  const [hasSubscription, setHasSubscription] = useState(false);
 
   useEffect(() => {
-    const paymentStatus = searchParams.get("payment");
-    if (paymentStatus === "callback") {
-      toast.success("Procesando tu pago... Te redirigiremos pronto.");
-      // Dar tiempo para que el webhook procese
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 3000);
-      return;
-    }
+    const init = async () => {
+      const supabase = createClient();
 
-    loadData();
-  }, [searchParams, router]);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-  async function loadData() {
-    const supabase = createClient();
+      if (!user) {
+        router.push("/login");
+        return;
+      }
 
-    // Verificar usuario autenticado
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser();
+      // Check if they already have an org with subscription
+      const { data: members } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .limit(1);
 
-    if (!authUser) {
-      router.push("/login");
-      return;
-    }
-    setUser({
-      id: authUser.id,
-      email: authUser.email ?? "",
-      full_name: authUser.user_metadata?.full_name,
-    });
-    setOrgName(`Clínica de ${authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || ""}`);
+      if (members && members.length > 0) {
+        const { data: subs } = await supabase
+          .from("organization_subscriptions")
+          .select("id, status")
+          .eq("organization_id", members[0].organization_id)
+          .in("status", ["active", "trialing"])
+          .limit(1);
 
-    // Cargar plan Independiente
-    const { data: plans } = await supabase
-      .from("plans")
-      .select("*")
-      .eq("slug", "independiente")
-      .eq("is_active", true)
-      .single();
+        if (subs && subs.length > 0) {
+          setHasSubscription(true);
+          router.push("/dashboard");
+          return;
+        }
+      }
 
-    if (plans) {
-      setPlan(plans);
-    }
+      // Fetch plans
+      const { data: plansData } = await supabase
+        .from("plans")
+        .select("*")
+        .eq("is_active", true)
+        .order("display_order");
 
-    setLoading(false);
-  }
+      if (plansData) {
+        setPlans(plansData);
+      }
+      setLoading(false);
+    };
 
-  async function handleCheckout() {
-    if (!plan || !user) return;
+    init();
+  }, [router]);
 
-    setCheckoutLoading(true);
+  const handleSelect = async (planId: string) => {
+    setSelecting(planId);
+    const selectedPlan = plans.find((p) => p.id === planId);
+
+    // All plans go through Mercado Pago checkout
     try {
-      const response = await fetch("/api/mercadopago/checkout", {
+      const res = await fetch("/api/mercadopago/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          plan_id: plan.id,
-          billing_cycle: "monthly",
-          org_name: orgName.trim() || undefined,
-        }),
+        body: JSON.stringify({ plan_id: planId, billing_cycle: "monthly" }),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Error al crear checkout");
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Error al iniciar el pago");
+        setSelecting(null);
+        return;
       }
 
-      // Redirigir a Mercado Pago
+      const data = await res.json();
+
       if (data.init_point) {
+        toast.success(
+          `Redirigiendo a Mercado Pago para activar Plan ${selectedPlan?.name ?? ""}...`
+        );
         window.location.href = data.init_point;
+      } else {
+        toast.success(
+          `Plan ${selectedPlan?.name ?? ""} activado`
+        );
+        router.push("/dashboard");
       }
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Error al procesar el pago"
-      );
-      setCheckoutLoading(false);
+    } catch {
+      toast.error("Error de conexión al procesar el pago");
+      setSelecting(null);
     }
-  }
+  };
 
-  if (loading) {
+  if (loading || hasSubscription) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -121,132 +191,244 @@ export default function SelectPlanPage() {
     );
   }
 
-  const paymentStatus = searchParams.get("payment");
-  if (paymentStatus === "callback") {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background p-4">
-        <div className="text-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
-          <h2 className="text-xl font-bold">Procesando tu pago...</h2>
-          <p className="text-muted-foreground">
-            Te redirigiremos al dashboard en un momento.
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md space-y-8">
+    <div className="min-h-screen bg-background px-4 py-12">
+      <div className="mx-auto max-w-5xl">
         {/* Header */}
-        <div className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Zap className="h-6 w-6" />
+        <div className="text-center mb-10">
+          <div className="flex items-center justify-center gap-2 mb-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <Zap className="h-5 w-5" />
+            </div>
+            <span className="text-xl font-bold">{APP_NAME}</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Selecciona tu plan para comenzar
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            Elige tu plan
+          </h1>
+          <p className="mt-2 text-muted-foreground max-w-lg mx-auto">
+            Selecciona el plan que mejor se adapte a tu realidad.
+            Puedes cambiar de plan en cualquier momento.
           </p>
         </div>
 
-        {/* Plan Card */}
-        {plan && (
-          <div className="rounded-xl border-2 border-primary bg-card p-6 shadow-sm">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                <Stethoscope className="h-5 w-5" />
+        {/* Plans grid */}
+        <div className="grid gap-6 md:grid-cols-3">
+          {plans.map((plan) => {
+            const PlanIcon = PLAN_ICONS[plan.slug] ?? Zap;
+            const isPopular = plan.slug === "professional";
+
+            return (
+              <div
+                key={plan.id}
+                className={cn(
+                  "relative flex flex-col rounded-2xl border p-6 transition-all hover:shadow-lg",
+                  PLAN_COLORS[plan.slug] ?? "border-border bg-card"
+                )}
+              >
+                {isPopular && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                    <span className="rounded-full bg-blue-600 px-4 py-1 text-xs font-semibold text-white">
+                      Recomendado
+                    </span>
+                  </div>
+                )}
+
+                {/* Plan header */}
+                <div className="mb-6">
+                  <div
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium mb-3",
+                      PLAN_BADGE_COLORS[plan.slug] ?? "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    <PlanIcon className="h-3.5 w-3.5" />
+                    {plan.name}
+                  </div>
+
+                  {/* Target audience badge */}
+                  {plan.target_audience && (
+                    <p className="text-[11px] font-medium text-muted-foreground mb-2">
+                      {AUDIENCE_LABELS[plan.target_audience] ?? plan.target_audience}
+                    </p>
+                  )}
+
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-bold">
+                      ${plan.price_monthly}
+                    </span>
+                    <span className="text-sm text-muted-foreground">/mes</span>
+                  </div>
+                  {plan.description && (
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {plan.description}
+                    </p>
+                  )}
+                </div>
+
+                {/* Team composition */}
+                <div className="space-y-2 mb-4">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Equipo incluido
+                  </h4>
+                  <Feature
+                    icon={Users}
+                    label="Miembros totales"
+                    value={formatLimit(plan.max_members)}
+                  />
+                  {(plan.max_admins ?? 0) > 0 && (
+                    <Feature
+                      icon={UserPlus}
+                      label="Administradores"
+                      value={formatLimit(plan.max_admins)}
+                    />
+                  )}
+                  {(plan.max_receptionists ?? 0) > 0 && (
+                    <Feature
+                      icon={UserPlus}
+                      label="Recepcionistas"
+                      value={formatLimit(plan.max_receptionists)}
+                    />
+                  )}
+                  <Feature
+                    icon={Stethoscope}
+                    label="Doctores"
+                    value={formatLimit(plan.max_doctor_members ?? plan.max_doctors)}
+                  />
+                </div>
+
+                {/* Resources */}
+                <div className="space-y-2 mb-4">
+                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    Recursos
+                  </h4>
+                  <Feature
+                    icon={Building2}
+                    label="Consultorios"
+                    value={formatLimit(plan.max_offices)}
+                  />
+                  <Feature
+                    icon={CalendarDays}
+                    label="Citas/mes"
+                    value={formatLimit(plan.max_appointments_per_month)}
+                  />
+                  <Feature
+                    icon={Users}
+                    label="Pacientes"
+                    value={formatLimit(plan.max_patients)}
+                  />
+                  <Feature
+                    icon={HardDrive}
+                    label="Almacenamiento"
+                    value={formatStorage(plan.max_storage_mb)}
+                  />
+                </div>
+
+                {/* Expandable info */}
+                {plan.addon_price_per_office && (
+                  <div className="mb-4 rounded-lg bg-muted/30 p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Plus className="h-3 w-3 text-primary" />
+                      <span className="text-[11px] font-bold text-primary">
+                        Ampliable
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">
+                      +${plan.addon_price_per_office}/consultorio extra
+                    </p>
+                    {plan.addon_price_per_member && (
+                      <p className="text-[11px] text-muted-foreground">
+                        +${plan.addon_price_per_member}/miembro adicional
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Feature flags */}
+                <div className="flex-1 border-t border-border/50 pt-3 space-y-2 mb-6">
+                  <FeatureFlag
+                    enabled={plan.feature_reports}
+                    label="Reportes"
+                  />
+                  <FeatureFlag
+                    enabled={plan.feature_export}
+                    label="Exportar datos"
+                  />
+                  <FeatureFlag
+                    enabled={plan.feature_ai_assistant ?? false}
+                    label="Asistente IA"
+                  />
+                  <FeatureFlag
+                    enabled={plan.feature_priority_support}
+                    label="Soporte prioritario"
+                  />
+                </div>
+
+                {/* CTA */}
+                <button
+                  onClick={() => handleSelect(plan.id)}
+                  disabled={selecting !== null}
+                  className={cn(
+                    "flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-all disabled:opacity-50",
+                    PLAN_BTN_COLORS[plan.slug] ?? "bg-primary hover:opacity-90"
+                  )}
+                >
+                  {selecting === plan.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : null}
+                  Suscribirse — ${plan.price_monthly}/mes
+                </button>
               </div>
-              <div>
-                <h2 className="text-lg font-bold">{plan.name}</h2>
-                <p className="text-sm text-muted-foreground">
-                  {plan.description}
-                </p>
-              </div>
-            </div>
+            );
+          })}
+        </div>
 
-            {/* Precio */}
-            <div className="mb-6">
-              <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-bold">
-                  S/{Number(plan.price_monthly).toFixed(2)}
-                </span>
-                <span className="text-sm text-muted-foreground">/mes</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Precio de prueba
-              </p>
-            </div>
-
-            {/* Features */}
-            <ul className="space-y-2.5 mb-6">
-              <Feature text={`${plan.max_members} miembro`} />
-              <Feature text={`${plan.max_doctors} doctor`} />
-              <Feature text={`${plan.max_offices} consultorio`} />
-              <Feature text={`Hasta ${plan.max_patients} pacientes`} />
-              <Feature
-                text={`${plan.max_appointments_per_month} citas/mes`}
-              />
-              {plan.has_reports && <Feature text="Reportes básicos" />}
-            </ul>
-
-            {/* Nombre de organización */}
-            <div className="space-y-2 mb-4">
-              <label htmlFor="org-name" className="text-sm font-medium">
-                Nombre de tu clínica / consultorio
-              </label>
-              <input
-                id="org-name"
-                type="text"
-                placeholder="Ej: Clínica DermoSalud"
-                value={orgName}
-                onChange={(e) => setOrgName(e.target.value)}
-                required
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
-            </div>
-
-            {/* Botón de checkout */}
-            <button
-              onClick={handleCheckout}
-              disabled={checkoutLoading || !orgName.trim()}
-              className="flex h-11 w-full items-center justify-center rounded-lg bg-primary text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
-            >
-              {checkoutLoading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              {checkoutLoading ? "Redirigiendo a Mercado Pago..." : "Suscribirme con Mercado Pago"}
-            </button>
-          </div>
-        )}
-
-        {!plan && (
-          <div className="rounded-xl border border-border bg-card p-6 text-center">
-            <p className="text-muted-foreground">
-              No hay planes disponibles. Ejecuta la migración SQL primero.
-            </p>
-          </div>
-        )}
-
-        {/* Skip link */}
-        <p className="text-center text-sm text-muted-foreground">
-          <button
-            onClick={() => router.push("/dashboard")}
-            className="text-primary hover:underline"
-          >
-            Continuar sin plan (modo gratuito)
-          </button>
+        <p className="mt-8 text-center text-xs text-muted-foreground">
+          Pagos procesados de forma segura con Mercado Pago.
+          Puedes cambiar o cancelar tu plan en cualquier momento.
         </p>
       </div>
     </div>
   );
 }
 
-function Feature({ text }: { text: string }) {
+function Feature({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Users;
+  label: string;
+  value: string;
+}) {
   return (
-    <li className="flex items-center gap-2 text-sm">
-      <Check className="h-4 w-4 text-primary shrink-0" />
-      <span>{text}</span>
-    </li>
+    <div className="flex items-center justify-between text-sm">
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <Icon className="h-4 w-4" />
+        <span>{label}</span>
+      </div>
+      <span className="font-medium">{value}</span>
+    </div>
+  );
+}
+
+function FeatureFlag({
+  enabled,
+  label,
+}: {
+  enabled: boolean;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-sm">
+      <Check
+        className={cn(
+          "h-4 w-4",
+          enabled ? "text-emerald-500" : "text-muted-foreground/30"
+        )}
+      />
+      <span className={enabled ? "" : "text-muted-foreground/50 line-through"}>
+        {label}
+      </span>
+    </div>
   );
 }

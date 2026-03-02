@@ -30,67 +30,59 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   // Rutas públicas que no requieren auth
-  const publicPaths = ["/", "/login", "/register", "/forgot-password", "/api", "/auth"];
+  const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/api", "/auth"];
   const isPublic = publicPaths.some((path) =>
     request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + "/")
   );
 
+  const isSelectPlan = request.nextUrl.pathname === "/select-plan";
+  const isWaitingForPlan = request.nextUrl.pathname === "/waiting-for-plan";
+
   // Redirigir a login si no autenticado y ruta protegida
-  if (!user && !isPublic) {
+  if (!user && !isPublic && !isSelectPlan && !isWaitingForPlan) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // Para usuarios autenticados, verificar suscripción
-  if (user) {
-    const isSelectPlan = request.nextUrl.pathname === "/select-plan";
-    const isAuthPage = ["/login", "/register"].includes(request.nextUrl.pathname);
-    const isDashboard = request.nextUrl.pathname.startsWith("/dashboard") ||
-      (!isPublic && !isSelectPlan && !isAuthPage);
+  // Redirigir a dashboard si ya autenticado e intenta ir a auth pages (except select-plan)
+  if (user && ["/login", "/register"].includes(request.nextUrl.pathname)) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/dashboard";
+    return NextResponse.redirect(url);
+  }
 
-    // Verificar si el usuario es admin (bypass de suscripción)
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    const isAdmin = profile?.role === "admin";
-
-    // Admins van directo al dashboard sin verificar suscripción
-    if (isAdmin) {
-      if (isAuthPage || isSelectPlan) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/dashboard";
-        return NextResponse.redirect(url);
-      }
-      return supabaseResponse;
-    }
-
-    // Solo verificar suscripción si es relevante (auth pages o dashboard)
-    if (isAuthPage || isDashboard) {
-      const { data: subscription } = await supabase
-        .from("organization_subscriptions")
-        .select("id")
+  // Check if authenticated user accessing dashboard needs a plan
+  if (user && !isPublic && !isSelectPlan && !isWaitingForPlan && !request.nextUrl.pathname.startsWith("/api")) {
+    try {
+      const { data: members } = await supabase
+        .from("organization_members")
+        .select("organization_id, role")
         .eq("user_id", user.id)
-        .in("status", ["active", "trialing", "pending"])
-        .limit(1)
-        .maybeSingle();
+        .limit(1);
 
-      // Sin suscripción + intentando ir al dashboard → select-plan
-      if (!subscription && isDashboard) {
-        const url = request.nextUrl.clone();
-        url.pathname = "/select-plan";
-        return NextResponse.redirect(url);
-      }
+      if (members && members.length > 0) {
+        // Non-owner members skip plan check — plan is the owner's responsibility
+        if (members[0].role !== "owner") {
+          return supabaseResponse;
+        }
 
-      // Auth pages → redirigir según suscripción
-      if (isAuthPage) {
-        const url = request.nextUrl.clone();
-        url.pathname = subscription ? "/dashboard" : "/select-plan";
-        return NextResponse.redirect(url);
+        // Only owners need an active subscription
+        const { data: subs } = await supabase
+          .from("organization_subscriptions")
+          .select("id")
+          .eq("organization_id", members[0].organization_id)
+          .in("status", ["active", "trialing"])
+          .limit(1);
+
+        if (!subs || subs.length === 0) {
+          const url = request.nextUrl.clone();
+          url.pathname = "/select-plan";
+          return NextResponse.redirect(url);
+        }
       }
+    } catch {
+      // If subscription check fails, let user through to avoid blocking
     }
   }
 

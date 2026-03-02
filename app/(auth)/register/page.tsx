@@ -1,31 +1,71 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
-import { Loader2, Zap } from "lucide-react";
+import { Loader2, Zap, Building2 } from "lucide-react";
+
+interface InviteInfo {
+  email: string;
+  role: string;
+  professional_title: string | null;
+  organization_name: string | null;
+  organization_logo: string | null;
+}
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState("");
+  const [orgName, setOrgName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
+  const [loadingInvite, setLoadingInvite] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const inviteToken = searchParams.get("invite");
+
+  // Validate invite token on mount
+  useEffect(() => {
+    if (!inviteToken) return;
+
+    setLoadingInvite(true);
+    fetch(`/api/invite/${inviteToken}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("invalid");
+        return res.json();
+      })
+      .then((data: InviteInfo) => {
+        setInviteInfo(data);
+        setEmail(data.email);
+      })
+      .catch(() => {
+        toast.error("La invitación no es válida o ha expirado");
+      })
+      .finally(() => setLoadingInvite(false));
+  }, [inviteToken]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     const supabase = createClient();
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/select-plan`,
+        data: {
+          full_name: fullName,
+          ...(inviteToken
+            ? { invite_token: inviteToken }
+            : { org_name: orgName || "Mi Clinica" }),
+        },
+        emailRedirectTo: `${window.location.origin}/api/auth/callback${
+          inviteToken ? `?invite=${inviteToken}` : ""
+        }`,
       },
     });
 
@@ -35,49 +75,105 @@ export default function RegisterPage() {
       return;
     }
 
-    // Si hay sesión (email confirm desactivado), ir directo a seleccionar plan
-    if (data.session) {
-      toast.success("¡Cuenta creada! Selecciona tu plan.");
-      router.push("/select-plan");
-    } else {
-      // Email confirmation habilitado - el usuario debe verificar primero
-      toast.success("Revisa tu email para confirmar tu cuenta");
-      router.push("/login");
-    }
+    toast.success("Revisa tu email para confirmar tu cuenta");
+    router.push("/login");
   };
 
+  const roleLabels: Record<string, string> = {
+    doctor: "Doctor/a",
+    receptionist: "Recepcionista",
+    admin: "Administrador/a",
+  };
+
+  if (loadingInvite) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-screen items-center justify-center p-4">
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Zap className="h-6 w-6" />
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl gradient-primary shadow-lg gradient-glow">
+            <Zap className="h-7 w-7 text-white" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight">{APP_NAME}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Crea tu cuenta para comenzar
+          <h1 className="text-3xl font-extrabold tracking-tight">{APP_NAME}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {inviteInfo
+              ? "Crea tu cuenta para unirte"
+              : "Crea tu cuenta para comenzar"}
           </p>
         </div>
 
-        <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
-          <form onSubmit={handleRegister} className="space-y-4">
+        {/* Invitation banner */}
+        {inviteInfo && (
+          <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
+            <div className="flex items-center gap-3">
+              {inviteInfo.organization_logo ? (
+                <img
+                  src={inviteInfo.organization_logo}
+                  alt=""
+                  className="h-10 w-10 rounded-lg object-cover"
+                />
+              ) : (
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <Building2 className="h-5 w-5 text-primary" />
+                </div>
+              )}
+              <div>
+                <p className="text-sm font-semibold">
+                  {inviteInfo.organization_name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Te invitaron como{" "}
+                  <span className="font-medium text-primary">
+                    {roleLabels[inviteInfo.role] || inviteInfo.role}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="glass-card rounded-2xl p-7 shadow-xl">
+          <form onSubmit={handleRegister} className="space-y-5">
             <div className="space-y-2">
-              <label htmlFor="name" className="text-sm font-medium">
+              <label htmlFor="name" className="text-sm font-semibold">
                 Nombre completo
               </label>
               <input
                 id="name"
                 type="text"
-                placeholder="Juan Pérez"
+                placeholder="Juan Perez"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 required
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
               />
             </div>
 
+            {/* Only show org name when NOT an invitation */}
+            {!inviteToken && (
+              <div className="space-y-2">
+                <label htmlFor="orgName" className="text-sm font-semibold">
+                  Nombre de tu clinica
+                </label>
+                <input
+                  id="orgName"
+                  type="text"
+                  placeholder="Mi Clinica"
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                  className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                />
+              </div>
+            )}
+
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">
+              <label htmlFor="email" className="text-sm font-semibold">
                 Email
               </label>
               <input
@@ -85,43 +181,51 @@ export default function RegisterPage() {
                 type="email"
                 placeholder="tu@email.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => !inviteToken && setEmail(e.target.value)}
                 required
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                readOnly={!!inviteToken}
+                className={`flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all ${
+                  inviteToken ? "opacity-60 cursor-not-allowed" : ""
+                }`}
               />
+              {inviteToken && (
+                <p className="text-xs text-muted-foreground">
+                  El email está vinculado a tu invitación
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">
-                Contraseña
+              <label htmlFor="password" className="text-sm font-semibold">
+                Contrasena
               </label>
               <input
                 id="password"
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Minimo 6 caracteres"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
-                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
               />
             </div>
 
             <button
               type="submit"
               disabled={loading}
-              className="flex h-10 w-full items-center justify-center rounded-lg bg-primary text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
+              className="flex h-11 w-full items-center justify-center rounded-xl gradient-primary text-sm font-semibold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-50"
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Crear cuenta
+              {inviteToken ? "Crear cuenta y unirme" : "Crear cuenta"}
             </button>
           </form>
         </div>
 
         <p className="text-center text-sm text-muted-foreground">
-          ¿Ya tienes cuenta?{" "}
-          <Link href="/login" className="text-primary hover:underline">
-            Inicia sesión
+          Ya tienes cuenta?{" "}
+          <Link href="/login" className="text-primary font-medium hover:underline">
+            Inicia sesion
           </Link>
         </p>
       </div>

@@ -23,11 +23,11 @@ export function formatDateTime(date: string | Date) {
   }).format(new Date(date));
 }
 
-export function formatCurrency(amount: number, currency = "USD") {
-  return new Intl.NumberFormat("es", {
-    style: "currency",
-    currency,
-  }).format(amount);
+export function formatCurrency(amount: number) {
+  return `S/. ${new Intl.NumberFormat("es-PE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount)}`;
 }
 
 export function getInitials(name: string) {
