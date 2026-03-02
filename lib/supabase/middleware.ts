@@ -52,50 +52,9 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Check if authenticated user accessing dashboard needs a plan
-  if (user && !isPublic && !isSelectPlan && !isWaitingForPlan && !request.nextUrl.pathname.startsWith("/api")) {
-    try {
-      // Admins (user_profiles.role = 'admin') bypass all plan checks
-      const { data: profile } = await supabase
-        .from("user_profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.role === "admin") {
-        return supabaseResponse;
-      }
-
-      const { data: members } = await supabase
-        .from("organization_members")
-        .select("organization_id, role")
-        .eq("user_id", user.id)
-        .limit(1);
-
-      if (members && members.length > 0) {
-        // Non-owner members skip plan check — plan is the owner's responsibility
-        if (members[0].role !== "owner") {
-          return supabaseResponse;
-        }
-
-        // Only owners need an active subscription
-        const { data: subs } = await supabase
-          .from("organization_subscriptions")
-          .select("id")
-          .eq("organization_id", members[0].organization_id)
-          .in("status", ["active", "trialing"])
-          .limit(1);
-
-        if (!subs || subs.length === 0) {
-          const url = request.nextUrl.clone();
-          url.pathname = "/select-plan";
-          return NextResponse.redirect(url);
-        }
-      }
-    } catch {
-      // If subscription check fails, let user through to avoid blocking
-    }
-  }
+  // Plan/subscription check disabled — plans system not yet active.
+  // When plans are ready, re-enable the subscription check here.
+  // All authenticated users with an org can access the dashboard.
 
   return supabaseResponse;
 }
