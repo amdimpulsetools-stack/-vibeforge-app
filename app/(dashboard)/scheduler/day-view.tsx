@@ -93,11 +93,16 @@ function getBlockForSlot(
 
 type ContextMenu = { x: number; y: number; blockId: string; reason?: string | null };
 
-function hexToRgba(hex: string, alpha: number): string {
+/** Blend a hex color at a given alpha with the dark card background,
+ *  producing a fully opaque color that looks identical to rgba but
+ *  doesn't let grid lines bleed through.                              */
+function hexToSolid(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  // Dark card bg ≈ oklch(0.1 0.02 265) ≈ rgb(18,18,28)
+  const bgR = 18, bgG = 18, bgB = 28;
+  return `rgb(${Math.round(r * alpha + bgR * (1 - alpha))}, ${Math.round(g * alpha + bgG * (1 - alpha))}, ${Math.round(b * alpha + bgB * (1 - alpha))})`;
 }
 
 export function DayView({
@@ -262,7 +267,7 @@ export function DayView({
                         style={{
                           top: `${offsetPx + 2}px`,
                           height: `${durationSlots * 40 - 4}px`,
-                          backgroundColor: hexToRgba(doctorColor, 0.15),
+                          backgroundColor: hexToSolid(doctorColor, 0.15),
                           borderLeft: `4px solid ${doctorColor}`,
                           ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
                         }}

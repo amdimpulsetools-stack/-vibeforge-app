@@ -173,49 +173,58 @@ export default function MembersPage() {
     if (!inviteEmail.trim()) return;
 
     setInviting(true);
-    const selectedOption = MEMBER_TYPE_OPTIONS[inviteOptionIdx];
-    const res = await fetch("/api/members", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: inviteEmail.trim(),
-        role: selectedOption.role,
-        professional_title: selectedOption.title,
-      }),
-    });
+    try {
+      const selectedOption = MEMBER_TYPE_OPTIONS[inviteOptionIdx];
+      const res = await fetch("/api/members", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: inviteEmail.trim(),
+          role: selectedOption.role,
+          professional_title: selectedOption.title,
+        }),
+      });
 
-    const data = await res.json();
-    setInviting(false);
+      const data = await res.json();
 
-    if (!res.ok) {
-      if (data.error === "already_member") {
-        toast.error(t("members.already_member"));
-      } else if (data.error === "already_invited") {
-        toast.error(t("members.already_invited"));
-      } else {
-        toast.error(t("members.invite_error"));
+      if (!res.ok) {
+        if (data.error === "already_member") {
+          toast.error(t("members.already_member"));
+        } else if (data.error === "already_invited") {
+          toast.error(t("members.already_invited"));
+        } else {
+          toast.error(t("members.invite_error"), {
+            description: data.error || `Status ${res.status}`,
+          });
+        }
+        return;
       }
-      return;
-    }
 
-    // Check if it was a direct add or an invitation sent
-    if (data.message === "invitation_sent") {
-      if (data.email_sent === false) {
-        // Email failed — show warning with registration link
-        toast.warning(t("members.invitation_created_no_email"), {
-          duration: 15000,
-          description: data.registerUrl,
-        });
+      // Check if it was a direct add or an invitation sent
+      if (data.message === "invitation_sent") {
+        if (data.email_sent === false) {
+          // Email failed — show warning with registration link
+          toast.warning(t("members.invitation_created_no_email"), {
+            duration: 15000,
+            description: data.registerUrl,
+          });
+        } else {
+          toast.success(t("members.invitation_sent"));
+        }
       } else {
-        toast.success(t("members.invitation_sent"));
+        toast.success(t("members.invite_success"));
       }
-    } else {
-      toast.success(t("members.invite_success"));
+      setInviteEmail("");
+      setInviteOptionIdx(0);
+      setShowInvite(false);
+      fetchMembers();
+    } catch (err) {
+      toast.error(t("members.invite_error"), {
+        description: err instanceof Error ? err.message : "Error de red",
+      });
+    } finally {
+      setInviting(false);
     }
-    setInviteEmail("");
-    setInviteOptionIdx(0);
-    setShowInvite(false);
-    fetchMembers();
   };
 
   const handleChangeRole = async (
