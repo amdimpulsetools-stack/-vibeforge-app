@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { Resend } from "resend";
+import { sendEmail } from "@/lib/email";
 import { buildEmailHtml } from "@/lib/email-template";
 import { emailLimiter } from "@/lib/rate-limit";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -55,25 +53,19 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: from_name
-        ? `${from_name} <${from_email || "onboarding@resend.dev"}>`
-        : `VibeForge <onboarding@resend.dev>`,
-      to: [to],
+    const fromAddress = from_name
+      ? `${from_name} <${from_email || process.env.SMTP_FROM || "noreply@vibeforge.app"}>`
+      : `VibeForge <${process.env.SMTP_FROM || "noreply@vibeforge.app"}>`;
+
+    const result = await sendEmail({
+      to,
       subject,
       html,
+      from: fromAddress,
       ...(reply_to ? { replyTo: reply_to } : {}),
     });
 
-    if (error) {
-      console.error("Resend error:", error);
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({ success: true, id: data?.id });
+    return NextResponse.json({ success: true, id: result.messageId });
   } catch (err: unknown) {
     console.error("Email send error:", err);
     const message =

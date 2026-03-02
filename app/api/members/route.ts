@@ -1,11 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
-import { Resend } from "resend";
+import { sendEmail } from "@/lib/email";
 import { buildEmailHtml } from "@/lib/email-template";
 import { APP_URL } from "@/lib/constants";
-
-const resend = new Resend(process.env.RESEND_API_KEY);
 
 // GET /api/members — list organization members
 export async function GET(request: NextRequest) {
@@ -362,11 +360,11 @@ export async function POST(request: NextRequest) {
 
   let emailSent = false;
   try {
-    await resend.emails.send({
-      from: `${orgName} <onboarding@resend.dev>`,
-      to: [email],
+    await sendEmail({
+      to: email,
       subject: `Invitación a ${orgName}`,
       html,
+      from: `${orgName} <${process.env.SMTP_FROM || "noreply@vibeforge.app"}>`,
     });
     emailSent = true;
   } catch (emailErr) {
