@@ -1,8 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
-import { sendEmail } from "@/lib/email";
-import { buildEmailHtml } from "@/lib/email-template";
 import { APP_URL } from "@/lib/constants";
 
 // GET /api/members — list organization members
@@ -310,63 +309,26 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Get organization name for the email
-  const { data: org } = await supabase
-    .from("organizations")
-    .select("name, logo_url")
-    .eq("id", callerMembership.organization_id)
-    .single();
-
-  // Get inviter's name
-  const { data: inviterProfile } = await supabase
-    .from("user_profiles")
-    .select("full_name")
-    .eq("id", user.id)
-    .single();
-
-  const orgName = org?.name || "la organización";
-  const inviterName = inviterProfile?.full_name || "Un administrador";
   const registerUrl = `${APP_URL}/register?invite=${invitation.token}`;
 
-  // Send invitation email
-  const roleLabels: Record<string, string> = {
-    doctor: "Doctor/a",
-    receptionist: "Recepcionista",
-    admin: "Administrador/a",
-  };
-
-  const emailBody = `
-<p style="font-size:16px;">Hola,</p>
-<p><strong>${inviterName}</strong> te ha invitado a unirte a <strong>${orgName}</strong> como <strong>${roleLabels[role] || role}</strong>.</p>
-<p>Para aceptar la invitación, crea tu cuenta haciendo clic en el siguiente botón:</p>
-<table role="presentation" cellpadding="0" cellspacing="0" style="margin:24px 0;">
-  <tr>
-    <td style="background-color:#10b981;border-radius:8px;">
-      <a href="${registerUrl}" target="_blank" style="display:inline-block;padding:12px 32px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">
-        Crear mi cuenta
-      </a>
-    </td>
-  </tr>
-</table>
-<p style="font-size:13px;color:#6b7280;">Esta invitación expira en 7 días. Si no solicitaste esta invitación, puedes ignorar este correo.</p>
-`;
-
-  const html = buildEmailHtml({
-    body: emailBody,
-    brandColor: "#10b981",
-    logoUrl: org?.logo_url || null,
-    clinicName: orgName,
-  });
-
+  // Send invitation email using Supabase's native email system
   let emailSent = false;
   try {
-    await sendEmail({
-      to: email,
-      subject: `Invitación a ${orgName}`,
-      html,
-      from: `${orgName} <${process.env.SMTP_FROM || "noreply@vibeforge.app"}>`,
+    const supabaseAdmin = createAdminClient();
+    const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      redirectTo: registerUrl,
+      data: {
+        invite_token: invitation.token,
+        org_role: role,
+        org_id: callerMembership.organization_id,
+      },
     });
-    emailSent = true;
+
+    if (inviteError) {
+      console.error("Supabase invite error:", inviteError);
+    } else {
+      emailSent = true;
+    }
   } catch (emailErr) {
     console.error("Error sending invitation email:", emailErr);
   }

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { sendEmail } from "@/lib/email";
 import { buildEmailHtml } from "@/lib/email-template";
 import { emailLimiter } from "@/lib/rate-limit";
 
@@ -30,17 +29,14 @@ export async function POST(req: NextRequest) {
     to,
     subject,
     body: emailBody,
-    from_name,
-    from_email,
-    reply_to,
     brand_color,
     logo_url,
     clinic_name,
   } = body;
 
-  if (!to || !subject || !emailBody) {
+  if (!subject || !emailBody) {
     return NextResponse.json(
-      { error: "Faltan campos requeridos: to, subject, body" },
+      { error: "Faltan campos requeridos: subject, body" },
       { status: 400 }
     );
   }
@@ -52,24 +48,12 @@ export async function POST(req: NextRequest) {
     clinicName: clinic_name,
   });
 
-  try {
-    const fromAddress = from_name
-      ? `${from_name} <${from_email || process.env.SMTP_FROM || "noreply@vibeforge.app"}>`
-      : `VibeForge <${process.env.SMTP_FROM || "noreply@vibeforge.app"}>`;
+  // Return HTML preview — actual sending uses Supabase native emails
+  console.log(`📧 Test email preview → to: ${to || "(preview)"}, subject: ${subject}`);
 
-    const result = await sendEmail({
-      to,
-      subject,
-      html,
-      from: fromAddress,
-      ...(reply_to ? { replyTo: reply_to } : {}),
-    });
-
-    return NextResponse.json({ success: true, id: result.messageId });
-  } catch (err: unknown) {
-    console.error("Email send error:", err);
-    const message =
-      err instanceof Error ? err.message : "Error al enviar el correo";
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return NextResponse.json({
+    success: true,
+    preview: true,
+    html,
+  });
 }
