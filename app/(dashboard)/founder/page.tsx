@@ -52,6 +52,7 @@ interface FounderStats {
 }
 
 const PLAN_COLORS: Record<string, string> = {
+  independiente: "bg-emerald-500/10 text-emerald-400",
   starter: "bg-emerald-500/10 text-emerald-400",
   professional: "bg-blue-500/10 text-blue-400",
   enterprise: "bg-amber-500/10 text-amber-400",
