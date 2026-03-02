@@ -278,7 +278,10 @@ $$ LANGUAGE sql SECURITY DEFINER STABLE;
 CREATE OR REPLACE FUNCTION get_founder_stats()
 RETURNS JSON AS $$
   SELECT json_build_object(
-    'total_organizations', (SELECT count(*) FROM organizations WHERE is_active = true),
+    'total_organizations', (
+      SELECT count(*) FROM organizations
+      WHERE id != '00000000-0000-0000-0000-000000000001'
+    ),
     'total_users', (SELECT count(*) FROM user_profiles),
     'total_patients', (SELECT count(*) FROM patients),
     'total_appointments_this_month', (
@@ -311,7 +314,7 @@ RETURNS JSON AS $$
         LEFT JOIN organization_subscriptions os
           ON os.organization_id = o.id AND os.status IN ('active', 'trialing')
         LEFT JOIN plans p ON p.id = os.plan_id
-        WHERE o.is_active = true
+        WHERE o.id != '00000000-0000-0000-0000-000000000001'
         ORDER BY o.created_at DESC
         LIMIT 10
       ) t
@@ -320,7 +323,7 @@ RETURNS JSON AS $$
       SELECT COALESCE(json_agg(row_to_json(t)), '[]'::json) FROM (
         SELECT organization_type, count(*) as org_count
         FROM organizations
-        WHERE is_active = true
+        WHERE id != '00000000-0000-0000-0000-000000000001'
         GROUP BY organization_type
       ) t
     )
