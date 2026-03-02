@@ -84,8 +84,21 @@ export async function POST(request: NextRequest) {
 
     // 3. Crear suscripción en Mercado Pago (PreApproval)
     const preApproval = getPreApprovalClient();
+
+    // Determinar back_url: usar APP_URL si es una URL pública,
+    // o intentar obtenerla del header x-forwarded-host (tunnels como ngrok)
+    let backUrl = `${APP_URL}/select-plan?payment=callback`;
     const isLocalhost = APP_URL.includes("localhost") || APP_URL.includes("127.0.0.1");
-    const backUrl = isLocalhost ? undefined : `${APP_URL}/select-plan?payment=callback`;
+    if (isLocalhost) {
+      const forwardedHost = request.headers.get("x-forwarded-host");
+      const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+      if (forwardedHost) {
+        backUrl = `${forwardedProto}://${forwardedHost}/select-plan?payment=callback`;
+      } else {
+        // Sin tunnel ni URL pública: usar URL genérica de MP como fallback
+        backUrl = "https://www.mercadopago.com.pe";
+      }
+    }
 
     const result = await preApproval.create({
       body: {
@@ -96,7 +109,7 @@ export async function POST(request: NextRequest) {
           transaction_amount: Number(amount),
           currency_id: "PEN",
         },
-        ...(backUrl && { back_url: backUrl }),
+        back_url: backUrl,
         external_reference: JSON.stringify({
           user_id: user.id,
           plan_id: plan.id,
