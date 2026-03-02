@@ -212,7 +212,20 @@ export default function MembersPage() {
           toast.success(t("members.invitation_sent"));
         }
       } else {
-        toast.success(t("members.invite_success"));
+        // Direct add (Case A) — notify about email status
+        if (data.email_sent) {
+          toast.success(t("members.invite_success"), {
+            description: language === "es"
+              ? "Se envió un correo para que establezca su contraseña."
+              : "A password reset email was sent.",
+          });
+        } else {
+          toast.success(t("members.invite_success"), {
+            description: language === "es"
+              ? "El miembro debe usar 'Olvidé contraseña' para acceder."
+              : "The member should use 'Forgot password' to log in.",
+          });
+        }
       }
       setInviteEmail("");
       setInviteOptionIdx(0);

@@ -51,9 +51,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([]);
   }
 
-  // Fetch profiles separately to avoid PostgREST FK join issues
+  // Fetch profiles with admin client to bypass RLS (user_ids already org-filtered)
   const userIds = members.map((m) => m.user_id);
-  const { data: profiles } = await supabase
+  const adminClient = createAdminClient();
+  const { data: profiles } = await adminClient
     .from("user_profiles")
     .select("id, full_name, avatar_url, phone, email, professional_title")
     .in("id", userIds);
@@ -157,9 +158,11 @@ export async function POST(request: NextRequest) {
   );
 
   // --- CASE A: User already exists → add directly ---
+  const supabaseAdmin = createAdminClient();
+
   if (targetUserId) {
     // Check if already a member
-    const { data: existing } = await supabase
+    const { data: existing } = await supabaseAdmin
       .from("organization_members")
       .select("id")
       .eq("user_id", targetUserId)
@@ -174,8 +177,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Remove from their current org if they have one
-    const { error: deleteError } = await supabase
+    // Remove from their current org if they have one (admin client bypasses RLS)
+    const { error: deleteError } = await supabaseAdmin
       .from("organization_members")
       .delete()
       .eq("user_id", targetUserId);
@@ -188,7 +191,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Insert member into this org
-    const { data: newMember, error } = await supabase
+    const { data: newMember, error } = await supabaseAdmin
       .from("organization_members")
       .insert({
         user_id: targetUserId,
@@ -204,13 +207,13 @@ export async function POST(request: NextRequest) {
 
     // Set professional_title on the user's profile for doctor/specialist roles
     if (role === "doctor") {
-      await supabase
+      await supabaseAdmin
         .from("user_profiles")
         .update({ professional_title: professional_title || "doctor" })
         .eq("id", targetUserId);
 
       // Auto-link or auto-create doctor record for this user in this org
-      const { data: existingDoctorRecord } = await supabase
+      const { data: existingDoctorRecord } = await supabaseAdmin
         .from("doctors")
         .select("id")
         .eq("user_id", targetUserId)
@@ -219,7 +222,7 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (!existingDoctorRecord) {
-        const { data: targetProfile } = await supabase
+        const { data: targetProfile } = await supabaseAdmin
           .from("user_profiles")
           .select("full_name")
           .eq("id", targetUserId)
@@ -228,7 +231,7 @@ export async function POST(request: NextRequest) {
         const doctorName = targetProfile?.full_name || email.split("@")[0];
 
         // Try to find an existing unlinked doctor record by name match
-        const { data: unlinkedDoctor } = await supabase
+        const { data: unlinkedDoctor } = await supabaseAdmin
           .from("doctors")
           .select("id")
           .is("user_id", null)
@@ -239,8 +242,7 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (unlinkedDoctor) {
-          // Link existing doctor record to this user
-          const { error: linkError } = await supabase
+          const { error: linkError } = await supabaseAdmin
             .from("doctors")
             .update({ user_id: targetUserId })
             .eq("id", unlinkedDoctor.id);
@@ -249,10 +251,9 @@ export async function POST(request: NextRequest) {
             console.error("Error linking existing doctor record:", linkError);
           }
         } else {
-          // No match found, create a new doctor record
           const tempCmp = `PEND-${crypto.randomUUID().slice(0, 8)}`;
 
-          const { error: doctorInsertError } = await supabase.from("doctors").insert({
+          const { error: doctorInsertError } = await supabaseAdmin.from("doctors").insert({
             full_name: doctorName,
             cmp: tempCmp,
             organization_id: callerMembership.organization_id,
@@ -267,7 +268,29 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json(newMember, { status: 201 });
+    // Send password reset email so the user can set credentials and log in
+    let emailSent = false;
+    try {
+      const { error: resetError } = await supabaseAdmin.auth.admin.generateLink({
+        type: "recovery",
+        email,
+        options: { redirectTo: `${APP_URL}/reset-password` },
+      });
+
+      if (!resetError) {
+        // Supabase sends the recovery email automatically when SMTP is configured
+        emailSent = true;
+      } else {
+        console.error("Recovery link error:", resetError);
+      }
+    } catch (emailErr) {
+      console.error("Error generating recovery link:", emailErr);
+    }
+
+    return NextResponse.json(
+      { ...newMember, email_sent: emailSent },
+      { status: 201 }
+    );
   }
 
   // --- CASE B: User does NOT exist → create invitation + send email ---
@@ -314,7 +337,6 @@ export async function POST(request: NextRequest) {
   // Send invitation email using Supabase's native email system
   let emailSent = false;
   try {
-    const supabaseAdmin = createAdminClient();
     const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
       redirectTo: registerUrl,
       data: {
