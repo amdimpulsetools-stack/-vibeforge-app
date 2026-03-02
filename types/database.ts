@@ -32,7 +32,54 @@ export interface Database {
           updated_at?: string;
         };
       };
-      // Agrega más tablas aquí cuando las crees
+      organizations: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          owner_id: string;
+          logo_url: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug: string;
+          owner_id: string;
+          logo_url?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          slug?: string;
+          logo_url?: string | null;
+          updated_at?: string;
+        };
+      };
+      organization_members: {
+        Row: {
+          id: string;
+          organization_id: string;
+          user_id: string;
+          role: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          user_id: string;
+          role?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          role?: string;
+          updated_at?: string;
+        };
+      };
     };
   };
 }
