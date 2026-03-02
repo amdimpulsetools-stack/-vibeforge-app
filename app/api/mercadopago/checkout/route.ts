@@ -118,9 +118,16 @@ export async function POST(request: NextRequest) {
       init_point: result.init_point,
       subscription_id: result.id,
     });
-  } catch (error) {
-    console.error("Checkout error:", error);
-    const message = error instanceof Error ? error.message : String(error);
+  } catch (error: unknown) {
+    console.error("Checkout error:", JSON.stringify(error, null, 2));
+    let message = "Error desconocido";
+    if (error instanceof Error) {
+      message = error.message;
+    } else if (typeof error === "object" && error !== null) {
+      message = JSON.stringify(error);
+    } else {
+      message = String(error);
+    }
     return NextResponse.json(
       { error: `Error al crear checkout: ${message}` },
       { status: 500 }
