@@ -1,10 +1,10 @@
 -- =============================================
 -- Migration 029: Seed Organization Subscriptions
--- Creates trial subscriptions for organizations that don't have one.
+-- Creates subscriptions for organizations that don't have one.
 -- Assigns plans based on existing user context:
---   - oscarfiverr@gmail.com  → Independiente (trial 14 days)
---   - amdimpulsetools@gmail.com → Centro Médico / Professional
---   - oscarduranperu@gmail.com → Independiente (trial 14 days)
+--   - oscarfiverr@gmail.com (founder) → Clínica / Enterprise (active, no trial)
+--   - amdimpulsetools@gmail.com       → Centro Médico / Professional (trial 14 days)
+--   - oscarduranperu@gmail.com        → Independiente / Starter (trial 14 days)
 --   - Any other org without subscription → Independiente (trial 14 days)
 -- =============================================
 
@@ -15,22 +15,18 @@ DECLARE
   v_enterprise_id UUID;
   v_org RECORD;
   v_plan_id UUID;
+  v_sub_status TEXT;
+  v_trial_ends TIMESTAMPTZ;
   v_user_email TEXT;
-  v_trial_days INT;
 BEGIN
-  -- Get plan IDs by slug
-  SELECT id INTO v_independiente_id FROM plans WHERE slug = 'independiente' AND is_active = true;
+  -- Get plan IDs by slug (handle both old and new slugs)
+  SELECT id INTO v_independiente_id FROM plans WHERE slug IN ('independiente', 'starter') AND is_active = true LIMIT 1;
   SELECT id INTO v_professional_id FROM plans WHERE slug = 'professional' AND is_active = true;
   SELECT id INTO v_enterprise_id FROM plans WHERE slug = 'enterprise' AND is_active = true;
 
-  -- Fallback: if 'independiente' doesn't exist, try 'starter'
-  IF v_independiente_id IS NULL THEN
-    SELECT id INTO v_independiente_id FROM plans WHERE slug = 'starter' AND is_active = true;
-  END IF;
-
-  -- Skip if no plans exist
-  IF v_independiente_id IS NULL THEN
-    RAISE NOTICE 'No default plan found, skipping subscription seeding.';
+  -- Skip if no plans exist at all
+  IF v_independiente_id IS NULL AND v_professional_id IS NULL AND v_enterprise_id IS NULL THEN
+    RAISE NOTICE 'No plans found, skipping subscription seeding.';
     RETURN;
   END IF;
 
@@ -45,18 +41,29 @@ BEGIN
           AND os.status IN ('active', 'trialing')
       )
   LOOP
-    -- Determine plan based on owner email
-    v_plan_id := v_independiente_id; -- default
-    v_trial_days := 14; -- default trial
+    -- Defaults: Independiente, trial 14 days
+    v_plan_id := v_independiente_id;
+    v_sub_status := 'trialing';
+    v_trial_ends := now() + interval '14 days';
 
+    -- Determine plan based on owner email
     IF v_org.owner_id IS NOT NULL THEN
       SELECT email INTO v_user_email FROM auth.users WHERE id = v_org.owner_id;
 
-      IF v_user_email = 'amdimpulsetools@gmail.com' THEN
+      -- Founder (oscarfiverr) → Clínica, active, no trial
+      IF v_user_email = 'oscarfiverr@gmail.com' THEN
+        v_plan_id := COALESCE(v_enterprise_id, v_independiente_id);
+        v_sub_status := 'active';
+        v_trial_ends := NULL;
+
+      -- amdimpulsetools → Centro Médico, trial 14 days
+      ELSIF v_user_email = 'amdimpulsetools@gmail.com' THEN
         v_plan_id := COALESCE(v_professional_id, v_independiente_id);
-        v_trial_days := 14;
+        v_sub_status := 'trialing';
+        v_trial_ends := now() + interval '14 days';
+
+      -- oscarduranperu → Independiente, trial 14 days (uses defaults)
       END IF;
-      -- oscarfiverr and oscarduranperu get independiente (default)
     END IF;
 
     -- Insert the subscription
@@ -65,18 +72,21 @@ BEGIN
       plan_id,
       status,
       started_at,
+      expires_at,
       trial_ends_at,
       payment_provider
     ) VALUES (
       v_org.org_id,
       v_plan_id,
-      'trialing',
+      v_sub_status,
       now(),
-      now() + (v_trial_days || ' days')::interval,
+      CASE WHEN v_sub_status = 'active' THEN NULL ELSE v_trial_ends END,
+      v_trial_ends,
       'manual'
     );
 
-    RAISE NOTICE 'Created subscription for org % (%) with plan %', v_org.name, v_org.org_id, v_plan_id;
+    RAISE NOTICE 'Created % subscription for org "%" (%) → plan %',
+      v_sub_status, v_org.name, v_org.org_id, v_plan_id;
   END LOOP;
 END;
 $$;
