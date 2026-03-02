@@ -1,14 +1,16 @@
 -- =============================================
--- ORGANIZACIONES
+-- ORGANIZACIONES (migración segura - limpia estado previo)
 -- Ejecuta esto en Supabase SQL Editor
 -- =============================================
 
+-- Limpiar tablas/policies de intentos anteriores
+DROP TABLE IF EXISTS organization_members CASCADE;
+DROP TABLE IF EXISTS organizations CASCADE;
+
 -- =============================================
 -- TABLA: organizations
--- Cada organización representa una clínica/consultorio
--- Se crea automáticamente cuando el usuario compra un plan
 -- =============================================
-CREATE TABLE IF NOT EXISTS organizations (
+CREATE TABLE organizations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   slug TEXT UNIQUE NOT NULL,
@@ -18,8 +20,39 @@ CREATE TABLE IF NOT EXISTS organizations (
   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL
 );
 
--- RLS
 ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+
+-- Trigger updated_at
+CREATE TRIGGER set_updated_at_organizations
+  BEFORE UPDATE ON organizations
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at();
+
+-- =============================================
+-- TABLA: organization_members
+-- =============================================
+CREATE TABLE organization_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  role TEXT NOT NULL DEFAULT 'member'
+    CHECK (role IN ('owner', 'admin', 'doctor', 'assistant', 'member')),
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+  UNIQUE(organization_id, user_id)
+);
+
+ALTER TABLE organization_members ENABLE ROW LEVEL SECURITY;
+
+-- Trigger updated_at
+CREATE TRIGGER set_updated_at_org_members
+  BEFORE UPDATE ON organization_members
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at();
+
+-- =============================================
+-- POLICIES: organizations (después de crear ambas tablas)
+-- =============================================
 
 -- Owner puede ver su organización
 CREATE POLICY "Org owner can view own org"
@@ -47,29 +80,9 @@ CREATE POLICY "Org members can view org"
     )
   );
 
--- Trigger updated_at
-CREATE TRIGGER set_updated_at_organizations
-  BEFORE UPDATE ON organizations
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at();
-
 -- =============================================
--- TABLA: organization_members
--- Miembros de cada organización
+-- POLICIES: organization_members
 -- =============================================
-CREATE TABLE IF NOT EXISTS organization_members (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  role TEXT NOT NULL DEFAULT 'member'
-    CHECK (role IN ('owner', 'admin', 'doctor', 'assistant', 'member')),
-  created_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-  UNIQUE(organization_id, user_id)
-);
-
--- RLS
-ALTER TABLE organization_members ENABLE ROW LEVEL SECURITY;
 
 -- Miembros pueden ver otros miembros de su org
 CREATE POLICY "Members can view org members"
@@ -115,19 +128,15 @@ CREATE POLICY "Org owner can delete members"
     )
   );
 
--- Trigger updated_at
-CREATE TRIGGER set_updated_at_org_members
-  BEFORE UPDATE ON organization_members
-  FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at();
-
 -- =============================================
 -- Agregar organization_id a organization_subscriptions
 -- =============================================
 ALTER TABLE organization_subscriptions
   ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id) ON DELETE CASCADE;
 
--- Policy: miembros de la org pueden ver suscripciones de su org
+-- Limpiar policy si existe de intento anterior
+DROP POLICY IF EXISTS "Org members can view org subscriptions" ON organization_subscriptions;
+
 CREATE POLICY "Org members can view org subscriptions"
   ON organization_subscriptions FOR SELECT
   USING (
