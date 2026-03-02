@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/hooks/use-user";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
+import { usePlan } from "@/hooks/use-plan";
 import { getInitials } from "@/lib/utils";
 import {
   profileSchema,
@@ -30,6 +31,8 @@ import {
   Building2,
   Stethoscope,
   Users,
+  Zap,
+  ArrowRight,
 } from "lucide-react";
 
 const ORG_ROLE_LABELS: Record<string, { label: string; color: string; icon: typeof ShieldCheck }> = {
@@ -42,7 +45,8 @@ const ORG_ROLE_LABELS: Record<string, { label: string; color: string; icon: type
 export default function AccountPage() {
   const { user, loading: userLoading } = useUser();
   const { t } = useLanguage();
-  const { organization, orgRole } = useOrganization();
+  const { organization, orgRole, isOrgAdmin } = useOrganization();
+  const { plan, subscription, daysRemaining, loading: planLoading } = usePlan();
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isFounder, setIsFounder] = useState(false);
@@ -450,6 +454,16 @@ export default function AccountPage() {
                 <span className="text-sm font-medium">{organization.name}</span>
               </div>
             )}
+
+            {/* Plan & Subscription — only for owner/admin */}
+            {isOrgAdmin && (
+              <PlanSection
+                plan={plan}
+                subscription={subscription}
+                daysRemaining={daysRemaining}
+                loading={planLoading}
+              />
+            )}
           </div>
 
           {/* Password form */}
@@ -537,6 +551,153 @@ export default function AccountPage() {
           {t("account.delete_account")}
         </button>
       </div>
+    </div>
+  );
+}
+
+/* ─── Plan Section (owner/admin only) ─── */
+
+const PLAN_BADGE_STYLES: Record<string, string> = {
+  independiente: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  professional: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  enterprise: "bg-amber-500/10 text-amber-400 border-amber-500/20",
+};
+
+const STATUS_LABELS: Record<string, { label: string; color: string }> = {
+  active: { label: "Activo", color: "text-emerald-400" },
+  trialing: { label: "Prueba", color: "text-blue-400" },
+  past_due: { label: "Pago pendiente", color: "text-amber-400" },
+  cancelled: { label: "Cancelado", color: "text-destructive" },
+  expired: { label: "Expirado", color: "text-destructive" },
+};
+
+function PlanSection({
+  plan,
+  subscription,
+  daysRemaining,
+  loading,
+}: {
+  plan: ReturnType<typeof usePlan>["plan"];
+  subscription: ReturnType<typeof usePlan>["subscription"];
+  daysRemaining: number | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-border/60 bg-background p-4">
+        <div className="h-5 w-32 animate-pulse rounded bg-muted" />
+        <div className="mt-3 h-3 w-full animate-pulse rounded bg-muted" />
+      </div>
+    );
+  }
+
+  if (!plan || !subscription) {
+    return (
+      <div className="rounded-xl border border-border/60 bg-background p-4">
+        <div className="flex items-center gap-3 mb-3">
+          <Zap className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Plan</span>
+        </div>
+        <p className="text-sm text-muted-foreground mb-3">
+          No tienes un plan activo.
+        </p>
+        <a
+          href="/select-plan"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+        >
+          Seleccionar plan
+          <ArrowRight className="h-3.5 w-3.5" />
+        </a>
+      </div>
+    );
+  }
+
+  const badgeStyle =
+    PLAN_BADGE_STYLES[plan.slug] ?? "bg-muted text-muted-foreground border-border";
+  const statusInfo = STATUS_LABELS[subscription.status] ?? {
+    label: subscription.status,
+    color: "text-muted-foreground",
+  };
+
+  // Calculate trial progress for the bar
+  const trialProgress = (() => {
+    if (!subscription.trial_ends_at && !subscription.expires_at) return null;
+    const endDate = subscription.trial_ends_at || subscription.expires_at;
+    if (!endDate) return null;
+    const startDate = subscription.started_at;
+    const totalMs = new Date(endDate).getTime() - new Date(startDate).getTime();
+    const elapsedMs = Date.now() - new Date(startDate).getTime();
+    if (totalMs <= 0) return 100;
+    return Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100)));
+  })();
+
+  return (
+    <div className="rounded-xl border border-border/60 bg-background p-4 space-y-4">
+      {/* Plan name + status */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Zap className="h-4 w-4 text-primary" />
+          <span className="text-sm font-medium">Plan</span>
+        </div>
+        <span
+          className={cn(
+            "rounded-full border px-3 py-1 text-xs font-semibold",
+            badgeStyle
+          )}
+        >
+          {plan.name}
+        </span>
+      </div>
+
+      {/* Status */}
+      <div className="flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">Estado</span>
+        <span className={cn("text-xs font-medium", statusInfo.color)}>
+          {statusInfo.label}
+        </span>
+      </div>
+
+      {/* Days remaining + progress bar */}
+      {daysRemaining !== null && (
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="text-xs text-muted-foreground">
+              {subscription.status === "trialing"
+                ? "Prueba restante"
+                : "Tiempo restante"}
+            </span>
+            <span className="text-xs font-semibold">
+              {daysRemaining === 0
+                ? "Vence hoy"
+                : `${daysRemaining} día${daysRemaining !== 1 ? "s" : ""}`}
+            </span>
+          </div>
+          {trialProgress !== null && (
+            <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all",
+                  trialProgress >= 80
+                    ? "bg-destructive/70"
+                    : trialProgress >= 50
+                      ? "bg-amber-500/70"
+                      : "bg-primary/60"
+                )}
+                style={{ width: `${trialProgress}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Change plan button */}
+      <a
+        href="/select-plan"
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-border/60 px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all"
+      >
+        Cambiar plan
+        <ArrowRight className="h-3.5 w-3.5" />
+      </a>
     </div>
   );
 }
