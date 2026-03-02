@@ -43,29 +43,7 @@ export async function POST(request: NextRequest) {
     const frequencyType = "months";
     const cycleLabel = billing_cycle === "yearly" ? "Anual" : "Mensual";
 
-    // Crear suscripción en Mercado Pago (PreApproval)
-    const preApproval = getPreApprovalClient();
-    const result = await preApproval.create({
-      body: {
-        reason: `VibeForge - Plan ${plan.name} (${cycleLabel})`,
-        auto_recurring: {
-          frequency,
-          frequency_type: frequencyType,
-          transaction_amount: Number(amount),
-          currency_id: "PEN",
-        },
-        back_url: `${APP_URL}/select-plan?payment=callback`,
-        external_reference: JSON.stringify({
-          user_id: user.id,
-          plan_id: plan.id,
-          organization_id: org.id,
-          billing_cycle,
-        }),
-        payer_email: user.email,
-      },
-    });
-
-    // Crear organización para el usuario
+    // 1. Crear organización para el usuario
     const orgSlug = (org_name || user.email?.split("@")[0] || "mi-clinica")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
@@ -89,14 +67,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Agregar al usuario como owner de la organización
+    // 2. Agregar al usuario como owner de la organización
     await supabase.from("organization_members").insert({
       organization_id: org.id,
       user_id: user.id,
       role: "owner",
     });
 
-    // Guardar suscripción pendiente en DB
+    // 3. Crear suscripción en Mercado Pago (PreApproval)
+    const preApproval = getPreApprovalClient();
+    const result = await preApproval.create({
+      body: {
+        reason: `VibeForge - Plan ${plan.name} (${cycleLabel})`,
+        auto_recurring: {
+          frequency,
+          frequency_type: frequencyType,
+          transaction_amount: Number(amount),
+          currency_id: "PEN",
+        },
+        back_url: `${APP_URL}/select-plan?payment=callback`,
+        external_reference: JSON.stringify({
+          user_id: user.id,
+          plan_id: plan.id,
+          organization_id: org.id,
+          billing_cycle,
+        }),
+        payer_email: user.email,
+      },
+    });
+
+    // 4. Guardar suscripción pendiente en DB
     await supabase.from("organization_subscriptions").insert({
       organization_id: org.id,
       user_id: user.id,
