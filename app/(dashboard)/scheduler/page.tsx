@@ -396,23 +396,24 @@ export default function SchedulerPage() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
-      <SchedulerHeader
-        currentDate={currentDate}
-        viewMode={viewMode}
-        onDateChange={setCurrentDate}
-        onViewModeChange={setViewMode}
-        onNewAppointment={() => {
-          setFormDefaults({ date: format(currentDate, "yyyy-MM-dd") });
-          setShowForm(true);
-        }}
-        onNewBlock={() => setShowBlockDialog(true)}
-        onBreakTime={() => setShowBreakTimeDialog(true)}
-        breakTimeEnabled={breakTimeConfig.enabled}
-        appointments={appointments}
-      />
+    <div className="flex h-[calc(100vh-3.5rem)]">
+      {/* Left column: header + calendar */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <SchedulerHeader
+          currentDate={currentDate}
+          viewMode={viewMode}
+          onDateChange={setCurrentDate}
+          onViewModeChange={setViewMode}
+          onNewAppointment={() => {
+            setFormDefaults({ date: format(currentDate, "yyyy-MM-dd") });
+            setShowForm(true);
+          }}
+          onNewBlock={() => setShowBlockDialog(true)}
+          onBreakTime={() => setShowBreakTimeDialog(true)}
+          breakTimeEnabled={breakTimeConfig.enabled}
+          appointments={appointments}
+        />
 
-      <div className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-auto">
           {viewMode === "day" ? (
             <DayView
@@ -442,23 +443,23 @@ export default function SchedulerPage() {
             />
           )}
         </div>
-
-        {/* Appointment detail sidebar */}
-        {selectedAppointment && (
-          <AppointmentSidebar
-            appointment={selectedAppointment}
-            onClose={handleCloseSidebar}
-            onUpdate={handleSaved}
-            onReschedule={() => setShowReschedule(true)}
-            doctors={doctors}
-            services={services}
-            lookupOrigins={lookupOrigins}
-            lookupPayments={lookupPayments}
-            lookupResponsibles={lookupResponsibles}
-            readOnly={isDoctor && currentDoctorId !== null && selectedAppointment.doctor_id !== currentDoctorId}
-          />
-        )}
       </div>
+
+      {/* Appointment detail sidebar — full page height */}
+      {selectedAppointment && (
+        <AppointmentSidebar
+          appointment={selectedAppointment}
+          onClose={handleCloseSidebar}
+          onUpdate={handleSaved}
+          onReschedule={() => setShowReschedule(true)}
+          doctors={doctors}
+          services={services}
+          lookupOrigins={lookupOrigins}
+          lookupPayments={lookupPayments}
+          lookupResponsibles={lookupResponsibles}
+          readOnly={isDoctor && currentDoctorId !== null && selectedAppointment.doctor_id !== currentDoctorId}
+        />
+      )}
 
       {/* New appointment modal */}
       {showForm && (
