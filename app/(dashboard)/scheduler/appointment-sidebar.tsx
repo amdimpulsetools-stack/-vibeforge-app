@@ -262,7 +262,7 @@ export function AppointmentSidebar({
     "w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors";
 
   return (
-    <div className="w-80 shrink-0 border-l border-border bg-card overflow-y-auto">
+    <div className="w-80 shrink-0 rounded-xl border border-border bg-card overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="text-sm font-semibold">{t("scheduler.details")}</h3>
