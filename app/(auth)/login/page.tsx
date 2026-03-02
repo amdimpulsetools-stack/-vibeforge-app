@@ -30,21 +30,34 @@ export default function LoginPage() {
       return;
     }
 
-    // Verificar si el usuario tiene suscripción activa
-    const { data: subscription } = await supabase
-      .from("organization_subscriptions")
-      .select("id")
-      .eq("user_id", authData.user.id)
-      .in("status", ["active", "trialing"])
-      .limit(1)
-      .maybeSingle();
+    // Verificar si el usuario es admin
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("id", authData.user.id)
+      .single();
+
+    const isAdmin = profile?.role === "admin";
 
     toast.success("Sesión iniciada correctamente");
 
-    if (subscription) {
+    if (isAdmin) {
       router.push("/dashboard");
     } else {
-      router.push("/select-plan");
+      // Verificar si el usuario tiene suscripción activa
+      const { data: subscription } = await supabase
+        .from("organization_subscriptions")
+        .select("id")
+        .eq("user_id", authData.user.id)
+        .in("status", ["active", "trialing"])
+        .limit(1)
+        .maybeSingle();
+
+      if (subscription) {
+        router.push("/dashboard");
+      } else {
+        router.push("/select-plan");
+      }
     }
     router.refresh();
   };

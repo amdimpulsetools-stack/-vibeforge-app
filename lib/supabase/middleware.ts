@@ -49,6 +49,25 @@ export async function updateSession(request: NextRequest) {
     const isDashboard = request.nextUrl.pathname.startsWith("/dashboard") ||
       (!isPublic && !isSelectPlan && !isAuthPage);
 
+    // Verificar si el usuario es admin (bypass de suscripción)
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    const isAdmin = profile?.role === "admin";
+
+    // Admins van directo al dashboard sin verificar suscripción
+    if (isAdmin) {
+      if (isAuthPage || isSelectPlan) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/dashboard";
+        return NextResponse.redirect(url);
+      }
+      return supabaseResponse;
+    }
+
     // Solo verificar suscripción si es relevante (auth pages o dashboard)
     if (isAuthPage || isDashboard) {
       const { data: subscription } = await supabase
