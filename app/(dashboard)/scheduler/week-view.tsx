@@ -30,8 +30,8 @@ function hexToSolid(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  // Dark card bg ≈ oklch(0.1 0.02 265) ≈ rgb(18,18,28)
-  const bgR = 18, bgG = 18, bgB = 28;
+  // Neutral dark bg (no blue tint so doctor colors stay true)
+  const bgR = 20, bgG = 20, bgB = 22;
   return `rgb(${Math.round(r * alpha + bgR * (1 - alpha))}, ${Math.round(g * alpha + bgG * (1 - alpha))}, ${Math.round(b * alpha + bgB * (1 - alpha))})`;
 }
 
@@ -251,7 +251,7 @@ export function WeekView({
                         )}
                         style={{
                           height: `${durationSlots * 32 - 4}px`,
-                          backgroundColor: hexToSolid(doctorColor, 0.15),
+                          backgroundColor: hexToSolid(doctorColor, 0.28),
                           borderLeft: `4px solid ${doctorColor}`,
                           ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
                         }}
