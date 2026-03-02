@@ -55,6 +55,17 @@ export async function updateSession(request: NextRequest) {
   // Check if authenticated user accessing dashboard needs a plan
   if (user && !isPublic && !isSelectPlan && !isWaitingForPlan && !request.nextUrl.pathname.startsWith("/api")) {
     try {
+      // Admins (user_profiles.role = 'admin') bypass all plan checks
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.role === "admin") {
+        return supabaseResponse;
+      }
+
       const { data: members } = await supabase
         .from("organization_members")
         .select("organization_id, role")
