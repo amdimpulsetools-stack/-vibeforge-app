@@ -20,12 +20,12 @@ export default function RegisterPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/api/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/select-plan`,
       },
     });
 
@@ -35,8 +35,15 @@ export default function RegisterPage() {
       return;
     }
 
-    toast.success("Revisa tu email para confirmar tu cuenta");
-    router.push("/login");
+    // Si hay sesión (email confirm desactivado), ir directo a seleccionar plan
+    if (data.session) {
+      toast.success("¡Cuenta creada! Selecciona tu plan.");
+      router.push("/select-plan");
+    } else {
+      // Email confirmation habilitado - el usuario debe verificar primero
+      toast.success("Revisa tu email para confirmar tu cuenta");
+      router.push("/login");
+    }
   };
 
   return (

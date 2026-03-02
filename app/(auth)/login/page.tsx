@@ -19,7 +19,7 @@ export default function LoginPage() {
     setLoading(true);
 
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: authData, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -30,8 +30,22 @@ export default function LoginPage() {
       return;
     }
 
+    // Verificar si el usuario tiene suscripción activa
+    const { data: subscription } = await supabase
+      .from("subscriptions")
+      .select("id")
+      .eq("user_id", authData.user.id)
+      .in("status", ["active", "trialing"])
+      .limit(1)
+      .maybeSingle();
+
     toast.success("Sesión iniciada correctamente");
-    router.push("/dashboard");
+
+    if (subscription) {
+      router.push("/dashboard");
+    } else {
+      router.push("/select-plan");
+    }
     router.refresh();
   };
 

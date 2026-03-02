@@ -42,11 +42,21 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirigir a dashboard si ya autenticado e intenta ir a auth pages
-  // (excepto /select-plan que necesita auth pero está en el grupo auth)
+  // Redirigir usuarios autenticados que intentan ir a login/register
   if (user && ["/login", "/register"].includes(request.nextUrl.pathname)) {
     const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
+
+    // Verificar si el usuario tiene una suscripción activa
+    const { data: subscription } = await supabase
+      .from("subscriptions")
+      .select("id")
+      .eq("user_id", user.id)
+      .in("status", ["active", "trialing"])
+      .limit(1)
+      .maybeSingle();
+
+    // Sin suscripción → seleccionar plan. Con suscripción → dashboard
+    url.pathname = subscription ? "/dashboard" : "/select-plan";
     return NextResponse.redirect(url);
   }
 
