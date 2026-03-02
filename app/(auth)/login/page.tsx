@@ -32,7 +32,7 @@ export default function LoginPage() {
 
     // Verificar si el usuario tiene suscripción activa
     const { data: subscription } = await supabase
-      .from("subscriptions")
+      .from("organization_subscriptions")
       .select("id")
       .eq("user_id", authData.user.id)
       .in("status", ["active", "trialing"])

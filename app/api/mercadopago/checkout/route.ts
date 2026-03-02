@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const { plan_id, billing_cycle = "monthly" } = await request.json();
+    const { plan_id, billing_cycle = "monthly", org_name } = await request.json();
 
     if (!plan_id) {
       return NextResponse.json(
@@ -58,14 +58,47 @@ export async function POST(request: NextRequest) {
         external_reference: JSON.stringify({
           user_id: user.id,
           plan_id: plan.id,
+          organization_id: org.id,
           billing_cycle,
         }),
         payer_email: user.email,
       },
     });
 
+    // Crear organización para el usuario
+    const orgSlug = (org_name || user.email?.split("@")[0] || "mi-clinica")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+
+    const { data: org, error: orgError } = await supabase
+      .from("organizations")
+      .insert({
+        name: org_name || `Clínica de ${user.user_metadata?.full_name || user.email}`,
+        slug: `${orgSlug}-${Date.now()}`,
+        owner_id: user.id,
+      })
+      .select("id")
+      .single();
+
+    if (orgError) {
+      console.error("Error creating organization:", orgError);
+      return NextResponse.json(
+        { error: "Error al crear la organización" },
+        { status: 500 }
+      );
+    }
+
+    // Agregar al usuario como owner de la organización
+    await supabase.from("organization_members").insert({
+      organization_id: org.id,
+      user_id: user.id,
+      role: "owner",
+    });
+
     // Guardar suscripción pendiente en DB
     await supabase.from("organization_subscriptions").insert({
+      organization_id: org.id,
       user_id: user.id,
       plan_id: plan.id,
       status: "pending",

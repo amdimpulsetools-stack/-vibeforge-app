@@ -27,7 +27,8 @@ export default function SelectPlanPage() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
+  const [user, setUser] = useState<{ id: string; email: string; full_name?: string } | null>(null);
+  const [orgName, setOrgName] = useState("");
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -57,7 +58,12 @@ export default function SelectPlanPage() {
       router.push("/login");
       return;
     }
-    setUser({ id: authUser.id, email: authUser.email ?? "" });
+    setUser({
+      id: authUser.id,
+      email: authUser.email ?? "",
+      full_name: authUser.user_metadata?.full_name,
+    });
+    setOrgName(`Clínica de ${authUser.user_metadata?.full_name || authUser.email?.split("@")[0] || ""}`);
 
     // Cargar plan Independiente
     const { data: plans } = await supabase
@@ -85,6 +91,7 @@ export default function SelectPlanPage() {
         body: JSON.stringify({
           plan_id: plan.id,
           billing_cycle: "monthly",
+          org_name: orgName.trim() || undefined,
         }),
       });
 
@@ -183,10 +190,26 @@ export default function SelectPlanPage() {
               {plan.has_reports && <Feature text="Reportes básicos" />}
             </ul>
 
+            {/* Nombre de organización */}
+            <div className="space-y-2 mb-4">
+              <label htmlFor="org-name" className="text-sm font-medium">
+                Nombre de tu clínica / consultorio
+              </label>
+              <input
+                id="org-name"
+                type="text"
+                placeholder="Ej: Clínica DermoSalud"
+                value={orgName}
+                onChange={(e) => setOrgName(e.target.value)}
+                required
+                className="flex h-10 w-full rounded-lg border border-input bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+
             {/* Botón de checkout */}
             <button
               onClick={handleCheckout}
-              disabled={checkoutLoading}
+              disabled={checkoutLoading || !orgName.trim()}
               className="flex h-11 w-full items-center justify-center rounded-lg bg-primary text-sm font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 disabled:opacity-50"
             >
               {checkoutLoading ? (
