@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/hooks/use-user";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
-import { usePlan } from "@/hooks/use-plan";
+import { usePlan, type OrgUsage } from "@/hooks/use-plan";
 import { getInitials } from "@/lib/utils";
 import {
   profileSchema,
@@ -33,6 +33,11 @@ import {
   Users,
   Zap,
   ArrowRight,
+  DoorOpen,
+  UserCheck,
+  CalendarDays,
+  HardDrive,
+  type LucideIcon,
 } from "lucide-react";
 
 const ORG_ROLE_LABELS: Record<string, { label: string; color: string; icon: typeof ShieldCheck }> = {
@@ -46,7 +51,7 @@ export default function AccountPage() {
   const { user, loading: userLoading } = useUser();
   const { t } = useLanguage();
   const { organization, orgRole, isOrgAdmin } = useOrganization();
-  const { plan, subscription, daysRemaining, loading: planLoading } = usePlan();
+  const { plan, subscription, usage, daysRemaining, getLimit, isNearLimit, isAtLimit, loading: planLoading } = usePlan();
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isFounder, setIsFounder] = useState(false);
@@ -409,22 +414,6 @@ export default function AccountPage() {
               </div>
             )}
 
-            {/* Platform role */}
-            {platformRole && (
-              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
-                <div className="flex items-center gap-3">
-                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Rol plataforma</span>
-                </div>
-                <span className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium capitalize",
-                  platformRole === "admin" ? "bg-blue-500/10 text-blue-500" : "bg-muted text-muted-foreground"
-                )}>
-                  {platformRole}
-                </span>
-              </div>
-            )}
-
             {/* Organization role */}
             {orgRole && (
               <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
@@ -460,7 +449,11 @@ export default function AccountPage() {
               <PlanSection
                 plan={plan}
                 subscription={subscription}
+                usage={usage}
                 daysRemaining={daysRemaining}
+                getLimit={getLimit}
+                isNearLimit={isNearLimit}
+                isAtLimit={isAtLimit}
                 loading={planLoading}
               />
             )}
@@ -574,12 +567,20 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
 function PlanSection({
   plan,
   subscription,
+  usage,
   daysRemaining,
+  getLimit,
+  isNearLimit,
+  isAtLimit,
   loading,
 }: {
   plan: ReturnType<typeof usePlan>["plan"];
   subscription: ReturnType<typeof usePlan>["subscription"];
+  usage: ReturnType<typeof usePlan>["usage"];
   daysRemaining: number | null;
+  getLimit: ReturnType<typeof usePlan>["getLimit"];
+  isNearLimit: ReturnType<typeof usePlan>["isNearLimit"];
+  isAtLimit: ReturnType<typeof usePlan>["isAtLimit"];
   loading: boolean;
 }) {
   if (loading) {
@@ -631,73 +632,159 @@ function PlanSection({
     return Math.min(100, Math.max(0, Math.round((elapsedMs / totalMs) * 100)));
   })();
 
+  // Resource limits to display
+  const resources: {
+    key: keyof OrgUsage;
+    label: string;
+    icon: LucideIcon;
+    iconColor: string;
+  }[] = [
+    { key: "doctors", label: "Doctores / Especialistas", icon: Stethoscope, iconColor: "text-purple-400" },
+    { key: "receptionists", label: "Recepcionistas", icon: UserCheck, iconColor: "text-emerald-400" },
+    { key: "offices", label: "Consultorios", icon: DoorOpen, iconColor: "text-blue-400" },
+    { key: "patients", label: "Pacientes", icon: Users, iconColor: "text-sky-400" },
+    { key: "appointments_this_month", label: "Citas este mes", icon: CalendarDays, iconColor: "text-amber-400" },
+  ];
+
   return (
-    <div className="rounded-xl border border-border/60 bg-background p-4 space-y-4">
-      {/* Plan name + status */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Zap className="h-4 w-4 text-primary" />
-          <span className="text-sm font-medium">Plan</span>
-        </div>
-        <span
-          className={cn(
-            "rounded-full border px-3 py-1 text-xs font-semibold",
-            badgeStyle
-          )}
-        >
-          {plan.name}
-        </span>
-      </div>
-
-      {/* Status */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">Estado</span>
-        <span className={cn("text-xs font-medium", statusInfo.color)}>
-          {statusInfo.label}
-        </span>
-      </div>
-
-      {/* Days remaining + progress bar */}
-      {daysRemaining !== null && (
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs text-muted-foreground">
-              {subscription.status === "trialing"
-                ? "Prueba restante"
-                : "Tiempo restante"}
-            </span>
-            <span className="text-xs font-semibold">
-              {daysRemaining === 0
-                ? "Vence hoy"
-                : `${daysRemaining} día${daysRemaining !== 1 ? "s" : ""}`}
-            </span>
+    <div className="space-y-4">
+      {/* Plan info card */}
+      <div className="rounded-xl border border-border/60 bg-background p-4 space-y-4">
+        {/* Plan name + status */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Zap className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Plan</span>
           </div>
-          {trialProgress !== null && (
-            <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all",
-                  trialProgress >= 80
-                    ? "bg-destructive/70"
-                    : trialProgress >= 50
-                      ? "bg-amber-500/70"
-                      : "bg-primary/60"
-                )}
-                style={{ width: `${trialProgress}%` }}
-              />
+          <span
+            className={cn(
+              "rounded-full border px-3 py-1 text-xs font-semibold",
+              badgeStyle
+            )}
+          >
+            {plan.name}
+          </span>
+        </div>
+
+        {/* Status */}
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Estado</span>
+          <span className={cn("text-xs font-medium", statusInfo.color)}>
+            {statusInfo.label}
+          </span>
+        </div>
+
+        {/* Days remaining + progress bar */}
+        {daysRemaining !== null && (
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-muted-foreground">
+                {subscription.status === "trialing"
+                  ? "Prueba restante"
+                  : "Tiempo restante"}
+              </span>
+              <span className="text-xs font-semibold">
+                {daysRemaining === 0
+                  ? "Vence hoy"
+                  : `${daysRemaining} día${daysRemaining !== 1 ? "s" : ""}`}
+              </span>
             </div>
-          )}
+            {trialProgress !== null && (
+              <div className="h-2 rounded-full bg-muted/30 overflow-hidden">
+                <div
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    trialProgress >= 80
+                      ? "bg-destructive/70"
+                      : trialProgress >= 50
+                        ? "bg-amber-500/70"
+                        : "bg-primary/60"
+                  )}
+                  style={{ width: `${trialProgress}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Change plan button */}
+        <a
+          href="/select-plan"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-border/60 px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all"
+        >
+          Cambiar plan
+          <ArrowRight className="h-3.5 w-3.5" />
+        </a>
+      </div>
+
+      {/* Resource limits card */}
+      {usage && (
+        <div className="rounded-xl border border-border/60 bg-background p-4 space-y-4">
+          <div className="flex items-center gap-2">
+            <HardDrive className="h-4 w-4 text-primary" />
+            <span className="text-sm font-medium">Límites del plan</span>
+          </div>
+
+          <div className="space-y-3">
+            {resources.map(({ key, label, icon: Icon, iconColor }) => {
+              const current = usage[key];
+              const limit = getLimit(key);
+              const atLimit = isAtLimit(key);
+              const nearLimit = isNearLimit(key);
+              const percentage =
+                limit !== null && limit > 0
+                  ? Math.min(100, Math.round((current / limit) * 100))
+                  : 0;
+              const isUnlimited = limit === null;
+
+              return (
+                <div key={key} className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Icon className={cn("h-3.5 w-3.5", iconColor)} />
+                      <span className="text-xs text-muted-foreground">
+                        {label}
+                      </span>
+                    </div>
+                    <span
+                      className={cn(
+                        "text-xs font-semibold tabular-nums",
+                        atLimit
+                          ? "text-red-400"
+                          : nearLimit
+                            ? "text-amber-400"
+                            : "text-foreground"
+                      )}
+                    >
+                      {current}
+                      <span className="text-muted-foreground font-normal">
+                        /{isUnlimited ? "\u221E" : limit}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all duration-500",
+                        atLimit
+                          ? "bg-red-500"
+                          : nearLimit
+                            ? "bg-amber-500"
+                            : "bg-primary/70"
+                      )}
+                      style={{
+                        width: isUnlimited
+                          ? "5%"
+                          : `${Math.max(percentage, 2)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
-
-      {/* Change plan button */}
-      <a
-        href="/select-plan"
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-border/60 px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all"
-      >
-        Cambiar plan
-        <ArrowRight className="h-3.5 w-3.5" />
-      </a>
     </div>
   );
 }
