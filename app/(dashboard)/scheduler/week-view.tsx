@@ -23,16 +23,21 @@ interface WeekViewProps {
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
 }
 
-/** Blend a hex color at a given alpha with the dark card background,
- *  producing a fully opaque color that looks identical to rgba but
- *  doesn't let grid lines bleed through.                              */
-function hexToSolid(hex: string, alpha: number): string {
+/** Create a light pastel by blending a hex color with white. */
+function hexToPastel(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  // Neutral dark bg (no blue tint so doctor colors stay true)
-  const bgR = 20, bgG = 20, bgB = 22;
-  return `rgb(${Math.round(r * alpha + bgR * (1 - alpha))}, ${Math.round(g * alpha + bgG * (1 - alpha))}, ${Math.round(b * alpha + bgB * (1 - alpha))})`;
+  const bg = 255; // white
+  return `rgb(${Math.round(r * alpha + bg * (1 - alpha))}, ${Math.round(g * alpha + bg * (1 - alpha))}, ${Math.round(b * alpha + bg * (1 - alpha))})`;
+}
+
+/** Create a darkened version of a hex color for text on pastel bg. */
+function hexToDark(hex: string, factor = 0.45): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.round(r * factor)}, ${Math.round(g * factor)}, ${Math.round(b * factor)})`;
 }
 
 function getBlockForDay(
@@ -251,13 +256,13 @@ export function WeekView({
                         )}
                         style={{
                           height: `${durationSlots * 32 - 4}px`,
-                          backgroundColor: hexToSolid(doctorColor, 0.28),
+                          backgroundColor: hexToPastel(doctorColor, 0.18),
                           borderLeft: `4px solid ${doctorColor}`,
                           ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
                         }}
                       >
                         <div className="flex items-center gap-0.5">
-                          <p className="text-[10px] font-semibold truncate text-foreground flex-1">
+                          <p className="text-[10px] font-semibold truncate flex-1" style={{ color: hexToDark(doctorColor) }}>
                             {startAppt.start_time.slice(0, 5)} {startAppt.patient_name}
                           </p>
                           {extraCount > 0 && (
@@ -267,19 +272,19 @@ export function WeekView({
                           )}
                           {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
                             (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (
-                              <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-500" />
+                              <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-600" />
                             ) : (paymentTotals[startAppt.id] ?? 0) > 0 ? (
-                              <CircleDollarSign className="h-2.5 w-2.5 shrink-0 text-amber-500" />
+                              <CircleDollarSign className="h-2.5 w-2.5 shrink-0 text-amber-600" />
                             ) : null
                           )}
                         </div>
                         {durationSlots > 1 && (
-                          <p className="text-[10px] truncate font-medium" style={{ color: doctorColor }}>
+                          <p className="text-[10px] truncate font-medium" style={{ color: hexToDark(doctorColor, 0.6) }}>
                             {startAppt.services?.name ?? "—"}
                           </p>
                         )}
                         {durationSlots > 2 && (
-                          <p className="text-[10px] text-muted-foreground truncate">
+                          <p className="text-[10px] truncate" style={{ color: hexToDark(doctorColor, 0.55) }}>
                             {startAppt.doctors?.full_name ?? "—"}
                           </p>
                         )}

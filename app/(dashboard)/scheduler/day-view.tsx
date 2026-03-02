@@ -93,16 +93,21 @@ function getBlockForSlot(
 
 type ContextMenu = { x: number; y: number; blockId: string; reason?: string | null };
 
-/** Blend a hex color at a given alpha with the dark card background,
- *  producing a fully opaque color that looks identical to rgba but
- *  doesn't let grid lines bleed through.                              */
-function hexToSolid(hex: string, alpha: number): string {
+/** Create a light pastel by blending a hex color with white. */
+function hexToPastel(hex: string, alpha: number): string {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
-  // Neutral dark bg (no blue tint so doctor colors stay true)
-  const bgR = 20, bgG = 20, bgB = 22;
-  return `rgb(${Math.round(r * alpha + bgR * (1 - alpha))}, ${Math.round(g * alpha + bgG * (1 - alpha))}, ${Math.round(b * alpha + bgB * (1 - alpha))})`;
+  const bg = 255; // white
+  return `rgb(${Math.round(r * alpha + bg * (1 - alpha))}, ${Math.round(g * alpha + bg * (1 - alpha))}, ${Math.round(b * alpha + bg * (1 - alpha))})`;
+}
+
+/** Create a darkened version of a hex color for text on pastel bg. */
+function hexToDark(hex: string, factor = 0.45): string {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgb(${Math.round(r * factor)}, ${Math.round(g * factor)}, ${Math.round(b * factor)})`;
 }
 
 export function DayView({
@@ -267,27 +272,27 @@ export function DayView({
                         style={{
                           top: `${offsetPx + 2}px`,
                           height: `${durationSlots * 40 - 4}px`,
-                          backgroundColor: hexToSolid(doctorColor, 0.28),
+                          backgroundColor: hexToPastel(doctorColor, 0.18),
                           borderLeft: `4px solid ${doctorColor}`,
                           ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
                         }}
                       >
                         <div className="flex items-center gap-1">
-                          <p className="text-xs font-bold truncate text-foreground leading-tight flex-1">
+                          <p className="text-xs font-bold truncate leading-tight flex-1" style={{ color: hexToDark(doctorColor) }}>
                             {startAppt.patient_name}
                           </p>
                           {/* Payment indicator */}
                           {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
                             (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (
-                              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" />
+                              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
                             ) : (paymentTotals[startAppt.id] ?? 0) > 0 ? (
-                              <CircleDollarSign className="h-3 w-3 shrink-0 text-amber-500" />
+                              <CircleDollarSign className="h-3 w-3 shrink-0 text-amber-600" />
                             ) : (
-                              <CircleDollarSign className="h-3 w-3 shrink-0 text-muted-foreground/40" />
+                              <CircleDollarSign className="h-3 w-3 shrink-0 text-gray-400" />
                             )
                           )}
                         </div>
-                        <p className="text-[11px] truncate text-muted-foreground leading-tight">
+                        <p className="text-[11px] truncate leading-tight" style={{ color: hexToDark(doctorColor, 0.55) }}>
                           {startAppt.doctors?.full_name ?? "—"} · {startAppt.services?.name ?? "—"}
                         </p>
                       </button>
