@@ -396,7 +396,7 @@ export default function SchedulerPage() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] gap-4 p-4">
+    <div className="flex h-[calc(100vh-7rem)] gap-4">
       {/* Left column: header + calendar */}
       <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
         <SchedulerHeader
