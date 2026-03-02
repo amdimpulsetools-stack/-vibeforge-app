@@ -67,7 +67,7 @@ export function SchedulerHeader({
   const goToToday = () => onDateChange(new Date());
 
   return (
-    <div className="border-b border-border bg-card px-4 py-3 space-y-3">
+    <div className="border-b border-border px-4 py-3 space-y-3">
       {/* Top row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
