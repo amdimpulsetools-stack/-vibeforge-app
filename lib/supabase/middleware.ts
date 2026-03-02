@@ -42,22 +42,37 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redirigir usuarios autenticados que intentan ir a login/register
-  if (user && ["/login", "/register"].includes(request.nextUrl.pathname)) {
-    const url = request.nextUrl.clone();
+  // Para usuarios autenticados, verificar suscripción
+  if (user) {
+    const isSelectPlan = request.nextUrl.pathname === "/select-plan";
+    const isAuthPage = ["/login", "/register"].includes(request.nextUrl.pathname);
+    const isDashboard = request.nextUrl.pathname.startsWith("/dashboard") ||
+      (!isPublic && !isSelectPlan && !isAuthPage);
 
-    // Verificar si el usuario tiene una suscripción activa
-    const { data: subscription } = await supabase
-      .from("organization_subscriptions")
-      .select("id")
-      .eq("user_id", user.id)
-      .in("status", ["active", "trialing"])
-      .limit(1)
-      .maybeSingle();
+    // Solo verificar suscripción si es relevante (auth pages o dashboard)
+    if (isAuthPage || isDashboard) {
+      const { data: subscription } = await supabase
+        .from("organization_subscriptions")
+        .select("id")
+        .eq("user_id", user.id)
+        .in("status", ["active", "trialing", "pending"])
+        .limit(1)
+        .maybeSingle();
 
-    // Sin suscripción → seleccionar plan. Con suscripción → dashboard
-    url.pathname = subscription ? "/dashboard" : "/select-plan";
-    return NextResponse.redirect(url);
+      // Sin suscripción + intentando ir al dashboard → select-plan
+      if (!subscription && isDashboard) {
+        const url = request.nextUrl.clone();
+        url.pathname = "/select-plan";
+        return NextResponse.redirect(url);
+      }
+
+      // Auth pages → redirigir según suscripción
+      if (isAuthPage) {
+        const url = request.nextUrl.clone();
+        url.pathname = subscription ? "/dashboard" : "/select-plan";
+        return NextResponse.redirect(url);
+      }
+    }
   }
 
   return supabaseResponse;
