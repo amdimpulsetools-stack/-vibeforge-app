@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useUser } from "@/hooks/use-user";
 import { useLanguage } from "@/components/language-provider";
+import { useOrganization } from "@/components/organization-provider";
 import { getInitials } from "@/lib/utils";
 import {
   profileSchema,
@@ -15,7 +16,6 @@ import {
   type PasswordFormData,
   type ProfessionalTitle,
 } from "@/lib/validations/account";
-import { usePlan } from "@/hooks/use-plan";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -25,44 +25,28 @@ import {
   Lock,
   Eye,
   EyeOff,
-  Zap,
   Crown,
-  Rocket,
-  CalendarDays,
-  Users,
-  Stethoscope,
+  ShieldCheck,
   Building2,
-  AlertTriangle,
-  ArrowRight,
-  Sparkles,
+  Stethoscope,
+  Users,
 } from "lucide-react";
 
-const PLAN_ICONS: Record<string, typeof Zap> = {
-  starter: Zap,
-  professional: Rocket,
-  enterprise: Crown,
-};
-
-const PLAN_BADGE: Record<string, string> = {
-  starter: "bg-emerald-500/10 text-emerald-500",
-  professional: "bg-blue-500/10 text-blue-500",
-  enterprise: "bg-amber-500/10 text-amber-500",
-};
-
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  active: { label: "Activo", color: "bg-emerald-500/10 text-emerald-500" },
-  trialing: { label: "Prueba gratuita", color: "bg-blue-500/10 text-blue-500" },
-  past_due: { label: "Pago pendiente", color: "bg-amber-500/10 text-amber-500" },
-  cancelled: { label: "Cancelado", color: "bg-muted text-muted-foreground" },
-  expired: { label: "Expirado", color: "bg-destructive/10 text-destructive" },
+const ORG_ROLE_LABELS: Record<string, { label: string; color: string; icon: typeof ShieldCheck }> = {
+  owner: { label: "Propietario", color: "bg-amber-500/10 text-amber-500", icon: Crown },
+  admin: { label: "Administrador", color: "bg-blue-500/10 text-blue-500", icon: ShieldCheck },
+  receptionist: { label: "Recepcionista", color: "bg-emerald-500/10 text-emerald-500", icon: Users },
+  doctor: { label: "Doctor", color: "bg-purple-500/10 text-purple-500", icon: Stethoscope },
 };
 
 export default function AccountPage() {
   const { user, loading: userLoading } = useUser();
   const { t } = useLanguage();
-  const { plan, subscription, usage, daysRemaining, loading: planLoading } = usePlan();
+  const { organization, orgRole } = useOrganization();
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [isFounder, setIsFounder] = useState(false);
+  const [platformRole, setPlatformRole] = useState<string | null>(null);
 
   // Profile form
   const [saving, setSaving] = useState(false);
@@ -104,7 +88,7 @@ export default function AccountPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from("user_profiles")
-        .select("full_name, phone, avatar_url, professional_title")
+        .select("full_name, phone, avatar_url, professional_title, is_founder, role")
         .eq("id", user.id)
         .single();
 
@@ -114,6 +98,8 @@ export default function AccountPage() {
         professional_title: (data?.professional_title as ProfessionalTitle) ?? null,
       });
       setAvatarUrl(data?.avatar_url ?? null);
+      setIsFounder(data?.is_founder ?? false);
+      setPlatformRole(data?.role ?? null);
       setProfileLoaded(true);
     };
 
@@ -396,85 +382,75 @@ export default function AccountPage() {
           </button>
         </form>
 
-        {/* RIGHT: Plan actual */}
+        {/* RIGHT: Role & Organization Info */}
         <div className="space-y-6">
-          {!planLoading && plan && subscription && (
-            <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  {(() => {
-                    const PlanIcon = PLAN_ICONS[plan.slug] ?? Zap;
-                    return <PlanIcon className="h-5 w-5 text-primary" />;
-                  })()}
-                  <h2 className="text-lg font-semibold">Plan actual</h2>
-                </div>
-                <span
-                  className={cn(
-                    "rounded-full px-3 py-1 text-xs font-medium",
-                    STATUS_LABELS[subscription.status]?.color ?? "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {STATUS_LABELS[subscription.status]?.label ?? subscription.status}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-semibold",
-                    PLAN_BADGE[plan.slug] ?? "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {plan.name}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  ${plan.price_monthly}/mes
-                </span>
-              </div>
-
-              {/* Days remaining — visual bar */}
-              {daysRemaining !== null && (
-                <TrialProgressBar
-                  daysRemaining={daysRemaining}
-                  subscription={subscription}
-                />
-              )}
-
-              {/* Usage summary */}
-              {usage && (
-                <div className="grid grid-cols-3 gap-3">
-                  <UsageStat
-                    icon={Users}
-                    label="Miembros"
-                    current={usage.members}
-                    limit={plan.max_members}
-                  />
-                  <UsageStat
-                    icon={Stethoscope}
-                    label="Doctores"
-                    current={usage.doctors}
-                    limit={plan.max_doctors}
-                  />
-                  <UsageStat
-                    icon={Building2}
-                    label="Consultorios"
-                    current={usage.offices}
-                    limit={plan.max_offices}
-                  />
-                </div>
-              )}
-
-              {/* CHANGE PLAN BUTTON — eye-catching */}
-              <a
-                href="/plans"
-                className="flex w-full items-center justify-center gap-2.5 rounded-xl gradient-warm px-5 py-3 text-sm font-bold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl"
-              >
-                <Sparkles className="h-4 w-4" />
-                Cambiar plan
-                <ArrowRight className="h-4 w-4" />
-              </a>
+          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">Mi cuenta</h2>
             </div>
-          )}
+
+            {/* Founder badge */}
+            {isFounder && (
+              <div className="flex items-center gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
+                  <Crown className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-amber-500">Founder</p>
+                  <p className="text-xs text-muted-foreground">
+                    Acceso completo a la plataforma
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Platform role */}
+            {platformRole && (
+              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
+                <div className="flex items-center gap-3">
+                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Rol plataforma</span>
+                </div>
+                <span className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium capitalize",
+                  platformRole === "admin" ? "bg-blue-500/10 text-blue-500" : "bg-muted text-muted-foreground"
+                )}>
+                  {platformRole}
+                </span>
+              </div>
+            )}
+
+            {/* Organization role */}
+            {orgRole && (
+              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const RoleIcon = ORG_ROLE_LABELS[orgRole]?.icon ?? Users;
+                    return <RoleIcon className="h-4 w-4 text-muted-foreground" />;
+                  })()}
+                  <span className="text-sm text-muted-foreground">Rol en organización</span>
+                </div>
+                <span className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium",
+                  ORG_ROLE_LABELS[orgRole]?.color ?? "bg-muted text-muted-foreground"
+                )}>
+                  {ORG_ROLE_LABELS[orgRole]?.label ?? orgRole}
+                </span>
+              </div>
+            )}
+
+            {/* Organization name */}
+            {organization && (
+              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
+                <div className="flex items-center gap-3">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Organización</span>
+                </div>
+                <span className="text-sm font-medium">{organization.name}</span>
+              </div>
+            )}
+          </div>
 
           {/* Password form */}
           <form
@@ -565,105 +541,3 @@ export default function AccountPage() {
   );
 }
 
-function TrialProgressBar({
-  daysRemaining,
-  subscription,
-}: {
-  daysRemaining: number;
-  subscription: { started_at: string; trial_ends_at: string | null; expires_at: string | null };
-}) {
-  // Calculate total trial days dynamically from subscription dates
-  const totalDays = (() => {
-    const endDate = subscription.trial_ends_at || subscription.expires_at;
-    if (!endDate || !subscription.started_at) return 14;
-    const start = new Date(subscription.started_at).getTime();
-    const end = new Date(endDate).getTime();
-    const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
-    return Math.max(days, 1);
-  })();
-
-  const pct = Math.min((daysRemaining / totalDays) * 100, 100);
-
-  const barColor =
-    daysRemaining <= 3 ? "bg-red-500" : daysRemaining <= 7 ? "bg-amber-500" : "bg-emerald-500";
-  const textColorClass =
-    daysRemaining <= 3
-      ? "text-destructive"
-      : daysRemaining <= 7
-        ? "text-amber-500"
-        : "text-emerald-500";
-
-  return (
-    <div className="rounded-xl border border-border/60 bg-background p-3 space-y-2.5">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {daysRemaining <= 7 && (
-            <AlertTriangle className={cn("h-3.5 w-3.5", textColorClass)} />
-          )}
-          <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-          <span className="text-sm font-medium">
-            {daysRemaining === 0
-              ? "Tu plan vence hoy"
-              : daysRemaining === 1
-                ? "Tu plan vence mañana"
-                : `Te quedan ${daysRemaining} días`}
-          </span>
-        </div>
-        <span className={cn("text-xs font-semibold tabular-nums", textColorClass)}>
-          {daysRemaining}/{totalDays}
-        </span>
-      </div>
-
-      <div className="h-2.5 w-full rounded-full bg-muted overflow-hidden">
-        <div
-          className={cn("h-full rounded-full transition-all duration-700 ease-out", barColor)}
-          style={{ width: `${pct}%` }}
-        />
-      </div>
-    </div>
-  );
-}
-
-function UsageStat({
-  icon: Icon,
-  label,
-  current,
-  limit,
-}: {
-  icon: typeof Users;
-  label: string;
-  current: number;
-  limit: number | null;
-}) {
-  const pct = limit ? (current / limit) * 100 : 0;
-  const isNear = limit !== null && pct >= 80;
-  const isAt = limit !== null && current >= limit;
-
-  return (
-    <div className="rounded-xl border border-border/60 bg-background p-3 space-y-1.5">
-      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Icon className="h-3.5 w-3.5" />
-        {label}
-      </div>
-      <div className="flex items-baseline gap-1">
-        <span className={cn("text-lg font-bold", isAt && "text-destructive", isNear && !isAt && "text-amber-500")}>
-          {current}
-        </span>
-        <span className="text-xs text-muted-foreground">
-          / {limit ?? "\u221E"}
-        </span>
-      </div>
-      {limit !== null && (
-        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-          <div
-            className={cn(
-              "h-full rounded-full transition-all",
-              isAt ? "bg-destructive" : isNear ? "bg-amber-500" : "bg-primary"
-            )}
-            style={{ width: `${Math.min(pct, 100)}%` }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
