@@ -62,17 +62,25 @@ export async function POST(request: NextRequest) {
     if (orgError) {
       console.error("Error creating organization:", orgError);
       return NextResponse.json(
-        { error: "Error al crear la organización" },
+        { error: `Error al crear la organización: ${orgError.message} (${orgError.code})` },
         { status: 500 }
       );
     }
 
     // 2. Agregar al usuario como owner de la organización
-    await supabase.from("organization_members").insert({
+    const { error: memberError } = await supabase.from("organization_members").insert({
       organization_id: org.id,
       user_id: user.id,
       role: "owner",
     });
+
+    if (memberError) {
+      console.error("Error adding member:", memberError);
+      return NextResponse.json(
+        { error: `Error al agregar miembro: ${memberError.message} (${memberError.code})` },
+        { status: 500 }
+      );
+    }
 
     // 3. Crear suscripción en Mercado Pago (PreApproval)
     const preApproval = getPreApprovalClient();
@@ -112,8 +120,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Checkout error:", error);
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "Error al crear checkout" },
+      { error: `Error al crear checkout: ${message}` },
       { status: 500 }
     );
   }
