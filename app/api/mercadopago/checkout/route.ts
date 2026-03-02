@@ -84,6 +84,9 @@ export async function POST(request: NextRequest) {
 
     // 3. Crear suscripción en Mercado Pago (PreApproval)
     const preApproval = getPreApprovalClient();
+    const isLocalhost = APP_URL.includes("localhost") || APP_URL.includes("127.0.0.1");
+    const backUrl = isLocalhost ? undefined : `${APP_URL}/select-plan?payment=callback`;
+
     const result = await preApproval.create({
       body: {
         reason: `VibeForge - Plan ${plan.name} (${cycleLabel})`,
@@ -93,7 +96,7 @@ export async function POST(request: NextRequest) {
           transaction_amount: Number(amount),
           currency_id: "PEN",
         },
-        back_url: `${APP_URL}/select-plan?payment=callback`,
+        ...(backUrl && { back_url: backUrl }),
         external_reference: JSON.stringify({
           user_id: user.id,
           plan_id: plan.id,
