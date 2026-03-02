@@ -43,6 +43,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Redirigir a dashboard si ya autenticado e intenta ir a auth pages
+  // (excepto /select-plan que necesita auth pero está en el grupo auth)
   if (user && ["/login", "/register"].includes(request.nextUrl.pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
