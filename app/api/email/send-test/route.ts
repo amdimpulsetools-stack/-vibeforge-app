@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Resend } from "resend";
 import { createClient } from "@/lib/supabase/server";
 import { buildEmailHtml } from "@/lib/email-template";
 import { emailLimiter } from "@/lib/rate-limit";
+
+const resend = process.env.RESEND_API_KEY
+  ? new Resend(process.env.RESEND_API_KEY)
+  : null;
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -20,7 +25,14 @@ export async function POST(req: NextRequest) {
   if (!rl.success) {
     return NextResponse.json(
       { error: "Demasiados correos enviados. Espera un momento." },
-      { status: 429, headers: { "Retry-After": String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(
+            Math.ceil((rl.reset - Date.now()) / 1000)
+          ),
+        },
+      }
     );
   }
 
@@ -34,9 +46,9 @@ export async function POST(req: NextRequest) {
     clinic_name,
   } = body;
 
-  if (!subject || !emailBody) {
+  if (!to || !subject || !emailBody) {
     return NextResponse.json(
-      { error: "Faltan campos requeridos: subject, body" },
+      { error: "Faltan campos requeridos: to, subject, body" },
       { status: 400 }
     );
   }
@@ -48,10 +60,38 @@ export async function POST(req: NextRequest) {
     clinicName: clinic_name,
   });
 
-  // Return HTML preview — actual sending uses Supabase native emails
+  // If Resend is not configured, return an error
+  if (!resend) {
+    return NextResponse.json(
+      {
+        error:
+          "RESEND_API_KEY no está configurada. Agrega la variable de entorno para enviar correos.",
+      },
+      { status: 503 }
+    );
+  }
+
+  // Send real email via Resend
+  const fromAddress = clinic_name
+    ? `${clinic_name} <onboarding@resend.dev>`
+    : "VibeForge <onboarding@resend.dev>";
+
+  const { data, error } = await resend.emails.send({
+    from: fromAddress,
+    to: [to],
+    subject,
+    html,
+  });
+
+  if (error) {
+    return NextResponse.json(
+      { error: `Error al enviar: ${error.message}` },
+      { status: 500 }
+    );
+  }
+
   return NextResponse.json({
     success: true,
-    preview: true,
-    html,
+    messageId: data?.id,
   });
 }
