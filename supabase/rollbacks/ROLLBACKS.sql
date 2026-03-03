@@ -11,6 +11,164 @@
 
 
 -- ============================================================
+-- ROLLBACK 031: Security Audit Fixes
+-- Riesgo: MEDIO (revierte hardening de seguridad — la app queda funcional
+-- pero con las vulnerabilidades originales)
+-- ============================================================
+
+-- FIX 1 rollback: Restore permissive SELECT on organization_invitations
+DROP FUNCTION IF EXISTS get_invitation_by_token(UUID);
+CREATE POLICY "anyone_can_read_by_token" ON organization_invitations
+  FOR SELECT USING (true);
+
+-- FIX 2 rollback: Restore original user_profiles UPDATE policy
+DROP POLICY IF EXISTS "Users can update own profile (safe columns)" ON user_profiles;
+CREATE POLICY "Users can update own profile" ON user_profiles
+  FOR UPDATE USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+-- FIX 3 rollback: Restore get_founder_stats() without auth check
+CREATE OR REPLACE FUNCTION get_founder_stats()
+RETURNS JSON AS $$
+  SELECT json_build_object(
+    'total_organizations', (SELECT count(*) FROM organizations WHERE id != '00000000-0000-0000-0000-000000000001'),
+    'total_users', (SELECT count(*) FROM user_profiles),
+    'total_patients', (SELECT count(*) FROM patients),
+    'monthly_appointments', (
+      SELECT count(*) FROM appointments
+      WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+    ),
+    'revenue', (
+      SELECT COALESCE(json_agg(r), '[]'::json)
+      FROM (
+        SELECT
+          TO_CHAR(DATE_TRUNC('month', ph.created_at), 'YYYY-MM') AS month,
+          SUM(ph.amount) AS total
+        FROM payment_history ph
+        WHERE ph.status = 'approved'
+        GROUP BY DATE_TRUNC('month', ph.created_at)
+        ORDER BY month DESC
+        LIMIT 6
+      ) r
+    ),
+    'recent_organizations', (
+      SELECT COALESCE(json_agg(o ORDER BY o.created_at DESC), '[]'::json)
+      FROM (
+        SELECT
+          org.id,
+          org.name,
+          org.type,
+          org.created_at,
+          p.name AS plan_name,
+          os.status AS subscription_status
+        FROM organizations org
+        LEFT JOIN organization_subscriptions os ON os.organization_id = org.id
+          AND os.status IN ('active', 'trialing')
+        LEFT JOIN plans p ON p.id = os.plan_id
+        WHERE org.id != '00000000-0000-0000-0000-000000000001'
+        ORDER BY org.created_at DESC
+        LIMIT 10
+      ) o
+    )
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- FIX 4 rollback: Restore get_doctor_personal_stats() without auth check
+-- ⚠️ Ejecuta la función get_doctor_personal_stats de la migración 030 o 027
+
+-- FIX 5 rollback: Restore get_org_plan() and get_org_usage() without membership check
+CREATE OR REPLACE FUNCTION get_org_plan(org_id UUID)
+RETURNS JSON AS $$
+  SELECT json_build_object(
+    'plan_id', p.id,
+    'plan_name', p.name,
+    'plan_slug', p.slug,
+    'price_monthly', p.price_monthly,
+    'price_yearly', p.price_yearly,
+    'max_members', p.max_members,
+    'max_doctors', p.max_doctors,
+    'max_offices', p.max_offices,
+    'max_patients', p.max_patients,
+    'max_appointments_per_month', p.max_appointments_per_month,
+    'features', p.features,
+    'subscription_status', os.status,
+    'trial_ends_at', os.trial_ends_at,
+    'started_at', os.started_at,
+    'addon_price_per_member', p.addon_price_per_member,
+    'addon_price_per_office', p.addon_price_per_office
+  )
+  FROM organization_subscriptions os
+  JOIN plans p ON p.id = os.plan_id
+  WHERE os.organization_id = org_id
+    AND os.status IN ('active', 'trialing', 'past_due')
+  ORDER BY os.created_at DESC
+  LIMIT 1;
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+CREATE OR REPLACE FUNCTION get_org_usage(org_id UUID)
+RETURNS JSON AS $$
+  SELECT json_build_object(
+    'members', (SELECT count(*) FROM organization_members WHERE organization_id = org_id AND is_active = true),
+    'doctors', (SELECT count(*) FROM doctors WHERE organization_id = org_id AND is_active = true),
+    'offices', (SELECT count(*) FROM offices WHERE organization_id = org_id AND is_active = true),
+    'patients', (SELECT count(*) FROM patients WHERE organization_id = org_id),
+    'monthly_appointments', (
+      SELECT count(*) FROM appointments
+      WHERE organization_id = org_id
+        AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+    ),
+    'addons', (
+      SELECT COALESCE(json_agg(json_build_object(
+        'addon_type', addon_type,
+        'quantity', quantity,
+        'unit_price', unit_price
+      )), '[]'::json)
+      FROM plan_addons
+      WHERE organization_id = org_id AND is_active = true
+    )
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- FIX 6 rollback: Restore find_user_by_email() without admin check
+CREATE OR REPLACE FUNCTION find_user_by_email(lookup_email TEXT)
+RETURNS UUID AS $$
+  SELECT id FROM user_profiles WHERE email = lookup_email LIMIT 1;
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
+-- FIX 7 rollback: Restore schedule_blocks DELETE to org members
+DROP POLICY IF EXISTS "org_delete_schedule_blocks" ON schedule_blocks;
+CREATE POLICY "org_delete_schedule_blocks" ON schedule_blocks FOR DELETE
+  USING (organization_id IN (SELECT get_user_org_ids()));
+
+-- FIX 8 rollback: Re-grant seed_email_templates to authenticated
+GRANT EXECUTE ON FUNCTION seed_email_templates(UUID) TO authenticated;
+
+-- FIX 9 rollback: Restore ai_readonly_query() with original patterns
+CREATE OR REPLACE FUNCTION ai_readonly_query(query text)
+RETURNS json
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
+DECLARE
+  result json;
+  normalized text;
+BEGIN
+  normalized := lower(trim(query));
+  IF normalized NOT LIKE 'select%' THEN
+    RAISE EXCEPTION 'Solo se permiten consultas SELECT';
+  END IF;
+  IF normalized ~* '(insert|update|delete|drop|truncate|alter|create|replace|grant|revoke|execute|copy\s)' THEN
+    RAISE EXCEPTION 'La consulta contiene operaciones no permitidas';
+  END IF;
+  EXECUTE format('SELECT json_agg(row_to_json(t)) FROM (%s) t', query) INTO result;
+  RETURN COALESCE(result, '[]'::json);
+END;
+$$;
+REVOKE ALL ON FUNCTION ai_readonly_query(text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION ai_readonly_query(text) TO authenticated;
+
+
+-- ============================================================
 -- ROLLBACK 030: Member deactivation + Reverse name sync
 -- Riesgo: BAJO (solo triggers/functions y 1 columna)
 -- ============================================================
