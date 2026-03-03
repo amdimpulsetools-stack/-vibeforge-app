@@ -21,6 +21,8 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOrgRole } from "@/hooks/use-org-role";
+import { useOrganization } from "@/components/organization-provider";
 import { PatientDrawer } from "./patient-drawer";
 import { PatientFormModal } from "./patient-form-modal";
 
@@ -34,6 +36,11 @@ type PatientExtended = PatientWithTags & {
 
 export default function PatientsPage() {
   const { t } = useLanguage();
+  const { isDoctor } = useOrgRole();
+  const { organization } = useOrganization();
+  const isDoctorRestricted =
+    isDoctor &&
+    (organization as any)?.settings?.restrict_doctor_patients === true;
   const [patients, setPatients] = useState<PatientExtended[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -215,6 +222,12 @@ export default function PatientsPage() {
             <div>
               <h1 className="text-xl font-bold">{t("patients.title")}</h1>
               <p className="text-sm text-muted-foreground">{t("patients.subtitle")}</p>
+              {isDoctorRestricted && (
+                <p className="mt-1 flex items-center gap-1.5 text-xs text-cyan-400">
+                  <Stethoscope className="h-3 w-3" />
+                  {t("patients.doctor_restricted_badge")}
+                </p>
+              )}
             </div>
             <button
               onClick={() => setShowForm(true)}

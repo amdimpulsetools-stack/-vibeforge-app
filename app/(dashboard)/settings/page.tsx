@@ -24,6 +24,7 @@ import {
   Clock,
   CalendarDays,
   Mail,
+  Shield,
   ShieldAlert,
 } from "lucide-react";
 import {
@@ -34,8 +35,9 @@ import {
   type IntervalOption,
 } from "@/lib/scheduler-config";
 import EmailSettingsTab from "./email-settings-tab";
+import PermissionsSettingsTab from "./permissions-settings-tab";
 
-type Tab = "general" | "agenda" | "correos";
+type Tab = "general" | "agenda" | "correos" | "permisos";
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
@@ -210,6 +212,7 @@ export default function SettingsPage() {
     { id: "general", label: "General", icon: <Building2 className="h-4 w-4" /> },
     { id: "agenda", label: language === "es" ? "Agenda" : "Scheduler", icon: <CalendarDays className="h-4 w-4" /> },
     { id: "correos", label: language === "es" ? "Correos" : "Emails", icon: <Mail className="h-4 w-4" /> },
+    { id: "permisos", label: language === "es" ? "Permisos" : "Permissions", icon: <Shield className="h-4 w-4" /> },
   ];
 
   // Show loading spinner while role is being determined
@@ -652,6 +655,9 @@ export default function SettingsPage() {
 
       {/* ── Correos tab ──────────────────────────────────────────────────────── */}
       {activeTab === "correos" && <EmailSettingsTab />}
+
+      {/* ── Permisos tab ─────────────────────────────────────────────────────── */}
+      {activeTab === "permisos" && <PermissionsSettingsTab />}
     </div>
   );
 }
