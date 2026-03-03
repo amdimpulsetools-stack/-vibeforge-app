@@ -52,6 +52,51 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
 
+    if (inviteToken) {
+      // Invited users: use server API to auto-confirm + accept invitation
+      try {
+        const res = await fetch("/api/auth/register-invited", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            password,
+            fullName,
+            inviteToken,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          toast.error(data.error || "Error al crear la cuenta");
+          setLoading(false);
+          return;
+        }
+
+        // Account created and confirmed — sign in directly
+        const supabase = createClient();
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (signInError) {
+          toast.error("Cuenta creada. Inicia sesión con tu contraseña.");
+          router.push("/login");
+          return;
+        }
+
+        toast.success("Bienvenido/a! Tu cuenta ha sido creada.");
+        router.push("/dashboard");
+      } catch {
+        toast.error("Error de conexión. Intenta de nuevo.");
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Normal registration (non-invited): use standard signUp flow
     const supabase = createClient();
     const { error } = await supabase.auth.signUp({
       email,
@@ -59,13 +104,9 @@ export default function RegisterPage() {
       options: {
         data: {
           full_name: fullName,
-          ...(inviteToken
-            ? { invite_token: inviteToken }
-            : { org_name: orgName || "Mi Clinica" }),
+          org_name: orgName || "Mi Clinica",
         },
-        emailRedirectTo: `${window.location.origin}/api/auth/callback${
-          inviteToken ? `?invite=${inviteToken}` : ""
-        }`,
+        emailRedirectTo: `${window.location.origin}/api/auth/callback`,
       },
     });
 
