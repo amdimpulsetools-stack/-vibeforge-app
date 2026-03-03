@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
-// PATCH /api/members/[id] — update member role
+// PATCH /api/members/[id] — update member role or is_active status
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -36,14 +36,7 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { role } = body as { role: string };
-
-  if (!role || !["admin", "receptionist", "doctor"].includes(role)) {
-    return NextResponse.json(
-      { error: "Invalid role. Must be admin, receptionist, or doctor" },
-      { status: 400 }
-    );
-  }
+  const { role, is_active } = body as { role?: string; is_active?: boolean };
 
   // Get the target member
   const { data: targetMember } = await supabase
@@ -57,11 +50,42 @@ export async function PATCH(
     return NextResponse.json({ error: "Member not found" }, { status: 404 });
   }
 
-  // Cannot change role of the owner
+  // Cannot modify the owner
   if (targetMember.role === "owner") {
     return NextResponse.json(
-      { error: "Cannot change role of owner" },
+      { error: "Cannot modify owner" },
       { status: 403 }
+    );
+  }
+
+  // Cannot deactivate yourself
+  if (typeof is_active === "boolean" && !is_active && targetMember.user_id === user.id) {
+    return NextResponse.json(
+      { error: "Cannot deactivate yourself" },
+      { status: 403 }
+    );
+  }
+
+  // Handle is_active toggle
+  if (typeof is_active === "boolean") {
+    const { error } = await supabase
+      .from("organization_members")
+      .update({ is_active })
+      .eq("id", id);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // DB trigger handles doctor deactivation/reactivation automatically
+    return NextResponse.json({ success: true });
+  }
+
+  // Handle role change
+  if (!role || !["admin", "receptionist", "doctor"].includes(role)) {
+    return NextResponse.json(
+      { error: "Invalid role. Must be admin, receptionist, or doctor" },
+      { status: 400 }
     );
   }
 
@@ -77,7 +101,7 @@ export async function PATCH(
   return NextResponse.json({ success: true });
 }
 
-// DELETE /api/members/[id] — remove member
+// DELETE /api/members/[id] — remove member (also deactivates linked doctor via DB trigger)
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -139,6 +163,7 @@ export async function DELETE(
     );
   }
 
+  // DB trigger deactivate_doctor_on_member_delete handles doctor deactivation
   const { error } = await supabase
     .from("organization_members")
     .delete()

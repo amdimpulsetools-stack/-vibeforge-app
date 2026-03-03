@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   // Fetch all members in this org
   const { data: members, error } = await supabase
     .from("organization_members")
-    .select("id, user_id, role, created_at")
+    .select("id, user_id, role, is_active, created_at")
     .eq("organization_id", membership.organization_id)
     .order("created_at");
 
@@ -69,6 +69,7 @@ export async function GET(request: NextRequest) {
       id: m.id,
       user_id: m.user_id,
       role: m.role,
+      is_active: m.is_active ?? true,
       created_at: m.created_at,
       full_name: profile?.full_name ?? null,
       avatar_url: profile?.avatar_url ?? null,

@@ -22,6 +22,8 @@ import {
   Headset,
   MessageCircle,
   ExternalLink,
+  Ban,
+  RotateCcw,
 } from "lucide-react";
 import { usePlan } from "@/hooks/use-plan";
 
@@ -32,6 +34,7 @@ interface Member {
   user_id: string;
   role: "owner" | "admin" | "receptionist" | "doctor";
   professional_title: ProfessionalTitle;
+  is_active: boolean;
   created_at: string;
   full_name: string | null;
   avatar_url: string | null;
@@ -278,6 +281,25 @@ export default function MembersPage() {
     fetchMembers();
   };
 
+  const handleToggleActive = async (member: Member) => {
+    const newActive = !member.is_active;
+    if (!newActive && !confirm(t("members.deactivate_confirm"))) return;
+
+    const res = await fetch(`/api/members/${member.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: newActive }),
+    });
+
+    if (!res.ok) {
+      toast.error(t("members.deactivate_error"));
+      return;
+    }
+
+    toast.success(newActive ? t("members.activate_success") : t("members.deactivate_success"));
+    fetchMembers();
+  };
+
   const filtered = members.filter(
     (m) =>
       (m.full_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
@@ -388,7 +410,9 @@ export default function MembersPage() {
           return (
             <div
               key={member.id}
-              className="flex items-center justify-between rounded-xl border border-border bg-card p-4"
+              className={`flex items-center justify-between rounded-xl border border-border bg-card p-4 ${
+                !member.is_active ? "opacity-60" : ""
+              }`}
             >
               <div className="flex items-center gap-4">
                 {/* Avatar */}
@@ -404,9 +428,16 @@ export default function MembersPage() {
                   </div>
                 )}
                 <div>
-                  <h4 className="font-medium">
-                    {member.full_name ?? t("members.unnamed")}
-                  </h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium">
+                      {member.full_name ?? t("members.unnamed")}
+                    </h4>
+                    {!member.is_active && (
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        {t("members.status_inactive")}
+                      </span>
+                    )}
+                  </div>
                   {member.email && (
                     <p className="text-xs text-muted-foreground">
                       {member.email}
@@ -440,7 +471,7 @@ export default function MembersPage() {
                           e.target.value as "admin" | "receptionist" | "doctor"
                         )
                       }
-                      disabled={changingRole === member.id}
+                      disabled={changingRole === member.id || !member.is_active}
                       className="rounded-lg border border-input bg-background px-2 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors disabled:opacity-50"
                     >
                       <option value="admin">
@@ -461,6 +492,25 @@ export default function MembersPage() {
                     <DisplayIcon className="h-3.5 w-3.5" />
                     {display.label}
                   </span>
+                )}
+
+                {/* Deactivate / Activate button */}
+                {isAdmin && member.role !== "owner" && (
+                  <button
+                    onClick={() => handleToggleActive(member)}
+                    title={member.is_active ? t("members.deactivate") : t("members.activate")}
+                    className={`rounded-lg p-2 transition-colors ${
+                      member.is_active
+                        ? "text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600"
+                        : "text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-600"
+                    }`}
+                  >
+                    {member.is_active ? (
+                      <Ban className="h-4 w-4" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                  </button>
                 )}
 
                 {/* Remove button (not for owner, not for self) */}

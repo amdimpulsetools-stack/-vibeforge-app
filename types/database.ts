@@ -41,6 +41,7 @@ export interface Database {
           user_id: string;
           organization_id: string;
           role: "owner" | "admin" | "member";
+          is_active: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -49,6 +50,7 @@ export interface Database {
           user_id: string;
           organization_id: string;
           role?: "owner" | "admin" | "member";
+          is_active?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -57,6 +59,7 @@ export interface Database {
           user_id?: string;
           organization_id?: string;
           role?: "owner" | "admin" | "member";
+          is_active?: boolean;
           updated_at?: string;
         };
       };
@@ -196,6 +199,7 @@ export interface Database {
           color: string;
           is_active: boolean;
           organization_id: string;
+          user_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -207,6 +211,7 @@ export interface Database {
           color?: string;
           is_active?: boolean;
           organization_id: string;
+          user_id?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -218,6 +223,7 @@ export interface Database {
           color?: string;
           is_active?: boolean;
           organization_id?: string;
+          user_id?: string | null;
           updated_at?: string;
         };
       };

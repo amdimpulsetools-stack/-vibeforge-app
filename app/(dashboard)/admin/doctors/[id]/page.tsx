@@ -202,6 +202,16 @@ function ProfileTab({ doctor, onSave }: { doctor: Doctor; onSave: () => void }) 
       toast.error(t("doctors.save_error") + ": " + error.message);
       return;
     }
+
+    // Reverse sync: update user_profiles.full_name if name changed
+    // (DB trigger also handles this, but explicit update as redundancy)
+    if (doctor.user_id && values.full_name !== doctor.full_name) {
+      await supabase
+        .from("user_profiles")
+        .update({ full_name: values.full_name })
+        .eq("id", doctor.user_id);
+    }
+
     toast.success(t("doctors.save_success"));
     onSave();
   };
