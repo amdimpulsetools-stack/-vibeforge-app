@@ -232,9 +232,19 @@ function AppointmentHeatmap({
         <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10">
           <BarChart3 className="h-4 w-4 text-amber-400" />
         </div>
-        <h3 className="text-sm font-bold">
-          {isEs ? "Mapa de calor de citas" : "Appointments heatmap"}
-        </h3>
+        <div className="relative group cursor-help">
+          <h3 className="text-sm font-bold">
+            {isEs ? "Mapa de calor de citas" : "Appointments heatmap"}
+          </h3>
+          <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-150 absolute left-0 top-full mt-2 z-50">
+            <div className="relative rounded-lg bg-popover border border-border px-3 py-1.5 shadow-lg">
+              <div className="absolute -top-1 left-4 h-2 w-2 rotate-45 bg-popover border-l border-t border-border" />
+              <span className="text-xs font-medium text-foreground whitespace-nowrap">
+                {isEs ? "Distribución semanal de citas por hora (últimos 90 días)" : "Weekly appointment distribution by hour (last 90 days)"}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="overflow-x-auto">

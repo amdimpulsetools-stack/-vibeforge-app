@@ -55,9 +55,15 @@ function CardTitle({
   tooltip: string;
 }) {
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground cursor-help" title={tooltip}>
+    <div className="relative group inline-flex items-center gap-2 text-xs text-muted-foreground cursor-help">
       <Icon className="h-4 w-4" />
       {label}
+      <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-150 absolute left-0 top-full mt-2 z-50">
+        <div className="relative rounded-lg bg-popover border border-border px-3 py-1.5 shadow-lg">
+          <div className="absolute -top-1 left-4 h-2 w-2 rotate-45 bg-popover border-l border-t border-border" />
+          <span className="text-xs font-medium text-foreground whitespace-nowrap">{tooltip}</span>
+        </div>
+      </div>
     </div>
   );
 }
