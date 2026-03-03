@@ -139,21 +139,28 @@ export function SchedulerHeader({
 
           {/* Break Time button */}
           {onBreakTime && (
-            <button
-              onClick={onBreakTime}
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                breakTimeEnabled
-                  ? "border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20"
-                  : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
-              )}
-            >
-              <Coffee className="h-4 w-4" />
-              Break Time
-              {breakTimeEnabled && (
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-              )}
-            </button>
+            <div className="relative group">
+              <button
+                onClick={onBreakTime}
+                className={cn(
+                  "rounded-lg border p-2 transition-colors",
+                  breakTimeEnabled
+                    ? "border-blue-500/40 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20"
+                    : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <Coffee className="h-4 w-4" />
+                {breakTimeEnabled && (
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-blue-500" />
+                )}
+              </button>
+              <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-150 absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50">
+                <div className="relative rounded-lg bg-popover border border-border px-3 py-1.5 shadow-lg">
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 h-2 w-2 rotate-45 bg-popover border-l border-t border-border" />
+                  <span className="text-xs font-medium text-foreground whitespace-nowrap">Break Time</span>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* Nueva cita */}
