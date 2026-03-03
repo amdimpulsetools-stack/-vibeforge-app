@@ -10,7 +10,6 @@ import {
   CalendarDays,
   DollarSign,
   Users,
-  CheckCircle2,
   Clock,
   ArrowRight,
   Loader2,
@@ -18,24 +17,28 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-interface DoctorStats {
-  linked: boolean;
-  doctor_id?: string;
-  today_appointments?: number;
-  month_appointments?: number;
-  month_completed?: number;
-  month_revenue?: number;
-  total_patients?: number;
-  upcoming_appointments?: {
-    id: string;
-    patient_name: string;
-    appointment_date: string;
-    start_time: string;
-    end_time: string;
-    status: string;
-    service_name: string | null;
-    office_name: string | null;
-  }[];
+interface UpcomingAppointment {
+  id: string;
+  patient_name: string;
+  appointment_date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  service_name: string | null;
+  office_name: string | null;
+}
+
+interface DoctorStatsResponse {
+  has_doctor_record: boolean;
+  doctor_id: string | null;
+  stats: {
+    today_appointments: number;
+    week_appointments: number;
+    month_completed: number;
+    month_revenue: number;
+    total_patients: number;
+    upcoming_appointments: UpcomingAppointment[];
+  } | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -55,7 +58,7 @@ const STATUS_LABELS: Record<string, string> = {
 export function DoctorDashboard({ userName }: { userName: string }) {
   const { user } = useUser();
   const { organizationId } = useOrganization();
-  const [stats, setStats] = useState<DoctorStats | null>(null);
+  const [data, setData] = useState<DoctorStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -63,13 +66,13 @@ export function DoctorDashboard({ userName }: { userName: string }) {
 
     const fetchStats = async () => {
       const supabase = createClient();
-      const { data, error } = await supabase.rpc("get_doctor_personal_stats", {
+      const { data: rpcData, error } = await supabase.rpc("get_doctor_personal_stats", {
         p_user_id: user.id,
         org_id: organizationId,
       });
 
-      if (!error && data) {
-        setStats(data as unknown as DoctorStats);
+      if (!error && rpcData) {
+        setData(rpcData as unknown as DoctorStatsResponse);
       }
       setLoading(false);
     };
@@ -85,7 +88,7 @@ export function DoctorDashboard({ userName }: { userName: string }) {
     );
   }
 
-  if (!stats?.linked) {
+  if (!data?.has_doctor_record || !data.stats) {
     return (
       <div className="space-y-6 pb-8">
         <div>
@@ -110,10 +113,12 @@ export function DoctorDashboard({ userName }: { userName: string }) {
     );
   }
 
+  const stats = data.stats;
+
   const completionRate =
-    stats.month_appointments && stats.month_appointments > 0
+    stats.week_appointments && stats.week_appointments > 0
       ? Math.round(
-          ((stats.month_completed ?? 0) / stats.month_appointments) * 100
+          ((stats.month_completed ?? 0) / stats.week_appointments) * 100
         )
       : 0;
 
@@ -155,8 +160,8 @@ export function DoctorDashboard({ userName }: { userName: string }) {
           bgColor="bg-blue-500/10"
         />
         <KpiCard
-          title="Citas este mes"
-          value={(stats.month_appointments ?? 0).toLocaleString()}
+          title="Citas esta semana"
+          value={(stats.week_appointments ?? 0).toLocaleString()}
           icon={CalendarDays}
           color="text-purple-400"
           bgColor="bg-purple-500/10"
