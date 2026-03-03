@@ -52,7 +52,16 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const body = await req.json();
+  let body;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json(
+      { error: "Cuerpo de solicitud inválido" },
+      { status: 400 }
+    );
+  }
+
   const {
     to,
     subject,
@@ -69,28 +78,31 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const html = buildEmailHtml({
-    body: emailBody,
-    brandColor: brand_color || "#10b981",
-    logoUrl: logo_url,
-    clinicName: clinic_name,
-  });
-
-  // Send email via SMTP
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port: Number(smtpPort) || 587,
-    secure: Number(smtpPort) === 465,
-    auth: {
-      user: smtpUser,
-      pass: smtpPass,
-    },
-  });
-
-  const fromAddress = process.env.SMTP_FROM || smtpUser;
-  const fromName = clinic_name || "VibeForge";
-
   try {
+    const html = buildEmailHtml({
+      body: emailBody,
+      brandColor: brand_color || "#10b981",
+      logoUrl: logo_url,
+      clinicName: clinic_name,
+    });
+
+    const port = Number(smtpPort) || 587;
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port,
+      secure: port === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    });
+
+    const fromAddress = process.env.SMTP_FROM || smtpUser;
+    const fromName = clinic_name || "VibeForge";
+
     const info = await transporter.sendMail({
       from: `${fromName} <${fromAddress}>`,
       to,
@@ -104,8 +116,9 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error desconocido";
+    console.error("[SMTP Error]", message);
     return NextResponse.json(
-      { error: `Error al enviar: ${message}` },
+      { error: `Error SMTP: ${message}` },
       { status: 500 }
     );
   }

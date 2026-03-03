@@ -1039,6 +1039,15 @@ function TemplateEditor({
                       clinic_name: clinicName,
                     }),
                   });
+                  const contentType = res.headers.get("content-type") || "";
+                  if (!contentType.includes("application/json")) {
+                    toast.error(
+                      language === "es"
+                        ? "Error del servidor. Revisa la configuración SMTP."
+                        : "Server error. Check SMTP configuration."
+                    );
+                    return;
+                  }
                   const data = await res.json();
                   if (!res.ok) {
                     toast.error(data.error || "Error al enviar");
