@@ -402,7 +402,6 @@ function ServiceForm({
         .update(payload)
         .eq("id", service.id);
       if (error) {
-        console.error("Service update error:", error);
         toast.error(t("services.save_error") + ": " + error.message);
         setSaving(false);
         return;
@@ -410,7 +409,6 @@ function ServiceForm({
     } else {
       const { error } = await supabase.from("services").insert({ ...payload, organization_id: organizationId });
       if (error) {
-        console.error("Service insert error:", error);
         toast.error(t("services.save_error") + ": " + error.message);
         setSaving(false);
         return;

@@ -45,8 +45,8 @@ export function useBilling(): UseBillingReturn {
         const data = await res.json();
         setBilling(data);
       }
-    } catch (error) {
-      console.error("Error fetching billing:", error);
+    } catch {
+      // handled silently — billing UI shows fallback state
     }
     setLoading(false);
   }, [organizationId]);

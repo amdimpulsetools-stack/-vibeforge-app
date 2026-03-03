@@ -354,7 +354,6 @@ function GeneralSettings({
     setSaving(false);
 
     if (error) {
-      console.error("Email settings save error:", error);
       toast.error(t("email.save_settings_error") + ": " + error.message);
       return;
     }

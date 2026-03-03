@@ -12,7 +12,8 @@ export async function GET() {
     .order("display_order");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Plans fetch error:", error);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 
   return NextResponse.json(data);
@@ -73,8 +74,9 @@ export async function POST(request: Request) {
     .in("status", ["active", "trialing"]);
 
   if (deactivateError) {
+    console.error("Deactivate subscription error:", deactivateError);
     return NextResponse.json(
-      { error: "Error al desactivar suscripción actual: " + deactivateError.message },
+      { error: "subscription_deactivation_failed" },
       { status: 500 }
     );
   }
@@ -97,7 +99,8 @@ export async function POST(request: Request) {
     .single();
 
   if (subError) {
-    return NextResponse.json({ error: subError.message }, { status: 500 });
+    console.error("Subscription creation error:", subError);
+    return NextResponse.json({ error: "subscription_creation_failed" }, { status: 500 });
   }
 
   return NextResponse.json(subscription);

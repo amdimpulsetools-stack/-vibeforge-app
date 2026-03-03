@@ -51,7 +51,6 @@ export default function OfficesPage() {
       .eq("id", office.id);
 
     if (error) {
-      console.error("Office toggle error:", error);
       toast.error(t("offices.save_error") + ": " + error.message);
       return;
     }
@@ -66,7 +65,6 @@ export default function OfficesPage() {
     const { error } = await supabase.from("offices").delete().eq("id", id);
 
     if (error) {
-      console.error("Office delete error:", error);
       toast.error(t("offices.save_error") + ": " + error.message);
       return;
     }
@@ -240,7 +238,6 @@ function OfficeForm({
         .eq("id", office.id);
 
       if (error) {
-        console.error("Office update error:", error);
         toast.error(t("offices.save_error") + ": " + error.message);
         setSaving(false);
         return;
@@ -254,7 +251,6 @@ function OfficeForm({
       });
 
       if (error) {
-        console.error("Office insert error:", error);
         toast.error(t("offices.save_error") + ": " + error.message);
         setSaving(false);
         return;

@@ -44,7 +44,8 @@ export async function GET(request: NextRequest) {
     .order("created_at");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Members fetch error:", error);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 
   if (!members || members.length === 0) {
@@ -178,17 +179,27 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Remove from their current org if they have one (admin client bypasses RLS)
-    const { error: deleteError } = await supabaseAdmin
+    // Remove from their default/auto-created org only (not from other real orgs)
+    // Find their current memberships to remove only the auto-generated one
+    const { data: existingMemberships } = await supabaseAdmin
       .from("organization_members")
-      .delete()
-      .eq("user_id", targetUserId);
+      .select("id, organization_id")
+      .eq("user_id", targetUserId)
+      .neq("organization_id", callerMembership.organization_id);
 
-    if (deleteError) {
-      return NextResponse.json(
-        { error: "Error al remover membresía anterior: " + deleteError.message },
-        { status: 500 }
-      );
+    // Only delete memberships in orgs where they are the sole member (auto-created orgs)
+    for (const mem of existingMemberships ?? []) {
+      const { count } = await supabaseAdmin
+        .from("organization_members")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", mem.organization_id);
+
+      if (count === 1) {
+        await supabaseAdmin
+          .from("organization_members")
+          .delete()
+          .eq("id", mem.id);
+      }
     }
 
     // Insert member into this org
@@ -203,7 +214,8 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Member insert error:", error);
+      return NextResponse.json({ error: "member_creation_failed" }, { status: 500 });
     }
 
     // Set professional_title on the user's profile for doctor/specialist roles
@@ -327,8 +339,9 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (invError) {
+    console.error("Invitation creation error:", invError);
     return NextResponse.json(
-      { error: invError.message },
+      { error: "invitation_creation_failed" },
       { status: 500 }
     );
   }
@@ -359,8 +372,6 @@ export async function POST(request: NextRequest) {
   return NextResponse.json(
     {
       message: "invitation_sent",
-      token: invitation.token,
-      registerUrl,
       email_sent: emailSent,
     },
     { status: 201 }

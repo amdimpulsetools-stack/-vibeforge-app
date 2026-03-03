@@ -133,8 +133,6 @@ export async function POST(request: Request) {
     });
   } catch (error: unknown) {
     console.error("Mercado Pago checkout error:", error);
-    const message =
-      error instanceof Error ? error.message : "Error creating checkout";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "checkout_error" }, { status: 500 });
   }
 }

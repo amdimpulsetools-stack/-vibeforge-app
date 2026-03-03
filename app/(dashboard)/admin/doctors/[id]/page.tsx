@@ -198,7 +198,6 @@ function ProfileTab({ doctor, onSave }: { doctor: Doctor; onSave: () => void }) 
 
     setSaving(false);
     if (error) {
-      console.error("Doctor update error:", error);
       toast.error(t("doctors.save_error") + ": " + error.message);
       return;
     }
@@ -330,7 +329,6 @@ function ServicesTab({
       }));
       const { error } = await supabase.from("doctor_services").insert(inserts);
       if (error) {
-        console.error("Doctor services insert error:", error);
         toast.error(t("doctors.save_error") + ": " + error.message);
         setSaving(false);
         return;
@@ -481,7 +479,6 @@ function ScheduleTab({
       }));
       const { error } = await supabase.from("doctor_schedules").insert(inserts);
       if (error) {
-        console.error("Doctor schedules insert error:", error);
         toast.error(t("doctors.save_error") + ": " + error.message);
         setSaving(false);
         return;

@@ -379,7 +379,6 @@ export function AppointmentFormModal({
         } as any);
 
       if (payError) {
-        console.error("Deposit insert error:", JSON.stringify(payError));
         toast.error("Cita creada, pero error al registrar anticipo: " + (payError.message || JSON.stringify(payError)));
       }
     }

@@ -116,7 +116,6 @@ export default function SettingsPage() {
       .upload(path, file, { cacheControl: "3600", upsert: true });
 
     if (uploadError) {
-      console.error("Logo upload error:", uploadError);
       toast.error(uploadError.message);
       setUploadingLogo(false);
       return;
@@ -190,7 +189,6 @@ export default function SettingsPage() {
     setSaving(false);
 
     if (error) {
-      console.error("Org update error:", error);
       // Handle slug uniqueness violation
       if (error.code === "23505" || error.message?.includes("unique")) {
         toast.error(t("settings.org_slug_taken"));

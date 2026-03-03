@@ -140,7 +140,6 @@ export function AppointmentSidebar({
 
     setSavingPayment(false);
     if (error) {
-      console.error("Payment insert error:", JSON.stringify(error));
       toast.error("Error al registrar pago: " + (error.message || JSON.stringify(error)));
       return;
     }

@@ -70,7 +70,27 @@ const FORBIDDEN_PATTERNS = [
   /\bcopy\s/i,
   /pg_read_file/i,
   /pg_ls_dir/i,
+  /pg_sleep/i,
+  /pg_catalog/i,
+  /pg_authid/i,
+  /pg_shadow/i,
+  /pg_roles/i,
+  /information_schema/i,
+  /\bauth\./i,
+  /\bset\s+role\b/i,
+  /\bset\s+session\b/i,
+  /\breset\b/i,
+  /\bdo\s/i,
+  /;\s*\w/i, // block stacked queries (semicolon followed by another statement)
 ];
+
+const ALLOWED_TABLES = [
+  "patients", "appointments", "doctors", "offices", "services",
+  "patient_payments", "patient_tags", "schedule_blocks",
+  "service_categories", "lookup_categories", "lookup_values",
+];
+
+const MAX_MESSAGE_LENGTH = 1000;
 
 function validateSql(sql: string): { valid: boolean; error?: string } {
   const normalized = sql.trim().toLowerCase();
@@ -157,10 +177,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Mensaje vacío" }, { status: 400 });
     }
 
-    // Rate limit by user (requires auth via Supabase cookie)
+    if (message.length > MAX_MESSAGE_LENGTH) {
+      return NextResponse.json({ error: "Mensaje demasiado largo" }, { status: 400 });
+    }
+
+    // Authentication is mandatory
     const supabaseAuth = await createClient();
     const { data: { user } } = await supabaseAuth.auth.getUser();
-    const rateLimitKey = user?.id ?? req.headers.get("x-forwarded-for") ?? "anonymous";
+
+    if (!user) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    const rateLimitKey = user.id;
     const rl = aiLimiter(rateLimitKey);
     if (!rl.success) {
       return NextResponse.json(
@@ -228,8 +257,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         response: "No puedo ejecutar esa consulta por razones de seguridad.",
         data: null,
-        sql,
-        sqlError: validation.error,
+        sql: null,
+        sqlError: null,
       });
     }
 
@@ -251,11 +280,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (sqlError) {
+      console.error("AI SQL error:", sqlError);
       return NextResponse.json({
         response: "Tuve un problema al consultar los datos. Por favor, intenta de nuevo.",
         data: null,
-        sql,
-        sqlError,
+        sql: null,
+        sqlError: null,
       });
     }
 
@@ -275,7 +305,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       response: answerResult.text ?? "No pude interpretar los resultados.",
       data: queryData,
-      sql,
+      sql: null,
       sqlError: null,
     });
   } catch (err) {

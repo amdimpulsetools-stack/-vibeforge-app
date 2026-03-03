@@ -74,7 +74,8 @@ export async function PATCH(
       .eq("id", id);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error("Member update error:", error);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
     }
 
     // DB trigger handles doctor deactivation/reactivation automatically
@@ -95,7 +96,8 @@ export async function PATCH(
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Member update error:", error);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });
@@ -170,7 +172,8 @@ export async function DELETE(
     .eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Member update error:", error);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
   }
 
   return NextResponse.json({ success: true });

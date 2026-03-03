@@ -2,6 +2,32 @@
  * Generates a professional HTML email layout.
  * Uses inline styles for maximum email client compatibility.
  */
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function sanitizeBrandColor(color: string): string {
+  return /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : "#10b981";
+}
+
+function sanitizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+      return parsed.href;
+    }
+  } catch {
+    // invalid URL
+  }
+  return "";
+}
+
 export function buildEmailHtml({
   body,
   brandColor = "#10b981",
@@ -16,11 +42,16 @@ export function buildEmailHtml({
   footerText?: string | null;
 }): string {
   const year = new Date().getFullYear();
+  const safeBrandColor = sanitizeBrandColor(brandColor);
+  const safeClinicName = clinicName ? escapeHtml(clinicName) : "";
+  const safeFooterText = footerText ? escapeHtml(footerText) : "";
+  const safeLogoUrl = logoUrl ? sanitizeUrl(logoUrl) : "";
+  const safeBody = escapeHtml(body).replace(/\n/g, "<br/>");
 
-  const logoBlock = logoUrl
-    ? `<img src="${logoUrl}" alt="${clinicName || ""}" style="max-height:48px;max-width:180px;display:block;" />`
-    : clinicName
-    ? `<span style="font-size:20px;font-weight:700;color:#ffffff;">${clinicName}</span>`
+  const logoBlock = safeLogoUrl
+    ? `<img src="${safeLogoUrl}" alt="${safeClinicName}" style="max-height:48px;max-width:180px;display:block;" />`
+    : safeClinicName
+    ? `<span style="font-size:20px;font-weight:700;color:#ffffff;">${safeClinicName}</span>`
     : "";
 
   return `<!DOCTYPE html>
@@ -28,7 +59,7 @@ export function buildEmailHtml({
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>${clinicName || "VibeForge"}</title>
+  <title>${safeClinicName || "VibeForge"}</title>
 </head>
 <body style="margin:0;padding:0;background-color:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
   <!-- Outer wrapper -->
@@ -40,7 +71,7 @@ export function buildEmailHtml({
 
           <!-- Header -->
           <tr>
-            <td style="background-color:${brandColor};padding:24px 32px;text-align:center;">
+            <td style="background-color:${safeBrandColor};padding:24px 32px;text-align:center;">
               ${logoBlock}
             </td>
           </tr>
@@ -48,7 +79,7 @@ export function buildEmailHtml({
           <!-- Body -->
           <tr>
             <td style="padding:32px;color:#1f2937;font-size:15px;line-height:1.7;">
-              ${body.replace(/\n/g, "<br/>")}
+              ${safeBody}
             </td>
           </tr>
 
@@ -62,8 +93,8 @@ export function buildEmailHtml({
           <!-- Footer -->
           <tr>
             <td style="padding:20px 32px;text-align:center;font-size:12px;color:#9ca3af;line-height:1.5;">
-              ${footerText || ""}
-              ${clinicName ? `<br/>&copy; ${year} ${clinicName}` : ""}
+              ${safeFooterText}
+              ${safeClinicName ? `<br/>&copy; ${year} ${safeClinicName}` : ""}
             </td>
           </tr>
 

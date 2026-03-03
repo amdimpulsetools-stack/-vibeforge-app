@@ -67,11 +67,9 @@ export function OrganizationProvider({
     }
 
     // No org membership found — attempt self-healing via RPC
-    console.warn("No organization membership found, attempting auto-repair...");
     const { error: rpcError } = await supabase.rpc("ensure_user_has_org");
 
     if (rpcError) {
-      console.error("Failed to auto-create organization:", rpcError.message);
       setState((s) => ({ ...s, loading: false }));
       return;
     }

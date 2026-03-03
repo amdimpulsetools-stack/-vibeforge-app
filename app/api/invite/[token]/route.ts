@@ -8,31 +8,17 @@ export async function GET(
 ) {
   const { token } = await params;
 
-  if (!token) {
+  if (!token || !/^[a-f0-9-]{36}$/.test(token)) {
     return NextResponse.json({ error: "Token required" }, { status: 400 });
   }
 
   const supabase = await createClient();
 
-  const { data: invitation, error } = await supabase
-    .from("organization_invitations")
-    .select(
-      `
-      id,
-      email,
-      role,
-      professional_title,
-      status,
-      expires_at,
-      organization_id,
-      organizations:organization_id (
-        name,
-        logo_url
-      )
-    `
-    )
-    .eq("token", token)
-    .single();
+  // Use RPC to securely look up invitation by token (avoids USING(true) policy)
+  const { data: invitation, error } = await supabase.rpc(
+    "get_invitation_by_token",
+    { invite_token: token }
+  );
 
   if (error || !invitation) {
     return NextResponse.json(
@@ -55,10 +41,12 @@ export async function GET(
     );
   }
 
-  const org = invitation.organizations as unknown as {
-    name: string;
-    logo_url: string | null;
-  } | null;
+  // Fetch org name separately (the invitation RPC doesn't join)
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("name, logo_url")
+    .eq("id", invitation.organization_id)
+    .single();
 
   return NextResponse.json({
     email: invitation.email,

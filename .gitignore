@@ -1,6 +1,7 @@
 node_modules/
 .next/
-.env.local
-.env
+# Environment files (keep .env.local.example)
+.env*
+!.env.local.example
 tsconfig.tsbuildinfo
 supabase/.temp/

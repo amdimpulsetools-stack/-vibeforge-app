@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient as createServiceClient, type SupabaseClient } from "@supabase/supabase-js";
+import { type SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getPreApprovalClient, getPaymentClient } from "@/lib/mercadopago/client";
 import crypto from "crypto";
 import { webhookLimiter } from "@/lib/rate-limit";
@@ -23,47 +24,45 @@ export async function POST(request: Request) {
     );
   }
 
-  // Use service role client for webhook operations (bypasses RLS)
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  // Use centralized admin client for webhook operations (bypasses RLS)
+  const supabase = createAdminClient();
 
-  if (!supabaseUrl || !serviceKey) {
-    console.error("Missing Supabase service role credentials");
+  // Verify webhook signature — MANDATORY in production
+  const mpWebhookSecret = process.env.MP_WEBHOOK_SECRET;
+  if (!mpWebhookSecret) {
+    console.error("MP_WEBHOOK_SECRET is not configured — rejecting webhook");
     return NextResponse.json({ error: "server_config_error" }, { status: 500 });
   }
 
-  const supabase = createServiceClient(supabaseUrl, serviceKey);
+  const xSignature = request.headers.get("x-signature");
+  const xRequestId = request.headers.get("x-request-id");
 
-  // Verify webhook signature if secret is configured
-  const mpWebhookSecret = process.env.MP_WEBHOOK_SECRET;
-  if (mpWebhookSecret) {
-    const xSignature = request.headers.get("x-signature");
-    const xRequestId = request.headers.get("x-request-id");
+  if (!xSignature || !xRequestId) {
+    return NextResponse.json({ error: "missing_signature" }, { status: 401 });
+  }
 
-    if (xSignature && xRequestId) {
-      const url = new URL(request.url);
-      const dataId = url.searchParams.get("data.id") || url.searchParams.get("id");
+  const url = new URL(request.url);
+  const dataId = url.searchParams.get("data.id") || url.searchParams.get("id");
 
-      const parts = xSignature.split(",");
-      let ts = "";
-      let hash = "";
-      for (const part of parts) {
-        const [key, value] = part.trim().split("=");
-        if (key === "ts") ts = value;
-        if (key === "v1") hash = value;
-      }
+  const parts = xSignature.split(",");
+  let ts = "";
+  let hash = "";
+  for (const part of parts) {
+    const [key, value] = part.trim().split("=");
+    if (key === "ts") ts = value;
+    if (key === "v1") hash = value;
+  }
 
-      const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
-      const hmac = crypto
-        .createHmac("sha256", mpWebhookSecret)
-        .update(manifest)
-        .digest("hex");
+  const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+  const hmac = crypto
+    .createHmac("sha256", mpWebhookSecret)
+    .update(manifest)
+    .digest("hex");
 
-      if (hmac !== hash) {
-        console.warn("Invalid webhook signature");
-        return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
-      }
-    }
+  // Use constant-time comparison to prevent timing attacks
+  if (!crypto.timingSafeEqual(Buffer.from(hmac), Buffer.from(hash || ""))) {
+    console.warn("Invalid webhook signature");
+    return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
   }
 
   let body: Record<string, unknown>;
@@ -75,19 +74,19 @@ export async function POST(request: Request) {
 
   const type = body.type as string;
   const action = body.action as string;
-  const dataId = (body.data as Record<string, unknown>)?.id as string;
+  const bodyDataId = (body.data as Record<string, unknown>)?.id as string;
 
-  console.log(`[MP Webhook] type=${type} action=${action} id=${dataId}`);
+  console.log(`[MP Webhook] type=${type} action=${action} id=${bodyDataId}`);
 
   try {
     // Handle subscription (preapproval) events
     if (type === "subscription_preapproval") {
-      await handleSubscriptionEvent(supabase, dataId);
+      await handleSubscriptionEvent(supabase, bodyDataId);
     }
 
     // Handle payment events
     if (type === "payment") {
-      await handlePaymentEvent(supabase, dataId);
+      await handlePaymentEvent(supabase, bodyDataId);
     }
 
     return NextResponse.json({ received: true });

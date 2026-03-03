@@ -139,9 +139,6 @@ export default function SchedulerPage() {
           .eq("role", "receptionist"),
       ]);
 
-      if (doctorServicesRes.error) console.error("[scheduler] doctor_services fetch error:", doctorServicesRes.error);
-      if (doctorSchedulesRes.error) console.error("[scheduler] doctor_schedules fetch error:", doctorSchedulesRes.error);
-
       setOffices(officesRes.data ?? []);
       setDoctors(doctorsRes.data ?? []);
       setServices(servicesRes.data ?? []);

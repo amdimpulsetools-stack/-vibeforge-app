@@ -134,7 +134,6 @@ export default function AccountPage() {
       .upload(path, file, { cacheControl: "3600", upsert: true });
 
     if (uploadError) {
-      console.error("Avatar upload error:", uploadError);
       toast.error(uploadError.message);
       setUploadingAvatar(false);
       return;
@@ -214,7 +213,6 @@ export default function AccountPage() {
     setSaving(false);
 
     if (error) {
-      console.error("Error updating profile:", error.message);
       toast.error(t("account.save_error"));
       return;
     }
@@ -234,7 +232,6 @@ export default function AccountPage() {
     setSavingPwd(false);
 
     if (error) {
-      console.error("Password update error:", error.message);
       toast.error(t("account.password_error") + ": " + error.message);
       return;
     }

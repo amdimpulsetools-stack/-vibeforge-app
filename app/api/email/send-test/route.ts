@@ -49,8 +49,6 @@ export async function POST(req: NextRequest) {
   });
 
   // Return HTML preview — actual sending uses Supabase native emails
-  console.log(`📧 Test email preview → to: ${to || "(preview)"}, subject: ${subject}`);
-
   return NextResponse.json({
     success: true,
     preview: true,
