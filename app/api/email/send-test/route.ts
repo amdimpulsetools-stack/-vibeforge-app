@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import nodemailer from "nodemailer";
-
-export const runtime = "nodejs";
 import { createClient } from "@/lib/supabase/server";
 import { buildEmailHtml } from "@/lib/email-template";
 import { emailLimiter } from "@/lib/rate-limit";
+
+export const runtime = "nodejs";
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const nodemailer = require("nodemailer");
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
