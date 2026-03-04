@@ -115,8 +115,15 @@ export async function POST(request: Request) {
       body: preapprovalBody,
     });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error("MP PreApproval create error:", msg, error);
+    let msg: string;
+    if (error instanceof Error) {
+      msg = error.message;
+    } else if (typeof error === "object" && error !== null) {
+      msg = JSON.stringify(error, null, 2);
+    } else {
+      msg = String(error);
+    }
+    console.error("MP PreApproval create error:", msg);
     return NextResponse.json(
       { error: `mp_error: ${msg}` },
       { status: 500 }
