@@ -92,19 +92,16 @@ export async function POST(request: Request) {
       }),
     };
 
-    // If plan has a linked MP subscription plan, use it (recommended)
-    if (plan.mp_plan_id) {
-      preapprovalBody.preapproval_plan_id = plan.mp_plan_id;
-    } else {
-      // Fallback: create open subscription without MP plan
-      preapprovalBody.reason = `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`;
-      preapprovalBody.auto_recurring = {
-        frequency: frequency,
-        frequency_type: frequencyType,
-        transaction_amount: Number(price),
-        currency_id: "PEN",
-      };
-    }
+    // Use open subscription (auto_recurring) — redirects to MP hosted checkout.
+    // preapproval_plan_id requires card_token_id (custom card form), so we use
+    // open subscriptions which give us an init_point redirect instead.
+    preapprovalBody.reason = `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`;
+    preapprovalBody.auto_recurring = {
+      frequency: frequency,
+      frequency_type: frequencyType,
+      transaction_amount: Number(price),
+      currency_id: "PEN",
+    };
 
     // Mercado Pago rejects localhost URLs in back_url
     if (!isLocalhost) {
