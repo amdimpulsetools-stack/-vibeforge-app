@@ -80,13 +80,6 @@ export async function POST(request: Request) {
     const preApproval = getPreApprovalClient();
 
     const preapprovalBody: Record<string, unknown> = {
-      reason: `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`,
-      auto_recurring: {
-        frequency: frequency,
-        frequency_type: frequencyType,
-        transaction_amount: Number(price),
-        currency_id: "PEN",
-      },
       payer_email: user.email || "",
       external_reference: JSON.stringify({
         organization_id: membership.organization_id,
@@ -96,6 +89,20 @@ export async function POST(request: Request) {
         user_id: user.id,
       }),
     };
+
+    // If plan has a linked MP subscription plan, use it (recommended)
+    if (plan.mp_plan_id) {
+      preapprovalBody.preapproval_plan_id = plan.mp_plan_id;
+    } else {
+      // Fallback: create open subscription without MP plan
+      preapprovalBody.reason = `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`;
+      preapprovalBody.auto_recurring = {
+        frequency: frequency,
+        frequency_type: frequencyType,
+        transaction_amount: Number(price),
+        currency_id: "PEN",
+      };
+    }
 
     // Mercado Pago rejects localhost URLs in back_url
     if (!isLocalhost) {
