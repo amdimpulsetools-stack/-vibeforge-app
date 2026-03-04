@@ -103,10 +103,11 @@ export async function POST(request: Request) {
       currency_id: "PEN",
     };
 
-    // Mercado Pago rejects localhost URLs in back_url
-    if (!isLocalhost) {
-      preapprovalBody.back_url = `${appUrl}/dashboard/plans?payment=success`;
-    }
+    // back_url is required for open subscriptions.
+    // For localhost, use a placeholder URL since MP rejects localhost.
+    preapprovalBody.back_url = isLocalhost
+      ? "https://vibeforge.app/dashboard/plans?payment=success"
+      : `${appUrl}/dashboard/plans?payment=success`;
 
     result = await preApproval.create({
       body: preapprovalBody,
