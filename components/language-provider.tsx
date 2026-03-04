@@ -27,6 +27,7 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.admin_variables": "Variables Globales",
     "nav.admin_members": "Miembros",
     "nav.founder": "Founder",
+    "nav.integrations": "Integraciones",
 
     // Account page
     "account.title": "Mi cuenta",
@@ -523,6 +524,7 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.admin_variables": "Global Variables",
     "nav.admin_members": "Members",
     "nav.founder": "Founder",
+    "nav.integrations": "Integraciones",
 
     // Account page
     "account.title": "My Account",

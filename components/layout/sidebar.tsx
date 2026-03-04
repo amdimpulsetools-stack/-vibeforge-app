@@ -30,6 +30,7 @@ import {
   History,
   Settings2,
   Crown,
+  Cable,
   type LucideIcon,
 } from "lucide-react";
 
@@ -260,7 +261,7 @@ export function Sidebar() {
           isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)
         )}
 
-        {/* Founder link (platform superuser) */}
+        {/* Founder links (platform superuser) */}
         {isFounder && (
           <>
             <div className="my-2 border-t border-border/30" />
@@ -268,6 +269,11 @@ export function Sidebar() {
               titleKey: "nav.founder",
               href: "/founder",
               icon: Crown,
+            })}
+            {renderNavItem({
+              titleKey: "nav.integrations",
+              href: "/founder/integrations",
+              icon: Cable,
             })}
           </>
         )}
