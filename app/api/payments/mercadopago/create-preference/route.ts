@@ -73,7 +73,6 @@ export async function POST(request: Request) {
           failure: `${appUrl}/founder/integrations/result?status=rejected`,
           pending: `${appUrl}/founder/integrations/result?status=pending`,
         },
-        auto_return: "approved",
         external_reference: `founder_test_${user.id}_${plan_slug}_${Date.now()}`,
         metadata: {
           plan_slug,
