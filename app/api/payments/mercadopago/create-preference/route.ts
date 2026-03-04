@@ -73,6 +73,9 @@ export async function POST(request: Request) {
           failure: `${appUrl}/founder/integrations/result?status=rejected`,
           pending: `${appUrl}/founder/integrations/result?status=pending`,
         },
+        payment_methods: {
+          installments: 1,
+        },
         external_reference: `founder_test_${user.id}_${plan_slug}_${Date.now()}`,
         metadata: {
           plan_slug,
