@@ -71,14 +71,14 @@ export default function FounderIntegrationsPage() {
     init();
   }, [user, userLoading, router]);
 
-  const handleSubscribe = async (planSlug: string) => {
-    setCreatingPreference(planSlug);
+  const handleSubscribe = async (planId: string) => {
+    setCreatingPreference(planId);
 
     try {
-      const res = await fetch("/api/payments/mercadopago/create-preference", {
+      const res = await fetch("/api/mercadopago/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan_slug: planSlug, billing_cycle: billingCycle }),
+        body: JSON.stringify({ plan_id: planId, billing_cycle: billingCycle }),
       });
 
       const data = await res.json();
@@ -89,11 +89,8 @@ export default function FounderIntegrationsPage() {
         return;
       }
 
-      // Use sandbox_init_point for test tokens, init_point for production
-      const checkoutUrl = data.sandbox_init_point || data.init_point;
-
-      if (checkoutUrl) {
-        window.location.href = checkoutUrl;
+      if (data.init_point) {
+        window.location.href = data.init_point;
       } else {
         alert("No checkout URL returned");
         setCreatingPreference(null);
@@ -124,7 +121,7 @@ export default function FounderIntegrationsPage() {
             Integraciones
           </h1>
           <p className="text-muted-foreground">
-            Prueba de pasarela de pago — Mercado Pago
+            Prueba de suscripciones — Mercado Pago
           </p>
         </div>
       </div>
@@ -175,7 +172,7 @@ export default function FounderIntegrationsPage() {
             billingCycle === "yearly" && plan.price_yearly
               ? plan.price_yearly
               : plan.price_monthly;
-          const isCreating = creatingPreference === plan.slug;
+          const isCreating = creatingPreference === plan.id;
 
           return (
             <div
@@ -202,14 +199,14 @@ export default function FounderIntegrationsPage() {
               </div>
 
               <button
-                onClick={() => handleSubscribe(plan.slug)}
+                onClick={() => handleSubscribe(plan.id)}
                 disabled={isCreating || creatingPreference !== null}
                 className="mt-auto flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isCreating ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Creando preferencia...
+                    Creando suscripción...
                   </>
                 ) : (
                   <>
