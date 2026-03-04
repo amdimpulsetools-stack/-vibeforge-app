@@ -70,6 +70,16 @@ export async function POST(request: Request) {
       ? plan.price_yearly
       : plan.price_monthly;
 
+  console.log("[MP Checkout] Plan:", plan.slug, "| Price:", price, "| Cycle:", billing_cycle);
+
+  // Mercado Pago minimum for recurring payments is S/ 2.00
+  if (!price || Number(price) < 2) {
+    return NextResponse.json(
+      { error: `Plan "${plan.name}" tiene precio S/ ${price} — MP requiere mínimo S/ 2.00` },
+      { status: 400 }
+    );
+  }
+
   const frequency = billing_cycle === "yearly" ? 12 : 1;
   const frequencyType = "months";
 
