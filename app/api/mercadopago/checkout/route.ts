@@ -76,6 +76,8 @@ export async function POST(request: Request) {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const isLocalhost = appUrl.includes("localhost") || appUrl.includes("127.0.0.1");
 
+  // Step 1: Create MP preapproval
+  let result;
   try {
     const preApproval = getPreApprovalClient();
 
@@ -109,18 +111,27 @@ export async function POST(request: Request) {
       preapprovalBody.back_url = `${appUrl}/dashboard/plans?payment=success`;
     }
 
-    const result = await preApproval.create({
+    result = await preApproval.create({
       body: preapprovalBody,
     });
+  } catch (error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("MP PreApproval create error:", msg, error);
+    return NextResponse.json(
+      { error: `mp_error: ${msg}` },
+      { status: 500 }
+    );
+  }
 
-    // Store pending subscription in DB
+  // Step 2: Store pending subscription in DB
+  try {
     await supabase.from("organization_subscriptions").update({
       status: "cancelled",
       cancelled_at: new Date().toISOString(),
     }).eq("organization_id", membership.organization_id)
       .in("status", ["active", "trialing"]);
 
-    await supabase.from("organization_subscriptions").insert({
+    const { error: insertError } = await supabase.from("organization_subscriptions").insert({
       organization_id: membership.organization_id,
       plan_id: plan.id,
       status: "trialing",
@@ -134,12 +145,16 @@ export async function POST(request: Request) {
       mp_payer_email: user.email || null,
     });
 
-    return NextResponse.json({
-      init_point: result.init_point,
-      preapproval_id: result.id,
-    });
-  } catch (error: unknown) {
-    console.error("Mercado Pago checkout error:", error);
-    return NextResponse.json({ error: "checkout_error" }, { status: 500 });
+    if (insertError) {
+      console.error("DB insert error:", insertError);
+      // Still return the MP link — the subscription was created in MP
+    }
+  } catch (dbError) {
+    console.error("DB error (non-blocking):", dbError);
   }
+
+  return NextResponse.json({
+    init_point: result.init_point,
+    preapproval_id: result.id,
+  });
 }
