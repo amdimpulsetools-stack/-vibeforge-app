@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import type { AppointmentWithRelations, Doctor, Service, LookupValue, PatientPayment } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
+import { sendNotification } from "@/lib/send-notification";
 import {
   X,
   User,
@@ -144,6 +145,19 @@ export function AppointmentSidebar({
       return;
     }
     toast.success("Pago registrado");
+
+    // Send payment receipt notification
+    const newTotalPaid = totalPaid + Number(payAmount);
+    sendNotification({
+      type: "payment_receipt",
+      appointment_id: appointment.id,
+      extra_variables: {
+        monto_pagado: `S/. ${Number(payAmount).toFixed(2)}`,
+        "{{pago_estado}}":
+          newTotalPaid >= totalPrice ? "Pagado en su totalidad" : "Pago parcial",
+      },
+    });
+
     setShowAddPayment(false);
     setPayAmount("");
     setPayMethod("");
@@ -181,6 +195,20 @@ export function AppointmentSidebar({
       return;
     }
     toast.success(t("scheduler.save_success"));
+
+    // Fire email notifications for relevant status changes
+    const notificationMap: Record<string, string> = {
+      confirmed: "appointment_confirmation",
+      cancelled: "appointment_cancelled",
+    };
+    const templateSlug = notificationMap[newStatus];
+    if (templateSlug) {
+      sendNotification({
+        type: templateSlug,
+        appointment_id: appointment.id,
+      });
+    }
+
     onUpdate();
   };
 

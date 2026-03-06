@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
+import { sendNotification } from "@/lib/send-notification";
 import { appointmentSchema, type AppointmentFormData } from "@/lib/validations/appointment";
 import type {
   Office,
@@ -388,6 +389,17 @@ export function AppointmentFormModal({
     if (error) {
       toast.error(t("scheduler.save_error") + ": " + error.message);
       return;
+    }
+
+    // Send appointment confirmation email to patient
+    if (newAppt) {
+      sendNotification({
+        type: "appointment_confirmation",
+        appointment_id: newAppt.id,
+        extra_variables: patientEmail
+          ? { patient_email: patientEmail }
+          : undefined,
+      });
     }
 
     toast.success(t("scheduler.save_success"));
