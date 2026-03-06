@@ -145,6 +145,30 @@ export default function SelectPlanPage() {
     init();
   }, [router]);
 
+  const handleStartTrial = async (planId: string) => {
+    setSelecting(planId);
+    try {
+      const res = await fetch("/api/plans/start-trial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan_id: planId }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        toast.error(data.error || "Error al iniciar la prueba");
+        setSelecting(null);
+        return;
+      }
+
+      toast.success("¡Prueba de 14 días activada!");
+      router.push("/dashboard");
+    } catch {
+      toast.error("Error de conexión");
+      setSelecting(null);
+    }
+  };
+
   const handleSelect = async (planId: string) => {
     setSelecting(planId);
     const selectedPlan = plans.find((p) => p.id === planId);
@@ -364,19 +388,28 @@ export default function SelectPlanPage() {
                 </div>
 
                 {/* CTA */}
-                <button
-                  onClick={() => handleSelect(plan.id)}
-                  disabled={selecting !== null}
-                  className={cn(
-                    "flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-all disabled:opacity-50",
-                    PLAN_BTN_COLORS[plan.slug] ?? "bg-primary hover:opacity-90"
-                  )}
-                >
-                  {selecting === plan.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : null}
-                  Suscribirse — ${plan.price_monthly}/mes
-                </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => handleStartTrial(plan.id)}
+                    disabled={selecting !== null}
+                    className={cn(
+                      "flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-all disabled:opacity-50",
+                      PLAN_BTN_COLORS[plan.slug] ?? "bg-primary hover:opacity-90"
+                    )}
+                  >
+                    {selecting === plan.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : null}
+                    Iniciar prueba de 14 días
+                  </button>
+                  <button
+                    onClick={() => handleSelect(plan.id)}
+                    disabled={selecting !== null}
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-card/50 px-4 py-2.5 text-xs font-medium text-muted-foreground transition-all hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
+                  >
+                    Pagar suscripción — S/{plan.price_monthly}/mes
+                  </button>
+                </div>
               </div>
             );
           })}

@@ -37,9 +37,10 @@ export async function updateSession(request: NextRequest) {
 
   const isSelectPlan = request.nextUrl.pathname === "/select-plan";
   const isWaitingForPlan = request.nextUrl.pathname === "/waiting-for-plan";
+  const isOnboarding = request.nextUrl.pathname === "/onboarding";
 
   // Redirigir a login si no autenticado y ruta protegida
-  if (!user && !isPublic && !isSelectPlan && !isWaitingForPlan) {
+  if (!user && !isPublic && !isSelectPlan && !isWaitingForPlan && !isOnboarding) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
