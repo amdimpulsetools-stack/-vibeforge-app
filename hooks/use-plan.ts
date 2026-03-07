@@ -99,16 +99,60 @@ export function usePlan(): UsePlanReturn {
     ]);
 
     if (planRes.data) {
-      const data = planRes.data as { plan: PlanInfo; subscription: SubscriptionInfo };
-      setPlan(data.plan);
-      setSubscription(data.subscription);
+      // RPC returns flat JSON — map to PlanInfo + SubscriptionInfo
+      const d = planRes.data as Record<string, unknown>;
+      setPlan({
+        id: d.plan_id as string,
+        slug: d.plan_slug as string,
+        name: d.plan_name as string,
+        description: (d.description as string) ?? null,
+        price_monthly: d.price_monthly as number,
+        max_members: (d.max_members as number) ?? null,
+        max_doctors: (d.max_doctors as number) ?? null,
+        max_offices: (d.max_offices as number) ?? null,
+        max_patients: (d.max_patients as number) ?? null,
+        max_appointments_per_month: (d.max_appointments_per_month as number) ?? null,
+        max_storage_mb: (d.max_storage_mb as number) ?? null,
+        max_admins: (d.max_admins as number) ?? null,
+        max_receptionists: (d.max_receptionists as number) ?? null,
+        max_doctor_members: (d.max_doctor_members as number) ?? null,
+        addon_price_per_office: (d.addon_price_per_office as number) ?? null,
+        addon_price_per_member: (d.addon_price_per_member as number) ?? null,
+        target_audience: (d.target_audience as string) ?? null,
+        feature_reports: !!d.feature_reports,
+        feature_export: !!d.feature_export,
+        feature_custom_roles: !!d.feature_custom_roles,
+        feature_api_access: !!d.feature_api_access,
+        feature_priority_support: !!d.feature_priority_support,
+        feature_ai_assistant: !!d.feature_ai_assistant,
+      });
+      setSubscription({
+        id: d.subscription_id as string ?? d.plan_id as string,
+        status: d.subscription_status as SubscriptionInfo["status"],
+        started_at: d.started_at as string,
+        expires_at: (d.expires_at as string) ?? (d.trial_ends_at as string) ?? null,
+        trial_ends_at: (d.trial_ends_at as string) ?? null,
+      });
     } else {
       setPlan(null);
       setSubscription(null);
     }
 
     if (usageRes.data) {
-      setUsage(usageRes.data as OrgUsage);
+      // RPC returns monthly_appointments, map to appointments_this_month
+      const u = usageRes.data as Record<string, unknown>;
+      setUsage({
+        members: (u.members as number) ?? 0,
+        doctors: (u.doctors as number) ?? 0,
+        offices: (u.offices as number) ?? 0,
+        patients: (u.patients as number) ?? 0,
+        appointments_this_month: (u.monthly_appointments as number) ?? (u.appointments_this_month as number) ?? 0,
+        admins: (u.admins as number) ?? 0,
+        receptionists: (u.receptionists as number) ?? 0,
+        doctor_members: (u.doctor_members as number) ?? 0,
+        extra_offices: (u.extra_offices as number) ?? 0,
+        extra_members: (u.extra_members as number) ?? 0,
+      });
     }
 
     setLoading(false);
