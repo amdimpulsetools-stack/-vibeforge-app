@@ -103,19 +103,6 @@ async function handleSubscriptionEvent(
   const preApproval = getPreApprovalClient();
   const mpSub = await preApproval.get({ id: preapprovalId });
 
-  if (!mpSub.external_reference) {
-    console.warn("[MP Webhook] No external_reference on preapproval", preapprovalId);
-    return;
-  }
-
-  let ref: { organization_id: string; plan_id: string; plan_slug: string };
-  try {
-    ref = JSON.parse(mpSub.external_reference);
-  } catch {
-    console.error("[MP Webhook] Invalid external_reference:", mpSub.external_reference);
-    return;
-  }
-
   // Map MP status to our status
   const statusMap: Record<string, string> = {
     authorized: "active",
@@ -126,31 +113,107 @@ async function handleSubscriptionEvent(
 
   const newStatus = statusMap[mpSub.status || ""] || "active";
 
-  // Update our subscription record
-  const { error } = await supabase
+  const updateData = {
+    status: newStatus,
+    mp_preapproval_id: preapprovalId,
+    mp_payer_email: mpSub.payer_email || null,
+    mp_next_payment_date: mpSub.next_payment_date || null,
+    mp_last_payment_status: mpSub.status || null,
+    external_id: preapprovalId,
+    payment_provider: "mercadopago",
+    updated_at: new Date().toISOString(),
+  };
+
+  // Strategy 1: If external_reference exists (open subscriptions created via API)
+  if (mpSub.external_reference) {
+    let ref: { organization_id: string; plan_id: string; plan_slug: string };
+    try {
+      ref = JSON.parse(mpSub.external_reference);
+    } catch {
+      console.error("[MP Webhook] Invalid external_reference:", mpSub.external_reference);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("organization_subscriptions")
+      .update(updateData)
+      .eq("organization_id", ref.organization_id)
+      .eq("plan_id", ref.plan_id)
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error("[MP Webhook] Error updating subscription:", error);
+    } else {
+      console.log(
+        `[MP Webhook] Subscription ${preapprovalId} -> ${newStatus} for org ${ref.organization_id}`
+      );
+    }
+    return;
+  }
+
+  // Strategy 2: Plan-based subscriptions (from MP checkout URL).
+  // Match by payer_email + mp_plan_id to find the pending subscription.
+  const payerEmail = mpSub.payer_email;
+  const mpPlanId = (mpSub as unknown as Record<string, unknown>).preapproval_plan_id as string | undefined;
+
+  if (!payerEmail) {
+    console.warn("[MP Webhook] No external_reference and no payer_email on preapproval", preapprovalId);
+    return;
+  }
+
+  console.log(`[MP Webhook] Plan-based subscription. payer_email=${payerEmail} mp_plan_id=${mpPlanId}`);
+
+  // Build the query to find the pending subscription
+  let query = supabase
     .from("organization_subscriptions")
-    .update({
-      status: newStatus,
-      mp_preapproval_id: preapprovalId,
-      mp_payer_email: mpSub.payer_email || null,
-      mp_next_payment_date: mpSub.next_payment_date || null,
-      mp_last_payment_status: mpSub.status || null,
-      external_id: preapprovalId,
-      payment_provider: "mercadopago",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("organization_id", ref.organization_id)
-    .eq("plan_id", ref.plan_id)
+    .update(updateData)
+    .eq("mp_payer_email", payerEmail)
+    .in("status", ["pending", "trialing"]);
+
+  // If we have a MP plan ID, find our plan and narrow the search
+  if (mpPlanId) {
+    const { data: matchedPlan } = await supabase
+      .from("plans")
+      .select("id")
+      .eq("mp_plan_id", mpPlanId)
+      .single();
+
+    if (matchedPlan) {
+      query = query.eq("plan_id", matchedPlan.id);
+    }
+  }
+
+  const { data: updated, error } = await query
     .order("created_at", { ascending: false })
-    .limit(1);
+    .limit(1)
+    .select("id, organization_id");
 
   if (error) {
-    console.error("[MP Webhook] Error updating subscription:", error);
-  } else {
+    console.error("[MP Webhook] Error updating plan-based subscription:", error);
+    return;
+  }
+
+  // If the new subscription became active, cancel any old active/trialing ones for the same org
+  if (newStatus === "active" && updated && updated.length > 0) {
+    const orgId = updated[0].organization_id;
+    const newSubId = updated[0].id;
+
+    await supabase
+      .from("organization_subscriptions")
+      .update({ status: "cancelled", cancelled_at: new Date().toISOString() })
+      .eq("organization_id", orgId)
+      .in("status", ["active", "trialing"])
+      .neq("id", newSubId);
+
     console.log(
-      `[MP Webhook] Subscription ${preapprovalId} -> ${newStatus} for org ${ref.organization_id}`
+      `[MP Webhook] Cancelled old subscriptions for org ${orgId}, new active sub: ${newSubId}`
     );
   }
+
+  console.log(
+    `[MP Webhook] Plan-based subscription ${preapprovalId} -> ${newStatus} (email=${payerEmail})`
+  );
 }
 
 async function handlePaymentEvent(
@@ -160,13 +223,35 @@ async function handlePaymentEvent(
   const paymentClient = getPaymentClient();
   const mpPayment = await paymentClient.get({ id: paymentId });
 
-  if (!mpPayment.external_reference) return;
+  let orgId: string | null = null;
 
-  let ref: { organization_id: string; plan_id: string };
-  try {
-    ref = JSON.parse(mpPayment.external_reference);
-  } catch {
-    console.error("[MP Webhook] Invalid payment external_reference");
+  // Try to get org_id from external_reference first
+  if (mpPayment.external_reference) {
+    try {
+      const ref = JSON.parse(mpPayment.external_reference);
+      orgId = ref.organization_id;
+    } catch {
+      console.warn("[MP Webhook] Invalid payment external_reference");
+    }
+  }
+
+  // Fallback: find org by payer email from subscription record
+  if (!orgId && mpPayment.payer?.email) {
+    const { data: subByEmail } = await supabase
+      .from("organization_subscriptions")
+      .select("organization_id")
+      .eq("mp_payer_email", mpPayment.payer.email)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (subByEmail) {
+      orgId = subByEmail.organization_id;
+    }
+  }
+
+  if (!orgId) {
+    console.warn("[MP Webhook] Could not determine organization for payment", paymentId);
     return;
   }
 
@@ -174,7 +259,7 @@ async function handlePaymentEvent(
   const { data: sub } = await supabase
     .from("organization_subscriptions")
     .select("id")
-    .eq("organization_id", ref.organization_id)
+    .eq("organization_id", orgId)
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
@@ -193,7 +278,7 @@ async function handlePaymentEvent(
 
   // Record payment in history
   await supabase.from("payment_history").insert({
-    organization_id: ref.organization_id,
+    organization_id: orgId,
     subscription_id: sub?.id || null,
     mp_payment_id: paymentId,
     amount: mpPayment.transaction_amount || 0,
@@ -229,6 +314,6 @@ async function handlePaymentEvent(
   }
 
   console.log(
-    `[MP Webhook] Payment ${paymentId} status=${paymentStatus} amount=${mpPayment.transaction_amount} org=${ref.organization_id}`
+    `[MP Webhook] Payment ${paymentId} status=${paymentStatus} amount=${mpPayment.transaction_amount} org=${orgId}`
   );
 }
