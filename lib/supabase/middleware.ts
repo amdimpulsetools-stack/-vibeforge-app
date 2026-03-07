@@ -81,26 +81,31 @@ export async function updateSession(request: NextRequest) {
       .limit(1)
       .single();
 
-    if (membership) {
-      // 3. Verificar suscripción activa de la organización
-      const { data: subscription } = await supabase
-        .from("organization_subscriptions")
-        .select("status")
-        .eq("organization_id", membership.organization_id)
-        .in("status", ["active", "trialing"])
-        .limit(1)
-        .single();
+    if (!membership) {
+      // Sin organización — enviar a select-plan para que se auto-cree
+      const url = request.nextUrl.clone();
+      url.pathname = "/select-plan";
+      return NextResponse.redirect(url);
+    }
 
-      if (!subscription) {
-        // Sin plan activo — redirigir según rol
-        const url = request.nextUrl.clone();
-        if (membership.role === "owner") {
-          url.pathname = "/select-plan";
-        } else {
-          url.pathname = "/waiting-for-plan";
-        }
-        return NextResponse.redirect(url);
+    // 3. Verificar suscripción activa de la organización
+    const { data: subscription } = await supabase
+      .from("organization_subscriptions")
+      .select("status")
+      .eq("organization_id", membership.organization_id)
+      .in("status", ["active", "trialing"])
+      .limit(1)
+      .single();
+
+    if (!subscription) {
+      // Sin plan activo — redirigir según rol
+      const url = request.nextUrl.clone();
+      if (membership.role === "owner") {
+        url.pathname = "/select-plan";
+      } else {
+        url.pathname = "/waiting-for-plan";
       }
+      return NextResponse.redirect(url);
     }
   }
 
