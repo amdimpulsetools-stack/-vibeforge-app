@@ -108,11 +108,22 @@ export default function SelectPlanPage() {
       }
 
       // Check if they already have an org with subscription
-      const { data: members } = await supabase
+      let { data: members } = await supabase
         .from("organization_members")
         .select("organization_id")
         .eq("user_id", user.id)
         .limit(1);
+
+      // Self-heal: if no org found, call ensure_user_has_org() to create one
+      if (!members || members.length === 0) {
+        await supabase.rpc("ensure_user_has_org");
+        const { data: newMembers } = await supabase
+          .from("organization_members")
+          .select("organization_id")
+          .eq("user_id", user.id)
+          .limit(1);
+        members = newMembers;
+      }
 
       if (members && members.length > 0) {
         const { data: subs } = await supabase
