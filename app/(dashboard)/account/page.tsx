@@ -706,7 +706,7 @@ function PlanSection({
 
         {/* Change plan button */}
         <a
-          href="/select-plan"
+          href="/plans"
           className="flex w-full items-center justify-center gap-2 rounded-lg border border-border/60 px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-all"
         >
           Cambiar plan
