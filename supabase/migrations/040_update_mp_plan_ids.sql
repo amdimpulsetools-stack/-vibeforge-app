@@ -10,7 +10,7 @@ WHERE slug = 'starter';
 
 -- Professional plan
 UPDATE plans
-SET mp_plan_id = '3d0b95a20aa647b391d1b73df4fb4998'
+SET mp_plan_id = '8ab428a7aff34c40ac51f5af85b81214'
 WHERE slug = 'professional';
 
 -- Enterprise plan
