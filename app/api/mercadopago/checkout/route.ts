@@ -1,12 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
+import { getPreApprovalClient } from "@/lib/mercadopago/client";
 import { NextResponse } from "next/server";
 import { paymentLimiter } from "@/lib/rate-limit";
 
 /**
  * POST /api/mercadopago/checkout
- * Returns a Mercado Pago checkout URL for a plan's preapproval subscription.
+ * Creates a Mercado Pago subscription via API using preapproval_plan_id.
  *
- * Body: { plan_id: string, billing_cycle?: "monthly" | "yearly" }
+ * Body: { plan_id: string }
  *
  * Returns: { init_point: string } — URL to redirect user to MP checkout
  */
@@ -73,10 +74,42 @@ export async function POST(request: Request) {
 
   console.log("[MP Checkout] Plan:", plan.slug, "| MP Plan ID:", plan.mp_plan_id);
 
-  // Build the Mercado Pago checkout URL for this preapproval plan
-  const checkoutUrl = `https://www.mercadopago.com.pe/subscriptions/checkout?preapproval_plan_id=${plan.mp_plan_id}`;
+  // Create subscription via API with preapproval_plan_id
+  // This gives us a working init_point (even in TEST mode)
+  let result;
+  try {
+    const preApproval = getPreApprovalClient();
 
-  // Save a pending subscription record so we can match it when the webhook fires.
+    result = await preApproval.create({
+      body: {
+        preapproval_plan_id: plan.mp_plan_id,
+        payer_email: user.email || "",
+        external_reference: JSON.stringify({
+          organization_id: membership.organization_id,
+          plan_id: plan.id,
+          plan_slug: plan.slug,
+          user_id: user.id,
+        }),
+        status: "pending",
+      },
+    });
+  } catch (error: unknown) {
+    let msg: string;
+    if (error instanceof Error) {
+      msg = error.message;
+    } else if (typeof error === "object" && error !== null) {
+      msg = JSON.stringify(error, null, 2);
+    } else {
+      msg = String(error);
+    }
+    console.error("MP PreApproval create error:", msg);
+    return NextResponse.json(
+      { error: `mp_error: ${msg}` },
+      { status: 500 }
+    );
+  }
+
+  // Save a pending subscription record.
   // NOTE: We do NOT cancel the existing active/trialing subscription here.
   // The webhook handler will cancel old subscriptions once the new one is confirmed.
   try {
@@ -91,6 +124,8 @@ export async function POST(request: Request) {
       status: "pending",
       started_at: new Date().toISOString(),
       payment_provider: "mercadopago",
+      external_id: result.id?.toString() || null,
+      mp_preapproval_id: result.id?.toString() || null,
       mp_payer_email: user.email || null,
     });
 
@@ -102,7 +137,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    init_point: checkoutUrl,
-    mp_plan_id: plan.mp_plan_id,
+    init_point: result.init_point,
+    preapproval_id: result.id,
   });
 }
