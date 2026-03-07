@@ -28,23 +28,11 @@ import {
   CheckCircle2,
   Wallet,
   Banknote,
-  CreditCard,
-  Smartphone,
-  Building2 as BankIcon,
-  Link2,
   Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
-
-const PERU_PAYMENT_METHODS = [
-  { value: "Yape",          Icon: Smartphone },
-  { value: "Plin",          Icon: Smartphone },
-  { value: "Visa/Tarjeta",  Icon: CreditCard },
-  { value: "Transferencia", Icon: BankIcon },
-  { value: "Link de pago",  Icon: Link2 },
-  { value: "Efectivo",      Icon: Banknote },
-] as const;
+import { getPaymentIcon } from "@/lib/payment-icons";
 
 interface DoctorServiceEntry {
   doctor_id: string;
@@ -793,24 +781,29 @@ export function AppointmentFormModal({
                       Método de pago
                     </label>
                     <div className="grid grid-cols-3 gap-1.5">
-                      {PERU_PAYMENT_METHODS.map(({ value, Icon }) => (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() =>
-                            setDepositMethod((m) => (m === value ? "" : value))
-                          }
-                          className={cn(
-                            "flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-all",
-                            depositMethod === value
-                              ? "border-primary bg-primary/10 text-primary"
-                              : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
-                          )}
-                        >
-                          <Icon className="h-3 w-3" />
-                          {value}
-                        </button>
-                      ))}
+                      {lookupPayments.map((pm) => {
+                        const Icon = getPaymentIcon(pm.icon);
+                        return (
+                          <button
+                            key={pm.id}
+                            type="button"
+                            onClick={() => {
+                              const next = depositMethod === pm.label ? "" : pm.label;
+                              setDepositMethod(next);
+                              setValue("payment_method", next);
+                            }}
+                            className={cn(
+                              "flex items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-all",
+                              depositMethod === pm.label
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
+                            )}
+                          >
+                            <Icon className="h-3 w-3" />
+                            {pm.label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 

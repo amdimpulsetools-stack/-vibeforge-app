@@ -28,25 +28,13 @@ import {
   Save,
   Wallet,
   Plus,
-  Banknote,
-  CreditCard,
-  Smartphone,
-  Link2,
   ChevronDown,
   UserX,
   Video,
   ExternalLink,
 } from "lucide-react";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
-
-const PERU_PAYMENT_METHODS = [
-  { value: "Yape",          Icon: Smartphone },
-  { value: "Plin",          Icon: Smartphone },
-  { value: "Visa/Tarjeta",  Icon: CreditCard },
-  { value: "Transferencia", Icon: Building2 },
-  { value: "Link de pago",  Icon: Link2 },
-  { value: "Efectivo",      Icon: Banknote },
-] as const;
+import { getPaymentIcon } from "@/lib/payment-icons";
 
 interface AppointmentSidebarProps {
   appointment: AppointmentWithRelations;
@@ -760,22 +748,25 @@ export function AppointmentSidebar({
 
                   {/* Payment method chips */}
                   <div className="grid grid-cols-3 gap-1">
-                    {PERU_PAYMENT_METHODS.map(({ value, Icon }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setPayMethod((m) => (m === value ? "" : value))}
-                        className={cn(
-                          "flex items-center justify-center gap-1 rounded-lg border py-1.5 text-[11px] font-medium transition-all",
-                          payMethod === value
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
-                        )}
-                      >
-                        <Icon className="h-3 w-3" />
-                        {value}
-                      </button>
-                    ))}
+                    {(lookupPayments ?? []).map((pm) => {
+                      const Icon = getPaymentIcon(pm.icon);
+                      return (
+                        <button
+                          key={pm.id}
+                          type="button"
+                          onClick={() => setPayMethod((m) => (m === pm.label ? "" : pm.label))}
+                          className={cn(
+                            "flex items-center justify-center gap-1 rounded-lg border py-1.5 text-[11px] font-medium transition-all",
+                            payMethod === pm.label
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
+                          )}
+                        >
+                          <Icon className="h-3 w-3" />
+                          {pm.label}
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {/* Reference */}
