@@ -29,33 +29,80 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const pathname = request.nextUrl.pathname;
+
   // Rutas públicas que no requieren auth
   const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/api", "/auth"];
   const isPublic = publicPaths.some((path) =>
-    request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + "/")
+    pathname === path || pathname.startsWith(path + "/")
   );
 
-  const isSelectPlan = request.nextUrl.pathname === "/select-plan";
-  const isWaitingForPlan = request.nextUrl.pathname === "/waiting-for-plan";
-  const isOnboarding = request.nextUrl.pathname === "/onboarding";
+  // Rutas del flujo de onboarding/plan (accesibles con auth pero sin plan)
+  const isOnboardingFlow =
+    pathname === "/onboarding" ||
+    pathname === "/select-plan" ||
+    pathname === "/waiting-for-plan";
 
   // Redirigir a login si no autenticado y ruta protegida
-  if (!user && !isPublic && !isSelectPlan && !isWaitingForPlan && !isOnboarding) {
+  if (!user && !isPublic && !isOnboardingFlow) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
   }
 
-  // Redirigir a dashboard si ya autenticado e intenta ir a auth pages (except select-plan)
-  if (user && ["/login", "/register"].includes(request.nextUrl.pathname)) {
+  // Redirigir a dashboard si ya autenticado e intenta ir a login/register
+  if (user && ["/login", "/register"].includes(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return NextResponse.redirect(url);
   }
 
-  // Plan/subscription check disabled — plans system not yet active.
-  // When plans are ready, re-enable the subscription check here.
-  // All authenticated users with an org can access the dashboard.
+  // ── Onboarding + Plan check para rutas protegidas del dashboard ──
+  // Solo aplica a usuarios autenticados accediendo rutas del dashboard
+  if (user && !isPublic && !isOnboardingFlow) {
+    // 1. Verificar si completó onboarding (tiene whatsapp_phone)
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("whatsapp_phone")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.whatsapp_phone) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      return NextResponse.redirect(url);
+    }
+
+    // 2. Verificar membresía a organización
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .limit(1)
+      .single();
+
+    if (membership) {
+      // 3. Verificar suscripción activa de la organización
+      const { data: subscription } = await supabase
+        .from("organization_subscriptions")
+        .select("status")
+        .eq("organization_id", membership.organization_id)
+        .in("status", ["active", "trialing"])
+        .limit(1)
+        .single();
+
+      if (!subscription) {
+        // Sin plan activo — redirigir según rol
+        const url = request.nextUrl.clone();
+        if (membership.role === "owner") {
+          url.pathname = "/select-plan";
+        } else {
+          url.pathname = "/waiting-for-plan";
+        }
+        return NextResponse.redirect(url);
+      }
+    }
+  }
 
   return supabaseResponse;
 }
