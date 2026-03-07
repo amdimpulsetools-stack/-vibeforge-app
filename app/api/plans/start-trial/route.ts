@@ -29,11 +29,15 @@ export async function POST(request: Request) {
 
   // Self-heal: if no org found, call ensure_user_has_org() to create one
   if (!membership) {
-    const { error: healError } = await supabase.rpc("ensure_user_has_org");
+    const { data: rpcResult, error: healError } = await supabase.rpc("ensure_user_has_org");
     if (healError) {
-      console.error("ensure_user_has_org error:", healError);
-      return NextResponse.json({ error: "no_organization" }, { status: 400 });
+      console.error("ensure_user_has_org error:", JSON.stringify(healError));
+      return NextResponse.json(
+        { error: "no_organization", detail: healError.message },
+        { status: 400 }
+      );
     }
+    console.log("ensure_user_has_org result:", JSON.stringify(rpcResult));
 
     // Re-fetch membership after self-healing
     const { data: newMembership } = await supabase

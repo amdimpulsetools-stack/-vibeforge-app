@@ -116,7 +116,12 @@ export default function SelectPlanPage() {
 
       // Self-heal: if no org found, call ensure_user_has_org() to create one
       if (!members || members.length === 0) {
-        await supabase.rpc("ensure_user_has_org");
+        const { data: rpcResult, error: rpcError } = await supabase.rpc("ensure_user_has_org");
+        if (rpcError) {
+          console.error("ensure_user_has_org failed:", rpcError);
+        } else {
+          console.log("ensure_user_has_org result:", rpcResult);
+        }
         const { data: newMembers } = await supabase
           .from("organization_members")
           .select("organization_id")
@@ -167,7 +172,8 @@ export default function SelectPlanPage() {
 
       if (!res.ok) {
         const data = await res.json();
-        toast.error(data.error || "Error al iniciar la prueba");
+        toast.error(data.detail || data.error || "Error al iniciar la prueba");
+        console.error("start-trial error:", data);
         setSelecting(null);
         return;
       }
