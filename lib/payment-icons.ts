@@ -3,6 +3,7 @@ import {
   CreditCard,
   Smartphone,
   Building2,
+  Landmark,
   Link2,
   Wallet,
   type LucideIcon,
@@ -10,6 +11,7 @@ import {
 
 /**
  * Maps the `icon` field stored in lookup_values to a Lucide icon component.
+ * Admins pick icon names when adding payment methods via lookups panel.
  * Falls back to Wallet for unknown/missing icons.
  */
 const ICON_MAP: Record<string, LucideIcon> = {
@@ -17,6 +19,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   CreditCard,
   Smartphone,
   Building2,
+  Landmark,
   Link2,
   Wallet,
 };
