@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
-import { format, subDays } from "date-fns";
+import { format, subDays, addDays } from "date-fns";
 import type { AppointmentWithRelations, Doctor, Service } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import {
@@ -30,7 +30,7 @@ export default function AppointmentHistoryPage() {
 
   // Filters
   const [dateFrom, setDateFrom] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [dateTo, setDateTo] = useState(format(addDays(new Date(), 30), "yyyy-MM-dd"));
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterDoctor, setFilterDoctor] = useState<string>("all");
   const [filterService, setFilterService] = useState<string>("all");
