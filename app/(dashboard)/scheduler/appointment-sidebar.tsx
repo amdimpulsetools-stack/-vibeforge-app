@@ -34,7 +34,10 @@ import {
   Link2,
   ChevronDown,
   UserX,
+  Video,
+  ExternalLink,
 } from "lucide-react";
+import { ZoomIcon } from "@/components/icons/zoom-icon";
 
 const PERU_PAYMENT_METHODS = [
   { value: "Yape",          Icon: Smartphone },
@@ -172,6 +175,7 @@ export function AppointmentSidebar({
   const [editPayment, setEditPayment] = useState(appointment.payment_method ?? "");
   const [editResponsible, setEditResponsible] = useState(appointment.responsible ?? "");
   const [editNotes, setEditNotes] = useState(appointment.notes ?? "");
+  const [editMeetingUrl, setEditMeetingUrl] = useState((appointment as any).meeting_url ?? "");
 
   const statusColor = APPOINTMENT_STATUS_COLORS[appointment.status] ?? "#9ca3af";
   const StatusIcon = STATUS_ICONS[appointment.status] ?? AlertCircle;
@@ -237,6 +241,7 @@ export function AppointmentSidebar({
     setEditPayment(appointment.payment_method ?? "");
     setEditResponsible(appointment.responsible ?? "");
     setEditNotes(appointment.notes ?? "");
+    setEditMeetingUrl((appointment as any).meeting_url ?? "");
     setEditing(true);
   };
 
@@ -258,6 +263,9 @@ export function AppointmentSidebar({
 
     const userName = profile?.full_name || "Usuario";
 
+    const oldMeetingUrl = (appointment as any).meeting_url ?? "";
+    const newMeetingUrl = editMeetingUrl || null;
+
     const { error } = await supabase
       .from("appointments")
       .update({
@@ -268,6 +276,7 @@ export function AppointmentSidebar({
         payment_method: editPayment || null,
         responsible: editResponsible || null,
         notes: editNotes || null,
+        meeting_url: newMeetingUrl,
         edited_by_name: userName,
         edited_at: new Date().toISOString(),
       })
@@ -278,6 +287,17 @@ export function AppointmentSidebar({
     if (error) {
       toast.error(t("scheduler.save_error"));
       return;
+    }
+
+    // Send "meeting link changed" notification if URL was updated
+    if (newMeetingUrl && newMeetingUrl !== oldMeetingUrl) {
+      sendNotification({
+        type: "appointment_meeting_link_changed",
+        appointment_id: appointment.id,
+        extra_variables: {
+          "{{link_reunion}}": newMeetingUrl,
+        },
+      });
     }
 
     toast.success(t("scheduler.save_success"));
@@ -412,6 +432,42 @@ export function AppointmentSidebar({
               <p className="text-sm">{appointment.services?.name}</p>
             )}
           </div>
+
+          {/* Meeting URL — Zoom branded */}
+          {editing ? (
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <ZoomIcon className="h-4 w-4" />
+                <input
+                  type="url"
+                  value={editMeetingUrl}
+                  onChange={(e) => setEditMeetingUrl(e.target.value)}
+                  placeholder="https://zoom.us/j/..."
+                  className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
+                />
+              </div>
+              {editMeetingUrl && editMeetingUrl !== ((appointment as any).meeting_url ?? "") && (
+                <p className="text-[10px] text-blue-600 dark:text-blue-400 ml-7">
+                  Se notificará al paciente del cambio de link
+                </p>
+              )}
+            </div>
+          ) : (
+            (appointment as any).meeting_url && (
+              <div className="flex items-center gap-3">
+                <ZoomIcon className="h-4 w-4" />
+                <a
+                  href={(appointment as any).meeting_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline truncate"
+                >
+                  Abrir reunión
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+              </div>
+            )
+          )}
 
           {/* Notes — editable */}
           {editing ? (

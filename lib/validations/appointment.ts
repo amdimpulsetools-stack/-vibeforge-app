@@ -15,6 +15,7 @@ export const appointmentSchema = z.object({
   payment_method: z.string().optional().or(z.literal("")),
   responsible: z.string().optional().or(z.literal("")),
   notes: z.string().max(500, "Máximo 500 caracteres").optional().or(z.literal("")),
+  meeting_url: z.string().url("URL inválida").optional().or(z.literal("")),
 });
 
 export type AppointmentFormData = z.infer<typeof appointmentSchema>;

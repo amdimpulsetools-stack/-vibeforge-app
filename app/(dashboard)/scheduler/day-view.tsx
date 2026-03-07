@@ -5,7 +5,7 @@ import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
-import { Plus, Lock, LockOpen, Coffee, CircleDollarSign, CheckCircle2 } from "lucide-react";
+import { Plus, Lock, LockOpen, Coffee, CircleDollarSign, CheckCircle2, Video } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { loadSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
@@ -281,6 +281,10 @@ export function DayView({
                           <p className="text-xs font-bold truncate leading-tight flex-1" style={{ color: hexToDark(doctorColor) }}>
                             {startAppt.patient_name}
                           </p>
+                          {/* Virtual indicator */}
+                          {!isOtherDoctorAppt && (startAppt as any).meeting_url && (
+                            <Video className="h-3 w-3 shrink-0 text-blue-500" />
+                          )}
                           {/* Payment indicator */}
                           {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
                             (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (

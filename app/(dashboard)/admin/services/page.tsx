@@ -12,11 +12,13 @@ import { toast } from "sonner";
 import {
   serviceSchema,
   serviceCategorySchema,
+  SERVICE_MODALITY_OPTIONS,
   type ServiceFormData,
   type ServiceCategoryFormData,
 } from "@/lib/validations/service";
-import { DURATION_OPTIONS } from "@/types/admin";
+import { DURATION_OPTIONS, SERVICE_MODALITY_LABELS } from "@/types/admin";
 import type { Service, ServiceCategory } from "@/types/admin";
+import { ZoomIcon } from "@/components/icons/zoom-icon";
 import Link from "next/link";
 import {
   ClipboardList,
@@ -30,6 +32,8 @@ import {
   DollarSign,
   Tag,
   ChevronDown,
+  Building2,
+  Video,
 } from "lucide-react";
 
 export default function ServicesPage() {
@@ -214,7 +218,21 @@ export default function ServicesPage() {
                     >
                       <div className="flex items-center gap-4">
                         <div>
-                          <h4 className="font-medium">{service.name}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-medium">{service.name}</h4>
+                            {(service as any).modality === "virtual" && (
+                              <span className="flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
+                                <ZoomIcon className="h-3 w-3" />
+                                Virtual
+                              </span>
+                            )}
+                            {(service as any).modality === "both" && (
+                              <span className="flex items-center gap-1 rounded-full bg-purple-500/10 px-2 py-0.5 text-[10px] font-medium text-purple-600 dark:text-purple-400">
+                                <Video className="h-3 w-3" />
+                                Presencial / Virtual
+                              </span>
+                            )}
+                          </div>
                           <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <DollarSign className="h-3 w-3" />
@@ -368,6 +386,7 @@ function ServiceForm({
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm<ServiceFormData>({
     resolver: zodResolver(serviceSchema),
@@ -376,6 +395,7 @@ function ServiceForm({
       category_id: service?.category_id ?? "",
       base_price: service?.base_price ?? 0,
       duration_minutes: service?.duration_minutes ?? 30,
+      modality: (service as any)?.modality ?? "in_person",
       is_active: service?.is_active ?? true,
     },
   });
@@ -393,6 +413,7 @@ function ServiceForm({
       category_id: values.category_id,
       base_price: values.base_price,
       duration_minutes: values.duration_minutes,
+      modality: values.modality,
       is_active: values.is_active,
     };
 
@@ -480,6 +501,39 @@ function ServiceForm({
           )}
         </div>
       </div>
+
+      {/* Modality selector */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Modalidad</label>
+        <div className="flex gap-2">
+          {SERVICE_MODALITY_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium cursor-pointer transition-all ${
+                watch("modality") === opt.value
+                  ? opt.value === "virtual"
+                    ? "border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                    : opt.value === "both"
+                    ? "border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400"
+                    : "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:border-muted-foreground/30"
+              }`}
+            >
+              <input
+                type="radio"
+                value={opt.value}
+                {...register("modality")}
+                className="sr-only"
+              />
+              {opt.value === "in_person" && <Building2 className="h-4 w-4" />}
+              {opt.value === "virtual" && <ZoomIcon className="h-4 w-4" />}
+              {opt.value === "both" && <Video className="h-4 w-4" />}
+              {opt.label}
+            </label>
+          ))}
+        </div>
+      </div>
+
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" {...register("is_active")} className="rounded" />
         {t("services.active")}

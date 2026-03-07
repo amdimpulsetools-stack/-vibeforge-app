@@ -6,7 +6,7 @@ import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
-import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign } from "lucide-react";
+import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign, Video } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { loadSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
@@ -269,6 +269,9 @@ export function WeekView({
                             <span className="shrink-0 rounded-full bg-primary px-1 text-[8px] font-bold text-primary-foreground leading-tight">
                               +{extraCount}
                             </span>
+                          )}
+                          {!isOtherDoctorAppt && (startAppt as any).meeting_url && (
+                            <Video className="h-2.5 w-2.5 shrink-0 text-blue-500" />
                           )}
                           {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
                             (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (

@@ -120,6 +120,13 @@ export const DOCTOR_COLORS = [
 // Opciones de duración
 export const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120] as const;
 
+// Modalidad de servicio
+export const SERVICE_MODALITY_LABELS: Record<string, string> = {
+  in_person: "Presencial",
+  virtual: "Virtual",
+  both: "Presencial / Virtual",
+};
+
 // Slugs de lookup categories
 export const LOOKUP_SLUGS = {
   ORIGIN: "origin",

@@ -5,6 +5,7 @@ export const doctorSchema = z.object({
   cmp: z.string().min(1, "CMP es obligatorio").max(20, "Máximo 20 caracteres"),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color hexadecimal inválido"),
   photo_url: z.string().url("URL inválida").optional().or(z.literal("")).or(z.literal(null)),
+  default_meeting_url: z.string().url("URL inválida").optional().or(z.literal("")).or(z.literal(null)),
   is_active: z.boolean().default(true),
 });
 

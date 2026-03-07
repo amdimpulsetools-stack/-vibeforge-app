@@ -94,6 +94,7 @@ const TEMPLATE_VARIABLES = [
   { key: "{{clinica_telefono}}", label: "Teléfono de la clínica" },
   { key: "{{link_cancelar}}", label: "Link para cancelar" },
   { key: "{{link_reagendar}}", label: "Link para reagendar" },
+  { key: "{{link_reunion}}", label: "Link de reunión (Zoom)" },
   { key: "{{monto_pagado}}", label: "Monto pagado" },
 ];
 
@@ -108,6 +109,7 @@ const PREVIEW_DATA: Record<string, string> = {
   "{{clinica_telefono}}": "+51 999 000 000",
   "{{link_cancelar}}": "https://app.ejemplo.com/cancelar/abc123",
   "{{link_reagendar}}": "https://app.ejemplo.com/reagendar/abc123",
+  "{{link_reunion}}": "https://zoom.us/j/1234567890",
   "{{monto_pagado}}": "S/. 150.00",
 };
 

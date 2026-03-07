@@ -158,6 +158,7 @@ export async function POST(req: NextRequest) {
     "{{clinica_telefono}}": clinicPhoneVar?.current_value || "",
     "{{link_cancelar}}": "", // TODO: generate public links
     "{{link_reagendar}}": "",
+    "{{link_reunion}}": (appointment as any).meeting_url || "",
     "{{monto_pagado}}": extra_variables?.monto_pagado || "",
     ...(extra_variables || {}),
   };

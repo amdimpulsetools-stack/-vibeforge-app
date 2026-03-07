@@ -22,7 +22,9 @@ import {
   User,
   ClipboardList,
   Clock,
+  Video,
 } from "lucide-react";
+import { ZoomIcon } from "@/components/icons/zoom-icon";
 
 type Tab = "profile" | "services" | "schedule";
 
@@ -177,6 +179,7 @@ function ProfileTab({ doctor, onSave }: { doctor: Doctor; onSave: () => void }) 
       full_name: doctor.full_name,
       cmp: doctor.cmp,
       color: doctor.color,
+      default_meeting_url: (doctor as any).default_meeting_url ?? "",
       is_active: doctor.is_active,
     },
   });
@@ -192,6 +195,7 @@ function ProfileTab({ doctor, onSave }: { doctor: Doctor; onSave: () => void }) 
         full_name: values.full_name,
         cmp: values.cmp,
         color: values.color,
+        default_meeting_url: values.default_meeting_url || null,
         is_active: values.is_active,
       })
       .eq("id", doctor.id);
@@ -260,6 +264,26 @@ function ProfileTab({ doctor, onSave }: { doctor: Doctor; onSave: () => void }) 
               />
             ))}
           </div>
+        </div>
+
+        {/* Zoom / Meeting URL */}
+        <div className="space-y-2">
+          <label className="text-sm font-medium flex items-center gap-2">
+            <ZoomIcon className="h-4 w-4" />
+            Link de Zoom (Teleconsulta)
+          </label>
+          <input
+            {...register("default_meeting_url")}
+            type="url"
+            placeholder="https://zoom.us/j/1234567890"
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+          />
+          {errors.default_meeting_url && (
+            <p className="text-xs text-destructive">{errors.default_meeting_url.message}</p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Link fijo de Zoom o Google Meet del doctor. Se usará automáticamente en citas virtuales.
+          </p>
         </div>
 
         <label className="flex items-center gap-2 text-sm">

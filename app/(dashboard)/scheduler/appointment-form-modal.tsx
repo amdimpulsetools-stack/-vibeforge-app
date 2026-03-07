@@ -32,8 +32,10 @@ import {
   Smartphone,
   Building2 as BankIcon,
   Link2,
+  Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ZoomIcon } from "@/components/icons/zoom-icon";
 
 const PERU_PAYMENT_METHODS = [
   { value: "Yape",          Icon: Smartphone },
@@ -124,6 +126,7 @@ export function AppointmentFormModal({
       payment_method: "",
       responsible: "",
       notes: "",
+      meeting_url: "",
     },
   });
 
@@ -131,6 +134,8 @@ export function AppointmentFormModal({
   const selectedService = services.find((s) => s.id === selectedServiceId);
   const duration = selectedService?.duration_minutes ?? 30;
   const servicePrice = selectedService ? Number(selectedService.base_price) : 0;
+  const serviceModality = (selectedService as any)?.modality as string | undefined;
+  const isVirtualService = serviceModality === "virtual" || serviceModality === "both";
 
   // Auto-set deposit to 50% when service changes
   useEffect(() => {
@@ -152,6 +157,19 @@ export function AppointmentFormModal({
   const watchedDate = watch("appointment_date");
   const watchedOffice = watch("office_id");
   const watchedDoctor = watch("doctor_id");
+
+  // Auto-fill meeting URL from doctor's default when virtual service is selected
+  useEffect(() => {
+    if (isVirtualService && watchedDoctor) {
+      const doctor = doctors.find((d) => d.id === watchedDoctor);
+      const doctorUrl = (doctor as any)?.default_meeting_url;
+      if (doctorUrl) {
+        setValue("meeting_url", doctorUrl);
+      }
+    } else {
+      setValue("meeting_url", "");
+    }
+  }, [isVirtualService, watchedDoctor, doctors, setValue]);
 
   // ─── Reset service when doctor changes ───────────────────────────────────
   const prevDoctorRef = useRef(watchedDoctor);
@@ -358,6 +376,7 @@ export function AppointmentFormModal({
         payment_method: values.payment_method || null,
         responsible: values.responsible || null,
         notes: values.notes || null,
+        meeting_url: values.meeting_url || null,
         price_snapshot: priceSnapshot,
         organization_id: organizationId,
       })
@@ -393,12 +412,14 @@ export function AppointmentFormModal({
 
     // Send appointment confirmation email to patient
     if (newAppt) {
+      const isVirtual = isVirtualService && values.meeting_url;
       sendNotification({
-        type: "appointment_confirmation",
+        type: isVirtual ? "appointment_confirmation_virtual" : "appointment_confirmation",
         appointment_id: newAppt.id,
-        extra_variables: patientEmail
-          ? { patient_email: patientEmail }
-          : undefined,
+        extra_variables: {
+          ...(patientEmail ? { patient_email: patientEmail } : {}),
+          ...(values.meeting_url ? { "{{link_reunion}}": values.meeting_url } : {}),
+        },
       });
     }
 
@@ -666,6 +687,31 @@ export function AppointmentFormModal({
               <p className="text-xs text-destructive">{errors.service_id.message}</p>
             )}
           </div>
+
+          {/* Meeting URL — shown when virtual service selected */}
+          {isVirtualService && (
+            <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 space-y-2">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <ZoomIcon className="h-4 w-4" />
+                Link de reunión (Zoom / Meet)
+              </label>
+              <input
+                {...register("meeting_url")}
+                type="url"
+                placeholder="https://zoom.us/j/1234567890"
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
+              />
+              {errors.meeting_url && (
+                <p className="text-xs text-destructive">{errors.meeting_url.message}</p>
+              )}
+              {watch("meeting_url") && (
+                <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                  <Video className="h-3 w-3" />
+                  Este link se enviará al paciente por correo
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Anticipo / Reserva anticipada */}
           {servicePrice > 0 && (
