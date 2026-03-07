@@ -32,6 +32,7 @@ const TAB_CONFIG = [
 export default function LookupsPage() {
   const { t } = useLanguage();
   const { isAdmin } = useOrgRole();
+  const { organizationId } = useOrganization();
   const [categories, setCategories] = useState<(LookupCategory & { lookup_values: LookupValue[] })[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeSlug, setActiveSlug] = useState<string>(LOOKUP_SLUGS.ORIGIN);
@@ -44,12 +45,12 @@ export default function LookupsPage() {
       .order("slug");
 
     if (data) {
-      // Sort lookup_values by display_order within each category
+      // Filter by org scope + sort by display_order within each category
       const sorted = data.map((cat) => ({
         ...cat,
-        lookup_values: (cat.lookup_values ?? []).sort(
-          (a: LookupValue, b: LookupValue) => a.display_order - b.display_order
-        ),
+        lookup_values: (cat.lookup_values ?? [])
+          .filter((v: LookupValue) => !v.organization_id || v.organization_id === organizationId)
+          .sort((a: LookupValue, b: LookupValue) => a.display_order - b.display_order),
       }));
       setCategories(sorted);
     }

@@ -74,6 +74,7 @@ export default function PatientsPage() {
       .select("*, lookup_categories!inner(slug)")
       .eq("lookup_categories.slug", "origin")
       .eq("is_active", true)
+      .or(`organization_id.is.null${organization?.id ? `,organization_id.eq.${organization.id}` : ""}`)
       .order("display_order")
       .then(({ data }) =>
         setOriginOptions(

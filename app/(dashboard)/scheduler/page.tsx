@@ -125,12 +125,14 @@ export default function SchedulerPage() {
           .select("*, lookup_categories!inner(slug)")
           .eq("lookup_categories.slug", "origin")
           .eq("is_active", true)
+          .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
           .order("display_order"),
         supabase
           .from("lookup_values")
           .select("*, lookup_categories!inner(slug)")
           .eq("lookup_categories.slug", "payment_method")
           .eq("is_active", true)
+          .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
           .order("display_order"),
         // Fetch receptionist members as "responsables"
         supabase
