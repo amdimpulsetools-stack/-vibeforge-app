@@ -5,9 +5,10 @@ import { paymentLimiter } from "@/lib/rate-limit";
 
 /**
  * POST /api/mercadopago/checkout
- * Creates a Mercado Pago subscription via API using preapproval_plan_id.
+ * Creates a Mercado Pago open subscription (preapproval) for a plan.
+ * Uses auto_recurring with plan price to generate a checkout init_point.
  *
- * Body: { plan_id: string }
+ * Body: { plan_id: string, billing_cycle?: "monthly" | "yearly" }
  *
  * Returns: { init_point: string } — URL to redirect user to MP checkout
  */
@@ -31,7 +32,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { plan_id } = await request.json();
+  const { plan_id, billing_cycle = "monthly" } = await request.json();
 
   if (!plan_id) {
     return NextResponse.json({ error: "plan_id required" }, { status: 400 });
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  // Get plan details (including mp_plan_id)
+  // Get plan details
   const { data: plan } = await supabase
     .from("plans")
     .select("*")
@@ -65,32 +66,53 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "plan_not_found" }, { status: 404 });
   }
 
-  if (!plan.mp_plan_id) {
+  const price =
+    billing_cycle === "yearly" && plan.price_yearly
+      ? plan.price_yearly
+      : plan.price_monthly;
+
+  console.log("[MP Checkout] Plan:", plan.slug, "| Price:", price, "| Cycle:", billing_cycle);
+
+  // Mercado Pago minimum for recurring payments is S/ 2.00
+  if (!price || Number(price) < 2) {
     return NextResponse.json(
-      { error: `Plan "${plan.name}" no tiene un plan de Mercado Pago configurado` },
+      { error: `Plan "${plan.name}" tiene precio S/ ${price} — MP requiere mínimo S/ 2.00` },
       { status: 400 }
     );
   }
 
-  console.log("[MP Checkout] Plan:", plan.slug, "| MP Plan ID:", plan.mp_plan_id);
+  const frequency = billing_cycle === "yearly" ? 12 : 1;
+  const frequencyType = "months";
 
-  // Create subscription via API with preapproval_plan_id
-  // This gives us a working init_point (even in TEST mode)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const isLocalhost = appUrl.includes("localhost") || appUrl.includes("127.0.0.1");
+
+  // Create open subscription (auto_recurring) — generates an init_point
+  // that works in both TEST and production mode.
   let result;
   try {
     const preApproval = getPreApprovalClient();
 
     result = await preApproval.create({
       body: {
-        preapproval_plan_id: plan.mp_plan_id,
         payer_email: user.email || "",
+        reason: `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`,
         external_reference: JSON.stringify({
           organization_id: membership.organization_id,
           plan_id: plan.id,
           plan_slug: plan.slug,
+          billing_cycle,
           user_id: user.id,
         }),
-        status: "pending",
+        auto_recurring: {
+          frequency,
+          frequency_type: frequencyType,
+          transaction_amount: Number(price),
+          currency_id: "PEN",
+        },
+        back_url: isLocalhost
+          ? "https://vibeforge.app/dashboard/plans?payment=success"
+          : `${appUrl}/dashboard/plans?payment=success`,
       },
     });
   } catch (error: unknown) {
