@@ -1,6 +1,23 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-XSS-Protection": "1; mode=block",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy":
+    "camera=(), microphone=(), geolocation=(), payment=(self)",
+  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+} as const;
+
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -47,14 +64,14 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isPublic && !isOnboardingFlow) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return applySecurityHeaders(NextResponse.redirect(url));
   }
 
   // Redirigir a dashboard si ya autenticado e intenta ir a login/register
   if (user && ["/login", "/register"].includes(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return applySecurityHeaders(NextResponse.redirect(url));
   }
 
   // ── Onboarding + Plan check para rutas protegidas del dashboard ──
@@ -70,7 +87,7 @@ export async function updateSession(request: NextRequest) {
     if (!profile?.whatsapp_phone) {
       const url = request.nextUrl.clone();
       url.pathname = "/onboarding";
-      return NextResponse.redirect(url);
+      return applySecurityHeaders(NextResponse.redirect(url));
     }
 
     // 2. Verificar membresía a organización
@@ -85,7 +102,7 @@ export async function updateSession(request: NextRequest) {
       // Sin organización — enviar a select-plan para que se auto-cree
       const url = request.nextUrl.clone();
       url.pathname = "/select-plan";
-      return NextResponse.redirect(url);
+      return applySecurityHeaders(NextResponse.redirect(url));
     }
 
     // 3. Verificar suscripción activa de la organización
@@ -105,9 +122,9 @@ export async function updateSession(request: NextRequest) {
       } else {
         url.pathname = "/waiting-for-plan";
       }
-      return NextResponse.redirect(url);
+      return applySecurityHeaders(NextResponse.redirect(url));
     }
   }
 
-  return supabaseResponse;
+  return applySecurityHeaders(supabaseResponse);
 }
