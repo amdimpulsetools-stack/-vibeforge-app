@@ -110,8 +110,8 @@
 | Tabla | Propósito |
 |-------|----------|
 | `auth.users` | Usuarios de Supabase Auth (email + Google OAuth) |
-| `user_profiles` | Extensión: full_name, avatar_url, phone, professional_title, is_founder |
-| `organizations` | Tenant: name, slug, logo_url, organization_type, is_active |
+| `user_profiles` | Extensión: full_name, avatar_url, phone, whatsapp_phone, professional_title, is_founder |
+| `organizations` | Tenant: name, slug, logo_url, organization_type, is_active, settings (JSONB: restrict_doctor_patients, etc.) |
 | `organization_members` | Relación user↔org con role (owner/admin/receptionist/doctor) |
 | `organization_invitations` | Invitaciones pendientes con token, email, role |
 
@@ -119,16 +119,16 @@
 | Tabla | Propósito |
 |-------|----------|
 | `offices` | Consultorios/salas: name, code, phone, address, display_order |
-| `doctors` | Doctores: name, specialty, cmp, user_id (link a cuenta), is_active |
+| `doctors` | Doctores: name, specialty, cmp, user_id (link a cuenta), default_meeting_url, is_active |
 | `doctor_services` | Relación N:N doctor↔servicio |
 | `doctor_schedules` | Horarios semanales por doctor (día, hora inicio/fin) |
 | `service_categories` | Categorías de servicios (General, Dental, etc.) |
-| `services` | Servicios médicos: name, duration_minutes, base_price, category_id |
+| `services` | Servicios médicos: name, duration_minutes, base_price, category_id, modality (in_person/virtual/both) |
 
 ### Citas y Pacientes
 | Tabla | Propósito |
 |-------|----------|
-| `appointments` | Citas: patient_name, doctor_id, office_id, service_id, date, start/end_time, status, origin, payment_method, responsible, notes, price_snapshot |
+| `appointments` | Citas: patient_name, doctor_id, office_id, service_id, date, start/end_time, status, origin, payment_method, responsible, notes, price_snapshot, meeting_url |
 | `appointment_edit_history` | Historial de cambios en citas |
 | `appointment_payments` | Pagos asociados a citas |
 | `patients` | Directorio: dni, document_type (DNI/CE/Pasaporte), first_name, last_name, phone, email, birth_date, departamento, distrito, is_foreigner, nationality, status, origin, notes |
@@ -142,8 +142,8 @@
 | `global_variables` | Variables de configuración por org (clinic_name, phone, currency, etc.) |
 | `lookup_categories` | Categorías de catálogos (origin, payment_method, appointment_status, responsible) |
 | `lookup_values` | Valores de cada catálogo con label, value, color, display_order |
-| `email_settings` | Configuración de email por org |
-| `email_templates` | Templates de email personalizables |
+| `email_settings` | Config SMTP por org: sender_name, sender_email, reply_to_email, brand_color, email_logo_url |
+| `email_templates` | Templates de email: slug, category, subject, body, is_enabled, channel, timing_value/unit, min_plan_slug |
 
 ### Planes y Billing
 | Tabla | Propósito |
@@ -174,6 +174,8 @@
 | `accept_invitation(token)` | Procesa invitación: vincula usuario a org con rol asignado |
 | `seed_email_templates(org_id)` | Crea 18 templates de email por defecto para org nueva |
 | `find_user_by_email(email)` | Busca user_id por email (para invitaciones) |
+| `is_doctor_patients_restricted(org_id)` | Verifica si la org restringe visibilidad doctor↔pacientes |
+| `get_user_org_role(org_id)` | Retorna rol del usuario en una org específica |
 
 ---
 
@@ -195,7 +197,7 @@
 ### 7.2 Invitación de Miembros
 1. Owner/Admin va a `/admin/members` → "Invitar miembro"
 2. Selecciona email y rol (admin, receptionist, doctor)
-3. Se envía email de invitación vía Resend con link `register?invite=<token>`
+3. Se envía email de invitación vía SMTP (Nodemailer) con link `register?invite=<token>`
 4. Invitado se registra → se une a la org existente con el rol asignado
 5. Si rol es doctor: se crea/vincula automáticamente un registro en tabla `doctors`
 
@@ -259,17 +261,23 @@
 │   ├── /lookups ............. Catálogos (orígenes, métodos de pago)
 │   ├── /global-variables .... Variables de configuración
 │   └── /members ............. Gestión de equipo + invitaciones
-└── /founder ................. Dashboard de plataforma (solo founder)
+├── /founder ................. Dashboard de plataforma (solo founder)
+│   ├── /integrations ........ Testing de integraciones MP
+│   └── /integrations/result . Resultado de pago de prueba
 
 /api — Endpoints backend
 ├── /auth/callback ........... OAuth callback de Supabase
+├── /auth/register-invited ... POST registro de usuario invitado
 ├── /plans ................... GET catálogo, POST asignar plan
+├── /plans/start-trial ....... POST iniciar trial de 14 días
 ├── /members ................. GET listar, POST invitar
 ├── /members/[id] ............ DELETE/PATCH miembro
 ├── /invite/[token] .......... GET validar invitación
-├── /mercadopago/checkout .... POST crear sesión de pago
-├── /mercadopago/subscription  POST actualizar suscripción
-├── /mercadopago/webhook ..... POST webhook de confirmación
+├── /mercadopago/checkout .... POST crear suscripción MP (preapproval)
+├── /mercadopago/subscription  GET estado, PUT actualizar addons
+├── /mercadopago/webhook ..... POST webhook IPN de MP
+├── /payments/mercadopago/create-preference  POST crear preference (founder testing)
+├── /notifications/send ...... POST enviar notificación email automática
 ├── /email/send-test ......... POST enviar email de prueba
 ├── /founder ................. GET stats de plataforma
 └── /ai-assistant ............ POST chat con AI
@@ -371,6 +379,14 @@
 - [x] Security headers en middleware (X-Frame-Options, HSTS, CSP parcial, Referrer-Policy, Permissions-Policy)
 - [x] Validación Zod en todas las API routes (12 rutas con schemas)
 - [x] Sentry integrado para monitoreo de errores (client + server + edge)
+- [x] Sistema de notificaciones email automáticas (templates con variables, envío por SMTP)
+- [x] 18+ email templates por org (citas, pagos, equipo, marketing) con seed automático
+- [x] Teleconsulta: modalidad virtual en servicios, meeting URLs en doctores y citas
+- [x] Trial de 14 días con creación automática de suscripción
+- [x] Registro de usuarios invitados vía token (`/api/auth/register-invited`)
+- [x] Founder: testing de integraciones MP (`/founder/integrations`)
+- [x] Configuración de visibilidad doctor↔pacientes por org (RLS dinámico)
+- [x] Rate limiting en todas las API routes (5 limiters configurados)
 
 ### Pendiente / Por Mejorar
 - [ ] Notificaciones push/email de recordatorio de citas
@@ -427,7 +443,8 @@
 |--------|----------|
 | `lib/supabase/client.ts` | Cliente Supabase para browser (SSR package) |
 | `lib/supabase/server.ts` | Cliente Supabase async para Server Components/API |
-| `lib/supabase/middleware.ts` | Auth middleware con rutas públicas/protegidas y plan enforcement |
+| `lib/supabase/middleware.ts` | Auth middleware con rutas públicas/protegidas, plan enforcement y security headers |
+| `lib/supabase/admin.ts` | `createAdminClient()` — cliente con service role key (bypassa RLS) |
 | `lib/utils.ts` | `cn()`, `formatDate()`, `formatCurrency()`, `getInitials()`, `truncate()` |
 | `lib/constants.ts` | APP_NAME ("PacientesPro"), roles, tipos de org |
 | `lib/rate-limit.ts` | Rate limiter in-memory con sliding window |
@@ -438,6 +455,8 @@
 | `lib/validations/*.ts` | Schemas Zod para cada entidad (account, patient, doctor, appointment, etc.) |
 | `lib/validations/api.ts` | Schemas Zod específicos para validación de body en API routes |
 | `lib/api-utils.ts` | `parseBody()` — helper para parsear y validar JSON con Zod en API routes |
+| `lib/send-notification.ts` | Fire-and-forget helper para llamar `/api/notifications/send` |
+| `lib/payment-icons.ts` | `getPaymentIcon()` — mapea métodos de pago a íconos Lucide |
 
 ---
 
@@ -478,7 +497,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_PROJECT_ID=
-MERCADOPAGO_ACCESS_TOKEN=
+MP_ACCESS_TOKEN=
 NEXT_PUBLIC_APP_URL=
 SENTRY_DSN=
 NEXT_PUBLIC_SENTRY_DSN=
