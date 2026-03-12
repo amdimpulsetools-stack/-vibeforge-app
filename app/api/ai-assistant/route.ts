@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { aiLimiter } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/api-utils";
+import { aiAssistantSchema } from "@/lib/validations/api";
 
 const SCHEMA_CONTEXT = `
 Eres un generador de SQL para una clínica médica. Tu ÚNICA tarea es generar la consulta SQL necesaria para responder la pregunta del usuario.
@@ -171,15 +173,9 @@ async function callAnthropic(
 
 export async function POST(req: NextRequest) {
   try {
-    const { message } = await req.json();
-
-    if (!message || typeof message !== "string" || message.trim().length === 0) {
-      return NextResponse.json({ error: "Mensaje vacío" }, { status: 400 });
-    }
-
-    if (message.length > MAX_MESSAGE_LENGTH) {
-      return NextResponse.json({ error: "Mensaje demasiado largo" }, { status: 400 });
-    }
+    const parsed = await parseBody(req, aiAssistantSchema);
+    if (parsed.error) return parsed.error;
+    const { message } = parsed.data;
 
     // Authentication is mandatory
     const supabaseAuth = await createClient();

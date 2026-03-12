@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildEmailHtml } from "@/lib/email-template";
+import { parseBody } from "@/lib/api-utils";
+import { sendNotificationSchema } from "@/lib/validations/api";
 import nodemailer from "nodemailer";
 
 export const runtime = "nodejs";
@@ -15,12 +17,6 @@ export const runtime = "nodejs";
  *   appointment_id: string — appointment UUID
  *   extra_variables?: Record<string, string> — additional variables to replace
  */
-
-interface NotificationBody {
-  type: string;
-  appointment_id: string;
-  extra_variables?: Record<string, string>;
-}
 
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
@@ -43,21 +39,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ skipped: true, reason: "smtp_not_configured" });
   }
 
-  let body: NotificationBody;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
-  }
-
-  const { type, appointment_id, extra_variables } = body;
-
-  if (!type || !appointment_id) {
-    return NextResponse.json(
-      { error: "type y appointment_id son requeridos" },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(req, sendNotificationSchema);
+  if (parsed.error) return parsed.error;
+  const { type, appointment_id, extra_variables } = parsed.data;
 
   // 1. Fetch appointment with relations
   const { data: appointment, error: apptError } = await supabase

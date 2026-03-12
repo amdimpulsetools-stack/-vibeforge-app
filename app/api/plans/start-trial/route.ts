@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { parseBody } from "@/lib/api-utils";
+import { startTrialSchema } from "@/lib/validations/api";
 
 // POST /api/plans/start-trial — start a 14-day trial for a plan
 export async function POST(request: Request) {
@@ -13,11 +15,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { plan_id } = await request.json();
-
-  if (!plan_id) {
-    return NextResponse.json({ error: "plan_id required" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, startTrialSchema);
+  if (parsed.error) return parsed.error;
+  const { plan_id } = parsed.data;
 
   // Get user's org
   let { data: membership } = await supabase

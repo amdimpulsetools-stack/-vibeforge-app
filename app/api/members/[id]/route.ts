@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { parseBody } from "@/lib/api-utils";
+import { updateMemberSchema } from "@/lib/validations/api";
 
 // PATCH /api/members/[id] — update member role or is_active status
 export async function PATCH(
@@ -35,8 +37,9 @@ export async function PATCH(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await request.json();
-  const { role, is_active } = body as { role?: string; is_active?: boolean };
+  const parsed = await parseBody(request, updateMemberSchema);
+  if (parsed.error) return parsed.error;
+  const { role, is_active } = parsed.data;
 
   // Get the target member
   const { data: targetMember } = await supabase

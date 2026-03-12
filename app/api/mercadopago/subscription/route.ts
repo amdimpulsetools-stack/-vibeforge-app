@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getPreApprovalClient } from "@/lib/mercadopago/client";
 import { NextResponse } from "next/server";
 import { paymentLimiter } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/api-utils";
+import { mpSubscriptionUpdateSchema } from "@/lib/validations/api";
 
 /**
  * GET /api/mercadopago/subscription
@@ -104,14 +106,9 @@ export async function PUT(request: Request) {
     );
   }
 
-  const { addon_type, quantity } = await request.json();
-
-  if (!addon_type || !quantity || quantity < 1) {
-    return NextResponse.json(
-      { error: "addon_type and quantity (>= 1) required" },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, mpSubscriptionUpdateSchema);
+  if (parsed.error) return parsed.error;
+  const { addon_type, quantity } = parsed.data;
 
   const { data: membership } = await supabase
     .from("organization_members")

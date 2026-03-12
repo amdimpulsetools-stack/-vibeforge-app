@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/api-utils";
+import { registerInvitedSchema } from "@/lib/validations/api";
 
 const registerLimiter = rateLimit({ max: 5, windowMs: 60 * 1000 });
 
@@ -17,34 +19,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const body = await request.json();
-  const { email, password, fullName, inviteToken } = body as {
-    email: string;
-    password: string;
-    fullName: string;
-    inviteToken: string;
-  };
-
-  if (!email || !password || !fullName || !inviteToken) {
-    return NextResponse.json(
-      { error: "All fields are required" },
-      { status: 400 }
-    );
-  }
-
-  if (password.length < 6) {
-    return NextResponse.json(
-      { error: "Password must be at least 6 characters" },
-      { status: 400 }
-    );
-  }
-
-  if (!/^[a-f0-9-]{36}$/.test(inviteToken)) {
-    return NextResponse.json(
-      { error: "Invalid invitation token" },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, registerInvitedSchema);
+  if (parsed.error) return parsed.error;
+  const { email, password, fullName, inviteToken } = parsed.data;
 
   const supabaseAdmin = createAdminClient();
 

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildEmailHtml } from "@/lib/email-template";
 import { emailLimiter } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/api-utils";
+import { sendTestEmailSchema } from "@/lib/validations/api";
 import nodemailer from "nodemailer";
 
 export const runtime = "nodejs";
@@ -50,16 +52,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json(
-      { error: "Cuerpo de solicitud inválido" },
-      { status: 400 }
-    );
-  }
-
+  const parsed = await parseBody(req, sendTestEmailSchema);
+  if (parsed.error) return parsed.error;
   const {
     to,
     subject,
@@ -67,14 +61,7 @@ export async function POST(req: NextRequest) {
     brand_color,
     logo_url,
     clinic_name,
-  } = body;
-
-  if (!to || !subject || !emailBody) {
-    return NextResponse.json(
-      { error: "Faltan campos requeridos: to, subject, body" },
-      { status: 400 }
-    );
-  }
+  } = parsed.data;
 
   try {
     const html = buildEmailHtml({

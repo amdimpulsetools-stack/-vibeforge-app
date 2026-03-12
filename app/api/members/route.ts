@@ -3,6 +3,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { APP_URL } from "@/lib/constants";
+import { parseBody } from "@/lib/api-utils";
+import { inviteMemberSchema } from "@/lib/validations/api";
 
 // GET /api/members — list organization members
 export async function GET(request: NextRequest) {
@@ -122,36 +124,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const body = await request.json();
-  const { email, role, professional_title } = body as {
-    email: string;
-    role: string;
-    professional_title?: string | null;
-  };
-
-  if (!email || !role) {
-    return NextResponse.json(
-      { error: "Email and role are required" },
-      { status: 400 }
-    );
-  }
-
-  if (!["admin", "receptionist", "doctor"].includes(role)) {
-    return NextResponse.json(
-      { error: "Invalid role. Must be admin, receptionist, or doctor" },
-      { status: 400 }
-    );
-  }
-
-  if (
-    professional_title &&
-    !["doctor", "especialista", "licenciada"].includes(professional_title)
-  ) {
-    return NextResponse.json(
-      { error: "Invalid professional_title" },
-      { status: 400 }
-    );
-  }
+  const parsed = await parseBody(request, inviteMemberSchema);
+  if (parsed.error) return parsed.error;
+  const { email, role, professional_title } = parsed.data;
 
   // Try to find existing user by email
   const { data: targetUserId } = await supabase.rpc(

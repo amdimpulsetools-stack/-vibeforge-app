@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { parseBody } from "@/lib/api-utils";
+import { selectPlanSchema } from "@/lib/validations/api";
 
 // GET /api/plans — list all active plans (public catalog)
 export async function GET() {
@@ -31,11 +33,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { plan_id } = await request.json();
-
-  if (!plan_id) {
-    return NextResponse.json({ error: "plan_id required" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, selectPlanSchema);
+  if (parsed.error) return parsed.error;
+  const { plan_id } = parsed.data;
 
   // Get user's org
   const { data: membership } = await supabase

@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getPreApprovalClient } from "@/lib/mercadopago/client";
 import { NextResponse } from "next/server";
 import { paymentLimiter } from "@/lib/rate-limit";
+import { parseBody } from "@/lib/api-utils";
+import { mpCheckoutSchema } from "@/lib/validations/api";
 
 /**
  * POST /api/mercadopago/checkout
@@ -32,11 +34,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const { plan_id, billing_cycle = "monthly" } = await request.json();
-
-  if (!plan_id) {
-    return NextResponse.json({ error: "plan_id required" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, mpCheckoutSchema);
+  if (parsed.error) return parsed.error;
+  const { plan_id, billing_cycle } = parsed.data;
 
   // Get user's organization
   const { data: membership } = await supabase

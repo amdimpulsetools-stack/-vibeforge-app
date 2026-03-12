@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getPreferenceClient } from "@/lib/mercadopago/client";
 import { createClient } from "@/lib/supabase/server";
+import { parseBody } from "@/lib/api-utils";
+import { mpCreatePreferenceSchema } from "@/lib/validations/api";
 
 export async function POST(request: Request) {
   // 1. Verify user is founder
@@ -23,12 +25,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
   }
 
-  // 2. Parse request body
-  const body = await request.json();
-  const { plan_slug, billing_cycle } = body as {
-    plan_slug: string;
-    billing_cycle: "monthly" | "yearly";
-  };
+  // 2. Parse and validate request body
+  const parsed = await parseBody(request, mpCreatePreferenceSchema);
+  if (parsed.error) return parsed.error;
+  const { plan_slug, billing_cycle } = parsed.data;
 
   // 3. Fetch plan from DB
   const { data: plan } = await supabase

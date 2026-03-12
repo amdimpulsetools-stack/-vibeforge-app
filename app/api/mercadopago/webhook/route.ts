@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getPreApprovalClient, getPaymentClient } from "@/lib/mercadopago/client";
 import crypto from "crypto";
 import { webhookLimiter } from "@/lib/rate-limit";
+import { mpWebhookBodySchema } from "@/lib/validations/api";
 
 /**
  * POST /api/mercadopago/webhook
@@ -65,16 +66,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_signature" }, { status: 401 });
   }
 
-  let body: Record<string, unknown>;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_body" }, { status: 400 });
-  }
+  const parsed = await parseBody(request, mpWebhookBodySchema);
+  if (parsed.error) return parsed.error;
+  const body = parsed.data;
 
-  const type = body.type as string;
-  const action = body.action as string;
-  const bodyDataId = (body.data as Record<string, unknown>)?.id as string;
+  const type = body.type;
+  const action = body.action as string | undefined;
+  const bodyDataId = body.data.id;
 
   console.log(`[MP Webhook] type=${type} action=${action} id=${bodyDataId}`);
 
