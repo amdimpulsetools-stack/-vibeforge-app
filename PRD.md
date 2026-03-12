@@ -1,6 +1,6 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-03-01
+> **Última actualización:** 2026-03-12
 > **Versión:** 0.1.0
 > **Estado:** MVP en desarrollo activo
 
@@ -33,7 +33,8 @@
 | Toasts | Sonner |
 | Animaciones | Framer Motion |
 | Pagos | Mercado Pago SDK |
-| Emails | Resend |
+| Monitoreo | Sentry (@sentry/nextjs) |
+| Emails | Nodemailer (SMTP) |
 | Fuentes | Plus Jakarta Sans, Outfit, JetBrains Mono |
 
 ---
@@ -327,8 +328,9 @@
 |----------|----------|--------|
 | **Supabase** | Auth (email + Google), PostgreSQL, Storage, RLS | Implementado |
 | **Mercado Pago** | Gateway de pagos para suscripciones | Implementado |
-| **Resend** | Envío de emails transaccionales (invitaciones, etc.) | Implementado |
+| **SMTP (Nodemailer)** | Envío de emails transaccionales (invitaciones, notificaciones) | Implementado (Gmail SMTP, migración a servicio pago pendiente) |
 | **AI Assistant** | Chat con AI para consultas sobre datos | Implementado (básico) |
+| **Sentry** | Monitoreo de errores en cliente, servidor y edge | Implementado (se activa con `SENTRY_DSN`) |
 
 ---
 
@@ -365,6 +367,10 @@
 - [x] Historial de edición de citas
 - [x] Storage buckets para avatares y logos
 - [x] Restricción de doctor: solo ve sus propias citas
+- [x] Error boundaries (global, app, dashboard, 404)
+- [x] Security headers en middleware (X-Frame-Options, HSTS, CSP parcial, Referrer-Policy, Permissions-Policy)
+- [x] Validación Zod en todas las API routes (12 rutas con schemas)
+- [x] Sentry integrado para monitoreo de errores (client + server + edge)
 
 ### Pendiente / Por Mejorar
 - [ ] Notificaciones push/email de recordatorio de citas
@@ -430,6 +436,8 @@
 | `lib/peru-locations.ts` | Mapa de departamentos → distritos de Perú |
 | `lib/mercadopago/client.ts` | Clientes singleton de Mercado Pago SDK |
 | `lib/validations/*.ts` | Schemas Zod para cada entidad (account, patient, doctor, appointment, etc.) |
+| `lib/validations/api.ts` | Schemas Zod específicos para validación de body en API routes |
+| `lib/api-utils.ts` | `parseBody()` — helper para parsear y validar JSON con Zod en API routes |
 
 ---
 
@@ -471,8 +479,16 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_PROJECT_ID=
 MERCADOPAGO_ACCESS_TOKEN=
-RESEND_API_KEY=
 NEXT_PUBLIC_APP_URL=
+SENTRY_DSN=
+NEXT_PUBLIC_SENTRY_DSN=
+SMTP_HOST=
+SMTP_PORT=
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
+ANTHROPIC_API_KEY=
+MP_WEBHOOK_SECRET=
 ```
 
 ---
