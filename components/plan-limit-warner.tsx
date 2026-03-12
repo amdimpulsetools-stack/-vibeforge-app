@@ -6,13 +6,13 @@ import { usePlan, type OrgUsage } from "@/hooks/use-plan";
 
 const RESOURCE_LABELS: Partial<Record<keyof OrgUsage, string>> = {
   members: "miembros",
-  doctors: "doctores",
+  doctors: "especialistas",
   offices: "consultorios",
   patients: "pacientes",
   appointments_this_month: "citas este mes",
   admins: "administradores",
   receptionists: "recepcionistas",
-  doctor_members: "doctores (miembros)",
+  doctor_members: "especialistas (miembros)",
 };
 
 export function PlanLimitWarner() {

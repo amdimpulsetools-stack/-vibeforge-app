@@ -295,7 +295,7 @@ export default function SelectPlanPage() {
 
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-bold">
-                      ${plan.price_monthly}
+                      S/{plan.price_monthly}
                     </span>
                     <span className="text-sm text-muted-foreground">/mes</span>
                   </div>
@@ -332,7 +332,7 @@ export default function SelectPlanPage() {
                   )}
                   <Feature
                     icon={Stethoscope}
-                    label="Doctores"
+                    label="Especialistas"
                     value={formatLimit(plan.max_doctor_members ?? plan.max_doctors)}
                   />
                 </div>
@@ -374,11 +374,11 @@ export default function SelectPlanPage() {
                       </span>
                     </div>
                     <p className="text-[11px] text-muted-foreground">
-                      +${plan.addon_price_per_office}/consultorio extra
+                      +S/{plan.addon_price_per_office}/consultorio extra
                     </p>
                     {plan.addon_price_per_member && (
                       <p className="text-[11px] text-muted-foreground">
-                        +${plan.addon_price_per_member}/miembro adicional
+                        +S/{plan.addon_price_per_member}/miembro adicional
                       </p>
                     )}
                   </div>

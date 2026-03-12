@@ -89,10 +89,13 @@
 - Reportes + exportación + AI Assistant
 - Add-ons: S/15/consultorio extra, S/10/miembro extra
 
-### Plan Clínica (Enterprise) — S/149/mes
-- 14 miembros, 10 doctores, 10 consultorios
+### Plan Clínica (Enterprise) — S/149/mes (precio provisional, pendiente de pruebas con Mercado Pago)
+- 15 miembros totales: 10 especialistas + 3 recepcionistas + 1 admin + 1 owner
+- 10 cupos para doctores/especialistas/licenciados (ej. psicólogos)
+- 10 consultorios
+- 3 recepcionistas
+- 1 admin
 - Pacientes y citas ilimitadas, 10GB storage
-- 1 admin, 3 recepcionistas
 - Todas las features (reportes, export, AI, API, soporte prioritario)
 - Add-ons: S/12/consultorio extra, S/8/miembro extra
 

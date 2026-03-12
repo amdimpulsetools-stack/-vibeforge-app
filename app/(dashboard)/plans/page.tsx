@@ -277,7 +277,7 @@ function PlansContent() {
                 : subscription.status === "active"
                   ? "Suscripcion activa"
                   : subscription.status}
-              {` — $${currentPlan.price_monthly}/mes`}
+              {` — S/${currentPlan.price_monthly}/mes`}
             </p>
           </div>
           {usage && (
@@ -362,13 +362,13 @@ function PlansContent() {
                 {/* Price */}
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-4xl font-extrabold tracking-tight">
-                    ${plan.price_monthly}
+                    S/{plan.price_monthly}
                   </span>
                   <span className="text-sm text-muted-foreground font-medium">/mes</span>
                 </div>
                 {plan.price_yearly && plan.price_monthly > 0 && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    o ${plan.price_yearly}/ano (ahorra ${plan.price_monthly * 12 - plan.price_yearly})
+                    o S/{plan.price_yearly}/año (ahorra S/{plan.price_monthly * 12 - plan.price_yearly})
                   </p>
                 )}
                 {plan.description && (
@@ -392,7 +392,7 @@ function PlansContent() {
                 />
                 <ResourceRow
                   icon={Stethoscope}
-                  label="Doctores"
+                  label="Especialistas"
                   value={formatLimit(plan.max_doctor_members ?? plan.max_doctors)}
                   current={isCurrent ? usage?.doctors : undefined}
                   limit={plan.max_doctor_members ?? plan.max_doctors}
@@ -443,11 +443,11 @@ function PlansContent() {
                     <span className="text-xs font-semibold text-primary">Ampliable</span>
                   </div>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    +${plan.addon_price_per_office}/consultorio extra
+                    +S/{plan.addon_price_per_office}/consultorio extra
                   </p>
                   {plan.addon_price_per_member && (
                     <p className="text-[11px] text-muted-foreground">
-                      +${plan.addon_price_per_member}/miembro adicional
+                      +S/{plan.addon_price_per_member}/miembro adicional
                     </p>
                   )}
                 </div>
@@ -595,7 +595,7 @@ function ComparisonTable({
 
   const rows: { label: string; key: string; format?: (v: Plan) => string }[] = [
     { label: "Miembros", key: "max_members", format: (p) => formatLimit(p.max_members) },
-    { label: "Doctores", key: "max_doctors", format: (p) => formatLimit(p.max_doctor_members ?? p.max_doctors) },
+    { label: "Especialistas", key: "max_doctors", format: (p) => formatLimit(p.max_doctor_members ?? p.max_doctors) },
     { label: "Consultorios", key: "max_offices", format: (p) => formatLimit(p.max_offices) },
     { label: "Pacientes", key: "max_patients", format: (p) => formatLimit(p.max_patients) },
     { label: "Citas / mes", key: "max_appointments_per_month", format: (p) => formatLimit(p.max_appointments_per_month) },
