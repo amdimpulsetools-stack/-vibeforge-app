@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
@@ -87,12 +87,53 @@ function formatStorage(mb: number | null): string {
   return `${mb} MB`;
 }
 
-export default function SelectPlanPage() {
+export default function SelectPlanPageWrapper() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <SelectPlanPage />
+    </Suspense>
+  );
+}
+
+function SelectPlanPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState<string | null>(null);
   const [hasSubscription, setHasSubscription] = useState(false);
+  const [waitingForPayment, setWaitingForPayment] = useState(false);
+
+  const paymentStatus = searchParams.get("payment");
+
+  // Poll for subscription activation after payment
+  const pollSubscription = useCallback(async (orgId: string) => {
+    const supabase = createClient();
+    const maxAttempts = 20; // ~40 seconds
+    for (let i = 0; i < maxAttempts; i++) {
+      const { data: subs } = await supabase
+        .from("organization_subscriptions")
+        .select("id, status")
+        .eq("organization_id", orgId)
+        .in("status", ["active", "trialing"])
+        .limit(1);
+
+      if (subs && subs.length > 0) {
+        toast.success("¡Pago confirmado! Bienvenido a VibeForge");
+        router.push("/dashboard");
+        return;
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    // After polling, subscription still not active — may need manual check
+    toast.info("Tu pago está siendo procesado. Puede tardar unos minutos.");
+    setWaitingForPayment(false);
+    setLoading(false);
+  }, [router]);
 
   useEffect(() => {
     const init = async () => {
@@ -131,6 +172,7 @@ export default function SelectPlanPage() {
       }
 
       if (members && members.length > 0) {
+        // Check for active/trialing subscription
         const { data: subs } = await supabase
           .from("organization_subscriptions")
           .select("id, status")
@@ -141,6 +183,13 @@ export default function SelectPlanPage() {
         if (subs && subs.length > 0) {
           setHasSubscription(true);
           router.push("/dashboard");
+          return;
+        }
+
+        // If returning from payment, poll for subscription activation
+        if (paymentStatus === "success") {
+          setWaitingForPayment(true);
+          pollSubscription(members[0].organization_id);
           return;
         }
       }
@@ -159,7 +208,7 @@ export default function SelectPlanPage() {
     };
 
     init();
-  }, [router]);
+  }, [router, paymentStatus, pollSubscription]);
 
   const handleStartTrial = async (planId: string) => {
     setSelecting(planId);
@@ -224,10 +273,18 @@ export default function SelectPlanPage() {
     }
   };
 
-  if (loading || hasSubscription) {
+  if (loading || hasSubscription || waitingForPayment) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex min-h-screen flex-col items-center justify-center bg-background gap-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        {waitingForPayment && (
+          <div className="text-center max-w-sm">
+            <p className="text-lg font-semibold">Procesando tu pago...</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Confirmando con Mercado Pago. Esto puede tardar unos segundos.
+            </p>
+          </div>
+        )}
       </div>
     );
   }

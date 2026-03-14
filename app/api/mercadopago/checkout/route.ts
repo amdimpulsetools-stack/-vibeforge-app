@@ -127,7 +127,7 @@ export async function POST(request: Request) {
         transaction_amount: Number(price),
         currency_id: "PEN",
       },
-      back_url: `${appUrl}/dashboard/plans?payment=success`,
+      back_url: `${appUrl}/select-plan?payment=success`,
     };
 
     console.log("[MP Checkout] Request body:", JSON.stringify(body, null, 2));
