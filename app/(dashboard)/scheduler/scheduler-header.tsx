@@ -1,9 +1,10 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import { format, addDays, subDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { useLanguage } from "@/components/language-provider";
-import type { AppointmentWithRelations } from "@/types/admin";
+import type { AppointmentWithRelations, Office } from "@/types/admin";
 import { SCHEDULER_START_HOUR, SCHEDULER_END_HOUR, SCHEDULER_INTERVAL } from "@/types/admin";
 import type { ViewMode } from "./page";
 import {
@@ -15,6 +16,8 @@ import {
   Percent,
   Lock,
   Coffee,
+  Building2,
+  Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +31,9 @@ interface SchedulerHeaderProps {
   onBreakTime?: () => void;
   breakTimeEnabled?: boolean;
   appointments: AppointmentWithRelations[];
+  offices: Office[];
+  selectedOfficeIds: string[];
+  onOfficeFilterChange: (officeIds: string[]) => void;
 }
 
 export function SchedulerHeader({
@@ -40,8 +46,48 @@ export function SchedulerHeader({
   onBreakTime,
   breakTimeEnabled,
   appointments,
+  offices,
+  selectedOfficeIds,
+  onOfficeFilterChange,
 }: SchedulerHeaderProps) {
   const { t } = useLanguage();
+  const [officeDropdownOpen, setOfficeDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOfficeDropdownOpen(false);
+      }
+    }
+    if (officeDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [officeDropdownOpen]);
+
+  const allSelected = selectedOfficeIds.length === offices.length;
+
+  const toggleOffice = (officeId: string) => {
+    const isSelected = selectedOfficeIds.includes(officeId);
+    if (isSelected) {
+      // Don't allow deselecting the last one
+      if (selectedOfficeIds.length <= 1) return;
+      onOfficeFilterChange(selectedOfficeIds.filter((id) => id !== officeId));
+    } else {
+      onOfficeFilterChange([...selectedOfficeIds, officeId]);
+    }
+  };
+
+  const toggleAll = () => {
+    if (allSelected) {
+      // Select only the first office
+      if (offices.length > 0) onOfficeFilterChange([offices[0].id]);
+    } else {
+      onOfficeFilterChange(offices.map((o) => o.id));
+    }
+  };
 
   const totalSlots =
     ((SCHEDULER_END_HOUR - SCHEDULER_START_HOUR) * 60) / SCHEDULER_INTERVAL;
@@ -125,6 +171,82 @@ export function SchedulerHeader({
               {t("scheduler.week_view")}
             </button>
           </div>
+
+          {/* Office filter */}
+          {offices.length > 1 && (
+            <div className="relative" ref={dropdownRef}>
+              <button
+                onClick={() => setOfficeDropdownOpen((o) => !o)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                  !allSelected
+                    ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                    : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+                )}
+              >
+                <Building2 className="h-4 w-4" />
+                <span className="hidden sm:inline">
+                  {allSelected
+                    ? "Todos"
+                    : selectedOfficeIds.length === 1
+                      ? offices.find((o) => o.id === selectedOfficeIds[0])?.name ?? "1"
+                      : `${selectedOfficeIds.length} consultorios`}
+                </span>
+                {!allSelected && (
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground sm:hidden">
+                    {selectedOfficeIds.length}
+                  </span>
+                )}
+              </button>
+
+              {officeDropdownOpen && (
+                <div className="absolute right-0 top-full z-50 mt-1 min-w-[200px] rounded-lg border border-border bg-popover p-1 shadow-lg">
+                  {/* Select all */}
+                  <button
+                    onClick={toggleAll}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
+                  >
+                    <span
+                      className={cn(
+                        "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+                        allSelected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-muted-foreground/30"
+                      )}
+                    >
+                      {allSelected && <Check className="h-3 w-3" />}
+                    </span>
+                    <span className="font-medium">Todos los consultorios</span>
+                  </button>
+
+                  <div className="my-1 h-px bg-border" />
+
+                  {offices.map((office) => {
+                    const checked = selectedOfficeIds.includes(office.id);
+                    return (
+                      <button
+                        key={office.id}
+                        onClick={() => toggleOffice(office.id)}
+                        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm hover:bg-accent transition-colors"
+                      >
+                        <span
+                          className={cn(
+                            "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+                            checked
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-muted-foreground/30"
+                          )}
+                        >
+                          {checked && <Check className="h-3 w-3" />}
+                        </span>
+                        <span className="truncate">{office.name}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Bloquear button */}
           {onNewBlock && (

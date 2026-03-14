@@ -80,3 +80,34 @@ export function getHourOptions(from = 0, to = 23) {
     return { value: h, label: `${h.toString().padStart(2, "0")}:00` };
   });
 }
+
+// Office filter — persisted in localStorage
+const OFFICE_FILTER_KEY = "vibeforge_scheduler_office_filter";
+
+/**
+ * Load selected office IDs from localStorage.
+ * Returns null when no filter is saved (meaning "all offices").
+ */
+export function loadOfficeFilter(): string[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(OFFICE_FILTER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save selected office IDs. Pass null to clear (= all offices).
+ */
+export function saveOfficeFilter(officeIds: string[] | null) {
+  if (typeof window === "undefined") return;
+  if (officeIds === null) {
+    localStorage.removeItem(OFFICE_FILTER_KEY);
+  } else {
+    localStorage.setItem(OFFICE_FILTER_KEY, JSON.stringify(officeIds));
+  }
+}

@@ -30,6 +30,7 @@ import {
   DEFAULT_BREAK_TIME_CONFIG,
   type BreakTimeConfig,
 } from "./break-time-dialog";
+import { loadOfficeFilter, saveOfficeFilter } from "@/lib/scheduler-config";
 
 export type ViewMode = "day" | "week";
 
@@ -101,6 +102,9 @@ export default function SchedulerPage() {
   const [showBreakTimeDialog, setShowBreakTimeDialog] = useState(false);
   const [breakTimeConfig, setBreakTimeConfig] = useState<BreakTimeConfig>(DEFAULT_BREAK_TIME_CONFIG);
 
+  // Office filter
+  const [selectedOfficeIds, setSelectedOfficeIds] = useState<string[]>([]);
+
   // Fetch master data once
   useEffect(() => {
     const fetchMasterData = async () => {
@@ -141,7 +145,18 @@ export default function SchedulerPage() {
           .eq("role", "receptionist"),
       ]);
 
-      setOffices(officesRes.data ?? []);
+      const fetchedOffices = officesRes.data ?? [];
+      setOffices(fetchedOffices);
+
+      // Initialize office filter: use saved selection or default to all
+      const saved = loadOfficeFilter();
+      if (saved && saved.length > 0) {
+        // Only keep IDs that still exist in the fetched offices
+        const validIds = saved.filter((id) => fetchedOffices.some((o) => o.id === id));
+        setSelectedOfficeIds(validIds.length > 0 ? validIds : fetchedOffices.map((o) => o.id));
+      } else {
+        setSelectedOfficeIds(fetchedOffices.map((o) => o.id));
+      }
       setDoctors(doctorsRes.data ?? []);
       setServices(servicesRes.data ?? []);
       setDoctorServices((doctorServicesRes.data as { doctor_id: string; service_id: string }[]) ?? []);
@@ -249,6 +264,20 @@ export default function SchedulerPage() {
     fetchAppointments();
     fetchBlocks();
   }, [fetchAppointments, fetchBlocks]);
+
+  // Office filter handler
+  const handleOfficeFilterChange = (officeIds: string[]) => {
+    setSelectedOfficeIds(officeIds);
+    // Persist: save null when all are selected (= no filter)
+    if (officeIds.length === offices.length) {
+      saveOfficeFilter(null);
+    } else {
+      saveOfficeFilter(officeIds);
+    }
+  };
+
+  // Filtered offices for the grid
+  const filteredOffices = offices.filter((o) => selectedOfficeIds.includes(o.id));
 
   // Handlers
   const handleSlotClick = (date: Date, time: string, officeId: string) => {
@@ -411,6 +440,9 @@ export default function SchedulerPage() {
           onBreakTime={() => setShowBreakTimeDialog(true)}
           breakTimeEnabled={breakTimeConfig.enabled}
           appointments={appointments}
+          offices={offices}
+          selectedOfficeIds={selectedOfficeIds}
+          onOfficeFilterChange={handleOfficeFilterChange}
         />
 
         <div className="flex-1 overflow-auto">
@@ -418,7 +450,7 @@ export default function SchedulerPage() {
             <DayView
               date={currentDate}
               appointments={appointments}
-              offices={offices}
+              offices={filteredOffices}
               blocks={allBlocks}
               paymentTotals={paymentTotals}
               selectedAppointmentId={selectedAppointment?.id}
@@ -432,7 +464,7 @@ export default function SchedulerPage() {
             <WeekView
               currentDate={currentDate}
               appointments={appointments}
-              offices={offices}
+              offices={filteredOffices}
               blocks={allBlocks}
               paymentTotals={paymentTotals}
               selectedAppointmentId={selectedAppointment?.id}
