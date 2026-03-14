@@ -71,6 +71,10 @@ export async function POST(request: Request) {
       ? plan.price_yearly
       : plan.price_monthly;
 
+  // Detect test mode: ACCESS_TOKEN from test accounts use APP_USR- prefix
+  const accessToken = process.env.MP_ACCESS_TOKEN || "";
+  const isTestMode = accessToken.startsWith("TEST-") || accessToken.startsWith("APP_USR-");
+
   console.log("[MP Checkout] Plan:", plan.slug, "| Price:", price, "| Cycle:", billing_cycle, "| TestMode:", isTestMode);
 
   // Mercado Pago minimum for recurring payments is S/ 2.00
@@ -85,11 +89,6 @@ export async function POST(request: Request) {
   const frequencyType = "months";
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-
-  // Detect test mode: ACCESS_TOKEN from test accounts use APP_USR- prefix
-  // but are still test credentials. Check if token starts with TEST- as well.
-  const accessToken = process.env.MP_ACCESS_TOKEN || "";
-  const isTestMode = accessToken.startsWith("TEST-") || accessToken.startsWith("APP_USR-");
 
   // Create open subscription (auto_recurring) — generates an init_point
   // that works in both TEST and production mode.
@@ -131,7 +130,9 @@ export async function POST(request: Request) {
       back_url: `${appUrl}/dashboard/plans?payment=success`,
     };
 
+    console.log("[MP Checkout] Request body:", JSON.stringify(body, null, 2));
     result = await preApproval.create({ body });
+    console.log("[MP Checkout] Response:", JSON.stringify(result, null, 2));
   } catch (error: unknown) {
     let msg: string;
     if (error instanceof Error) {
