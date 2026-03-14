@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       ? plan.price_yearly
       : plan.price_monthly;
 
-  console.log("[MP Checkout] Plan:", plan.slug, "| Price:", price, "| Cycle:", billing_cycle);
+  console.log("[MP Checkout] Plan:", plan.slug, "| Price:", price, "| Cycle:", billing_cycle, "| TestMode:", isTestMode);
 
   // Mercado Pago minimum for recurring payments is S/ 2.00
   if (!price || Number(price) < 2) {
@@ -97,10 +97,24 @@ export async function POST(request: Request) {
   try {
     const preApproval = getPreApprovalClient();
 
-    // In test mode, omit payer_email to avoid "Both payer and collector must be
-    // real or test users" error. The buyer authenticates on the MP checkout page.
+    // In test mode, payer_email MUST be the test buyer's email (not the seller's).
+    // In production, use the authenticated user's email.
+    const payerEmail = isTestMode
+      ? (process.env.MP_TEST_PAYER_EMAIL || "")
+      : (user.email || "");
+
+    if (!payerEmail) {
+      return NextResponse.json(
+        { error: isTestMode
+          ? "Falta MP_TEST_PAYER_EMAIL en variables de entorno (email de la cuenta compradora de prueba)"
+          : "El usuario no tiene email configurado" },
+        { status: 400 }
+      );
+    }
+
     const body: Record<string, unknown> = {
       reason: `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`,
+      payer_email: payerEmail,
       external_reference: JSON.stringify({
         organization_id: membership.organization_id,
         plan_id: plan.id,
@@ -116,10 +130,6 @@ export async function POST(request: Request) {
       },
       back_url: `${appUrl}/dashboard/plans?payment=success`,
     };
-
-    if (!isTestMode) {
-      body.payer_email = user.email || "";
-    }
 
     result = await preApproval.create({ body });
   } catch (error: unknown) {
