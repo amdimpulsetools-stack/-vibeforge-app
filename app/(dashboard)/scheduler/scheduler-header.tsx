@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { format, addDays, subDays } from "date-fns";
+import { format, addDays, subDays, isToday } from "date-fns";
 import { es } from "date-fns/locale";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Office } from "@/types/admin";
@@ -20,6 +20,8 @@ import {
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 
 interface SchedulerHeaderProps {
   currentDate: Date;
@@ -110,7 +112,14 @@ export function SchedulerHeader({
     }
   };
 
-  const goToToday = () => onDateChange(new Date());
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const handleCalendarSelect = (date: Date | undefined) => {
+    if (date) {
+      onDateChange(date);
+      setCalendarOpen(false);
+    }
+  };
 
   return (
     <div className="border-b border-border px-4 py-3 space-y-3">
@@ -137,12 +146,42 @@ export function SchedulerHeader({
             <ChevronRight className="h-5 w-5" />
           </button>
 
-          <button
-            onClick={goToToday}
-            className="rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            {t("scheduler.today")}
-          </button>
+          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <PopoverTrigger asChild>
+              <button
+                className={cn(
+                  "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                  isToday(currentDate)
+                    ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+                    : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                )}
+              >
+                {t("scheduler.today")}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-auto p-0">
+              <div className="flex flex-col">
+                <Calendar
+                  mode="single"
+                  selected={currentDate}
+                  onSelect={handleCalendarSelect}
+                  defaultMonth={currentDate}
+                  locale={es}
+                />
+                <div className="border-t border-border p-2">
+                  <button
+                    onClick={() => {
+                      onDateChange(new Date());
+                      setCalendarOpen(false);
+                    }}
+                    className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+                  >
+                    {t("scheduler.today")}
+                  </button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
 
         <div className="flex items-center gap-2">
