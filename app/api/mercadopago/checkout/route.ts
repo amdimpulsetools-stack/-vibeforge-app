@@ -85,7 +85,11 @@ export async function POST(request: Request) {
   const frequencyType = "months";
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-  const isLocalhost = appUrl.includes("localhost") || appUrl.includes("127.0.0.1");
+
+  // Detect test mode: ACCESS_TOKEN from test accounts use APP_USR- prefix
+  // but are still test credentials. Check if token starts with TEST- as well.
+  const accessToken = process.env.MP_ACCESS_TOKEN || "";
+  const isTestMode = accessToken.startsWith("TEST-") || accessToken.startsWith("APP_USR-");
 
   // Create open subscription (auto_recurring) — generates an init_point
   // that works in both TEST and production mode.
@@ -93,28 +97,31 @@ export async function POST(request: Request) {
   try {
     const preApproval = getPreApprovalClient();
 
-    result = await preApproval.create({
-      body: {
-        payer_email: user.email || "",
-        reason: `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`,
-        external_reference: JSON.stringify({
-          organization_id: membership.organization_id,
-          plan_id: plan.id,
-          plan_slug: plan.slug,
-          billing_cycle,
-          user_id: user.id,
-        }),
-        auto_recurring: {
-          frequency,
-          frequency_type: frequencyType,
-          transaction_amount: Number(price),
-          currency_id: "PEN",
-        },
-        back_url: isLocalhost
-          ? "https://vibeforge.app/dashboard/plans?payment=success"
-          : `${appUrl}/dashboard/plans?payment=success`,
+    // In test mode, omit payer_email to avoid "Both payer and collector must be
+    // real or test users" error. The buyer authenticates on the MP checkout page.
+    const body: Record<string, unknown> = {
+      reason: `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`,
+      external_reference: JSON.stringify({
+        organization_id: membership.organization_id,
+        plan_id: plan.id,
+        plan_slug: plan.slug,
+        billing_cycle,
+        user_id: user.id,
+      }),
+      auto_recurring: {
+        frequency,
+        frequency_type: frequencyType,
+        transaction_amount: Number(price),
+        currency_id: "PEN",
       },
-    });
+      back_url: `${appUrl}/dashboard/plans?payment=success`,
+    };
+
+    if (!isTestMode) {
+      body.payer_email = user.email || "";
+    }
+
+    result = await preApproval.create({ body });
   } catch (error: unknown) {
     let msg: string;
     if (error instanceof Error) {
