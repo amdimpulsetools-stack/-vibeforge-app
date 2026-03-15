@@ -8,7 +8,9 @@ import {
   Building2,
   Star,
   Calendar,
+  Download,
 } from "lucide-react";
+import { exportToCSV } from "@/lib/export";
 import {
   AreaChart,
   Area,
@@ -295,8 +297,19 @@ export function OperationalReport({
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Top services table */}
         <div className="rounded-xl border border-border bg-card">
-          <div className="border-b border-border px-5 py-3">
+          <div className="flex items-center justify-between border-b border-border px-5 py-3">
             <h3 className="text-sm font-semibold">{t("reports.top_services")}</h3>
+            <button
+              onClick={() => {
+                const headers = ["Servicio", "Cantidad", "Ingresos (S/.)"];
+                const rows = topServicesData.map((s) => [s.name, s.count, s.revenue.toFixed(2)]);
+                exportToCSV(headers, rows, `reporte_operacional_${dateFrom}_${dateTo}.csv`);
+              }}
+              className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" />
+              CSV
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

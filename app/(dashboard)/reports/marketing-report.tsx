@@ -8,7 +8,9 @@ import {
   Users,
   TrendingUp,
   Target,
+  Download,
 } from "lucide-react";
+import { exportToCSV } from "@/lib/export";
 import {
   PieChart,
   Pie,
@@ -332,8 +334,19 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
 
       {/* Conversion by origin table */}
       <div className="rounded-xl border border-border bg-card">
-        <div className="border-b border-border px-5 py-3">
+        <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h3 className="text-sm font-semibold">{t("reports.conversion_by_origin")}</h3>
+          <button
+            onClick={() => {
+              const headers = ["Origen", "Agendados", "Atendidos", "Tasa de conversión (%)"];
+              const rows = conversionByOrigin.map((r) => [r.name, r.total, r.completed, r.rate]);
+              exportToCSV(headers, rows, `reporte_marketing_${dateFrom}_${dateTo}.csv`);
+            }}
+            className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            CSV
+          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

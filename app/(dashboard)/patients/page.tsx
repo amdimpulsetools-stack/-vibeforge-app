@@ -19,12 +19,15 @@ import {
   DollarSign,
   MapPin,
   Stethoscope,
+  Download,
+  Cake,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrganization } from "@/components/organization-provider";
 import { PatientDrawer } from "./patient-drawer";
 import { PatientFormModal } from "./patient-form-modal";
+import { exportToCSV, calculateAge } from "@/lib/export";
 
 type StatusFilter = "all" | "active" | "inactive";
 
@@ -213,6 +216,30 @@ export default function PatientsPage() {
     );
   };
 
+  const handleExportCSV = () => {
+    const headers = [
+      "Apellido", "Nombre", "DNI", "Tipo Doc.", "Teléfono", "Email",
+      "Fecha Nac.", "Edad", "Estado", "Tags", "Departamento", "Distrito",
+      "Origen", "Total Facturado", "Total Pagado", "Deuda",
+    ];
+    const rows = filteredPatients.map((p) => {
+      const totalBilled = p.appointments
+        ?.filter((a) => a.status !== "cancelled")
+        .reduce((sum, a) => sum + (Number(a.price_snapshot) || 0), 0) ?? 0;
+      const totalPaid = p.patient_payments?.reduce((sum, pay) => sum + Number(pay.amount), 0) ?? 0;
+      const age = calculateAge(p.birth_date);
+      return [
+        p.last_name, p.first_name, p.dni, p.document_type, p.phone, p.email,
+        p.birth_date, age != null ? age : "",
+        p.status, p.patient_tags.map((t) => t.tag).join("; "),
+        p.departamento, p.distrito, p.viene_desde ?? p.origin,
+        totalBilled.toFixed(2), totalPaid.toFixed(2), Math.max(0, totalBilled - totalPaid).toFixed(2),
+      ];
+    });
+    const date = new Date().toISOString().slice(0, 10);
+    exportToCSV(headers, rows, `pacientes_${date}.csv`);
+  };
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
       {/* Main List */}
@@ -230,13 +257,24 @@ export default function PatientsPage() {
                 </p>
               )}
             </div>
-            <button
-              onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-            >
-              <Plus className="h-4 w-4" />
-              {t("patients.add")}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleExportCSV}
+                disabled={filteredPatients.length === 0}
+                className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
+                title="Exportar CSV"
+              >
+                <Download className="h-4 w-4" />
+                CSV
+              </button>
+              <button
+                onClick={() => setShowForm(true)}
+                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+              >
+                <Plus className="h-4 w-4" />
+                {t("patients.add")}
+              </button>
+            </div>
           </div>
 
           {/* Search & Status + Filter toggle */}
@@ -521,6 +559,15 @@ export default function PatientsPage() {
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         {patient.dni && <span>DNI: {patient.dni}</span>}
                         {patient.phone && <span>{patient.phone}</span>}
+                        {patient.birth_date && (() => {
+                          const age = calculateAge(patient.birth_date);
+                          return age != null ? (
+                            <span className="flex items-center gap-0.5">
+                              <Cake className="h-3 w-3" />
+                              {age} años
+                            </span>
+                          ) : null;
+                        })()}
                       </div>
                       {/* Tags */}
                       {patient.patient_tags.length > 0 && (

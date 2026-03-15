@@ -39,6 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
+import { calculateAge } from "@/lib/export";
 
 interface PatientDrawerProps {
   patient: PatientWithTags;
@@ -287,6 +288,10 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               </h3>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {patient.dni && <span>{patient.document_type ?? "DNI"}: {patient.dni}</span>}
+                {patient.birth_date && (() => {
+                  const age = calculateAge(patient.birth_date);
+                  return age != null ? <span className="font-medium">{age} años</span> : null;
+                })()}
                 <span
                   className="rounded-full px-2 py-0.5 text-[10px] font-medium"
                   style={{
@@ -464,7 +469,17 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
             {/* Fecha de nacimiento */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium">Fecha de nacimiento</label>
+              <label className="text-xs font-medium flex items-center gap-2">
+                Fecha de nacimiento
+                {infoBirthDate && (() => {
+                  const age = calculateAge(infoBirthDate);
+                  return age != null ? (
+                    <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                      {age} años
+                    </span>
+                  ) : null;
+                })()}
+              </label>
               <input
                 type="date"
                 value={infoBirthDate}

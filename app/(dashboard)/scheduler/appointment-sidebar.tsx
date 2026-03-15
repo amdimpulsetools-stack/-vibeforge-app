@@ -32,6 +32,7 @@ import {
   UserX,
   Video,
   ExternalLink,
+  AlertTriangle,
 } from "lucide-react";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
@@ -96,6 +97,9 @@ export function AppointmentSidebar({
           ? "paid"
           : "partial";
 
+  // ── Patient-level debt ──────────────────────────────────────────────────
+  const [patientDebt, setPatientDebt] = useState<number>(0);
+
   const fetchPayments = useCallback(async () => {
     setLoadingPayments(true);
     const supabase = createClient();
@@ -106,7 +110,29 @@ export function AppointmentSidebar({
       .order("payment_date", { ascending: true });
     setPayments((data as PatientPayment[]) ?? []);
     setLoadingPayments(false);
-  }, [appointment.id]);
+
+    // Fetch patient total debt (all appointments)
+    if (appointment.patient_id) {
+      const [apptRes, payRes] = await Promise.all([
+        supabase
+          .from("appointments")
+          .select("price_snapshot, status")
+          .eq("patient_id", appointment.patient_id)
+          .neq("status", "cancelled"),
+        supabase
+          .from("patient_payments")
+          .select("amount")
+          .eq("patient_id", appointment.patient_id),
+      ]);
+      const totalBilled = (apptRes.data ?? []).reduce(
+        (sum, a) => sum + (Number(a.price_snapshot) || 0), 0
+      );
+      const totalPaid = (payRes.data ?? []).reduce(
+        (sum, p) => sum + Number(p.amount), 0
+      );
+      setPatientDebt(Math.max(0, totalBilled - totalPaid));
+    }
+  }, [appointment.id, appointment.patient_id]);
 
   useEffect(() => {
     fetchPayments();
@@ -346,7 +372,7 @@ export function AppointmentSidebar({
           {/* Patient info — always read-only */}
           <div className="flex items-center gap-3">
             <User className="h-4 w-4 text-muted-foreground" />
-            <div>
+            <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold">{appointment.patient_name}</p>
               {appointment.patient_phone && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
@@ -355,6 +381,13 @@ export function AppointmentSidebar({
                 </p>
               )}
             </div>
+            {/* Patient total debt badge */}
+            {patientDebt > 0 && (
+              <span className="flex items-center gap-1 shrink-0 rounded-lg bg-red-500/10 border border-red-500/30 px-2 py-1 text-[11px] font-bold text-red-600 dark:text-red-400" title="Deuda total del paciente">
+                <AlertTriangle className="h-3 w-3" />
+                S/. {patientDebt.toFixed(2)}
+              </span>
+            )}
           </div>
 
           {/* Date & Time — read-only (use Reprogramar for these) */}

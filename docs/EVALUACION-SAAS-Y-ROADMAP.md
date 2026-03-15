@@ -61,17 +61,13 @@ Tienes una **base tecnica solida** (mejor que la mayoria de SaaS peruanos de sal
 
 ### DIFICULTAD: FACIL (1-2 dias cada una)
 
-#### F1. Exportacion CSV/Excel de Datos
+#### F1. Exportacion CSV/Excel de Datos ✅ IMPLEMENTADO
 **Que es:** Boton para descargar pacientes, citas, y reportes financieros en CSV.
-**Por que:** Ya tienes el flag `feature_export` en planes pero no la implementacion. Los admins de clinica NECESITAN esto para contabilidad.
-**Archivos a tocar:** `app/(dashboard)/patients/page.tsx`, `app/(dashboard)/reports/`, nuevo util `lib/export.ts`
-**Impacto:** Alto — es un feature que ya vendes en el plan y no entregas.
+**Implementado:** `lib/export.ts` (utilidad reutilizable), boton CSV en `patients/page.tsx` (exporta lista filtrada con datos financieros), CSV en `reports/financial-report.tsx`, `reports/marketing-report.tsx`, `reports/operational-report.tsx`.
 
-#### F2. Indicador de Deuda Visible en Citas
+#### F2. Indicador de Deuda Visible en Citas ✅ IMPLEMENTADO
 **Que es:** En el scheduler y sidebar de cita, mostrar si el paciente tiene saldo pendiente con un badge rojo.
-**Por que:** Las recepcionistas necesitan saber al vuelo si cobrar o no.
-**Archivos a tocar:** `app/(dashboard)/scheduler/appointment-sidebar.tsx`, `app/(dashboard)/scheduler/day-view.tsx`
-**Impacto:** Medio — ahorra tiempo operativo.
+**Implementado:** Badge rojo con monto de deuda en `scheduler/day-view.tsx` (en cada tarjeta de cita), badge de deuda total del paciente en `scheduler/appointment-sidebar.tsx` (junto al nombre del paciente).
 
 #### F3. Impresion de Recibo/Comprobante
 **Que es:** Boton "Imprimir recibo" en el detalle de pago del paciente con formato para impresora termica o A4.
@@ -85,11 +81,9 @@ Tienes una **base tecnica solida** (mejor que la mayoria de SaaS peruanos de sal
 **Archivos a tocar:** Nuevo `app/api/appointments/confirm/route.ts`, token seguro temporal.
 **Impacto:** Alto — reduce no-shows directamente.
 
-#### F5. Campo de Fecha de Nacimiento en Pacientes
+#### F5. Campo de Fecha de Nacimiento en Pacientes ✅ IMPLEMENTADO
 **Que es:** Agregar `birth_date` a patients. Mostrar edad automatica. Habilitar template de cumpleanos.
-**Por que:** Ya tienes el template `marketing_birthday` pero no hay campo de fecha de nacimiento. Feature incompleto.
-**Archivos a tocar:** Nueva migracion, `types/`, patient form, patient drawer.
-**Impacto:** Medio — completa el feature de marketing por cumpleanos.
+**Implementado:** Campo `birth_date` ya existia en DB (migracion 019) y formularios. Se agrego calculo automatico de edad (`lib/export.ts: calculateAge`) visible en: lista de pacientes (con icono de torta), header del drawer del paciente, campo de fecha de nacimiento en tab Info. Falta template de email de cumpleanos (requiere F8 cron para envio automatico).
 
 ---
 
@@ -164,16 +158,16 @@ Tienes una **base tecnica solida** (mejor que la mayoria de SaaS peruanos de sal
 ## PARTE 3: PRIORIDAD DE IMPLEMENTACION RECOMENDADA
 
 ### Sprint 1 — "Lo que ya deberias tener" (Semana 1-2)
-1. **F6 Fase 1** - WhatsApp click-to-chat (3 dias)
-2. **F1** - Exportacion CSV (1 dia)
-3. **F3** - Impresion de recibos (1 dia)
-4. **F5** - Fecha de nacimiento (1 dia)
-5. **F4** - Confirmacion 1-click (1 dia)
+1. ✅ **F1** - Exportacion CSV — COMPLETADO
+2. ✅ **F2** - Indicador de deuda en citas — COMPLETADO
+3. ✅ **F5** - Fecha de nacimiento + edad automatica — COMPLETADO
+4. 🔍 **F3** - Impresion de recibos — PENDIENTE (requiere evaluar formato legal Peru/SUNAT)
+5. 🔍 **F4** - Confirmacion 1-click — PENDIENTE (requiere evaluar formato email legal Peru)
+6. **F6 Fase 1** - WhatsApp click-to-chat (3 dias)
 
 ### Sprint 2 — "Lo que te hace competitivo" (Semana 3-4)
-6. **F7** - Booking online (5 dias)
-7. **F8** - Recordatorios automaticos (3 dias)
-8. **F2** - Indicador de deuda en citas (1 dia)
+7. **F7** - Booking online (5 dias)
+8. **F8** - Recordatorios automaticos (3 dias)
 
 ### Sprint 3 — "Lo que te diferencia" (Semana 5-7)
 9. **F9** - Notas clinicas (4 dias)

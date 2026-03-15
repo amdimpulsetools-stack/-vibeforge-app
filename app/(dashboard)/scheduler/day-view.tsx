@@ -5,7 +5,7 @@ import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
-import { Plus, Lock, LockOpen, Coffee, CircleDollarSign, CheckCircle2, Video } from "lucide-react";
+import { Plus, Lock, LockOpen, Coffee, CircleDollarSign, CheckCircle2, Video, AlertTriangle } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { loadSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
@@ -285,16 +285,24 @@ export function DayView({
                           {!isOtherDoctorAppt && (startAppt as any).meeting_url && (
                             <Video className="h-3 w-3 shrink-0 text-blue-500" />
                           )}
-                          {/* Payment indicator */}
-                          {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
-                            (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (
-                              <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
-                            ) : (paymentTotals[startAppt.id] ?? 0) > 0 ? (
-                              <CircleDollarSign className="h-3 w-3 shrink-0 text-amber-600" />
-                            ) : (
-                              <CircleDollarSign className="h-3 w-3 shrink-0 text-gray-400" />
-                            )
-                          )}
+                          {/* Payment / Debt indicator */}
+                          {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (() => {
+                            const price = Number(startAppt.price_snapshot);
+                            const paid = paymentTotals[startAppt.id] ?? 0;
+                            const pending = price - paid;
+                            if (paid >= price) {
+                              return <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />;
+                            }
+                            if (pending > 0) {
+                              return (
+                                <span className="flex items-center gap-0.5 shrink-0 rounded-full bg-red-500/15 px-1 py-0.5 text-[9px] font-bold text-red-600 leading-none" title={`Deuda: S/. ${pending.toFixed(2)}`}>
+                                  <AlertTriangle className="h-2.5 w-2.5" />
+                                  S/{pending.toFixed(0)}
+                                </span>
+                              );
+                            }
+                            return <CircleDollarSign className="h-3 w-3 shrink-0 text-gray-400" />;
+                          })()}
                         </div>
                         <p className="text-[11px] truncate leading-tight" style={{ color: hexToDark(doctorColor, 0.55) }}>
                           {startAppt.doctors?.full_name ?? "—"} · {startAppt.services?.name ?? "—"}
