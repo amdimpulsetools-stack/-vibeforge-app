@@ -390,14 +390,24 @@
 - [x] Founder: testing de integraciones MP (`/founder/integrations`)
 - [x] Configuración de visibilidad doctor↔pacientes por org (RLS dinámico)
 - [x] Rate limiting en todas las API routes (5 limiters configurados)
+- [x] **Exportación CSV de datos** — Botón de descarga CSV en pacientes (lista filtrada con datos financieros), reportes financieros, marketing y operacionales. Utilidad reutilizable en `lib/export.ts`
+- [x] **Indicador de deuda visible en citas** — Badge rojo con monto pendiente en tarjetas de cita del scheduler (day-view) y badge de deuda total del paciente en el sidebar de la cita. Consulta automática de deuda a nivel paciente
+- [x] **Fecha de nacimiento con edad automática** — Cálculo y display de edad en: lista de pacientes (icono + años), header del drawer del paciente, campo de edición en tab Info. Campo `birth_date` en DB desde migración 019
 
 ### Pendiente / Por Mejorar
-- [ ] Notificaciones push/email de recordatorio de citas
-- [ ] Exportación de reportes a PDF/Excel
-- [ ] Historia clínica del paciente (notas médicas, archivos)
-- [ ] Calendario de disponibilidad pública (booking para pacientes)
+- [ ] Impresión de recibo/comprobante (F3) — Requiere evaluar formato legal Perú (SUNAT)
+- [ ] Confirmación de cita desde email 1-click (F4) — Token seguro temporal
+- [ ] Integración WhatsApp (F6) — Click-to-chat fase 1, API fase 2
+- [ ] Booking online / agenda pública (F7)
+- [ ] Recordatorios automáticos por cron (F8)
+- [ ] Notas clínicas por cita — formato SOAP (F9)
+- [ ] Dashboard de retención de pacientes (F10)
+- [ ] Notificaciones in-app en tiempo real (F11)
+- [ ] Consentimiento informado digital (F12) — Requisito legal Perú
+- [ ] Módulo de inventario básico (F13)
+- [ ] Portal del paciente (F14)
+- [ ] Reportes con IA generativa (F15)
 - [ ] App móvil o PWA
-- [ ] Whatsapp integration para confirmaciones
 - [ ] Facturación electrónica
 - [ ] Add-ons de plan (UI para comprar consultorios/miembros extra)
 - [ ] Tests automatizados (unit, integration, e2e)
@@ -460,6 +470,7 @@
 | `lib/api-utils.ts` | `parseBody()` — helper para parsear y validar JSON con Zod en API routes |
 | `lib/send-notification.ts` | Fire-and-forget helper para llamar `/api/notifications/send` |
 | `lib/payment-icons.ts` | `getPaymentIcon()` — mapea métodos de pago a íconos Lucide |
+| `lib/export.ts` | `exportToCSV()` — exportación CSV con BOM para Excel. `calculateAge()` — cálculo de edad desde fecha de nacimiento |
 
 ---
 
