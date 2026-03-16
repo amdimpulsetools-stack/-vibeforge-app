@@ -67,7 +67,7 @@ function generateBreakTimeBlocks(
 
 export default function SchedulerPage() {
   const { t } = useLanguage();
-  const { organizationId } = useOrganization();
+  const { organizationId, organization } = useOrganization();
   const { doctorId: currentDoctorId, isDoctor } = useCurrentDoctor();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
@@ -506,6 +506,7 @@ export default function SchedulerPage() {
           lookupResponsibles={lookupResponsibles}
           existingAppointments={appointments}
           organizationId={organizationId}
+          organizationName={organization?.name ?? ""}
           onClose={handleFormClose}
           onSaved={handleSaved}
         />

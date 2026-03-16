@@ -33,6 +33,8 @@ import {
 import { cn } from "@/lib/utils";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
+import { loadWaClipboardConfig, type AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
+import { WhatsAppClipboardModal } from "./whatsapp-clipboard-modal";
 
 interface DoctorServiceEntry {
   doctor_id: string;
@@ -55,6 +57,7 @@ interface AppointmentFormModalProps {
   lookupResponsibles: { id: string; label: string }[];
   existingAppointments: AppointmentWithRelations[];
   organizationId: string;
+  organizationName: string;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -71,6 +74,7 @@ export function AppointmentFormModal({
   lookupResponsibles,
   existingAppointments,
   organizationId,
+  organizationName,
   onClose,
   onSaved,
 }: AppointmentFormModalProps) {
@@ -84,6 +88,10 @@ export function AppointmentFormModal({
   const [docType, setDocType] = useState<"DNI" | "CE" | "Pasaporte">("DNI");
   const [patientEmail, setPatientEmail] = useState("");
   const [patientBirthDate, setPatientBirthDate] = useState("");
+
+  // WhatsApp clipboard modal
+  const [showWaModal, setShowWaModal] = useState(false);
+  const [waVariables, setWaVariables] = useState<AppointmentVariables | null>(null);
 
   // Anticipo / reserva anticipada
   const [depositEnabled, setDepositEnabled] = useState(false);
@@ -412,7 +420,27 @@ export function AppointmentFormModal({
     }
 
     toast.success(t("scheduler.save_success"));
-    onSaved();
+
+    // Check if WhatsApp clipboard modal is enabled
+    const waConfig = loadWaClipboardConfig();
+    if (waConfig.enabled) {
+      const doctor = doctors.find((d) => d.id === values.doctor_id);
+      const service = services.find((s) => s.id === values.service_id);
+      // Format date to dd/mm/yyyy
+      const [y, m, d] = values.appointment_date.split("-");
+      const formattedDate = `${d}/${m}/${y}`;
+      setWaVariables({
+        patientName: values.patient_name,
+        date: formattedDate,
+        time: values.start_time,
+        doctorName: doctor?.full_name ?? "",
+        serviceName: service?.name ?? "",
+        clinicName: organizationName,
+      });
+      setShowWaModal(true);
+    } else {
+      onSaved();
+    }
   };
 
   return (
@@ -909,6 +937,18 @@ export function AppointmentFormModal({
           </button>
         </div>
       </div>
+
+      {/* WhatsApp clipboard modal */}
+      {waVariables && (
+        <WhatsAppClipboardModal
+          open={showWaModal}
+          variables={waVariables}
+          onClose={() => {
+            setShowWaModal(false);
+            onSaved();
+          }}
+        />
+      )}
     </div>
   );
 }
