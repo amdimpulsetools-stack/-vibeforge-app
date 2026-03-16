@@ -179,6 +179,11 @@
 | `find_user_by_email(email)` | Busca user_id por email (para invitaciones) |
 | `is_doctor_patients_restricted(org_id)` | Verifica si la org restringe visibilidad doctor↔pacientes |
 | `get_user_org_role(org_id)` | Retorna rol del usuario en una org específica |
+| `get_retention_overview(p_date_from, p_date_to)` | KPIs de retención: pacientes totales, nuevos, recurrentes, tasa de retención |
+| `get_visit_frequency(p_date_from, p_date_to)` | Frecuencia de visita: promedio y mediana de días entre visitas |
+| `get_at_risk_patients(p_months_threshold)` | Pacientes en riesgo de abandono según umbral de meses sin visita |
+| `get_patient_ltv(p_limit)` | Top pacientes por Lifetime Value: revenue total, visitas, promedio por visita |
+| `get_retention_trend(p_months)` | Tendencia mensual de retención: nuevos vs recurrentes por mes |
 
 ---
 
@@ -222,13 +227,48 @@
 5. Sistema de tags/etiquetas
 
 ### 7.5 Reportes
-1. Tres tipos de reporte con selector de rango de fechas:
+1. Cuatro tipos de reporte con selector de rango de fechas y presets (hoy, 7d, 30d, 90d, este mes):
    - **Financiero:** Ingresos, cobranza, balance pendiente
    - **Marketing:** Fuentes de adquisición, tendencias de nuevos pacientes
    - **Operacional:** Estadísticas de citas, tasas de completado/cancelación, utilización
-2. Gráficas con Recharts (barras con estilo pill)
+   - **Retención:** Pacientes recurrentes vs nuevos, tasa de retención, frecuencia de visita, pacientes en riesgo de abandono, LTV por paciente
+2. Gráficas con Recharts (barras con estilo pill, áreas con gradiente)
 
-### 7.6 Dashboard por Rol
+### 7.5.1 Dashboard de Retención de Pacientes (F10)
+El tab de retención incluye:
+- **KPIs (5 tarjetas):** Pacientes recurrentes, pacientes nuevos, tasa de retención (%), frecuencia promedio de visita (días), LTV promedio (S/.)
+- **Gráfica de tendencia mensual:** Barras apiladas nuevos vs recurrentes (últimos 6 meses)
+- **Gráfica de tasa de retención:** Área con gradiente mostrando evolución del % de retención
+- **Tabla de pacientes en riesgo:** Filtro configurable (2, 3, 6, 12 meses sin visita), con nombre, contacto, total visitas, última visita, días inactivo. Badge rojo para >180 días, ámbar para menos. Exportación CSV
+- **Top pacientes por LTV:** Ranking de los 20 pacientes con mayor revenue lifetime, con visitas, ingresos totales, promedio por visita, primera y última visita. Exportación CSV
+- **RPCs utilizadas:** `get_retention_overview`, `get_visit_frequency`, `get_at_risk_patients`, `get_patient_ltv`, `get_retention_trend`
+- **Tipos:** `types/retention.ts` (RetentionOverview, VisitFrequency, AtRiskPatient, AtRiskData, TopPatient, PatientLTV, RetentionTrendMonth)
+
+### 7.6 Integración WhatsApp (F6)
+
+#### Fase 1: Click-to-Clipboard (Implementado)
+Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
+- **Modal post-creación:** Después de agendar una cita, se muestra modal con mensaje pre-formateado y botón "Copiar mensaje de WhatsApp"
+- **Plantilla configurable:** Template personalizable en Settings → WhatsApp con variables dinámicas:
+  - `{{NOMBRE}}` — Nombre del paciente
+  - `{{FECHA}}` — Fecha de la cita
+  - `{{HORA}}` — Hora de la cita
+  - `{{DOCTOR}}` — Nombre del doctor
+  - `{{SERVICIO}}` — Servicio agendado
+  - `{{CLINICA}}` — Nombre de la clínica
+  - `{{DIRECCION}}` — Dirección de la clínica
+- **Settings tab:** Toggle para activar/desactivar, editor de plantilla con chips de variables, vista previa en vivo con datos de ejemplo, botón de restaurar plantilla por defecto
+- **Persistencia:** localStorage por navegador (`vibeforge_wa_clipboard_enabled`, `vibeforge_wa_clipboard_template`)
+- **Archivos:** `lib/whatsapp-clipboard-config.ts`, `scheduler/whatsapp-clipboard-modal.tsx`, `settings/whatsapp-clipboard-tab.tsx`
+
+#### Fase 2: WhatsApp Business API (Pendiente)
+- Integración con WhatsApp Business API via Twilio o 360dialog
+- Envío automático de confirmaciones y recordatorios
+- Templates aprobados por Meta para mensajes transaccionales
+- Endpoint `app/api/whatsapp/send/route.ts`
+- Vinculación con sistema de recordatorios automáticos (F8)
+
+### 7.7 Dashboard por Rol
 - **Admin/Owner:** KPIs globales (pacientes, doctores, citas, ingresos), top servicios, heatmap de citas, stats operacionales
 - **Doctor:** Dashboard personal con sus citas del día/mes, ingresos propios, próximas citas
 - **Receptionist:** Redirige directo a scheduler
@@ -315,6 +355,12 @@
 - Tamaño de slot: 15, 20, 30, 45 o 60 minutos
 - Indicador de hora actual (on/off)
 
+### Settings (WhatsApp)
+- Toggle para activar/desactivar modal de copia rápida post-cita
+- Editor de plantilla de mensaje con variables dinámicas
+- Vista previa en vivo con datos de ejemplo
+- Botón de restaurar plantilla por defecto
+
 ### Settings (Correos)
 - Configuración de email (remitente, templates)
 
@@ -393,15 +439,16 @@
 - [x] **Exportación CSV de datos** — Botón de descarga CSV en pacientes (lista filtrada con datos financieros), reportes financieros, marketing y operacionales. Utilidad reutilizable en `lib/export.ts`
 - [x] **Indicador de deuda visible en citas** — Badge rojo con monto pendiente en tarjetas de cita del scheduler (day-view) y badge de deuda total del paciente en el sidebar de la cita. Consulta automática de deuda a nivel paciente
 - [x] **Fecha de nacimiento con edad automática** — Cálculo y display de edad en: lista de pacientes (icono + años), header del drawer del paciente, campo de edición en tab Info. Campo `birth_date` en DB desde migración 019
+- [x] **Dashboard de retención de pacientes (F10)** — Tab "Retención" en reportes con 5 KPIs (recurrentes, nuevos, tasa retención, frecuencia, LTV), gráfica de tendencia mensual (nuevos vs recurrentes), gráfica de tasa de retención, tabla de pacientes en riesgo con filtro configurable (2-12 meses), ranking top 20 pacientes por LTV, exportación CSV. RPCs: `get_retention_overview`, `get_visit_frequency`, `get_at_risk_patients`, `get_patient_ltv`, `get_retention_trend`
+- [x] **WhatsApp click-to-clipboard (F6 Fase 1)** — Modal post-creación de cita con mensaje pre-formateado para copiar y pegar en WhatsApp. Plantilla configurable en Settings con 7 variables dinámicas (nombre, fecha, hora, doctor, servicio, clínica, dirección). Toggle activar/desactivar, editor de plantilla con vista previa en vivo. Persistencia en localStorage
 
 ### Pendiente / Por Mejorar
 - [ ] Impresión de recibo/comprobante (F3) — Requiere evaluar formato legal Perú (SUNAT)
 - [ ] Confirmación de cita desde email 1-click (F4) — Token seguro temporal
-- [ ] Integración WhatsApp (F6) — Click-to-chat fase 1, API fase 2
+- [ ] WhatsApp Business API (F6 Fase 2) — Envío automático vía Twilio/360dialog
 - [ ] Booking online / agenda pública (F7)
 - [ ] Recordatorios automáticos por cron (F8)
 - [ ] Notas clínicas por cita — formato SOAP (F9)
-- [ ] Dashboard de retención de pacientes (F10)
 - [ ] Notificaciones in-app en tiempo real (F11)
 - [ ] Consentimiento informado digital (F12) — Requisito legal Perú
 - [ ] Módulo de inventario básico (F13)
@@ -471,6 +518,7 @@
 | `lib/send-notification.ts` | Fire-and-forget helper para llamar `/api/notifications/send` |
 | `lib/payment-icons.ts` | `getPaymentIcon()` — mapea métodos de pago a íconos Lucide |
 | `lib/export.ts` | `exportToCSV()` — exportación CSV con BOM para Excel. `calculateAge()` — cálculo de edad desde fecha de nacimiento |
+| `lib/whatsapp-clipboard-config.ts` | Config WhatsApp clipboard: `loadWaClipboardConfig()`, `saveWaClipboardConfig()`, `buildWhatsAppMessage()`. Variables de plantilla, persistencia en localStorage |
 
 ---
 

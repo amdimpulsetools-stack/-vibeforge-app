@@ -31,7 +31,7 @@
 
 ### Lo que esta MAL o FALTA (problemas reales)
 
-1. **Sin WhatsApp integration real**: En Peru, el 95% de comunicacion clinica es por WhatsApp. Tienes `whatsapp_phone` en profiles pero NO hay envio de mensajes WhatsApp. Solo email. **Esto es critico** — las clinicas peruanas no usan email para recordatorios.
+1. **WhatsApp integration parcial**: En Peru, el 95% de comunicacion clinica es por WhatsApp. Se implemento Fase 1 (copia rapida de mensaje post-cita con plantilla configurable), pero falta Fase 2: envio automatico via WhatsApp Business API para recordatorios y confirmaciones. **La Fase 2 sigue siendo critica.**
 
 2. **Sin agenda publica / booking online**: Los pacientes no pueden agendar solos. Todo depende de la recepcionista. En 2026 esto es un must-have.
 
@@ -43,7 +43,7 @@
 
 6. **Sin landing page / onboarding fuerte**: La pagina de registro existe pero no hay un funnel de conversion con landing page que venda el producto.
 
-7. **Sin metricas de retencion de pacientes**: Sabes cuantos pacientes tienes pero no cuantos regresan, frecuencia de visita, lifetime value.
+7. ~~**Sin metricas de retencion de pacientes**~~: ✅ RESUELTO — Dashboard de retencion implementado con KPIs, tendencias, pacientes en riesgo y LTV.
 
 8. **Sin notificaciones push/in-app**: No hay sistema de notificaciones en tiempo real dentro de la app.
 
@@ -89,11 +89,12 @@ Tienes una **base tecnica solida** (mejor que la mayoria de SaaS peruanos de sal
 
 ### DIFICULTAD: MEDIA (3-5 dias cada una)
 
-#### F6. Integracion WhatsApp via API (Click-to-Chat + Templates)
-**Que es:** Fase 1: Botones "Enviar por WhatsApp" que abren wa.me/ con mensaje pre-llenado para confirmacion, recordatorio, etc. Fase 2: WhatsApp Business API con Twilio/360dialog para envio automatico.
+#### F6. Integracion WhatsApp via API (Click-to-Chat + Templates) — ✅ FASE 1 IMPLEMENTADA
+**Que es:** Fase 1: Modal de copia rapida post-creacion de cita con mensaje pre-formateado para WhatsApp. Fase 2: WhatsApp Business API con Twilio/360dialog para envio automatico.
 **Por que:** **EL feature mas importante que falta.** En Peru, nadie lee emails de clinicas. Todo es WhatsApp.
-**Archivos a tocar:** Nuevo `lib/whatsapp.ts`, botones en appointment-sidebar, patient-drawer, nuevo `app/api/whatsapp/send/route.ts`.
-**Impacto:** CRITICO — sin esto pierdes el mercado peruano.
+**Implementado (Fase 1):** `lib/whatsapp-clipboard-config.ts` (config con variables de plantilla, persistencia en localStorage), `scheduler/whatsapp-clipboard-modal.tsx` (modal post-cita con boton copiar), `settings/whatsapp-clipboard-tab.tsx` (configuracion de plantilla con toggle, editor, variables clickeables, vista previa en vivo). Variables: {{NOMBRE}}, {{FECHA}}, {{HORA}}, {{DOCTOR}}, {{SERVICIO}}, {{CLINICA}}, {{DIRECCION}}.
+**Pendiente (Fase 2):** Integracion con WhatsApp Business API, envio automatico, templates aprobados por Meta, endpoint `app/api/whatsapp/send/route.ts`.
+**Impacto:** CRITICO — Fase 1 cubre el caso de uso basico. Fase 2 necesaria para automatizacion.
 
 #### F7. Booking Online (Agenda Publica)
 **Que es:** Pagina publica `/book/[org-slug]` donde pacientes ven disponibilidad y agendan solos. Seleccionan servicio → doctor → fecha/hora → llenan datos → confirman.
@@ -113,10 +114,10 @@ Tienes una **base tecnica solida** (mejor que la mayoria de SaaS peruanos de sal
 **Archivos a tocar:** Nueva migracion, nuevo componente en patient-drawer, tab en doctor-dashboard.
 **Impacto:** Alto — convierte el producto de "agenda" a "sistema clinico".
 
-#### F10. Dashboard de Retencion de Pacientes
+#### F10. Dashboard de Retencion de Pacientes ✅ IMPLEMENTADO
 **Que es:** Metricas de: pacientes que regresaron vs nuevos, frecuencia promedio de visita, pacientes en riesgo de abandono (no vienen hace X meses), LTV por paciente.
 **Por que:** Las clinicas no saben cuantos pacientes retienen. Esto es data accionable para marketing.
-**Archivos a tocar:** Nuevo tab en reports o seccion en dashboard, RPCs de retencion.
+**Implementado:** Tab "Retencion" en `reports/page.tsx` con componente `retention-report.tsx`. 5 KPIs (recurrentes, nuevos, tasa retencion, frecuencia promedio, LTV promedio), grafica de tendencia mensual (barras nuevos vs recurrentes), grafica de tasa de retencion (area con gradiente), tabla de pacientes en riesgo con filtro configurable (2-12 meses) y exportacion CSV, ranking top 20 pacientes por LTV con exportacion CSV. RPCs: `get_retention_overview`, `get_visit_frequency`, `get_at_risk_patients`, `get_patient_ltv`, `get_retention_trend`. Tipos en `types/retention.ts`.
 **Impacto:** Alto — insight unico que ningun competidor local ofrece.
 
 #### F11. Notificaciones In-App en Tiempo Real
@@ -163,7 +164,7 @@ Tienes una **base tecnica solida** (mejor que la mayoria de SaaS peruanos de sal
 3. ✅ **F5** - Fecha de nacimiento + edad automatica — COMPLETADO
 4. 🔍 **F3** - Impresion de recibos — PENDIENTE (requiere evaluar formato legal Peru/SUNAT)
 5. 🔍 **F4** - Confirmacion 1-click — PENDIENTE (requiere evaluar formato email legal Peru)
-6. **F6 Fase 1** - WhatsApp click-to-chat (3 dias)
+6. ✅ **F6 Fase 1** - WhatsApp click-to-clipboard — COMPLETADO
 
 ### Sprint 2 — "Lo que te hace competitivo" (Semana 3-4)
 7. **F7** - Booking online (5 dias)
@@ -171,7 +172,7 @@ Tienes una **base tecnica solida** (mejor que la mayoria de SaaS peruanos de sal
 
 ### Sprint 3 — "Lo que te diferencia" (Semana 5-7)
 9. **F9** - Notas clinicas (4 dias)
-10. **F10** - Dashboard de retencion (3 dias)
+10. ✅ **F10** - Dashboard de retencion — COMPLETADO
 11. **F11** - Notificaciones in-app (3 dias)
 12. **F12** - Consentimiento informado digital (5 dias)
 
