@@ -27,6 +27,7 @@ import {
   Shield,
   ShieldAlert,
   MessageSquare,
+  MapPin,
 } from "lucide-react";
 import {
   loadSchedulerConfig,
@@ -81,6 +82,7 @@ export default function SettingsPage() {
     defaultValues: {
       name: organization?.name ?? "",
       slug: organization?.slug ?? "",
+      address: organization?.address ?? "",
     },
   });
 
@@ -90,6 +92,7 @@ export default function SettingsPage() {
       reset({
         name: organization.name ?? "",
         slug: organization.slug ?? "",
+        address: organization.address ?? "",
       });
     }
   }, [organization, reset]);
@@ -187,7 +190,7 @@ export default function SettingsPage() {
     const supabase = createClient();
     const { error } = await supabase
       .from("organizations")
-      .update({ name: values.name, slug: values.slug })
+      .update({ name: values.name, slug: values.slug, address: values.address || null })
       .eq("id", organizationId);
 
     setSaving(false);
@@ -422,6 +425,28 @@ export default function SettingsPage() {
                     </p>
                   )}
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="org_address">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                    {t("settings.org_address")}
+                  </span>
+                </label>
+                <input
+                  id="org_address"
+                  type="text"
+                  disabled={!isOrgAdmin}
+                  placeholder={t("settings.org_address_placeholder")}
+                  {...register("address")}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                {errors.address && (
+                  <p className="text-xs text-destructive">
+                    {errors.address.message}
+                  </p>
+                )}
               </div>
 
               {isOrgAdmin && (

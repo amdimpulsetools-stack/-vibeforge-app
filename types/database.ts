@@ -10,6 +10,7 @@ export interface Database {
           name: string;
           slug: string;
           logo_url: string | null;
+          address: string | null;
           plan: "free" | "pro" | "enterprise";
           is_active: boolean;
           created_at: string;
@@ -20,6 +21,7 @@ export interface Database {
           name: string;
           slug: string;
           logo_url?: string | null;
+          address?: string | null;
           plan?: "free" | "pro" | "enterprise";
           is_active?: boolean;
           created_at?: string;
@@ -30,6 +32,7 @@ export interface Database {
           name?: string;
           slug?: string;
           logo_url?: string | null;
+          address?: string | null;
           plan?: "free" | "pro" | "enterprise";
           is_active?: boolean;
           updated_at?: string;

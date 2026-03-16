@@ -13,6 +13,11 @@ export const organizationSchema = z.object({
       /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
       "Solo letras minúsculas, números y guiones"
     ),
+  address: z
+    .string()
+    .max(250, "La dirección no puede superar 250 caracteres")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type OrganizationFormData = z.infer<typeof organizationSchema>;
