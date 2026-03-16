@@ -15,13 +15,15 @@ import {
   TrendingUp,
   CalendarRange,
   Loader2,
+  HeartPulse,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FinancialReport } from "./financial-report";
 import { MarketingReport } from "./marketing-report";
 import { OperationalReport } from "./operational-report";
+import { RetentionReport } from "./retention-report";
 
-type ReportTab = "financial" | "marketing" | "operational";
+type ReportTab = "financial" | "marketing" | "operational" | "retention";
 
 const DATE_PRESETS = [
   { key: "today", days: 0 },
@@ -97,6 +99,7 @@ export default function ReportsPage() {
     { key: "financial", label: t("reports.tab_financial"), icon: BarChart3 },
     { key: "marketing", label: t("reports.tab_marketing"), icon: Megaphone },
     { key: "operational", label: t("reports.tab_operational"), icon: TrendingUp },
+    { key: "retention", label: t("reports.tab_retention"), icon: HeartPulse },
   ];
 
   return (
@@ -181,9 +184,14 @@ export default function ReportsPage() {
             dateFrom={dateFrom}
             dateTo={dateTo}
           />
-        ) : (
+        ) : activeTab === "operational" ? (
           <OperationalReport
             appointments={appointments}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+          />
+        ) : (
+          <RetentionReport
             dateFrom={dateFrom}
             dateTo={dateTo}
           />
