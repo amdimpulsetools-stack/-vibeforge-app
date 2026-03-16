@@ -71,6 +71,7 @@ export default function WhatsAppClipboardTab() {
     doctorName: "Dr. López",
     serviceName: "Consulta general",
     clinicName: organization?.name || "Mi Clínica",
+    clinicAddress: organization?.address || "Av. Principal 123",
   });
 
   return (

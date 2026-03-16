@@ -14,10 +14,11 @@ export const WA_TEMPLATE_VARIABLES = [
   { key: "{{DOCTOR}}", description: "Nombre del doctor" },
   { key: "{{SERVICIO}}", description: "Servicio agendado" },
   { key: "{{CLINICA}}", description: "Nombre de la clínica" },
+  { key: "{{DIRECCION}}", description: "Dirección de la clínica" },
 ] as const;
 
 export const DEFAULT_WA_TEMPLATE =
-  "Hola {{NOMBRE}}, tu cita ha sido reservada para el día {{FECHA}} a las {{HORA}} con {{DOCTOR}} en {{CLINICA}}. ¡Te esperamos!";
+  "Hola {{NOMBRE}}, tu cita ha sido reservada para el día {{FECHA}} a las {{HORA}} con {{DOCTOR}} en {{CLINICA}}.\n\nDirección: {{DIRECCION}}.\n¡Te esperamos!";
 
 export interface WhatsAppClipboardConfig {
   enabled: boolean;
@@ -54,6 +55,7 @@ export interface AppointmentVariables {
   doctorName: string;
   serviceName: string;
   clinicName: string;
+  clinicAddress: string;
 }
 
 export function buildWhatsAppMessage(
@@ -66,5 +68,6 @@ export function buildWhatsAppMessage(
     .replace(/\{\{HORA\}\}/g, vars.time)
     .replace(/\{\{DOCTOR\}\}/g, vars.doctorName)
     .replace(/\{\{SERVICIO\}\}/g, vars.serviceName)
-    .replace(/\{\{CLINICA\}\}/g, vars.clinicName);
+    .replace(/\{\{CLINICA\}\}/g, vars.clinicName)
+    .replace(/\{\{DIRECCION\}\}/g, vars.clinicAddress);
 }

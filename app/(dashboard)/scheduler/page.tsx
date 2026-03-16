@@ -507,6 +507,7 @@ export default function SchedulerPage() {
           existingAppointments={appointments}
           organizationId={organizationId}
           organizationName={organization?.name ?? ""}
+          organizationAddress={organization?.address || ""}
           onClose={handleFormClose}
           onSaved={handleSaved}
         />

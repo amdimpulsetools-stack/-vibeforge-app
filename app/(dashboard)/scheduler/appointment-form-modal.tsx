@@ -58,6 +58,7 @@ interface AppointmentFormModalProps {
   existingAppointments: AppointmentWithRelations[];
   organizationId: string;
   organizationName: string;
+  organizationAddress: string;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -75,6 +76,7 @@ export function AppointmentFormModal({
   existingAppointments,
   organizationId,
   organizationName,
+  organizationAddress,
   onClose,
   onSaved,
 }: AppointmentFormModalProps) {
@@ -436,6 +438,7 @@ export function AppointmentFormModal({
         doctorName: doctor?.full_name ?? "",
         serviceName: service?.name ?? "",
         clinicName: organizationName,
+        clinicAddress: organizationAddress,
       });
       setShowWaModal(true);
     } else {
