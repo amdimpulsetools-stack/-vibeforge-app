@@ -111,6 +111,7 @@ export function AppointmentFormModal({
     resolver: zodResolver(appointmentSchema),
     defaultValues: {
       patient_name: "",
+      patient_last_name: "",
       patient_phone: "",
       patient_dni: "",
       patient_id: "",
@@ -240,7 +241,8 @@ export function AppointmentFormModal({
     if (data) {
       setFoundPatient(data as Patient);
       setValue("patient_id", data.id);
-      setValue("patient_name", `${data.first_name} ${data.last_name}`);
+      setValue("patient_name", data.first_name);
+      setValue("patient_last_name", data.last_name);
       setValue("patient_phone", data.phone ?? "");
       setPatientEmail(data.email ?? "");
       setPatientBirthDate(data.birth_date ?? "");
@@ -308,20 +310,19 @@ export function AppointmentFormModal({
     setSaving(true);
     const supabase = createClient();
 
+    // Build full name for appointment record
+    const fullName = `${values.patient_name.trim()} ${values.patient_last_name.trim()}`.trim();
+
     // Auto-create patient if DNI provided but not found
     let patientId = values.patient_id || null;
     if (!patientId && values.patient_dni && values.patient_dni.trim()) {
-      const nameParts = values.patient_name.trim().split(" ");
-      const firstName = nameParts[0] || values.patient_name;
-      const lastName = nameParts.slice(1).join(" ") || "-";
-
       const { data: newPatient, error: patientError } = await supabase
         .from("patients")
         .insert({
           dni: values.patient_dni.trim(),
           document_type: docType,
-          first_name: firstName,
-          last_name: lastName,
+          first_name: values.patient_name.trim(),
+          last_name: values.patient_last_name.trim(),
           phone: values.patient_phone || null,
           email: patientEmail || null,
           birth_date: patientBirthDate || null,
@@ -360,7 +361,7 @@ export function AppointmentFormModal({
     const { data: newAppt, error } = await supabase
       .from("appointments")
       .insert({
-        patient_name: values.patient_name,
+        patient_name: fullName,
         patient_phone: values.patient_phone || null,
         patient_id: patientId,
         doctor_id: values.doctor_id,
@@ -432,7 +433,7 @@ export function AppointmentFormModal({
       const [y, m, d] = values.appointment_date.split("-");
       const formattedDate = `${d}/${m}/${y}`;
       setWaVariables({
-        patientName: values.patient_name,
+        patientName: fullName,
         date: formattedDate,
         time: values.start_time,
         doctorName: doctor?.full_name ?? "",
@@ -528,27 +529,40 @@ export function AppointmentFormModal({
             )}
           </div>
 
-          {/* Patient Name & Phone */}
+          {/* Patient Name & Last Name */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">{t("scheduler.patient_name")} *</label>
+              <label className="text-sm font-medium">{t("patients.first_name")} *</label>
               <input
                 {...register("patient_name")}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-                placeholder="Juan Pérez"
+                placeholder="Juan"
               />
               {errors.patient_name && (
                 <p className="text-xs text-destructive">{errors.patient_name.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">{t("scheduler.patient_phone")}</label>
+              <label className="text-sm font-medium">{t("patients.last_name")} *</label>
               <input
-                {...register("patient_phone")}
+                {...register("patient_last_name")}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-                placeholder="+51 999 999 999"
+                placeholder="Pérez"
               />
+              {errors.patient_last_name && (
+                <p className="text-xs text-destructive">{errors.patient_last_name.message}</p>
+              )}
             </div>
+          </div>
+
+          {/* Phone */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">{t("scheduler.patient_phone")}</label>
+            <input
+              {...register("patient_phone")}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              placeholder="+51 999 999 999"
+            />
           </div>
 
           {/* Email & Fecha de nacimiento */}

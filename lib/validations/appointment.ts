@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const appointmentSchema = z.object({
   patient_name: z.string().min(2, "Mínimo 2 caracteres").max(100, "Máximo 100 caracteres"),
+  patient_last_name: z.string().min(2, "Mínimo 2 caracteres").max(100, "Máximo 100 caracteres"),
   patient_phone: z.string().max(20, "Máximo 20 caracteres").optional().or(z.literal("")),
   patient_dni: z.string().max(20, "Máximo 20 caracteres").optional().or(z.literal("")),
   patient_id: z.string().uuid().optional().or(z.literal("")),
