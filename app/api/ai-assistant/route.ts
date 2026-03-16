@@ -8,7 +8,7 @@ const SCHEMA_CONTEXT = `
 Eres un generador de SQL para una clínica médica. Tu ÚNICA tarea es generar la consulta SQL necesaria para responder la pregunta del usuario.
 
 ESQUEMA DE LA BASE DE DATOS (Multi-Tenant — cada tabla tiene organization_id, RLS filtra automáticamente):
-- patients: id, first_name, last_name, dni, phone, email, status (active/inactive), notes, viene_desde, adicional_1, adicional_2, organization_id, created_at
+- patients: id, first_name, last_name, dni, phone, email, status (active/inactive), notes, referral_source, custom_field_1, custom_field_2, organization_id, created_at
 - appointments: id, patient_name, patient_phone, patient_id, doctor_id, office_id, service_id, appointment_date (YYYY-MM-DD), start_time, end_time, status (scheduled/confirmed/completed/cancelled), origin, payment_method, responsible, notes, organization_id, created_at
 - doctors: id, full_name, cmp, color, is_active, organization_id
 - offices: id, name, display_order, is_active, organization_id
@@ -118,7 +118,7 @@ function extractSqlFromResponse(text: string): string | null {
 async function callAnthropic(
   apiKey: string,
   system: string,
-  userMessage: string,
+  messages: Array<{ role: "user" | "assistant"; content: string }>,
   maxTokens = 512
 ): Promise<{ text: string | null; error?: string }> {
   const MAX_RETRIES = 3;
@@ -137,7 +137,7 @@ async function callAnthropic(
           model: "claude-sonnet-4-5-20250929",
           max_tokens: maxTokens,
           system,
-          messages: [{ role: "user", content: userMessage }],
+          messages,
         }),
       });
 
@@ -175,7 +175,10 @@ export async function POST(req: NextRequest) {
   try {
     const parsed = await parseBody(req, aiAssistantSchema);
     if (parsed.error) return parsed.error;
-    const { message } = parsed.data;
+    const { message, history = [] } = parsed.data;
+
+    // Build conversation context from recent history (last 5 exchanges)
+    const recentHistory = history.slice(-10); // max 5 user+assistant pairs
 
     // Authentication is mandatory
     const supabaseAuth = await createClient();
@@ -213,7 +216,12 @@ export async function POST(req: NextRequest) {
     }
 
     // ── PASO 1: Generar SQL ──────────────────────────────────────────────────
-    const sqlGenResult = await callAnthropic(apiKey, SCHEMA_CONTEXT, message, 512);
+    // Include conversation history for context (e.g. "y el mes pasado?")
+    const sqlMessages: Array<{ role: "user" | "assistant"; content: string }> = [
+      ...recentHistory,
+      { role: "user", content: message },
+    ];
+    const sqlGenResult = await callAnthropic(apiKey, SCHEMA_CONTEXT, sqlMessages, 512);
 
     if (!sqlGenResult.text) {
       return NextResponse.json(
@@ -227,7 +235,10 @@ export async function POST(req: NextRequest) {
       const directResult = await callAnthropic(
         apiKey,
         ANSWER_CONTEXT,
-        `Pregunta: ${message}\n\nNo se requiere consultar la base de datos para responder esto.`,
+        [
+          ...recentHistory,
+          { role: "user", content: `Pregunta: ${message}\n\nNo se requiere consultar la base de datos para responder esto.` },
+        ],
         256
       );
       return NextResponse.json({
@@ -294,7 +305,10 @@ export async function POST(req: NextRequest) {
     const answerResult = await callAnthropic(
       apiKey,
       ANSWER_CONTEXT,
-      `Pregunta del usuario: "${message}"\n\n${dataContext}`,
+      [
+        ...recentHistory,
+        { role: "user", content: `Pregunta del usuario: "${message}"\n\n${dataContext}` },
+      ],
       256
     );
 

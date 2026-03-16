@@ -14,9 +14,9 @@ export const patientSchema = z.object({
   nationality: z.string().optional().or(z.literal("")),
   status: z.enum(["active", "inactive"]).default("active"),
   origin: z.string().optional().or(z.literal("")),
-  adicional_1: z.string().max(200, "Máximo 200 caracteres").optional().or(z.literal("")),
-  adicional_2: z.string().max(200, "Máximo 200 caracteres").optional().or(z.literal("")),
-  viene_desde: z.string().max(200, "Máximo 200 caracteres").optional().or(z.literal("")),
+  custom_field_1: z.string().max(200, "Máximo 200 caracteres").optional().or(z.literal("")),
+  custom_field_2: z.string().max(200, "Máximo 200 caracteres").optional().or(z.literal("")),
+  referral_source: z.string().max(200, "Máximo 200 caracteres").optional().or(z.literal("")),
   notes: z.string().max(500, "Máximo 500 caracteres").optional().or(z.literal("")),
 });
 

@@ -1,6 +1,6 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-03-12
+> **Última actualización:** 2026-03-16
 > **Versión:** 0.1.0
 > **Estado:** MVP en desarrollo activo
 
@@ -134,7 +134,7 @@
 | `appointments` | Citas: patient_name, doctor_id, office_id, service_id, date, start/end_time, status, origin, payment_method, responsible, notes, price_snapshot, meeting_url |
 | `appointment_edit_history` | Historial de cambios en citas |
 | `appointment_payments` | Pagos asociados a citas |
-| `patients` | Directorio: dni, document_type (DNI/CE/Pasaporte), first_name, last_name, phone, email, birth_date, departamento, distrito, is_foreigner, nationality, status, origin, notes |
+| `patients` | Directorio: dni, document_type (DNI/CE/Pasaporte), first_name, last_name, phone, email, birth_date, departamento, distrito, is_foreigner, nationality, status, origin, referral_source, custom_field_1, custom_field_2, notes |
 | `patient_tags` | Etiquetas/badges por paciente |
 | `patient_payments` | Pagos por paciente (puede estar linkeado a appointment) |
 | `schedule_blocks` | Bloques de tiempo no disponible en el scheduler |
@@ -179,6 +179,7 @@
 | `find_user_by_email(email)` | Busca user_id por email (para invitaciones) |
 | `is_doctor_patients_restricted(org_id)` | Verifica si la org restringe visibilidad doctor↔pacientes |
 | `get_user_org_role(org_id)` | Retorna rol del usuario en una org específica |
+| `get_admin_dashboard_stats(...)` | Dashboard admin consolidado: todas las métricas (pacientes, doctores, citas, ingresos, tratamientos, heatmap) en una sola llamada |
 | `get_retention_overview(p_date_from, p_date_to)` | KPIs de retención: pacientes totales, nuevos, recurrentes, tasa de retención |
 | `get_visit_frequency(p_date_from, p_date_to)` | Frecuencia de visita: promedio y mediana de días entre visitas |
 | `get_at_risk_patients(p_months_threshold)` | Pacientes en riesgo de abandono según umbral de meses sin visita |

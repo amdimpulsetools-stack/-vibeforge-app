@@ -82,9 +82,9 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [savingInfo, setSavingInfo] = useState(false);
 
   // Marketing fields
-  const [adicional1, setAdicional1] = useState(patient.adicional_1 ?? "");
-  const [adicional2, setAdicional2] = useState(patient.adicional_2 ?? "");
-  const [vieneDesde, setVieneDesde] = useState(patient.viene_desde ?? "");
+  const [customField1, setCustomField1] = useState(patient.custom_field_1 ?? "");
+  const [customField2, setCustomField2] = useState(patient.custom_field_2 ?? "");
+  const [referralSource, setReferralSource] = useState(patient.referral_source ?? "");
   const [savingMarketing, setSavingMarketing] = useState(false);
 
   // Payment form
@@ -136,9 +136,9 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     setInfoNationality(patient.nationality ?? "");
     setInfoNotes(patient.notes ?? "");
     setInfoStatus(patient.status ?? "active");
-    setAdicional1(patient.adicional_1 ?? "");
-    setAdicional2(patient.adicional_2 ?? "");
-    setVieneDesde(patient.viene_desde ?? "");
+    setCustomField1(patient.custom_field_1 ?? "");
+    setCustomField2(patient.custom_field_2 ?? "");
+    setReferralSource(patient.referral_source ?? "");
   }, [patient]);
 
   // Financial calculations
@@ -218,9 +218,9 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     const { error } = await supabase
       .from("patients")
       .update({
-        adicional_1: adicional1 || null,
-        adicional_2: adicional2 || null,
-        viene_desde: vieneDesde || null,
+        custom_field_1: customField1 || null,
+        custom_field_2: customField2 || null,
+        referral_source: referralSource || null,
       })
       .eq("id", patient.id);
 
@@ -831,28 +831,28 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           <div className="space-y-4">
             <div className="space-y-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium">{t("patients.adicional_1")}</label>
+                <label className="text-xs font-medium">{t("patients.custom_field_1")}</label>
                 <input
-                  value={adicional1}
-                  onChange={(e) => setAdicional1(e.target.value)}
+                  value={customField1}
+                  onChange={(e) => setCustomField1(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                   placeholder="Campo personalizado..."
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium">{t("patients.adicional_2")}</label>
+                <label className="text-xs font-medium">{t("patients.custom_field_2")}</label>
                 <input
-                  value={adicional2}
-                  onChange={(e) => setAdicional2(e.target.value)}
+                  value={customField2}
+                  onChange={(e) => setCustomField2(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                   placeholder="Campo personalizado..."
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium">{t("patients.viene_desde")}</label>
+                <label className="text-xs font-medium">{t("patients.referral_source")}</label>
                 <input
-                  value={vieneDesde}
-                  onChange={(e) => setVieneDesde(e.target.value)}
+                  value={referralSource}
+                  onChange={(e) => setReferralSource(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                   placeholder="TikTok, Instagram, Referido..."
                 />

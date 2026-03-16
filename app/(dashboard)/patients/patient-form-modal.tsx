@@ -43,9 +43,9 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
       nationality: "",
       status: "active",
       origin: "",
-      adicional_1: "",
-      adicional_2: "",
-      viene_desde: "",
+      custom_field_1: "",
+      custom_field_2: "",
+      referral_source: "",
       notes: "",
     },
   });
@@ -80,9 +80,9 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
       nationality: values.is_foreigner ? (values.nationality || null) : null,
       status: values.status,
       origin: values.origin || null,
-      adicional_1: values.adicional_1 || null,
-      adicional_2: values.adicional_2 || null,
-      viene_desde: values.viene_desde || null,
+      custom_field_1: values.custom_field_1 || null,
+      custom_field_2: values.custom_field_2 || null,
+      referral_source: values.referral_source || null,
       notes: values.notes || null,
     });
 

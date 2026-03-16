@@ -142,11 +142,11 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
       .sort((a, b) => b.value - a.value);
   }, [appointments]);
 
-  // Patient origin distribution (from patients.viene_desde)
+  // Patient origin distribution (from patients.referral_source)
   const patientOriginData = useMemo(() => {
     const map = new Map<string, number>();
     patients.forEach((p) => {
-      const origin = p.viene_desde || p.origin || "Sin origen";
+      const origin = p.referral_source || p.origin || "Sin origen";
       map.set(origin, (map.get(origin) ?? 0) + 1);
     });
     return Array.from(map.entries())

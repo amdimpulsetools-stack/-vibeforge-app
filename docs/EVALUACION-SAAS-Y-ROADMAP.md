@@ -187,17 +187,17 @@ Tienes una **base tecnica solida** (mejor que la mayoria de SaaS peruanos de sal
 
 ### Bugs / Deuda Tecnica
 
-1. **Migraciones SQL con numeracion duplicada**: Hay `003_offices.sql` y `003_plans_and_subscriptions.sql`, `004_organizations.sql` y `004_service_categories_and_services.sql`, `005_fix_rls_recursion.sql` y `005_doctors.sql`. Esto puede causar problemas de orden de ejecucion.
+1. **Migraciones SQL con numeracion duplicada** — ⚠️ NO TOCAR: Hay `003_offices.sql` y `003_plans_and_subscriptions.sql`, `004_organizations.sql` y `004_service_categories_and_services.sql`, `005_fix_rls_recursion.sql` y `005_doctors.sql`. Renombrar archivos de migraciones ya aplicadas puede romper el tracking de Supabase. Se documenta como deuda tecnica aceptada.
 
-2. **Campos en espanol mezclados con ingles**: `viene_desde`, `adicional_1`, `adicional_2` en la tabla patients. Deberian ser `referral_source`, `custom_field_1`, `custom_field_2` para consistencia.
+2. ~~**Campos en espanol mezclados con ingles**~~: ✅ RESUELTO — Migración `046_rename_spanish_patient_fields.sql` renombra `viene_desde` → `referral_source`, `adicional_1` → `custom_field_1`, `adicional_2` → `custom_field_2`. Codigo actualizado en todos los archivos (types, validations, forms, drawer, reports, AI schema, i18n, CSV export).
 
-3. **patient_name redundante en appointments**: Las citas tienen `patient_name` como texto libre Y `patient_id` como FK. Esto crea inconsistencia. Se deberia usar solo `patient_id` y resolver el nombre via join.
+3. **patient_name redundante en appointments** — ⚠️ NO ELIMINAR: Es un patron valido de denormalizacion. Se usa como fallback en notificaciones/reminders cuando no hay patient_id vinculado, permite crear citas rapidas sin paciente, y evita JOINs en 15+ vistas del scheduler y dashboards. El costo de eliminarlo (refactoring masivo) supera el beneficio.
 
-4. **AI Assistant sin historial de conversacion**: Cada pregunta es independiente. Deberia mantener contexto (al menos las ultimas 3 preguntas) para follow-ups tipo "y el mes pasado?".
+4. ~~**AI Assistant sin historial de conversacion**~~: ✅ RESUELTO — El panel ahora envia los ultimos 10 mensajes (5 intercambios) como contexto al API. El endpoint acepta `history` como parametro opcional y lo pasa a Claude para generar SQL y respuestas con contexto conversacional. Soporta follow-ups como "y el mes pasado?".
 
-5. **Scheduler carga todos los pagos**: En `fetchAppointments()` se hace `select("appointment_id, amount").not("appointment_id", "is", null)` SIN filtro de fecha. Esto carga TODOS los pagos de la historia. Con volumen, esto sera un problema de performance.
+5. ~~**Scheduler carga todos los pagos**~~: ✅ RESUELTO — `fetchAppointments()` ahora primero obtiene las citas del rango visible, luego consulta pagos SOLO para esos `appointment_id` usando `.in("appointment_id", apptIds)`. Eliminada la carga de todo el historial de pagos.
 
-6. **Dashboard server component hace 17 queries en paralelo**: Funciona ahora, pero a escala sera lento. Considerar un RPC consolidado que retorne todas las stats en una sola llamada.
+6. ~~**Dashboard server component hace 17 queries en paralelo**~~: ✅ RESUELTO — Nuevo RPC `get_admin_dashboard_stats()` (migración `047_admin_dashboard_rpc.sql`) consolida todas las métricas en una sola llamada a la base de datos. Incluye conteos, ingresos por periodo, tratamientos top, citas próximas y heatmap.
 
 ### UX que Mejorar
 

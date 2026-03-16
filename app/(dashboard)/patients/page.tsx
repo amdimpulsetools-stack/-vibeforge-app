@@ -178,9 +178,9 @@ export default function PatientsPage() {
         if (totalBilled - totalPaid <= 0) return false;
       }
 
-      // Origin filter — check patient.viene_desde, patient.origin, and appointment origins
+      // Origin filter — check patient.referral_source, patient.origin, and appointment origins
       if (origenFilter) {
-        const matchesPatient = p.viene_desde === origenFilter || p.origin === origenFilter;
+        const matchesPatient = p.referral_source === origenFilter || p.origin === origenFilter;
         const matchesAppointment = p.appointments?.some((a) => a.origin === origenFilter);
         if (!matchesPatient && !matchesAppointment) return false;
       }
@@ -232,7 +232,7 @@ export default function PatientsPage() {
         p.last_name, p.first_name, p.dni, p.document_type, p.phone, p.email,
         p.birth_date, age != null ? age : "",
         p.status, p.patient_tags.map((t) => t.tag).join("; "),
-        p.departamento, p.distrito, p.viene_desde ?? p.origin,
+        p.departamento, p.distrito, p.referral_source ?? p.origin,
         totalBilled.toFixed(2), totalPaid.toFixed(2), Math.max(0, totalBilled - totalPaid).toFixed(2),
       ];
     });

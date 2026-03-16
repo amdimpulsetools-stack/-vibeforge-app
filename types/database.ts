@@ -452,9 +452,9 @@ export interface Database {
           nationality: string | null;
           status: "active" | "inactive";
           origin: string | null;
-          adicional_1: string | null;
-          adicional_2: string | null;
-          viene_desde: string | null;
+          custom_field_1: string | null;
+          custom_field_2: string | null;
+          referral_source: string | null;
           notes: string | null;
           organization_id: string;
           created_at: string;
@@ -475,9 +475,9 @@ export interface Database {
           nationality?: string | null;
           status?: "active" | "inactive";
           origin?: string | null;
-          adicional_1?: string | null;
-          adicional_2?: string | null;
-          viene_desde?: string | null;
+          custom_field_1?: string | null;
+          custom_field_2?: string | null;
+          referral_source?: string | null;
           notes?: string | null;
           organization_id: string;
           created_at?: string;
@@ -498,9 +498,9 @@ export interface Database {
           nationality?: string | null;
           status?: "active" | "inactive";
           origin?: string | null;
-          adicional_1?: string | null;
-          adicional_2?: string | null;
-          viene_desde?: string | null;
+          custom_field_1?: string | null;
+          custom_field_2?: string | null;
+          referral_source?: string | null;
           notes?: string | null;
           organization_id?: string;
           updated_at?: string;

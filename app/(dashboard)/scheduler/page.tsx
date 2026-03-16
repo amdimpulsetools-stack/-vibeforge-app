@@ -211,34 +211,37 @@ export default function SchedulerPage() {
   // Payment totals per appointment (for visual indicators)
   const [paymentTotals, setPaymentTotals] = useState<Record<string, number>>({});
 
-  // Fetch appointments
+  // Fetch appointments + their payments (filtered by date range)
   const fetchAppointments = useCallback(async () => {
     const supabase = createClient();
     const { startDate, endDate } = getDateRange();
 
-    const [apptRes, payRes] = await Promise.all([
-      supabase
-        .from("appointments")
-        .select("*, doctors(*), offices(*), services(*)")
-        .gte("appointment_date", startDate)
-        .lte("appointment_date", endDate)
-        .neq("status", "cancelled")
-        .order("start_time"),
-      supabase
-        .from("patient_payments")
-        .select("appointment_id, amount")
-        .not("appointment_id", "is", null),
-    ]);
+    // 1. Fetch appointments for the visible date range
+    const apptRes = await supabase
+      .from("appointments")
+      .select("*, doctors(*), offices(*), services(*)")
+      .gte("appointment_date", startDate)
+      .lte("appointment_date", endDate)
+      .neq("status", "cancelled")
+      .order("start_time");
 
     const appts = (apptRes.data as AppointmentWithRelations[]) ?? [];
     setAppointments(appts);
 
-    // Aggregate payment totals per appointment
+    // 2. Fetch payments ONLY for the visible appointments (not all payments in history)
+    const apptIds = appts.map((a) => a.id);
     const totals: Record<string, number> = {};
-    const apptIds = new Set(appts.map((a) => a.id));
-    for (const p of payRes.data ?? []) {
-      if (p.appointment_id && apptIds.has(p.appointment_id)) {
-        totals[p.appointment_id] = (totals[p.appointment_id] ?? 0) + Number(p.amount);
+
+    if (apptIds.length > 0) {
+      const payRes = await supabase
+        .from("patient_payments")
+        .select("appointment_id, amount")
+        .in("appointment_id", apptIds);
+
+      for (const p of payRes.data ?? []) {
+        if (p.appointment_id) {
+          totals[p.appointment_id] = (totals[p.appointment_id] ?? 0) + Number(p.amount);
+        }
       }
     }
     setPaymentTotals(totals);

@@ -186,10 +186,16 @@ export function AiAssistantPanel() {
     setLoading(true);
 
     try {
+      // Send last 10 messages (5 exchanges) as conversation context
+      const history = messages
+        .filter((m) => m.id !== "welcome")
+        .slice(-10)
+        .map((m) => ({ role: m.role, content: m.content }));
+
       const res = await fetch("/api/ai-assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, history }),
       });
 
       const json = await res.json();

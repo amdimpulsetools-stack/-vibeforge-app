@@ -64,6 +64,15 @@ export const aiAssistantSchema = z.object({
     .string()
     .min(1, "Mensaje vacío")
     .max(1000, "Mensaje demasiado largo"),
+  history: z
+    .array(
+      z.object({
+        role: z.enum(["user", "assistant"]),
+        content: z.string().max(2000),
+      })
+    )
+    .max(10)
+    .optional(),
 });
 
 // ── Mercado Pago ─────────────────────────────────────────────────────
