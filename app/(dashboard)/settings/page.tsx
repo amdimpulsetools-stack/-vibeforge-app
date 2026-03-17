@@ -29,6 +29,7 @@ import {
   MessageSquare,
   MapPin,
   Smartphone,
+  Globe2,
 } from "lucide-react";
 import {
   loadSchedulerConfig,
@@ -42,8 +43,9 @@ import PermissionsSettingsTab from "./permissions-settings-tab";
 import WhatsAppClipboardTab from "./whatsapp-clipboard-tab";
 import WhatsAppConfigTab from "./whatsapp-config-tab";
 import WhatsAppTemplatesTab from "./whatsapp-templates-tab";
+import BookingSettingsTab from "./booking-settings-tab";
 
-type Tab = "general" | "agenda" | "correos" | "whatsapp" | "whatsapp-api" | "permisos";
+type Tab = "general" | "agenda" | "reservas" | "correos" | "whatsapp" | "whatsapp-api" | "permisos";
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
@@ -219,6 +221,7 @@ export default function SettingsPage() {
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "general", label: "General", icon: <Building2 className="h-4 w-4" /> },
     { id: "agenda", label: language === "es" ? "Agenda" : "Scheduler", icon: <CalendarDays className="h-4 w-4" /> },
+    { id: "reservas", label: language === "es" ? "Reservas" : "Booking", icon: <Globe2 className="h-4 w-4" /> },
     { id: "correos", label: language === "es" ? "Correos" : "Emails", icon: <Mail className="h-4 w-4" /> },
     { id: "whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" /> },
     { id: "whatsapp-api", label: "WA Business", icon: <Smartphone className="h-4 w-4" /> },
@@ -684,6 +687,9 @@ export default function SettingsPage() {
           </div>
         </div>
       )}
+
+      {/* ── Reservas tab ─────────────────────────────────────────────────────── */}
+      {activeTab === "reservas" && <BookingSettingsTab />}
 
       {/* ── Correos tab ──────────────────────────────────────────────────────── */}
       {activeTab === "correos" && <EmailSettingsTab />}

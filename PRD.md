@@ -281,6 +281,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 
 ```
 / ............................ Landing page (pública)
+/book/[slug] ................. Página pública de reserva de citas
 
 (auth) — Páginas públicas de autenticación
 ├── /login ................... Login (email + Google OAuth)
@@ -325,7 +326,9 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ├── /notifications/send ...... POST enviar notificación email automática
 ├── /email/send-test ......... POST enviar email de prueba
 ├── /founder ................. GET stats de plataforma
-└── /ai-assistant ............ POST chat con AI
+├── /ai-assistant ............ POST chat con AI
+├── /book/[slug] ............. GET datos públicos de reserva (doctores, servicios, horarios)
+└── /book/[slug]/create ...... POST crear cita desde página pública
 ```
 
 ---
@@ -444,13 +447,15 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Dashboard de retención de pacientes (F10)** — Tab "Retención" en reportes con 5 KPIs (recurrentes, nuevos, tasa retención, frecuencia, LTV), gráfica de tendencia mensual (nuevos vs recurrentes), gráfica de tasa de retención, tabla de pacientes en riesgo con filtro configurable (2-12 meses), ranking top 20 pacientes por LTV, exportación CSV. RPCs: `get_retention_overview`, `get_visit_frequency`, `get_at_risk_patients`, `get_patient_ltv`, `get_retention_trend`
 - [x] **WhatsApp click-to-clipboard (F6 Fase 1)** — Modal post-creación de cita con mensaje pre-formateado para copiar y pegar en WhatsApp. Plantilla configurable en Settings con 7 variables dinámicas (nombre, fecha, hora, doctor, servicio, clínica, dirección). Toggle activar/desactivar, editor de plantilla con vista previa en vivo. Persistencia en localStorage
 - [x] **Notas clínicas SOAP (F9)** — Formato SOAP (Subjetivo, Objetivo, Evaluación, Plan) integrado en el sidebar de cita. Tabla `clinical_notes` con RLS multi-tenant, una nota por cita (unique constraint). Signos vitales como JSONB (peso, talla, temperatura, PA, FC, FR, SpO₂). Diagnóstico con código CIE-10 opcional. Sistema de firma digital (is_signed) que bloquea edición. Notas internas no visibles al paciente. Solo el doctor tratante o admin puede editar. API CRUD completa con rate limiting. Validación Zod en todas las rutas. Tipos: `types/clinical-notes.ts`
+- [x] **Booking online / agenda pública (F7)** — Página pública `/book/[slug]` para que pacientes agenden citas sin cuenta. Wizard de 5 pasos: doctor → servicio → fecha/hora → datos del paciente → confirmación. Tabla `booking_settings` con configuración por org (toggle activar, días anticipación máx, horas mín de antelación, campos obligatorios, color de acento, mensaje de bienvenida). API pública `/api/book/[slug]` (GET datos) y `/api/book/[slug]/create` (POST crear cita). Validación de horarios, conflictos y schedule blocks. Creación automática de paciente. Email de confirmación. Rate limiting por IP. Tab "Reservas" en Settings con URL copiable. Tema oscuro, diseño mobile-first
+- [x] **Recordatorios automáticos por cron (F8)** — Cron job `/api/cron/reminders` ejecutado cada 30 min via Vercel Cron. Dos ventanas de recordatorio: 24h y 2h antes de la cita. Deduplicación con tabla `reminder_logs` (UNIQUE por appointment + template + canal). Soporte email (SMTP) y WhatsApp Business API. Agrupamiento por organización para reutilizar templates/settings. Variables de email: paciente, doctor, fecha, hora, servicio, clínica, teléfono. Config en `vercel.json`
 
 ### Pendiente / Por Mejorar
 - [ ] Impresión de recibo/comprobante (F3) — Requiere evaluar formato legal Perú (SUNAT)
 - [ ] Confirmación de cita desde email 1-click (F4) — Token seguro temporal
 - [ ] WhatsApp Business API (F6 Fase 2) — Envío automático vía Twilio/360dialog
-- [ ] Booking online / agenda pública (F7)
-- [ ] Recordatorios automáticos por cron (F8)
+- [x] Booking online / agenda pública (F7)
+- [x] Recordatorios automáticos por cron (F8)
 - [x] Notas clínicas por cita — formato SOAP (F9)
 - [ ] Notificaciones in-app en tiempo real (F11)
 - [ ] Consentimiento informado digital (F12) — Requisito legal Perú
