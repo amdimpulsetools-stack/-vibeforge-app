@@ -220,8 +220,7 @@ export async function GET(req: NextRequest) {
       let waClient: WhatsAppClient | null = null;
 
       if (waConfig?.access_token && waConfig?.waba_id && waConfig?.phone_number_id && template) {
-        const sendWa = template.channel === "whatsapp" || template.channel === "both";
-        if (sendWa) {
+        if (template.wa_enabled) {
           const { data: waT } = await supabase
             .from("whatsapp_templates")
             .select("*")

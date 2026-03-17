@@ -172,9 +172,8 @@ export async function POST(req: NextRequest) {
   });
 
   // 9. Determine which channels to send on
-  const channel = template.channel as "email" | "whatsapp" | "both";
-  const sendEmail = channel === "email" || channel === "both";
-  const sendWhatsApp = channel === "whatsapp" || channel === "both";
+  const sendEmail = true; // Email always sent if template is enabled
+  const sendWhatsApp = !!template.wa_enabled;
 
   const results: { email?: { success: boolean; messageId?: string }; whatsapp?: { success: boolean; wamid?: string } } = {};
 

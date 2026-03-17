@@ -28,6 +28,7 @@ import {
   UserCheck,
   Megaphone,
   CalendarCheck,
+  MessageCircle,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -52,6 +53,7 @@ interface EmailTemplate {
   subject: string;
   body: string;
   is_enabled: boolean;
+  wa_enabled: boolean;
   channel: "email" | "whatsapp" | "both";
   timing_value: number | null;
   timing_unit: string | null;
@@ -279,6 +281,25 @@ export default function EmailSettingsTab() {
                   prev.map((t) =>
                     t.id === template.id
                       ? { ...t, is_enabled: !t.is_enabled }
+                      : t
+                  )
+                );
+              }}
+              onToggleWa={async (template) => {
+                if (!isOrgAdmin || isTemplateLocked(template)) return;
+                const supabase = createClient();
+                const { error } = await supabase
+                  .from("email_templates")
+                  .update({ wa_enabled: !template.wa_enabled })
+                  .eq("id", template.id);
+                if (error) {
+                  toast.error(t("email.save_template_error"));
+                  return;
+                }
+                setTemplates((prev) =>
+                  prev.map((t) =>
+                    t.id === template.id
+                      ? { ...t, wa_enabled: !t.wa_enabled }
                       : t
                   )
                 );
@@ -589,6 +610,7 @@ function TemplateCategoryGroup({
   isAdmin,
   onEdit,
   onToggle,
+  onToggleWa,
 }: {
   category: TemplateCategory;
   templates: EmailTemplate[];
@@ -596,6 +618,7 @@ function TemplateCategoryGroup({
   isAdmin: boolean;
   onEdit: (t: EmailTemplate) => void;
   onToggle: (t: EmailTemplate) => void;
+  onToggleWa: (t: EmailTemplate) => void;
 }) {
   const { t } = useLanguage();
 
@@ -618,6 +641,7 @@ function TemplateCategoryGroup({
               isAdmin={isAdmin}
               onEdit={() => onEdit(template)}
               onToggle={() => onToggle(template)}
+              onToggleWa={() => onToggleWa(template)}
             />
           );
         })}
@@ -634,12 +658,14 @@ function TemplateRow({
   isAdmin,
   onEdit,
   onToggle,
+  onToggleWa,
 }: {
   template: EmailTemplate;
   locked: boolean;
   isAdmin: boolean;
   onEdit: () => void;
   onToggle: () => void;
+  onToggleWa: () => void;
 }) {
   const { t } = useLanguage();
 
@@ -674,6 +700,23 @@ function TemplateRow({
         ) : (
           <ToggleLeft className="h-6 w-6 text-muted-foreground" />
         )}
+      </button>
+
+      {/* WhatsApp toggle */}
+      <button
+        type="button"
+        onClick={onToggleWa}
+        disabled={!isAdmin || locked}
+        className="shrink-0 disabled:cursor-not-allowed"
+        title={template.wa_enabled ? "WhatsApp activado" : "WhatsApp desactivado"}
+      >
+        <MessageCircle
+          className={`h-5 w-5 transition-colors ${
+            template.wa_enabled && !locked
+              ? "text-emerald-500"
+              : "text-muted-foreground/40"
+          }`}
+        />
       </button>
 
       {/* Info */}
@@ -741,6 +784,7 @@ function TemplateEditor({
     subject: template.subject,
     body: template.body,
     is_enabled: template.is_enabled,
+    wa_enabled: template.wa_enabled,
     channel: template.channel,
     timing_value: template.timing_value,
     timing_unit: template.timing_unit,
@@ -759,6 +803,7 @@ function TemplateEditor({
         subject: form.subject,
         body: form.body,
         is_enabled: form.is_enabled,
+        wa_enabled: form.wa_enabled,
         channel: form.channel,
         timing_value: form.timing_value,
         timing_unit: form.timing_unit,
@@ -832,7 +877,7 @@ function TemplateEditor({
           )}
         </div>
 
-        {/* Toggle + Channel + Timing row */}
+        {/* Toggle + WA + Timing row */}
         <div className="grid gap-4 sm:grid-cols-3">
           {/* Enabled toggle */}
           <div className="space-y-1.5">
@@ -856,24 +901,30 @@ function TemplateEditor({
             </label>
           </div>
 
-          {/* Channel */}
+          {/* WhatsApp toggle */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">{t("email.channel")}</label>
-            <select
-              value={form.channel}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  channel: e.target.value as "email" | "whatsapp" | "both",
-                })
-              }
-              disabled={isLocked}
-              className={selectClass + " w-full"}
-            >
-              <option value="email">{t("email.channel_email")}</option>
-              <option value="whatsapp">{t("email.channel_whatsapp")}</option>
-              <option value="both">{t("email.channel_both")}</option>
-            </select>
+            <label className="text-sm font-medium flex items-center gap-1.5">
+              <MessageCircle className="h-3.5 w-3.5" />
+              WhatsApp
+            </label>
+            <label className="flex items-center gap-2 select-none cursor-pointer">
+              <div className="relative shrink-0">
+                <input
+                  type="checkbox"
+                  checked={form.wa_enabled}
+                  onChange={(e) =>
+                    setForm({ ...form, wa_enabled: e.target.checked })
+                  }
+                  disabled={isLocked}
+                  className="sr-only peer"
+                />
+                <div className="h-6 w-11 rounded-full bg-muted peer-checked:bg-emerald-500 transition-colors" />
+                <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {form.wa_enabled ? "Activado" : "Desactivado"}
+              </span>
+            </label>
           </div>
 
           {/* Timing */}
