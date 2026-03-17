@@ -68,7 +68,7 @@ export default function PermissionsSettingsTab() {
   }
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-5xl space-y-6">
       {/* Section header */}
       <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-6">
         <div className="flex items-center gap-2">
