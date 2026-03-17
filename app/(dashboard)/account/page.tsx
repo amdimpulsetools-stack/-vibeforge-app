@@ -37,6 +37,7 @@ import {
   UserCheck,
   CalendarDays,
   HardDrive,
+  Plus,
   type LucideIcon,
 } from "lucide-react";
 
@@ -266,8 +267,9 @@ export default function AccountPage() {
       </div>
 
       {/* TOP ROW: User info + Plan — side by side */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* LEFT: Avatar + personal data form */}
+      <div className="grid gap-6 lg:grid-cols-2 items-start">
+        {/* LEFT: Avatar + personal data + password */}
+        <div className="space-y-6">
         <form
           onSubmit={handleSubmit(onSubmitProfile)}
           className="rounded-2xl border border-border/60 bg-card p-6 space-y-5"
@@ -388,74 +390,6 @@ export default function AccountPage() {
           </button>
         </form>
 
-        {/* RIGHT: Role & Organization Info */}
-        <div className="space-y-6">
-          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">Mi cuenta</h2>
-            </div>
-
-            {/* Founder badge */}
-            {isFounder && (
-              <div className="flex items-center gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
-                  <Crown className="h-5 w-5 text-amber-500" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-amber-500">Founder</p>
-                  <p className="text-xs text-muted-foreground">
-                    Acceso completo a la plataforma
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Organization role */}
-            {orgRole && (
-              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
-                <div className="flex items-center gap-3">
-                  {(() => {
-                    const RoleIcon = ORG_ROLE_LABELS[orgRole]?.icon ?? Users;
-                    return <RoleIcon className="h-4 w-4 text-muted-foreground" />;
-                  })()}
-                  <span className="text-sm text-muted-foreground">Rol en organización</span>
-                </div>
-                <span className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium",
-                  ORG_ROLE_LABELS[orgRole]?.color ?? "bg-muted text-muted-foreground"
-                )}>
-                  {ORG_ROLE_LABELS[orgRole]?.label ?? orgRole}
-                </span>
-              </div>
-            )}
-
-            {/* Organization name */}
-            {organization && (
-              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
-                <div className="flex items-center gap-3">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Organización</span>
-                </div>
-                <span className="text-sm font-medium">{organization.name}</span>
-              </div>
-            )}
-
-            {/* Plan & Subscription — only for owner/admin */}
-            {isOrgAdmin && (
-              <PlanSection
-                plan={plan}
-                subscription={subscription}
-                usage={usage}
-                daysRemaining={daysRemaining}
-                getLimit={getLimit}
-                isNearLimit={isNearLimit}
-                isAtLimit={isAtLimit}
-                loading={planLoading}
-              />
-            )}
-          </div>
-
           {/* Password form */}
           <form
             onSubmit={handleSubmitPwd(onSubmitPassword)}
@@ -526,6 +460,75 @@ export default function AccountPage() {
               {t("account.change_password")}
             </button>
           </form>
+        </div>
+
+        {/* RIGHT: Role & Organization Info */}
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
+            <div className="flex items-center gap-2">
+              <Building2 className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-semibold">Mi cuenta</h2>
+            </div>
+
+            {/* Founder badge */}
+            {isFounder && (
+              <div className="flex items-center gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
+                  <Crown className="h-5 w-5 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-amber-500">Founder</p>
+                  <p className="text-xs text-muted-foreground">
+                    Acceso completo a la plataforma
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Organization role */}
+            {orgRole && (
+              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
+                <div className="flex items-center gap-3">
+                  {(() => {
+                    const RoleIcon = ORG_ROLE_LABELS[orgRole]?.icon ?? Users;
+                    return <RoleIcon className="h-4 w-4 text-muted-foreground" />;
+                  })()}
+                  <span className="text-sm text-muted-foreground">Rol en organización</span>
+                </div>
+                <span className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium",
+                  ORG_ROLE_LABELS[orgRole]?.color ?? "bg-muted text-muted-foreground"
+                )}>
+                  {ORG_ROLE_LABELS[orgRole]?.label ?? orgRole}
+                </span>
+              </div>
+            )}
+
+            {/* Organization name */}
+            {organization && (
+              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
+                <div className="flex items-center gap-3">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Organización</span>
+                </div>
+                <span className="text-sm font-medium">{organization.name}</span>
+              </div>
+            )}
+
+            {/* Plan & Subscription — only for owner/admin */}
+            {isOrgAdmin && (
+              <PlanSection
+                plan={plan}
+                subscription={subscription}
+                usage={usage}
+                daysRemaining={daysRemaining}
+                getLimit={getLimit}
+                isNearLimit={isNearLimit}
+                isAtLimit={isAtLimit}
+                loading={planLoading}
+              />
+            )}
+          </div>
         </div>
       </div>
 
@@ -635,10 +638,12 @@ function PlanSection({
     label: string;
     icon: LucideIcon;
     iconColor: string;
+    addHref?: string;
+    addLabel?: string;
   }[] = [
-    { key: "doctors", label: "Doctores / Especialistas", icon: Stethoscope, iconColor: "text-purple-400" },
-    { key: "receptionists", label: "Recepcionistas", icon: UserCheck, iconColor: "text-emerald-400" },
-    { key: "offices", label: "Consultorios", icon: DoorOpen, iconColor: "text-blue-400" },
+    { key: "doctors", label: "Doctores / Especialistas", icon: Stethoscope, iconColor: "text-purple-400", addHref: "/admin/doctors/new", addLabel: "Añadir doctor" },
+    { key: "receptionists", label: "Recepcionistas", icon: UserCheck, iconColor: "text-emerald-400", addHref: "/admin/members", addLabel: "Añadir recepcionista" },
+    { key: "offices", label: "Consultorios", icon: DoorOpen, iconColor: "text-blue-400", addHref: "/admin/offices", addLabel: "Añadir consultorio" },
     { key: "patients", label: "Pacientes", icon: Users, iconColor: "text-sky-400" },
     { key: "appointments_this_month", label: "Citas este mes", icon: CalendarDays, iconColor: "text-amber-400" },
   ];
@@ -723,7 +728,7 @@ function PlanSection({
           </div>
 
           <div className="space-y-3">
-            {resources.map(({ key, label, icon: Icon, iconColor }) => {
+            {resources.map(({ key, label, icon: Icon, iconColor, addHref, addLabel }) => {
               const current = usage[key];
               const limit = getLimit(key);
               const atLimit = isAtLimit(key);
@@ -743,21 +748,32 @@ function PlanSection({
                         {label}
                       </span>
                     </div>
-                    <span
-                      className={cn(
-                        "text-xs font-semibold tabular-nums",
-                        atLimit
-                          ? "text-red-400"
-                          : nearLimit
-                            ? "text-amber-400"
-                            : "text-foreground"
+                    <div className="flex items-center gap-2">
+                      {addHref && !atLimit && (
+                        <a
+                          href={addHref}
+                          title={addLabel}
+                          className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </a>
                       )}
-                    >
-                      {current}
-                      <span className="text-muted-foreground font-normal">
-                        /{isUnlimited ? "\u221E" : limit}
+                      <span
+                        className={cn(
+                          "text-xs font-semibold tabular-nums",
+                          atLimit
+                            ? "text-red-400"
+                            : nearLimit
+                              ? "text-amber-400"
+                              : "text-foreground"
+                        )}
+                      >
+                        {current}
+                        <span className="text-muted-foreground font-normal">
+                          /{isUnlimited ? "\u221E" : limit}
+                        </span>
                       </span>
-                    </span>
+                    </div>
                   </div>
                   <div className="h-1.5 rounded-full bg-muted/40 overflow-hidden">
                     <div
