@@ -19,6 +19,7 @@ import {
 } from "@/lib/validations/account";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useBilling } from "@/hooks/use-billing";
 import {
   Loader2,
   User,
@@ -38,6 +39,9 @@ import {
   CalendarDays,
   HardDrive,
   Plus,
+  Minus,
+  X,
+  ShoppingCart,
   type LucideIcon,
 } from "lucide-react";
 
@@ -52,7 +56,7 @@ export default function AccountPage() {
   const { user, loading: userLoading } = useUser();
   const { t } = useLanguage();
   const { organization, orgRole, isOrgAdmin } = useOrganization();
-  const { plan, subscription, usage, daysRemaining, getLimit, isNearLimit, isAtLimit, loading: planLoading } = usePlan();
+  const { plan, subscription, usage, daysRemaining, getLimit, isNearLimit, isAtLimit, loading: planLoading, refetch } = usePlan();
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [isFounder, setIsFounder] = useState(false);
@@ -526,6 +530,7 @@ export default function AccountPage() {
                 isNearLimit={isNearLimit}
                 isAtLimit={isAtLimit}
                 loading={planLoading}
+                onRefetchPlan={refetch}
               />
             )}
           </div>
@@ -543,6 +548,202 @@ export default function AccountPage() {
         <button className="rounded-xl border border-destructive/30 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors">
           {t("account.delete_account")}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Add-on Purchase Modal ─── */
+
+interface AddonConfig {
+  resourceKey: keyof OrgUsage;
+  label: string;
+  unitLabel: string;
+  icon: LucideIcon;
+  iconColor: string;
+  addonType: "extra_member" | "extra_office";
+  /** Hardcoded price per unit (PEN) — will be replaced by plan pricing later */
+  price: number;
+}
+
+const ADDON_CONFIG: Record<string, AddonConfig> = {
+  doctors: {
+    resourceKey: "doctors",
+    label: "Doctores / Especialistas",
+    unitLabel: "doctor",
+    icon: Stethoscope,
+    iconColor: "text-purple-400",
+    addonType: "extra_member",
+    price: 20,
+  },
+  receptionists: {
+    resourceKey: "receptionists",
+    label: "Recepcionistas",
+    unitLabel: "recepcionista",
+    icon: UserCheck,
+    iconColor: "text-emerald-400",
+    addonType: "extra_member",
+    price: 15,
+  },
+  offices: {
+    resourceKey: "offices",
+    label: "Consultorios",
+    unitLabel: "consultorio",
+    icon: DoorOpen,
+    iconColor: "text-blue-400",
+    addonType: "extra_office",
+    price: 20,
+  },
+};
+
+function AddonPurchaseModal({
+  config,
+  currentUsage,
+  currentLimit,
+  onClose,
+  onSuccess,
+}: {
+  config: AddonConfig;
+  currentUsage: number;
+  currentLimit: number;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [quantity, setQuantity] = useState(1);
+  const [purchasing, setPurchasing] = useState(false);
+  const { addAddon } = useBilling();
+
+  const Icon = config.icon;
+  const totalCost = config.price * quantity;
+  const newLimit = currentLimit + quantity;
+
+  const handlePurchase = async () => {
+    setPurchasing(true);
+    const result = await addAddon(config.addonType, quantity);
+    setPurchasing(false);
+
+    if (result.success) {
+      toast.success(
+        `Se añadieron ${quantity} ${quantity === 1 ? config.unitLabel : config.unitLabel + "s"} extra a tu plan.`
+      );
+      onSuccess();
+      onClose();
+    } else {
+      toast.error(result.message || "Error al procesar la compra");
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div className="mx-4 w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <div className="flex items-center gap-2.5">
+            <div className={cn("rounded-lg bg-primary/10 p-1.5")}>
+              <ShoppingCart className="h-4 w-4 text-primary" />
+            </div>
+            <h3 className="text-sm font-semibold">Añadir cupos extra</h3>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="px-5 py-4 space-y-5">
+          {/* Resource info */}
+          <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-3">
+            <Icon className={cn("h-5 w-5", config.iconColor)} />
+            <div className="flex-1">
+              <p className="text-sm font-medium">{config.label}</p>
+              <p className="text-xs text-muted-foreground">
+                Usando {currentUsage} de {currentLimit} disponibles
+              </p>
+            </div>
+            <span className="text-xs font-semibold text-red-400">Lleno</span>
+          </div>
+
+          {/* Price per unit */}
+          <div className="text-center space-y-1">
+            <p className="text-xs text-muted-foreground">Precio por cada {config.unitLabel} extra</p>
+            <p className="text-2xl font-bold">
+              S/{config.price}
+              <span className="text-sm font-normal text-muted-foreground">/mes</span>
+            </p>
+          </div>
+
+          {/* Quantity selector */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">Cantidad de cupos a añadir</label>
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                disabled={quantity <= 1}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              <span className="text-2xl font-bold tabular-nums w-10 text-center">
+                {quantity}
+              </span>
+              <button
+                onClick={() => setQuantity(Math.min(10, quantity + 1))}
+                disabled={quantity >= 10}
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Summary */}
+          <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                {quantity} {config.unitLabel}{quantity > 1 ? "s" : ""} × S/{config.price}/mes
+              </span>
+              <span className="font-medium">S/{totalCost}/mes</span>
+            </div>
+            <div className="border-t border-border/40 pt-2 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">Nuevo límite</span>
+              <span className="font-semibold text-primary">
+                {currentLimit} → {newLimit}
+              </span>
+            </div>
+          </div>
+
+          {/* Info text */}
+          <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+            El costo se añadirá a tu facturación mensual de manera recurrente.
+            Puedes cancelar los add-ons en cualquier momento.
+          </p>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-2 border-t border-border px-5 py-4">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-border px-4 py-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handlePurchase}
+            disabled={purchasing}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
+          >
+            {purchasing ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Procesando...
+              </>
+            ) : (
+              <>Confirmar — S/{totalCost}/mes</>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -573,6 +774,7 @@ function PlanSection({
   isNearLimit,
   isAtLimit,
   loading,
+  onRefetchPlan,
 }: {
   plan: ReturnType<typeof usePlan>["plan"];
   subscription: ReturnType<typeof usePlan>["subscription"];
@@ -582,7 +784,9 @@ function PlanSection({
   isNearLimit: ReturnType<typeof usePlan>["isNearLimit"];
   isAtLimit: ReturnType<typeof usePlan>["isAtLimit"];
   loading: boolean;
+  onRefetchPlan: () => void;
 }) {
+  const [addonModal, setAddonModal] = useState<string | null>(null);
   if (loading) {
     return (
       <div className="rounded-xl border border-border/60 bg-background p-4">
@@ -640,10 +844,12 @@ function PlanSection({
     iconColor: string;
     addHref?: string;
     addLabel?: string;
+    /** Key in ADDON_CONFIG — enables the "buy add-on" modal when at limit */
+    addonKey?: string;
   }[] = [
-    { key: "doctors", label: "Doctores / Especialistas", icon: Stethoscope, iconColor: "text-purple-400", addHref: "/admin/doctors/new", addLabel: "Añadir doctor" },
-    { key: "receptionists", label: "Recepcionistas", icon: UserCheck, iconColor: "text-emerald-400", addHref: "/admin/members", addLabel: "Añadir recepcionista" },
-    { key: "offices", label: "Consultorios", icon: DoorOpen, iconColor: "text-blue-400", addHref: "/admin/offices", addLabel: "Añadir consultorio" },
+    { key: "doctors", label: "Doctores / Especialistas", icon: Stethoscope, iconColor: "text-purple-400", addHref: "/admin/doctors/new", addLabel: "Añadir doctor", addonKey: "doctors" },
+    { key: "receptionists", label: "Recepcionistas", icon: UserCheck, iconColor: "text-emerald-400", addHref: "/admin/members", addLabel: "Añadir recepcionista", addonKey: "receptionists" },
+    { key: "offices", label: "Consultorios", icon: DoorOpen, iconColor: "text-blue-400", addHref: "/admin/offices", addLabel: "Añadir consultorio", addonKey: "offices" },
     { key: "patients", label: "Pacientes", icon: Users, iconColor: "text-sky-400" },
     { key: "appointments_this_month", label: "Citas este mes", icon: CalendarDays, iconColor: "text-amber-400" },
   ];
@@ -728,7 +934,7 @@ function PlanSection({
           </div>
 
           <div className="space-y-3">
-            {resources.map(({ key, label, icon: Icon, iconColor, addHref, addLabel }) => {
+            {resources.map(({ key, label, icon: Icon, iconColor, addHref, addLabel, addonKey }) => {
               const current = usage[key];
               const limit = getLimit(key);
               const atLimit = isAtLimit(key);
@@ -738,6 +944,7 @@ function PlanSection({
                   ? Math.min(100, Math.round((current / limit) * 100))
                   : 0;
               const isUnlimited = limit === null;
+              const hasAddon = !!addonKey && !!ADDON_CONFIG[addonKey] && plan.slug !== "independiente";
 
               return (
                 <div key={key} className="space-y-1.5">
@@ -749,6 +956,7 @@ function PlanSection({
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
+                      {/* Not at limit: navigate to add page */}
                       {addHref && !atLimit && (
                         <a
                           href={addHref}
@@ -757,6 +965,16 @@ function PlanSection({
                         >
                           <Plus className="h-3 w-3" />
                         </a>
+                      )}
+                      {/* At limit + addon available: open purchase modal */}
+                      {atLimit && hasAddon && (
+                        <button
+                          onClick={() => setAddonModal(addonKey)}
+                          title={`Comprar más ${label.toLowerCase()}`}
+                          className="flex h-5 w-5 items-center justify-center rounded-md bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
                       )}
                       <span
                         className={cn(
@@ -796,6 +1014,17 @@ function PlanSection({
               );
             })}
           </div>
+
+          {/* Add-on purchase modal */}
+          {addonModal && ADDON_CONFIG[addonModal] && usage && (
+            <AddonPurchaseModal
+              config={ADDON_CONFIG[addonModal]}
+              currentUsage={usage[ADDON_CONFIG[addonModal].resourceKey]}
+              currentLimit={getLimit(ADDON_CONFIG[addonModal].resourceKey) ?? 0}
+              onClose={() => setAddonModal(null)}
+              onSuccess={onRefetchPlan}
+            />
+          )}
         </div>
       )}
     </div>
