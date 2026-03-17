@@ -281,7 +281,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 rounded-xl border border-border bg-muted/30 p-1 max-w-5xl">
+      <div className="flex gap-1 rounded-xl border border-border bg-muted/30 p-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -300,7 +300,7 @@ export default function SettingsPage() {
 
       {/* ── General tab ──────────────────────────────────────────────────────── */}
       {activeTab === "general" && (
-        <div className="max-w-5xl space-y-6">
+        <div className="space-y-6">
           {/* Organization profile */}
           <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
             <div className="flex items-center gap-2">
@@ -530,7 +530,7 @@ export default function SettingsPage() {
 
       {/* ── Agenda tab ───────────────────────────────────────────────────────── */}
       {activeTab === "agenda" && (
-        <div className="max-w-5xl space-y-6">
+        <div className="space-y-6">
           <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-6">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-primary" />
@@ -693,7 +693,7 @@ export default function SettingsPage() {
 
       {/* ── WhatsApp Business API tab ──────────────────────────────────────── */}
       {activeTab === "whatsapp-api" && (
-        <div className="max-w-5xl space-y-6">
+        <div className="space-y-6">
           <WhatsAppConfigTab />
           <WhatsAppTemplatesTab />
         </div>

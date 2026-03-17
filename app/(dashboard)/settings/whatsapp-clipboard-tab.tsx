@@ -75,7 +75,7 @@ export default function WhatsAppClipboardTab() {
   });
 
   return (
-    <div className="max-w-5xl space-y-6">
+    <div className="space-y-6">
       {/* Enable/disable toggle */}
       <div className="rounded-2xl border border-border/60 bg-card p-6">
         <label className="flex items-center justify-between select-none cursor-pointer">
