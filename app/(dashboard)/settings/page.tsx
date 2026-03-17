@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   MessageSquare,
   MapPin,
+  Smartphone,
 } from "lucide-react";
 import {
   loadSchedulerConfig,
@@ -39,8 +40,10 @@ import {
 import EmailSettingsTab from "./email-settings-tab";
 import PermissionsSettingsTab from "./permissions-settings-tab";
 import WhatsAppClipboardTab from "./whatsapp-clipboard-tab";
+import WhatsAppConfigTab from "./whatsapp-config-tab";
+import WhatsAppTemplatesTab from "./whatsapp-templates-tab";
 
-type Tab = "general" | "agenda" | "correos" | "whatsapp" | "permisos";
+type Tab = "general" | "agenda" | "correos" | "whatsapp" | "whatsapp-api" | "permisos";
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
@@ -218,6 +221,7 @@ export default function SettingsPage() {
     { id: "agenda", label: language === "es" ? "Agenda" : "Scheduler", icon: <CalendarDays className="h-4 w-4" /> },
     { id: "correos", label: language === "es" ? "Correos" : "Emails", icon: <Mail className="h-4 w-4" /> },
     { id: "whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" /> },
+    { id: "whatsapp-api", label: "WA Business", icon: <Smartphone className="h-4 w-4" /> },
     { id: "permisos", label: language === "es" ? "Permisos" : "Permissions", icon: <Shield className="h-4 w-4" /> },
   ];
 
@@ -686,6 +690,14 @@ export default function SettingsPage() {
 
       {/* ── WhatsApp tab ─────────────────────────────────────────────────────── */}
       {activeTab === "whatsapp" && <WhatsAppClipboardTab />}
+
+      {/* ── WhatsApp Business API tab ──────────────────────────────────────── */}
+      {activeTab === "whatsapp-api" && (
+        <div className="max-w-4xl space-y-6">
+          <WhatsAppConfigTab />
+          <WhatsAppTemplatesTab />
+        </div>
+      )}
 
       {/* ── Permisos tab ─────────────────────────────────────────────────────── */}
       {activeTab === "permisos" && <PermissionsSettingsTab />}

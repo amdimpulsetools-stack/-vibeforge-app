@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildEmailHtml } from "@/lib/email-template";
 import nodemailer from "nodemailer";
+import { WhatsAppClient } from "@/lib/whatsapp/client";
+import { sendWhatsAppMessage, resolveVariableValues } from "@/lib/whatsapp/send";
+import type { WhatsAppTemplate } from "@/lib/whatsapp/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // Allow up to 60s for processing all orgs
@@ -204,6 +207,40 @@ export async function GET(req: NextRequest) {
       const logoUrl = emailSettings?.email_logo_url || null;
       const clinicName = org?.name || emailSettings?.sender_name || "VibeForge";
 
+      // Check if WhatsApp is configured for this org
+      const { data: waConfig } = await supabase
+        .from("whatsapp_config")
+        .select("*")
+        .eq("organization_id", orgId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      // Find the approved WA template linked to this reminder template
+      let waTemplate: WhatsAppTemplate | null = null;
+      let waClient: WhatsAppClient | null = null;
+
+      if (waConfig?.access_token && waConfig?.waba_id && waConfig?.phone_number_id && template) {
+        const sendWa = template.channel === "whatsapp" || template.channel === "both";
+        if (sendWa) {
+          const { data: waT } = await supabase
+            .from("whatsapp_templates")
+            .select("*")
+            .eq("organization_id", orgId)
+            .eq("local_template_id", template.id)
+            .eq("status", "APPROVED")
+            .maybeSingle();
+
+          if (waT) {
+            waTemplate = waT as unknown as WhatsAppTemplate;
+            waClient = new WhatsAppClient({
+              accessToken: waConfig.access_token,
+              wabaId: waConfig.waba_id,
+              phoneNumberId: waConfig.phone_number_id,
+            });
+          }
+        }
+      }
+
       for (const appt of orgAppointments) {
         const patient = appt.patients as any;
         const patientEmail = patient?.email || null;
@@ -292,11 +329,11 @@ export async function GET(req: NextRequest) {
           );
 
           sent++;
-        } catch (err) {
+        } catch (emailErr) {
           const errorMsg =
-            err instanceof Error ? err.message : "Unknown error";
+            emailErr instanceof Error ? emailErr.message : "Unknown error";
           console.error(
-            `[Cron Reminders] Failed to send to ${patientEmail}:`,
+            `[Cron Reminders] Failed to send email to ${patientEmail}:`,
             errorMsg
           );
 
@@ -313,6 +350,75 @@ export async function GET(req: NextRequest) {
           );
 
           failed++;
+        }
+
+        // Send WhatsApp reminder if configured
+        if (waClient && waTemplate) {
+          const recipientPhone = patient?.phone || appt.patient_phone;
+          if (recipientPhone) {
+            // Check if WA reminder already sent
+            const { data: existingWaLog } = await supabase
+              .from("reminder_logs")
+              .select("id")
+              .eq("appointment_id", appt.id)
+              .eq("template_slug", window.slug)
+              .eq("channel", "whatsapp")
+              .eq("status", "sent")
+              .maybeSingle();
+
+            if (!existingWaLog) {
+              try {
+                const waVariableData: Record<string, string> = {
+                  paciente_nombre: patientName || "",
+                  fecha_cita: formattedDate,
+                  hora_cita: appt.start_time?.slice(0, 5) || "",
+                  servicio: service?.name || "",
+                  doctor_nombre: doctor?.full_name || "",
+                  clinica_nombre: clinicName,
+                  clinica_telefono: clinicPhoneVar?.current_value || "",
+                };
+
+                const variableValues = resolveVariableValues(waTemplate, waVariableData);
+                const { wamid } = await sendWhatsAppMessage(waClient, waTemplate, recipientPhone, variableValues);
+
+                await supabase.from("whatsapp_message_logs").insert({
+                  organization_id: orgId,
+                  template_id: waTemplate.id,
+                  recipient_phone: recipientPhone,
+                  patient_id: appt.patient_id || null,
+                  appointment_id: appt.id,
+                  wamid,
+                  status: "sent",
+                });
+
+                await supabase.from("reminder_logs").upsert(
+                  {
+                    appointment_id: appt.id,
+                    template_slug: window.slug,
+                    channel: "whatsapp",
+                    recipient: recipientPhone,
+                    status: "sent",
+                  },
+                  { onConflict: "appointment_id,template_slug,channel" }
+                );
+              } catch (waErr) {
+                const waErrorMsg = waErr instanceof Error ? waErr.message : "WhatsApp error";
+                console.error(`[Cron Reminders] WA failed for ${recipientPhone}:`, waErrorMsg);
+
+                await supabase.from("reminder_logs").upsert(
+                  {
+                    appointment_id: appt.id,
+                    template_slug: window.slug,
+                    channel: "whatsapp",
+                    recipient: recipientPhone,
+                    status: "failed",
+                    error_message: waErrorMsg,
+                  },
+                  { onConflict: "appointment_id,template_slug,channel" }
+                );
+              }
+            }
+          }
         }
       }
 

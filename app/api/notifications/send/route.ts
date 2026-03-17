@@ -4,6 +4,9 @@ import { buildEmailHtml } from "@/lib/email-template";
 import { parseBody } from "@/lib/api-utils";
 import { sendNotificationSchema } from "@/lib/validations/api";
 import nodemailer from "nodemailer";
+import { WhatsAppClient } from "@/lib/whatsapp/client";
+import { sendWhatsAppMessage, resolveVariableValues } from "@/lib/whatsapp/send";
+import type { WhatsAppTemplate } from "@/lib/whatsapp/types";
 
 export const runtime = "nodejs";
 
@@ -168,43 +171,136 @@ export async function POST(req: NextRequest) {
     clinicName,
   });
 
-  // 9. Send email
-  try {
-    const port = Number(process.env.SMTP_PORT) || 587;
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port,
-      secure: port === 465,
-      auth: { user: smtpUser, pass: smtpPass },
-      tls: { rejectUnauthorized: false },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
+  // 9. Determine which channels to send on
+  const channel = template.channel as "email" | "whatsapp" | "both";
+  const sendEmail = channel === "email" || channel === "both";
+  const sendWhatsApp = channel === "whatsapp" || channel === "both";
 
-    const fromAddress = process.env.SMTP_FROM || smtpUser;
-    const fromName = emailSettings?.sender_name || clinicName;
-    const replyTo = emailSettings?.reply_to_email || undefined;
+  const results: { email?: { success: boolean; messageId?: string }; whatsapp?: { success: boolean; wamid?: string } } = {};
 
-    const info = await transporter.sendMail({
-      from: `${fromName} <${fromAddress}>`,
-      replyTo,
-      to: patientEmail,
-      subject,
-      html,
-    });
+  // 9a. Send email
+  if (sendEmail && patientEmail && smtpHost && smtpUser && smtpPass) {
+    try {
+      const port = Number(process.env.SMTP_PORT) || 587;
+      const transporter = nodemailer.createTransport({
+        host: smtpHost,
+        port,
+        secure: port === 465,
+        auth: { user: smtpUser, pass: smtpPass },
+        tls: { rejectUnauthorized: false },
+        connectionTimeout: 10000,
+        greetingTimeout: 10000,
+        socketTimeout: 15000,
+      });
 
-    return NextResponse.json({
-      success: true,
-      messageId: info.messageId,
-      to: patientEmail,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido";
-    console.error("[Notification SMTP Error]", message);
+      const fromAddress = process.env.SMTP_FROM || smtpUser;
+      const fromName = emailSettings?.sender_name || clinicName;
+      const replyTo = emailSettings?.reply_to_email || undefined;
+
+      const info = await transporter.sendMail({
+        from: `${fromName} <${fromAddress}>`,
+        replyTo,
+        to: patientEmail,
+        subject,
+        html,
+      });
+
+      results.email = { success: true, messageId: info.messageId };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error desconocido";
+      console.error("[Notification SMTP Error]", message);
+      results.email = { success: false };
+    }
+  }
+
+  // 9b. Send WhatsApp
+  if (sendWhatsApp) {
+    const recipientPhone = patient?.phone || appointment.patient_phone;
+
+    if (recipientPhone) {
+      try {
+        // Fetch WhatsApp config for this org
+        const { data: waConfig } = await supabase
+          .from("whatsapp_config")
+          .select("*")
+          .eq("organization_id", orgId)
+          .eq("is_active", true)
+          .single();
+
+        if (waConfig?.access_token && waConfig?.waba_id && waConfig?.phone_number_id) {
+          // Find the corresponding approved WA template
+          const { data: waTemplate } = await supabase
+            .from("whatsapp_templates")
+            .select("*")
+            .eq("organization_id", orgId)
+            .eq("local_template_id", template.id)
+            .eq("status", "APPROVED")
+            .single();
+
+          if (waTemplate) {
+            const client = new WhatsAppClient({
+              accessToken: waConfig.access_token,
+              wabaId: waConfig.waba_id,
+              phoneNumberId: waConfig.phone_number_id,
+            });
+
+            // Build variable values from our internal variables
+            const waVariableData: Record<string, string> = {
+              paciente_nombre: patientName || "",
+              paciente_dni: patient?.dni || "",
+              paciente_telefono: recipientPhone,
+              fecha_cita: formattedDate,
+              hora_cita: appointment.start_time?.slice(0, 5) || "",
+              servicio: service?.name || "",
+              doctor_nombre: doctor?.full_name || "",
+              clinica_nombre: org?.name || "",
+              clinica_telefono: clinicPhoneVar?.current_value || "",
+              monto_pagado: extra_variables?.monto_pagado || "",
+            };
+
+            const typedWaTemplate = waTemplate as unknown as WhatsAppTemplate;
+            const variableValues = resolveVariableValues(typedWaTemplate, waVariableData);
+
+            const { wamid } = await sendWhatsAppMessage(
+              client,
+              typedWaTemplate,
+              recipientPhone,
+              variableValues
+            );
+
+            // Log the message
+            await supabase.from("whatsapp_message_logs").insert({
+              organization_id: orgId,
+              template_id: waTemplate.id,
+              recipient_phone: recipientPhone,
+              patient_id: appointment.patient_id || null,
+              appointment_id: appointment.id,
+              wamid,
+              status: "sent",
+            });
+
+            results.whatsapp = { success: true, wamid };
+          }
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Error WA desconocido";
+        console.error("[Notification WhatsApp Error]", message);
+        results.whatsapp = { success: false };
+      }
+    }
+  }
+
+  // If no channel succeeded, return error
+  if (!results.email?.success && !results.whatsapp?.success && (sendEmail || sendWhatsApp)) {
     return NextResponse.json(
-      { error: `Error SMTP: ${message}` },
+      { error: "No se pudo enviar por ningún canal" },
       { status: 500 }
     );
   }
+
+  return NextResponse.json({
+    success: true,
+    to: patientEmail,
+    ...results,
+  });
 }
