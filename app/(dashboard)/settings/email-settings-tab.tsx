@@ -202,7 +202,7 @@ export default function EmailSettingsTab() {
 
   if (loading) {
     return (
-      <div className="max-w-2xl flex items-center justify-center py-12">
+      <div className="max-w-3xl flex items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
@@ -227,7 +227,7 @@ export default function EmailSettingsTab() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-3xl space-y-6">
       {/* General settings */}
       <GeneralSettings
         settings={settings}
@@ -856,7 +856,7 @@ function TemplateEditor({
     "rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors";
 
   return (
-    <div className="max-w-2xl space-y-4">
+    <div className="max-w-3xl space-y-4">
       {/* Header */}
       <button
         type="button"
