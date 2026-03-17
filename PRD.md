@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-03-16
-> **Versión:** 0.1.0
+> **Última actualización:** 2026-03-17
+> **Versión:** 0.2.0
 > **Estado:** MVP en desarrollo activo
 
 ---
@@ -139,6 +139,13 @@
 | `patient_payments` | Pagos por paciente (puede estar linkeado a appointment) |
 | `schedule_blocks` | Bloques de tiempo no disponible en el scheduler |
 | `clinical_notes` | Notas clínicas SOAP por cita: subjective, objective, assessment, plan, diagnosis_code/label, vitals (JSONB), is_signed, internal_notes |
+| `clinical_templates` | Plantillas SOAP reutilizables: name, specialty (15 predefinidas), is_global, SOAP pre-llenado, diagnosis por defecto |
+| `treatment_plans` | Planes de tratamiento: title, description, diagnosis_code/label, status (active/completed/cancelled/paused), total_sessions, start_date, estimated_end_date |
+| `treatment_sessions` | Sesiones individuales de un plan: session_number, status (pending/completed/missed/cancelled), notes, completed_at, appointment_id opcional |
+| `prescriptions` | Recetas médicas: medication, dosage, frequency (12 opciones), duration, route (12 vías: Oral, IM, IV, Tópica, etc.), instructions, quantity, is_active |
+| `clinical_attachments` | Archivos adjuntos médicos: file_name, file_type, file_size, storage_path, category (general/lab_result/imaging/referral/consent/other) |
+| `clinical_followups` | Seguimientos clínicos (semáforo): priority (red/yellow/green), reason, follow_up_date, is_resolved, resolved_at, resolved_by, notes |
+| `clinical_note_versions` | Auditoría de notas: version_number, change_summary, snapshot de contenido SOAP + vitals + diagnóstico |
 
 ### Configuración
 | Tabla | Propósito |
@@ -246,6 +253,62 @@ El tab de retención incluye:
 - **RPCs utilizadas:** `get_retention_overview`, `get_visit_frequency`, `get_at_risk_patients`, `get_patient_ltv`, `get_retention_trend`
 - **Tipos:** `types/retention.ts` (RetentionOverview, VisitFrequency, AtRiskPatient, AtRiskData, TopPatient, PatientLTV, RetentionTrendMonth)
 
+### 7.5.2 Historia Clínica Completa (F9 + F9-EXT)
+
+El módulo de historia clínica es el sistema integral de documentación médica de VibeForge. Se compone de 8 submódulos interconectados:
+
+#### Flujo Principal
+1. Doctor abre cita en scheduler → sidebar muestra panel de nota clínica
+2. Doctor redacta nota SOAP (puede aplicar plantilla predefinida)
+3. Registra signos vitales (8 campos con validación de rangos)
+4. Selecciona diagnóstico CIE-10 con autocompletado
+5. Auto-save cada 30s + indicador visual de guardado
+6. Al finalizar: firma digital → nota queda bloqueada (inmutable)
+7. Versiones anteriores quedan en `clinical_note_versions` (auditoría)
+
+#### Módulos del Drawer de Paciente
+Desde el drawer lateral de cada paciente, el doctor/admin accede a:
+
+| Panel | Funcionalidad |
+|-------|--------------|
+| **Seguimientos** | Crear seguimientos con prioridad semáforo (rojo/amarillo/verde). Marcar como resuelto con timestamp |
+| **Adjuntos** | Upload drag-drop de archivos médicos (labs, imágenes, referidos, consentimientos). Máx 10MB. Descarga directa |
+| **Recetas** | Crear prescripciones con medicamento, dosis, frecuencia, vía, duración. Toggle activa/suspendida |
+| **Tratamientos** | Planes con sesiones numeradas, barra de progreso, estados de sesión |
+| **Diagnósticos** | Timeline visual de todos los diagnósticos, agrupados por CIE-10 con conteo de frecuencia |
+
+#### Administración de Plantillas
+- Ruta: `/admin/clinical-templates`
+- Plantillas globales (visibles a todos) vs personales (solo del doctor)
+- 15 especialidades: Medicina General, Ginecología, Pediatría, Dermatología, Cardiología, Oftalmología, Otorrinolaringología, Traumatología, Neurología, Psicología, Nutrición, Urología, Endocrinología, Gastroenterología, Neumología
+- Pre-llenado de SOAP + diagnóstico por defecto
+- Vista previa expandible
+
+#### Seguridad Clínica
+- **RLS multi-tenant** en todas las tablas clínicas
+- **Firma digital:** Una vez firmada, la nota es inmutable (solo lectura)
+- **Auditoría:** Cada edición genera una versión con snapshot completo
+- **Acceso:** Doctor solo edita sus propias notas no firmadas; admin puede editar cualquier nota no firmada
+- **Validación:** Zod schemas con rangos médicos (temp 30-45°C, SpO₂ 50-100%, etc.)
+- **Rate limiting:** 30 req/min en todos los endpoints clínicos
+
+#### Base de Datos (8 tablas)
+`clinical_notes`, `clinical_templates`, `treatment_plans`, `treatment_sessions`, `prescriptions`, `clinical_attachments`, `clinical_followups`, `clinical_note_versions`
+
+#### API Endpoints (13 rutas)
+- `/api/clinical-notes` — CRUD notas SOAP
+- `/api/clinical-notes/[id]/versions` — Historial de versiones
+- `/api/clinical-templates` — CRUD plantillas
+- `/api/treatment-plans` — CRUD planes + sesiones
+- `/api/prescriptions` — CRUD recetas
+- `/api/clinical-attachments` — Upload/descarga/eliminación
+- `/api/clinical-followups` — CRUD seguimientos
+
+#### Tipos TypeScript
+- `types/clinical-notes.ts` — ClinicalNote, Vitals, SOAPSection, SOAP_LABELS, VITALS_FIELDS
+- `types/clinical-history.ts` — TreatmentPlan, TreatmentSession, Prescription, ClinicalAttachment, ClinicalFollowup, ClinicalNoteVersion
+- `types/clinical-templates.ts` — ClinicalTemplate, SPECIALTIES
+
 ### 7.6 Integración WhatsApp (F6)
 
 #### Fase 1: Click-to-Clipboard (Implementado)
@@ -306,6 +369,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 │   ├── /services ............ Servicios y categorías
 │   ├── /lookups ............. Catálogos (orígenes, métodos de pago)
 │   ├── /global-variables .... Variables de configuración
+│   ├── /clinical-templates .. Plantillas clínicas SOAP (global/personal)
 │   └── /members ............. Gestión de equipo + invitaciones
 ├── /founder ................. Dashboard de plataforma (solo founder)
 │   ├── /integrations ........ Testing de integraciones MP
@@ -326,6 +390,19 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ├── /notifications/send ...... POST enviar notificación email automática
 ├── /email/send-test ......... POST enviar email de prueba
 ├── /founder ................. GET stats de plataforma
+├── /clinical-notes .......... GET/POST notas clínicas SOAP
+├── /clinical-notes/[id] ..... PATCH actualizar/firmar nota
+├── /clinical-notes/[id]/versions  GET historial de versiones
+├── /clinical-templates ...... GET/POST plantillas clínicas
+├── /clinical-templates/[id] . PATCH/DELETE plantilla
+├── /treatment-plans ......... GET/POST planes de tratamiento
+├── /treatment-plans/[id] .... PATCH actualizar plan/sesión
+├── /prescriptions ........... GET/POST recetas médicas
+├── /prescriptions/[id] ...... PATCH toggle activa/suspendida
+├── /clinical-attachments .... GET/POST adjuntos clínicos
+├── /clinical-attachments/[id] GET descarga / DELETE eliminar
+├── /clinical-followups ...... GET/POST seguimientos clínicos
+├── /clinical-followups/[id] . PATCH resolver seguimiento
 ├── /ai-assistant ............ POST chat con AI
 ├── /book/[slug] ............. GET datos públicos de reserva (doctores, servicios, horarios)
 └── /book/[slug]/create ...... POST crear cita desde página pública
@@ -447,6 +524,19 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Dashboard de retención de pacientes (F10)** — Tab "Retención" en reportes con 5 KPIs (recurrentes, nuevos, tasa retención, frecuencia, LTV), gráfica de tendencia mensual (nuevos vs recurrentes), gráfica de tasa de retención, tabla de pacientes en riesgo con filtro configurable (2-12 meses), ranking top 20 pacientes por LTV, exportación CSV. RPCs: `get_retention_overview`, `get_visit_frequency`, `get_at_risk_patients`, `get_patient_ltv`, `get_retention_trend`
 - [x] **WhatsApp click-to-clipboard (F6 Fase 1)** — Modal post-creación de cita con mensaje pre-formateado para copiar y pegar en WhatsApp. Plantilla configurable en Settings con 7 variables dinámicas (nombre, fecha, hora, doctor, servicio, clínica, dirección). Toggle activar/desactivar, editor de plantilla con vista previa en vivo. Persistencia en localStorage
 - [x] **Notas clínicas SOAP (F9)** — Formato SOAP (Subjetivo, Objetivo, Evaluación, Plan) integrado en el sidebar de cita. Tabla `clinical_notes` con RLS multi-tenant, una nota por cita (unique constraint). Signos vitales como JSONB (peso, talla, temperatura, PA, FC, FR, SpO₂). Diagnóstico con código CIE-10 opcional. Sistema de firma digital (is_signed) que bloquea edición. Notas internas no visibles al paciente. Solo el doctor tratante o admin puede editar. API CRUD completa con rate limiting. Validación Zod en todas las rutas. Tipos: `types/clinical-notes.ts`
+- [x] **Historia Clínica Completa (F9-EXT)** — Extensión integral del módulo clínico con 7 submódulos:
+  - **Plantillas Clínicas:** Plantillas SOAP reutilizables globales (admin) o personales (doctor). 15 especialidades predefinidas (Medicina General, Ginecología, Pediatría, Dermatología, etc.). CRUD completo en `/admin/clinical-templates`. Aplicación rápida desde dropdown en editor de nota. Tabla `clinical_templates` con RLS
+  - **Planes de Tratamiento:** Creación de planes con generación automática de sesiones numeradas. Barra de progreso visual. Estados: active, completed, cancelled, paused. Sesiones individuales con status (pending/completed/missed/cancelled). Vinculación opcional a citas. Tablas `treatment_plans` + `treatment_sessions`
+  - **Recetas Médicas:** Registro completo de prescripciones (medicamento, dosis, frecuencia, duración, vía, instrucciones, cantidad). 12 vías de administración (Oral, IM, IV, Tópica, Sublingual, Inhalatoria, Ótica, Oftálmica, Nasal, Rectal, Vaginal, Transdérmica). 12 frecuencias predefinidas. Toggle activa/suspendida. UI expandible con detalles. Tabla `prescriptions`
+  - **Adjuntos Clínicos:** Upload drag-and-drop (máx 10MB). 6 categorías: general, resultado de laboratorio, imagen diagnóstica, referido, consentimiento, otro. Descarga vía Supabase Storage. Metadata completa (nombre, tipo, tamaño). Tabla `clinical_attachments`
+  - **Seguimientos Clínicos (Semáforo):** 3 niveles de prioridad: Rojo=Urgente, Amarillo=Moderado, Verde=Rutina. Fecha de seguimiento y resolución con timestamp. Resuelto por (doctor/admin ID). Vinculación a citas y notas. Tabla `clinical_followups`
+  - **Historial de Diagnósticos:** Timeline visual de todos los diagnósticos del paciente. Agrupación por código CIE-10 con conteo de frecuencia. Atribución por doctor y fecha. Panel dedicado en drawer de paciente
+  - **Versionado de Notas (Auditoría):** Historial completo de versiones por nota clínica. Snapshot inmutable de SOAP, vitales y diagnóstico por versión. Número de versión incremental y resumen de cambio. Tabla `clinical_note_versions`. Endpoint `/api/clinical-notes/[id]/versions`
+  - **Migraciones:** 050 (clinical_notes), 051 (clinical_templates), 053 (treatment_plans, treatment_sessions, prescriptions, clinical_attachments, clinical_followups, clinical_note_versions)
+  - **Componentes:** 6 paneles en drawer de paciente (followups, attachments, prescriptions, treatment-plans, diagnosis-history) + editor de nota clínica en scheduler + página admin de plantillas + vista de impresión
+  - **API:** 13 endpoints (6 recursos × GET/POST + PATCH/DELETE según recurso) con rate limiting y validación Zod
+  - **Tipos:** `types/clinical-notes.ts`, `types/clinical-history.ts`, `types/clinical-templates.ts`
+  - **Seguridad:** RLS en todas las tablas, aislamiento multi-tenant, firma digital inmutable, validación Zod en todas las rutas, rate limiting generalLimiter (30 req/min)
 - [x] **Booking online / agenda pública (F7)** — Página pública `/book/[slug]` para que pacientes agenden citas sin cuenta. Wizard de 5 pasos: doctor → servicio → fecha/hora → datos del paciente → confirmación. Tabla `booking_settings` con configuración por org (toggle activar, días anticipación máx, horas mín de antelación, campos obligatorios, color de acento, mensaje de bienvenida). API pública `/api/book/[slug]` (GET datos) y `/api/book/[slug]/create` (POST crear cita). Validación de horarios, conflictos y schedule blocks. Creación automática de paciente. Email de confirmación. Rate limiting por IP. Tab "Reservas" en Settings con URL copiable. Tema oscuro, diseño mobile-first
 - [x] **Recordatorios automáticos por cron (F8)** — Cron job `/api/cron/reminders` ejecutado cada 30 min via Vercel Cron. Dos ventanas de recordatorio: 24h y 2h antes de la cita. Deduplicación con tabla `reminder_logs` (UNIQUE por appointment + template + canal). Soporte email (SMTP) y WhatsApp Business API. Agrupamiento por organización para reutilizar templates/settings. Variables de email: paciente, doctor, fecha, hora, servicio, clínica, teléfono. Config en `vercel.json`
 
@@ -457,6 +547,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] Booking online / agenda pública (F7)
 - [x] Recordatorios automáticos por cron (F8)
 - [x] Notas clínicas por cita — formato SOAP (F9)
+- [x] Historia clínica completa (F9-EXT) — Plantillas, tratamientos, recetas, adjuntos, seguimientos, diagnósticos, versionado
 - [ ] Notificaciones in-app en tiempo real (F11)
 - [ ] Consentimiento informado digital (F12) — Requisito legal Perú
 - [ ] Módulo de inventario básico (F13)
@@ -484,6 +575,18 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 
 ### Jerarquía de Roles (para `hasMinRole`)
 `doctor(0) < receptionist(1) < admin(2) < owner(3)`
+
+### Componentes de Historia Clínica
+| Componente | Propósito |
+|-----------|----------|
+| `clinical-note-panel.tsx` | Editor SOAP completo: secciones color-coded, CIE-10 autocomplete, vitales colapsables, aplicar plantilla, firma digital, auto-save 30s, impresión |
+| `clinical-note-print.tsx` | Vista de impresión de nota clínica firmada |
+| `clinical-followups-panel.tsx` | Panel de seguimientos con semáforo (rojo/amarillo/verde), crear y resolver |
+| `clinical-attachments-panel.tsx` | Upload drag-drop de archivos médicos, descarga, eliminación |
+| `prescriptions-panel.tsx` | Gestión de recetas con UI expandible, toggle activa/suspendida |
+| `treatment-plans-panel.tsx` | Planes de tratamiento con barra de progreso y sesiones |
+| `diagnosis-history-panel.tsx` | Timeline de diagnósticos con frecuencia y códigos CIE-10 |
+| `admin/clinical-templates/page.tsx` | CRUD de plantillas clínicas (global/personal, 15 especialidades) |
 
 ### Componentes de Arquitectura
 | Componente | Propósito |
@@ -520,7 +623,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | `lib/scheduler-config.ts` | Config del scheduler (localStorage): horarios, intervalos |
 | `lib/peru-locations.ts` | Mapa de departamentos → distritos de Perú |
 | `lib/mercadopago/client.ts` | Clientes singleton de Mercado Pago SDK |
-| `lib/validations/*.ts` | Schemas Zod para cada entidad (account, patient, doctor, appointment, etc.) |
+| `lib/validations/*.ts` | Schemas Zod para cada entidad (account, patient, doctor, appointment, clinical-note, clinical-template, etc.) |
 | `lib/validations/api.ts` | Schemas Zod específicos para validación de body en API routes |
 | `lib/api-utils.ts` | `parseBody()` — helper para parsear y validar JSON con Zod en API routes |
 | `lib/send-notification.ts` | Fire-and-forget helper para llamar `/api/notifications/send` |
