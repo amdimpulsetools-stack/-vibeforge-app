@@ -31,6 +31,7 @@ import {
   Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST } from "@/lib/peru-locations";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { loadWaClipboardConfig, type AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
@@ -90,6 +91,8 @@ export function AppointmentFormModal({
   const [docType, setDocType] = useState<"DNI" | "CE" | "Pasaporte">("DNI");
   const [patientEmail, setPatientEmail] = useState("");
   const [patientBirthDate, setPatientBirthDate] = useState("");
+  const [patientDepartamento, setPatientDepartamento] = useState("");
+  const [patientDistrito, setPatientDistrito] = useState("");
 
   // WhatsApp clipboard modal
   const [showWaModal, setShowWaModal] = useState(false);
@@ -247,6 +250,8 @@ export function AppointmentFormModal({
       setPatientEmail(data.email ?? "");
       setPatientBirthDate(data.birth_date ?? "");
       if (data.document_type) setDocType(data.document_type as "DNI" | "CE" | "Pasaporte");
+      setPatientDepartamento(data.departamento ?? "");
+      setPatientDistrito(data.distrito ?? "");
     } else {
       setFoundPatient(null);
       setValue("patient_id", "");
@@ -326,6 +331,8 @@ export function AppointmentFormModal({
           phone: values.patient_phone || null,
           email: patientEmail || null,
           birth_date: patientBirthDate || null,
+          departamento: patientDepartamento || null,
+          distrito: patientDistrito || null,
           organization_id: organizationId,
         })
         .select()
@@ -352,6 +359,16 @@ export function AppointmentFormModal({
         .from("patients")
         .update({ birth_date: patientBirthDate })
         .eq("id", patientId);
+    }
+
+    // Update departamento/distrito for found patient if they didn't have them
+    if (patientId && foundPatient) {
+      const updates: Record<string, string> = {};
+      if (patientDepartamento && !foundPatient.departamento) updates.departamento = patientDepartamento;
+      if (patientDistrito && !foundPatient.distrito) updates.distrito = patientDistrito;
+      if (Object.keys(updates).length > 0) {
+        await supabase.from("patients").update(updates).eq("id", patientId);
+      }
     }
 
     // Capture service price at appointment creation time
@@ -449,7 +466,7 @@ export function AppointmentFormModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-lg rounded-xl border border-border bg-card shadow-xl">
+      <div className="mx-4 w-full max-w-2xl rounded-xl border border-border bg-card shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h3 className="text-lg font-semibold">{t("scheduler.new_appointment")}</h3>
@@ -585,6 +602,40 @@ export function AppointmentFormModal({
                 onChange={(e) => setPatientBirthDate(e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               />
+            </div>
+          </div>
+
+          {/* Departamento & Distrito */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Departamento</label>
+              <select
+                value={patientDepartamento}
+                onChange={(e) => {
+                  setPatientDepartamento(e.target.value);
+                  setPatientDistrito("");
+                }}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              >
+                <option value="">-- Departamento --</option>
+                {PERU_DEPARTAMENTO_LIST.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">Distrito</label>
+              <select
+                value={patientDistrito}
+                onChange={(e) => setPatientDistrito(e.target.value)}
+                disabled={!patientDepartamento}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              >
+                <option value="">-- Distrito --</option>
+                {(PERU_DEPARTAMENTOS[patientDepartamento] ?? []).map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
             </div>
           </div>
 
