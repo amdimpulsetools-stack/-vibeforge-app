@@ -16,7 +16,10 @@ import {
   ChevronDown,
   ChevronUp,
   Stethoscope,
+  Search,
 } from "lucide-react";
+import { searchCIE10, type CIE10Entry } from "@/lib/cie10-catalog";
+import { ClinicalNotePrintButton } from "./clinical-note-print";
 
 interface ClinicalNotePanelProps {
   appointmentId: string;
@@ -26,6 +29,14 @@ interface ClinicalNotePanelProps {
   canEdit: boolean;
   /** Appointment status — notes are typically filled after completion */
   appointmentStatus: string;
+  /** For print */
+  patientName?: string;
+  patientDni?: string | null;
+  doctorName?: string;
+  serviceName?: string;
+  appointmentDate?: string;
+  appointmentTime?: string;
+  clinicName?: string;
 }
 
 export function ClinicalNotePanel({
@@ -34,6 +45,13 @@ export function ClinicalNotePanel({
   doctorId,
   canEdit,
   appointmentStatus,
+  patientName,
+  patientDni,
+  doctorName,
+  serviceName,
+  appointmentDate,
+  appointmentTime,
+  clinicName,
 }: ClinicalNotePanelProps) {
   const [note, setNote] = useState<ClinicalNote | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,6 +68,9 @@ export function ClinicalNotePanel({
   const [diagnosisLabel, setDiagnosisLabel] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
   const [vitals, setVitals] = useState<Vitals>({});
+  const [cie10Query, setCie10Query] = useState("");
+  const [cie10Results, setCie10Results] = useState<CIE10Entry[]>([]);
+  const [showCie10, setShowCie10] = useState(false);
 
   const soapState: Record<SOAPSection, { value: string; set: (v: string) => void }> = {
     subjective: { value: subjective, set: setSubjective },
@@ -272,28 +293,79 @@ export function ClinicalNotePanel({
         })}
       </div>
 
-      {/* Diagnosis */}
+      {/* Diagnosis with CIE-10 autocomplete */}
       <div className="space-y-2">
         <label className="text-xs font-semibold flex items-center gap-1.5">
           <FileText className="h-3.5 w-3.5 text-muted-foreground" />
           Diagnóstico
         </label>
         {editable ? (
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={diagnosisCode}
-              onChange={(e) => setDiagnosisCode(e.target.value)}
-              placeholder="CIE-10"
-              className="w-24 rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-            />
-            <input
-              type="text"
-              value={diagnosisLabel}
-              onChange={(e) => setDiagnosisLabel(e.target.value)}
-              placeholder="Descripción del diagnóstico"
-              className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-            />
+          <div className="space-y-2">
+            {/* CIE-10 search */}
+            <div className="relative">
+              <div className="flex items-center gap-1 rounded-lg border border-input bg-background px-3 py-1.5">
+                <Search className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <input
+                  type="text"
+                  value={cie10Query}
+                  onChange={(e) => {
+                    const q = e.target.value;
+                    setCie10Query(q);
+                    if (q.length >= 2) {
+                      setCie10Results(searchCIE10(q));
+                      setShowCie10(true);
+                    } else {
+                      setShowCie10(false);
+                    }
+                  }}
+                  onFocus={() => {
+                    if (cie10Query.length >= 2) setShowCie10(true);
+                  }}
+                  placeholder="Buscar CIE-10 (ej: diabetes, J06, lumbalgia...)"
+                  className="w-full bg-transparent text-xs focus:outline-none placeholder:text-muted-foreground/50"
+                />
+              </div>
+              {showCie10 && cie10Results.length > 0 && (
+                <>
+                  <div className="fixed inset-0 z-[5]" onClick={() => setShowCie10(false)} />
+                  <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-xl">
+                    {cie10Results.map((entry) => (
+                      <button
+                        key={entry.code}
+                        type="button"
+                        onClick={() => {
+                          setDiagnosisCode(entry.code);
+                          setDiagnosisLabel(entry.label);
+                          setCie10Query("");
+                          setShowCie10(false);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-accent transition-colors"
+                      >
+                        <span className="font-mono font-semibold text-primary shrink-0">{entry.code}</span>
+                        <span className="text-foreground truncate">{entry.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            {/* Selected diagnosis display */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={diagnosisCode}
+                onChange={(e) => setDiagnosisCode(e.target.value)}
+                placeholder="CIE-10"
+                className="w-24 rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              />
+              <input
+                type="text"
+                value={diagnosisLabel}
+                onChange={(e) => setDiagnosisLabel(e.target.value)}
+                placeholder="Descripción del diagnóstico"
+                className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              />
+            </div>
           </div>
         ) : (
           (diagnosisCode || diagnosisLabel) && (
@@ -398,6 +470,22 @@ export function ClinicalNotePanel({
               Firmar
             </button>
           )}
+        </div>
+      )}
+
+      {/* Print button — only when note exists and has content */}
+      {note && hasContent && patientName && doctorName && serviceName && (
+        <div className="pt-1">
+          <ClinicalNotePrintButton
+            note={note}
+            patientName={patientName}
+            patientDni={patientDni}
+            doctorName={doctorName}
+            serviceName={serviceName}
+            appointmentDate={appointmentDate ?? ""}
+            appointmentTime={appointmentTime ?? ""}
+            clinicName={clinicName}
+          />
         </div>
       )}
     </div>

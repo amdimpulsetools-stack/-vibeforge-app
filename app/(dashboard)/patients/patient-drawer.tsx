@@ -35,11 +35,16 @@ import {
   Megaphone,
   Save,
   Edit2,
+  Stethoscope,
+  Lock,
+  Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
 import { calculateAge } from "@/lib/export";
+import type { ClinicalNote } from "@/types/clinical-notes";
+import { SOAP_LABELS, VITALS_FIELDS, type SOAPSection, type Vitals } from "@/types/clinical-notes";
 
 interface PatientDrawerProps {
   patient: PatientWithTags;
@@ -47,7 +52,7 @@ interface PatientDrawerProps {
   onUpdate: () => void;
 }
 
-type DrawerTab = "info" | "history" | "finances" | "marketing";
+type DrawerTab = "info" | "history" | "clinical" | "finances" | "marketing";
 
 type AppointmentWithDetails = Appointment & {
   doctors: Doctor;
@@ -88,6 +93,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [referralSource, setReferralSource] = useState(patient.referral_source ?? "");
   const [savingMarketing, setSavingMarketing] = useState(false);
 
+  // Clinical notes
+  const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [expandedNote, setExpandedNote] = useState<string | null>(null);
+
   // Payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -121,6 +131,25 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
+
+  // Fetch clinical notes when clinical tab is selected
+  useEffect(() => {
+    if (activeTab !== "clinical") return;
+    let cancelled = false;
+    const fetchNotes = async () => {
+      setLoadingNotes(true);
+      try {
+        const res = await fetch(`/api/clinical-notes?patient_id=${patient.id}`);
+        const json = await res.json();
+        if (!cancelled) setClinicalNotes(json.data ?? []);
+      } catch {
+        // silent
+      }
+      if (!cancelled) setLoadingNotes(false);
+    };
+    fetchNotes();
+    return () => { cancelled = true; };
+  }, [activeTab, patient.id]);
 
   // Sync fields when patient changes
   useEffect(() => {
@@ -265,6 +294,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const tabs: { key: DrawerTab; label: string; icon: typeof Clock }[] = [
     { key: "info", label: "Datos", icon: Edit2 },
     { key: "history", label: t("patients.tab_history"), icon: Clock },
+    { key: "clinical", label: "Clínico", icon: Stethoscope },
     { key: "finances", label: t("patients.tab_finances"), icon: DollarSign },
     { key: "marketing", label: t("patients.tab_marketing"), icon: Megaphone },
   ];
@@ -685,6 +715,152 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         S/. {Number(appt.services?.base_price ?? 0).toFixed(2)}
                       </p>
                     </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* ===== CLINICAL TAB ===== */}
+        {activeTab === "clinical" && (
+          <div className="space-y-3">
+            {loadingNotes ? (
+              <div className="flex items-center justify-center py-10">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </div>
+            ) : clinicalNotes.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Sin notas clínicas registradas
+              </p>
+            ) : (
+              clinicalNotes.map((cn_note) => {
+                const isExpanded = expandedNote === cn_note.id;
+                const doctorInfo = (cn_note as ClinicalNote & { doctors?: { full_name: string; color: string } }).doctors;
+                const hasVitals = VITALS_FIELDS.some((f) => cn_note.vitals?.[f.key as keyof Vitals] != null);
+
+                return (
+                  <div
+                    key={cn_note.id}
+                    className={cn(
+                      "rounded-lg border border-border overflow-hidden transition-all",
+                      cn_note.is_signed && "border-l-4 border-l-emerald-500"
+                    )}
+                  >
+                    {/* Header — clickable to expand */}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedNote(isExpanded ? null : cn_note.id)}
+                      className="flex w-full items-center justify-between px-3 py-2.5 hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <Stethoscope className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        <span className="text-xs font-semibold">
+                          {new Date(cn_note.created_at).toLocaleDateString("es-PE", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                        {doctorInfo && (
+                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <span
+                              className="h-2 w-2 rounded-full shrink-0"
+                              style={{ backgroundColor: doctorInfo.color }}
+                            />
+                            {doctorInfo.full_name}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {cn_note.is_signed && (
+                          <Lock className="h-3 w-3 text-emerald-500" />
+                        )}
+                        {cn_note.diagnosis_code && (
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono font-medium">
+                            {cn_note.diagnosis_code}
+                          </span>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Expanded content */}
+                    {isExpanded && (
+                      <div className="border-t border-border px-3 py-3 space-y-3">
+                        {/* SOAP sections */}
+                        {(Object.keys(SOAP_LABELS) as SOAPSection[]).map((section) => {
+                          const content = cn_note[section];
+                          if (!content) return null;
+                          const { letter, label } = SOAP_LABELS[section];
+                          return (
+                            <div key={section} className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span
+                                  className={cn(
+                                    "flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold text-white",
+                                    section === "subjective" && "bg-blue-500",
+                                    section === "objective" && "bg-emerald-500",
+                                    section === "assessment" && "bg-amber-500",
+                                    section === "plan" && "bg-purple-500"
+                                  )}
+                                >
+                                  {letter}
+                                </span>
+                                <span className="text-[10px] font-semibold text-muted-foreground uppercase">
+                                  {label}
+                                </span>
+                              </div>
+                              <p className="text-xs text-foreground pl-[22px] whitespace-pre-wrap">
+                                {content}
+                              </p>
+                            </div>
+                          );
+                        })}
+
+                        {/* Diagnosis */}
+                        {(cn_note.diagnosis_code || cn_note.diagnosis_label) && (
+                          <div className="pl-[22px] text-xs">
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase">Diagnóstico: </span>
+                            {cn_note.diagnosis_code && (
+                              <span className="font-mono font-medium text-primary">{cn_note.diagnosis_code}</span>
+                            )}
+                            {cn_note.diagnosis_code && cn_note.diagnosis_label && " — "}
+                            {cn_note.diagnosis_label}
+                          </div>
+                        )}
+
+                        {/* Vitals summary */}
+                        {hasVitals && (
+                          <div className="pl-[22px]">
+                            <div className="flex items-center gap-1 mb-1">
+                              <Heart className="h-3 w-3 text-red-500" />
+                              <span className="text-[10px] font-semibold text-muted-foreground uppercase">Signos Vitales</span>
+                            </div>
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {VITALS_FIELDS.filter((f) => cn_note.vitals?.[f.key as keyof Vitals] != null).map((f) => (
+                                <div key={f.key} className="rounded bg-muted/40 px-1.5 py-1 text-center">
+                                  <p className="text-[9px] text-muted-foreground">{f.label}</p>
+                                  <p className="text-[11px] font-semibold">
+                                    {cn_note.vitals[f.key as keyof Vitals]} <span className="text-[9px] font-normal text-muted-foreground">{f.unit}</span>
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Signed date */}
+                        {cn_note.is_signed && cn_note.signed_at && (
+                          <p className="text-[10px] text-muted-foreground/70 pl-[22px]">
+                            Firmada el {new Date(cn_note.signed_at).toLocaleDateString("es-PE", {
+                              day: "2-digit",
+                              month: "long",
+                              year: "numeric",
+                            })}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })

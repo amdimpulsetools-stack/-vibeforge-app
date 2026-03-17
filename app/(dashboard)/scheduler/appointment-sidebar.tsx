@@ -892,6 +892,12 @@ export function AppointmentSidebar({
                   (isAdmin || currentDoctorId === appointment.doctor_id)
                 }
                 appointmentStatus={appointment.status}
+                patientName={appointment.patient_name}
+                patientDni={null}
+                doctorName={appointment.doctors?.full_name}
+                serviceName={appointment.services?.name}
+                appointmentDate={appointment.appointment_date}
+                appointmentTime={appointment.start_time?.slice(0, 5)}
               />
             )}
           </div>
