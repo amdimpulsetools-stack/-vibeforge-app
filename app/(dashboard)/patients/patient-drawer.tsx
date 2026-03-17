@@ -64,6 +64,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [loading, setLoading] = useState(true);
   const [newTag, setNewTag] = useState("");
   const [addingTag, setAddingTag] = useState(false);
+  const [tagMenuOpen, setTagMenuOpen] = useState(false);
 
   // ===== PERSONAL INFO STATE =====
   const [infoFirstName, setInfoFirstName] = useState(patient.first_name ?? "");
@@ -343,48 +344,57 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
             </span>
           ))}
           {/* Quick add common tags */}
-          <div className="relative group">
-            <button className="flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary transition-colors">
+          <div className="relative">
+            <button
+              onClick={() => setTagMenuOpen(!tagMenuOpen)}
+              className="flex items-center gap-1 rounded-full border border-dashed border-muted-foreground/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+            >
               <Tag className="h-3 w-3" />
               <Plus className="h-3 w-3" />
             </button>
-            <div className="invisible group-hover:visible absolute left-0 top-full z-10 mt-1 rounded-lg border border-border bg-card p-2 shadow-xl min-w-[160px]">
-              {COMMON_PATIENT_TAGS.filter(
-                (tag) => !patient.patient_tags.some((pt) => pt.tag === tag)
-              ).map((tag) => (
-                <button
-                  key={tag}
-                  onClick={() => handleAddTag(tag)}
-                  disabled={addingTag}
-                  className="block w-full rounded px-2 py-1 text-left text-xs text-foreground hover:bg-accent transition-colors"
-                >
-                  {tag}
-                </button>
-              ))}
-              <div className="mt-1 border-t border-border pt-1">
-                <div className="flex gap-1">
-                  <input
-                    value={newTag}
-                    onChange={(e) => setNewTag(e.target.value)}
-                    placeholder={t("patients.add_tag")}
-                    className="flex-1 rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddTag(newTag);
-                      }
-                    }}
-                  />
-                  <button
-                    onClick={() => handleAddTag(newTag)}
-                    disabled={addingTag || !newTag.trim()}
-                    className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground disabled:opacity-50"
-                  >
-                    <Plus className="h-3 w-3" />
-                  </button>
+            {tagMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-[5]" onClick={() => setTagMenuOpen(false)} />
+                <div className="absolute left-0 top-full z-10 mt-1 rounded-lg border border-border bg-card p-2 shadow-xl min-w-[160px]">
+                  {COMMON_PATIENT_TAGS.filter(
+                    (tag) => !patient.patient_tags.some((pt) => pt.tag === tag)
+                  ).map((tag) => (
+                    <button
+                      key={tag}
+                      onClick={() => { handleAddTag(tag); setTagMenuOpen(false); }}
+                      disabled={addingTag}
+                      className="block w-full rounded px-2 py-1 text-left text-xs text-foreground hover:bg-accent transition-colors"
+                    >
+                      {tag}
+                    </button>
+                  ))}
+                  <div className="mt-1 border-t border-border pt-1">
+                    <div className="flex gap-1">
+                      <input
+                        value={newTag}
+                        onChange={(e) => setNewTag(e.target.value)}
+                        placeholder={t("patients.add_tag")}
+                        className="flex-1 rounded border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddTag(newTag);
+                            setTagMenuOpen(false);
+                          }
+                        }}
+                      />
+                      <button
+                        onClick={() => { handleAddTag(newTag); setTagMenuOpen(false); }}
+                        disabled={addingTag || !newTag.trim()}
+                        className="rounded bg-primary px-2 py-1 text-xs text-primary-foreground disabled:opacity-50"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         </div>
 
