@@ -45,6 +45,12 @@ import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/per
 import { calculateAge } from "@/lib/export";
 import type { ClinicalNote } from "@/types/clinical-notes";
 import { SOAP_LABELS, VITALS_FIELDS, type SOAPSection, type Vitals } from "@/types/clinical-notes";
+import { TreatmentPlansPanel } from "./treatment-plans-panel";
+import { PrescriptionsPanel } from "./prescriptions-panel";
+import { ClinicalAttachmentsPanel } from "./clinical-attachments-panel";
+import { ClinicalFollowupsPanel } from "./clinical-followups-panel";
+import { VitalsTrendsChart } from "./vitals-trends-chart";
+import { DiagnosisHistoryPanel } from "./diagnosis-history-panel";
 
 interface PatientDrawerProps {
   patient: PatientWithTags;
@@ -865,6 +871,16 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                 );
               })
             )}
+
+            {/* ── Clinical History Panels ── */}
+            <div className="mt-4 space-y-4 border-t border-border pt-4">
+              <VitalsTrendsChart patientId={patient.id} />
+              <DiagnosisHistoryPanel patientId={patient.id} />
+              <TreatmentPlansPanel patientId={patient.id} canEdit={false} />
+              <PrescriptionsPanel patientId={patient.id} canEdit={false} />
+              <ClinicalFollowupsPanel patientId={patient.id} canEdit={false} />
+              <ClinicalAttachmentsPanel patientId={patient.id} canEdit={false} />
+            </div>
           </div>
         )}
 

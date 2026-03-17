@@ -74,6 +74,50 @@ export async function PATCH(
   );
   if (parsed.error) return parsed.error;
 
+  // Save version snapshot before updating (audit trail)
+  const { data: currentNote } = await supabase
+    .from("clinical_notes")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (currentNote && (currentNote.subjective || currentNote.objective || currentNote.assessment || currentNote.plan)) {
+    // Get next version number
+    const { count } = await supabase
+      .from("clinical_note_versions")
+      .select("*", { count: "exact", head: true })
+      .eq("clinical_note_id", id);
+
+    const versionNumber = (count ?? 0) + 1;
+
+    // Determine what changed
+    const changes: string[] = [];
+    if (parsed.data.subjective !== undefined && parsed.data.subjective !== currentNote.subjective) changes.push("Subjetivo");
+    if (parsed.data.objective !== undefined && parsed.data.objective !== currentNote.objective) changes.push("Objetivo");
+    if (parsed.data.assessment !== undefined && parsed.data.assessment !== currentNote.assessment) changes.push("Evaluación");
+    if (parsed.data.plan !== undefined && parsed.data.plan !== currentNote.plan) changes.push("Plan");
+    if (parsed.data.diagnosis_code !== undefined && parsed.data.diagnosis_code !== currentNote.diagnosis_code) changes.push("Diagnóstico");
+    if (parsed.data.vitals !== undefined) changes.push("Signos vitales");
+
+    if (changes.length > 0) {
+      await supabase.from("clinical_note_versions").insert({
+        clinical_note_id: id,
+        organization_id: currentNote.organization_id,
+        edited_by: user.id,
+        version_number: versionNumber,
+        subjective: currentNote.subjective,
+        objective: currentNote.objective,
+        assessment: currentNote.assessment,
+        plan: currentNote.plan,
+        diagnosis_code: currentNote.diagnosis_code,
+        diagnosis_label: currentNote.diagnosis_label,
+        vitals: currentNote.vitals ?? {},
+        internal_notes: currentNote.internal_notes,
+        change_summary: `Editado: ${changes.join(", ")}`,
+      });
+    }
+  }
+
   const { data, error } = await supabase
     .from("clinical_notes")
     .update({

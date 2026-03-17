@@ -39,6 +39,8 @@ import { getPaymentIcon } from "@/lib/payment-icons";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { ClinicalNotePanel } from "./clinical-note-panel";
+import { PrescriptionsPanel } from "@/app/(dashboard)/patients/prescriptions-panel";
+import { ClinicalFollowupsPanel } from "@/app/(dashboard)/patients/clinical-followups-panel";
 
 interface AppointmentSidebarProps {
   appointment: AppointmentWithRelations;
@@ -883,22 +885,46 @@ export function AppointmentSidebar({
               />
             </button>
             {showClinicalNote && (
-              <ClinicalNotePanel
-                appointmentId={appointment.id}
-                patientId={appointment.patient_id ?? null}
-                doctorId={appointment.doctor_id}
-                canEdit={
-                  !readOnly &&
-                  (isAdmin || currentDoctorId === appointment.doctor_id)
-                }
-                appointmentStatus={appointment.status}
-                patientName={appointment.patient_name}
-                patientDni={null}
-                doctorName={appointment.doctors?.full_name}
-                serviceName={appointment.services?.name}
-                appointmentDate={appointment.appointment_date}
-                appointmentTime={appointment.start_time?.slice(0, 5)}
-              />
+              <>
+                <ClinicalNotePanel
+                  appointmentId={appointment.id}
+                  patientId={appointment.patient_id ?? null}
+                  doctorId={appointment.doctor_id}
+                  canEdit={
+                    !readOnly &&
+                    (isAdmin || currentDoctorId === appointment.doctor_id)
+                  }
+                  appointmentStatus={appointment.status}
+                  patientName={appointment.patient_name}
+                  patientDni={null}
+                  doctorName={appointment.doctors?.full_name}
+                  serviceName={appointment.services?.name}
+                  appointmentDate={appointment.appointment_date}
+                  appointmentTime={appointment.start_time?.slice(0, 5)}
+                />
+                {appointment.patient_id && (
+                  <div className="mt-3 space-y-3 border-t border-border pt-3">
+                    <PrescriptionsPanel
+                      patientId={appointment.patient_id}
+                      doctorId={appointment.doctor_id}
+                      appointmentId={appointment.id}
+                      canEdit={
+                        !readOnly &&
+                        (isAdmin || currentDoctorId === appointment.doctor_id)
+                      }
+                    />
+                    <ClinicalFollowupsPanel
+                      patientId={appointment.patient_id}
+                      doctorId={appointment.doctor_id}
+                      appointmentId={appointment.id}
+                      canEdit={
+                        !readOnly &&
+                        (isAdmin || currentDoctorId === appointment.doctor_id)
+                      }
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -19,6 +19,8 @@ import {
   Stethoscope,
   Search,
   LayoutTemplate,
+  CloudOff,
+  Cloud,
 } from "lucide-react";
 import { searchCIE10, type CIE10Entry } from "@/lib/cie10-catalog";
 import { ClinicalNotePrintButton } from "./clinical-note-print";
@@ -78,6 +80,80 @@ export function ClinicalNotePanel({
   const [templates, setTemplates] = useState<ClinicalTemplateWithDoctor[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+
+  // Auto-save with debounce (30s)
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isDirtyRef = useRef(false);
+
+  const triggerAutoSave = useCallback(() => {
+    if (!isDirtyRef.current || !canEdit) return;
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(async () => {
+      if (!isDirtyRef.current) return;
+      setAutoSaveStatus("saving");
+      try {
+        const body = {
+          subjective,
+          objective,
+          assessment,
+          plan,
+          diagnosis_code: diagnosisCode || null,
+          diagnosis_label: diagnosisLabel || null,
+          internal_notes: internalNotes || null,
+          vitals,
+          patient_id: patientId,
+          doctor_id: doctorId,
+        };
+
+        if (note) {
+          const res = await fetch(`/api/clinical-notes/${note.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            setNote(json.data);
+            isDirtyRef.current = false;
+            setAutoSaveStatus("saved");
+          } else {
+            setAutoSaveStatus("error");
+          }
+        } else if (subjective || objective || assessment || plan) {
+          const res = await fetch("/api/clinical-notes", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...body, appointment_id: appointmentId }),
+          });
+          if (res.ok) {
+            const json = await res.json();
+            setNote(json.data);
+            isDirtyRef.current = false;
+            setAutoSaveStatus("saved");
+          } else {
+            setAutoSaveStatus("error");
+          }
+        }
+      } catch {
+        setAutoSaveStatus("error");
+      }
+    }, 30000); // 30 seconds
+  }, [note, subjective, objective, assessment, plan, diagnosisCode, diagnosisLabel, internalNotes, vitals, patientId, doctorId, canEdit, appointmentId]);
+
+  // Track dirty state on any field change
+  const markDirty = useCallback(() => {
+    isDirtyRef.current = true;
+    setAutoSaveStatus("idle");
+    triggerAutoSave();
+  }, [triggerAutoSave]);
+
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, []);
 
   const soapState: Record<SOAPSection, { value: string; set: (v: string) => void }> = {
     subjective: { value: subjective, set: setSubjective },
@@ -226,6 +302,7 @@ export function ClinicalNotePanel({
       ...prev,
       [key]: value === "" ? null : Number(value),
     }));
+    markDirty();
   };
 
   const isLocked = note?.is_signed === true;
@@ -257,6 +334,20 @@ export function ClinicalNotePanel({
           <Stethoscope className="h-4 w-4 text-emerald-500" />
           <span className="text-sm font-semibold">Nota Clínica (SOAP)</span>
         </div>
+        <div className="flex items-center gap-2">
+          {/* Auto-save indicator */}
+          {editable && autoSaveStatus !== "idle" && (
+            <span className={cn(
+              "flex items-center gap-1 text-[10px]",
+              autoSaveStatus === "saving" && "text-muted-foreground",
+              autoSaveStatus === "saved" && "text-emerald-500",
+              autoSaveStatus === "error" && "text-red-500",
+            )}>
+              {autoSaveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Guardando...</>}
+              {autoSaveStatus === "saved" && <><Cloud className="h-3 w-3" /> Guardado</>}
+              {autoSaveStatus === "error" && <><CloudOff className="h-3 w-3" /> Error al guardar</>}
+            </span>
+          )}
         {isLocked && (
           <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
             <Lock className="h-3 w-3" />
@@ -271,6 +362,7 @@ export function ClinicalNotePanel({
             )}
           </span>
         )}
+        </div>
       </div>
 
       {/* Template selector — only when editable and no signed note */}
@@ -368,7 +460,7 @@ export function ClinicalNotePanel({
               {editable ? (
                 <textarea
                   value={value}
-                  onChange={(e) => set(e.target.value)}
+                  onChange={(e) => { set(e.target.value); markDirty(); }}
                   placeholder={placeholder}
                   rows={3}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
@@ -430,6 +522,7 @@ export function ClinicalNotePanel({
                           setDiagnosisLabel(entry.label);
                           setCie10Query("");
                           setShowCie10(false);
+                          markDirty();
                         }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-accent transition-colors"
                       >
@@ -446,14 +539,14 @@ export function ClinicalNotePanel({
               <input
                 type="text"
                 value={diagnosisCode}
-                onChange={(e) => setDiagnosisCode(e.target.value)}
+                onChange={(e) => { setDiagnosisCode(e.target.value); markDirty(); }}
                 placeholder="CIE-10"
                 className="w-24 rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               />
               <input
                 type="text"
                 value={diagnosisLabel}
-                onChange={(e) => setDiagnosisLabel(e.target.value)}
+                onChange={(e) => { setDiagnosisLabel(e.target.value); markDirty(); }}
                 placeholder="Descripción del diagnóstico"
                 className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               />
@@ -522,7 +615,7 @@ export function ClinicalNotePanel({
           {editable ? (
             <textarea
               value={internalNotes}
-              onChange={(e) => setInternalNotes(e.target.value)}
+              onChange={(e) => { setInternalNotes(e.target.value); markDirty(); }}
               placeholder="Observaciones internas..."
               rows={2}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
