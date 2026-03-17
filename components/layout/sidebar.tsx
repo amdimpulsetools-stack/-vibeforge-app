@@ -31,6 +31,7 @@ import {
   Settings2,
   Crown,
   Cable,
+  LayoutTemplate,
   type LucideIcon,
 } from "lucide-react";
 
@@ -79,6 +80,7 @@ const navEntries: NavEntry[] = [
       { titleKey: "nav.admin_lookups", href: "/admin/lookups", icon: ListOrdered },
       { titleKey: "nav.admin_variables", href: "/admin/global-variables", icon: Settings2 },
       { titleKey: "nav.admin_members", href: "/admin/members", icon: UsersRound },
+      { titleKey: "nav.admin_clinical_templates", href: "/admin/clinical-templates", icon: LayoutTemplate },
     ],
   },
   { titleKey: "nav.account", href: "/account", icon: UserCircle },

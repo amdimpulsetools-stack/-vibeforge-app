@@ -103,3 +103,6 @@ export const mpWebhookBodySchema = z.object({
 
 // ── Clinical Notes ──────────────────────────────────────────────────
 export { clinicalNoteSchema, clinicalNoteUpdateSchema, signNoteSchema } from "./clinical-note";
+
+// ── Clinical Templates ──────────────────────────────────────────────
+export { clinicalTemplateSchema, clinicalTemplateUpdateSchema } from "./clinical-template";

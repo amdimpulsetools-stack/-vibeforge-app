@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { ClinicalNote, Vitals, SOAPSection } from "@/types/clinical-notes";
 import { SOAP_LABELS, VITALS_FIELDS } from "@/types/clinical-notes";
+import type { ClinicalTemplateWithDoctor } from "@/types/clinical-templates";
 import {
   FileText,
   Heart,
@@ -17,6 +18,7 @@ import {
   ChevronUp,
   Stethoscope,
   Search,
+  LayoutTemplate,
 } from "lucide-react";
 import { searchCIE10, type CIE10Entry } from "@/lib/cie10-catalog";
 import { ClinicalNotePrintButton } from "./clinical-note-print";
@@ -72,6 +74,11 @@ export function ClinicalNotePanel({
   const [cie10Results, setCie10Results] = useState<CIE10Entry[]>([]);
   const [showCie10, setShowCie10] = useState(false);
 
+  // Template state
+  const [templates, setTemplates] = useState<ClinicalTemplateWithDoctor[]>([]);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
+
   const soapState: Record<SOAPSection, { value: string; set: (v: string) => void }> = {
     subjective: { value: subjective, set: setSubjective },
     objective: { value: objective, set: setObjective },
@@ -108,6 +115,31 @@ export function ClinicalNotePanel({
   useEffect(() => {
     fetchNote();
   }, [fetchNote]);
+
+  const fetchTemplates = useCallback(async () => {
+    if (templates.length > 0) return; // already loaded
+    setLoadingTemplates(true);
+    try {
+      const res = await fetch("/api/clinical-templates");
+      const json = await res.json();
+      setTemplates(json.data ?? []);
+    } catch {
+      toast.error("Error al cargar plantillas");
+    }
+    setLoadingTemplates(false);
+  }, [templates.length]);
+
+  const applyTemplate = (tpl: ClinicalTemplateWithDoctor) => {
+    if (tpl.subjective) setSubjective(tpl.subjective);
+    if (tpl.objective) setObjective(tpl.objective);
+    if (tpl.assessment) setAssessment(tpl.assessment);
+    if (tpl.plan) setPlan(tpl.plan);
+    if (tpl.diagnosis_code) setDiagnosisCode(tpl.diagnosis_code);
+    if (tpl.diagnosis_label) setDiagnosisLabel(tpl.diagnosis_label);
+    if (tpl.internal_notes) setInternalNotes(tpl.internal_notes);
+    setShowTemplates(false);
+    toast.success(`Plantilla "${tpl.name}" aplicada`);
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -240,6 +272,66 @@ export function ClinicalNotePanel({
           </span>
         )}
       </div>
+
+      {/* Template selector — only when editable and no signed note */}
+      {editable && !note?.is_signed && (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setShowTemplates(!showTemplates);
+              if (!showTemplates) fetchTemplates();
+            }}
+            className="flex w-full items-center justify-between rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+          >
+            <span className="flex items-center gap-1.5">
+              <LayoutTemplate className="h-3.5 w-3.5" />
+              Aplicar plantilla
+            </span>
+            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showTemplates && "rotate-180")} />
+          </button>
+          {showTemplates && (
+            <>
+              <div className="fixed inset-0 z-[5]" onClick={() => setShowTemplates(false)} />
+              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-lg border border-border bg-card shadow-xl">
+                {loadingTemplates ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : templates.length === 0 ? (
+                  <div className="px-3 py-4 text-center text-xs text-muted-foreground">
+                    No hay plantillas disponibles.
+                    <br />
+                    <span className="text-[10px]">Crea plantillas desde Administración &gt; Plantillas Clínicas</span>
+                  </div>
+                ) : (
+                  templates.map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      type="button"
+                      onClick={() => applyTemplate(tpl)}
+                      className="flex w-full items-start gap-2 px-3 py-2 text-left hover:bg-accent transition-colors border-b border-border/50 last:border-0"
+                    >
+                      <LayoutTemplate className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-medium truncate">{tpl.name}</div>
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          {tpl.specialty && <span>{tpl.specialty}</span>}
+                          {tpl.is_global ? (
+                            <span className="text-primary">Global</span>
+                          ) : tpl.doctors?.full_name ? (
+                            <span>{tpl.doctors.full_name}</span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Tip for non-completed appointments */}
       {appointmentStatus !== "completed" && !note && canEdit && (
