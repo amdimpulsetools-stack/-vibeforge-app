@@ -100,3 +100,6 @@ export const mpWebhookBodySchema = z.object({
     id: z.string(),
   }),
 }).passthrough();
+
+// ── Clinical Notes ──────────────────────────────────────────────────
+export { clinicalNoteSchema, clinicalNoteUpdateSchema, signNoteSchema } from "./clinical-note";

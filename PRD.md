@@ -138,6 +138,7 @@
 | `patient_tags` | Etiquetas/badges por paciente |
 | `patient_payments` | Pagos por paciente (puede estar linkeado a appointment) |
 | `schedule_blocks` | Bloques de tiempo no disponible en el scheduler |
+| `clinical_notes` | Notas clínicas SOAP por cita: subjective, objective, assessment, plan, diagnosis_code/label, vitals (JSONB), is_signed, internal_notes |
 
 ### Configuración
 | Tabla | Propósito |
@@ -442,6 +443,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Fecha de nacimiento con edad automática** — Cálculo y display de edad en: lista de pacientes (icono + años), header del drawer del paciente, campo de edición en tab Info. Campo `birth_date` en DB desde migración 019
 - [x] **Dashboard de retención de pacientes (F10)** — Tab "Retención" en reportes con 5 KPIs (recurrentes, nuevos, tasa retención, frecuencia, LTV), gráfica de tendencia mensual (nuevos vs recurrentes), gráfica de tasa de retención, tabla de pacientes en riesgo con filtro configurable (2-12 meses), ranking top 20 pacientes por LTV, exportación CSV. RPCs: `get_retention_overview`, `get_visit_frequency`, `get_at_risk_patients`, `get_patient_ltv`, `get_retention_trend`
 - [x] **WhatsApp click-to-clipboard (F6 Fase 1)** — Modal post-creación de cita con mensaje pre-formateado para copiar y pegar en WhatsApp. Plantilla configurable en Settings con 7 variables dinámicas (nombre, fecha, hora, doctor, servicio, clínica, dirección). Toggle activar/desactivar, editor de plantilla con vista previa en vivo. Persistencia en localStorage
+- [x] **Notas clínicas SOAP (F9)** — Formato SOAP (Subjetivo, Objetivo, Evaluación, Plan) integrado en el sidebar de cita. Tabla `clinical_notes` con RLS multi-tenant, una nota por cita (unique constraint). Signos vitales como JSONB (peso, talla, temperatura, PA, FC, FR, SpO₂). Diagnóstico con código CIE-10 opcional. Sistema de firma digital (is_signed) que bloquea edición. Notas internas no visibles al paciente. Solo el doctor tratante o admin puede editar. API CRUD completa con rate limiting. Validación Zod en todas las rutas. Tipos: `types/clinical-notes.ts`
 
 ### Pendiente / Por Mejorar
 - [ ] Impresión de recibo/comprobante (F3) — Requiere evaluar formato legal Perú (SUNAT)
@@ -449,7 +451,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [ ] WhatsApp Business API (F6 Fase 2) — Envío automático vía Twilio/360dialog
 - [ ] Booking online / agenda pública (F7)
 - [ ] Recordatorios automáticos por cron (F8)
-- [ ] Notas clínicas por cita — formato SOAP (F9)
+- [x] Notas clínicas por cita — formato SOAP (F9)
 - [ ] Notificaciones in-app en tiempo real (F11)
 - [ ] Consentimiento informado digital (F12) — Requisito legal Perú
 - [ ] Módulo de inventario básico (F13)

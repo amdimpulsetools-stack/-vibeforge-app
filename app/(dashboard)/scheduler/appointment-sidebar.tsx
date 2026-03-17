@@ -36,6 +36,9 @@ import {
 } from "lucide-react";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
+import { useOrgRole } from "@/hooks/use-org-role";
+import { useCurrentDoctor } from "@/hooks/use-current-doctor";
+import { ClinicalNotePanel } from "./clinical-note-panel";
 
 interface AppointmentSidebarProps {
   appointment: AppointmentWithRelations;
@@ -73,8 +76,11 @@ export function AppointmentSidebar({
 }: AppointmentSidebarProps) {
   const { t } = useLanguage();
   const { profile } = useUserProfile();
+  const { isAdmin } = useOrgRole();
+  const { doctorId: currentDoctorId } = useCurrentDoctor();
   const [updating, setUpdating] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [showClinicalNote, setShowClinicalNote] = useState(false);
 
   // ── Payments / cobros ────────────────────────────────────────────────────
   const [payments, setPayments] = useState<PatientPayment[]>([]);
@@ -853,6 +859,40 @@ export function AppointmentSidebar({
                   Registrar pago
                 </button>
               )
+            )}
+          </div>
+        )}
+
+        {/* ── Nota Clínica (SOAP) ─────────────────────────────────────── */}
+        {!editing && (
+          <div className="border-t border-border pt-4 space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowClinicalNote(!showClinicalNote)}
+              className="flex w-full items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <Stethoscope className="h-4 w-4 text-emerald-500" />
+                <span className="text-sm font-semibold">Nota Clínica</span>
+              </div>
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-muted-foreground transition-transform",
+                  showClinicalNote && "rotate-180"
+                )}
+              />
+            </button>
+            {showClinicalNote && (
+              <ClinicalNotePanel
+                appointmentId={appointment.id}
+                patientId={appointment.patient_id ?? null}
+                doctorId={appointment.doctor_id}
+                canEdit={
+                  !readOnly &&
+                  (isAdmin || currentDoctorId === appointment.doctor_id)
+                }
+                appointmentStatus={appointment.status}
+              />
             )}
           </div>
         )}
