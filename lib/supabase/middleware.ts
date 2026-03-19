@@ -75,53 +75,37 @@ export async function updateSession(request: NextRequest) {
   }
 
   // ── Onboarding + Plan check para rutas protegidas del dashboard ──
-  // Solo aplica a usuarios autenticados accediendo rutas del dashboard
+  // Single RPC replaces 3 sequential queries (profile, membership, subscription)
   if (user && !isPublic && !isOnboardingFlow) {
-    // 1. Verificar si completó onboarding (tiene whatsapp_phone)
-    const { data: profile } = await supabase
-      .from("user_profiles")
-      .select("whatsapp_phone")
-      .eq("id", user.id)
-      .single();
+    const { data: session } = await supabase.rpc("get_user_session_check", {
+      p_user_id: user.id,
+    });
 
-    if (!profile?.whatsapp_phone) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/onboarding";
-      return applySecurityHeaders(NextResponse.redirect(url));
-    }
-
-    // 2. Verificar membresía a organización
-    const { data: membership } = await supabase
-      .from("organization_members")
-      .select("organization_id, role")
-      .eq("user_id", user.id)
-      .limit(1)
-      .single();
-
-    if (!membership) {
-      // Sin organización — enviar a select-plan para que se auto-cree
+    // No membership found → no org
+    if (!session) {
       const url = request.nextUrl.clone();
       url.pathname = "/select-plan";
       return applySecurityHeaders(NextResponse.redirect(url));
     }
 
-    // 3. Verificar suscripción activa de la organización
-    const { data: subscription } = await supabase
-      .from("organization_subscriptions")
-      .select("status")
-      .eq("organization_id", membership.organization_id)
-      .in("status", ["active", "trialing"])
-      .limit(1)
-      .single();
+    const s = session as {
+      has_whatsapp: boolean;
+      organization_id: string | null;
+      role: string | null;
+      has_active_subscription: boolean;
+    };
 
-    if (!subscription) {
-      // Sin plan activo — redirigir según rol
+    // 1. Onboarding incomplete
+    if (!s.has_whatsapp) {
       const url = request.nextUrl.clone();
-      if (membership.role === "owner") {
-        url.pathname = "/select-plan";
-      } else {
-        url.pathname = "/waiting-for-plan";
-      }
+      url.pathname = "/onboarding";
+      return applySecurityHeaders(NextResponse.redirect(url));
+    }
+
+    // 2. No active subscription
+    if (!s.has_active_subscription) {
+      const url = request.nextUrl.clone();
+      url.pathname = s.role === "owner" ? "/select-plan" : "/waiting-for-plan";
       return applySecurityHeaders(NextResponse.redirect(url));
     }
   }

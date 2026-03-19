@@ -16,9 +16,11 @@ export function useCurrentDoctor() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (userLoading || roleLoading) return;
+    // Start fetching as soon as user is ready — don't wait for role.
+    // If the user isn't a doctor, the query simply returns null.
+    if (userLoading) return;
 
-    if (!user || !isDoctor) {
+    if (!user) {
       setDoctorId(null);
       setLoading(false);
       return;
@@ -38,7 +40,7 @@ export function useCurrentDoctor() {
     };
 
     fetchDoctor();
-  }, [user, userLoading, isDoctor, roleLoading]);
+  }, [user, userLoading]);
 
   return { doctorId, isDoctor, loading };
 }

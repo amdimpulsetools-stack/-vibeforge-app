@@ -138,10 +138,10 @@ export default function SchedulerPage() {
           .eq("is_active", true)
           .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
           .order("display_order"),
-        // Fetch receptionist members as "responsables"
+        // Fetch receptionist members with profile in one query (avoids extra round trip)
         supabase
           .from("organization_members")
-          .select("id, user_id, role")
+          .select("id, user_id, role, user_profiles(full_name, email)")
           .eq("role", "receptionist"),
       ]);
 
@@ -164,27 +164,17 @@ export default function SchedulerPage() {
       setLookupOrigins((originsRes.data as LookupValue[]) ?? []);
       setLookupPayments((paymentsRes.data as LookupValue[]) ?? []);
 
-      // Build responsibles list from receptionist members + their profiles
+      // Build responsibles list from receptionist members (profile joined above)
       const receptionists = receptionistMembersRes.data ?? [];
-      if (receptionists.length > 0) {
-        const userIds = receptionists.map((m) => m.user_id);
-        const { data: profiles } = await supabase
-          .from("user_profiles")
-          .select("id, full_name, email")
-          .in("id", userIds);
-        const profileMap = new Map((profiles ?? []).map((p) => [p.id, p]));
-        setLookupResponsibles(
-          receptionists.map((m) => {
-            const profile = profileMap.get(m.user_id);
-            return {
-              id: m.id,
-              label: profile?.full_name || profile?.email || "Recepcionista",
-            };
-          })
-        );
-      } else {
-        setLookupResponsibles([]);
-      }
+      setLookupResponsibles(
+        receptionists.map((m) => {
+          const profile = (m as unknown as { user_profiles: { full_name: string | null; email: string | null } | null }).user_profiles;
+          return {
+            id: m.id,
+            label: profile?.full_name || profile?.email || "Recepcionista",
+          };
+        })
+      );
     };
 
     fetchMasterData();
