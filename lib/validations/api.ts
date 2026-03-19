@@ -101,10 +101,17 @@ export const mpCreatePreferenceSchema = z.object({
 });
 
 export const mpWebhookBodySchema = z.object({
-  type: z.string(),
-  action: z.string().optional(),
+  type: z.enum([
+    "payment",
+    "subscription_preapproval",
+    "subscription_preapproval_plan",
+    "subscription_authorized_payment",
+    "point_integration_wh",
+    "topic_claims_integration_wh",
+  ]),
+  action: z.string().max(100).optional(),
   data: z.object({
-    id: z.string(),
+    id: z.string().regex(/^\d+$/, "data.id debe ser numérico"),
   }),
 }).passthrough();
 
