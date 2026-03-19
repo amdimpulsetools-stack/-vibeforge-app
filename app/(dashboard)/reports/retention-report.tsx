@@ -29,7 +29,7 @@ import type {
   PatientLTV,
   RetentionTrendMonth,
 } from "@/types/retention";
-import type { ReportExportConfig } from "@/lib/report-export";
+import type { ReportExportConfig } from "@/lib/report-export-types";
 
 interface RetentionReportProps {
   dateFrom: string;

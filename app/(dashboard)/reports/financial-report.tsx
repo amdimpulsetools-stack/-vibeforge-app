@@ -18,7 +18,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import type { ReportExportConfig } from "@/lib/report-export";
+import type { ReportExportConfig } from "@/lib/report-export-types";
 
 export interface ReportExportHandle {
   getExportConfig: () => ReportExportConfig;

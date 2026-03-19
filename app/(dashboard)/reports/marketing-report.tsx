@@ -21,7 +21,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import type { ReportExportConfig } from "@/lib/report-export";
+import type { ReportExportConfig } from "@/lib/report-export-types";
 
 interface MarketingReportProps {
   appointments: AppointmentWithRelations[];

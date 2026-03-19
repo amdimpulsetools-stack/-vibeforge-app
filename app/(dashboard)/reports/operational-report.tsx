@@ -9,7 +9,7 @@ import {
   Star,
   Calendar,
 } from "lucide-react";
-import type { ReportExportConfig } from "@/lib/report-export";
+import type { ReportExportConfig } from "@/lib/report-export-types";
 import {
   AreaChart,
   Area,
