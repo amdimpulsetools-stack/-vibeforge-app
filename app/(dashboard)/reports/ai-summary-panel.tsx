@@ -14,6 +14,7 @@ import {
   Lock,
   RotateCcw,
 } from "lucide-react";
+import DOMPurify from "dompurify";
 import { cn } from "@/lib/utils";
 
 // ── Shared state context ─────────────────────────────────────────
@@ -292,8 +293,11 @@ function MarkdownRenderer({ content }: { content: string }) {
 }
 
 function inlineMarkdown(text: string): string {
-  return text
+  // First strip any raw HTML tags from the source text
+  const stripped = text.replace(/<[^>]*>/g, "");
+  const html = stripped
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/`(.+?)`/g, '<code class="rounded bg-muted px-1 py-0.5 text-xs">$1</code>');
+  return DOMPurify.sanitize(html, { ALLOWED_TAGS: ["strong", "em", "code"], ALLOWED_ATTR: ["class"] });
 }

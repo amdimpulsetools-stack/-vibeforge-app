@@ -206,19 +206,36 @@ export async function POST(
     );
   }
 
-  // 10. Check for conflicts
-  const { data: conflicts } = await supabase
+  // 10. Check for conflicts (two separate safe queries instead of .or() with template literals)
+  const conflictBase = supabase
     .from("appointments")
     .select("id")
     .eq("organization_id", org.id)
     .eq("appointment_date", data.appointment_date)
     .in("status", ["scheduled", "confirmed"])
-    .or(
-      `and(doctor_id.eq.${data.doctor_id},start_time.lt.${endTime},end_time.gt.${data.start_time}),and(office_id.eq.${data.office_id},start_time.lt.${endTime},end_time.gt.${data.start_time})`
-    )
-    .limit(1);
+    .lt("start_time", endTime)
+    .gt("end_time", data.start_time);
 
-  if (conflicts && conflicts.length > 0) {
+  const [doctorConflicts, officeConflicts] = await Promise.all([
+    conflictBase.eq("doctor_id", data.doctor_id).limit(1),
+    supabase
+      .from("appointments")
+      .select("id")
+      .eq("organization_id", org.id)
+      .eq("appointment_date", data.appointment_date)
+      .in("status", ["scheduled", "confirmed"])
+      .lt("start_time", endTime)
+      .gt("end_time", data.start_time)
+      .eq("office_id", data.office_id)
+      .limit(1),
+  ]);
+
+  const conflicts = [
+    ...(doctorConflicts.data ?? []),
+    ...(officeConflicts.data ?? []),
+  ];
+
+  if (conflicts.length > 0) {
     return NextResponse.json(
       { error: "Este horario ya no está disponible. Intenta con otro horario." },
       { status: 409 }
@@ -409,7 +426,7 @@ async function sendBookingConfirmationEmail(
     port,
     secure: port === 465,
     auth: { user: smtpUser, pass: smtpPass },
-    tls: { rejectUnauthorized: false },
+    tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 15000,

@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
         user: smtpUser,
         pass: smtpPass,
       },
-      tls: { rejectUnauthorized: false },
+      tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
       connectionTimeout: 10000,
       greetingTimeout: 10000,
       socketTimeout: 15000,

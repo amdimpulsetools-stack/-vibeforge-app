@@ -138,9 +138,18 @@ async function handleSubscriptionEvent(
   if (mpSub.external_reference) {
     let ref: { organization_id: string; plan_id: string; plan_slug: string };
     try {
-      ref = JSON.parse(mpSub.external_reference);
+      const parsed = JSON.parse(mpSub.external_reference);
+      // Validate required fields are valid UUIDs to prevent injection
+      if (
+        typeof parsed.organization_id !== "string" || !/^[a-f0-9-]{36}$/.test(parsed.organization_id) ||
+        typeof parsed.plan_id !== "string" || !/^[a-f0-9-]{36}$/.test(parsed.plan_id)
+      ) {
+        console.error("[MP Webhook] external_reference failed UUID validation");
+        return;
+      }
+      ref = parsed;
     } catch {
-      console.error("[MP Webhook] Invalid external_reference:", mpSub.external_reference);
+      console.error("[MP Webhook] Invalid external_reference JSON");
       return;
     }
 
@@ -239,7 +248,9 @@ async function handlePaymentEvent(
   if (mpPayment.external_reference) {
     try {
       const ref = JSON.parse(mpPayment.external_reference);
-      orgId = ref.organization_id;
+      if (typeof ref.organization_id === "string" && /^[a-f0-9-]{36}$/.test(ref.organization_id)) {
+        orgId = ref.organization_id;
+      }
     } catch {
       console.warn("[MP Webhook] Invalid payment external_reference");
     }

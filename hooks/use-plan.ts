@@ -98,8 +98,7 @@ export function usePlan(): UsePlanReturn {
       supabase.rpc("get_org_usage", { org_id: organizationId }),
     ]);
 
-    console.log("get_org_plan raw:", JSON.stringify(planRes.data), "error:", JSON.stringify(planRes.error));
-    console.log("get_org_usage raw:", JSON.stringify(usageRes.data), "error:", JSON.stringify(usageRes.error));
+
 
     if (planRes.data) {
       // RPC returns flat JSON — map to PlanInfo + SubscriptionInfo
