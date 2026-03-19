@@ -31,10 +31,10 @@ import { exportToCSV, calculateAge } from "@/lib/export";
 
 type StatusFilter = "all" | "active" | "inactive";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 25;
 
-// Extended patient type with appointment/payment data for filtering
-type PatientExtended = PatientWithTags & {
+// Extra data per patient — loaded on-demand only when debt/service filter or CSV export is used
+type PatientExtraData = {
   appointments: { service_id: string; status: string; price_snapshot: number | null; origin: string | null; services: { id: string; name: string } }[];
   patient_payments: { amount: number }[];
 };
@@ -46,7 +46,7 @@ export default function PatientsPage() {
   const isDoctorRestricted =
     isDoctor &&
     (organization as any)?.settings?.restrict_doctor_patients === true;
-  const [patients, setPatients] = useState<PatientExtended[]>([]);
+  const [patients, setPatients] = useState<PatientWithTags[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
@@ -57,6 +57,10 @@ export default function PatientsPage() {
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
+
+  // Extra data (appointments/payments) — loaded on-demand for debt/service filters and CSV
+  const [extraData, setExtraData] = useState<Record<string, PatientExtraData>>({});
+  const [loadingExtra, setLoadingExtra] = useState(false);
 
   // Advanced filters
   const [showFilters, setShowFilters] = useState(false);
@@ -103,9 +107,11 @@ export default function PatientsPage() {
   useEffect(() => {
     setPage(0);
     setPatients([]);
+    setExtraData({});
     setHasMore(true);
   }, [statusFilter, debouncedSearch, dateFrom, dateTo, origenFilter]);
 
+  // Lightweight list query — only patient data + tags, NO appointments/payments
   const fetchPatients = useCallback(async (pageNum: number, append = false) => {
     if (append) setLoadingMore(true); else setLoading(true);
     const supabase = createClient();
@@ -116,38 +122,31 @@ export default function PatientsPage() {
     let query = supabase
       .from("patients")
       .select(
-        "id, first_name, last_name, dni, document_type, phone, email, birth_date, status, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag), appointments(service_id, status, price_snapshot, origin, services(id, name)), patient_payments(amount)",
+        "id, first_name, last_name, dni, document_type, phone, email, birth_date, status, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag)",
         { count: "exact" }
       )
       .order("last_name")
       .range(from, to);
 
-    // DB-side status filter
     if (statusFilter !== "all") {
       query = query.eq("status", statusFilter);
     }
-
-    // DB-side text search (name, DNI, phone)
     if (debouncedSearch.trim()) {
       const q = `%${debouncedSearch.trim()}%`;
       query = query.or(`first_name.ilike.${q},last_name.ilike.${q},dni.ilike.${q},phone.ilike.${q}`);
     }
-
-    // DB-side date range filter (on created_at)
     if (dateFrom) {
       query = query.gte("created_at", dateFrom);
     }
     if (dateTo) {
       query = query.lte("created_at", dateTo + "T23:59:59");
     }
-
-    // DB-side origin filter
     if (origenFilter) {
       query = query.or(`referral_source.eq.${origenFilter},origin.eq.${origenFilter}`);
     }
 
     const { data, count } = await query;
-    const newData = (data as unknown as PatientExtended[]) ?? [];
+    const newData = (data as unknown as PatientWithTags[]) ?? [];
 
     if (append) {
       setPatients((prev) => [...prev, ...newData]);
@@ -168,6 +167,45 @@ export default function PatientsPage() {
   const loadMore = () => {
     if (hasMore && !loadingMore) setPage((p) => p + 1);
   };
+
+  // On-demand: fetch appointments/payments for loaded patients (debt/service filter + CSV)
+  const fetchExtraData = useCallback(async (patientIds: string[]): Promise<Record<string, PatientExtraData>> => {
+    const missing = patientIds.filter((id) => !extraData[id]);
+    if (missing.length === 0) return extraData;
+
+    setLoadingExtra(true);
+    const supabase = createClient();
+    const [apptRes, payRes] = await Promise.all([
+      supabase
+        .from("appointments")
+        .select("patient_id, service_id, status, price_snapshot, origin, services(id, name)")
+        .in("patient_id", missing),
+      supabase
+        .from("patient_payments")
+        .select("patient_id, amount")
+        .in("patient_id", missing),
+    ]);
+
+    const appts = (apptRes.data ?? []) as unknown as (PatientExtraData["appointments"][number] & { patient_id: string })[];
+    const pays = (payRes.data ?? []) as unknown as (PatientExtraData["patient_payments"][number] & { patient_id: string })[];
+
+    const updated = { ...extraData };
+    for (const id of missing) {
+      updated[id] = {
+        appointments: appts.filter((a) => a.patient_id === id),
+        patient_payments: pays.filter((p) => p.patient_id === id),
+      };
+    }
+    setExtraData(updated);
+    setLoadingExtra(false);
+    return updated;
+  }, [extraData]);
+
+  // Auto-fetch extra data when debt or service filter is turned on
+  useEffect(() => {
+    if ((!debtFilter && !serviceFilter) || patients.length === 0) return;
+    fetchExtraData(patients.map((p) => p.id));
+  }, [debtFilter, serviceFilter, patients, fetchExtraData]);
 
   // Derived data for filter dropdowns
   const availableTags = useMemo(() => {
@@ -197,44 +235,46 @@ export default function PatientsPage() {
   };
 
   // Client-side filtering (only for filters that can't easily run DB-side)
-  // Search, date range, origin, and status are now DB-side
   const filteredPatients = useMemo(() => {
-    // If no client-side filters active, skip filtering
     if (tagFilter.length === 0 && !serviceFilter && !debtFilter) return patients;
 
     return patients.filter((p) => {
-      // Tag filter — patient must have ALL selected tags
+      // Tag filter
       if (tagFilter.length > 0) {
         const patientTags = p.patient_tags.map((pt) => pt.tag);
         if (!tagFilter.every((tag) => patientTags.includes(tag))) return false;
       }
 
-      // Service filter — patient must have at least one non-cancelled appointment with this service
+      // Service & debt filters need extra data — skip patient if not loaded yet
+      const extra = extraData[p.id];
+
       if (serviceFilter) {
-        const hasService = p.appointments?.some(
+        if (!extra) return false;
+        const hasService = extra.appointments?.some(
           (a) => a.service_id === serviceFilter && a.status !== "cancelled"
         );
         if (!hasService) return false;
       }
 
-      // Debt filter
       if (debtFilter) {
+        if (!extra) return false;
         const totalBilled =
-          p.appointments
+          extra.appointments
             ?.filter((a) => a.status !== "cancelled")
             .reduce((sum, a) => sum + (Number(a.price_snapshot) || 0), 0) ?? 0;
         const totalPaid =
-          p.patient_payments?.reduce((sum, pay) => sum + Number(pay.amount), 0) ?? 0;
+          extra.patient_payments?.reduce((sum, pay) => sum + Number(pay.amount), 0) ?? 0;
         if (totalBilled - totalPaid <= 0) return false;
       }
 
       return true;
     });
-  }, [patients, tagFilter, serviceFilter, debtFilter]);
+  }, [patients, tagFilter, serviceFilter, debtFilter, extraData]);
 
   const handleSaved = () => {
     setPage(0);
     setPatients([]);
+    setExtraData({});
     fetchPatients(0);
     setShowForm(false);
     setSelectedPatient(null);
@@ -243,6 +283,7 @@ export default function PatientsPage() {
   const handlePatientUpdated = () => {
     setPage(0);
     setPatients([]);
+    setExtraData({});
     fetchPatients(0);
     if (selectedPatient) {
       const supabase = createClient();
@@ -263,17 +304,25 @@ export default function PatientsPage() {
     );
   };
 
-  const handleExportCSV = () => {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportCSV = async () => {
+    setExporting(true);
+    // Fetch extra data for all visible patients (on-demand)
+    const ids = filteredPatients.map((p) => p.id);
+    const allExtra = await fetchExtraData(ids);
+
     const headers = [
       "Apellido", "Nombre", "DNI", "Tipo Doc.", "Teléfono", "Email",
       "Fecha Nac.", "Edad", "Estado", "Tags", "Departamento", "Distrito",
       "Origen", "Total Facturado", "Total Pagado", "Deuda",
     ];
     const rows = filteredPatients.map((p) => {
-      const totalBilled = p.appointments
+      const extra = allExtra[p.id];
+      const totalBilled = extra?.appointments
         ?.filter((a) => a.status !== "cancelled")
         .reduce((sum, a) => sum + (Number(a.price_snapshot) || 0), 0) ?? 0;
-      const totalPaid = p.patient_payments?.reduce((sum, pay) => sum + Number(pay.amount), 0) ?? 0;
+      const totalPaid = extra?.patient_payments?.reduce((sum, pay) => sum + Number(pay.amount), 0) ?? 0;
       const age = calculateAge(p.birth_date);
       return [
         p.last_name, p.first_name, p.dni, p.document_type, p.phone, p.email,
@@ -285,6 +334,7 @@ export default function PatientsPage() {
     });
     const date = new Date().toISOString().slice(0, 10);
     exportToCSV(headers, rows, `pacientes_${date}.csv`);
+    setExporting(false);
   };
 
   return (
@@ -307,11 +357,11 @@ export default function PatientsPage() {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleExportCSV}
-                disabled={filteredPatients.length === 0}
+                disabled={filteredPatients.length === 0 || exporting}
                 className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
                 title="Exportar CSV"
               >
-                <Download className="h-4 w-4" />
+                {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 CSV
               </button>
               <button
@@ -656,8 +706,14 @@ export default function PatientsPage() {
         </div>
 
         {/* Footer count */}
-        <div className="border-t border-border bg-card px-6 py-2 text-xs text-muted-foreground">
+        <div className="border-t border-border bg-card px-6 py-2 text-xs text-muted-foreground flex items-center gap-2">
           {filteredPatients.length} de {totalCount} {totalCount === 1 ? "paciente" : "pacientes"}
+          {loadingExtra && (
+            <span className="flex items-center gap-1 text-primary">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Cargando filtros...
+            </span>
+          )}
         </div>
       </div>
 
