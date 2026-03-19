@@ -1,6 +1,23 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+const securityHeaders = {
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "X-XSS-Protection": "1; mode=block",
+  "Referrer-Policy": "strict-origin-when-cross-origin",
+  "Permissions-Policy":
+    "camera=(), microphone=(), geolocation=(), payment=(self)",
+  "Strict-Transport-Security": "max-age=63072000; includeSubDomains; preload",
+} as const;
+
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  for (const [key, value] of Object.entries(securityHeaders)) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
@@ -29,25 +46,85 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const pathname = request.nextUrl.pathname;
+
   // Rutas públicas que no requieren auth
-  const publicPaths = ["/", "/login", "/register", "/forgot-password", "/api", "/auth"];
+  const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/api", "/auth", "/book"];
   const isPublic = publicPaths.some((path) =>
-    request.nextUrl.pathname === path || request.nextUrl.pathname.startsWith(path + "/")
+    pathname === path || pathname.startsWith(path + "/")
   );
 
+  // Rutas del flujo de onboarding/plan (accesibles con auth pero sin plan)
+  const isOnboardingFlow =
+    pathname === "/onboarding" ||
+    pathname === "/select-plan" ||
+    pathname === "/waiting-for-plan";
+
   // Redirigir a login si no autenticado y ruta protegida
-  if (!user && !isPublic) {
+  if (!user && !isPublic && !isOnboardingFlow) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
-    return NextResponse.redirect(url);
+    return applySecurityHeaders(NextResponse.redirect(url));
   }
 
-  // Redirigir a dashboard si ya autenticado e intenta ir a auth pages
-  if (user && ["/login", "/register"].includes(request.nextUrl.pathname)) {
+  // Redirigir a dashboard si ya autenticado e intenta ir a login/register
+  if (user && ["/login", "/register"].includes(pathname)) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    return applySecurityHeaders(NextResponse.redirect(url));
   }
 
-  return supabaseResponse;
+  // ── Onboarding + Plan check para rutas protegidas del dashboard ──
+  // Solo aplica a usuarios autenticados accediendo rutas del dashboard
+  if (user && !isPublic && !isOnboardingFlow) {
+    // 1. Verificar si completó onboarding (tiene whatsapp_phone)
+    const { data: profile } = await supabase
+      .from("user_profiles")
+      .select("whatsapp_phone")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.whatsapp_phone) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding";
+      return applySecurityHeaders(NextResponse.redirect(url));
+    }
+
+    // 2. Verificar membresía a organización
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .limit(1)
+      .single();
+
+    if (!membership) {
+      // Sin organización — enviar a select-plan para que se auto-cree
+      const url = request.nextUrl.clone();
+      url.pathname = "/select-plan";
+      return applySecurityHeaders(NextResponse.redirect(url));
+    }
+
+    // 3. Verificar suscripción activa de la organización
+    const { data: subscription } = await supabase
+      .from("organization_subscriptions")
+      .select("status")
+      .eq("organization_id", membership.organization_id)
+      .in("status", ["active", "trialing"])
+      .limit(1)
+      .single();
+
+    if (!subscription) {
+      // Sin plan activo — redirigir según rol
+      const url = request.nextUrl.clone();
+      if (membership.role === "owner") {
+        url.pathname = "/select-plan";
+      } else {
+        url.pathname = "/waiting-for-plan";
+      }
+      return applySecurityHeaders(NextResponse.redirect(url));
+    }
+  }
+
+  return applySecurityHeaders(supabaseResponse);
 }

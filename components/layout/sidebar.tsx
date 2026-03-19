@@ -6,74 +6,251 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLanguage } from "@/components/language-provider";
+import { useOrganization } from "@/components/organization-provider";
+import { useOrgRole } from "@/hooks/use-org-role";
 import {
   LayoutDashboard,
   Settings,
+  UserCircle,
   LogOut,
   ChevronLeft,
+  ChevronDown,
   Zap,
-  UserCircle,
+  ShieldCheck,
+  Building2,
+  Stethoscope,
+  ClipboardList,
+  ListOrdered,
+  CalendarDays,
+  Users,
+  UsersRound,
+  BarChart3,
+  History,
+  Settings2,
+  Crown,
+  Cable,
+  LayoutTemplate,
   type LucideIcon,
 } from "lucide-react";
 
 interface NavItem {
-  title: string;
+  titleKey: string;
   href: string;
   icon: LucideIcon;
+  adminOnly?: boolean;
 }
 
-// ================================================
-// PERSONALIZA: Agrega aquí las rutas de tu app
-// ================================================
-const navItems: NavItem[] = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  // { title: "Pacientes", href: "/patients", icon: Users },
-  // { title: "Citas", href: "/appointments", icon: Calendar },
-  { title: "Cuenta", href: "/account", icon: UserCircle },
-  { title: "Settings", href: "/settings", icon: Settings },
+interface NavGroup {
+  titleKey: string;
+  icon: LucideIcon;
+  adminOnly?: boolean;
+  items: NavItem[];
+}
+
+type NavEntry = NavItem | NavGroup;
+
+function isNavGroup(entry: NavEntry): entry is NavGroup {
+  return "items" in entry;
+}
+
+const navEntries: NavEntry[] = [
+  // Dashboard: visible to all roles (doctor sees personal, admin sees org-wide)
+  { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
+  {
+    titleKey: "nav.scheduler",
+    icon: CalendarDays,
+    items: [
+      { titleKey: "nav.scheduler_calendar", href: "/scheduler", icon: CalendarDays },
+      { titleKey: "nav.scheduler_history", href: "/scheduler/history", icon: History },
+    ],
+  },
+  { titleKey: "nav.patients", href: "/patients", icon: Users },
+  // Reports: admin+ only
+  { titleKey: "nav.reports", href: "/reports", icon: BarChart3, adminOnly: true },
+  {
+    titleKey: "nav.admin",
+    icon: ShieldCheck,
+    adminOnly: true,
+    items: [
+      { titleKey: "nav.admin_offices", href: "/admin/offices", icon: Building2 },
+      { titleKey: "nav.admin_doctors", href: "/admin/doctors", icon: Stethoscope },
+      { titleKey: "nav.admin_services", href: "/admin/services", icon: ClipboardList },
+      { titleKey: "nav.admin_lookups", href: "/admin/lookups", icon: ListOrdered },
+      { titleKey: "nav.admin_variables", href: "/admin/global-variables", icon: Settings2 },
+      { titleKey: "nav.admin_members", href: "/admin/members", icon: UsersRound },
+      { titleKey: "nav.admin_clinical_templates", href: "/admin/clinical-templates", icon: LayoutTemplate },
+    ],
+  },
+  { titleKey: "nav.account", href: "/account", icon: UserCircle },
+  // Settings: admin+ only
+  { titleKey: "nav.settings", href: "/settings", icon: Settings, adminOnly: true },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useLanguage();
+  const { organization } = useOrganization();
+  const { isAdmin } = useOrgRole();
   const [collapsed, setCollapsed] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  const [isFounder, setIsFounder] = useState(false);
+
+  // Check founder status once
+  useEffect(() => {
+    const checkFounder = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("user_profiles")
+        .select("is_founder")
+        .eq("id", user.id)
+        .single();
+      if (data?.is_founder) setIsFounder(true);
+    };
+    checkFounder();
+  }, []);
+
+  const isPathActive = (href: string) =>
+    pathname === href || pathname.startsWith(href + "/");
+
+  const isGroupActive = (group: NavGroup) =>
+    group.items.some((item) => isPathActive(item.href));
+
+  const toggleGroup = (key: string) => {
+    setExpandedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    toast.success("Sesión cerrada");
+    toast.success(t("nav.logout_success"));
     router.push("/login");
     router.refresh();
+  };
+
+  const renderNavItem = (item: NavItem) => {
+    if (item.adminOnly && !isAdmin) return null;
+    const isActive = isPathActive(item.href);
+    return (
+      <Link key={item.href} href={item.href}>
+        <span
+          className={cn(
+            "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+            isActive
+              ? "bg-primary/12 text-primary font-semibold nav-active-glow"
+              : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+            collapsed && "justify-center px-2"
+          )}
+        >
+          <item.icon
+            className={cn(
+              "h-[18px] w-[18px] shrink-0 transition-colors",
+              isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+            )}
+          />
+          {!collapsed && <span className="truncate">{t(item.titleKey)}</span>}
+        </span>
+      </Link>
+    );
+  };
+
+  const renderNavGroup = (group: NavGroup) => {
+    if (group.adminOnly && !isAdmin) return null;
+
+    const groupActive = isGroupActive(group);
+    const isExpanded = expandedGroups[group.titleKey] ?? groupActive;
+
+    return (
+      <div key={group.titleKey}>
+        <button
+          onClick={() => {
+            if (collapsed) {
+              setCollapsed(false);
+              setExpandedGroups((prev) => ({ ...prev, [group.titleKey]: true }));
+            } else {
+              toggleGroup(group.titleKey);
+            }
+          }}
+          className={cn(
+            "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
+            "hover:bg-accent/60 hover:text-foreground",
+            groupActive ? "text-primary font-semibold" : "text-muted-foreground",
+            collapsed && "justify-center px-2"
+          )}
+        >
+          <group.icon
+            className={cn(
+              "h-[18px] w-[18px] shrink-0 transition-colors",
+              groupActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+            )}
+          />
+          {!collapsed && (
+            <>
+              <span className="flex-1 text-left truncate">{t(group.titleKey)}</span>
+              <ChevronDown
+                className={cn(
+                  "h-3.5 w-3.5 text-muted-foreground/60 transition-transform duration-200",
+                  isExpanded && "rotate-180"
+                )}
+              />
+            </>
+          )}
+        </button>
+        {!collapsed && isExpanded && (
+          <div className="ml-[18px] mt-0.5 space-y-0.5 pl-3">
+            {group.items.map(renderNavItem)}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
     <aside
       className={cn(
-        "flex h-screen flex-col border-r border-border bg-card transition-all duration-300",
-        collapsed ? "w-[60px]" : "w-[240px]"
+        "flex h-screen flex-col bg-sidebar-bg border-r border-border/60 transition-all duration-300 relative",
+        collapsed ? "w-[64px]" : "w-[250px]"
       )}
     >
+      {/* Subtle gradient overlay at top */}
+      <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none" />
+
       {/* Header */}
-      <div className="flex h-14 items-center border-b border-border px-3">
+      <div className="relative flex h-16 items-center border-b border-border/40 px-3">
         {!collapsed && (
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Zap className="h-4 w-4" />
+          <div className="flex items-center gap-2.5 min-w-0">
+            {organization?.logo_url ? (
+              <img
+                src={organization.logo_url}
+                alt=""
+                className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-border/50"
+              />
+            ) : (
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg gradient-primary shadow-sm">
+                <Zap className="h-4 w-4 text-white" />
+              </div>
+            )}
+            <div className="min-w-0">
+              <span className="block text-sm font-bold tracking-tight truncate">
+                {organization?.name ?? APP_NAME}
+              </span>
             </div>
-            <span className="text-sm font-bold">{APP_NAME}</span>
           </div>
         )}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors",
+            "flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/70 hover:bg-accent hover:text-foreground transition-all duration-200",
             collapsed ? "mx-auto" : "ml-auto"
           )}
         >
           <ChevronLeft
             className={cn(
-              "h-4 w-4 transition-transform",
+              "h-4 w-4 transition-transform duration-200",
               collapsed && "rotate-180"
             )}
           />
@@ -81,40 +258,40 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 p-2">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-          return (
-            <Link key={item.href} href={item.href}>
-              <span
-                className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                  "hover:bg-accent hover:text-accent-foreground",
-                  isActive
-                    ? "bg-primary/10 text-primary font-medium"
-                    : "text-muted-foreground",
-                  collapsed && "justify-center px-2"
-                )}
-              >
-                <item.icon className="h-[18px] w-[18px] shrink-0" />
-                {!collapsed && <span>{item.title}</span>}
-              </span>
-            </Link>
-          );
-        })}
+      <nav className="relative flex-1 space-y-0.5 overflow-y-auto p-2.5">
+        {navEntries.map((entry) =>
+          isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)
+        )}
+
+        {/* Founder links (platform superuser) */}
+        {isFounder && (
+          <>
+            <div className="my-2 border-t border-border/30" />
+            {renderNavItem({
+              titleKey: "nav.founder",
+              href: "/founder",
+              icon: Crown,
+            })}
+            {renderNavItem({
+              titleKey: "nav.integrations",
+              href: "/founder/integrations",
+              icon: Cable,
+            })}
+          </>
+        )}
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-border p-2">
+      <div className="relative border-t border-border/40 p-2.5">
         <button
           onClick={handleLogout}
           className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive",
+            "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition-all duration-200 hover:bg-destructive/10 hover:text-destructive",
             collapsed && "justify-center px-2"
           )}
         >
           <LogOut className="h-[18px] w-[18px] shrink-0" />
-          {!collapsed && <span>Cerrar sesión</span>}
+          {!collapsed && <span>{t("nav.logout")}</span>}
         </button>
       </div>
     </aside>

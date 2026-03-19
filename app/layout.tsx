@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Outfit, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
+import { LanguageProvider } from "@/components/language-provider";
 import { APP_NAME } from "@/lib/constants";
 import "./globals.css";
 
-const inter = Inter({
+const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  variable: "--font-display",
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -31,12 +39,20 @@ export default function RootLayout({
   return (
     <html lang="es" className="dark" suppressHydrationWarning>
       <body
-        className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}
+        className={`${plusJakarta.variable} ${outfit.variable} ${jetbrainsMono.variable} font-sans antialiased grain`}
       >
         <ThemeProvider>
-          {children}
+          <LanguageProvider>
+            {children}
+          </LanguageProvider>
         </ThemeProvider>
-        <Toaster richColors position="top-right" />
+        <Toaster
+          richColors
+          position="top-right"
+          toastOptions={{
+            className: "!rounded-xl !border-border !shadow-lg",
+          }}
+        />
       </body>
     </html>
   );
