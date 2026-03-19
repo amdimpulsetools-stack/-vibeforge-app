@@ -887,7 +887,7 @@ export function AppointmentSidebar({
           doctorId={appointment.doctor_id}
           canEdit={
             !readOnly &&
-            (isAdmin || currentDoctorId === appointment.doctor_id)
+            currentDoctorId === appointment.doctor_id
           }
           appointmentStatus={appointment.status}
           patientName={appointment.patient_name}
