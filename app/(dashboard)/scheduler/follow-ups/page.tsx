@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
@@ -58,11 +58,13 @@ export default function FollowUpsPage() {
     fetchDoctors();
   }, []);
 
-  const fetchDashboard = useCallback(async () => {
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const fetchDashboard = useCallback(async (doctor: string, priority: string) => {
     setLoading(true);
     const params = new URLSearchParams();
-    if (filterDoctor !== "all") params.set("doctor_id", filterDoctor);
-    if (filterPriority !== "all") params.set("priority", filterPriority);
+    if (doctor !== "all") params.set("doctor_id", doctor);
+    if (priority !== "all") params.set("priority", priority);
 
     const res = await fetch(`/api/clinical-followups/dashboard?${params}`);
     if (res.ok) {
@@ -71,11 +73,16 @@ export default function FollowUpsPage() {
       setCounts(json.counts);
     }
     setLoading(false);
-  }, [filterDoctor, filterPriority]);
+  }, []);
 
+  // Debounce filter changes to avoid double-fetch when both change quickly
   useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchDashboard(filterDoctor, filterPriority);
+    }, 150);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [filterDoctor, filterPriority, fetchDashboard]);
 
   const handleMarkContacted = async (id: string) => {
     setMarkingId(id);
@@ -86,7 +93,7 @@ export default function FollowUpsPage() {
     });
     if (res.ok) {
       toast.success(t("followups.contacted_success"));
-      fetchDashboard();
+      fetchDashboard(filterDoctor, filterPriority);
     } else {
       toast.error(t("followups.contacted_error"));
     }

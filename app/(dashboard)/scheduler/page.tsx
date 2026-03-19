@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { format, addDays, startOfWeek } from "date-fns";
 import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
 import type {
   AppointmentWithRelations,
   Office,
@@ -20,17 +22,40 @@ import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { SchedulerHeader } from "./scheduler-header";
 import { DayView } from "./day-view";
 import { WeekView } from "./week-view";
-import { AppointmentSidebar } from "./appointment-sidebar";
-import { AppointmentFormModal } from "./appointment-form-modal";
-import { RescheduleModal } from "./reschedule-modal";
-import { BlockDialog } from "./block-dialog";
 import {
-  BreakTimeDialog,
   loadBreakTimeConfig,
   DEFAULT_BREAK_TIME_CONFIG,
   type BreakTimeConfig,
 } from "./break-time-dialog";
 import { loadOfficeFilter, saveOfficeFilter } from "@/lib/scheduler-config";
+
+// Lazy-load heavy modal/sidebar components (only downloaded when opened)
+const ModalLoader = () => (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <Loader2 className="h-6 w-6 animate-spin text-white" />
+  </div>
+);
+
+const AppointmentSidebar = dynamic(
+  () => import("./appointment-sidebar").then((m) => ({ default: m.AppointmentSidebar })),
+  { loading: ModalLoader }
+);
+const AppointmentFormModal = dynamic(
+  () => import("./appointment-form-modal").then((m) => ({ default: m.AppointmentFormModal })),
+  { loading: ModalLoader }
+);
+const RescheduleModal = dynamic(
+  () => import("./reschedule-modal").then((m) => ({ default: m.RescheduleModal })),
+  { loading: ModalLoader }
+);
+const BlockDialog = dynamic(
+  () => import("./block-dialog").then((m) => ({ default: m.BlockDialog })),
+  { loading: ModalLoader }
+);
+const BreakTimeDialog = dynamic(
+  () => import("./break-time-dialog").then((m) => ({ default: m.BreakTimeDialog })),
+  { loading: ModalLoader }
+);
 
 export type ViewMode = "day" | "week";
 
@@ -209,7 +234,7 @@ export default function SchedulerPage() {
     // 1. Fetch appointments for the visible date range
     const apptRes = await supabase
       .from("appointments")
-      .select("*, doctors(*), offices(*), services(*)")
+      .select("*, doctors(id,full_name,color,default_meeting_url), offices(id,name), services(id,name,duration_minutes,base_price)")
       .gte("appointment_date", startDate)
       .lte("appointment_date", endDate)
       .neq("status", "cancelled")
@@ -411,10 +436,10 @@ export default function SchedulerPage() {
 
   // Merge DB blocks with virtual break time blocks for rendering
   const { startDate: rangeStart, endDate: rangeEnd } = getDateRange();
-  const allBlocks = [
-    ...blocks,
-    ...generateBreakTimeBlocks(breakTimeConfig, rangeStart, rangeEnd),
-  ];
+  const allBlocks = useMemo(
+    () => [...blocks, ...generateBreakTimeBlocks(breakTimeConfig, rangeStart, rangeEnd)],
+    [blocks, breakTimeConfig, rangeStart, rangeEnd]
+  );
 
   return (
     <div className="flex h-[calc(100vh-7rem)] gap-4">
