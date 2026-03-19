@@ -51,6 +51,8 @@ import { ClinicalAttachmentsPanel } from "./clinical-attachments-panel";
 import { ClinicalFollowupsPanel } from "./clinical-followups-panel";
 import { VitalsTrendsChart } from "./vitals-trends-chart";
 import { DiagnosisHistoryPanel } from "./diagnosis-history-panel";
+import { ClinicalHistoryModal } from "./clinical-history-modal";
+import { Maximize2 } from "lucide-react";
 
 interface PatientDrawerProps {
   patient: PatientWithTags;
@@ -103,6 +105,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [expandedNote, setExpandedNote] = useState<string | null>(null);
+  const [clinicalModalOpen, setClinicalModalOpen] = useState(false);
 
   // Payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -731,6 +734,16 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         {/* ===== CLINICAL TAB ===== */}
         {activeTab === "clinical" && (
           <div className="space-y-3">
+            {/* Expand button */}
+            <div className="flex justify-end">
+              <button
+                onClick={() => setClinicalModalOpen(true)}
+                className="flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+                Ver en grande
+              </button>
+            </div>
             {loadingNotes ? (
               <div className="flex items-center justify-center py-10">
                 <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -1076,6 +1089,13 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           </div>
         )}
       </div>
+
+      {/* Clinical History Expanded Modal */}
+      <ClinicalHistoryModal
+        patient={patient}
+        open={clinicalModalOpen}
+        onClose={() => setClinicalModalOpen(false)}
+      />
     </div>
   );
 }
