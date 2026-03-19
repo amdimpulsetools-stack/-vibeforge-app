@@ -73,6 +73,7 @@ export interface Database {
           phone: string | null;
           avatar_url: string | null;
           role: "user" | "admin";
+          theme: "light" | "dark";
           created_at: string;
           updated_at: string;
         };
@@ -82,6 +83,7 @@ export interface Database {
           phone?: string | null;
           avatar_url?: string | null;
           role?: "user" | "admin";
+          theme?: "light" | "dark";
           created_at?: string;
           updated_at?: string;
         };
@@ -91,6 +93,7 @@ export interface Database {
           phone?: string | null;
           avatar_url?: string | null;
           role?: "user" | "admin";
+          theme?: "light" | "dark";
           updated_at?: string;
         };
       };
