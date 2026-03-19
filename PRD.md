@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-03-17
-> **Versión:** 0.2.0
+> **Última actualización:** 2026-03-19
+> **Versión:** 0.2.1
 > **Estado:** MVP en desarrollo activo
 
 ---
@@ -273,9 +273,35 @@ Desde el drawer lateral de cada paciente, el doctor/admin accede a:
 |-------|--------------|
 | **Seguimientos** | Crear seguimientos con prioridad semáforo (rojo/amarillo/verde). Marcar como resuelto con timestamp |
 | **Adjuntos** | Upload drag-drop de archivos médicos (labs, imágenes, referidos, consentimientos). Máx 10MB. Descarga directa |
-| **Recetas** | Crear prescripciones con medicamento, dosis, frecuencia, vía, duración. Toggle activa/suspendida |
+| **Recetas** | Crear prescripciones con medicamento, dosis, frecuencia, vía, duración. Toggle activa/suspendida. Botón imprimir receta médica |
 | **Tratamientos** | Planes con sesiones numeradas, barra de progreso, estados de sesión |
 | **Diagnósticos** | Timeline visual de todos los diagnósticos, agrupados por CIE-10 con conteo de frecuencia |
+
+#### Modal Expandido de Historia Clínica
+El drawer lateral (420-480px) resulta estrecho para trabajo clínico. Botón **"Ver en grande"** abre modal amplio (max-w-5xl) con:
+- Header con nombre, DNI y edad del paciente
+- Notas clínicas SOAP con layout 2 columnas y texto legible (text-sm)
+- Signos vitales en grid de hasta 8 columnas
+- Paneles clínicos completos (tratamientos, prescripciones, seguimientos, adjuntos) con `canEdit=true` para doctores y admins
+- Usa hook `useCurrentDoctor` para resolver `doctorId` del usuario actual
+- Componente: `patients/clinical-history-modal.tsx`
+
+#### Impresión de Receta Médica
+Botón "Imprimir Receta" en el panel de prescripciones (visible cuando hay prescripciones activas y contexto de impresión disponible). Genera documento HTML en ventana nueva con:
+- Encabezado con nombre de clínica y título "RECETA MÉDICA"
+- Datos del paciente (nombre, DNI) y doctor
+- Lista numerada de medicamentos con dosis, vía, frecuencia, duración, cantidad e indicaciones
+- Bloque de firma del médico tratante
+- Nota legal: "Válida por 30 días desde su emisión"
+- Formato A5 landscape para impresión
+- Componente: `scheduler/prescription-print.tsx`
+
+#### Panel Centralizado de Seguimientos (`/scheduler/follow-ups`)
+Vista dedicada de seguimientos clínicos accesible desde el sidebar (bajo Agenda). Muestra todos los seguimientos de la organización con:
+- Filtros por estado (pendientes/resueltos) y prioridad (semáforo)
+- Nombre del paciente, doctor, servicio, fecha de seguimiento
+- Acciones rápidas para resolver seguimientos
+- Ruta: `/scheduler/follow-ups`
 
 #### Administración de Plantillas
 - Ruta: `/admin/clinical-templates`
@@ -357,6 +383,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 (dashboard) — Páginas protegidas con sidebar
 ├── /dashboard ............... Dashboard (varía por rol)
 ├── /scheduler ............... Calendario de citas (día/semana)
+│   ├── /follow-ups .......... Panel de seguimientos clínicos (vista centralizada)
 │   └── /history ............. Historial de citas pasadas
 ├── /patients ................ Gestión de pacientes
 ├── /reports ................. Reportes (financiero, marketing, operacional)
@@ -415,7 +442,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | Sección | Ítems | Visible para |
 |---------|-------|-------------|
 | Dashboard | Dashboard | Todos |
-| Agenda | Calendario, Historial | Todos |
+| Agenda | Calendario, Seguimientos, Historial | Todos |
 | Pacientes | Pacientes | Todos |
 | Reportes | Reportes | Admin/Owner |
 | Administración | Consultorios, Doctores, Servicios, Catálogos, Variables, Miembros | Admin/Owner |
@@ -533,12 +560,16 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
   - **Historial de Diagnósticos:** Timeline visual de todos los diagnósticos del paciente. Agrupación por código CIE-10 con conteo de frecuencia. Atribución por doctor y fecha. Panel dedicado en drawer de paciente
   - **Versionado de Notas (Auditoría):** Historial completo de versiones por nota clínica. Snapshot inmutable de SOAP, vitales y diagnóstico por versión. Número de versión incremental y resumen de cambio. Tabla `clinical_note_versions`. Endpoint `/api/clinical-notes/[id]/versions`
   - **Migraciones:** 050 (clinical_notes), 051 (clinical_templates), 053 (treatment_plans, treatment_sessions, prescriptions, clinical_attachments, clinical_followups, clinical_note_versions)
-  - **Componentes:** 6 paneles en drawer de paciente (followups, attachments, prescriptions, treatment-plans, diagnosis-history) + editor de nota clínica en scheduler + página admin de plantillas + vista de impresión
+  - **Componentes:** 6 paneles en drawer de paciente (followups, attachments, prescriptions, treatment-plans, diagnosis-history) + editor de nota clínica en scheduler + página admin de plantillas + vista de impresión de nota clínica + vista de impresión de receta médica + modal expandido de historia clínica + panel centralizado de seguimientos
   - **API:** 13 endpoints (6 recursos × GET/POST + PATCH/DELETE según recurso) con rate limiting y validación Zod
   - **Tipos:** `types/clinical-notes.ts`, `types/clinical-history.ts`, `types/clinical-templates.ts`
   - **Seguridad:** RLS en todas las tablas, aislamiento multi-tenant, firma digital inmutable, validación Zod en todas las rutas, rate limiting generalLimiter (30 req/min)
 - [x] **Booking online / agenda pública (F7)** — Página pública `/book/[slug]` para que pacientes agenden citas sin cuenta. Wizard de 5 pasos: doctor → servicio → fecha/hora → datos del paciente → confirmación. Tabla `booking_settings` con configuración por org (toggle activar, días anticipación máx, horas mín de antelación, campos obligatorios, color de acento, mensaje de bienvenida). API pública `/api/book/[slug]` (GET datos) y `/api/book/[slug]/create` (POST crear cita). Validación de horarios, conflictos y schedule blocks. Creación automática de paciente. Email de confirmación. Rate limiting por IP. Tab "Reservas" en Settings con URL copiable. Tema oscuro, diseño mobile-first
 - [x] **Recordatorios automáticos por cron (F8)** — Cron job `/api/cron/reminders` ejecutado cada 30 min via Vercel Cron. Dos ventanas de recordatorio: 24h y 2h antes de la cita. Deduplicación con tabla `reminder_logs` (UNIQUE por appointment + template + canal). Soporte email (SMTP) y WhatsApp Business API. Agrupamiento por organización para reutilizar templates/settings. Variables de email: paciente, doctor, fecha, hora, servicio, clínica, teléfono. Config en `vercel.json`
+- [x] **Impresión de Receta Médica** — Botón "Imprimir Receta" en panel de prescripciones. Genera documento HTML imprimible con datos de paciente/doctor, lista numerada de medicamentos (dosis, vía, frecuencia, duración, cantidad, indicaciones), firma del médico y nota legal (30 días de validez). Formato A5 landscape. Solo visible con prescripciones activas. Componente: `scheduler/prescription-print.tsx`
+- [x] **Modal expandido de Historia Clínica** — Botón "Ver en grande" en tab clínico del drawer de pacientes. Modal amplio (max-w-5xl) con notas SOAP en layout 2 columnas, texto legible (text-sm vs text-xs), vitales en grid 8 columnas, paneles clínicos completos editables para doctores/admins. Resuelve `doctorId` via `useCurrentDoctor`. Componente: `patients/clinical-history-modal.tsx`
+- [x] **Panel centralizado de seguimientos (`/scheduler/follow-ups`)** — Vista dedicada accesible desde sidebar (bajo Agenda → Seguimientos). Muestra todos los seguimientos clínicos de la organización con filtros por estado y prioridad semáforo
+- [x] **Planes de tratamiento editables en modales clínicos** — `TreatmentPlansPanel` integrado en el modal de nota clínica (scheduler) y en el modal expandido de historia clínica (pacientes) con `canEdit=true` y `doctorId`. Doctores y admins pueden crear planes desde ambos contextos
 
 ### Pendiente / Por Mejorar
 - [ ] Impresión de recibo/comprobante (F3) — Requiere evaluar formato legal Perú (SUNAT)
@@ -581,6 +612,8 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 |-----------|----------|
 | `clinical-note-panel.tsx` | Editor SOAP completo: secciones color-coded, CIE-10 autocomplete, vitales colapsables, aplicar plantilla, firma digital, auto-save 30s, impresión |
 | `clinical-note-print.tsx` | Vista de impresión de nota clínica firmada |
+| `prescription-print.tsx` | Vista de impresión de receta médica con lista de medicamentos y firma |
+| `clinical-history-modal.tsx` | Modal expandido (max-w-5xl) de historia clínica para vista legible desde drawer de pacientes |
 | `clinical-followups-panel.tsx` | Panel de seguimientos con semáforo (rojo/amarillo/verde), crear y resolver |
 | `clinical-attachments-panel.tsx` | Upload drag-drop de archivos médicos, descarga, eliminación |
 | `prescriptions-panel.tsx` | Gestión de recetas con UI expandible, toggle activa/suspendida |
