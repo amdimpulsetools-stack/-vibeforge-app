@@ -57,33 +57,31 @@ EJEMPLOS DE BUENAS RESPUESTAS:
 - "No se encontraron citas para ese período."
 `;
 
-const FORBIDDEN_PATTERNS = [
-  /\binsert\b/i,
-  /\bupdate\b/i,
-  /\bdelete\b/i,
-  /\bdrop\b/i,
-  /\btruncate\b/i,
-  /\balter\b/i,
-  /\bcreate\b/i,
-  /\breplace\b/i,
-  /\bgrant\b/i,
-  /\brevoke\b/i,
-  /\bexecute\b/i,
-  /\bcopy\s/i,
-  /pg_read_file/i,
-  /pg_ls_dir/i,
-  /pg_sleep/i,
-  /pg_catalog/i,
-  /pg_authid/i,
-  /pg_shadow/i,
-  /pg_roles/i,
-  /information_schema/i,
-  /\bauth\./i,
-  /\bset\s+role\b/i,
-  /\bset\s+session\b/i,
-  /\breset\b/i,
-  /\bdo\s/i,
-  /;\s*\w/i, // block stacked queries (semicolon followed by another statement)
+const FORBIDDEN_PATTERNS: Array<[RegExp, string]> = [
+  [/\binsert\s+into\b/i, "INSERT INTO"],
+  [/\bupdate\s+\w+\s+set\b/i, "UPDATE SET"],
+  [/\bdelete\s+from\b/i, "DELETE FROM"],
+  [/\bdrop\s+(table|index|view|schema|function|trigger|database)\b/i, "DROP"],
+  [/\btruncate\s+/i, "TRUNCATE"],
+  [/\balter\s+(table|index|view|schema|function|role|database)\b/i, "ALTER"],
+  [/\bcreate\s+(table|index|view|schema|function|trigger|role|database|temp|or)\b/i, "CREATE"],
+  [/\bgrant\s+/i, "GRANT"],
+  [/\brevoke\s+/i, "REVOKE"],
+  [/\bexecute\s+/i, "EXECUTE"],
+  [/\bcopy\s+(to|from)\b/i, "COPY"],
+  [/pg_read_file/i, "pg_read_file"],
+  [/pg_ls_dir/i, "pg_ls_dir"],
+  [/pg_sleep/i, "pg_sleep"],
+  [/pg_catalog\./i, "pg_catalog"],
+  [/pg_authid/i, "pg_authid"],
+  [/pg_shadow/i, "pg_shadow"],
+  [/pg_roles/i, "pg_roles"],
+  [/information_schema\./i, "information_schema"],
+  [/\bauth\./i, "auth.*"],
+  [/\bset\s+(role|session|local)\b/i, "SET ROLE/SESSION"],
+  [/\breset\s+(role|all|session)\b/i, "RESET"],
+  [/\bdo\s*\$\$/i, "DO $$ block"],
+  [/;\s*\b(select|insert|update|delete|drop|create|alter|with)\b/i, "stacked queries"],
 ];
 
 const ALLOWED_TABLES = [
@@ -97,12 +95,13 @@ const MAX_MESSAGE_LENGTH = 1000;
 function validateSql(sql: string): { valid: boolean; error?: string } {
   const normalized = sql.trim().toLowerCase();
 
-  if (!normalized.startsWith("select")) {
+  if (!normalized.startsWith("select") && !normalized.startsWith("with")) {
     return { valid: false, error: "Solo se permiten consultas SELECT" };
   }
 
-  for (const pattern of FORBIDDEN_PATTERNS) {
+  for (const [pattern, label] of FORBIDDEN_PATTERNS) {
     if (pattern.test(sql)) {
+      console.warn(`SQL blocked by pattern "${label}":`, sql.slice(0, 200));
       return { valid: false, error: "La consulta contiene operaciones no permitidas" };
     }
   }
