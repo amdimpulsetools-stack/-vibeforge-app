@@ -28,9 +28,7 @@ import {
   Save,
   Wallet,
   Plus,
-  ChevronDown,
   UserX,
-  Video,
   ExternalLink,
   AlertTriangle,
 } from "lucide-react";
@@ -38,9 +36,7 @@ import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
-import { ClinicalNotePanel } from "./clinical-note-panel";
-import { PrescriptionsPanel } from "@/app/(dashboard)/patients/prescriptions-panel";
-import { ClinicalFollowupsPanel } from "@/app/(dashboard)/patients/clinical-followups-panel";
+import { ClinicalNoteModal } from "./clinical-note-modal";
 
 interface AppointmentSidebarProps {
   appointment: AppointmentWithRelations;
@@ -865,69 +861,42 @@ export function AppointmentSidebar({
           </div>
         )}
 
-        {/* ── Nota Clínica (SOAP) ─────────────────────────────────────── */}
+        {/* ── Nota Clínica — opens in modal ───────────────────────────── */}
         {!editing && (
-          <div className="border-t border-border pt-4 space-y-3">
+          <div className="border-t border-border pt-4">
             <button
               type="button"
-              onClick={() => setShowClinicalNote(!showClinicalNote)}
-              className="flex w-full items-center justify-between"
+              onClick={() => setShowClinicalNote(true)}
+              className="flex w-full items-center justify-between rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3 py-2.5 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
             >
-              <div className="flex items-center gap-2">
-                <Stethoscope className="h-4 w-4 text-emerald-500" />
-                <span className="text-sm font-semibold">Nota Clínica</span>
-              </div>
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 text-muted-foreground transition-transform",
-                  showClinicalNote && "rotate-180"
-                )}
-              />
+              <span className="flex items-center gap-2">
+                <Stethoscope className="h-4 w-4" />
+                Historia Clínica
+              </span>
+              <ExternalLink className="h-3.5 w-3.5 opacity-60" />
             </button>
-            {showClinicalNote && (
-              <>
-                <ClinicalNotePanel
-                  appointmentId={appointment.id}
-                  patientId={appointment.patient_id ?? null}
-                  doctorId={appointment.doctor_id}
-                  canEdit={
-                    !readOnly &&
-                    (isAdmin || currentDoctorId === appointment.doctor_id)
-                  }
-                  appointmentStatus={appointment.status}
-                  patientName={appointment.patient_name}
-                  patientDni={null}
-                  doctorName={appointment.doctors?.full_name}
-                  serviceName={appointment.services?.name}
-                  appointmentDate={appointment.appointment_date}
-                  appointmentTime={appointment.start_time?.slice(0, 5)}
-                />
-                {appointment.patient_id && (
-                  <div className="mt-3 space-y-3 border-t border-border pt-3">
-                    <PrescriptionsPanel
-                      patientId={appointment.patient_id}
-                      doctorId={appointment.doctor_id}
-                      appointmentId={appointment.id}
-                      canEdit={
-                        !readOnly &&
-                        (isAdmin || currentDoctorId === appointment.doctor_id)
-                      }
-                    />
-                    <ClinicalFollowupsPanel
-                      patientId={appointment.patient_id}
-                      doctorId={appointment.doctor_id}
-                      appointmentId={appointment.id}
-                      canEdit={
-                        !readOnly &&
-                        (isAdmin || currentDoctorId === appointment.doctor_id)
-                      }
-                    />
-                  </div>
-                )}
-              </>
-            )}
           </div>
         )}
+
+        {/* Clinical Note Modal */}
+        <ClinicalNoteModal
+          open={showClinicalNote}
+          onOpenChange={setShowClinicalNote}
+          appointmentId={appointment.id}
+          patientId={appointment.patient_id ?? null}
+          doctorId={appointment.doctor_id}
+          canEdit={
+            !readOnly &&
+            (isAdmin || currentDoctorId === appointment.doctor_id)
+          }
+          appointmentStatus={appointment.status}
+          patientName={appointment.patient_name}
+          patientDni={null}
+          doctorName={appointment.doctors?.full_name}
+          serviceName={appointment.services?.name}
+          appointmentDate={appointment.appointment_date}
+          appointmentTime={appointment.start_time?.slice(0, 5)}
+        />
 
         {/* Audit log — read-only */}
         {appointment.edited_by_name && appointment.edited_at && (

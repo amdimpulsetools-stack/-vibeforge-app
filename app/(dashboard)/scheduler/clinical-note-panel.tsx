@@ -41,6 +41,8 @@ interface ClinicalNotePanelProps {
   appointmentDate?: string;
   appointmentTime?: string;
   clinicName?: string;
+  /** When rendered inside a wide modal, uses expanded layout */
+  wideLayout?: boolean;
 }
 
 export function ClinicalNotePanel({
@@ -56,6 +58,7 @@ export function ClinicalNotePanel({
   appointmentDate,
   appointmentTime,
   clinicName,
+  wideLayout = false,
 }: ClinicalNotePanelProps) {
   const [note, setNote] = useState<ClinicalNote | null>(null);
   const [loading, setLoading] = useState(true);
@@ -436,7 +439,7 @@ export function ClinicalNotePanel({
       )}
 
       {/* SOAP Sections */}
-      <div className="space-y-3">
+      <div className={cn("space-y-3", wideLayout && "grid grid-cols-1 md:grid-cols-2 gap-4 space-y-0")}>
         {(Object.keys(SOAP_LABELS) as SOAPSection[]).map((section) => {
           const { letter, label, placeholder } = SOAP_LABELS[section];
           const { value, set } = soapState[section];
@@ -462,8 +465,8 @@ export function ClinicalNotePanel({
                   value={value}
                   onChange={(e) => { set(e.target.value); markDirty(); }}
                   placeholder={placeholder}
-                  rows={3}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
+                  rows={wideLayout ? 5 : 3}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-vertical"
                 />
               ) : (
                 <div className="rounded-lg bg-muted/30 px-3 py-2 text-sm min-h-[2rem]">
@@ -541,7 +544,7 @@ export function ClinicalNotePanel({
                 value={diagnosisCode}
                 onChange={(e) => { setDiagnosisCode(e.target.value); markDirty(); }}
                 placeholder="CIE-10"
-                className="w-24 rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                className={cn("rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors", wideLayout ? "w-32" : "w-24")}
               />
               <input
                 type="text"
@@ -581,7 +584,7 @@ export function ClinicalNotePanel({
           )}
         </button>
         {showVitals && (
-          <div className="grid grid-cols-2 gap-2 px-3 pb-3">
+          <div className={cn("grid gap-2 px-3 pb-3", wideLayout ? "grid-cols-4" : "grid-cols-2")}>
             {VITALS_FIELDS.map(({ key, label, unit, step }) => (
               <div key={key} className="space-y-0.5">
                 <label className="text-[10px] text-muted-foreground">
