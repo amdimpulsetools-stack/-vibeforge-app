@@ -22,6 +22,7 @@ import { FinancialReport } from "./financial-report";
 import { MarketingReport } from "./marketing-report";
 import { OperationalReport } from "./operational-report";
 import { RetentionReport } from "./retention-report";
+import { AiReportProvider, AiSummaryButton, AiSummaryPanel } from "./ai-summary-panel";
 
 type ReportTab = "financial" | "marketing" | "operational" | "retention";
 
@@ -103,100 +104,109 @@ export default function ReportsPage() {
   ];
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
-      {/* Header */}
-      <div className="border-b border-border bg-card px-6 py-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-xl font-bold">{t("reports.title")}</h1>
-            <p className="text-sm text-muted-foreground">{t("reports.subtitle")}</p>
+    <AiReportProvider reportType={activeTab} dateFrom={dateFrom} dateTo={dateTo}>
+      <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+        {/* Header */}
+        <div className="border-b border-border bg-card px-6 py-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-xl font-bold">{t("reports.title")}</h1>
+              <p className="text-sm text-muted-foreground">{t("reports.subtitle")}</p>
+            </div>
+
+            {/* Date Range + AI Button */}
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-2">
+                <CalendarRange className="h-4 w-4 text-muted-foreground" />
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                />
+                <span className="text-xs text-muted-foreground">—</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex gap-1">
+                  {DATE_PRESETS.map((preset) => (
+                    <button
+                      key={preset.key}
+                      onClick={() => applyPreset(preset)}
+                      className="rounded-md bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                    >
+                      {t(`reports.preset_${preset.key}`)}
+                    </button>
+                  ))}
+                </div>
+                <div className="hidden sm:block h-5 w-px bg-border" />
+                <AiSummaryButton />
+              </div>
+            </div>
           </div>
 
-          {/* Date Range */}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-2">
-              <CalendarRange className="h-4 w-4 text-muted-foreground" />
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-              />
-              <span className="text-xs text-muted-foreground">—</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-              />
-            </div>
-            <div className="flex gap-1">
-              {DATE_PRESETS.map((preset) => (
-                <button
-                  key={preset.key}
-                  onClick={() => applyPreset(preset)}
-                  className="rounded-md bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                >
-                  {t(`reports.preset_${preset.key}`)}
-                </button>
-              ))}
-            </div>
+          {/* Tabs */}
+          <div className="mt-4 flex gap-1">
+            {tabs.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                  activeTab === tab.key
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
+              >
+                <tab.icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="mt-4 flex gap-1">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveTab(tab.key)}
-              className={cn(
-                "flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-                activeTab === tab.key
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-foreground"
-              )}
-            >
-              <tab.icon className="h-4 w-4" />
-              {tab.label}
-            </button>
-          ))}
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {/* AI Summary Panel (appears when active) */}
+          <AiSummaryPanel />
+
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : activeTab === "financial" ? (
+            <FinancialReport
+              appointments={appointments}
+              payments={payments}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+            />
+          ) : activeTab === "marketing" ? (
+            <MarketingReport
+              appointments={appointments}
+              patients={patients}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+            />
+          ) : activeTab === "operational" ? (
+            <OperationalReport
+              appointments={appointments}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+            />
+          ) : (
+            <RetentionReport
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+            />
+          )}
         </div>
       </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : activeTab === "financial" ? (
-          <FinancialReport
-            appointments={appointments}
-            payments={payments}
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-          />
-        ) : activeTab === "marketing" ? (
-          <MarketingReport
-            appointments={appointments}
-            patients={patients}
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-          />
-        ) : activeTab === "operational" ? (
-          <OperationalReport
-            appointments={appointments}
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-          />
-        ) : (
-          <RetentionReport
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-          />
-        )}
-      </div>
-    </div>
+    </AiReportProvider>
   );
 }

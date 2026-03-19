@@ -416,6 +416,19 @@ const translations: Record<Language, Record<string, string>> = {
     "reports.tooltip_top_service": "Servicio con más citas agendadas en el periodo",
     "reports.tooltip_offices_used": "Cantidad de consultorios utilizados en el periodo",
 
+    // AI Reports
+    "ai_reports.generate_btn": "Resumen IA",
+    "ai_reports.panel_title": "Resumen Inteligente",
+    "ai_reports.usage_label": "resúmenes usados este mes",
+    "ai_reports.generating": "Analizando tus métricas...",
+    "ai_reports.generating_sub": "Generando insights y recomendaciones personalizadas",
+    "ai_reports.copied": "Resumen copiado al portapapeles",
+    "ai_reports.regenerate": "Regenerar resumen",
+    "ai_reports.copy": "Copiar resumen",
+    "ai_reports.retry": "Intentar de nuevo",
+    "ai_reports.upgrade_btn": "Actualizar plan",
+    "ai_reports.error_generic": "Error al generar el resumen. Intenta de nuevo.",
+
     // Retention
     "reports.tab_retention": "Retención",
     "retention.returning_patients": "Recurrentes",
@@ -973,6 +986,19 @@ const translations: Record<Language, Record<string, string>> = {
     "reports.tooltip_peak_hour": "Time of day with the most appointments",
     "reports.tooltip_top_service": "Service with the most appointments in the period",
     "reports.tooltip_offices_used": "Number of offices used in the period",
+
+    // AI Reports
+    "ai_reports.generate_btn": "AI Summary",
+    "ai_reports.panel_title": "AI Summary",
+    "ai_reports.usage_label": "summaries used this month",
+    "ai_reports.generating": "Analyzing your metrics...",
+    "ai_reports.generating_sub": "Generating personalized insights and recommendations",
+    "ai_reports.copied": "Summary copied to clipboard",
+    "ai_reports.regenerate": "Regenerate summary",
+    "ai_reports.copy": "Copy summary",
+    "ai_reports.retry": "Try again",
+    "ai_reports.upgrade_btn": "Upgrade plan",
+    "ai_reports.error_generic": "Error generating summary. Please try again.",
 
     // Retention
     "reports.tab_retention": "Retention",

@@ -75,6 +75,13 @@ export const aiAssistantSchema = z.object({
     .optional(),
 });
 
+// ── AI Reports ──────────────────────────────────────────────────
+export const aiReportSchema = z.object({
+  reportType: z.enum(["financial", "marketing", "operational", "retention", "general"]),
+  dateFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD"),
+  dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD"),
+});
+
 // ── Mercado Pago ─────────────────────────────────────────────────────
 export const mpCheckoutSchema = z.object({
   plan_id: z.string().uuid("plan_id debe ser un UUID válido"),
