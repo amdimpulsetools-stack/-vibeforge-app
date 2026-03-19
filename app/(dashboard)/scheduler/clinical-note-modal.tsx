@@ -106,6 +106,11 @@ export function ClinicalNoteModal({
                 doctorId={doctorId}
                 appointmentId={appointmentId}
                 canEdit={canEdit}
+                patientName={patientName}
+                patientDni={patientDni}
+                doctorName={doctorName}
+                appointmentDate={appointmentDate}
+                clinicName={clinicName}
               />
               <ClinicalFollowupsPanel
                 patientId={patientId}

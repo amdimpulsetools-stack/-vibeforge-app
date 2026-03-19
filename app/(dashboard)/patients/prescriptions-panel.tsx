@@ -15,6 +15,7 @@ import {
   Ban,
   RotateCcw,
 } from "lucide-react";
+import { PrescriptionPrintButton } from "@/app/(dashboard)/scheduler/prescription-print";
 
 interface PrescriptionsPanelProps {
   patientId: string;
@@ -22,9 +23,15 @@ interface PrescriptionsPanelProps {
   appointmentId?: string;
   clinicalNoteId?: string;
   canEdit: boolean;
+  /** For print — optional */
+  patientName?: string;
+  patientDni?: string | null;
+  doctorName?: string;
+  appointmentDate?: string;
+  clinicName?: string;
 }
 
-export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinicalNoteId, canEdit }: PrescriptionsPanelProps) {
+export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinicalNoteId, canEdit, patientName, patientDni, doctorName, appointmentDate, clinicName }: PrescriptionsPanelProps) {
   const [prescriptions, setPrescriptions] = useState<PrescriptionWithDoctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -119,15 +126,27 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
             <span className="rounded-full bg-muted px-1.5 text-[10px] font-medium">{prescriptions.length}</span>
           )}
         </div>
-        {canEdit && doctorId && (
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-1 rounded-md bg-violet-500/10 px-2 py-1 text-[10px] font-medium text-violet-600 hover:bg-violet-500/20 transition-colors"
-          >
-            <Plus className="h-3 w-3" />
-            Recetar
-          </button>
-        )}
+        <div className="flex items-center gap-1.5">
+          {prescriptions.length > 0 && patientName && doctorName && appointmentDate && (
+            <PrescriptionPrintButton
+              prescriptions={prescriptions}
+              patientName={patientName}
+              patientDni={patientDni}
+              doctorName={doctorName}
+              appointmentDate={appointmentDate}
+              clinicName={clinicName}
+            />
+          )}
+          {canEdit && doctorId && (
+            <button
+              onClick={() => setShowForm(!showForm)}
+              className="flex items-center gap-1 rounded-md bg-violet-500/10 px-2 py-1 text-[10px] font-medium text-violet-600 hover:bg-violet-500/20 transition-colors"
+            >
+              <Plus className="h-3 w-3" />
+              Recetar
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Create form */}
