@@ -49,8 +49,11 @@ export default function RootLayout({
         <Toaster
           richColors
           position="top-right"
+          gap={8}
+          visibleToasts={4}
+          closeButton
           toastOptions={{
-            className: "!rounded-xl !border-border !shadow-lg",
+            duration: 4000,
           }}
         />
       </body>
