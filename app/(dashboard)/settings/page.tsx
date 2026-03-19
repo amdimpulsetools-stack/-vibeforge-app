@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -38,12 +40,20 @@ import {
   type SchedulerConfig,
   type IntervalOption,
 } from "@/lib/scheduler-config";
-import EmailSettingsTab from "./email-settings-tab";
-import PermissionsSettingsTab from "./permissions-settings-tab";
-import WhatsAppClipboardTab from "./whatsapp-clipboard-tab";
-import WhatsAppConfigTab from "./whatsapp-config-tab";
-import WhatsAppTemplatesTab from "./whatsapp-templates-tab";
-import BookingSettingsTab from "./booking-settings-tab";
+
+// Lazy-load heavy tab components — only downloaded when the user opens the tab
+const TabLoader = () => (
+  <div className="flex items-center justify-center py-12">
+    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+  </div>
+);
+
+const EmailSettingsTab = dynamic(() => import("./email-settings-tab"), { loading: TabLoader });
+const PermissionsSettingsTab = dynamic(() => import("./permissions-settings-tab"), { loading: TabLoader });
+const WhatsAppClipboardTab = dynamic(() => import("./whatsapp-clipboard-tab"), { loading: TabLoader });
+const WhatsAppConfigTab = dynamic(() => import("./whatsapp-config-tab"), { loading: TabLoader });
+const WhatsAppTemplatesTab = dynamic(() => import("./whatsapp-templates-tab"), { loading: TabLoader });
+const BookingSettingsTab = dynamic(() => import("./booking-settings-tab"), { loading: TabLoader });
 
 type Tab = "general" | "agenda" | "reservas" | "correos" | "whatsapp" | "whatsapp-api" | "permisos";
 
@@ -58,7 +68,16 @@ export default function SettingsPage() {
   } = useOrganization();
   const { isAdmin, loading: roleLoading } = useOrgRole();
 
-  const [activeTab, setActiveTab] = useState<Tab>("general");
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const VALID_TABS: Tab[] = ["general", "agenda", "reservas", "correos", "whatsapp", "whatsapp-api", "permisos"];
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const activeTab: Tab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "general";
+  const setActiveTab = (tab: Tab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === "general") params.delete("tab"); else params.set("tab", tab);
+    router.replace(`?${params.toString()}`, { scroll: false });
+  };
   const [saving, setSaving] = useState(false);
   const [logoUrl, setLogoUrl] = useState<string | null>(
     organization?.logo_url ?? null
@@ -162,14 +181,15 @@ export default function SettingsPage() {
     setUploadingLogo(true);
     const supabase = createClient();
 
-    await supabase.storage
-      .from("org-assets")
-      .remove([
-        `${organizationId}/logo.jpg`,
-        `${organizationId}/logo.png`,
-        `${organizationId}/logo.webp`,
-        `${organizationId}/logo.svg`,
-      ]);
+    // Extract actual file path from the current logo URL
+    const pathsToRemove: string[] = [];
+    if (logoUrl) {
+      const match = logoUrl.match(new RegExp(`${organizationId}/logo\\.[a-z]+`));
+      if (match) pathsToRemove.push(match[0]);
+    }
+    if (pathsToRemove.length > 0) {
+      await supabase.storage.from("org-assets").remove(pathsToRemove);
+    }
 
     const { error } = await supabase
       .from("organizations")
