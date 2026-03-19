@@ -33,9 +33,9 @@ export interface ReportExportConfig {
 // ── PDF Export ─────────────────────────────────────────────────────
 
 export async function exportReportPDF(config: ReportExportConfig) {
-  const { default: jsPDF } = await import("jspdf");
-  const { default: autoTable } = await import("jspdf-autotable");
-  const { default: html2canvas } = await import("html2canvas");
+  const { default: jsPDF } = await import(/* webpackIgnore: true */ "jspdf");
+  const { default: autoTable } = await import(/* webpackIgnore: true */ "jspdf-autotable");
+  const { default: html2canvas } = await import(/* webpackIgnore: true */ "html2canvas");
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -221,7 +221,7 @@ export async function exportReportPDF(config: ReportExportConfig) {
 // ── Excel Export ───────────────────────────────────────────────────
 
 export async function exportReportExcel(config: ReportExportConfig) {
-  const XLSX = await import("xlsx");
+  const XLSX = await import(/* webpackIgnore: true */ "xlsx");
 
   const wb = XLSX.utils.book_new();
 
