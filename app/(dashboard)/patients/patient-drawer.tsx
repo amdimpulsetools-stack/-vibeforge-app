@@ -125,7 +125,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     const [apptRes, payRes] = await Promise.all([
       supabase
         .from("appointments")
-        .select("*, doctors(*), services(*), offices(*)")
+        .select("id, appointment_date, start_time, end_time, status, patient_id, notes, doctors(id, full_name, color), services(id, name, base_price), offices(id, name)")
         .eq("patient_id", patient.id)
         .order("appointment_date", { ascending: false })
         .order("start_time", { ascending: false }),
@@ -136,7 +136,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         .order("payment_date", { ascending: false }),
     ]);
 
-    setAppointments((apptRes.data as AppointmentWithDetails[]) ?? []);
+    setAppointments((apptRes.data as unknown as AppointmentWithDetails[]) ?? []);
     setPayments((payRes.data as PatientPayment[]) ?? []);
     setLoading(false);
   }, [patient.id]);
@@ -891,8 +891,8 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
             {/* ── Clinical History Panels ── */}
             <div className="mt-4 space-y-4 border-t border-border pt-4">
-              <VitalsTrendsChart patientId={patient.id} />
-              <DiagnosisHistoryPanel patientId={patient.id} />
+              <VitalsTrendsChart patientId={patient.id} clinicalNotes={clinicalNotes} />
+              <DiagnosisHistoryPanel patientId={patient.id} clinicalNotes={clinicalNotes} />
               <TreatmentPlansPanel patientId={patient.id} canEdit={false} />
               <PrescriptionsPanel patientId={patient.id} canEdit={false} />
               <ClinicalFollowupsPanel patientId={patient.id} canEdit={false} />

@@ -7,6 +7,7 @@ import type { ClinicalNote } from "@/types/clinical-notes";
 
 interface DiagnosisHistoryPanelProps {
   patientId: string;
+  clinicalNotes?: ClinicalNote[];
 }
 
 interface DiagnosisEntry {
@@ -17,33 +18,45 @@ interface DiagnosisEntry {
   noteId: string;
 }
 
-export function DiagnosisHistoryPanel({ patientId }: DiagnosisHistoryPanelProps) {
-  const [diagnoses, setDiagnoses] = useState<DiagnosisEntry[]>([]);
-  const [loading, setLoading] = useState(true);
+function buildDiagnoses(notes: (ClinicalNote & { doctors?: { full_name: string } })[]): DiagnosisEntry[] {
+  return notes
+    .filter((n) => n.diagnosis_code || n.diagnosis_label)
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map((n) => ({
+      code: n.diagnosis_code || "",
+      label: n.diagnosis_label || "",
+      date: n.created_at,
+      doctorName: n.doctors?.full_name || null,
+      noteId: n.id,
+    }));
+}
+
+export function DiagnosisHistoryPanel({ patientId, clinicalNotes }: DiagnosisHistoryPanelProps) {
+  const [diagnoses, setDiagnoses] = useState<DiagnosisEntry[]>(() =>
+    clinicalNotes ? buildDiagnoses(clinicalNotes as any) : []
+  );
+  const [loading, setLoading] = useState(!clinicalNotes);
+
+  // Update when clinicalNotes prop changes
+  useEffect(() => {
+    if (clinicalNotes) {
+      setDiagnoses(buildDiagnoses(clinicalNotes as any));
+      setLoading(false);
+    }
+  }, [clinicalNotes]);
 
   const fetchDiagnoses = useCallback(async () => {
+    if (clinicalNotes) return; // Skip if notes provided via props
     try {
       const res = await fetch(`/api/clinical-notes?patient_id=${patientId}`);
       const json = await res.json();
       const notes: (ClinicalNote & { doctors?: { full_name: string } })[] = json.data ?? [];
-
-      const entries: DiagnosisEntry[] = notes
-        .filter((n) => n.diagnosis_code || n.diagnosis_label)
-        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        .map((n) => ({
-          code: n.diagnosis_code || "",
-          label: n.diagnosis_label || "",
-          date: n.created_at,
-          doctorName: n.doctors?.full_name || null,
-          noteId: n.id,
-        }));
-
-      setDiagnoses(entries);
+      setDiagnoses(buildDiagnoses(notes));
     } catch {
       toast.error("Error al cargar diagnósticos");
     }
     setLoading(false);
-  }, [patientId]);
+  }, [patientId, clinicalNotes]);
 
   useEffect(() => {
     fetchDiagnoses();

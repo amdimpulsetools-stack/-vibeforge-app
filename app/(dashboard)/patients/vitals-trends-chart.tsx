@@ -18,6 +18,7 @@ import { VITALS_FIELDS, type Vitals } from "@/types/clinical-notes";
 
 interface VitalsTrendsChartProps {
   patientId: string;
+  clinicalNotes?: ClinicalNote[];
 }
 
 const VITAL_COLORS: Record<string, string> = {
@@ -31,12 +32,21 @@ const VITAL_COLORS: Record<string, string> = {
   height: "#84cc16",
 };
 
-export function VitalsTrendsChart({ patientId }: VitalsTrendsChartProps) {
+export function VitalsTrendsChart({ patientId, clinicalNotes }: VitalsTrendsChartProps) {
   const [notes, setNotes] = useState<ClinicalNote[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!clinicalNotes);
   const [selectedVital, setSelectedVital] = useState<string>("heart_rate");
 
+  // Use passed-in notes if available (avoids duplicate fetch)
+  useEffect(() => {
+    if (clinicalNotes) {
+      setNotes(clinicalNotes);
+      setLoading(false);
+    }
+  }, [clinicalNotes]);
+
   const fetchNotes = useCallback(async () => {
+    if (clinicalNotes) return; // Skip if notes provided via props
     try {
       const res = await fetch(`/api/clinical-notes?patient_id=${patientId}`);
       const json = await res.json();
@@ -45,7 +55,7 @@ export function VitalsTrendsChart({ patientId }: VitalsTrendsChartProps) {
       toast.error("Error al cargar notas clínicas");
     }
     setLoading(false);
-  }, [patientId]);
+  }, [patientId, clinicalNotes]);
 
   useEffect(() => {
     fetchNotes();

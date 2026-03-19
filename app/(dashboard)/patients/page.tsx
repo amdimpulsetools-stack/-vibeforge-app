@@ -31,6 +31,8 @@ import { exportToCSV, calculateAge } from "@/lib/export";
 
 type StatusFilter = "all" | "active" | "inactive";
 
+const PAGE_SIZE = 50;
+
 // Extended patient type with appointment/payment data for filtering
 type PatientExtended = PatientWithTags & {
   appointments: { service_id: string; status: string; price_snapshot: number | null; origin: string | null; services: { id: string; name: string } }[];
@@ -46,10 +48,15 @@ export default function PatientsPage() {
     (organization as any)?.settings?.restrict_doctor_patients === true;
   const [patients, setPatients] = useState<PatientExtended[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedPatient, setSelectedPatient] = useState<PatientWithTags | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Advanced filters
   const [showFilters, setShowFilters] = useState(false);
@@ -86,25 +93,81 @@ export default function PatientsPage() {
       );
   }, []);
 
-  const fetchPatients = useCallback(async () => {
+  // Debounce search input — wait 300ms before querying DB
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Reset pagination when DB-side filters change
+  useEffect(() => {
+    setPage(0);
+    setPatients([]);
+    setHasMore(true);
+  }, [statusFilter, debouncedSearch, dateFrom, dateTo, origenFilter]);
+
+  const fetchPatients = useCallback(async (pageNum: number, append = false) => {
+    if (append) setLoadingMore(true); else setLoading(true);
     const supabase = createClient();
+
+    const from = pageNum * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+
     let query = supabase
       .from("patients")
-      .select("*, patient_tags(*), appointments(service_id, status, price_snapshot, origin, services(id, name)), patient_payments(amount)")
-      .order("last_name");
+      .select(
+        "id, first_name, last_name, dni, document_type, phone, email, birth_date, status, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag), appointments(service_id, status, price_snapshot, origin, services(id, name)), patient_payments(amount)",
+        { count: "exact" }
+      )
+      .order("last_name")
+      .range(from, to);
 
+    // DB-side status filter
     if (statusFilter !== "all") {
       query = query.eq("status", statusFilter);
     }
 
-    const { data } = await query;
-    setPatients((data as PatientExtended[]) ?? []);
-    setLoading(false);
-  }, [statusFilter]);
+    // DB-side text search (name, DNI, phone)
+    if (debouncedSearch.trim()) {
+      const q = `%${debouncedSearch.trim()}%`;
+      query = query.or(`first_name.ilike.${q},last_name.ilike.${q},dni.ilike.${q},phone.ilike.${q}`);
+    }
 
+    // DB-side date range filter (on created_at)
+    if (dateFrom) {
+      query = query.gte("created_at", dateFrom);
+    }
+    if (dateTo) {
+      query = query.lte("created_at", dateTo + "T23:59:59");
+    }
+
+    // DB-side origin filter
+    if (origenFilter) {
+      query = query.or(`referral_source.eq.${origenFilter},origin.eq.${origenFilter}`);
+    }
+
+    const { data, count } = await query;
+    const newData = (data as unknown as PatientExtended[]) ?? [];
+
+    if (append) {
+      setPatients((prev) => [...prev, ...newData]);
+    } else {
+      setPatients(newData);
+    }
+    setTotalCount(count ?? 0);
+    setHasMore(newData.length === PAGE_SIZE);
+    setLoading(false);
+    setLoadingMore(false);
+  }, [statusFilter, debouncedSearch, dateFrom, dateTo, origenFilter]);
+
+  // Fetch when page or filters change
   useEffect(() => {
-    fetchPatients();
-  }, [fetchPatients]);
+    fetchPatients(page, page > 0);
+  }, [fetchPatients, page]);
+
+  const loadMore = () => {
+    if (hasMore && !loadingMore) setPage((p) => p + 1);
+  };
 
   // Derived data for filter dropdowns
   const availableTags = useMemo(() => {
@@ -133,22 +196,13 @@ export default function PatientsPage() {
     setOrigenFilter("");
   };
 
-  // Client-side filtering
+  // Client-side filtering (only for filters that can't easily run DB-side)
+  // Search, date range, origin, and status are now DB-side
   const filteredPatients = useMemo(() => {
-    return patients.filter((p) => {
-      // Text search
-      if (search.trim()) {
-        const q = search.toLowerCase();
-        const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
-        if (
-          !fullName.includes(q) &&
-          !(p.dni && p.dni.toLowerCase().includes(q)) &&
-          !(p.phone && p.phone.includes(q))
-        ) {
-          return false;
-        }
-      }
+    // If no client-side filters active, skip filtering
+    if (tagFilter.length === 0 && !serviceFilter && !debtFilter) return patients;
 
+    return patients.filter((p) => {
       // Tag filter — patient must have ALL selected tags
       if (tagFilter.length > 0) {
         const patientTags = p.patient_tags.map((pt) => pt.tag);
@@ -163,10 +217,6 @@ export default function PatientsPage() {
         if (!hasService) return false;
       }
 
-      // Date range filter (on created_at)
-      if (dateFrom && p.created_at < dateFrom) return false;
-      if (dateTo && p.created_at > dateTo + "T23:59:59") return false;
-
       // Debt filter
       if (debtFilter) {
         const totalBilled =
@@ -178,34 +228,31 @@ export default function PatientsPage() {
         if (totalBilled - totalPaid <= 0) return false;
       }
 
-      // Origin filter — check patient.referral_source, patient.origin, and appointment origins
-      if (origenFilter) {
-        const matchesPatient = p.referral_source === origenFilter || p.origin === origenFilter;
-        const matchesAppointment = p.appointments?.some((a) => a.origin === origenFilter);
-        if (!matchesPatient && !matchesAppointment) return false;
-      }
-
       return true;
     });
-  }, [patients, search, tagFilter, serviceFilter, dateFrom, dateTo, debtFilter, origenFilter]);
+  }, [patients, tagFilter, serviceFilter, debtFilter]);
 
   const handleSaved = () => {
-    fetchPatients();
+    setPage(0);
+    setPatients([]);
+    fetchPatients(0);
     setShowForm(false);
     setSelectedPatient(null);
   };
 
   const handlePatientUpdated = () => {
-    fetchPatients();
+    setPage(0);
+    setPatients([]);
+    fetchPatients(0);
     if (selectedPatient) {
       const supabase = createClient();
       supabase
         .from("patients")
-        .select("*, patient_tags(*)")
+        .select("id, first_name, last_name, dni, document_type, phone, email, birth_date, status, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag)")
         .eq("id", selectedPatient.id)
         .single()
         .then(({ data }) => {
-          if (data) setSelectedPatient(data as PatientWithTags);
+          if (data) setSelectedPatient(data as unknown as PatientWithTags);
         });
     }
   };
@@ -588,13 +635,29 @@ export default function PatientsPage() {
                   </button>
                 );
               })}
+
+              {/* Load More */}
+              {hasMore && (
+                <div className="flex justify-center py-4">
+                  <button
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 transition-colors"
+                  >
+                    {loadingMore ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : null}
+                    {loadingMore ? "Cargando..." : "Cargar más"}
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Footer count */}
         <div className="border-t border-border bg-card px-6 py-2 text-xs text-muted-foreground">
-          {filteredPatients.length} {filteredPatients.length === 1 ? "paciente" : "pacientes"}
+          {filteredPatients.length} de {totalCount} {totalCount === 1 ? "paciente" : "pacientes"}
         </div>
       </div>
 
