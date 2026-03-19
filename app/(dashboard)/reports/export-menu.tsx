@@ -11,7 +11,7 @@ import {
 
 interface ExportMenuProps {
   onExportPDF: () => Promise<void>;
-  onExportExcel: () => void;
+  onExportExcel: () => void | Promise<void>;
   onExportCSV?: () => void;
 }
 

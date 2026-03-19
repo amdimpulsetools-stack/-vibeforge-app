@@ -1,12 +1,8 @@
 /**
  * Report Export Utilities — PDF & Excel
- * Uses jsPDF + autoTable for PDF, SheetJS (xlsx) for Excel
+ * Uses dynamic imports so heavy libs (jsPDF, xlsx, html2canvas) only load
+ * on demand in the browser, avoiding Next.js server-side resolution issues.
  */
-
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import html2canvas from "html2canvas";
-import * as XLSX from "xlsx";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -37,6 +33,10 @@ export interface ReportExportConfig {
 // ── PDF Export ─────────────────────────────────────────────────────
 
 export async function exportReportPDF(config: ReportExportConfig) {
+  const { default: jsPDF } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+  const { default: html2canvas } = await import("html2canvas");
+
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 14;
@@ -220,7 +220,9 @@ export async function exportReportPDF(config: ReportExportConfig) {
 
 // ── Excel Export ───────────────────────────────────────────────────
 
-export function exportReportExcel(config: ReportExportConfig) {
+export async function exportReportExcel(config: ReportExportConfig) {
+  const XLSX = await import("xlsx");
+
   const wb = XLSX.utils.book_new();
 
   // Summary sheet with KPIs
