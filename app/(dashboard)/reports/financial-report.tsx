@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, PatientPayment } from "@/types/admin";
 import {
@@ -19,6 +19,12 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { ExportMenu } from "./export-menu";
+import {
+  exportReportPDF,
+  exportReportExcel,
+  type ReportExportConfig,
+} from "@/lib/report-export";
 
 interface FinancialReportProps {
   appointments: AppointmentWithRelations[];
@@ -103,6 +109,7 @@ export function FinancialReport({
   dateTo,
 }: FinancialReportProps) {
   const { t } = useLanguage();
+  const chartsRef = useRef<HTMLDivElement>(null);
 
   const doctorData = useMemo(() => {
     const map = new Map<string, DoctorProductivity>();
@@ -179,37 +186,66 @@ export function FinancialReport({
     Facturado: Number(d.revenue.toFixed(2)),
   }));
 
-  const exportCSV = () => {
+  // ── Export helpers ──
+
+  const buildExportConfig = (): ReportExportConfig => ({
+    title: "Reporte Financiero",
+    dateRange: { from: dateFrom, to: dateTo },
+    kpis: [
+      { label: "Total Facturado", value: `S/. ${totalRevenue.toFixed(2)}` },
+      { label: "Total Cobrado", value: `S/. ${totalPaid.toFixed(2)}` },
+      { label: "Pendiente", value: `S/. ${totalPending.toFixed(2)}` },
+      { label: "Atendidos", value: String(totalAttended) },
+      { label: "Cancelados", value: String(totalCancelled) },
+      { label: "No Shows", value: String(totalNoShows) },
+    ],
+    tables: [
+      {
+        title: "Productividad por Doctor",
+        headers: ["Doctor", "Total", "Atendidos", "Confirmados", "Programados", "Cancelados", "Facturado (S/.)", "Prom/Cita (S/.)"],
+        rows: [
+          ...doctorData.map((d) => [
+            d.name,
+            d.totalAppointments,
+            d.attended,
+            d.confirmed,
+            d.scheduled,
+            d.cancelled,
+            d.revenue.toFixed(2),
+            d.avgPerAppointment.toFixed(2),
+          ]),
+          [
+            "TOTAL",
+            appointments.length,
+            totalAttended,
+            doctorData.reduce((s, d) => s + d.confirmed, 0),
+            doctorData.reduce((s, d) => s + d.scheduled, 0),
+            totalCancelled,
+            totalRevenue.toFixed(2),
+            "",
+          ],
+        ],
+        columnAligns: ["left", "center", "center", "center", "center", "center", "right", "right"],
+      },
+    ],
+    chartRefs: chartsRef.current ? [chartsRef.current] : [],
+    filename: `reporte_financiero_${dateFrom}_${dateTo}`,
+  });
+
+  const handleExportCSV = () => {
     const headers = [
-      "Doctor",
-      "Total Citas",
-      "Atendidos",
-      "Confirmados",
-      "Programados",
-      "Cancelados",
-      "Facturado (S/.)",
-      "Promedio/Cita (S/.)",
+      "Doctor", "Total Citas", "Atendidos", "Confirmados", "Programados",
+      "Cancelados", "Facturado (S/.)", "Promedio/Cita (S/.)",
     ];
     const rows = doctorData.map((d) => [
-      d.name,
-      d.totalAppointments,
-      d.attended,
-      d.confirmed,
-      d.scheduled,
-      d.cancelled,
-      d.revenue.toFixed(2),
-      d.avgPerAppointment.toFixed(2),
+      d.name, d.totalAppointments, d.attended, d.confirmed, d.scheduled,
+      d.cancelled, d.revenue.toFixed(2), d.avgPerAppointment.toFixed(2),
     ]);
-
     rows.push([
-      "TOTAL",
-      appointments.length,
-      totalAttended,
+      "TOTAL", appointments.length, totalAttended,
       doctorData.reduce((s, d) => s + d.confirmed, 0),
       doctorData.reduce((s, d) => s + d.scheduled, 0),
-      totalCancelled,
-      totalRevenue.toFixed(2),
-      "",
+      totalCancelled, totalRevenue.toFixed(2), "",
     ]);
 
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -227,88 +263,45 @@ export function FinancialReport({
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={DollarSign}
-            label={t("reports.total_billed")}
-            tooltip={t("reports.tooltip_total_billed")}
-          />
+          <CardTitle icon={DollarSign} label={t("reports.total_billed")} tooltip={t("reports.tooltip_total_billed")} />
           <p className="mt-2 text-2xl font-bold">S/. {totalRevenue.toFixed(2)}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={DollarSign}
-            label={t("reports.total_collected")}
-            tooltip={t("reports.tooltip_total_collected")}
-            iconClass="text-emerald-500"
-          />
+          <CardTitle icon={DollarSign} label={t("reports.total_collected")} tooltip={t("reports.tooltip_total_collected")} iconClass="text-emerald-500" />
           <p className="mt-2 text-2xl font-bold text-emerald-600">S/. {totalPaid.toFixed(2)}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={DollarSign}
-            label={t("reports.total_pending")}
-            tooltip={t("reports.tooltip_total_pending")}
-            iconClass="text-amber-500"
-          />
+          <CardTitle icon={DollarSign} label={t("reports.total_pending")} tooltip={t("reports.tooltip_total_pending")} iconClass="text-amber-500" />
           <p className={`mt-2 text-2xl font-bold ${totalPending > 0 ? "text-amber-600" : "text-emerald-600"}`}>
             S/. {totalPending.toFixed(2)}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={Users}
-            label={t("reports.total_attended")}
-            tooltip={t("reports.tooltip_total_attended")}
-          />
+          <CardTitle icon={Users} label={t("reports.total_attended")} tooltip={t("reports.tooltip_total_attended")} />
           <p className="mt-2 text-2xl font-bold">{totalAttended}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={XCircle}
-            label={t("reports.total_cancelled")}
-            tooltip={t("reports.tooltip_total_cancelled")}
-            iconClass="text-red-500"
-          />
+          <CardTitle icon={XCircle} label={t("reports.total_cancelled")} tooltip={t("reports.tooltip_total_cancelled")} iconClass="text-red-500" />
           <p className="mt-2 text-2xl font-bold text-red-600">{totalCancelled}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={UserX}
-            label={t("reports.total_no_shows")}
-            tooltip={t("reports.tooltip_no_shows")}
-            iconClass="text-amber-500"
-          />
+          <CardTitle icon={UserX} label={t("reports.total_no_shows")} tooltip={t("reports.tooltip_no_shows")} iconClass="text-amber-500" />
           <p className="mt-2 text-2xl font-bold text-amber-600">{totalNoShows}</p>
         </div>
       </div>
 
       {/* Charts row */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div ref={chartsRef} className="grid gap-6 lg:grid-cols-2">
         {/* Appointments by doctor */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.appointments_by_doctor")}</h3>
           {chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={chartData} barCategoryGap="25%">
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-                />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
-                <Legend
-                  iconType="circle"
-                  iconSize={8}
-                  wrapperStyle={{ fontSize: 12 }}
-                />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="Atendidos" fill="#22c55e" radius={999} animationDuration={800} animationEasing="ease-out" />
                 <Bar dataKey="Confirmados" fill="#3b82f6" radius={999} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
                 <Bar dataKey="Cancelados" fill="#ef4444" radius={999} animationDuration={800} animationEasing="ease-out" animationBegin={400} />
@@ -325,18 +318,8 @@ export function FinancialReport({
           {revenueChartData.length > 0 ? (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={revenueChartData} barCategoryGap="30%">
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  tickLine={false}
-                  axisLine={false}
-                />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                 <Tooltip content={<RevenueTooltip />} cursor={false} />
                 <Bar dataKey="Facturado" fill="#10b981" radius={999} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={1000} animationEasing="ease-out" />
               </BarChart>
@@ -351,39 +334,23 @@ export function FinancialReport({
       <div className="rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h3 className="text-sm font-semibold">{t("reports.doctor_productivity")}</h3>
-          <button
-            onClick={exportCSV}
-            className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
-          >
-            <Download className="h-3.5 w-3.5" />
-            {t("reports.export_csv")}
-          </button>
+          <ExportMenu
+            onExportPDF={() => exportReportPDF(buildExportConfig())}
+            onExportExcel={() => exportReportExcel(buildExportConfig())}
+            onExportCSV={handleExportCSV}
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">
-                  {t("reports.doctor")}
-                </th>
-                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">
-                  {t("reports.total")}
-                </th>
-                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">
-                  {t("reports.attended")}
-                </th>
-                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">
-                  {t("reports.confirmed")}
-                </th>
-                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">
-                  {t("reports.cancelled")}
-                </th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">
-                  {t("reports.billed")}
-                </th>
-                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">
-                  {t("reports.avg_per_appointment")}
-                </th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">{t("reports.doctor")}</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.total")}</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.attended")}</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.confirmed")}</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.cancelled")}</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">{t("reports.billed")}</th>
+                <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">{t("reports.avg_per_appointment")}</th>
               </tr>
             </thead>
             <tbody>
@@ -391,10 +358,7 @@ export function FinancialReport({
                 <tr key={doc.name} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-2.5">
                     <div className="flex items-center gap-2">
-                      <span
-                        className="h-3 w-3 rounded-full shrink-0"
-                        style={{ backgroundColor: doc.color }}
-                      />
+                      <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: doc.color }} />
                       <span className="font-medium">{doc.name}</span>
                     </div>
                   </td>
@@ -403,9 +367,7 @@ export function FinancialReport({
                   <td className="px-4 py-2.5 text-center text-blue-600">{doc.confirmed}</td>
                   <td className="px-4 py-2.5 text-center text-red-600">{doc.cancelled}</td>
                   <td className="px-4 py-2.5 text-right font-semibold">S/. {doc.revenue.toFixed(2)}</td>
-                  <td className="px-4 py-2.5 text-right text-muted-foreground">
-                    S/. {doc.avgPerAppointment.toFixed(2)}
-                  </td>
+                  <td className="px-4 py-2.5 text-right text-muted-foreground">S/. {doc.avgPerAppointment.toFixed(2)}</td>
                 </tr>
               ))}
               {doctorData.length > 0 && (
@@ -413,9 +375,7 @@ export function FinancialReport({
                   <td className="px-4 py-2.5">TOTAL</td>
                   <td className="px-4 py-2.5 text-center">{appointments.length}</td>
                   <td className="px-4 py-2.5 text-center text-emerald-600">{totalAttended}</td>
-                  <td className="px-4 py-2.5 text-center text-blue-600">
-                    {doctorData.reduce((s, d) => s + d.confirmed, 0)}
-                  </td>
+                  <td className="px-4 py-2.5 text-center text-blue-600">{doctorData.reduce((s, d) => s + d.confirmed, 0)}</td>
                   <td className="px-4 py-2.5 text-center text-red-600">{totalCancelled}</td>
                   <td className="px-4 py-2.5 text-right">S/. {totalRevenue.toFixed(2)}</td>
                   <td className="px-4 py-2.5 text-right" />

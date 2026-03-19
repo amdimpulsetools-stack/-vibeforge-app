@@ -33,6 +33,9 @@
     "clsx": "^2.1.0",
     "date-fns": "^4.1.0",
     "framer-motion": "^11.14.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.460.0",
     "mercadopago": "^2.12.0",
     "next": "^15.1.0",
@@ -45,6 +48,7 @@
     "resend": "^6.9.2",
     "sonner": "^1.7.0",
     "tailwind-merge": "^2.6.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.24.0"
   },
   "devDependencies": {

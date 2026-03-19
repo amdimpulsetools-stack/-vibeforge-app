@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations } from "@/types/admin";
 import {
@@ -8,7 +8,6 @@ import {
   Building2,
   Star,
   Calendar,
-  Download,
 } from "lucide-react";
 import { exportToCSV } from "@/lib/export";
 import {
@@ -23,6 +22,12 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { ExportMenu } from "./export-menu";
+import {
+  exportReportPDF,
+  exportReportExcel,
+  type ReportExportConfig,
+} from "@/lib/report-export";
 
 interface OperationalReportProps {
   appointments: AppointmentWithRelations[];
@@ -77,6 +82,7 @@ export function OperationalReport({
   dateTo,
 }: OperationalReportProps) {
   const { t } = useLanguage();
+  const chartsRef = useRef<HTMLDivElement>(null);
 
   const activeAppointments = useMemo(
     () => appointments.filter((a) => a.status !== "cancelled"),
@@ -172,49 +178,74 @@ export function OperationalReport({
   );
   const topService = topServicesData[0];
 
+  // ── Export helpers ──
+
+  const buildExportConfig = (): ReportExportConfig => ({
+    title: "Reporte Operacional",
+    dateRange: { from: dateFrom, to: dateTo },
+    kpis: [
+      { label: "Promedio Diario", value: avgDailyAppointments },
+      { label: "Hora Pico", value: busiestHour.hour },
+      { label: "Servicio Top", value: topService?.name ?? "--" },
+      { label: "Consultorios Usados", value: String(officeData.length) },
+    ],
+    tables: [
+      {
+        title: "Top Servicios",
+        headers: ["Servicio", "Cantidad", "Ingresos (S/.)"],
+        rows: topServicesData.map((s) => [s.name, s.count, s.revenue.toFixed(2)]),
+        columnAligns: ["left", "center", "right"],
+      },
+      {
+        title: "Ocupación por Consultorio",
+        headers: ["Consultorio", "Total Citas", "Completadas", "Tasa (%)"],
+        rows: officeData.map((o) => [o.name, o.total, o.completed, `${o.rate}%`]),
+        columnAligns: ["left", "center", "center", "center"],
+      },
+      {
+        title: "Horas Pico",
+        headers: ["Hora", "Citas"],
+        rows: peakHoursData.filter((h) => h.citas > 0).map((h) => [h.hour, h.citas]),
+        columnAligns: ["left", "center"],
+      },
+    ],
+    chartRefs: chartsRef.current ? [chartsRef.current] : [],
+    filename: `reporte_operacional_${dateFrom}_${dateTo}`,
+  });
+
+  const handleExportCSV = () => {
+    const headers = ["Servicio", "Cantidad", "Ingresos (S/.)"];
+    const rows = topServicesData.map((s) => [s.name, s.count, s.revenue.toFixed(2)]);
+    exportToCSV(headers, rows, `reporte_operacional_${dateFrom}_${dateTo}.csv`);
+  };
+
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={Calendar}
-            label={t("reports.avg_daily")}
-            tooltip={t("reports.tooltip_avg_daily")}
-          />
+          <CardTitle icon={Calendar} label={t("reports.avg_daily")} tooltip={t("reports.tooltip_avg_daily")} />
           <p className="mt-2 text-2xl font-bold">{avgDailyAppointments}</p>
           <p className="text-[10px] text-muted-foreground">{t("reports.appointments_per_day")}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={Clock}
-            label={t("reports.peak_hour")}
-            tooltip={t("reports.tooltip_peak_hour")}
-          />
+          <CardTitle icon={Clock} label={t("reports.peak_hour")} tooltip={t("reports.tooltip_peak_hour")} />
           <p className="mt-2 text-2xl font-bold">{busiestHour.hour}</p>
           <p className="text-[10px] text-muted-foreground">{busiestHour.citas} {t("reports.appointments")}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={Star}
-            label={t("reports.top_service")}
-            tooltip={t("reports.tooltip_top_service")}
-          />
+          <CardTitle icon={Star} label={t("reports.top_service")} tooltip={t("reports.tooltip_top_service")} />
           <p className="mt-2 text-lg font-bold truncate">{topService?.name ?? "--"}</p>
           <p className="text-[10px] text-muted-foreground">{topService?.count ?? 0} citas</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={Building2}
-            label={t("reports.offices_used")}
-            tooltip={t("reports.tooltip_offices_used")}
-          />
+          <CardTitle icon={Building2} label={t("reports.offices_used")} tooltip={t("reports.tooltip_offices_used")} />
           <p className="mt-2 text-2xl font-bold">{officeData.length}</p>
         </div>
       </div>
 
       {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div ref={chartsRef} className="grid gap-6 lg:grid-cols-2">
         {/* Daily trend area chart */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.daily_trend")}</h3>
@@ -236,29 +267,13 @@ export function OperationalReport({
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                  tickLine={false}
-                  axisLine={{ stroke: "hsl(var(--border))" }}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-                />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={{ stroke: "hsl(var(--border))" }} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  iconType="square"
-                  iconSize={10}
-                  wrapperStyle={{ fontSize: 12 }}
-                  formatter={(value: string) => {
-                    const labels: Record<string, string> = { completed: "Atendidos", scheduled: "Programados", cancelled: "Cancelados" };
-                    return labels[value] ?? value;
-                  }}
-                />
+                <Legend iconType="square" iconSize={10} wrapperStyle={{ fontSize: 12 }} formatter={(value: string) => {
+                  const labels: Record<string, string> = { completed: "Atendidos", scheduled: "Programados", cancelled: "Cancelados" };
+                  return labels[value] ?? value;
+                }} />
                 <Area type="monotone" dataKey="completed" name="Atendidos" stroke="#22c55e" fill="url(#gradCompleted)" strokeWidth={2} animationDuration={1000} animationEasing="ease-out" dot={{ r: 3, fill: "#22c55e" }} activeDot={{ r: 5 }} />
                 <Area type="monotone" dataKey="scheduled" name="Programados" stroke="#3b82f6" fill="url(#gradScheduled)" strokeWidth={2} animationDuration={1000} animationEasing="ease-out" animationBegin={300} dot={{ r: 3, fill: "#3b82f6" }} activeDot={{ r: 5 }} />
                 <Area type="monotone" dataKey="cancelled" name="Cancelados" stroke="#ef4444" fill="url(#gradCancelled)" strokeWidth={2} animationDuration={1000} animationEasing="ease-out" animationBegin={600} dot={{ r: 3, fill: "#ef4444" }} activeDot={{ r: 5 }} />
@@ -274,18 +289,8 @@ export function OperationalReport({
           <h3 className="text-sm font-semibold mb-3">{t("reports.peak_hours")}</h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={peakHoursData} barCategoryGap="25%">
-              <XAxis
-                dataKey="hour"
-                tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                tickLine={false}
-                axisLine={false}
-              />
-              <YAxis
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                tickLine={false}
-                axisLine={false}
-                allowDecimals={false}
-              />
+              <XAxis dataKey="hour" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip content={<CustomTooltip />} cursor={false} />
               <Bar dataKey="citas" name="Citas" fill="#10b981" radius={999} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={1000} animationEasing="ease-out" />
             </BarChart>
@@ -299,31 +304,19 @@ export function OperationalReport({
         <div className="rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between border-b border-border px-5 py-3">
             <h3 className="text-sm font-semibold">{t("reports.top_services")}</h3>
-            <button
-              onClick={() => {
-                const headers = ["Servicio", "Cantidad", "Ingresos (S/.)"];
-                const rows = topServicesData.map((s) => [s.name, s.count, s.revenue.toFixed(2)]);
-                exportToCSV(headers, rows, `reporte_operacional_${dateFrom}_${dateTo}.csv`);
-              }}
-              className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
-            >
-              <Download className="h-3.5 w-3.5" />
-              CSV
-            </button>
+            <ExportMenu
+              onExportPDF={() => exportReportPDF(buildExportConfig())}
+              onExportExcel={() => exportReportExcel(buildExportConfig())}
+              onExportCSV={handleExportCSV}
+            />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/50">
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">
-                    {t("reports.service")}
-                  </th>
-                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">
-                    {t("reports.count")}
-                  </th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">
-                    {t("reports.revenue")}
-                  </th>
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">{t("reports.service")}</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.count")}</th>
+                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">{t("reports.revenue")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -331,9 +324,7 @@ export function OperationalReport({
                   <tr key={svc.name} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2">
-                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">
-                          {i + 1}
-                        </span>
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-bold text-primary">{i + 1}</span>
                         <span className="font-medium">{svc.name}</span>
                       </div>
                     </td>

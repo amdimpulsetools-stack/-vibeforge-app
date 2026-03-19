@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Patient } from "@/types/admin";
 import {
@@ -8,7 +8,6 @@ import {
   Users,
   TrendingUp,
   Target,
-  Download,
 } from "lucide-react";
 import { exportToCSV } from "@/lib/export";
 import {
@@ -23,6 +22,12 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
+import { ExportMenu } from "./export-menu";
+import {
+  exportReportPDF,
+  exportReportExcel,
+  type ReportExportConfig,
+} from "@/lib/report-export";
 
 interface MarketingReportProps {
   appointments: AppointmentWithRelations[];
@@ -129,6 +134,7 @@ function renderCustomLabel(props: {
 
 export function MarketingReport({ appointments, patients, dateFrom, dateTo }: MarketingReportProps) {
   const { t } = useLanguage();
+  const chartsRef = useRef<HTMLDivElement>(null);
 
   // Origin distribution (from appointments)
   const originData = useMemo(() => {
@@ -141,18 +147,6 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value);
   }, [appointments]);
-
-  // Patient origin distribution (from patients.referral_source)
-  const patientOriginData = useMemo(() => {
-    const map = new Map<string, number>();
-    patients.forEach((p) => {
-      const origin = p.referral_source || p.origin || "Sin origen";
-      map.set(origin, (map.get(origin) ?? 0) + 1);
-    });
-    return Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-  }, [patients]);
 
   // Conversion rate
   const conversionData = useMemo(() => {
@@ -205,53 +199,74 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
 
   const newPatientsCount = patients.length;
 
+  // ── Export helpers ──
+
+  const buildExportConfig = (): ReportExportConfig => ({
+    title: "Reporte de Marketing",
+    dateRange: { from: dateFrom, to: dateTo },
+    kpis: [
+      { label: "Tasa de Conversión", value: `${conversionData.conversionRate}%` },
+      { label: "Tasa de Cancelación", value: `${conversionData.cancelRate}%` },
+      { label: "Orígenes Únicos", value: String(originData.length) },
+      { label: "Nuevos Pacientes", value: String(newPatientsCount) },
+    ],
+    tables: [
+      {
+        title: "Distribución por Origen",
+        headers: ["Origen", "Cantidad", "Porcentaje"],
+        rows: originData.map((o) => {
+          const total = originData.reduce((s, x) => s + x.value, 0);
+          return [o.name, o.value, `${total > 0 ? ((o.value / total) * 100).toFixed(1) : 0}%`];
+        }),
+        columnAligns: ["left", "center", "center"],
+      },
+      {
+        title: "Conversión por Origen",
+        headers: ["Origen", "Agendados", "Atendidos", "Tasa de conversión (%)"],
+        rows: conversionByOrigin.map((r) => [r.name, r.total, r.completed, `${r.rate}%`]),
+        columnAligns: ["left", "center", "center", "center"],
+      },
+    ],
+    chartRefs: chartsRef.current ? [chartsRef.current] : [],
+    filename: `reporte_marketing_${dateFrom}_${dateTo}`,
+  });
+
+  const handleExportCSV = () => {
+    const headers = ["Origen", "Agendados", "Atendidos", "Tasa de conversión (%)"];
+    const rows = conversionByOrigin.map((r) => [r.name, r.total, r.completed, r.rate]);
+    exportToCSV(headers, rows, `reporte_marketing_${dateFrom}_${dateTo}.csv`);
+  };
+
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={Target}
-            label={t("reports.conversion_rate")}
-            tooltip={t("reports.tooltip_conversion_rate")}
-          />
+          <CardTitle icon={Target} label={t("reports.conversion_rate")} tooltip={t("reports.tooltip_conversion_rate")} />
           <p className="mt-2 text-2xl font-bold text-emerald-600">{conversionData.conversionRate}%</p>
           <p className="text-[10px] text-muted-foreground">
             {conversionData.totalCompleted} / {conversionData.totalScheduled} {t("reports.attended")}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={TrendingUp}
-            label={t("reports.cancel_rate")}
-            tooltip={t("reports.tooltip_cancel_rate")}
-            iconClass="text-red-500"
-          />
+          <CardTitle icon={TrendingUp} label={t("reports.cancel_rate")} tooltip={t("reports.tooltip_cancel_rate")} iconClass="text-red-500" />
           <p className="mt-2 text-2xl font-bold text-red-600">{conversionData.cancelRate}%</p>
           <p className="text-[10px] text-muted-foreground">
             {conversionData.totalCancelled} {t("reports.cancelled")}
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={Megaphone}
-            label={t("reports.unique_origins")}
-            tooltip={t("reports.tooltip_unique_origins")}
-          />
+          <CardTitle icon={Megaphone} label={t("reports.unique_origins")} tooltip={t("reports.tooltip_unique_origins")} />
           <p className="mt-2 text-2xl font-bold">{originData.length}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <CardTitle
-            icon={Users}
-            label={t("reports.total_patients")}
-            tooltip={t("reports.tooltip_total_patients")}
-          />
+          <CardTitle icon={Users} label={t("reports.total_patients")} tooltip={t("reports.tooltip_total_patients")} />
           <p className="mt-2 text-2xl font-bold">{newPatientsCount}</p>
         </div>
       </div>
 
       {/* Charts row */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div ref={chartsRef} className="grid gap-6 lg:grid-cols-2">
         {/* Origin donut chart */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.origin_distribution")}</h3>
@@ -303,25 +318,10 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
           {conversionByOrigin.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={conversionByOrigin} barCategoryGap="25%">
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
-                  tickLine={false}
-                  axisLine={false}
-                  tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "..." : v}
-                />
-                <YAxis
-                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                  tickLine={false}
-                  axisLine={false}
-                  allowDecimals={false}
-                />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "..." : v} />
+                <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
-                <Legend
-                  iconType="circle"
-                  iconSize={8}
-                  wrapperStyle={{ fontSize: 12 }}
-                />
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="total" name="Agendados" fill="#3b82f6" radius={999} animationDuration={800} animationEasing="ease-out" />
                 <Bar dataKey="completed" name="Atendidos" fill="#22c55e" radius={999} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
               </BarChart>
@@ -336,34 +336,20 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
       <div className="rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h3 className="text-sm font-semibold">{t("reports.conversion_by_origin")}</h3>
-          <button
-            onClick={() => {
-              const headers = ["Origen", "Agendados", "Atendidos", "Tasa de conversión (%)"];
-              const rows = conversionByOrigin.map((r) => [r.name, r.total, r.completed, r.rate]);
-              exportToCSV(headers, rows, `reporte_marketing_${dateFrom}_${dateTo}.csv`);
-            }}
-            className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
-          >
-            <Download className="h-3.5 w-3.5" />
-            CSV
-          </button>
+          <ExportMenu
+            onExportPDF={() => exportReportPDF(buildExportConfig())}
+            onExportExcel={() => exportReportExcel(buildExportConfig())}
+            onExportCSV={handleExportCSV}
+          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border bg-muted/50">
-                <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">
-                  {t("reports.origin")}
-                </th>
-                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">
-                  {t("reports.scheduled")}
-                </th>
-                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">
-                  {t("reports.attended")}
-                </th>
-                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">
-                  {t("reports.conversion_rate")}
-                </th>
+                <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">{t("reports.origin")}</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.scheduled")}</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.attended")}</th>
+                <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.conversion_rate")}</th>
               </tr>
             </thead>
             <tbody>
