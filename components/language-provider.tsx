@@ -208,6 +208,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Scheduler history
     "nav.scheduler_calendar": "Agenda",
+    "nav.scheduler_followups": "Seguimientos",
     "nav.scheduler_history": "Histórico de citas",
     "history.title": "Histórico de Citas",
     "history.subtitle": "Registro cronológico de todas las citas",
@@ -257,6 +258,33 @@ const translations: Record<Language, Record<string, string>> = {
     "scheduler.confirm": "Confirmar",
     "scheduler.complete": "Completar",
     "scheduler.cancel_appointment": "Cancelar cita",
+
+    // Follow-ups dashboard
+    "followups.title": "Seguimientos",
+    "followups.subtitle": "Pacientes pendientes de contactar para agendar próxima cita",
+    "followups.priority": "Prioridad",
+    "followups.total": "seguimientos",
+    "followups.overdue_label": "vencidos",
+    "followups.this_week_label": "esta semana",
+    "followups.upcoming_label": "próximos",
+    "followups.section_overdue": "Vencidos",
+    "followups.section_this_week": "Próximos 7 días",
+    "followups.section_upcoming": "Próximos 8–30 días",
+    "followups.days_overdue": "Vencido hace {n} días",
+    "followups.days_remaining": "En {n} días",
+    "followups.today": "Hoy",
+    "followups.last_contacted": "Contactado",
+    "followups.mark_contacted": "Marcar como contactado",
+    "followups.contacted": "Contactado",
+    "followups.contacted_success": "Paciente marcado como contactado",
+    "followups.contacted_error": "Error al marcar como contactado",
+    "followups.schedule_appointment": "Agendar cita",
+    "followups.schedule": "Agendar",
+    "followups.phone_copied": "Teléfono copiado al portapapeles",
+    "followups.whatsapp_copied": "Mensaje copiado al portapapeles",
+    "followups.whatsapp_template": "Hola {name}, te escribimos de la clínica. Te recordamos que tienes un seguimiento pendiente: {reason}. ¿Te gustaría agendar tu próxima cita? Estamos a tu disposición.",
+    "followups.empty": "No hay seguimientos pendientes",
+    "followups.empty_description": "Los seguimientos aparecerán cuando un doctor los cree desde la nota clínica",
 
     // Patients (module 3)
     "nav.patients": "Pacientes",
@@ -738,6 +766,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Scheduler history
     "nav.scheduler_calendar": "Schedule",
+    "nav.scheduler_followups": "Follow-ups",
     "nav.scheduler_history": "Appointment History",
     "history.title": "Appointment History",
     "history.subtitle": "Chronological record of all appointments",
@@ -787,6 +816,33 @@ const translations: Record<Language, Record<string, string>> = {
     "scheduler.confirm": "Confirm",
     "scheduler.complete": "Complete",
     "scheduler.cancel_appointment": "Cancel appointment",
+
+    // Follow-ups dashboard
+    "followups.title": "Follow-ups",
+    "followups.subtitle": "Patients pending contact to schedule next appointment",
+    "followups.priority": "Priority",
+    "followups.total": "follow-ups",
+    "followups.overdue_label": "overdue",
+    "followups.this_week_label": "this week",
+    "followups.upcoming_label": "upcoming",
+    "followups.section_overdue": "Overdue",
+    "followups.section_this_week": "Next 7 days",
+    "followups.section_upcoming": "Next 8–30 days",
+    "followups.days_overdue": "Overdue by {n} days",
+    "followups.days_remaining": "In {n} days",
+    "followups.today": "Today",
+    "followups.last_contacted": "Contacted",
+    "followups.mark_contacted": "Mark as contacted",
+    "followups.contacted": "Contacted",
+    "followups.contacted_success": "Patient marked as contacted",
+    "followups.contacted_error": "Error marking as contacted",
+    "followups.schedule_appointment": "Schedule appointment",
+    "followups.schedule": "Schedule",
+    "followups.phone_copied": "Phone copied to clipboard",
+    "followups.whatsapp_copied": "Message copied to clipboard",
+    "followups.whatsapp_template": "Hi {name}, we're reaching out from the clinic. You have a pending follow-up: {reason}. Would you like to schedule your next appointment? We're happy to help.",
+    "followups.empty": "No pending follow-ups",
+    "followups.empty_description": "Follow-ups will appear when a doctor creates them from a clinical note",
 
     // Patients (module 3)
     "nav.patients": "Patients",

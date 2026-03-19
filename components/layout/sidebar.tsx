@@ -32,6 +32,7 @@ import {
   Crown,
   Cable,
   LayoutTemplate,
+  ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
 
@@ -63,6 +64,7 @@ const navEntries: NavEntry[] = [
     icon: CalendarDays,
     items: [
       { titleKey: "nav.scheduler_calendar", href: "/scheduler", icon: CalendarDays },
+      { titleKey: "nav.scheduler_followups", href: "/scheduler/follow-ups", icon: ClipboardCheck },
       { titleKey: "nav.scheduler_history", href: "/scheduler/history", icon: History },
     ],
   },

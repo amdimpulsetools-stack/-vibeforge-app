@@ -152,6 +152,8 @@ export interface ClinicalFollowup {
   resolved_at: string | null;
   resolved_by: string | null;
   notes: string | null;
+  last_contacted_at: string | null;
+  contacted_by: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -159,6 +161,11 @@ export interface ClinicalFollowup {
 export interface ClinicalFollowupWithRelations extends ClinicalFollowup {
   doctors: { full_name: string } | null;
   patients: { first_name: string; last_name: string; phone: string | null } | null;
+}
+
+export interface FollowupDashboardItem extends ClinicalFollowupWithRelations {
+  urgency: "overdue" | "this_week" | "upcoming";
+  days_diff: number;
 }
 
 export const FOLLOWUP_PRIORITY_CONFIG = {

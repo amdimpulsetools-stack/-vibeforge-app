@@ -8,6 +8,7 @@ const updateSchema = z.object({
   follow_up_date: z.string().nullable().optional(),
   is_resolved: z.boolean().optional(),
   notes: z.string().max(1000).nullable().optional(),
+  mark_contacted: z.boolean().optional(),
 });
 
 export async function PATCH(
@@ -25,10 +26,15 @@ export async function PATCH(
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
 
-  const updateData: Record<string, unknown> = { ...parsed.data };
+  const { mark_contacted, ...rest } = parsed.data;
+  const updateData: Record<string, unknown> = { ...rest };
   if (parsed.data.is_resolved) {
     updateData.resolved_at = new Date().toISOString();
     updateData.resolved_by = user.id;
+  }
+  if (mark_contacted) {
+    updateData.last_contacted_at = new Date().toISOString();
+    updateData.contacted_by = user.id;
   }
 
   const { data, error } = await supabase
