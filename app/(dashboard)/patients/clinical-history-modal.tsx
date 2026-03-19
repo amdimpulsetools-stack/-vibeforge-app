@@ -26,12 +26,17 @@ interface ClinicalHistoryModalProps {
   patient: PatientWithTags;
   open: boolean;
   onClose: () => void;
+  /** When provided, enables editing (create plans, prescriptions, etc.) */
+  doctorId?: string | null;
+  canEdit?: boolean;
 }
 
 export function ClinicalHistoryModal({
   patient,
   open,
   onClose,
+  doctorId,
+  canEdit = false,
 }: ClinicalHistoryModalProps) {
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([]);
   const [loading, setLoading] = useState(true);
@@ -313,26 +318,27 @@ export function ClinicalHistoryModal({
             <div className="space-y-6">
               <VitalsTrendsChart patientId={patient.id} />
               <DiagnosisHistoryPanel patientId={patient.id} />
+              <TreatmentPlansPanel
+                patientId={patient.id}
+                doctorId={doctorId ?? undefined}
+                canEdit={canEdit}
+              />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <TreatmentPlansPanel
-                  patientId={patient.id}
-                  canEdit={false}
-                />
                 <PrescriptionsPanel
                   patientId={patient.id}
-                  canEdit={false}
+                  doctorId={doctorId ?? undefined}
+                  canEdit={canEdit}
                 />
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <ClinicalFollowupsPanel
                   patientId={patient.id}
-                  canEdit={false}
-                />
-                <ClinicalAttachmentsPanel
-                  patientId={patient.id}
-                  canEdit={false}
+                  doctorId={doctorId ?? undefined}
+                  canEdit={canEdit}
                 />
               </div>
+              <ClinicalAttachmentsPanel
+                patientId={patient.id}
+                canEdit={canEdit}
+              />
             </div>
           </section>
         </div>

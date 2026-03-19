@@ -41,6 +41,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgRole } from "@/hooks/use-org-role";
+import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
 import { calculateAge } from "@/lib/export";
 import type { ClinicalNote } from "@/types/clinical-notes";
@@ -71,6 +73,8 @@ type AppointmentWithDetails = Appointment & {
 export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps) {
   const { t } = useLanguage();
   const { organizationId } = useOrganization();
+  const { isAdmin } = useOrgRole();
+  const { doctorId: currentDoctorId } = useCurrentDoctor();
   const [activeTab, setActiveTab] = useState<DrawerTab>("info");
   const [appointments, setAppointments] = useState<AppointmentWithDetails[]>([]);
   const [payments, setPayments] = useState<PatientPayment[]>([]);
@@ -1095,6 +1099,8 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         patient={patient}
         open={clinicalModalOpen}
         onClose={() => setClinicalModalOpen(false)}
+        doctorId={currentDoctorId}
+        canEdit={isAdmin || !!currentDoctorId}
       />
     </div>
   );

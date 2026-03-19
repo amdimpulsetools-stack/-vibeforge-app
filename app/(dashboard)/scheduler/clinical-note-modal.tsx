@@ -10,6 +10,7 @@ import {
 import { ClinicalNotePanel } from "./clinical-note-panel";
 import { PrescriptionsPanel } from "@/app/(dashboard)/patients/prescriptions-panel";
 import { ClinicalFollowupsPanel } from "@/app/(dashboard)/patients/clinical-followups-panel";
+import { TreatmentPlansPanel } from "@/app/(dashboard)/patients/treatment-plans-panel";
 import { User, CalendarDays, Clock, Stethoscope } from "lucide-react";
 
 interface ClinicalNoteModalProps {
@@ -98,26 +99,33 @@ export function ClinicalNoteModal({
             wideLayout
           />
 
-          {/* Prescriptions & Follow-ups */}
+          {/* Treatment Plans, Prescriptions & Follow-ups */}
           {patientId && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 border-t border-border pt-6">
-              <PrescriptionsPanel
+            <div className="border-t border-border pt-6 space-y-6">
+              <TreatmentPlansPanel
                 patientId={patientId}
                 doctorId={doctorId}
-                appointmentId={appointmentId}
-                canEdit={canEdit}
-                patientName={patientName}
-                patientDni={patientDni}
-                doctorName={doctorName}
-                appointmentDate={appointmentDate}
-                clinicName={clinicName}
-              />
-              <ClinicalFollowupsPanel
-                patientId={patientId}
-                doctorId={doctorId}
-                appointmentId={appointmentId}
                 canEdit={canEdit}
               />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <PrescriptionsPanel
+                  patientId={patientId}
+                  doctorId={doctorId}
+                  appointmentId={appointmentId}
+                  canEdit={canEdit}
+                  patientName={patientName}
+                  patientDni={patientDni}
+                  doctorName={doctorName}
+                  appointmentDate={appointmentDate}
+                  clinicName={clinicName}
+                />
+                <ClinicalFollowupsPanel
+                  patientId={patientId}
+                  doctorId={doctorId}
+                  appointmentId={appointmentId}
+                  canEdit={canEdit}
+                />
+              </div>
             </div>
           )}
         </div>
