@@ -23,7 +23,6 @@ import { MarketingReport } from "./marketing-report";
 import { OperationalReport } from "./operational-report";
 import { RetentionReport } from "./retention-report";
 import { ExportMenu } from "./export-menu";
-import { exportContentPDF, exportReportExcel } from "@/lib/report-export";
 import type { ReportExportHandle } from "./financial-report";
 
 type ReportTab = "financial" | "marketing" | "operational" | "retention";
@@ -126,6 +125,7 @@ export default function ReportsPage() {
 
   const handleExportPDF = async () => {
     if (!contentRef.current) return;
+    const { exportContentPDF } = await import("@/lib/report-export");
     const title = TAB_TITLES[activeTab];
     const filename = `${title.toLowerCase().replace(/\s+/g, "_")}_${dateFrom}_${dateTo}`;
     await exportContentPDF(
@@ -139,6 +139,7 @@ export default function ReportsPage() {
   const handleExportExcel = async () => {
     const handle = getActiveRef();
     if (!handle) return;
+    const { exportReportExcel } = await import("@/lib/report-export");
     const config = handle.getExportConfig();
     await exportReportExcel(config);
   };
