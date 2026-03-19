@@ -1,7 +1,10 @@
 /**
  * Report Export Utilities — PDF & Excel
- * Uses dynamic imports so heavy libs (jsPDF, xlsx, html2canvas) only load
- * on demand in the browser, avoiding Next.js server-side resolution issues.
+ *
+ * PDF:  Captures the visible report content as screenshot(s) → multi-page A4 PDF
+ * Excel: Structured data with KPIs + tables in separate sheets
+ *
+ * All heavy libs loaded via dynamic import() for code-splitting.
  */
 
 // ── Types ──────────────────────────────────────────────────────────
@@ -15,213 +18,135 @@ export interface ReportTable {
   title: string;
   headers: string[];
   rows: (string | number)[][];
-  /** Column alignments: 'left' | 'center' | 'right' */
-  columnAligns?: ("left" | "center" | "right")[];
 }
 
 export interface ReportExportConfig {
   title: string;
-  subtitle?: string;
   dateRange: { from: string; to: string };
   kpis: ReportKPI[];
   tables: ReportTable[];
-  /** DOM elements containing charts to capture as images */
-  chartRefs?: (HTMLElement | null)[];
   filename: string;
 }
 
-// ── PDF Export ─────────────────────────────────────────────────────
+// ── PDF: Full-page screenshot export ──────────────────────────────
 
-export async function exportReportPDF(config: ReportExportConfig) {
-  const { default: jsPDF } = await import(/* webpackIgnore: true */ "jspdf");
-  const { default: autoTable } = await import(/* webpackIgnore: true */ "jspdf-autotable");
-  const { default: html2canvas } = await import(/* webpackIgnore: true */ "html2canvas");
+/**
+ * Captures an HTML element (the entire report content area) and generates
+ * a multi-page A4 PDF. What you see on screen is what you get in PDF.
+ */
+export async function exportContentPDF(
+  element: HTMLElement,
+  title: string,
+  dateRange: { from: string; to: string },
+  filename: string
+) {
+  const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+    import("jspdf"),
+    import("html2canvas"),
+  ]);
 
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const margin = 14;
+  // Capture the full scrollable content at 2x for quality
+  const canvas = await html2canvas(element, {
+    backgroundColor: "#ffffff",
+    scale: 2,
+    logging: false,
+    useCORS: true,
+    // Capture full scrollable height, not just visible viewport
+    windowHeight: element.scrollHeight,
+    height: element.scrollHeight,
+  });
+
+  const imgData = canvas.toDataURL("image/png");
+
+  // A4 dimensions in mm
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 10;
+  const headerHeight = 22;
+  const footerHeight = 12;
   const contentWidth = pageWidth - margin * 2;
-  let y = margin;
+  const usableHeight = pageHeight - headerHeight - footerHeight - margin;
 
-  // ── Header bar ──
-  doc.setFillColor(16, 185, 129); // emerald-500
-  doc.rect(0, 0, pageWidth, 28, "F");
+  // Scale image to fit page width
+  const imgRatio = canvas.height / canvas.width;
+  const scaledImgHeight = contentWidth * imgRatio;
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  doc.setFont("helvetica", "bold");
-  doc.text(config.title, margin, 12);
+  // Calculate how many pages we need
+  const totalPages = Math.ceil(scaledImgHeight / usableHeight);
 
-  doc.setFontSize(9);
-  doc.setFont("helvetica", "normal");
-  doc.text(
-    config.subtitle ?? `Período: ${config.dateRange.from} — ${config.dateRange.to}`,
-    margin,
-    19
-  );
+  for (let page = 0; page < totalPages; page++) {
+    if (page > 0) pdf.addPage();
 
-  const dateStr = `Generado: ${new Date().toLocaleDateString("es", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })}`;
-  doc.setFontSize(8);
-  doc.text(dateStr, pageWidth - margin, 19, { align: "right" });
+    // ── Header ──
+    pdf.setFillColor(16, 185, 129);
+    pdf.rect(0, 0, pageWidth, headerHeight, "F");
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(13);
+    pdf.setFont("helvetica", "bold");
+    pdf.text(title, margin, 10);
+    pdf.setFontSize(8);
+    pdf.setFont("helvetica", "normal");
+    pdf.text(`Período: ${dateRange.from} — ${dateRange.to}`, margin, 17);
+    pdf.text(
+      new Date().toLocaleDateString("es", { day: "2-digit", month: "short", year: "numeric" }),
+      pageWidth - margin,
+      17,
+      { align: "right" }
+    );
 
-  y = 34;
+    // ── Content slice ──
+    // Source coordinates in the original canvas
+    const srcY = page * (canvas.height / totalPages * (usableHeight / (scaledImgHeight / totalPages)));
+    const sliceHeight = Math.min(
+      canvas.height - (page * canvas.height * usableHeight / scaledImgHeight),
+      canvas.height * usableHeight / scaledImgHeight
+    );
 
-  // ── KPI Cards ──
-  if (config.kpis.length > 0) {
-    const kpiCount = Math.min(config.kpis.length, 6);
-    const kpiWidth = (contentWidth - (kpiCount - 1) * 3) / kpiCount;
-
-    config.kpis.slice(0, 6).forEach((kpi, i) => {
-      const x = margin + i * (kpiWidth + 3);
-
-      // Card background
-      doc.setFillColor(245, 245, 245);
-      doc.setDrawColor(220, 220, 220);
-      doc.roundedRect(x, y, kpiWidth, 18, 2, 2, "FD");
-
-      // Label
-      doc.setTextColor(120, 120, 120);
-      doc.setFontSize(7);
-      doc.setFont("helvetica", "normal");
-      doc.text(kpi.label, x + kpiWidth / 2, y + 6, { align: "center" });
-
-      // Value
-      doc.setTextColor(30, 30, 30);
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text(kpi.value, x + kpiWidth / 2, y + 14, { align: "center" });
-    });
-
-    y += 24;
-  }
-
-  // ── Charts (captured as images) ──
-  if (config.chartRefs?.length) {
-    for (const chartEl of config.chartRefs) {
-      if (!chartEl) continue;
-
-      try {
-        const canvas = await html2canvas(chartEl, {
-          backgroundColor: "#ffffff",
-          scale: 2,
-          logging: false,
-          useCORS: true,
-        });
-
-        const imgData = canvas.toDataURL("image/png");
-        const imgRatio = canvas.width / canvas.height;
-        const imgWidth = contentWidth;
-        const imgHeight = imgWidth / imgRatio;
-
-        // Check if chart fits on current page
-        if (y + imgHeight > doc.internal.pageSize.getHeight() - 20) {
-          doc.addPage();
-          y = margin;
-        }
-
-        doc.addImage(imgData, "PNG", margin, y, imgWidth, imgHeight);
-        y += imgHeight + 6;
-      } catch {
-        // If chart capture fails, skip silently
-      }
-    }
-  }
-
-  // ── Tables ──
-  for (const table of config.tables) {
-    // Check if we need a new page
-    if (y > doc.internal.pageSize.getHeight() - 40) {
-      doc.addPage();
-      y = margin;
+    // Create a slice canvas for this page
+    const sliceCanvas = document.createElement("canvas");
+    sliceCanvas.width = canvas.width;
+    sliceCanvas.height = Math.max(1, Math.round(sliceHeight));
+    const ctx = sliceCanvas.getContext("2d");
+    if (ctx) {
+      const sourceY = Math.round(page * canvas.height * usableHeight / scaledImgHeight);
+      ctx.drawImage(
+        canvas,
+        0, sourceY,
+        canvas.width, Math.round(sliceHeight),
+        0, 0,
+        sliceCanvas.width, sliceCanvas.height
+      );
     }
 
-    // Table title
-    doc.setTextColor(30, 30, 30);
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.text(table.title, margin, y + 4);
-    y += 8;
+    const sliceData = sliceCanvas.toDataURL("image/png");
+    const sliceImgHeight = contentWidth * (sliceCanvas.height / sliceCanvas.width);
 
-    // Build column styles
-    const columnStyles: Record<number, { halign: "left" | "center" | "right" }> = {};
-    if (table.columnAligns) {
-      table.columnAligns.forEach((align, i) => {
-        columnStyles[i] = { halign: align };
-      });
-    }
+    pdf.addImage(
+      sliceData,
+      "PNG",
+      margin,
+      headerHeight + 2,
+      contentWidth,
+      Math.min(sliceImgHeight, usableHeight)
+    );
 
-    autoTable(doc, {
-      startY: y,
-      head: [table.headers],
-      body: table.rows.map((row) => row.map((cell) => String(cell))),
-      margin: { left: margin, right: margin },
-      theme: "grid",
-      headStyles: {
-        fillColor: [16, 185, 129],
-        textColor: 255,
-        fontStyle: "bold",
-        fontSize: 8,
-        halign: "center",
-      },
-      bodyStyles: {
-        fontSize: 8,
-        textColor: [50, 50, 50],
-        cellPadding: 2.5,
-      },
-      alternateRowStyles: {
-        fillColor: [248, 248, 248],
-      },
-      columnStyles,
-      didDrawPage: () => {
-        // Footer on each page
-        const pageH = doc.internal.pageSize.getHeight();
-        doc.setFontSize(7);
-        doc.setTextColor(160, 160, 160);
-        doc.text(
-          `VibeForge — ${config.title}`,
-          margin,
-          pageH - 8
-        );
-        doc.text(
-          `Página ${doc.getNumberOfPages()}`,
-          pageWidth - margin,
-          pageH - 8,
-          { align: "right" }
-        );
-      },
-    });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const finalY = (doc as any).lastAutoTable?.finalY;
-    y = finalY != null ? finalY + 8 : y + 30;
-  }
-
-  // ── Footer on first page ──
-  const totalPages = doc.getNumberOfPages();
-  for (let p = 1; p <= totalPages; p++) {
-    doc.setPage(p);
-    const pageH = doc.internal.pageSize.getHeight();
-    doc.setFontSize(7);
-    doc.setTextColor(160, 160, 160);
-    doc.text(`VibeForge — ${config.title}`, margin, pageH - 8);
-    doc.text(`Página ${p} de ${totalPages}`, pageWidth - margin, pageH - 8, {
+    // ── Footer ──
+    pdf.setFontSize(7);
+    pdf.setTextColor(160, 160, 160);
+    pdf.text(`VibeForge — ${title}`, margin, pageHeight - 6);
+    pdf.text(`Página ${page + 1} de ${totalPages}`, pageWidth - margin, pageHeight - 6, {
       align: "right",
     });
   }
 
-  doc.save(`${config.filename}.pdf`);
+  pdf.save(`${filename}.pdf`);
 }
 
 // ── Excel Export ───────────────────────────────────────────────────
 
 export async function exportReportExcel(config: ReportExportConfig) {
-  const XLSX = await import(/* webpackIgnore: true */ "xlsx");
+  const XLSX = await import("xlsx");
 
   const wb = XLSX.utils.book_new();
 
@@ -237,10 +162,7 @@ export async function exportReportExcel(config: ReportExportConfig) {
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(summaryData);
-
-    // Column widths
     ws["!cols"] = [{ wch: 30 }, { wch: 20 }];
-
     XLSX.utils.book_append_sheet(wb, ws, "Resumen");
   }
 
@@ -248,23 +170,20 @@ export async function exportReportExcel(config: ReportExportConfig) {
   config.tables.forEach((table) => {
     const sheetData = [
       table.headers,
-      ...table.rows.map((row) => row.map((cell) => (typeof cell === "string" && !isNaN(Number(cell)) ? Number(cell) : cell))),
+      ...table.rows.map((row) =>
+        row.map((cell) =>
+          typeof cell === "string" && !isNaN(Number(cell)) ? Number(cell) : cell
+        )
+      ),
     ];
 
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-    // Auto-size columns
     ws["!cols"] = table.headers.map((h, i) => {
-      const maxLen = Math.max(
-        h.length,
-        ...table.rows.map((r) => String(r[i] ?? "").length)
-      );
+      const maxLen = Math.max(h.length, ...table.rows.map((r) => String(r[i] ?? "").length));
       return { wch: Math.min(maxLen + 4, 40) };
     });
 
-    // Truncate sheet name to 31 chars (Excel limit)
-    const sheetName = table.title.slice(0, 31);
-    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    XLSX.utils.book_append_sheet(wb, ws, table.title.slice(0, 31));
   });
 
   XLSX.writeFile(wb, `${config.filename}.xlsx`);

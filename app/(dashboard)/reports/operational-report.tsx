@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, forwardRef, useImperativeHandle } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations } from "@/types/admin";
 import {
@@ -9,7 +9,7 @@ import {
   Star,
   Calendar,
 } from "lucide-react";
-import { exportToCSV } from "@/lib/export";
+import type { ReportExportConfig } from "@/lib/report-export";
 import {
   AreaChart,
   Area,
@@ -22,17 +22,15 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { ExportMenu } from "./export-menu";
-import {
-  exportReportPDF,
-  exportReportExcel,
-  type ReportExportConfig,
-} from "@/lib/report-export";
 
 interface OperationalReportProps {
   appointments: AppointmentWithRelations[];
   dateFrom: string;
   dateTo: string;
+}
+
+export interface ReportExportHandle {
+  getExportConfig: () => ReportExportConfig;
 }
 
 // ─── Custom Recharts Tooltip ──────────────────────────────────
@@ -76,13 +74,9 @@ function CardTitle({
 }
 
 
-export function OperationalReport({
-  appointments,
-  dateFrom,
-  dateTo,
-}: OperationalReportProps) {
+export const OperationalReport = forwardRef<ReportExportHandle, OperationalReportProps>(
+  function OperationalReport({ appointments, dateFrom, dateTo }, ref) {
   const { t } = useLanguage();
-  const chartsRef = useRef<HTMLDivElement>(null);
 
   const activeAppointments = useMemo(
     () => appointments.filter((a) => a.status !== "cancelled"),
@@ -178,46 +172,37 @@ export function OperationalReport({
   );
   const topService = topServicesData[0];
 
-  // ── Export helpers ──
-
-  const buildExportConfig = (): ReportExportConfig => ({
-    title: "Reporte Operacional",
-    dateRange: { from: dateFrom, to: dateTo },
-    kpis: [
-      { label: "Promedio Diario", value: avgDailyAppointments },
-      { label: "Hora Pico", value: busiestHour.hour },
-      { label: "Servicio Top", value: topService?.name ?? "--" },
-      { label: "Consultorios Usados", value: String(officeData.length) },
-    ],
-    tables: [
-      {
-        title: "Top Servicios",
-        headers: ["Servicio", "Cantidad", "Ingresos (S/.)"],
-        rows: topServicesData.map((s) => [s.name, s.count, s.revenue.toFixed(2)]),
-        columnAligns: ["left", "center", "right"],
-      },
-      {
-        title: "Ocupación por Consultorio",
-        headers: ["Consultorio", "Total Citas", "Completadas", "Tasa (%)"],
-        rows: officeData.map((o) => [o.name, o.total, o.completed, `${o.rate}%`]),
-        columnAligns: ["left", "center", "center", "center"],
-      },
-      {
-        title: "Horas Pico",
-        headers: ["Hora", "Citas"],
-        rows: peakHoursData.filter((h) => h.citas > 0).map((h) => [h.hour, h.citas]),
-        columnAligns: ["left", "center"],
-      },
-    ],
-    chartRefs: chartsRef.current ? [chartsRef.current] : [],
-    filename: `reporte_operacional_${dateFrom}_${dateTo}`,
-  });
-
-  const handleExportCSV = () => {
-    const headers = ["Servicio", "Cantidad", "Ingresos (S/.)"];
-    const rows = topServicesData.map((s) => [s.name, s.count, s.revenue.toFixed(2)]);
-    exportToCSV(headers, rows, `reporte_operacional_${dateFrom}_${dateTo}.csv`);
-  };
+  // ── Expose export config via ref ──
+  useImperativeHandle(ref, () => ({
+    getExportConfig: (): ReportExportConfig => ({
+      title: "Reporte Operacional",
+      dateRange: { from: dateFrom, to: dateTo },
+      kpis: [
+        { label: "Promedio Diario", value: avgDailyAppointments },
+        { label: "Hora Pico", value: busiestHour.hour },
+        { label: "Servicio Top", value: topService?.name ?? "--" },
+        { label: "Consultorios Usados", value: String(officeData.length) },
+      ],
+      tables: [
+        {
+          title: "Top Servicios",
+          headers: ["Servicio", "Cantidad", "Ingresos (S/.)"],
+          rows: topServicesData.map((s) => [s.name, s.count, s.revenue.toFixed(2)]),
+        },
+        {
+          title: "Ocupación por Consultorio",
+          headers: ["Consultorio", "Total Citas", "Completadas", "Tasa (%)"],
+          rows: officeData.map((o) => [o.name, o.total, o.completed, `${o.rate}%`]),
+        },
+        {
+          title: "Horas Pico",
+          headers: ["Hora", "Citas"],
+          rows: peakHoursData.filter((h) => h.citas > 0).map((h) => [h.hour, h.citas]),
+        },
+      ],
+      filename: `reporte_operacional_${dateFrom}_${dateTo}`,
+    }),
+  }), [dateFrom, dateTo, avgDailyAppointments, busiestHour, topService, officeData, topServicesData, peakHoursData]);
 
   return (
     <div className="space-y-6">
@@ -245,7 +230,7 @@ export function OperationalReport({
       </div>
 
       {/* Charts */}
-      <div ref={chartsRef} className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Daily trend area chart */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.daily_trend")}</h3>
@@ -302,13 +287,8 @@ export function OperationalReport({
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Top services table */}
         <div className="rounded-xl border border-border bg-card">
-          <div className="flex items-center justify-between border-b border-border px-5 py-3">
+          <div className="border-b border-border px-5 py-3">
             <h3 className="text-sm font-semibold">{t("reports.top_services")}</h3>
-            <ExportMenu
-              onExportPDF={() => exportReportPDF(buildExportConfig())}
-              onExportExcel={() => exportReportExcel(buildExportConfig())}
-              onExportCSV={handleExportCSV}
-            />
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -369,4 +349,4 @@ export function OperationalReport({
       </div>
     </div>
   );
-}
+});

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useMemo, forwardRef, useImperativeHandle } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Patient } from "@/types/admin";
 import {
@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Target,
 } from "lucide-react";
-import { exportToCSV } from "@/lib/export";
 import {
   PieChart,
   Pie,
@@ -22,18 +21,17 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { ExportMenu } from "./export-menu";
-import {
-  exportReportPDF,
-  exportReportExcel,
-  type ReportExportConfig,
-} from "@/lib/report-export";
+import type { ReportExportConfig } from "@/lib/report-export";
 
 interface MarketingReportProps {
   appointments: AppointmentWithRelations[];
   patients: Patient[];
   dateFrom: string;
   dateTo: string;
+}
+
+export interface ReportExportHandle {
+  getExportConfig: () => ReportExportConfig;
 }
 
 const CHART_COLORS = [
@@ -132,9 +130,9 @@ function renderCustomLabel(props: {
   );
 }
 
-export function MarketingReport({ appointments, patients, dateFrom, dateTo }: MarketingReportProps) {
+export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportProps>(
+  function MarketingReport({ appointments, patients, dateFrom, dateTo }, ref) {
   const { t } = useLanguage();
-  const chartsRef = useRef<HTMLDivElement>(null);
 
   // Origin distribution (from appointments)
   const originData = useMemo(() => {
@@ -199,43 +197,35 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
 
   const newPatientsCount = patients.length;
 
-  // ── Export helpers ──
-
-  const buildExportConfig = (): ReportExportConfig => ({
-    title: "Reporte de Marketing",
-    dateRange: { from: dateFrom, to: dateTo },
-    kpis: [
-      { label: "Tasa de Conversión", value: `${conversionData.conversionRate}%` },
-      { label: "Tasa de Cancelación", value: `${conversionData.cancelRate}%` },
-      { label: "Orígenes Únicos", value: String(originData.length) },
-      { label: "Nuevos Pacientes", value: String(newPatientsCount) },
-    ],
-    tables: [
-      {
-        title: "Distribución por Origen",
-        headers: ["Origen", "Cantidad", "Porcentaje"],
-        rows: originData.map((o) => {
-          const total = originData.reduce((s, x) => s + x.value, 0);
-          return [o.name, o.value, `${total > 0 ? ((o.value / total) * 100).toFixed(1) : 0}%`];
-        }),
-        columnAligns: ["left", "center", "center"],
-      },
-      {
-        title: "Conversión por Origen",
-        headers: ["Origen", "Agendados", "Atendidos", "Tasa de conversión (%)"],
-        rows: conversionByOrigin.map((r) => [r.name, r.total, r.completed, `${r.rate}%`]),
-        columnAligns: ["left", "center", "center", "center"],
-      },
-    ],
-    chartRefs: chartsRef.current ? [chartsRef.current] : [],
-    filename: `reporte_marketing_${dateFrom}_${dateTo}`,
-  });
-
-  const handleExportCSV = () => {
-    const headers = ["Origen", "Agendados", "Atendidos", "Tasa de conversión (%)"];
-    const rows = conversionByOrigin.map((r) => [r.name, r.total, r.completed, r.rate]);
-    exportToCSV(headers, rows, `reporte_marketing_${dateFrom}_${dateTo}.csv`);
-  };
+  // ── Imperative handle for parent export ──
+  useImperativeHandle(ref, () => ({
+    getExportConfig: (): ReportExportConfig => ({
+      title: "Reporte de Marketing",
+      dateRange: { from: dateFrom, to: dateTo },
+      kpis: [
+        { label: "Tasa de Conversión", value: `${conversionData.conversionRate}%` },
+        { label: "Tasa de Cancelación", value: `${conversionData.cancelRate}%` },
+        { label: "Orígenes Únicos", value: String(originData.length) },
+        { label: "Nuevos Pacientes", value: String(newPatientsCount) },
+      ],
+      tables: [
+        {
+          title: "Distribución por Origen",
+          headers: ["Origen", "Cantidad", "Porcentaje"],
+          rows: originData.map((o) => {
+            const total = originData.reduce((s, x) => s + x.value, 0);
+            return [o.name, o.value, `${total > 0 ? ((o.value / total) * 100).toFixed(1) : 0}%`];
+          }),
+        },
+        {
+          title: "Conversión por Origen",
+          headers: ["Origen", "Agendados", "Atendidos", "Tasa de conversión (%)"],
+          rows: conversionByOrigin.map((r) => [r.name, r.total, r.completed, `${r.rate}%`]),
+        },
+      ],
+      filename: `reporte_marketing_${dateFrom}_${dateTo}`,
+    }),
+  }), [conversionData, originData, conversionByOrigin, newPatientsCount, dateFrom, dateTo]);
 
   return (
     <div className="space-y-6">
@@ -266,7 +256,7 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
       </div>
 
       {/* Charts row */}
-      <div ref={chartsRef} className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2">
         {/* Origin donut chart */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.origin_distribution")}</h3>
@@ -336,11 +326,6 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
       <div className="rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-5 py-3">
           <h3 className="text-sm font-semibold">{t("reports.conversion_by_origin")}</h3>
-          <ExportMenu
-            onExportPDF={() => exportReportPDF(buildExportConfig())}
-            onExportExcel={() => exportReportExcel(buildExportConfig())}
-            onExportCSV={handleExportCSV}
-          />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -374,4 +359,4 @@ export function MarketingReport({ appointments, patients, dateFrom, dateTo }: Ma
       </div>
     </div>
   );
-}
+});
