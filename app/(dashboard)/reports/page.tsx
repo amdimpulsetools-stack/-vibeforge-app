@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
@@ -22,17 +22,8 @@ import { FinancialReport } from "./financial-report";
 import { MarketingReport } from "./marketing-report";
 import { OperationalReport } from "./operational-report";
 import { RetentionReport } from "./retention-report";
-import { ExportMenu } from "./export-menu";
-import type { ReportExportHandle } from "./financial-report";
 
 type ReportTab = "financial" | "marketing" | "operational" | "retention";
-
-const TAB_TITLES: Record<ReportTab, string> = {
-  financial: "Reporte Financiero",
-  marketing: "Reporte de Marketing",
-  operational: "Reporte Operacional",
-  retention: "Reporte de Retención",
-};
 
 const DATE_PRESETS = [
   { key: "today", days: 0 },
@@ -48,13 +39,6 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
-
-  // Refs
-  const contentRef = useRef<HTMLDivElement>(null);
-  const financialRef = useRef<ReportExportHandle>(null);
-  const marketingRef = useRef<ReportExportHandle>(null);
-  const operationalRef = useRef<ReportExportHandle>(null);
-  const retentionRef = useRef<ReportExportHandle>(null);
 
   // Data
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
@@ -111,39 +95,6 @@ export default function ReportsPage() {
     }
   };
 
-  // ── Export handlers ──
-
-  const getActiveRef = (): ReportExportHandle | null => {
-    const refs: Record<ReportTab, React.RefObject<ReportExportHandle | null>> = {
-      financial: financialRef,
-      marketing: marketingRef,
-      operational: operationalRef,
-      retention: retentionRef,
-    };
-    return refs[activeTab]?.current ?? null;
-  };
-
-  const handleExportPDF = async () => {
-    if (!contentRef.current) return;
-    const { exportContentPDF } = await import("@/lib/report-export");
-    const title = TAB_TITLES[activeTab];
-    const filename = `${title.toLowerCase().replace(/\s+/g, "_")}_${dateFrom}_${dateTo}`;
-    await exportContentPDF(
-      contentRef.current,
-      title,
-      { from: dateFrom, to: dateTo },
-      filename
-    );
-  };
-
-  const handleExportExcel = async () => {
-    const handle = getActiveRef();
-    if (!handle) return;
-    const { exportReportExcel } = await import("@/lib/report-export");
-    const config = handle.getExportConfig();
-    await exportReportExcel(config);
-  };
-
   const tabs: { key: ReportTab; label: string; icon: typeof BarChart3 }[] = [
     { key: "financial", label: t("reports.tab_financial"), icon: BarChart3 },
     { key: "marketing", label: t("reports.tab_marketing"), icon: Megaphone },
@@ -161,7 +112,7 @@ export default function ReportsPage() {
             <p className="text-sm text-muted-foreground">{t("reports.subtitle")}</p>
           </div>
 
-          {/* Date Range + Export */}
+          {/* Date Range */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <div className="flex items-center gap-2">
               <CalendarRange className="h-4 w-4 text-muted-foreground" />
@@ -179,7 +130,7 @@ export default function ReportsPage() {
                 className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               />
             </div>
-            <div className="flex items-center gap-1">
+            <div className="flex gap-1">
               {DATE_PRESETS.map((preset) => (
                 <button
                   key={preset.key}
@@ -190,12 +141,6 @@ export default function ReportsPage() {
                 </button>
               ))}
             </div>
-            {!loading && (
-              <ExportMenu
-                onExportPDF={handleExportPDF}
-                onExportExcel={handleExportExcel}
-              />
-            )}
           </div>
         </div>
 
@@ -220,14 +165,13 @@ export default function ReportsPage() {
       </div>
 
       {/* Content */}
-      <div ref={contentRef} className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : activeTab === "financial" ? (
           <FinancialReport
-            ref={financialRef}
             appointments={appointments}
             payments={payments}
             dateFrom={dateFrom}
@@ -235,7 +179,6 @@ export default function ReportsPage() {
           />
         ) : activeTab === "marketing" ? (
           <MarketingReport
-            ref={marketingRef}
             appointments={appointments}
             patients={patients}
             dateFrom={dateFrom}
@@ -243,14 +186,12 @@ export default function ReportsPage() {
           />
         ) : activeTab === "operational" ? (
           <OperationalReport
-            ref={operationalRef}
             appointments={appointments}
             dateFrom={dateFrom}
             dateTo={dateTo}
           />
         ) : (
           <RetentionReport
-            ref={retentionRef}
             dateFrom={dateFrom}
             dateTo={dateTo}
           />
