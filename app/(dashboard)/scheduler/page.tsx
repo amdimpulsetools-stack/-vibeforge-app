@@ -10,15 +10,10 @@ import { Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import type {
   AppointmentWithRelations,
-  Office,
-  Doctor,
-  Service,
-  LookupValue,
   ScheduleBlock,
-  DoctorSchedule,
 } from "@/types/admin";
-import { SCHEDULER_START_HOUR, SCHEDULER_END_HOUR, SCHEDULER_INTERVAL } from "@/types/admin";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
+import { useSchedulerMasterData } from "@/hooks/use-scheduler-master-data";
 import { SchedulerHeader } from "./scheduler-header";
 import { DayView } from "./day-view";
 import { WeekView } from "./week-view";
@@ -98,15 +93,19 @@ export default function SchedulerPage() {
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
-  const [offices, setOffices] = useState<Office[]>([]);
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [doctorServices, setDoctorServices] = useState<{ doctor_id: string; service_id: string }[]>([]);
-  const [doctorSchedules, setDoctorSchedules] = useState<Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[]>([]);
-  const [lookupOrigins, setLookupOrigins] = useState<LookupValue[]>([]);
-  const [lookupPayments, setLookupPayments] = useState<LookupValue[]>([]);
-  const [lookupResponsibles, setLookupResponsibles] = useState<{ id: string; label: string }[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadingAppts, setLoadingAppts] = useState(true);
+
+  // ── Master data (cached via React Query — survives page navigations) ──
+  const { data: masterData, isLoading: loadingMaster } = useSchedulerMasterData(organizationId);
+  const offices = masterData?.offices ?? [];
+  const doctors = masterData?.doctors ?? [];
+  const services = masterData?.services ?? [];
+  const doctorServices = masterData?.doctorServices ?? [];
+  const doctorSchedules = masterData?.doctorSchedules ?? [];
+  const lookupOrigins = masterData?.lookupOrigins ?? [];
+  const lookupPayments = masterData?.lookupPayments ?? [];
+  const lookupResponsibles = masterData?.lookupResponsibles ?? [];
+  const loading = loadingMaster || loadingAppts;
 
   // Sidebar & form state
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithRelations | null>(null);
@@ -130,80 +129,19 @@ export default function SchedulerPage() {
   // Office filter
   const [selectedOfficeIds, setSelectedOfficeIds] = useState<string[]>([]);
 
-  // Fetch master data once
+  // Initialize office filter when master data loads
   useEffect(() => {
-    const fetchMasterData = async () => {
-      const supabase = createClient();
-      const [
-        officesRes,
-        doctorsRes,
-        servicesRes,
-        doctorServicesRes,
-        doctorSchedulesRes,
-        originsRes,
-        paymentsRes,
-        receptionistMembersRes,
-      ] = await Promise.all([
-        supabase.from("offices").select("*").eq("is_active", true).order("display_order"),
-        supabase.from("doctors").select("*").eq("is_active", true).order("full_name"),
-        supabase.from("services").select("*").eq("is_active", true).order("name"),
-        supabase.from("doctor_services").select("doctor_id, service_id"),
-        supabase.from("doctor_schedules").select("doctor_id, day_of_week, start_time, end_time"),
-        supabase
-          .from("lookup_values")
-          .select("*, lookup_categories!inner(slug)")
-          .eq("lookup_categories.slug", "origin")
-          .eq("is_active", true)
-          .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
-          .order("display_order"),
-        supabase
-          .from("lookup_values")
-          .select("*, lookup_categories!inner(slug)")
-          .eq("lookup_categories.slug", "payment_method")
-          .eq("is_active", true)
-          .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
-          .order("display_order"),
-        // Fetch receptionist members with profile in one query (avoids extra round trip)
-        supabase
-          .from("organization_members")
-          .select("id, user_id, role, user_profiles(full_name, email)")
-          .eq("role", "receptionist"),
-      ]);
-
-      const fetchedOffices = officesRes.data ?? [];
-      setOffices(fetchedOffices);
-
-      // Initialize office filter: use saved selection or default to all
+    if (offices.length === 0) return;
+    setSelectedOfficeIds((prev) => {
+      if (prev.length > 0) return prev; // already initialized
       const saved = loadOfficeFilter();
       if (saved && saved.length > 0) {
-        // Only keep IDs that still exist in the fetched offices
-        const validIds = saved.filter((id) => fetchedOffices.some((o) => o.id === id));
-        setSelectedOfficeIds(validIds.length > 0 ? validIds : fetchedOffices.map((o) => o.id));
-      } else {
-        setSelectedOfficeIds(fetchedOffices.map((o) => o.id));
+        const validIds = saved.filter((id) => offices.some((o) => o.id === id));
+        return validIds.length > 0 ? validIds : offices.map((o) => o.id);
       }
-      setDoctors(doctorsRes.data ?? []);
-      setServices(servicesRes.data ?? []);
-      setDoctorServices((doctorServicesRes.data as { doctor_id: string; service_id: string }[]) ?? []);
-      setDoctorSchedules((doctorSchedulesRes.data as Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[]) ?? []);
-      setLookupOrigins((originsRes.data as LookupValue[]) ?? []);
-      setLookupPayments((paymentsRes.data as LookupValue[]) ?? []);
-
-      // Build responsibles list from receptionist members (profile joined above)
-      const receptionists = receptionistMembersRes.data ?? [];
-      setLookupResponsibles(
-        receptionists.map((m) => {
-          const profile = (m as unknown as { user_profiles: { full_name: string | null; email: string | null } | null }).user_profiles;
-          return {
-            id: m.id,
-            label: profile?.full_name || profile?.email || "Recepcionista",
-          };
-        })
-      );
-    };
-
-    fetchMasterData();
-  }, []);
+      return offices.map((o) => o.id);
+    });
+  }, [offices]);
 
   // Load break time config from localStorage (client-side only)
   useEffect(() => {
@@ -261,7 +199,7 @@ export default function SchedulerPage() {
     }
     setPaymentTotals(totals);
 
-    setLoading(false);
+    setLoadingAppts(false);
   }, [getDateRange]);
 
   // Fetch schedule blocks
@@ -523,7 +461,7 @@ export default function SchedulerPage() {
           lookupPayments={lookupPayments}
           lookupResponsibles={lookupResponsibles}
           existingAppointments={appointments}
-          organizationId={organizationId}
+          organizationId={organizationId ?? ""}
           organizationName={organization?.name ?? ""}
           organizationAddress={organization?.address || ""}
           onClose={handleFormClose}
@@ -549,7 +487,7 @@ export default function SchedulerPage() {
         <BlockDialog
           defaultDate={blockDialogDefaultDate}
           offices={offices}
-          organizationId={organizationId}
+          organizationId={organizationId ?? ""}
           onClose={() => setShowBlockDialog(false)}
           onSaved={() => {
             setShowBlockDialog(false);

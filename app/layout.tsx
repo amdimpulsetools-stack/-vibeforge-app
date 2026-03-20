@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, Outfit, JetBrains_Mono } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/components/language-provider";
+import { QueryProvider } from "@/components/query-provider";
 import { APP_NAME } from "@/lib/constants";
 import "./globals.css";
 
@@ -41,11 +42,13 @@ export default function RootLayout({
       <body
         className={`${plusJakarta.variable} ${outfit.variable} ${jetbrainsMono.variable} font-sans antialiased grain`}
       >
-        <ThemeProvider>
-          <LanguageProvider>
-            {children}
-          </LanguageProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider>
+            <LanguageProvider>
+              {children}
+            </LanguageProvider>
+          </ThemeProvider>
+        </QueryProvider>
         <Toaster
           richColors
           position="top-right"
