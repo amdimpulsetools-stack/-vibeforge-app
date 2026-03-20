@@ -36,7 +36,12 @@ import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
-import { ClinicalNoteModal } from "./clinical-note-modal";
+import dynamic from "next/dynamic";
+
+const ClinicalNoteModal = dynamic(
+  () => import("./clinical-note-modal").then((m) => ({ default: m.ClinicalNoteModal })),
+  { ssr: false }
+);
 
 interface AppointmentSidebarProps {
   appointment: AppointmentWithRelations;
@@ -878,25 +883,27 @@ export function AppointmentSidebar({
           </div>
         )}
 
-        {/* Clinical Note Modal */}
-        <ClinicalNoteModal
-          open={showClinicalNote}
-          onOpenChange={setShowClinicalNote}
-          appointmentId={appointment.id}
-          patientId={appointment.patient_id ?? null}
-          doctorId={appointment.doctor_id}
-          canEdit={
-            !readOnly &&
-            currentDoctorId === appointment.doctor_id
-          }
-          appointmentStatus={appointment.status}
-          patientName={appointment.patient_name}
-          patientDni={null}
-          doctorName={appointment.doctors?.full_name}
-          serviceName={appointment.services?.name}
-          appointmentDate={appointment.appointment_date}
-          appointmentTime={appointment.start_time?.slice(0, 5)}
-        />
+        {/* Clinical Note Modal — only mounted when opened */}
+        {showClinicalNote && (
+          <ClinicalNoteModal
+            open={showClinicalNote}
+            onOpenChange={setShowClinicalNote}
+            appointmentId={appointment.id}
+            patientId={appointment.patient_id ?? null}
+            doctorId={appointment.doctor_id}
+            canEdit={
+              !readOnly &&
+              currentDoctorId === appointment.doctor_id
+            }
+            appointmentStatus={appointment.status}
+            patientName={appointment.patient_name}
+            patientDni={null}
+            doctorName={appointment.doctors?.full_name}
+            serviceName={appointment.services?.name}
+            appointmentDate={appointment.appointment_date}
+            appointmentTime={appointment.start_time?.slice(0, 5)}
+          />
+        )}
 
         {/* Audit log — read-only */}
         {appointment.edited_by_name && appointment.edited_at && (
