@@ -4,23 +4,16 @@ import { useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { formatCurrency } from "@/lib/utils";
 import {
-  Users,
-  CalendarDays,
   TrendingUp,
   TrendingDown,
-  Clock,
-  ArrowRight,
-  DollarSign,
-  UserPlus,
   CheckCircle2,
   XCircle,
-  BarChart3,
-  Activity,
+  UserPlus,
+  Users,
   FileText,
-  Target,
   UserX,
+  BarChart3,
   Stethoscope,
-  Gauge,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -33,18 +26,28 @@ import {
   Cell,
 } from "recharts";
 
-// --- Types ---
+// ── Types ──────────────────────────────────────────────────────
 
-interface UpcomingAppointment {
-  id: string;
-  patient_name: string;
-  appointment_date: string;
-  start_time: string;
-  end_time: string;
-  status: string;
-  doctors: { full_name: string; color: string } | null;
-  offices: { name: string } | null;
-  services: { name: string } | null;
+interface PeriodData {
+  revenue: number;
+  revenueGrowth: number;
+  completedCount: number;
+  cancelledCount: number;
+  cancelledRate: number;
+  noShowCount: number;
+  noShowRate: number;
+  occupancyRate: number;
+  occupancyGrowth: number;
+  newPatients: number;
+  newPatientsGrowth: number;
+  recurringPatients: number;
+  recurringGrowth: number;
+}
+
+interface ReceptionistPerf {
+  name: string;
+  completed: number;
+  total: number;
 }
 
 interface TopTreatment {
@@ -59,148 +62,412 @@ interface HeatmapPoint {
   count: number;
 }
 
-interface FinancialPeriodStats {
-  revenue: number;
-  revenueGrowth: number;
-  avgTicket: number;
-  completedCount: number;
-  completionRate: number;
-  cancelledCount: number;
-  cancellationRate: number;
-  occupancyRate: number;
-}
-
 interface AdminDashboardProps {
   userName: string;
-  stats: {
-    totalPatients: number;
-    activeDoctors: number;
-    todayAppts: number;
-    thisMonthAppts: number;
-    growth: number;
-    activeOffices: number;
-    newPatientsThisMonth: number;
-    patientGrowth: number;
-    noShows: number;
-    noShowRate: number;
-  };
-  financialByPeriod: Record<"month" | "week" | "today", FinancialPeriodStats>;
-  todayAppointments: UpcomingAppointment[];
-  topTreatmentsByCount: TopTreatment[];
-  topTreatmentsByRevenue: TopTreatment[];
+  periodData: Record<"month" | "week" | "today", PeriodData>;
+  pendingDebt: number;
+  debtorCount: number;
+  receptionistPerformance: ReceptionistPerf[];
+  topTreatments: TopTreatment[];
   heatmapData: HeatmapPoint[];
+  monthlyRevenueGoal: number;
 }
 
-// --- Constants ---
+// ── Helpers ────────────────────────────────────────────────────
 
-const STATUS_COLORS: Record<string, string> = {
-  scheduled: "bg-muted/60 text-muted-foreground",
-  confirmed: "bg-blue-500/15 text-blue-400",
-  completed: "bg-emerald-500/15 text-emerald-400",
-  cancelled: "bg-red-500/15 text-red-400",
-};
-
-const STATUS_LABELS_ES: Record<string, string> = {
-  scheduled: "Programada",
-  confirmed: "Confirmada",
-  completed: "Completada",
-  cancelled: "Cancelada",
-};
-
-const STATUS_LABELS_EN: Record<string, string> = {
-  scheduled: "Scheduled",
-  confirmed: "Confirmed",
-  completed: "Completed",
-  cancelled: "Cancelled",
-};
-
-const DAYS_ES = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
-const DAYS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-// --- Helpers ---
-
-function GrowthBadge({ value }: { value: number }) {
-  if (value === 0) return <span className="text-xs text-muted-foreground">0%</span>;
+function GrowthBadge({ value, suffix }: { value: number; suffix?: string }) {
+  if (value === 0) return null;
   const positive = value > 0;
   return (
     <span
       className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
-        positive ? "text-emerald-400" : "text-red-400"
+        positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
       }`}
     >
-      {positive ? (
-        <TrendingUp className="h-3 w-3" />
-      ) : (
-        <TrendingDown className="h-3 w-3" />
-      )}
+      {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
       {positive ? "+" : ""}
-      {value}%
+      {value}% {suffix ?? ""}
     </span>
   );
 }
 
-function SectionHeader({
-  icon: Icon,
-  title,
-  color,
-}: {
-  icon: typeof DollarSign;
-  title: string;
-  color: string;
-}) {
-  return (
-    <div className="flex items-center gap-2.5 mb-5">
-      <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${color}`}>
-        <Icon className="h-4 w-4" />
-      </div>
-      <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">
-        {title}
-      </h2>
-    </div>
-  );
-}
+const DAYS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+const DAYS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const BAR_COLORS = ["#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5"];
+const RECEPTIONIST_COLORS = [
+  "#f97316", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6",
+];
 
-function KpiCard({
-  title,
-  value,
-  icon: Icon,
-  color,
-  bgColor,
-  growth,
-  subtitle,
-}: {
-  title: string;
-  value: string;
-  icon: typeof DollarSign;
-  color: string;
-  bgColor: string;
-  growth?: number;
-  subtitle?: string;
-}) {
+// ── Main Component ─────────────────────────────────────────────
+
+export function AdminDashboard({
+  userName,
+  periodData,
+  pendingDebt,
+  debtorCount,
+  receptionistPerformance,
+  topTreatments,
+  heatmapData,
+  monthlyRevenueGoal,
+}: AdminDashboardProps) {
+  const { language } = useLanguage();
+  const isEs = language === "es";
+  const [period, setPeriod] = useState<"month" | "week" | "today">("month");
+  const data = periodData[period];
+
+  const periodLabels = {
+    month: isEs ? "Mes" : "Month",
+    week: isEs ? "Últ. 7 días" : "Last 7 days",
+    today: isEs ? "Hoy" : "Today",
+  };
+
+  const periodSuffix = {
+    month: isEs ? "vs mes anterior" : "vs last month",
+    week: isEs ? "vs 7 días ant." : "vs prev 7 days",
+    today: isEs ? "vs ayer" : "vs yesterday",
+  };
+
+  // Revenue goal progress
+  const goalProgress = monthlyRevenueGoal > 0
+    ? Math.min(100, Math.round((periodData.month.revenue / monthlyRevenueGoal) * 100))
+    : 0;
+  const goalMessage = goalProgress >= 100
+    ? (isEs ? "¡Meta alcanzada!" : "Goal reached!")
+    : goalProgress >= 70
+      ? (isEs ? "¡Vamos! Falta poco" : "Almost there!")
+      : goalProgress >= 40
+        ? (isEs ? "Buen progreso" : "Good progress")
+        : (isEs ? "En camino" : "On track");
+
   return (
-    <div className="card-hover rounded-2xl border border-border/60 bg-card p-5">
+    <div className="space-y-6 pb-8">
+      {/* ── HEADER ── */}
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground">{title}</span>
-        <div
-          className={`flex h-9 w-9 items-center justify-center rounded-xl ${bgColor}`}
-        >
-          <Icon className={`h-4 w-4 ${color}`} />
+        <div>
+          <h1 className="text-3xl font-extrabold tracking-tight">
+            {isEs ? "Escritorio" : "Dashboard"}
+          </h1>
+          <p className="mt-1 text-muted-foreground">
+            {isEs ? "Bienvenido de vuelta" : "Welcome back"}, {userName.split(" ")[0] || userName}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {/* Period filter */}
+          <div className="flex items-center rounded-xl border border-border/60 bg-card p-1">
+            {(["month", "week", "today"] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPeriod(p)}
+                className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  period === p
+                    ? "gradient-primary text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {periodLabels[p]}
+              </button>
+            ))}
+          </div>
+          <Link
+            href="/reports"
+            className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-4 py-2.5 text-sm font-medium transition-all hover:bg-accent/50 hover:border-border"
+          >
+            <FileText className="h-4 w-4" />
+            {isEs ? "Ver reportes" : "View reports"}
+          </Link>
         </div>
       </div>
-      <div className="mt-3">
-        <span className="text-2xl font-extrabold tracking-tight">{value}</span>
+
+      {/* ── ROW 1: Revenue | Pending Debt | Appointments ── */}
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+        {/* Revenue */}
+        <div className="rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/5 p-6">
+          <p className="text-xs font-medium text-muted-foreground mb-1">
+            {isEs
+              ? { month: "Ingresos del mes", week: "Ingresos (7 días)", today: "Ingresos de hoy" }[period]
+              : { month: "Monthly revenue", week: "Revenue (7 days)", today: "Today's revenue" }[period]
+            }
+          </p>
+          <p className="text-3xl font-extrabold tracking-tight">
+            {formatCurrency(data.revenue)}
+          </p>
+          <div className="mt-2">
+            <GrowthBadge value={data.revenueGrowth} suffix={periodSuffix[period]} />
+          </div>
+        </div>
+
+        {/* Pending Debt */}
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
+          <p className="text-xs font-medium text-muted-foreground mb-1">
+            {isEs ? "Cobranza pendiente" : "Pending debt"}
+          </p>
+          <div className="flex items-baseline gap-4">
+            <div>
+              <p className="text-3xl font-extrabold tracking-tight text-orange-600 dark:text-orange-400">
+                {formatCurrency(pendingDebt)}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isEs ? "por cobrar" : "to collect"}
+              </p>
+            </div>
+            <div className="border-l border-border pl-4">
+              <p className="text-3xl font-extrabold tracking-tight">
+                {debtorCount}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isEs ? "pacientes deudores" : "patients with debt"}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Appointments summary */}
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
+          <p className="text-xs font-medium text-muted-foreground mb-3">
+            {isEs ? "Citas" : "Appointments"}
+          </p>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="text-center">
+              <div className="flex justify-center mb-1">
+                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isEs ? "Completadas" : "Completed"}
+              </p>
+              <p className="text-2xl font-extrabold">{data.completedCount}</p>
+            </div>
+            <div className="text-center">
+              <div className="flex justify-center mb-1">
+                <UserX className="h-4 w-4 text-amber-500" />
+              </div>
+              <p className="text-xs text-muted-foreground">%No Shows</p>
+              <p className="text-2xl font-extrabold">{data.noShowRate}%</p>
+            </div>
+            <div className="text-center">
+              <div className="flex justify-center mb-1">
+                <XCircle className="h-4 w-4 text-red-500" />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {isEs ? "Canceladas" : "Cancelled"}
+              </p>
+              <p className="text-2xl font-extrabold">{data.cancelledRate}%</p>
+            </div>
+          </div>
+        </div>
       </div>
-      <div className="mt-1.5 flex items-center gap-2">
-        {growth !== undefined && <GrowthBadge value={growth} />}
-        {subtitle && (
-          <span className="text-[11px] text-muted-foreground">{subtitle}</span>
-        )}
+
+      {/* ── ROW 2: New vs Recurring | Receptionist Performance | Occupancy ── */}
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+        {/* New vs Recurring patients */}
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
+          <p className="text-xs font-medium text-muted-foreground mb-4">
+            {isEs ? "Pacientes nuevos vs recurrentes" : "New vs recurring patients"}
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-3 w-3 rounded-sm bg-emerald-500/20" />
+                <span className="text-xs text-muted-foreground">{isEs ? "Nuevos" : "New"}</span>
+              </div>
+              <p className="text-3xl font-extrabold">{data.newPatients}</p>
+              <GrowthBadge value={data.newPatientsGrowth} suffix={periodSuffix[period]} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-3 w-3 rounded-sm bg-muted" />
+                <span className="text-xs text-muted-foreground">
+                  {isEs ? "Recurrentes" : "Recurring"}
+                </span>
+              </div>
+              <p className="text-3xl font-extrabold">{data.recurringPatients}</p>
+              <GrowthBadge value={data.recurringGrowth} suffix={periodSuffix[period]} />
+            </div>
+          </div>
+        </div>
+
+        {/* Receptionist Performance */}
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="h-3 w-3 rounded-sm bg-emerald-500/20" />
+            <p className="text-xs font-medium text-muted-foreground">
+              {isEs ? "Rendimiento por recepcionista" : "Receptionist performance"}
+            </p>
+          </div>
+          {receptionistPerformance.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              {isEs ? "Sin datos" : "No data"}
+            </p>
+          ) : (
+            <div className="space-y-2.5">
+              {receptionistPerformance.slice(0, 5).map((r, i) => (
+                <div key={r.name} className="flex items-center gap-2">
+                  <div
+                    className="h-2 w-2 rounded-full shrink-0"
+                    style={{ backgroundColor: RECEPTIONIST_COLORS[i % RECEPTIONIST_COLORS.length] }}
+                  />
+                  <span className="text-sm font-semibold truncate">{r.name}:</span>
+                  <span className="text-sm text-muted-foreground">
+                    {r.completed} {isEs ? "citas completadas" : "completed"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Occupancy Rate */}
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
+          <p className="text-xs font-medium text-muted-foreground mb-1">
+            {isEs ? "% de Ocupación" : "Occupancy %"}
+          </p>
+          <p className="text-5xl font-extrabold tracking-tight mt-2">
+            {data.occupancyRate}%
+          </p>
+          <div className="mt-2">
+            <GrowthBadge value={data.occupancyGrowth} suffix={periodSuffix[period]} />
+          </div>
+          {/* Progress bar */}
+          <div className="mt-4 h-2 w-full rounded-full bg-muted overflow-hidden">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+              style={{ width: `${data.occupancyRate}%` }}
+            />
+          </div>
+        </div>
       </div>
+
+      {/* ── ROW 3: Revenue Goal | Top 5 Treatments ── */}
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+        {/* Revenue Goal Gauge */}
+        <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col items-center justify-center">
+          <p className="text-xs font-medium text-muted-foreground mb-2">
+            {isEs ? "Meta del mes" : "Monthly goal"}
+          </p>
+          {monthlyRevenueGoal > 0 ? (
+            <>
+              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-3">
+                {goalMessage}
+              </p>
+              {/* Gauge SVG */}
+              <div className="relative w-40 h-24">
+                <svg viewBox="0 0 160 90" className="w-full h-full">
+                  {/* Background arc */}
+                  <path
+                    d="M 15 80 A 65 65 0 0 1 145 80"
+                    fill="none"
+                    stroke="hsl(var(--muted))"
+                    strokeWidth="12"
+                    strokeLinecap="round"
+                  />
+                  {/* Progress arc */}
+                  <path
+                    d="M 15 80 A 65 65 0 0 1 145 80"
+                    fill="none"
+                    stroke="hsl(142.1 76.2% 36.3%)"
+                    strokeWidth="12"
+                    strokeLinecap="round"
+                    strokeDasharray={`${(goalProgress / 100) * 204} 204`}
+                    className="transition-all duration-700"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-end justify-center pb-0">
+                  <span className="text-3xl font-extrabold">{goalProgress}%</span>
+                </div>
+              </div>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                {isEs ? "Ingresos del mes" : "Monthly revenue"}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                {formatCurrency(periodData.month.revenue)} / {formatCurrency(monthlyRevenueGoal)}
+              </p>
+            </>
+          ) : (
+            <div className="flex-1 flex flex-col items-center justify-center text-center py-4">
+              <p className="text-sm text-muted-foreground">
+                {isEs ? "Sin meta configurada" : "No goal configured"}
+              </p>
+              <Link
+                href="/settings"
+                className="mt-2 text-xs text-primary hover:underline font-medium"
+              >
+                {isEs ? "Configurar meta" : "Set goal"}
+              </Link>
+            </div>
+          )}
+        </div>
+
+        {/* Top 5 Treatments */}
+        <div className="md:col-span-2 rounded-2xl border border-border/60 bg-card">
+          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-border/40">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10">
+              <Stethoscope className="h-4 w-4 text-emerald-400" />
+            </div>
+            <h3 className="text-sm font-bold">
+              {isEs ? "Top 5 Tratamientos" : "Top 5 Treatments"}
+            </h3>
+          </div>
+          {topTreatments.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                {isEs ? "Sin datos" : "No data"}
+              </p>
+            </div>
+          ) : (
+            <div className="px-4 py-4">
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart
+                  data={topTreatments.map((t) => ({ ...t, value: t.count }))}
+                  layout="vertical"
+                  barCategoryGap="25%"
+                >
+                  <XAxis type="number" hide />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={150}
+                  />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload as TopTreatment;
+                      return (
+                        <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+                          <p className="text-xs font-semibold">{d.name}</p>
+                          <p className="text-xs">{d.count} {isEs ? "citas" : "appts"}</p>
+                          <p className="text-xs text-emerald-400 font-medium">{formatCurrency(d.revenue)}</p>
+                        </div>
+                      );
+                    }}
+                    cursor={false}
+                  />
+                  <Bar
+                    dataKey="value"
+                    radius={999}
+                    background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }}
+                    animationDuration={800}
+                    animationEasing="ease-out"
+                  >
+                    {topTreatments.map((_, i) => (
+                      <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── ROW 4: Heatmap (full width) ── */}
+      <AppointmentHeatmap data={heatmapData} isEs={isEs} />
     </div>
   );
 }
 
-// --- Heatmap ---
+// ── Heatmap Component ──────────────────────────────────────────
 
 function AppointmentHeatmap({
   data,
@@ -222,34 +489,31 @@ function AppointmentHeatmap({
     return "bg-primary/80";
   };
 
-  const getCount = (day: number, hour: number) => {
-    return data.find((d) => d.day === day && d.hour === hour)?.count ?? 0;
-  };
+  const getCount = (day: number, hour: number) =>
+    data.find((d) => d.day === day && d.hour === hour)?.count ?? 0;
 
   return (
-    <div className="rounded-2xl border border-border/60 bg-card p-6 h-full">
+    <div className="rounded-2xl border border-border/60 bg-card p-6">
       <div className="flex items-center gap-2.5 mb-5">
         <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10">
           <BarChart3 className="h-4 w-4 text-amber-400" />
         </div>
-        <div className="relative group cursor-help">
+        <div>
           <h3 className="text-sm font-bold">
-            {isEs ? "Mapa de calor de citas" : "Appointments heatmap"}
+            {isEs ? "Mapa de calor" : "Heatmap"}
           </h3>
-          <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-150 absolute left-0 top-full mt-2 z-50">
-            <div className="relative rounded-lg bg-popover border border-border px-3 py-1.5 shadow-lg">
-              <div className="absolute -top-1 left-4 h-2 w-2 rotate-45 bg-popover border-l border-t border-border" />
-              <span className="text-xs font-medium text-foreground whitespace-nowrap">
-                {isEs ? "Distribución semanal de citas por hora (últimos 90 días)" : "Weekly appointment distribution by hour (last 90 days)"}
-              </span>
-            </div>
-          </div>
+          <p className="text-[10px] text-muted-foreground">
+            {isEs ? "Citas completas — últimos 90 días" : "Completed appointments — last 90 days"}
+          </p>
         </div>
       </div>
 
       <div className="overflow-x-auto">
         <div className="min-w-[320px]">
-          <div className="grid gap-1" style={{ gridTemplateColumns: `48px repeat(${hours.length}, 1fr)` }}>
+          <div
+            className="grid gap-1"
+            style={{ gridTemplateColumns: `48px repeat(${hours.length}, 1fr)` }}
+          >
             <div />
             {hours.map((h) => (
               <div key={h} className="text-[10px] text-center text-muted-foreground font-medium">
@@ -288,365 +552,11 @@ function AppointmentHeatmap({
             <div className="h-3 w-3 rounded-sm bg-primary/50" />
             <div className="h-3 w-3 rounded-sm bg-primary/80" />
             <span className="text-[10px] text-muted-foreground ml-1">
-              {isEs ? "Mas" : "More"}
+              {isEs ? "Más" : "More"}
             </span>
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-// --- Custom tooltip for Top Treatments chart ---
-
-function TreatmentTooltip({ active, payload, isEs, sortBy }: { active?: boolean; payload?: Array<{ payload: TopTreatment }>; isEs: boolean; sortBy: string }) {
-  if (!active || !payload?.length) return null;
-  const data = payload[0].payload;
-  return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
-      <p className="text-xs font-semibold text-popover-foreground mb-1">{data.name}</p>
-      <p className="text-xs text-popover-foreground">
-        {data.count} {isEs ? "citas" : "appts"}
-      </p>
-      <p className="text-xs text-emerald-400 font-medium">
-        {formatCurrency(data.revenue)}
-      </p>
-    </div>
-  );
-}
-
-// --- Top Treatments ---
-
-const BAR_COLORS = ["#10b981", "#34d399", "#6ee7b7"];
-
-function TopTreatmentsTable({
-  treatmentsByCount,
-  treatmentsByRevenue,
-  isEs,
-}: {
-  treatmentsByCount: TopTreatment[];
-  treatmentsByRevenue: TopTreatment[];
-  isEs: boolean;
-}) {
-  const [sortBy, setSortBy] = useState<"count" | "revenue">("count");
-  const treatments = sortBy === "count" ? treatmentsByCount : treatmentsByRevenue;
-
-  const chartData = treatments.map((t) => ({
-    ...t,
-    value: sortBy === "count" ? t.count : t.revenue,
-  }));
-
-  return (
-    <div className="rounded-2xl border border-border/60 bg-card">
-      <div className="flex items-center justify-between border-b border-border/40 px-6 py-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10">
-            <Stethoscope className="h-4 w-4 text-emerald-400" />
-          </div>
-          <h3 className="text-sm font-bold">
-            {isEs ? "Top 3 servicios" : "Top 3 services"}
-          </h3>
-        </div>
-        <div className="flex items-center rounded-lg border border-border/60 bg-muted/30 p-0.5">
-          <button
-            onClick={() => setSortBy("count")}
-            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
-              sortBy === "count"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {isEs ? "Cantidad" : "Quantity"}
-          </button>
-          <button
-            onClick={() => setSortBy("revenue")}
-            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
-              sortBy === "revenue"
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {isEs ? "Valor" : "Revenue"}
-          </button>
-        </div>
-      </div>
-      {treatments.length === 0 ? (
-        <div className="p-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            {isEs ? "Sin datos" : "No data"}
-          </p>
-        </div>
-      ) : (
-        <div className="px-4 py-4">
-          <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={chartData} layout="vertical" barCategoryGap="30%">
-              <XAxis type="number" hide />
-              <YAxis
-                type="category"
-                dataKey="name"
-                tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
-                tickLine={false}
-                axisLine={false}
-                width={120}
-              />
-              <Tooltip content={<TreatmentTooltip isEs={isEs} sortBy={sortBy} />} cursor={false} />
-              <Bar dataKey="value" radius={999} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={800} animationEasing="ease-out">
-                {chartData.map((_, i) => (
-                  <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// --- Main Component ---
-
-export function AdminDashboard({
-  userName,
-  stats,
-  financialByPeriod,
-  todayAppointments,
-  topTreatmentsByCount,
-  topTreatmentsByRevenue,
-  heatmapData,
-}: AdminDashboardProps) {
-  const { t, language } = useLanguage();
-  const statusLabels = language === "es" ? STATUS_LABELS_ES : STATUS_LABELS_EN;
-  const formatTime = (time: string) => time.slice(0, 5);
-  const isEs = language === "es";
-  const [period, setPeriod] = useState<"month" | "week" | "today">("month");
-  const fin = financialByPeriod[period];
-
-  const periodLabels = {
-    month: isEs ? "Mes" : "Month",
-    week: isEs ? "Ult. 7 dias" : "Last 7 days",
-    today: isEs ? "Hoy" : "Today",
-  };
-
-  return (
-    <div className="space-y-8 pb-8">
-      {/* HEADER + FILTER */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-extrabold tracking-tight">Dashboard</h1>
-          <p className="mt-1 text-muted-foreground">
-            {t("dashboard.welcome")}, {userName.split(" ")[0] || userName}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {/* Period filter */}
-          <div className="flex items-center rounded-xl border border-border/60 bg-card p-1">
-            {(["month", "week", "today"] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                  period === p
-                    ? "gradient-primary text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {periodLabels[p]}
-              </button>
-            ))}
-          </div>
-          <Link
-            href="/reports"
-            className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-4 py-2.5 text-sm font-medium transition-all hover:bg-accent/50 hover:border-border"
-          >
-            <FileText className="h-4 w-4" />
-            {isEs ? "Ver reportes" : "View reports"}
-          </Link>
-        </div>
-      </div>
-
-      {/* FINANCIAL KPIs */}
-      <section>
-        <SectionHeader
-          icon={DollarSign}
-          title={isEs ? "Financiero" : "Financial"}
-          color="bg-emerald-500/10 text-emerald-400"
-        />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <KpiCard
-            title={isEs
-              ? { month: "Ingresos del mes", week: "Ingresos (7 dias)", today: "Ingresos de hoy" }[period]
-              : { month: "Monthly revenue", week: "Revenue (7 days)", today: "Today's revenue" }[period]
-            }
-            value={formatCurrency(fin.revenue)}
-            icon={DollarSign}
-            color="text-emerald-400"
-            bgColor="bg-emerald-500/10"
-            growth={fin.revenueGrowth}
-            subtitle={isEs
-              ? { month: "vs. mes anterior", week: "vs. 7 dias ant.", today: "vs. ayer" }[period]
-              : { month: "vs. last month", week: "vs. prev. 7 days", today: "vs. yesterday" }[period]
-            }
-          />
-          <KpiCard
-            title={isEs ? "Ticket promedio" : "Avg. ticket"}
-            value={formatCurrency(fin.avgTicket)}
-            icon={Target}
-            color="text-blue-400"
-            bgColor="bg-blue-500/10"
-            subtitle={isEs ? "por cita completada" : "per completed appt"}
-          />
-          <KpiCard
-            title={isEs ? "Citas completadas" : "Completed appts"}
-            value={fin.completedCount.toLocaleString()}
-            icon={CheckCircle2}
-            color="text-emerald-400"
-            bgColor="bg-emerald-500/10"
-            subtitle={`${fin.completionRate}% ${isEs ? "del total" : "of total"}`}
-          />
-          <KpiCard
-            title={isEs ? "Cancelaciones" : "Cancellations"}
-            value={fin.cancelledCount.toLocaleString()}
-            icon={XCircle}
-            color="text-red-400"
-            bgColor="bg-red-500/10"
-            subtitle={`${fin.cancellationRate}% ${isEs ? "tasa" : "rate"}`}
-          />
-          <KpiCard
-            title={isEs ? "Tasa de ocupacion" : "Occupancy rate"}
-            value={`${fin.occupancyRate}%`}
-            icon={Gauge}
-            color="text-amber-400"
-            bgColor="bg-amber-500/10"
-            subtitle={isEs ? "capacidad utilizada" : "capacity used"}
-          />
-        </div>
-      </section>
-
-      {/* OPERATIONAL KPIs */}
-      <section>
-        <SectionHeader
-          icon={Activity}
-          title={isEs ? "Operacional & Marketing" : "Operational & Marketing"}
-          color="bg-blue-500/10 text-blue-400"
-        />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <KpiCard
-            title={isEs ? "Citas de hoy" : "Today's appts"}
-            value={stats.todayAppts.toLocaleString()}
-            icon={CalendarDays}
-            color="text-blue-400"
-            bgColor="bg-blue-500/10"
-          />
-          <KpiCard
-            title={isEs ? "Citas este mes" : "Monthly appts"}
-            value={stats.thisMonthAppts.toLocaleString()}
-            icon={CalendarDays}
-            color="text-purple-400"
-            bgColor="bg-purple-500/10"
-            growth={stats.growth}
-            subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
-          />
-          <KpiCard
-            title={isEs ? "Pacientes totales" : "Total patients"}
-            value={stats.totalPatients.toLocaleString()}
-            icon={Users}
-            color="text-cyan-400"
-            bgColor="bg-cyan-500/10"
-          />
-          <KpiCard
-            title={isEs ? "Nuevos este mes" : "New this month"}
-            value={stats.newPatientsThisMonth.toLocaleString()}
-            icon={UserPlus}
-            color="text-emerald-400"
-            bgColor="bg-emerald-500/10"
-            growth={stats.patientGrowth}
-            subtitle={isEs ? "vs. mes anterior" : "vs. last month"}
-          />
-          <KpiCard
-            title="No shows"
-            value={stats.noShows.toLocaleString()}
-            icon={UserX}
-            color="text-orange-400"
-            bgColor="bg-orange-500/10"
-            subtitle={`${stats.noShowRate}% ${isEs ? "tasa" : "rate"}`}
-          />
-        </div>
-      </section>
-
-      {/* BOTTOM: Upcoming + Top Services | Heatmap */}
-      <section className="grid gap-6 lg:grid-cols-2">
-        {/* Left column */}
-        <div className="space-y-6">
-          {/* Upcoming appointments */}
-          <div className="rounded-2xl border border-border/60 bg-card">
-            <div className="flex items-center justify-between border-b border-border/40 px-6 py-4">
-              <div className="flex items-center gap-2.5">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-bold">{t("dashboard.upcoming_appointments")}</h2>
-              </div>
-              <Link
-                href="/scheduler"
-                className="flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                {t("dashboard.view_scheduler")}
-                <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-
-            {todayAppointments.length === 0 ? (
-              <div className="p-10 text-center">
-                <CalendarDays className="mx-auto mb-3 h-8 w-8 text-muted-foreground/30" />
-                <p className="text-sm text-muted-foreground">
-                  {t("dashboard.no_upcoming_appointments")}
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-border/30">
-                {todayAppointments.map((appt) => (
-                  <div
-                    key={appt.id}
-                    className="flex items-center gap-3 px-6 py-3 transition-colors hover:bg-muted/30"
-                  >
-                    <div className="shrink-0 text-xs font-mono text-muted-foreground">
-                      <div>{appt.appointment_date}</div>
-                      <div>{formatTime(appt.start_time)}</div>
-                    </div>
-                    <div
-                      className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-background"
-                      style={{
-                        backgroundColor: appt.doctors?.color ?? "#6b7280",
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">
-                        {appt.patient_name}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {appt.services?.name ?? ""}
-                      </p>
-                    </div>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
-                        STATUS_COLORS[appt.status] ?? STATUS_COLORS.scheduled
-                      }`}
-                    >
-                      {statusLabels[appt.status] ?? appt.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Top 3 Services */}
-          <TopTreatmentsTable treatmentsByCount={topTreatmentsByCount} treatmentsByRevenue={topTreatmentsByRevenue} isEs={isEs} />
-        </div>
-
-        {/* Right: Heatmap */}
-        <div>
-          <AppointmentHeatmap data={heatmapData} isEs={isEs} />
-        </div>
-      </section>
     </div>
   );
 }

@@ -55,7 +55,7 @@ export default async function DashboardPage() {
   const prevWeekEnd = format(subDays(now, 7), "yyyy-MM-dd");
   const yesterday = format(subDays(now, 1), "yyyy-MM-dd");
 
-  // Single RPC call replaces ~17 parallel queries
+  // Single RPC call for all dashboard data
   const { data: stats } = await supabase.rpc("get_admin_dashboard_stats", {
     p_today: today,
     p_month_start: monthStart,
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
     p_yesterday: yesterday,
   });
 
-  // Fallback if RPC fails (e.g. not yet migrated)
+  // Fallback if RPC fails
   if (!stats) redirect("/scheduler");
 
   // ── Helpers ────────────────────────────────────────────────────
@@ -87,93 +87,103 @@ export default async function DashboardPage() {
       return day !== 0 && day !== 6;
     }).length;
 
-  // ── Extract stats from RPC response ────────────────────────────
-  const totalPatients = stats.total_patients ?? 0;
+  // ── Extract stats ────────────────────────────────────────────
   const activeDoctors = stats.active_doctors ?? 0;
-  const todayAppts = stats.today_appts ?? 0;
   const thisMonthAppts = stats.this_month_appts ?? 0;
-  const lastMonthAppts = stats.last_month_appts ?? 0;
-  const activeOffices = stats.active_offices ?? 0;
   const completedMonth = stats.completed_month ?? 0;
   const cancelledMonth = stats.cancelled_month ?? 0;
-  const noShows = stats.no_shows ?? 0;
-  const newPatientsThisMonth = stats.new_patients_this_month ?? 0;
-  const newPatientsLastMonth = stats.new_patients_last_month ?? 0;
+  const noShowsMonth = stats.no_shows_month ?? 0;
+  const todayAppts = stats.today_appts ?? 0;
 
-  const growth = computeGrowth(thisMonthAppts, lastMonthAppts);
-  const patientGrowth = computeGrowth(newPatientsThisMonth, newPatientsLastMonth);
-  const noShowRate = thisMonthAppts > 0 ? Math.round((noShows / thisMonthAppts) * 100) : 0;
-
-  // ── MONTH financial ────────────────────────────────────────────
+  // ── MONTH metrics ──
   const revenueThisMonth = Number(stats.revenue_this_month ?? 0);
   const revenueLastMonth = Number(stats.revenue_last_month ?? 0);
   const monthWorkingDays = countWorkingDays(startOfMonth(now), endOfMonth(now));
   const monthCapacity = activeDoctors * monthWorkingDays * slotsPerDoctorPerDay;
+  const monthNonCancelled = thisMonthAppts - cancelledMonth;
 
-  const monthFinancial = {
+  const monthData = {
     revenue: revenueThisMonth,
     revenueGrowth: computeGrowth(revenueThisMonth, revenueLastMonth),
-    avgTicket: completedMonth > 0 ? Math.round(revenueThisMonth / completedMonth) : 0,
     completedCount: completedMonth,
-    completionRate: thisMonthAppts > 0 ? Math.round((completedMonth / thisMonthAppts) * 100) : 0,
     cancelledCount: cancelledMonth,
-    cancellationRate: thisMonthAppts > 0 ? Math.round((cancelledMonth / thisMonthAppts) * 100) : 0,
+    cancelledRate: thisMonthAppts > 0 ? Math.round((cancelledMonth / thisMonthAppts) * 100) : 0,
+    noShowCount: noShowsMonth,
+    noShowRate: thisMonthAppts > 0 ? Math.round((noShowsMonth / thisMonthAppts) * 100) : 0,
     occupancyRate: monthCapacity > 0
-      ? Math.min(100, Math.round(((thisMonthAppts - cancelledMonth) / monthCapacity) * 100))
+      ? Math.min(100, Math.round((monthNonCancelled / monthCapacity) * 100))
       : 0,
+    occupancyGrowth: (() => {
+      const lastMonthAppts = stats.last_month_appts ?? 0;
+      const lastMonthWorkingDays = countWorkingDays(startOfMonth(subMonths(now, 1)), endOfMonth(subMonths(now, 1)));
+      const lastMonthCapacity = activeDoctors * lastMonthWorkingDays * slotsPerDoctorPerDay;
+      const lastRate = lastMonthCapacity > 0 ? Math.round((lastMonthAppts / lastMonthCapacity) * 100) : 0;
+      const currentRate = monthCapacity > 0 ? Math.round((monthNonCancelled / monthCapacity) * 100) : 0;
+      return computeGrowth(currentRate, lastRate);
+    })(),
+    newPatients: stats.new_patients_this_month ?? 0,
+    newPatientsGrowth: computeGrowth(stats.new_patients_this_month ?? 0, stats.new_patients_last_month ?? 0),
+    recurringPatients: stats.recurring_patients_month ?? 0,
+    recurringGrowth: computeGrowth(stats.recurring_patients_month ?? 0, stats.recurring_patients_last_month ?? 0),
   };
 
-  // ── WEEK financial ─────────────────────────────────────────────
-  const weekRevenue = Number(stats.revenue_this_week ?? 0);
+  // ── WEEK metrics ──
   const weekTotal = stats.week_total ?? 0;
-  const weekCompletedCount = stats.week_completed ?? 0;
+  const weekCompleted = stats.week_completed ?? 0;
   const weekCancelled = stats.week_cancelled ?? 0;
+  const weekNoShows = stats.week_no_shows ?? 0;
+  const weekRevenue = Number(stats.revenue_this_week ?? 0);
   const weekWorkingDays = countWorkingDays(subDays(now, 6), now);
   const weekCapacity = activeDoctors * weekWorkingDays * slotsPerDoctorPerDay;
 
-  const weekFinancial = {
+  const weekData = {
     revenue: weekRevenue,
     revenueGrowth: computeGrowth(weekRevenue, Number(stats.revenue_prev_week ?? 0)),
-    avgTicket: weekCompletedCount > 0 ? Math.round(weekRevenue / weekCompletedCount) : 0,
-    completedCount: weekCompletedCount,
-    completionRate: weekTotal > 0 ? Math.round((weekCompletedCount / weekTotal) * 100) : 0,
+    completedCount: weekCompleted,
     cancelledCount: weekCancelled,
-    cancellationRate: weekTotal > 0 ? Math.round((weekCancelled / weekTotal) * 100) : 0,
+    cancelledRate: weekTotal > 0 ? Math.round((weekCancelled / weekTotal) * 100) : 0,
+    noShowCount: weekNoShows,
+    noShowRate: weekTotal > 0 ? Math.round((weekNoShows / weekTotal) * 100) : 0,
     occupancyRate: weekCapacity > 0
       ? Math.min(100, Math.round(((weekTotal - weekCancelled) / weekCapacity) * 100))
       : 0,
+    occupancyGrowth: 0,
+    newPatients: stats.new_patients_this_month ?? 0, // approximate
+    newPatientsGrowth: 0,
+    recurringPatients: stats.recurring_patients_month ?? 0,
+    recurringGrowth: 0,
   };
 
-  // ── TODAY financial ────────────────────────────────────────────
-  const todayRevenue = Number(stats.revenue_today ?? 0);
-  const todayCompletedCount = stats.today_completed ?? 0;
+  // ── TODAY metrics ──
+  const todayCompleted = stats.today_completed ?? 0;
   const todayCancelled = stats.today_cancelled ?? 0;
+  const todayNoShows = stats.today_no_shows ?? 0;
+  const todayRevenue = Number(stats.revenue_today ?? 0);
   const todayIsWorkday = getDay(now) !== 0 && getDay(now) !== 6;
   const todayCapacity = todayIsWorkday ? activeDoctors * slotsPerDoctorPerDay : 0;
 
-  const todayFinancial = {
+  const todayData = {
     revenue: todayRevenue,
     revenueGrowth: computeGrowth(todayRevenue, Number(stats.revenue_yesterday ?? 0)),
-    avgTicket: todayCompletedCount > 0 ? Math.round(todayRevenue / todayCompletedCount) : 0,
-    completedCount: todayCompletedCount,
-    completionRate: todayAppts > 0 ? Math.round((todayCompletedCount / todayAppts) * 100) : 0,
+    completedCount: todayCompleted,
     cancelledCount: todayCancelled,
-    cancellationRate: todayAppts > 0 ? Math.round((todayCancelled / todayAppts) * 100) : 0,
+    cancelledRate: todayAppts > 0 ? Math.round((todayCancelled / todayAppts) * 100) : 0,
+    noShowCount: todayNoShows,
+    noShowRate: todayAppts > 0 ? Math.round((todayNoShows / todayAppts) * 100) : 0,
     occupancyRate: todayCapacity > 0
       ? Math.min(100, Math.round(((todayAppts - todayCancelled) / todayCapacity) * 100))
       : 0,
+    occupancyGrowth: 0,
+    newPatients: 0,
+    newPatientsGrowth: 0,
+    recurringPatients: 0,
+    recurringGrowth: 0,
   };
 
-  // ── Top treatments ─────────────────────────────────────────────
-  const allTreatments = (stats.top_treatments ?? []) as Array<{ name: string; count: number; revenue: number }>;
-  const topTreatmentsByCount = [...allTreatments]
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 3);
-  const topTreatmentsByRevenue = [...allTreatments]
-    .sort((a, b) => b.revenue - a.revenue)
-    .slice(0, 3);
+  // ── Top treatments (expanded to 5) ──
+  const topTreatments = (stats.top_treatments ?? []) as Array<{ name: string; count: number; revenue: number }>;
 
-  // ── Heatmap ────────────────────────────────────────────────────
+  // ── Heatmap ──
   const heatmapRaw = (stats.heatmap ?? []) as Array<{ day: number; hour: number; count: number }>;
   const heatmapMap = new Map<string, number>();
   for (const h of heatmapRaw) {
@@ -182,35 +192,31 @@ export default async function DashboardPage() {
   const heatmapData: { day: number; hour: number; count: number }[] = [];
   for (let day = 0; day < 7; day++) {
     for (let hour = 8; hour <= 20; hour++) {
-      const key = `${day}-${hour}`;
-      heatmapData.push({ day, hour, count: heatmapMap.get(key) ?? 0 });
+      heatmapData.push({ day, hour, count: heatmapMap.get(`${day}-${hour}`) ?? 0 });
     }
   }
+
+  // ── Receptionist performance ──
+  const receptionistPerformance = (stats.receptionist_performance ?? []) as Array<{
+    name: string;
+    completed: number;
+    total: number;
+  }>;
 
   return (
     <AdminDashboard
       userName={user.user_metadata?.full_name || user.email || ""}
-      stats={{
-        totalPatients,
-        activeDoctors,
-        todayAppts,
-        thisMonthAppts,
-        growth,
-        activeOffices,
-        newPatientsThisMonth,
-        patientGrowth,
-        noShows,
-        noShowRate,
+      periodData={{
+        month: monthData,
+        week: weekData,
+        today: todayData,
       }}
-      financialByPeriod={{
-        month: monthFinancial,
-        week: weekFinancial,
-        today: todayFinancial,
-      }}
-      todayAppointments={(stats.upcoming_appointments ?? []) as any}
-      topTreatmentsByCount={topTreatmentsByCount}
-      topTreatmentsByRevenue={topTreatmentsByRevenue}
+      pendingDebt={Math.max(0, Number(stats.pending_debt ?? 0))}
+      debtorCount={stats.debtor_count ?? 0}
+      receptionistPerformance={receptionistPerformance}
+      topTreatments={topTreatments}
       heatmapData={heatmapData}
+      monthlyRevenueGoal={Number(stats.monthly_revenue_goal ?? 0)}
     />
   );
 }
