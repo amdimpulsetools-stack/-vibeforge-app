@@ -183,19 +183,6 @@ export default async function DashboardPage() {
   // ── Top treatments (expanded to 5) ──
   const topTreatments = (stats.top_treatments ?? []) as Array<{ name: string; count: number; revenue: number }>;
 
-  // ── Heatmap ──
-  const heatmapRaw = (stats.heatmap ?? []) as Array<{ day: number; hour: number; count: number }>;
-  const heatmapMap = new Map<string, number>();
-  for (const h of heatmapRaw) {
-    heatmapMap.set(`${h.day}-${h.hour}`, h.count);
-  }
-  const heatmapData: { day: number; hour: number; count: number }[] = [];
-  for (let day = 0; day < 7; day++) {
-    for (let hour = 8; hour <= 20; hour++) {
-      heatmapData.push({ day, hour, count: heatmapMap.get(`${day}-${hour}`) ?? 0 });
-    }
-  }
-
   // ── Receptionist performance ──
   const receptionistPerformance = (stats.receptionist_performance ?? []) as Array<{
     name: string;
@@ -215,7 +202,6 @@ export default async function DashboardPage() {
       debtorCount={stats.debtor_count ?? 0}
       receptionistPerformance={receptionistPerformance}
       topTreatments={topTreatments}
-      heatmapData={heatmapData}
       monthlyRevenueGoal={Number(stats.monthly_revenue_goal ?? 0)}
     />
   );

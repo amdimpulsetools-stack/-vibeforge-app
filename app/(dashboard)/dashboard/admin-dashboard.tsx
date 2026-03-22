@@ -12,7 +12,6 @@ import {
   Users,
   FileText,
   UserX,
-  BarChart3,
   Stethoscope,
 } from "lucide-react";
 import Link from "next/link";
@@ -56,12 +55,6 @@ interface TopTreatment {
   revenue: number;
 }
 
-interface HeatmapPoint {
-  day: number;
-  hour: number;
-  count: number;
-}
-
 interface AdminDashboardProps {
   userName: string;
   periodData: Record<"month" | "week" | "today", PeriodData>;
@@ -69,7 +62,6 @@ interface AdminDashboardProps {
   debtorCount: number;
   receptionistPerformance: ReceptionistPerf[];
   topTreatments: TopTreatment[];
-  heatmapData: HeatmapPoint[];
   monthlyRevenueGoal: number;
 }
 
@@ -91,8 +83,6 @@ function GrowthBadge({ value, suffix }: { value: number; suffix?: string }) {
   );
 }
 
-const DAYS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-const DAYS_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const BAR_COLORS = ["#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5"];
 const RECEPTIONIST_COLORS = [
   "#f97316", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6",
@@ -107,7 +97,6 @@ export function AdminDashboard({
   debtorCount,
   receptionistPerformance,
   topTreatments,
-  heatmapData,
   monthlyRevenueGoal,
 }: AdminDashboardProps) {
   const { language } = useLanguage();
@@ -461,102 +450,6 @@ export function AdminDashboard({
         </div>
       </div>
 
-      {/* ── ROW 4: Heatmap (full width) ── */}
-      <AppointmentHeatmap data={heatmapData} isEs={isEs} />
-    </div>
-  );
-}
-
-// ── Heatmap Component ──────────────────────────────────────────
-
-function AppointmentHeatmap({
-  data,
-  isEs,
-}: {
-  data: HeatmapPoint[];
-  isEs: boolean;
-}) {
-  const dayLabels = isEs ? DAYS_ES : DAYS_EN;
-  const hours = Array.from({ length: 13 }, (_, i) => i + 8);
-  const maxCount = Math.max(...data.map((d) => d.count), 1);
-
-  const getColor = (count: number) => {
-    if (count === 0) return "bg-muted/20";
-    const intensity = count / maxCount;
-    if (intensity < 0.25) return "bg-primary/15";
-    if (intensity < 0.5) return "bg-primary/30";
-    if (intensity < 0.75) return "bg-primary/50";
-    return "bg-primary/80";
-  };
-
-  const getCount = (day: number, hour: number) =>
-    data.find((d) => d.day === day && d.hour === hour)?.count ?? 0;
-
-  return (
-    <div className="rounded-2xl border border-border/60 bg-card p-6">
-      <div className="flex items-center gap-2.5 mb-5">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/10">
-          <BarChart3 className="h-4 w-4 text-amber-400" />
-        </div>
-        <div>
-          <h3 className="text-sm font-bold">
-            {isEs ? "Mapa de calor" : "Heatmap"}
-          </h3>
-          <p className="text-[10px] text-muted-foreground">
-            {isEs ? "Citas completas — últimos 90 días" : "Completed appointments — last 90 days"}
-          </p>
-        </div>
-      </div>
-
-      <div className="overflow-x-auto">
-        <div className="min-w-[320px]">
-          <div
-            className="grid gap-1"
-            style={{ gridTemplateColumns: `48px repeat(${hours.length}, 1fr)` }}
-          >
-            <div />
-            {hours.map((h) => (
-              <div key={h} className="text-[10px] text-center text-muted-foreground font-medium">
-                {h}:00
-              </div>
-            ))}
-          </div>
-          {dayLabels.map((dayLabel, dayIndex) => (
-            <div
-              key={dayIndex}
-              className="grid gap-1 mt-1"
-              style={{ gridTemplateColumns: `48px repeat(${hours.length}, 1fr)` }}
-            >
-              <div className="text-[11px] text-muted-foreground font-medium flex items-center">
-                {dayLabel}
-              </div>
-              {hours.map((hour) => {
-                const count = getCount(dayIndex, hour);
-                return (
-                  <div
-                    key={hour}
-                    className={`aspect-square rounded-md ${getColor(count)} transition-colors`}
-                    title={`${dayLabel} ${hour}:00 — ${count} ${isEs ? "citas" : "appts"}`}
-                  />
-                );
-              })}
-            </div>
-          ))}
-          <div className="flex items-center justify-end gap-1.5 mt-4">
-            <span className="text-[10px] text-muted-foreground mr-1">
-              {isEs ? "Menos" : "Less"}
-            </span>
-            <div className="h-3 w-3 rounded-sm bg-muted/20" />
-            <div className="h-3 w-3 rounded-sm bg-primary/15" />
-            <div className="h-3 w-3 rounded-sm bg-primary/30" />
-            <div className="h-3 w-3 rounded-sm bg-primary/50" />
-            <div className="h-3 w-3 rounded-sm bg-primary/80" />
-            <span className="text-[10px] text-muted-foreground ml-1">
-              {isEs ? "Más" : "More"}
-            </span>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
