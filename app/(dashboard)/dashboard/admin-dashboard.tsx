@@ -168,7 +168,7 @@ export function AdminDashboard({
       {/* ── ROW 1: Revenue | Pending Debt | Appointments ── */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
         {/* Revenue */}
-        <div className="rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/5 p-6">
+        <div className="rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/10 p-6">
           <p className="text-xs font-medium text-muted-foreground mb-1">
             {isEs
               ? { month: "Ingresos del mes", week: "Ingresos (7 días)", today: "Ingresos de hoy" }[period]
