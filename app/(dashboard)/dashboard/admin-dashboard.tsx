@@ -41,6 +41,8 @@ interface PeriodData {
   newPatientsGrowth: number;
   recurringPatients: number;
   recurringGrowth: number;
+  pendingDebt: number;
+  debtorCount: number;
 }
 
 interface ReceptionistPerf {
@@ -58,8 +60,6 @@ interface TopTreatment {
 interface AdminDashboardProps {
   userName: string;
   periodData: Record<"month" | "week" | "today", PeriodData>;
-  pendingDebt: number;
-  debtorCount: number;
   receptionistPerformance: ReceptionistPerf[];
   topTreatments: TopTreatment[];
   monthlyRevenueGoal: number;
@@ -93,8 +93,6 @@ const RECEPTIONIST_COLORS = [
 export function AdminDashboard({
   userName,
   periodData,
-  pendingDebt,
-  debtorCount,
   receptionistPerformance,
   topTreatments,
   monthlyRevenueGoal,
@@ -193,7 +191,7 @@ export function AdminDashboard({
           <div className="flex items-baseline gap-4">
             <div>
               <p className="text-3xl font-extrabold tracking-tight text-orange-600 dark:text-orange-400">
-                {formatCurrency(pendingDebt)}
+                {formatCurrency(data.pendingDebt)}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {isEs ? "por cobrar" : "to collect"}
@@ -201,7 +199,7 @@ export function AdminDashboard({
             </div>
             <div className="border-l border-border pl-4">
               <p className="text-3xl font-extrabold tracking-tight">
-                {debtorCount}
+                {data.debtorCount}
               </p>
               <p className="text-xs text-muted-foreground mt-1">
                 {isEs ? "pacientes deudores" : "patients with debt"}

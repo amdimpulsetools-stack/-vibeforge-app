@@ -157,43 +157,76 @@ BEGIN
       WHERE organization_id = ANY(v_org_ids) AND payment_date = p_yesterday
     ),
 
-    -- ── Pending debt (all time: billed - paid) ──
-    'pending_debt', (
-      SELECT COALESCE(SUM(
-        CASE WHEN a.price_snapshot IS NOT NULL AND a.price_snapshot > 0 THEN a.price_snapshot
-             ELSE COALESCE(s.base_price, 0) END
-      ), 0) - COALESCE((
-        SELECT SUM(pp.amount) FROM patient_payments pp
-        WHERE pp.organization_id = ANY(v_org_ids)
-      ), 0)
+    -- ── Pending debt (month) ──
+    'pending_debt_month', (
+      SELECT COALESCE(SUM(GREATEST(0,
+        COALESCE(a.price_snapshot, COALESCE(s.base_price, 0))
+        - COALESCE((SELECT SUM(pp.amount) FROM patient_payments pp WHERE pp.appointment_id = a.id), 0)
+      )), 0)
       FROM appointments a
       LEFT JOIN services s ON a.service_id = s.id
       WHERE a.organization_id = ANY(v_org_ids) AND a.status != 'cancelled'
+        AND a.appointment_date >= p_month_start AND a.appointment_date <= p_month_end
+        AND COALESCE(a.price_snapshot, COALESCE(s.base_price, 0)) > 0
+    ),
+    'debtor_count_month', (
+      SELECT COUNT(DISTINCT a.patient_id)
+      FROM appointments a
+      LEFT JOIN services s ON a.service_id = s.id
+      WHERE a.organization_id = ANY(v_org_ids) AND a.status != 'cancelled'
+        AND a.appointment_date >= p_month_start AND a.appointment_date <= p_month_end
+        AND a.patient_id IS NOT NULL
+        AND COALESCE(a.price_snapshot, COALESCE(s.base_price, 0)) > 0
+        AND COALESCE(a.price_snapshot, COALESCE(s.base_price, 0))
+            > COALESCE((SELECT SUM(pp.amount) FROM patient_payments pp WHERE pp.appointment_id = a.id), 0)
     ),
 
-    -- ── Debtor count (patients with pending balance) ──
-    'debtor_count', (
-      SELECT COUNT(*) FROM (
-        SELECT a.patient_id,
-          SUM(CASE WHEN a.price_snapshot IS NOT NULL AND a.price_snapshot > 0
-                   THEN a.price_snapshot ELSE COALESCE(s.base_price, 0) END) AS billed,
-          COALESCE((
-            SELECT SUM(pp.amount) FROM patient_payments pp
-            WHERE pp.patient_id = a.patient_id
-          ), 0) AS paid
-        FROM appointments a
-        LEFT JOIN services s ON a.service_id = s.id
-        WHERE a.organization_id = ANY(v_org_ids)
-          AND a.status != 'cancelled'
-          AND a.patient_id IS NOT NULL
-        GROUP BY a.patient_id
-        HAVING SUM(CASE WHEN a.price_snapshot IS NOT NULL AND a.price_snapshot > 0
-                        THEN a.price_snapshot ELSE COALESCE(s.base_price, 0) END)
-               > COALESCE((
-                   SELECT SUM(pp.amount) FROM patient_payments pp
-                   WHERE pp.patient_id = a.patient_id
-                 ), 0)
-      ) debtors
+    -- ── Pending debt (week) ──
+    'pending_debt_week', (
+      SELECT COALESCE(SUM(GREATEST(0,
+        COALESCE(a.price_snapshot, COALESCE(s.base_price, 0))
+        - COALESCE((SELECT SUM(pp.amount) FROM patient_payments pp WHERE pp.appointment_id = a.id), 0)
+      )), 0)
+      FROM appointments a
+      LEFT JOIN services s ON a.service_id = s.id
+      WHERE a.organization_id = ANY(v_org_ids) AND a.status != 'cancelled'
+        AND a.appointment_date >= p_week_start AND a.appointment_date <= p_today
+        AND COALESCE(a.price_snapshot, COALESCE(s.base_price, 0)) > 0
+    ),
+    'debtor_count_week', (
+      SELECT COUNT(DISTINCT a.patient_id)
+      FROM appointments a
+      LEFT JOIN services s ON a.service_id = s.id
+      WHERE a.organization_id = ANY(v_org_ids) AND a.status != 'cancelled'
+        AND a.appointment_date >= p_week_start AND a.appointment_date <= p_today
+        AND a.patient_id IS NOT NULL
+        AND COALESCE(a.price_snapshot, COALESCE(s.base_price, 0)) > 0
+        AND COALESCE(a.price_snapshot, COALESCE(s.base_price, 0))
+            > COALESCE((SELECT SUM(pp.amount) FROM patient_payments pp WHERE pp.appointment_id = a.id), 0)
+    ),
+
+    -- ── Pending debt (today) ──
+    'pending_debt_today', (
+      SELECT COALESCE(SUM(GREATEST(0,
+        COALESCE(a.price_snapshot, COALESCE(s.base_price, 0))
+        - COALESCE((SELECT SUM(pp.amount) FROM patient_payments pp WHERE pp.appointment_id = a.id), 0)
+      )), 0)
+      FROM appointments a
+      LEFT JOIN services s ON a.service_id = s.id
+      WHERE a.organization_id = ANY(v_org_ids) AND a.status != 'cancelled'
+        AND a.appointment_date = p_today
+        AND COALESCE(a.price_snapshot, COALESCE(s.base_price, 0)) > 0
+    ),
+    'debtor_count_today', (
+      SELECT COUNT(DISTINCT a.patient_id)
+      FROM appointments a
+      LEFT JOIN services s ON a.service_id = s.id
+      WHERE a.organization_id = ANY(v_org_ids) AND a.status != 'cancelled'
+        AND a.appointment_date = p_today
+        AND a.patient_id IS NOT NULL
+        AND COALESCE(a.price_snapshot, COALESCE(s.base_price, 0)) > 0
+        AND COALESCE(a.price_snapshot, COALESCE(s.base_price, 0))
+            > COALESCE((SELECT SUM(pp.amount) FROM patient_payments pp WHERE pp.appointment_id = a.id), 0)
     ),
 
     -- ── Week/Today appointment breakdowns ──

@@ -125,6 +125,8 @@ export default async function DashboardPage() {
     newPatientsGrowth: computeGrowth(stats.new_patients_this_month ?? 0, stats.new_patients_last_month ?? 0),
     recurringPatients: stats.recurring_patients_month ?? 0,
     recurringGrowth: computeGrowth(stats.recurring_patients_month ?? 0, stats.recurring_patients_last_month ?? 0),
+    pendingDebt: Math.max(0, Number(stats.pending_debt_month ?? 0)),
+    debtorCount: stats.debtor_count_month ?? 0,
   };
 
   // ── WEEK metrics ──
@@ -152,6 +154,8 @@ export default async function DashboardPage() {
     newPatientsGrowth: 0,
     recurringPatients: stats.recurring_patients_month ?? 0,
     recurringGrowth: 0,
+    pendingDebt: Math.max(0, Number(stats.pending_debt_week ?? 0)),
+    debtorCount: stats.debtor_count_week ?? 0,
   };
 
   // ── TODAY metrics ──
@@ -178,6 +182,8 @@ export default async function DashboardPage() {
     newPatientsGrowth: 0,
     recurringPatients: 0,
     recurringGrowth: 0,
+    pendingDebt: Math.max(0, Number(stats.pending_debt_today ?? 0)),
+    debtorCount: stats.debtor_count_today ?? 0,
   };
 
   // ── Top treatments (expanded to 5) ──
@@ -198,8 +204,6 @@ export default async function DashboardPage() {
         week: weekData,
         today: todayData,
       }}
-      pendingDebt={Math.max(0, Number(stats.pending_debt ?? 0))}
-      debtorCount={stats.debtor_count ?? 0}
       receptionistPerformance={receptionistPerformance}
       topTreatments={topTreatments}
       monthlyRevenueGoal={Number(stats.monthly_revenue_goal ?? 0)}
