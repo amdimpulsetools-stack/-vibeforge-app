@@ -85,6 +85,45 @@ export default function SettingsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Revenue goal ─────────────────────────────────────────────────────────
+  const [revenueGoal, setRevenueGoal] = useState<string>("");
+  const [savingGoal, setSavingGoal] = useState(false);
+  const [goalLoaded, setGoalLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!organizationId || goalLoaded) return;
+    const supabase = createClient();
+    supabase
+      .from("organizations")
+      .select("monthly_revenue_goal")
+      .eq("id", organizationId)
+      .single()
+      .then(({ data }) => {
+        if (data?.monthly_revenue_goal != null) {
+          setRevenueGoal(String(data.monthly_revenue_goal));
+        }
+        setGoalLoaded(true);
+      });
+  }, [organizationId, goalLoaded]);
+
+  const handleSaveGoal = async () => {
+    if (!organizationId) return;
+    setSavingGoal(true);
+    const supabase = createClient();
+    const value = parseFloat(revenueGoal) || 0;
+    const { error } = await supabase
+      .from("organizations")
+      .update({ monthly_revenue_goal: value })
+      .eq("id", organizationId);
+    setSavingGoal(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    refetchOrg();
+    toast.success(t("settings.org_save_success"));
+  };
+
   // ── Agenda / scheduler settings ────────────────────────────────────────────
   const [schedulerConfig, setSchedulerConfig] = useState<SchedulerConfig>(() =>
     loadSchedulerConfig()
@@ -548,6 +587,54 @@ export default function SettingsPage() {
               </button>
             </div>
           </div>
+
+          {/* Revenue goal */}
+          {isOrgAdmin && (
+            <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+                <div>
+                  <h2 className="text-lg font-semibold">
+                    {language === "es" ? "Meta de ingresos mensual" : "Monthly revenue goal"}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {language === "es"
+                      ? "Define la meta de ingresos que se muestra en el dashboard"
+                      : "Set the revenue target displayed on the dashboard"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-end gap-3">
+                <div className="space-y-1.5 flex-1 max-w-xs">
+                  <label className="text-sm font-medium" htmlFor="revenue_goal">
+                    {language === "es" ? "Meta (S/.)" : "Goal (S/.)"}
+                  </label>
+                  <input
+                    id="revenue_goal"
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={revenueGoal}
+                    onChange={(e) => setRevenueGoal(e.target.value)}
+                    placeholder="10000"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={handleSaveGoal}
+                  disabled={savingGoal}
+                  className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {savingGoal && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {savingGoal
+                    ? (language === "es" ? "Guardando..." : "Saving...")
+                    : (language === "es" ? "Guardar meta" : "Save goal")}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

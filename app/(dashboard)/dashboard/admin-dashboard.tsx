@@ -374,7 +374,7 @@ export function AdminDashboard({
                 {isEs ? "Sin meta configurada" : "No goal configured"}
               </p>
               <Link
-                href="/settings"
+                href="/settings#revenue-goal"
                 className="mt-2 text-xs text-primary hover:underline font-medium"
               >
                 {isEs ? "Configurar meta" : "Set goal"}
