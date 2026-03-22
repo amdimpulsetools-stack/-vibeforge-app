@@ -20,6 +20,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useBilling } from "@/hooks/use-billing";
+import { useAiQuota } from "@/hooks/use-ai-quota";
 import {
   Loader2,
   User,
@@ -42,6 +43,8 @@ import {
   Minus,
   X,
   ShoppingCart,
+  Bot,
+  RefreshCw,
   type LucideIcon,
 } from "lucide-react";
 
@@ -534,6 +537,11 @@ export default function AccountPage() {
               />
             )}
           </div>
+
+          {/* AI Quota Ring Card — admin only */}
+          {isOrgAdmin && plan?.feature_ai_assistant && (
+            <AiQuotaCard />
+          )}
         </div>
       </div>
 
@@ -1026,6 +1034,160 @@ function PlanSection({
             />
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── AI Quota Ring Card ─── */
+
+function AiQuotaRing({
+  used,
+  limit,
+  size = 100,
+  strokeWidth = 8,
+}: {
+  used: number;
+  limit: number;
+  size?: number;
+  strokeWidth?: number;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const percentage = limit > 0 ? Math.min(1, used / limit) : 0;
+  const offset = circumference * (1 - percentage);
+  const remaining = Math.max(0, limit - used);
+
+  // Color based on usage
+  const ringColor =
+    percentage >= 1
+      ? "stroke-red-500"
+      : percentage >= 0.8
+        ? "stroke-amber-500"
+        : "stroke-emerald-500";
+
+  return (
+    <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        {/* Background ring */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          className="text-muted/30"
+          strokeWidth={strokeWidth}
+        />
+        {/* Progress ring */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          fill="none"
+          className={ringColor}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          style={{ transition: "stroke-dashoffset 0.6s ease-in-out" }}
+        />
+      </svg>
+      {/* Center text */}
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="text-xl font-extrabold tabular-nums leading-none">
+          {remaining}
+        </span>
+        <span className="text-[10px] text-muted-foreground mt-0.5">restantes</span>
+      </div>
+    </div>
+  );
+}
+
+function AiQuotaCard() {
+  const { quota, loading, refetch } = useAiQuota();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await refetch();
+    setTimeout(() => setRefreshing(false), 600);
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-border/60 bg-card p-6">
+        <div className="flex items-center justify-center py-6">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Bot className="h-5 w-5 text-primary" />
+          <h2 className="text-sm font-semibold">Consultas IA</h2>
+        </div>
+        <button
+          onClick={handleRefresh}
+          disabled={refreshing}
+          className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-50"
+          title="Recargar"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+        </button>
+      </div>
+
+      {/* Ring + stats */}
+      <div className="flex items-center gap-5">
+        <AiQuotaRing used={quota.used} limit={quota.limit} size={90} strokeWidth={7} />
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Usadas</span>
+            <span className="font-semibold tabular-nums">{quota.used}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Límite</span>
+            <span className="font-semibold tabular-nums">{quota.limit}</span>
+          </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">Quedan</span>
+            <span className={cn(
+              "font-bold tabular-nums",
+              quota.remaining === 0
+                ? "text-red-400"
+                : quota.percentage >= 80
+                  ? "text-amber-400"
+                  : "text-emerald-400"
+            )}>
+              {quota.remaining}/{quota.limit}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Warning when near/at limit */}
+      {quota.percentage >= 80 && (
+        <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+          {quota.remaining === 0
+            ? "Has agotado tus consultas IA este mes. Se reinician el 1ro del próximo mes."
+            : `Te quedan ${quota.remaining} consultas IA este mes.`}
+        </p>
+      )}
+
+      {/* Upgrade CTA when at limit */}
+      {quota.remaining === 0 && (
+        <a
+          href="/plans"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+        >
+          Mejorar plan
+          <ArrowRight className="h-3.5 w-3.5" />
+        </a>
       )}
     </div>
   );

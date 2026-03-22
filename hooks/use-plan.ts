@@ -28,6 +28,7 @@ export interface PlanInfo {
   feature_api_access: boolean;
   feature_priority_support: boolean;
   feature_ai_assistant: boolean;
+  max_ai_queries: number | null;
 }
 
 export interface SubscriptionInfo {
@@ -127,6 +128,7 @@ export function usePlan(): UsePlanReturn {
         feature_api_access: !!d.feature_api_access,
         feature_priority_support: !!d.feature_priority_support,
         feature_ai_assistant: !!d.feature_ai_assistant,
+        max_ai_queries: (d.max_ai_queries as number) ?? null,
       });
       setSubscription({
         id: d.subscription_id as string ?? d.plan_id as string,

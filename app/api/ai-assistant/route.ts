@@ -133,7 +133,7 @@ async function callAnthropic(
           "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
-          model: "claude-sonnet-4-5-20250929",
+          model: "claude-haiku-4-5-20251001",
           max_tokens: maxTokens,
           system,
           messages,
@@ -170,6 +170,14 @@ async function callAnthropic(
   return { text: null, error: "Error del servicio de IA tras múltiples intentos" };
 }
 
+// Per-plan AI query limits
+const PLAN_AI_LIMITS: Record<string, number> = {
+  starter: 50,
+  independiente: 50,
+  professional: 120,
+  enterprise: 250,
+};
+
 export async function POST(req: NextRequest) {
   try {
     const parsed = await parseBody(req, aiAssistantSchema);
@@ -194,6 +202,45 @@ export async function POST(req: NextRequest) {
         { error: "Demasiadas solicitudes. Intenta de nuevo en un momento." },
         { status: 429, headers: { "Retry-After": String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
       );
+    }
+
+    // ── Quota check ─────────────────────────────────────────────────────────
+    // Get user's organization and plan
+    const { data: membership } = await supabaseAuth
+      .from("organization_members")
+      .select("organization_id, role")
+      .eq("user_id", user.id)
+      .in("role", ["owner", "admin"])
+      .limit(1)
+      .single();
+
+    if (!membership) {
+      return NextResponse.json(
+        { error: "Solo administradores pueden usar el asistente IA." },
+        { status: 403 }
+      );
+    }
+
+    const orgId = membership.organization_id;
+
+    // Get plan info & current usage
+    const [planRes, usageRes] = await Promise.all([
+      supabaseAuth.rpc("get_org_plan", { org_id: orgId }),
+      supabaseAuth.rpc("get_ai_query_usage_this_month", { org_id: orgId }),
+    ]);
+
+    const planData = planRes.data as Record<string, unknown> | null;
+    const planSlug = (planData?.plan_slug as string) ?? "starter";
+    const maxQueries = (planData?.max_ai_queries as number) ?? PLAN_AI_LIMITS[planSlug] ?? 50;
+    const currentUsage = (usageRes.data as number) ?? 0;
+
+    if (currentUsage >= maxQueries) {
+      return NextResponse.json({
+        error: "Has alcanzado el límite de consultas IA de tu plan este mes.",
+        quota_exceeded: true,
+        usage: currentUsage,
+        limit: maxQueries,
+      }, { status: 429 });
     }
 
     // Block write intents immediately
@@ -310,6 +357,15 @@ export async function POST(req: NextRequest) {
       ],
       256
     );
+
+    // ── Log AI query usage ──────────────────────────────────────────────────
+    await supabaseAuth
+      .from("ai_query_usage")
+      .insert({
+        organization_id: orgId,
+        user_id: user.id,
+        tokens_used: 0,
+      });
 
     return NextResponse.json({
       response: answerResult.text ?? "No pude interpretar los resultados.",
