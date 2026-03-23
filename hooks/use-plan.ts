@@ -145,6 +145,21 @@ export function usePlan(): UsePlanReturn {
     if (usageRes.data) {
       // RPC returns monthly_appointments, map to appointments_this_month
       const u = usageRes.data as Record<string, unknown>;
+
+      // extra_offices / extra_members: prefer direct fields from RPC (migration 063+),
+      // fall back to parsing addons array (migration 031 format)
+      let extraOffices = (u.extra_offices as number) ?? 0;
+      let extraMembers = (u.extra_members as number) ?? 0;
+      if (!extraOffices && !extraMembers && Array.isArray(u.addons)) {
+        const addons = u.addons as { addon_type: string; quantity: number }[];
+        extraOffices = addons
+          .filter((a) => a.addon_type === "extra_office")
+          .reduce((sum, a) => sum + (a.quantity ?? 0), 0);
+        extraMembers = addons
+          .filter((a) => a.addon_type === "extra_member")
+          .reduce((sum, a) => sum + (a.quantity ?? 0), 0);
+      }
+
       setUsage({
         members: (u.members as number) ?? 0,
         doctors: (u.doctors as number) ?? 0,
@@ -154,8 +169,8 @@ export function usePlan(): UsePlanReturn {
         admins: (u.admins as number) ?? 0,
         receptionists: (u.receptionists as number) ?? 0,
         doctor_members: (u.doctor_members as number) ?? 0,
-        extra_offices: (u.extra_offices as number) ?? 0,
-        extra_members: (u.extra_members as number) ?? 0,
+        extra_offices: extraOffices,
+        extra_members: extraMembers,
       });
     }
 
