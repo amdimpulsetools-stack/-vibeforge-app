@@ -48,21 +48,12 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * POST /api/whatsapp/webhook
- * Receives delivery status updates from Meta.
+ * Process webhook payload — shared logic for both verified and unverified paths.
  */
-export async function POST(req: NextRequest) {
-  let payload: MetaWebhookPayload;
-  try {
-    payload = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
-  }
-
+async function handleWebhookPayload(payload: MetaWebhookPayload) {
   const updates = parseWebhookStatusUpdates(payload);
 
   if (updates.length === 0) {
-    // Acknowledge the webhook even if no status updates
     return NextResponse.json({ received: true });
   }
 
@@ -93,4 +84,61 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ received: true, processed: updates.length });
+}
+
+/**
+ * POST /api/whatsapp/webhook
+ * Receives delivery status updates from Meta.
+ * Validates X-Hub-Signature-256 when WHATSAPP_APP_SECRET is configured.
+ */
+export async function POST(req: NextRequest) {
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+
+  if (appSecret) {
+    // Verify HMAC signature from Meta
+    const signature = req.headers.get("x-hub-signature-256");
+    if (!signature) {
+      return NextResponse.json({ error: "Missing signature" }, { status: 401 });
+    }
+
+    const body = await req.text();
+    const { createHmac, timingSafeEqual } = await import("crypto");
+    const expectedSig =
+      "sha256=" + createHmac("sha256", appSecret).update(body).digest("hex");
+
+    try {
+      if (
+        !timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSig))
+      ) {
+        return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+      }
+    } catch {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    let payload: MetaWebhookPayload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+
+    return handleWebhookPayload(payload);
+  }
+
+  // No app secret configured — accept but warn in production
+  if (process.env.NODE_ENV === "production") {
+    console.warn(
+      "[WhatsApp Webhook] WHATSAPP_APP_SECRET not set — signature verification disabled"
+    );
+  }
+
+  let payload: MetaWebhookPayload;
+  try {
+    payload = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+
+  return handleWebhookPayload(payload);
 }

@@ -21,12 +21,14 @@ import {
   Stethoscope,
   Download,
   Cake,
+  Upload,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrganization } from "@/components/organization-provider";
 import { PatientDrawer } from "./patient-drawer";
 import { PatientFormModal } from "./patient-form-modal";
+import { BulkImportModal } from "./bulk-import-modal";
 import { exportToCSV, calculateAge } from "@/lib/export";
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -54,6 +56,7 @@ export default function PatientsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedPatient, setSelectedPatient] = useState<PatientWithTags | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
@@ -355,6 +358,14 @@ export default function PatientsPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowBulkImport(true)}
+                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                title="Importar pacientes desde CSV"
+              >
+                <Upload className="h-4 w-4" />
+                <span className="hidden sm:inline">Importar</span>
+              </button>
               <button
                 onClick={handleExportCSV}
                 disabled={filteredPatients.length === 0 || exporting}
@@ -731,6 +742,14 @@ export default function PatientsPage() {
         <PatientFormModal
           onClose={() => setShowForm(false)}
           onSaved={handleSaved}
+        />
+      )}
+
+      {/* Bulk Import Modal */}
+      {showBulkImport && (
+        <BulkImportModal
+          onClose={() => setShowBulkImport(false)}
+          onSuccess={handleSaved}
         />
       )}
     </div>

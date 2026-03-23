@@ -27,6 +27,29 @@ export async function PATCH(
     );
   }
 
+  // Verify the note belongs to the user's organization
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .limit(1)
+    .single();
+
+  if (!membership) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { data: noteCheck } = await supabase
+    .from("clinical_notes")
+    .select("organization_id")
+    .eq("id", id)
+    .single();
+
+  if (!noteCheck || noteCheck.organization_id !== membership.organization_id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   // Check if this is a sign request
   let raw: unknown;
   try {
