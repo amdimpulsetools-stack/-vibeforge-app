@@ -236,6 +236,19 @@ export function AppointmentSidebar({
       });
     }
 
+    // In-app notification for cancellations
+    if (newStatus === "cancelled" && appointment.organization_id) {
+      supabase.from("notifications").insert({
+        organization_id: appointment.organization_id,
+        type: "appointment_cancelled",
+        title: "Cita cancelada",
+        body: `${appointment.patient_name} — ${appointment.appointment_date} ${appointment.start_time?.slice(0, 5)}`,
+        action_url: `/scheduler?date=${appointment.appointment_date}`,
+      }).then(({ error: nErr }) => {
+        if (nErr) console.error("[Notification] insert error:", nErr);
+      });
+    }
+
     onUpdate();
   };
 

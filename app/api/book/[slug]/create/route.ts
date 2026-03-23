@@ -311,7 +311,22 @@ export async function POST(
     );
   }
 
-  // 13. Send confirmation email (fire-and-forget)
+  // 13. Create in-app notification (fire-and-forget)
+  const formattedTime = data.start_time.slice(0, 5);
+  supabase
+    .from("notifications")
+    .insert({
+      organization_id: org.id,
+      type: "appointment_created",
+      title: "Nueva reserva en línea",
+      body: `${fullName} reservó con ${doctor.full_name} el ${data.appointment_date} a las ${formattedTime}`,
+      action_url: `/scheduler?date=${data.appointment_date}`,
+    })
+    .then(({ error: nErr }) => {
+      if (nErr) console.error("[Public Booking] Notification insert error:", nErr);
+    });
+
+  // 14. Send confirmation email (fire-and-forget)
   if (data.patient_email) {
     sendBookingConfirmationEmail(
       supabase,
