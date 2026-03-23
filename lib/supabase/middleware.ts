@@ -94,6 +94,7 @@ export async function updateSession(request: NextRequest) {
       has_whatsapp: boolean;
       organization_id: string | null;
       role: string | null;
+      is_founder: boolean;
       has_active_subscription: boolean;
     };
 
@@ -104,10 +105,11 @@ export async function updateSession(request: NextRequest) {
       return applySecurityHeaders(NextResponse.redirect(url));
     }
 
-    // 2. No active subscription
+    // 2. No active subscription (trial expired or no plan)
     if (!s.has_active_subscription) {
       const url = request.nextUrl.clone();
       url.pathname = s.role === "owner" ? "/select-plan" : "/waiting-for-plan";
+      url.searchParams.set("reason", "trial_expired");
       return applySecurityHeaders(NextResponse.redirect(url));
     }
   }

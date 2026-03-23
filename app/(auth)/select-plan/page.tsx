@@ -17,6 +17,7 @@ import {
   HardDrive,
   Plus,
   UserPlus,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -109,6 +110,7 @@ function SelectPlanPage() {
   const [waitingForPayment, setWaitingForPayment] = useState(false);
 
   const paymentStatus = searchParams.get("payment");
+  const reason = searchParams.get("reason");
 
   // Poll for subscription activation after payment
   const pollSubscription = useCallback(async (orgId: string) => {
@@ -308,6 +310,22 @@ function SelectPlanPage() {
             Puedes cambiar de plan en cualquier momento.
           </p>
         </div>
+
+        {/* Trial expired banner */}
+        {reason === "trial_expired" && (
+          <div className="mb-8 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-amber-200">
+                Tu período de prueba ha finalizado
+              </p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Selecciona un plan para continuar usando la plataforma.
+                No perderás ningún dato — todo está guardado.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Plans grid */}
         <div className="grid gap-6 md:grid-cols-3">
