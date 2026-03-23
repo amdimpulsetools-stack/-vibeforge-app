@@ -67,13 +67,15 @@ interface AdminDashboardProps {
 
 // ── Helpers ────────────────────────────────────────────────────
 
-function GrowthBadge({ value, suffix }: { value: number; suffix?: string }) {
+function GrowthBadge({ value, suffix, light }: { value: number; suffix?: string; light?: boolean }) {
   if (value === 0) return null;
   const positive = value > 0;
   return (
     <span
       className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
-        positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+        light
+          ? positive ? "text-white/90" : "text-red-200"
+          : positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
       }`}
     >
       {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
@@ -166,20 +168,20 @@ export function AdminDashboard({
       </div>
 
       {/* ── ROW 1: Revenue | Pending Debt | Appointments ── */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 justify-items-center">
         {/* Revenue */}
-        <div className="rounded-2xl border-2 border-emerald-500/30 bg-emerald-500/10 p-6">
-          <p className="text-xs font-medium text-muted-foreground mb-1">
+        <div className="w-full rounded-2xl bg-emerald-600 p-6 shadow-lg shadow-emerald-600/20">
+          <p className="text-xs font-medium text-white/70 mb-1">
             {isEs
               ? { month: "Ingresos del mes", week: "Ingresos (7 días)", today: "Ingresos de hoy" }[period]
               : { month: "Monthly revenue", week: "Revenue (7 days)", today: "Today's revenue" }[period]
             }
           </p>
-          <p className="text-3xl font-extrabold tracking-tight">
+          <p className="text-3xl font-extrabold tracking-tight text-white">
             {formatCurrency(data.revenue)}
           </p>
           <div className="mt-2">
-            <GrowthBadge value={data.revenueGrowth} suffix={periodSuffix[period]} />
+            <GrowthBadge value={data.revenueGrowth} suffix={periodSuffix[period]} light />
           </div>
         </div>
 
