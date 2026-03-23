@@ -288,6 +288,10 @@ export default function AccountPage() {
                 <img
                   src={avatarUrl}
                   alt="Avatar"
+                  width={64}
+                  height={64}
+                  loading="lazy"
+                  decoding="async"
                   className="h-16 w-16 rounded-full object-cover border-2 border-border"
                 />
               ) : (

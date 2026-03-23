@@ -461,6 +461,10 @@ export default function PublicBookingPage() {
             <img
               src={org.logo_url}
               alt={org.name}
+              width={32}
+              height={32}
+              loading="lazy"
+              decoding="async"
               className="h-8 w-8 rounded-lg object-cover"
             />
           ) : (
@@ -544,6 +548,10 @@ export default function PublicBookingPage() {
                     <img
                       src={doc.photo_url}
                       alt={doc.full_name}
+                      width={48}
+                      height={48}
+                      loading="lazy"
+                      decoding="async"
                       className="h-12 w-12 rounded-full object-cover"
                     />
                   ) : (

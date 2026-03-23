@@ -222,7 +222,7 @@ export default function SchedulerPage() {
   }, [fetchAppointments, fetchBlocks]);
 
   // Office filter handler
-  const handleOfficeFilterChange = (officeIds: string[]) => {
+  const handleOfficeFilterChange = useCallback((officeIds: string[]) => {
     setSelectedOfficeIds(officeIds);
     // Persist: save null when all are selected (= no filter)
     if (officeIds.length === offices.length) {
@@ -230,13 +230,16 @@ export default function SchedulerPage() {
     } else {
       saveOfficeFilter(officeIds);
     }
-  };
+  }, [offices.length]);
 
   // Filtered offices for the grid
-  const filteredOffices = offices.filter((o) => selectedOfficeIds.includes(o.id));
+  const filteredOffices = useMemo(
+    () => offices.filter((o) => selectedOfficeIds.includes(o.id)),
+    [offices, selectedOfficeIds]
+  );
 
-  // Handlers
-  const handleSlotClick = (date: Date, time: string, officeId: string) => {
+  // Handlers — wrapped in useCallback to prevent child re-renders
+  const handleSlotClick = useCallback((date: Date, time: string, officeId: string) => {
     setFormDefaults({
       date: format(date, "yyyy-MM-dd"),
       startTime: time,
@@ -244,36 +247,36 @@ export default function SchedulerPage() {
     });
     setShowForm(true);
     setSelectedAppointment(null);
-  };
+  }, []);
 
-  const handleAppointmentClick = (appointment: AppointmentWithRelations) => {
+  const handleAppointmentClick = useCallback((appointment: AppointmentWithRelations) => {
     // Doctors cannot view sidebar details of other doctors' appointments
     if (isDoctor && currentDoctorId && appointment.doctor_id !== currentDoctorId) {
       return;
     }
     setSelectedAppointment(appointment);
     setShowForm(false);
-  };
+  }, [isDoctor, currentDoctorId]);
 
-  const handleCloseSidebar = () => {
+  const handleCloseSidebar = useCallback(() => {
     setSelectedAppointment(null);
-  };
+  }, []);
 
-  const handleFormClose = () => {
+  const handleFormClose = useCallback(() => {
     setShowForm(false);
     setFormDefaults(null);
-  };
+  }, []);
 
-  const handleSaved = () => {
+  const handleSaved = useCallback(() => {
     fetchAppointments();
     setShowForm(false);
     setFormDefaults(null);
     setSelectedAppointment(null);
     setShowReschedule(false);
-  };
+  }, [fetchAppointments]);
 
   // Drag & drop: update appointment date/time/office
-  const handleAppointmentDrop = async (
+  const handleAppointmentDrop = useCallback(async (
     appointmentId: string,
     targetDate: Date,
     targetTime: string,
@@ -345,7 +348,7 @@ export default function SchedulerPage() {
 
     toast.success(`Cita movida a ${newDateStr} ${targetTime}`);
     fetchAppointments();
-  };
+  }, [appointments, allBlocks, isDoctor, currentDoctorId, fetchAppointments]);
 
   // Unblock a schedule block
   const handleUnblock = async (blockId: string) => {

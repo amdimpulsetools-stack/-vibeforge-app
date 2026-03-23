@@ -528,6 +528,10 @@ function GeneralSettings({
                 <img
                   src={settings.email_logo_url}
                   alt="Email logo"
+                  width={40}
+                  height={40}
+                  loading="lazy"
+                  decoding="async"
                   className="h-10 w-10 rounded-lg object-cover border border-border"
                 />
                 {isAdmin && (

@@ -396,6 +396,10 @@ export default function SettingsPage() {
                     <img
                       src={logoUrl}
                       alt="Logo"
+                      width={56}
+                      height={56}
+                      loading="lazy"
+                      decoding="async"
                       className="h-14 w-14 rounded-lg object-cover border border-border"
                     />
                   ) : (

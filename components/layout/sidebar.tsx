@@ -229,6 +229,10 @@ export function Sidebar() {
               <img
                 src={organization.logo_url}
                 alt=""
+                width={32}
+                height={32}
+                loading="lazy"
+                decoding="async"
                 className="h-8 w-8 shrink-0 rounded-lg object-cover ring-1 ring-border/50"
               />
             ) : (
