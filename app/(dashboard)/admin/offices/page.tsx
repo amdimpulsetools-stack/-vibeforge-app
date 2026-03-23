@@ -117,29 +117,31 @@ export default function OfficesPage() {
               {t("offices.add")}
             </button>
             {officeLimitReached && (
-              <div className="invisible group-hover:visible absolute right-0 top-full mt-2 z-50 w-72 rounded-lg border border-border bg-popover p-3 shadow-lg text-sm">
-                {isIndependientePlan ? (
-                  <p className="text-muted-foreground">
-                    {language === "es"
-                      ? "Cambie su plan para agregar más consultorios."
-                      : "Upgrade your plan to add more offices."}
-                  </p>
-                ) : (
-                  <div className="space-y-2">
+              <div className="absolute right-0 top-full z-50 pt-1">
+                <div className="w-72 rounded-lg border border-border bg-popover p-3 shadow-lg text-sm opacity-0 translate-y-1 scale-[0.98] group-hover:opacity-100 group-hover:translate-y-0 group-hover:scale-100 transition-all duration-200 ease-out pointer-events-none group-hover:pointer-events-auto">
+                  {isIndependientePlan ? (
                     <p className="text-muted-foreground">
                       {language === "es"
-                        ? `Consultorios llenos (${usage?.offices ?? 0}/${getLimit("offices") ?? 0}). Añada más cupos desde su panel de cuenta.`
-                        : `Offices full (${usage?.offices ?? 0}/${getLimit("offices") ?? 0}). Add more slots from your account panel.`}
+                        ? "Cambie su plan para agregar más consultorios."
+                        : "Upgrade your plan to add more offices."}
                     </p>
-                    <a
-                      href="/account"
-                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-                    >
-                      <ExternalLink className="h-3 w-3" />
-                      {language === "es" ? "Añadir cupos extra" : "Add extra slots"}
-                    </a>
-                  </div>
-                )}
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-muted-foreground">
+                        {language === "es"
+                          ? `Consultorios llenos (${usage?.offices ?? 0}/${getLimit("offices") ?? 0}). Añada más cupos desde su panel de cuenta.`
+                          : `Offices full (${usage?.offices ?? 0}/${getLimit("offices") ?? 0}). Add more slots from your account panel.`}
+                      </p>
+                      <a
+                        href="/account"
+                        className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        {language === "es" ? "Añadir cupos extra" : "Add extra slots"}
+                      </a>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
