@@ -13,52 +13,58 @@ export default function WaitingForPlanPage() {
 
   useEffect(() => {
     const init = async () => {
-      const supabase = createClient();
+      try {
+        const supabase = createClient();
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-      if (!user) {
-        router.push("/login");
-        return;
+        if (!user) {
+          router.push("/login");
+          return;
+        }
+
+        // Check membership and subscription
+        const { data: member } = await supabase
+          .from("organization_members")
+          .select("organization_id, role, organizations(name)")
+          .eq("user_id", user.id)
+          .limit(1)
+          .single();
+
+        if (!member) {
+          // No membership — show the page anyway instead of looping
+          setLoading(false);
+          return;
+        }
+
+        // If user is owner, they should be on /select-plan instead
+        if (member.role === "owner") {
+          router.push("/select-plan");
+          return;
+        }
+
+        // If org already has an active subscription, go to dashboard
+        const { data: subs } = await supabase
+          .from("organization_subscriptions")
+          .select("id")
+          .eq("organization_id", member.organization_id)
+          .in("status", ["active", "trialing"])
+          .limit(1);
+
+        if (subs && subs.length > 0) {
+          router.push("/dashboard");
+          return;
+        }
+
+        const org = member.organizations as unknown as { name: string } | null;
+        setOrgName(org?.name ?? null);
+        setLoading(false);
+      } catch {
+        // On any error, stop loading and show the page content
+        setLoading(false);
       }
-
-      // Check membership and subscription
-      const { data: member } = await supabase
-        .from("organization_members")
-        .select("organization_id, role, organizations(name)")
-        .eq("user_id", user.id)
-        .limit(1)
-        .single();
-
-      if (!member) {
-        router.push("/login");
-        return;
-      }
-
-      // If user is owner, they should be on /select-plan instead
-      if (member.role === "owner") {
-        router.push("/select-plan");
-        return;
-      }
-
-      // If org already has an active subscription, go to dashboard
-      const { data: subs } = await supabase
-        .from("organization_subscriptions")
-        .select("id")
-        .eq("organization_id", member.organization_id)
-        .in("status", ["active", "trialing"])
-        .limit(1);
-
-      if (subs && subs.length > 0) {
-        router.push("/dashboard");
-        return;
-      }
-
-      const org = member.organizations as unknown as { name: string } | null;
-      setOrgName(org?.name ?? null);
-      setLoading(false);
     };
 
     init();
