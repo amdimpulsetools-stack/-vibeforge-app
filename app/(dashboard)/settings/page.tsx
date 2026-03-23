@@ -39,6 +39,7 @@ import {
   getHourOptions,
   type SchedulerConfig,
   type IntervalOption,
+  type Weekday,
 } from "@/lib/scheduler-config";
 
 // Lazy-load heavy tab components — only downloaded when the user opens the tab
@@ -791,6 +792,74 @@ export default function SettingsPage() {
                 <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
               </div>
             </label>
+          </div>
+
+          {/* Disabled weekdays */}
+          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold">
+                {language === "es" ? "Días laborables" : "Working days"}
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                {language === "es"
+                  ? "Desactiva los días en los que no atiendes. Los días desactivados no se mostrarán en la agenda ni contarán para el cálculo de ocupación."
+                  : "Disable the days you don't work. Disabled days won't appear in the scheduler and won't count toward occupancy."}
+              </p>
+            </div>
+            <div className="grid grid-cols-7 gap-2">
+              {([
+                { day: 1 as Weekday, es: "Lun", en: "Mon" },
+                { day: 2 as Weekday, es: "Mar", en: "Tue" },
+                { day: 3 as Weekday, es: "Mié", en: "Wed" },
+                { day: 4 as Weekday, es: "Jue", en: "Thu" },
+                { day: 5 as Weekday, es: "Vie", en: "Fri" },
+                { day: 6 as Weekday, es: "Sáb", en: "Sat" },
+                { day: 0 as Weekday, es: "Dom", en: "Sun" },
+              ]).map(({ day, es, en }) => {
+                const isDisabled = schedulerConfig.disabledWeekdays.includes(day);
+                const activeCount = 7 - schedulerConfig.disabledWeekdays.length;
+                return (
+                  <button
+                    key={day}
+                    onClick={() => {
+                      // Don't allow disabling all days — at least 1 must remain active
+                      if (!isDisabled && activeCount <= 1) return;
+                      const next = isDisabled
+                        ? schedulerConfig.disabledWeekdays.filter((d) => d !== day)
+                        : [...schedulerConfig.disabledWeekdays, day] as Weekday[];
+                      updateSchedulerConfig({ disabledWeekdays: next });
+                    }}
+                    className={`flex flex-col items-center gap-1 rounded-xl border p-3 transition-all ${
+                      isDisabled
+                        ? "border-red-500/30 bg-red-500/5 opacity-60"
+                        : "border-primary bg-primary/10 ring-1 ring-primary"
+                    }`}
+                  >
+                    <span
+                      className={`text-sm font-bold ${
+                        isDisabled
+                          ? "text-red-400 line-through"
+                          : "text-primary"
+                      }`}
+                    >
+                      {language === "es" ? es : en}
+                    </span>
+                    <span className={`text-[10px] font-medium ${
+                      isDisabled ? "text-red-400" : "text-emerald-400"
+                    }`}>
+                      {isDisabled
+                        ? (language === "es" ? "Cerrado" : "Closed")
+                        : (language === "es" ? "Abierto" : "Open")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {language === "es"
+                ? `${7 - schedulerConfig.disabledWeekdays.length} día${7 - schedulerConfig.disabledWeekdays.length !== 1 ? "s" : ""} laborable${7 - schedulerConfig.disabledWeekdays.length !== 1 ? "s" : ""} activo${7 - schedulerConfig.disabledWeekdays.length !== 1 ? "s" : ""} por semana`
+                : `${7 - schedulerConfig.disabledWeekdays.length} working day${7 - schedulerConfig.disabledWeekdays.length !== 1 ? "s" : ""} per week`}
+            </p>
           </div>
         </div>
       )}

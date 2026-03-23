@@ -5,15 +5,21 @@ export const SCHEDULER_CONFIG_KEYS = {
   endHour: "vibeforge_scheduler_end",
   interval: "vibeforge_scheduler_interval",
   timeIndicator: "vibeforge_time_indicator",
+  disabledWeekdays: "vibeforge_disabled_weekdays",
 };
 
 export type IntervalOption = 15 | 20 | 30 | 45 | 60;
+
+/** Weekday numbers: 0=Sunday, 1=Monday, …, 6=Saturday */
+export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface SchedulerConfig {
   startHour: number;
   endHour: number;
   intervals: IntervalOption[];
   timeIndicator: boolean;
+  /** Permanently disabled weekdays (e.g. [0] = Sunday off) */
+  disabledWeekdays: Weekday[];
 }
 
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
@@ -21,6 +27,7 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   endHour: 20,
   intervals: [15],
   timeIndicator: true,
+  disabledWeekdays: [0], // Sunday disabled by default
 };
 
 /** Returns the smallest selected interval (used for the grid resolution). */
@@ -49,7 +56,17 @@ export function loadSchedulerConfig(): SchedulerConfig {
     }
     if (intervals.length === 0) intervals = DEFAULT_SCHEDULER_CONFIG.intervals;
     const timeIndicator = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.timeIndicator) ?? "true") === "true";
-    return { startHour, endHour, intervals, timeIndicator };
+    let disabledWeekdays: Weekday[] = DEFAULT_SCHEDULER_CONFIG.disabledWeekdays;
+    try {
+      const rawDays = localStorage.getItem(SCHEDULER_CONFIG_KEYS.disabledWeekdays);
+      if (rawDays) {
+        const parsed = JSON.parse(rawDays);
+        if (Array.isArray(parsed)) {
+          disabledWeekdays = parsed.filter((v: number) => v >= 0 && v <= 6) as Weekday[];
+        }
+      }
+    } catch { /* keep default */ }
+    return { startHour, endHour, intervals, timeIndicator, disabledWeekdays };
   } catch {
     return DEFAULT_SCHEDULER_CONFIG;
   }
@@ -61,6 +78,7 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
   if (config.endHour !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.endHour, String(config.endHour));
   if (config.intervals !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.interval, JSON.stringify(config.intervals));
   if (config.timeIndicator !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.timeIndicator, String(config.timeIndicator));
+  if (config.disabledWeekdays !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.disabledWeekdays, JSON.stringify(config.disabledWeekdays));
 }
 
 export function generateTimeSlots(startHour: number, endHour: number, interval: number): string[] {
