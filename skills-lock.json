@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "shadcn-component-discovery": {
+      "source": "mattbx/shadcn-skills",
+      "sourceType": "github",
+      "computedHash": "2ecd1e4d93981e2a191eab004e6616926d6553af691e6abfd095741cd9b13ec6"
+    },
+    "shadcn-component-review": {
+      "source": "mattbx/shadcn-skills",
+      "sourceType": "github",
+      "computedHash": "49e24a030e85a951fa8bf8f0e45baa2f1ed7ec1cc5e927868164455b55f0aa15"
+    }
+  }
+}
