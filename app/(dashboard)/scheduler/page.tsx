@@ -276,7 +276,7 @@ export default function SchedulerPage() {
   }, [fetchAppointments]);
 
   // Drag & drop: update appointment date/time/office
-  const handleAppointmentDrop = useCallback(async (
+  const handleAppointmentDrop = async (
     appointmentId: string,
     targetDate: Date,
     targetTime: string,
@@ -348,7 +348,7 @@ export default function SchedulerPage() {
 
     toast.success(`Cita movida a ${newDateStr} ${targetTime}`);
     fetchAppointments();
-  }, [appointments, allBlocks, isDoctor, currentDoctorId, fetchAppointments]);
+  };
 
   // Unblock a schedule block
   const handleUnblock = async (blockId: string) => {
