@@ -172,6 +172,19 @@ export function AppointmentSidebar({
     }
     toast.success("Pago registrado");
 
+    // In-app notification for payment
+    if (appointment.organization_id) {
+      supabase.from("notifications").insert({
+        organization_id: (appointment as any).organization_id,
+        type: "payment_received",
+        title: "Pago registrado",
+        body: `S/. ${Number(payAmount).toFixed(2)} — ${appointment.patient_name}`,
+        action_url: `/scheduler?date=${appointment.appointment_date}`,
+      }).then(({ error: nErr }) => {
+        if (nErr) console.error("[Notification] insert error:", nErr);
+      });
+    }
+
     // Send payment receipt notification
     const newTotalPaid = totalPaid + Number(payAmount);
     sendNotification({

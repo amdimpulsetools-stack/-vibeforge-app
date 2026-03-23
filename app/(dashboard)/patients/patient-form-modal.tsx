@@ -97,6 +97,17 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
       return;
     }
 
+    // In-app notification for new patient
+    supabase.from("notifications").insert({
+      organization_id: organizationId,
+      type: "info",
+      title: "Nuevo paciente registrado",
+      body: `${values.first_name} ${values.last_name}`,
+      action_url: "/patients",
+    }).then(({ error: nErr }) => {
+      if (nErr) console.error("[Notification] insert error:", nErr);
+    });
+
     toast.success(t("patients.save_success"));
     onSaved();
   };
