@@ -152,6 +152,19 @@ export async function PUT(request: Request) {
 
   const addonTotal = unitPrice * quantity;
 
+  // Require active MP subscription to purchase addons
+  // (trial users cannot buy addons — they must subscribe first)
+  if (!sub.mp_preapproval_id) {
+    return NextResponse.json(
+      {
+        error: "subscription_required",
+        message:
+          "Debes tener una suscripción activa con método de pago para comprar cupos extra. Activa tu suscripción primero.",
+      },
+      { status: 402 }
+    );
+  }
+
   // Get current total (base plan + existing addons)
   const { data: existingAddons } = await supabase
     .from("plan_addons")
@@ -168,7 +181,36 @@ export async function PUT(request: Request) {
   const basePlanPrice = plan.price_monthly as number;
   const newTotal = basePlanPrice + currentAddonCost + addonTotal;
 
-  // Register addon in our DB
+  // Update MP subscription amount FIRST before registering addon
+  try {
+    const preApproval = getPreApprovalClient();
+    await preApproval.update({
+      id: sub.mp_preapproval_id,
+      body: {
+        auto_recurring: {
+          transaction_amount: newTotal,
+          currency_id: "PEN",
+        },
+      },
+    });
+
+    console.log(
+      `[MP] Updated subscription ${sub.mp_preapproval_id} amount to S/${newTotal}`
+    );
+  } catch (error) {
+    console.error("Error updating MP subscription amount:", error);
+    // MP update failed — do NOT register addon in DB
+    return NextResponse.json(
+      {
+        error: "payment_failed",
+        message:
+          "No se pudo actualizar tu suscripción en Mercado Pago. Intenta de nuevo o contacta soporte.",
+      },
+      { status: 502 }
+    );
+  }
+
+  // MP update succeeded — now register addon in our DB
   await supabase.from("plan_addons").insert({
     organization_id: membership.organization_id,
     addon_type,
@@ -177,34 +219,6 @@ export async function PUT(request: Request) {
     is_active: true,
   });
 
-  // Update MP subscription amount if we have one
-  if (sub.mp_preapproval_id) {
-    try {
-      const preApproval = getPreApprovalClient();
-      await preApproval.update({
-        id: sub.mp_preapproval_id,
-        body: {
-          auto_recurring: {
-            transaction_amount: newTotal,
-            currency_id: "PEN",
-          },
-        },
-      });
-
-      console.log(
-        `[MP] Updated subscription ${sub.mp_preapproval_id} amount to $${newTotal}`
-      );
-    } catch (error) {
-      console.error("Error updating MP subscription amount:", error);
-      // Addon was saved to DB, but MP update failed - log it
-      return NextResponse.json({
-        success: true,
-        warning: "Addon registrado pero Mercado Pago no pudo actualizarse automaticamente. Contacte soporte.",
-        new_total: newTotal,
-      });
-    }
-  }
-
   return NextResponse.json({
     success: true,
     addon_type,
@@ -212,6 +226,6 @@ export async function PUT(request: Request) {
     unit_price: unitPrice,
     addon_cost: addonTotal,
     new_monthly_total: newTotal,
-    message: `Se agregaron ${quantity} ${addon_type === "extra_member" ? "miembros" : "consultorios"} extra. Nuevo total mensual: $${newTotal}`,
+    message: `Se agregaron ${quantity} ${addon_type === "extra_member" ? "miembros" : "consultorios"} extra. Nuevo total mensual: S/${newTotal}`,
   });
 }

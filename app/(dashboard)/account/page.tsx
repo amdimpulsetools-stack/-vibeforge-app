@@ -640,6 +640,10 @@ function AddonPurchaseModal({
       );
       onSuccess();
       onClose();
+    } else if (result.error_code === "subscription_required") {
+      toast.error("Activa tu suscripción con método de pago antes de comprar cupos extra.", {
+        duration: 6000,
+      });
     } else {
       toast.error(result.message || "Error al procesar la compra");
     }

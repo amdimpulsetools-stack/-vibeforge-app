@@ -27,7 +27,7 @@ interface UseBillingReturn {
   addAddon: (
     addonType: "extra_member" | "extra_office",
     quantity: number
-  ) => Promise<{ success: boolean; message: string; new_total?: number }>;
+  ) => Promise<{ success: boolean; message: string; new_total?: number; error_code?: string }>;
   refetch: () => void;
 }
 
@@ -75,7 +75,8 @@ export function useBilling(): UseBillingReturn {
       if (!res.ok) {
         return {
           success: false,
-          message: data.error || "Error al agregar addon",
+          message: data.message || data.error || "Error al agregar addon",
+          error_code: data.error,
         };
       }
 
