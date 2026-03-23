@@ -45,6 +45,8 @@ import {
   ShoppingCart,
   Bot,
   RefreshCw,
+  CreditCard,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -622,6 +624,7 @@ function AddonPurchaseModal({
   onSuccess: () => void;
 }) {
   const [quantity, setQuantity] = useState(1);
+  const [step, setStep] = useState<"select" | "confirm">("select");
   const [purchasing, setPurchasing] = useState(false);
   const { addAddon } = useBilling();
 
@@ -636,7 +639,8 @@ function AddonPurchaseModal({
 
     if (result.success) {
       toast.success(
-        `Se añadieron ${quantity} ${quantity === 1 ? config.unitLabel : config.unitLabel + "s"} extra a tu plan.`
+        `Se añadieron ${quantity} ${quantity === 1 ? config.unitLabel : config.unitLabel + "s"} extra a tu plan. El cargo se aplicará en tu próximo ciclo de facturación.`,
+        { duration: 6000 }
       );
       onSuccess();
       onClose();
@@ -658,7 +662,9 @@ function AddonPurchaseModal({
             <div className={cn("rounded-lg bg-primary/10 p-1.5")}>
               <ShoppingCart className="h-4 w-4 text-primary" />
             </div>
-            <h3 className="text-sm font-semibold">Añadir cupos extra</h3>
+            <h3 className="text-sm font-semibold">
+              {step === "select" ? "Añadir cupos extra" : "Confirmar cargo"}
+            </h3>
           </div>
           <button
             onClick={onClose}
@@ -668,98 +674,165 @@ function AddonPurchaseModal({
           </button>
         </div>
 
-        <div className="px-5 py-4 space-y-5">
-          {/* Resource info */}
-          <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-3">
-            <Icon className={cn("h-5 w-5", config.iconColor)} />
-            <div className="flex-1">
-              <p className="text-sm font-medium">{config.label}</p>
-              <p className="text-xs text-muted-foreground">
-                Usando {currentUsage} de {currentLimit} disponibles
+        {step === "select" ? (
+          <>
+            <div className="px-5 py-4 space-y-5">
+              {/* Resource info */}
+              <div className="flex items-center gap-3 rounded-lg bg-muted/30 p-3">
+                <Icon className={cn("h-5 w-5", config.iconColor)} />
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{config.label}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Usando {currentUsage} de {currentLimit} disponibles
+                  </p>
+                </div>
+                <span className="text-xs font-semibold text-red-400">Lleno</span>
+              </div>
+
+              {/* Price per unit */}
+              <div className="text-center space-y-1">
+                <p className="text-xs text-muted-foreground">Precio por cada {config.unitLabel} extra</p>
+                <p className="text-2xl font-bold">
+                  S/{config.price}
+                  <span className="text-sm font-normal text-muted-foreground">/mes</span>
+                </p>
+              </div>
+
+              {/* Quantity selector */}
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-muted-foreground">Cantidad de cupos a añadir</label>
+                <div className="flex items-center justify-center gap-4">
+                  <button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    disabled={quantity <= 1}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="text-2xl font-bold tabular-nums w-10 text-center">
+                    {quantity}
+                  </span>
+                  <button
+                    onClick={() => setQuantity(Math.min(10, quantity + 1))}
+                    disabled={quantity >= 10}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">
+                    {quantity} {config.unitLabel}{quantity > 1 ? "s" : ""} × S/{config.price}/mes
+                  </span>
+                  <span className="font-medium">S/{totalCost}/mes</span>
+                </div>
+                <div className="border-t border-border/40 pt-2 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">Nuevo límite</span>
+                  <span className="font-semibold text-primary">
+                    {currentLimit} → {newLimit}
+                  </span>
+                </div>
+              </div>
+
+              {/* Info text */}
+              <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
+                El costo se añadirá a tu facturación mensual de manera recurrente.
+                Puedes cancelar los add-ons en cualquier momento.
               </p>
             </div>
-            <span className="text-xs font-semibold text-red-400">Lleno</span>
-          </div>
 
-          {/* Price per unit */}
-          <div className="text-center space-y-1">
-            <p className="text-xs text-muted-foreground">Precio por cada {config.unitLabel} extra</p>
-            <p className="text-2xl font-bold">
-              S/{config.price}
-              <span className="text-sm font-normal text-muted-foreground">/mes</span>
-            </p>
-          </div>
-
-          {/* Quantity selector */}
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">Cantidad de cupos a añadir</label>
-            <div className="flex items-center justify-center gap-4">
+            {/* Footer — Step 1 */}
+            <div className="flex gap-2 border-t border-border px-5 py-4">
               <button
-                onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                disabled={quantity <= 1}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                onClick={onClose}
+                className="flex-1 rounded-lg border border-border px-4 py-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
               >
-                <Minus className="h-4 w-4" />
+                Cancelar
               </button>
-              <span className="text-2xl font-bold tabular-nums w-10 text-center">
-                {quantity}
-              </span>
               <button
-                onClick={() => setQuantity(Math.min(10, quantity + 1))}
-                disabled={quantity >= 10}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                onClick={() => setStep("confirm")}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-all"
               >
-                <Plus className="h-4 w-4" />
+                Continuar — S/{totalCost}/mes
               </button>
             </div>
-          </div>
+          </>
+        ) : (
+          <>
+            <div className="px-5 py-4 space-y-4">
+              {/* Charge warning */}
+              <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3.5">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold text-foreground">
+                    Se aplicará un cargo recurrente
+                  </p>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Se añadirán <strong className="text-foreground">S/{totalCost}/mes</strong> a tu
+                    suscripción de Mercado Pago. El cargo se reflejará en tu próximo ciclo de facturación.
+                  </p>
+                </div>
+              </div>
 
-          {/* Summary */}
-          <div className="rounded-lg border border-border/60 bg-muted/20 p-3 space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
-                {quantity} {config.unitLabel}{quantity > 1 ? "s" : ""} × S/{config.price}/mes
-              </span>
-              <span className="font-medium">S/{totalCost}/mes</span>
+              {/* Summary card */}
+              <div className="rounded-lg border border-border/60 bg-muted/20 p-3.5 space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <Icon className={cn("h-4 w-4", config.iconColor)} />
+                  <span className="text-xs font-medium">
+                    {quantity} {config.unitLabel}{quantity > 1 ? "s" : ""} extra
+                  </span>
+                </div>
+                <div className="border-t border-border/40 pt-2 space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Cargo mensual adicional</span>
+                    <span className="font-semibold">S/{totalCost}/mes</span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Nuevo límite</span>
+                    <span className="font-semibold text-primary">{currentLimit} → {newLimit}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment method indicator */}
+              <div className="flex items-center gap-2.5 rounded-lg bg-muted/30 p-3">
+                <CreditCard className="h-4 w-4 text-muted-foreground" />
+                <span className="text-xs text-muted-foreground">
+                  Se cargará a tu método de pago registrado en Mercado Pago
+                </span>
+              </div>
             </div>
-            <div className="border-t border-border/40 pt-2 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">Nuevo límite</span>
-              <span className="font-semibold text-primary">
-                {currentLimit} → {newLimit}
-              </span>
+
+            {/* Footer — Step 2 (confirmation) */}
+            <div className="flex gap-2 border-t border-border px-5 py-4">
+              <button
+                onClick={() => setStep("select")}
+                disabled={purchasing}
+                className="flex-1 rounded-lg border border-border px-4 py-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 transition-colors"
+              >
+                Volver
+              </button>
+              <button
+                onClick={handlePurchase}
+                disabled={purchasing}
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
+              >
+                {purchasing ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Procesando...
+                  </>
+                ) : (
+                  <>Confirmar cargo — S/{totalCost}/mes</>
+                )}
+              </button>
             </div>
-          </div>
-
-          {/* Info text */}
-          <p className="text-[11px] text-muted-foreground text-center leading-relaxed">
-            El costo se añadirá a tu facturación mensual de manera recurrente.
-            Puedes cancelar los add-ons en cualquier momento.
-          </p>
-        </div>
-
-        {/* Footer */}
-        <div className="flex gap-2 border-t border-border px-5 py-4">
-          <button
-            onClick={onClose}
-            className="flex-1 rounded-lg border border-border px-4 py-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={handlePurchase}
-            disabled={purchasing}
-            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-          >
-            {purchasing ? (
-              <>
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Procesando...
-              </>
-            ) : (
-              <>Confirmar — S/{totalCost}/mes</>
-            )}
-          </button>
-        </div>
+          </>
+        )}
       </div>
     </div>
   );
