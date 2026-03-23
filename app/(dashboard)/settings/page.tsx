@@ -642,127 +642,129 @@ export default function SettingsPage() {
       {/* ── Agenda tab ───────────────────────────────────────────────────────── */}
       {activeTab === "agenda" && (
         <div className="space-y-6">
-          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-6">
+          {/* Hours + Slot size — combined card */}
+          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
             <div className="flex items-center gap-2">
               <Clock className="h-5 w-5 text-primary" />
               <div>
                 <h2 className="text-lg font-semibold">
-                  {language === "es" ? "Horario de la agenda" : "Scheduler hours"}
+                  {language === "es" ? "Configuración de la agenda" : "Scheduler settings"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   {language === "es"
-                    ? "Define el rango de horas visible en el calendario diario"
-                    : "Define the visible hour range in the daily calendar"}
+                    ? "Horario visible y resolución de la grilla"
+                    : "Visible hours and grid resolution"}
                 </p>
               </div>
             </div>
 
-            {/* Start / End hour selects */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">
-                  {language === "es" ? "Inicio del día" : "Day start"}
-                </label>
-                <select
-                  value={schedulerConfig.startHour}
-                  onChange={(e) =>
-                    updateSchedulerConfig({ startHour: Number(e.target.value) })
-                  }
-                  className={selectClass + " w-full"}
-                >
-                  {getHourOptions(0, 12).map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium">
-                  {language === "es" ? "Fin del día" : "Day end"}
-                </label>
-                <select
-                  value={schedulerConfig.endHour}
-                  onChange={(e) =>
-                    updateSchedulerConfig({ endHour: Number(e.target.value) })
-                  }
-                  className={selectClass + " w-full"}
-                >
-                  {getHourOptions(13, 24).map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Live preview */}
-            <p className="text-xs text-muted-foreground">
-              {language === "es" ? "Vista previa:" : "Preview:"}{" "}
-              <span className="font-medium text-foreground">
-                {schedulerConfig.startHour.toString().padStart(2, "0")}:00 —{" "}
-                {schedulerConfig.endHour === 24
-                  ? "24:00"
-                  : `${schedulerConfig.endHour.toString().padStart(2, "0")}:00`}
-              </span>{" "}
-              ({schedulerConfig.endHour - schedulerConfig.startHour}{" "}
-              {language === "es" ? "horas" : "hours"})
-            </p>
-          </div>
-
-          {/* Slot duration — multi-select */}
-          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold">
-                {language === "es" ? "Tamaño de bloques" : "Slot size"}
-              </h2>
-              <p className="text-sm text-muted-foreground mt-1">
-                {language === "es"
-                  ? "Define la resolución visual de la grilla. Las citas siempre se pueden agendar en intervalos de 15 minutos."
-                  : "Sets the visual grid resolution. Appointments can always be scheduled in 15-minute intervals."}
-              </p>
-            </div>
-            <div className="grid grid-cols-5 gap-3">
-              {([15, 20, 30, 45, 60] as const).map((mins) => {
-                const isSelected = schedulerConfig.intervals.includes(mins);
-                return (
-                  <button
-                    key={mins}
-                    onClick={() => {
-                      let next: IntervalOption[];
-                      if (isSelected) {
-                        // No permitir deseleccionar si es el único seleccionado
-                        if (schedulerConfig.intervals.length <= 1) return;
-                        next = schedulerConfig.intervals.filter((v) => v !== mins);
-                      } else {
-                        next = [...schedulerConfig.intervals, mins].sort((a, b) => a - b) as IntervalOption[];
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Left: Hours */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  {language === "es" ? "Horario" : "Hours"}
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">
+                      {language === "es" ? "Inicio" : "Start"}
+                    </label>
+                    <select
+                      value={schedulerConfig.startHour}
+                      onChange={(e) =>
+                        updateSchedulerConfig({ startHour: Number(e.target.value) })
                       }
-                      updateSchedulerConfig({ intervals: next });
-                    }}
-                    className={`flex flex-col items-center gap-1 rounded-xl border p-4 transition-all ${
-                      isSelected
-                        ? "border-primary bg-primary/10 ring-1 ring-primary"
-                        : "border-border hover:border-muted-foreground/30 hover:bg-accent"
-                    }`}
-                  >
-                    <span
-                      className={`text-2xl font-extrabold ${
-                        isSelected
-                          ? "text-primary"
-                          : "text-muted-foreground"
-                      }`}
+                      className={selectClass + " w-full"}
                     >
-                      {mins === 60 ? "1" : mins}
-                    </span>
-                    <span className="text-xs font-medium text-muted-foreground">
-                      {mins === 60
-                        ? (language === "es" ? "hora" : "hour")
-                        : (language === "es" ? "minutos" : "minutes")}
-                    </span>
-                  </button>
-                );
-              })}
+                      {getHourOptions(0, 12).map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium">
+                      {language === "es" ? "Fin" : "End"}
+                    </label>
+                    <select
+                      value={schedulerConfig.endHour}
+                      onChange={(e) =>
+                        updateSchedulerConfig({ endHour: Number(e.target.value) })
+                      }
+                      className={selectClass + " w-full"}
+                    >
+                      {getHourOptions(13, 24).map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">
+                    {schedulerConfig.startHour.toString().padStart(2, "0")}:00 —{" "}
+                    {schedulerConfig.endHour === 24
+                      ? "24:00"
+                      : `${schedulerConfig.endHour.toString().padStart(2, "0")}:00`}
+                  </span>{" "}
+                  ({schedulerConfig.endHour - schedulerConfig.startHour}{" "}
+                  {language === "es" ? "horas" : "hours"})
+                </p>
+              </div>
+
+              {/* Right: Slot size */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                  {language === "es" ? "Bloques" : "Slots"}
+                </h3>
+                <div className="grid grid-cols-5 gap-2">
+                  {([15, 20, 30, 45, 60] as const).map((mins) => {
+                    const isSelected = schedulerConfig.intervals.includes(mins);
+                    return (
+                      <button
+                        key={mins}
+                        onClick={() => {
+                          let next: IntervalOption[];
+                          if (isSelected) {
+                            if (schedulerConfig.intervals.length <= 1) return;
+                            next = schedulerConfig.intervals.filter((v) => v !== mins);
+                          } else {
+                            next = [...schedulerConfig.intervals, mins].sort((a, b) => a - b) as IntervalOption[];
+                          }
+                          updateSchedulerConfig({ intervals: next });
+                        }}
+                        className={`flex flex-col items-center gap-0.5 rounded-xl border p-2.5 transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/10 ring-1 ring-primary"
+                            : "border-border hover:border-muted-foreground/30 hover:bg-accent"
+                        }`}
+                      >
+                        <span
+                          className={`text-lg font-extrabold ${
+                            isSelected
+                              ? "text-primary"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {mins === 60 ? "1" : mins}
+                        </span>
+                        <span className="text-[10px] font-medium text-muted-foreground">
+                          {mins === 60
+                            ? (language === "es" ? "hora" : "hour")
+                            : "min"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] text-muted-foreground">
+                  {language === "es"
+                    ? "Resolución visual de la grilla. Las citas siempre usan intervalos de 15 min."
+                    : "Visual grid resolution. Appointments always use 15-min intervals."}
+                </p>
+              </div>
             </div>
           </div>
 
