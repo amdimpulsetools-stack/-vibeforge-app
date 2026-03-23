@@ -42,10 +42,18 @@ const jetbrainsMono = localFont({
 
 export const metadata: Metadata = {
   title: {
-    default: APP_NAME,
+    default: `${APP_NAME} — Gestión integral para clínicas y consultorios médicos`,
     template: `%s | ${APP_NAME}`,
   },
-  description: "Generado con VibeForge",
+  description:
+    "Agenda inteligente, gestión de pacientes, control de equipo y asistente con IA. Desde el doctor independiente hasta la clínica con 10 consultorios. Planes desde S/69.90/mes.",
+  openGraph: {
+    title: `${APP_NAME} — Tu clínica completa en una sola plataforma`,
+    description:
+      "Software de gestión médica con IA incluida. Diseñado para LATAM.",
+    locale: "es_PE",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
