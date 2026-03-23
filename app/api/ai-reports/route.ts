@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json(
-        { error: "Error al generar el resumen. Intenta de nuevo en unos minutos." },
+        { error: `Error de la IA (código ${anthropicRes.status}). Verifica tu API key y créditos de Anthropic.` },
         { status: 502 }
       );
     }
