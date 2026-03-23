@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import {
   Sparkles,
   X,
-  Loader2,
   Copy,
   Check,
   AlertTriangle,
@@ -15,6 +14,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AiLoader } from "@/components/ui/ai-loader";
 
 // ── Shared state context ─────────────────────────────────────────
 
@@ -206,16 +206,11 @@ export function AiSummaryPanel() {
       {/* Content */}
       <div className="p-5">
         {loading && (
-          <div className="flex flex-col items-center justify-center gap-3 py-8">
-            <div className="relative">
-              <div className="h-10 w-10 rounded-full border-2 border-emerald-500/30" />
-              <Loader2 className="absolute inset-0 m-auto h-6 w-6 animate-spin text-emerald-500" />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-medium">{t("ai_reports.generating")}</p>
-              <p className="text-xs text-muted-foreground mt-1">{t("ai_reports.generating_sub")}</p>
-            </div>
-          </div>
+          <AiLoader
+            size={140}
+            text={t("ai_reports.generating")}
+            fullScreen={false}
+          />
         )}
 
         {error && !loading && (
