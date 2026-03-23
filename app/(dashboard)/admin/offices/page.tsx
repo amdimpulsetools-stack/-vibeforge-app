@@ -19,15 +19,21 @@ import {
   Loader2,
   X,
   Check,
+  ExternalLink,
 } from "lucide-react";
+import { usePlan } from "@/hooks/use-plan";
 
 export default function OfficesPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { isAdmin } = useOrgRole();
+  const { plan, usage, isAtLimit, getLimit } = usePlan();
   const [offices, setOffices] = useState<Office[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+
+  const officeLimitReached = isAtLimit("offices");
+  const isIndependientePlan = plan?.target_audience === "independiente";
 
   const fetchOffices = async () => {
     const supabase = createClient();
@@ -92,16 +98,51 @@ export default function OfficesPage() {
           <p className="text-muted-foreground">{t("offices.subtitle")}</p>
         </div>
         <RoleGate minRole="admin">
-          <button
-            onClick={() => {
-              setShowAddForm(true);
-              setEditingId(null);
-            }}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-          >
-            <Plus className="h-4 w-4" />
-            {t("offices.add")}
-          </button>
+          <div className="relative group">
+            <button
+              onClick={() => {
+                if (!officeLimitReached) {
+                  setShowAddForm(true);
+                  setEditingId(null);
+                }
+              }}
+              disabled={officeLimitReached}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-opacity ${
+                officeLimitReached
+                  ? "bg-muted text-muted-foreground cursor-not-allowed opacity-60"
+                  : "bg-primary text-primary-foreground hover:opacity-90"
+              }`}
+            >
+              <Plus className="h-4 w-4" />
+              {t("offices.add")}
+            </button>
+            {officeLimitReached && (
+              <div className="invisible group-hover:visible absolute right-0 top-full mt-2 z-50 w-72 rounded-lg border border-border bg-popover p-3 shadow-lg text-sm">
+                {isIndependientePlan ? (
+                  <p className="text-muted-foreground">
+                    {language === "es"
+                      ? "Cambie su plan para agregar más consultorios."
+                      : "Upgrade your plan to add more offices."}
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-muted-foreground">
+                      {language === "es"
+                        ? `Consultorios llenos (${usage?.offices ?? 0}/${getLimit("offices") ?? 0}). Añada más cupos desde su panel de cuenta.`
+                        : `Offices full (${usage?.offices ?? 0}/${getLimit("offices") ?? 0}). Add more slots from your account panel.`}
+                    </p>
+                    <a
+                      href="/account"
+                      className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      {language === "es" ? "Añadir cupos extra" : "Add extra slots"}
+                    </a>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </RoleGate>
       </div>
 

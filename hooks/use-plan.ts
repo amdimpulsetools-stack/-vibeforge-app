@@ -185,7 +185,14 @@ export function usePlan(): UsePlanReturn {
     if (!plan) return null;
     const key = RESOURCE_TO_PLAN_KEY[resource];
     if (!key) return null;
-    return (plan[key] as number | null) ?? null;
+    const base = (plan[key] as number | null) ?? null;
+    if (base === null) return null; // unlimited
+    // Add purchased addon slots to the effective limit
+    if (resource === "offices" && usage) return base + usage.extra_offices;
+    if (resource === "members" && usage) return base + usage.extra_members;
+    if (resource === "doctors" && usage) return base + usage.extra_members;
+    if (resource === "doctor_members" && usage) return base + usage.extra_members;
+    return base;
   };
 
   const isNearLimit = (resource: keyof OrgUsage): boolean => {
