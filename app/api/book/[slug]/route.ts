@@ -105,14 +105,14 @@ export async function GET(
   // 8. Fetch clinic phone & email from global variables
   const { data: globalVars } = await supabase
     .from("global_variables")
-    .select("key, current_value")
+    .select("key, value")
     .eq("organization_id", org.id)
     .in("key", ["clinic_phone", "clinic_email"]);
 
   const clinicPhone =
-    globalVars?.find((v) => v.key === "clinic_phone")?.current_value || "";
+    globalVars?.find((v) => v.key === "clinic_phone")?.value || "";
   const clinicEmail =
-    globalVars?.find((v) => v.key === "clinic_email")?.current_value || "";
+    globalVars?.find((v) => v.key === "clinic_email")?.value || "";
 
   // 9. Fetch existing appointments for the next N days (for slot availability)
   const today = new Date().toISOString().split("T")[0];

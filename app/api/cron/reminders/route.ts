@@ -182,7 +182,7 @@ export async function GET(req: NextRequest) {
       // Fetch clinic phone
       const { data: clinicPhoneVar } = await supabase
         .from("global_variables")
-        .select("current_value")
+        .select("value")
         .eq("organization_id", orgId)
         .eq("key", "clinic_phone")
         .single();
@@ -287,7 +287,7 @@ export async function GET(req: NextRequest) {
           "{{consultorio}}": office?.name || "",
           "{{servicio}}": service?.name || "",
           "{{clinica_nombre}}": clinicName,
-          "{{clinica_telefono}}": clinicPhoneVar?.current_value || "",
+          "{{clinica_telefono}}": clinicPhoneVar?.value || "",
           "{{link_cancelar}}": "",
           "{{link_reagendar}}": "",
         };
@@ -374,7 +374,7 @@ export async function GET(req: NextRequest) {
                   servicio: service?.name || "",
                   doctor_nombre: doctor?.full_name || "",
                   clinica_nombre: clinicName,
-                  clinica_telefono: clinicPhoneVar?.current_value || "",
+                  clinica_telefono: clinicPhoneVar?.value || "",
                 };
 
                 const variableValues = resolveVariableValues(waTemplate, waVariableData);

@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   // 4. Fetch clinic phone from global_variables
   const { data: clinicPhoneVar } = await supabase
     .from("global_variables")
-    .select("current_value")
+    .select("value")
     .eq("organization_id", orgId)
     .eq("key", "clinic_phone")
     .single();
@@ -142,7 +142,7 @@ export async function POST(req: NextRequest) {
     "{{consultorio}}": office?.name || "",
     "{{servicio}}": service?.name || "",
     "{{clinica_nombre}}": org?.name || "",
-    "{{clinica_telefono}}": clinicPhoneVar?.current_value || "",
+    "{{clinica_telefono}}": clinicPhoneVar?.value || "",
     "{{link_cancelar}}": "", // TODO: generate public links
     "{{link_reagendar}}": "",
     "{{link_reunion}}": (appointment as any).meeting_url || "",
@@ -253,7 +253,7 @@ export async function POST(req: NextRequest) {
               servicio: service?.name || "",
               doctor_nombre: doctor?.full_name || "",
               clinica_nombre: org?.name || "",
-              clinica_telefono: clinicPhoneVar?.current_value || "",
+              clinica_telefono: clinicPhoneVar?.value || "",
               monto_pagado: extra_variables?.monto_pagado || "",
             };
 

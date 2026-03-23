@@ -377,7 +377,7 @@ async function sendBookingConfirmationEmail(
   // Fetch clinic phone
   const { data: clinicPhoneVar } = await supabase
     .from("global_variables")
-    .select("current_value")
+    .select("value")
     .eq("organization_id", orgId)
     .eq("key", "clinic_phone")
     .single();
@@ -394,7 +394,7 @@ async function sendBookingConfirmationEmail(
     "{{hora_cita}}": time,
     "{{servicio}}": serviceName,
     "{{clinica_nombre}}": orgName,
-    "{{clinica_telefono}}": clinicPhoneVar?.current_value || "",
+    "{{clinica_telefono}}": clinicPhoneVar?.value || "",
     "{{consultorio}}": "",
     "{{link_cancelar}}": "",
     "{{link_reagendar}}": "",

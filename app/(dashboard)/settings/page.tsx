@@ -32,6 +32,7 @@ import {
   MapPin,
   Smartphone,
   Globe2,
+  Phone,
 } from "lucide-react";
 import {
   loadSchedulerConfig,
@@ -90,6 +91,70 @@ export default function SettingsPage() {
   const [revenueGoal, setRevenueGoal] = useState<string>("");
   const [savingGoal, setSavingGoal] = useState(false);
   const [goalLoaded, setGoalLoaded] = useState(false);
+
+  // ── Contact info (from global_variables) ─────────────────────────────────
+  const [clinicPhone, setClinicPhone] = useState("");
+  const [clinicEmail, setClinicEmail] = useState("");
+  const [contactLoaded, setContactLoaded] = useState(false);
+  const [savingContact, setSavingContact] = useState(false);
+
+  useEffect(() => {
+    if (!organizationId || contactLoaded) return;
+    const supabase = createClient();
+    supabase
+      .from("global_variables")
+      .select("key, value")
+      .eq("organization_id", organizationId)
+      .in("key", ["clinic_phone", "clinic_email"])
+      .then(({ data }) => {
+        if (data) {
+          for (const v of data) {
+            if (v.key === "clinic_phone") setClinicPhone(v.value ?? "");
+            if (v.key === "clinic_email") setClinicEmail(v.value ?? "");
+          }
+        }
+        setContactLoaded(true);
+      });
+  }, [organizationId, contactLoaded]);
+
+  const handleSaveContact = async () => {
+    if (!organizationId) return;
+    setSavingContact(true);
+    const supabase = createClient();
+
+    const upserts = [
+      { key: "clinic_phone", name: "Teléfono de contacto", value: clinicPhone.trim() },
+      { key: "clinic_email", name: "Email de contacto", value: clinicEmail.trim() },
+    ];
+
+    for (const u of upserts) {
+      const { data: existing } = await supabase
+        .from("global_variables")
+        .select("id")
+        .eq("organization_id", organizationId)
+        .eq("key", u.key)
+        .maybeSingle();
+
+      if (existing) {
+        await supabase
+          .from("global_variables")
+          .update({ value: u.value })
+          .eq("id", existing.id);
+      } else {
+        await supabase.from("global_variables").insert({
+          organization_id: organizationId,
+          key: u.key,
+          name: u.name,
+          value: u.value,
+          sort_order: 0,
+          is_active: true,
+        });
+      }
+    }
+
+    setSavingContact(false);
+    toast.success(t("settings.org_save_success"));
+  };
 
   useEffect(() => {
     if (!organizationId || goalLoaded) return;
@@ -638,6 +703,71 @@ export default function SettingsPage() {
                     : (language === "es" ? "Guardar meta" : "Save goal")}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Contact info */}
+          {isOrgAdmin && (
+            <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Phone className="h-5 w-5 text-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold">
+                    {language === "es" ? "Datos de contacto" : "Contact info"}
+                  </h2>
+                  <p className="text-sm text-muted-foreground">
+                    {language === "es"
+                      ? "Se muestran en la página de reservas y en las notificaciones"
+                      : "Shown on the booking page and in notifications"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium" htmlFor="clinic_phone">
+                    {language === "es" ? "Teléfono" : "Phone"}
+                  </label>
+                  <input
+                    id="clinic_phone"
+                    type="tel"
+                    value={clinicPhone}
+                    onChange={(e) => setClinicPhone(e.target.value)}
+                    placeholder={language === "es" ? "Ej: 51987654321" : "E.g. 51987654321"}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {language === "es"
+                      ? "Con código de país, sin espacios ni guiones"
+                      : "With country code, no spaces or dashes"}
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-sm font-medium" htmlFor="clinic_email">
+                    Email
+                  </label>
+                  <input
+                    id="clinic_email"
+                    type="email"
+                    value={clinicEmail}
+                    onChange={(e) => setClinicEmail(e.target.value)}
+                    placeholder="contacto@tuclinica.com"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveContact}
+                disabled={savingContact}
+                className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {savingContact && <Loader2 className="h-4 w-4 animate-spin" />}
+                {savingContact
+                  ? (language === "es" ? "Guardando..." : "Saving...")
+                  : (language === "es" ? "Guardar contacto" : "Save contact")}
+              </button>
             </div>
           )}
         </div>
