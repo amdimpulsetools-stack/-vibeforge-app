@@ -1,14 +1,17 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Sparkles, ArrowRight } from "lucide-react";
 
 const plans = [
   {
     name: "Independiente",
-    price: "69.90",
+    priceMonthly: "69.90",
+    priceAnnual: "58.25",
+    savingsAnnual: "139.80",
     anchor: "Menos de lo que cobras por una consulta",
+    anchorAnnual: "Ahorra S/139.80 al año — 2 meses gratis",
     features: [
       "1 doctor",
       "150 pacientes",
@@ -23,8 +26,11 @@ const plans = [
   },
   {
     name: "Centro Médico",
-    price: "169.90",
+    priceMonthly: "169.90",
+    priceAnnual: "141.58",
+    savingsAnnual: "339.80",
     anchor: "Menos de S/6 al día por tener tu centro organizado",
+    anchorAnnual: "Ahorra S/339.80 al año — 2 meses gratis",
     features: [
       "2 doctores",
       "1,000 pacientes",
@@ -39,8 +45,11 @@ const plans = [
   },
   {
     name: "Clínica",
-    price: "569.90",
+    priceMonthly: "569.90",
+    priceAnnual: "474.92",
+    savingsAnnual: "1,139.80",
     anchor: "Con 10 doctores, son S/57 por doctor al mes",
+    anchorAnnual: "Ahorra S/1,139.80 al año — 2 meses gratis",
     features: [
       "10 doctores",
       "Pacientes ilimitados",
@@ -57,6 +66,7 @@ const plans = [
 
 export function Pricing() {
   const sectionRef = useRef<HTMLDivElement>(null);
+  const [isAnnual, setIsAnnual] = useState(false);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -87,6 +97,33 @@ export function Pricing() {
           <p className="mt-3 text-base text-slate-500 max-w-xl mx-auto">
             Tres planes para cada etapa. Sin contratos, sin sorpresas. IA incluida en todos.
           </p>
+
+          {/* Billing toggle */}
+          <div className="mt-8 inline-flex items-center gap-3 rounded-full bg-slate-100 p-1">
+            <button
+              onClick={() => setIsAnnual(false)}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition-all ${
+                !isAnnual
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Mensual
+            </button>
+            <button
+              onClick={() => setIsAnnual(true)}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition-all ${
+                isAnnual
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Anual
+              <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                2 meses gratis
+              </span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto items-start">
@@ -111,10 +148,19 @@ export function Pricing() {
               <div className="mt-4">
                 <div className="flex items-baseline gap-1">
                   <span className="text-sm text-slate-400">S/</span>
-                  <span className="text-4xl font-extrabold text-slate-900">{plan.price}</span>
+                  <span className="text-4xl font-extrabold text-slate-900 tabular-nums transition-all">
+                    {isAnnual ? plan.priceAnnual : plan.priceMonthly}
+                  </span>
                   <span className="text-sm text-slate-400">/mes</span>
                 </div>
-                <p className="text-xs text-slate-400 mt-1">{plan.anchor}</p>
+                {isAnnual && (
+                  <p className="text-xs text-slate-400 mt-0.5 line-through">
+                    S/{plan.priceMonthly}/mes
+                  </p>
+                )}
+                <p className="text-xs text-slate-400 mt-1">
+                  {isAnnual ? plan.anchorAnnual : plan.anchor}
+                </p>
               </div>
 
               {/* IA badge */}
