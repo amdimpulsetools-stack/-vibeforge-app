@@ -161,7 +161,7 @@ export async function POST(req: NextRequest) {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-5-20250929",
+        model: "claude-sonnet-4-5-20250514",
         max_tokens: 1024,
         system: `${REPORT_SYSTEM_PROMPT}\n\nCONTEXTO ESPECÍFICO: ${typeContext}`,
         messages: [
@@ -177,8 +177,36 @@ export async function POST(req: NextRequest) {
       const errText = await anthropicRes.text().catch(() => "Unknown");
       console.error(`Anthropic error ${anthropicRes.status}:`, errText);
 
-      // Retry once on 5xx/429
+      // Surface specific errors to the user
+      if (anthropicRes.status === 401) {
+        return NextResponse.json(
+          { error: "API key de IA inválida o expirada. Contacta al administrador." },
+          { status: 502 }
+        );
+      }
+      if (anthropicRes.status === 403) {
+        return NextResponse.json(
+          { error: "Sin acceso a la API de IA. Verifica la configuración de la API key." },
+          { status: 502 }
+        );
+      }
+      if (anthropicRes.status === 400) {
+        console.error("Anthropic 400 body:", errText);
+        return NextResponse.json(
+          { error: "Error en la solicitud a la IA. Revisa los logs del servidor." },
+          { status: 502 }
+        );
+      }
+
+      // Retry once on 5xx/429 (overloaded / rate limit)
       if (anthropicRes.status >= 500 || anthropicRes.status === 429) {
+        const isCredits = errText.includes("credit") || errText.includes("billing");
+        if (isCredits) {
+          return NextResponse.json(
+            { error: "Créditos de IA agotados. El administrador debe recargar la cuenta de Anthropic." },
+            { status: 402 }
+          );
+        }
         await new Promise((r) => setTimeout(r, 2000));
         const retryRes = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
@@ -188,7 +216,7 @@ export async function POST(req: NextRequest) {
             "anthropic-version": "2023-06-01",
           },
           body: JSON.stringify({
-            model: "claude-sonnet-4-5-20250929",
+            model: "claude-sonnet-4-5-20250514",
             max_tokens: 1024,
             system: `${REPORT_SYSTEM_PROMPT}\n\nCONTEXTO ESPECÍFICO: ${typeContext}`,
             messages: [
