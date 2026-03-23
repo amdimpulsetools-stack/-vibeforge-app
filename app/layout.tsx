@@ -16,7 +16,7 @@ const plusJakarta = localFont({
     { path: "./fonts/PlusJakartaSans-Bold.woff2", weight: "700", style: "normal" },
     { path: "./fonts/PlusJakartaSans-ExtraBold.woff2", weight: "800", style: "normal" },
   ],
-  variable: "--font-sans",
+  variable: "--font-plus-jakarta",
   display: "swap",
 });
 
@@ -28,7 +28,7 @@ const outfit = localFont({
     { path: "./fonts/Outfit-Bold.woff2", weight: "700", style: "normal" },
     { path: "./fonts/Outfit-ExtraBold.woff2", weight: "800", style: "normal" },
   ],
-  variable: "--font-display",
+  variable: "--font-outfit",
   display: "swap",
 });
 
@@ -36,7 +36,7 @@ const jetbrainsMono = localFont({
   src: [
     { path: "./fonts/JetBrainsMono-Regular.woff2", weight: "400", style: "normal" },
   ],
-  variable: "--font-mono",
+  variable: "--font-jetbrains",
   display: "swap",
 });
 
@@ -57,6 +57,7 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body
         className={`${plusJakarta.variable} ${outfit.variable} ${jetbrainsMono.variable} font-sans antialiased grain`}
+
       >
         <QueryProvider>
           <ThemeProvider>
