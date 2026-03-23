@@ -168,7 +168,7 @@ export function AdminDashboard({
       </div>
 
       {/* ── ROW 1: Revenue | Pending Debt | Appointments ── */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 justify-items-center">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Revenue */}
         <div className="w-full rounded-2xl bg-emerald-600 p-6 shadow-lg shadow-emerald-600/20">
           <p className="text-xs font-medium text-white/70 mb-1">
