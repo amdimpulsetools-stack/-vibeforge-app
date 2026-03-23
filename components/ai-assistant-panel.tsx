@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Bot, X, Send, Loader2, Download, ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAiQuota } from "@/hooks/use-ai-quota";
 
 interface Message {
   id: string;
@@ -142,6 +143,7 @@ const EXAMPLE_QUERIES = [
 ];
 
 export function AiAssistantPanel() {
+  const { quota, loading: quotaLoading, refetch: refetchQuota } = useAiQuota();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -206,10 +208,13 @@ export function AiAssistantPanel() {
           {
             id: Date.now().toString(),
             role: "assistant",
-            content: json.error ?? "Ocurrió un error. Por favor, intenta de nuevo.",
+            content: json.quota_exceeded
+              ? `Has alcanzado el límite de ${json.limit} consultas IA este mes. Mejora tu plan para obtener más consultas.`
+              : json.error ?? "Ocurrió un error. Por favor, intenta de nuevo.",
             timestamp: new Date(),
           },
         ]);
+        if (json.quota_exceeded) refetchQuota();
         return;
       }
 
@@ -225,6 +230,9 @@ export function AiAssistantPanel() {
           timestamp: new Date(),
         },
       ]);
+
+      // Refresh quota counter after successful query
+      refetchQuota();
     } catch {
       setMessages((prev) => [
         ...prev,
@@ -281,12 +289,28 @@ export function AiAssistantPanel() {
               <p className="text-[10px] text-primary">Solo lectura · Seguro</p>
             </div>
           </div>
-          <button
-            onClick={() => setOpen(false)}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Quota badge */}
+            {!quotaLoading && (
+              <div className={cn(
+                "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold",
+                quota.remaining === 0
+                  ? "bg-red-500/10 text-red-400"
+                  : quota.percentage >= 80
+                    ? "bg-amber-500/10 text-amber-400"
+                    : "bg-emerald-500/10 text-emerald-400"
+              )}>
+                <Sparkles className="h-3 w-3" />
+                {quota.remaining}/{quota.limit}
+              </div>
+            )}
+            <button
+              onClick={() => setOpen(false)}
+              className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Messages */}
@@ -337,7 +361,7 @@ export function AiAssistantPanel() {
             />
             <button
               onClick={sendMessage}
-              disabled={loading || !input.trim()}
+              disabled={loading || !input.trim() || quota.remaining === 0}
               className="flex h-auto w-10 shrink-0 items-center justify-center rounded-xl gradient-primary text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
             >
               {loading ? (
@@ -348,7 +372,9 @@ export function AiAssistantPanel() {
             </button>
           </div>
           <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
-            Presiona Enter para enviar · Shift+Enter para nueva línea
+            {quota.remaining === 0
+              ? "Has agotado tus consultas IA este mes. Mejora tu plan para continuar."
+              : "Presiona Enter para enviar · Shift+Enter para nueva línea"}
           </p>
         </div>
       </div>
