@@ -249,7 +249,7 @@ export function AdminDashboard({
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
         {/* New vs Recurring patients */}
         <div className="rounded-2xl border border-border/60 bg-card p-6">
-          <p className="text-xs font-medium text-muted-foreground mb-4">
+          <p className="text-sm font-medium text-muted-foreground mb-4">
             {isEs ? "Pacientes nuevos vs recurrentes" : "New vs recurring patients"}
           </p>
           <div className="grid grid-cols-2 gap-4">
@@ -278,7 +278,7 @@ export function AdminDashboard({
         <div className="rounded-2xl border border-border/60 bg-card p-6">
           <div className="flex items-center gap-2 mb-4">
             <div className="h-3 w-3 rounded-sm bg-emerald-500/20" />
-            <p className="text-xs font-medium text-muted-foreground">
+            <p className="text-sm font-medium text-muted-foreground">
               {isEs ? "Rendimiento por recepcionista" : "Receptionist performance"}
             </p>
           </div>
@@ -306,7 +306,7 @@ export function AdminDashboard({
 
         {/* Occupancy Rate */}
         <div className="rounded-2xl border border-border/60 bg-card p-6">
-          <p className="text-xs font-medium text-muted-foreground mb-1">
+          <p className="text-sm font-medium text-muted-foreground mb-1">
             {isEs ? "% de Ocupación" : "Occupancy %"}
           </p>
           <p className="text-5xl font-extrabold tracking-tight mt-2">
@@ -329,7 +329,7 @@ export function AdminDashboard({
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
         {/* Revenue Goal Gauge */}
         <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col items-center justify-center">
-          <p className="text-xs font-medium text-muted-foreground mb-2">
+          <p className="text-sm font-medium text-muted-foreground mb-2">
             {isEs ? "Meta del mes" : "Monthly goal"}
           </p>
           {monthlyRevenueGoal > 0 ? (
