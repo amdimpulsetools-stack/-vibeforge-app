@@ -359,13 +359,17 @@ export async function POST(req: NextRequest) {
     );
 
     // ── Log AI query usage ──────────────────────────────────────────────────
-    await supabaseAuth
+    const { error: usageError } = await supabaseAuth
       .from("ai_query_usage")
       .insert({
         organization_id: orgId,
         user_id: user.id,
         tokens_used: 0,
       });
+
+    if (usageError) {
+      console.error("Failed to log AI query usage:", usageError.message);
+    }
 
     return NextResponse.json({
       response: answerResult.text ?? "No pude interpretar los resultados.",

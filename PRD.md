@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-03-19
-> **Versión:** 0.2.1
-> **Estado:** MVP en desarrollo activo
+> **Última actualización:** 2026-03-23
+> **Versión:** 0.3.0
+> **Estado:** MVP — pre-staging (Vercel)
 
 ---
 
@@ -732,3 +732,63 @@ MP_WEBHOOK_SECRET=
 - **Planes con soft limits** — Los límites se verifican en frontend/API, no con constraints de DB
 - **Mercado Pago como gateway único** — Sin soporte para Stripe por ahora
 - **Español como idioma principal** — Interfaz y seeds en español, con soporte i18n para inglés
+
+---
+
+## 18. Changelog — Sesión 2026-03-23
+
+### Nuevas Funcionalidades
+
+#### Sistema de Cuotas de Consultas IA por Plan
+- **Migración 061:** Tabla `ai_query_usage`, columna `max_ai_queries` en plans, RPC `get_ai_query_usage_this_month()`
+- **Cuotas:** Starter/Independiente: 50, Professional: 120, Enterprise: 250 consultas/mes
+- **API:** Verificación de cuota antes de procesar cada consulta IA, log de uso después
+- **Modelo:** Cambiado de `claude-sonnet` a `claude-haiku-4-5` (más económico)
+- **Restricción:** Solo usuarios admin/owner pueden usar el asistente IA
+- **Hook:** `useAiQuota()` — expone `{ used, limit, remaining, percentage }`
+- **UI Chat:** Badge de cuota en header del panel (verde/amarillo/rojo), refresco automático tras cada consulta, botón deshabilitado al agotar
+- **UI Account:** Card con anillo SVG mostrando "Quedan X/Y consultas IA", botón refresh, CTA "Mejorar plan"
+
+#### Meta de Ingresos Mensual (Settings)
+- Input numérico en Settings > General para configurar `monthly_revenue_goal`
+- Solo visible para admins, guarda directamente en `organizations`
+
+#### Días Laborables Permanentes (Settings > Agenda)
+- Selector visual de 7 días (Lun-Dom) para desactivar/activar días
+- Días desactivados no cuentan para cálculo de ocupación
+- Config en `localStorage` como `disabledWeekdays` (default: domingo desactivado)
+- Mínimo 1 día debe quedar activo
+
+#### Agenda Compacta (Settings > Agenda)
+- "Horario" y "Tamaño de bloques" unificados en una sola card con layout 2 columnas
+- Reduce espacio visual sin perder funcionalidad
+
+### Hardening Pre-Deployment
+
+#### Fonts Self-Hosted
+- Migrado de `next/font/google` a `next/font/local`
+- 12 archivos `.woff2` en `app/fonts/` (Plus Jakarta Sans, Outfit, JetBrains Mono)
+- Elimina dependencia de Google Fonts API durante el build
+
+#### Validación de Variables de Entorno
+- `lib/env-validation.ts` — valida variables requeridas al iniciar el servidor
+- Integrado en `instrumentation.ts` — falla ruidosamente si faltan `SUPABASE_URL`, `ANON_KEY`, `SERVICE_ROLE_KEY`
+- Warnings para variables opcionales (Anthropic, SMTP, MercadoPago)
+
+#### Content Security Policy (CSP)
+- Header CSP agregado en middleware con whitelist para Supabase, Anthropic API, MercadoPago
+- `frame-ancestors 'none'` para prevenir clickjacking
+- `base-uri 'self'` y `form-action 'self'`
+
+#### Fix: AI Query Usage Logging
+- El insert a `ai_query_usage` ahora maneja errores explícitamente en lugar de fallar silenciosamente
+- Migración 061 aplicada directamente a la base de datos de producción
+
+### Auditoría de Producción (Rating: 7.5/10)
+- **81 indexes** verificados activos en la base de datos (incluyendo compuestos)
+- **Seguridad:** 8/10 — Headers, RLS, webhook signature validation, rate limiting
+- **Base de datos:** 8.5/10 — 61 migraciones, RLS completo, indexes activos
+- **Arquitectura:** 8.5/10 — Multi-tenant sólido, billing, roles
+- **Performance:** 7.5/10 — Code splitting, React Query caching
+- **Testing:** 2/10 — Gap principal: 0 tests (pendiente)
+- **Pendientes para producción real:** Tests, CI/CD pipeline, migrar `<img>` a `next/image`
