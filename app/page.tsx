@@ -6,6 +6,7 @@ import { TrustBadges } from "@/components/landing/trust-badges";
 import { GrowthPath } from "@/components/landing/growth-path";
 import { PainPoints } from "@/components/landing/pain-points";
 import { Features } from "@/components/landing/features";
+import { LiveNotifications } from "@/components/landing/live-notifications";
 import { AIAssistant } from "@/components/landing/ai-assistant";
 import { Pricing } from "@/components/landing/pricing";
 import { SocialProof } from "@/components/landing/social-proof";
@@ -22,6 +23,7 @@ export default function LandingPage() {
       <GrowthPath />
       <PainPoints />
       <Features />
+      <LiveNotifications />
       <AIAssistant />
       <Pricing />
       <SocialProof />
