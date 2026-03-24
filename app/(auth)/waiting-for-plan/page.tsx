@@ -102,22 +102,22 @@ export default function WaitingForPlanPage() {
 
         {/* Message */}
         <h1 className="text-2xl font-bold tracking-tight mb-2">
-          Plan pendiente de activación
+          Acceso temporalmente suspendido
         </h1>
         <p className="text-muted-foreground mb-2">
           {orgName ? (
             <>
-              Tu organización <span className="font-semibold text-foreground">{orgName}</span> aún
-              no tiene un plan activo.
+              La suscripción de <span className="font-semibold text-foreground">{orgName}</span> ha
+              expirado o aún no ha sido activada.
             </>
           ) : (
-            "Tu organización aún no tiene un plan activo."
+            "La suscripción de tu organización ha expirado o no ha sido activada."
           )}
         </p>
         <p className="text-sm text-muted-foreground mb-8">
-          El propietario de la organización debe seleccionar un plan para que
-          puedas acceder al sistema. Contacta a tu administrador para más
-          información.
+          El administrador de tu organización debe renovar o activar el plan
+          para que puedas acceder al sistema. Contacta a tu administrador para
+          más información.
         </p>
 
         {/* Actions */}

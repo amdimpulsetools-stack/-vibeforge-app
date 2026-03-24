@@ -108,8 +108,15 @@ export async function updateSession(request: NextRequest) {
     // 2. No active subscription (trial expired or no plan)
     if (!s.has_active_subscription) {
       const url = request.nextUrl.clone();
-      url.pathname = "/select-plan";
-      url.searchParams.set("reason", "trial_expired");
+      // Owner/admin → select-plan (they manage billing)
+      // Members (doctor/receptionist) → waiting-for-plan (can't manage billing)
+      const canManageBilling = s.is_founder || s.role === "owner" || s.role === "admin";
+      if (canManageBilling) {
+        url.pathname = "/select-plan";
+        url.searchParams.set("reason", "trial_expired");
+      } else {
+        url.pathname = "/waiting-for-plan";
+      }
       return applySecurityHeaders(NextResponse.redirect(url));
     }
   }
