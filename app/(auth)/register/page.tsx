@@ -11,9 +11,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ShimmerText } from "@/components/ui/shimmer-text";
 
 const ROTATING_PHRASES = [
-  "Tu clínica organizada desde el día 1",
-  "Tu agenda con IA para tomar mejores decisiones",
-  "Menos estrés, más orden, más citas",
+  ["Tu clínica organizada", "desde el día #1"],
+  ["Tu agenda con IA", "para tomar mejores decisiones"],
+  ["Menos estrés,", "más productividad, más citas"],
 ];
 
 interface InviteInfo {
@@ -415,7 +415,9 @@ export default function RegisterPage() {
                     duration={2}
                     delay={0.5}
                   >
-                    {ROTATING_PHRASES[phraseIndex]}
+                    {ROTATING_PHRASES[phraseIndex][0]}
+                    <br />
+                    {ROTATING_PHRASES[phraseIndex][1]}
                   </ShimmerText>
                 </motion.div>
               </AnimatePresence>
