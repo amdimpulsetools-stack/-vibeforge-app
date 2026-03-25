@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/use-user";
 import { useNotifications, type Notification } from "@/hooks/use-notifications";
 import { getInitials } from "@/lib/utils";
+import { BorderAvatar } from "@/components/ui/avatar-border";
 import {
   Bell,
   CalendarPlus,
@@ -189,9 +190,11 @@ export function Topbar() {
             <span className="text-xs text-muted-foreground hidden sm:block font-medium">
               {user?.email}
             </span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-primary/20 to-primary/5 text-xs font-bold text-primary ring-1 ring-primary/20">
-              {user?.email ? getInitials(user.email) : "?"}
-            </div>
+            <BorderAvatar
+              alt={user?.email || "User"}
+              fallback={user?.email ? getInitials(user.email) : "?"}
+              size="sm"
+            />
           </div>
         )}
       </div>

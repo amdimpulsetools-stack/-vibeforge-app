@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useBilling } from "@/hooks/use-billing";
 import { useAiQuota } from "@/hooks/use-ai-quota";
+import { BorderAvatar } from "@/components/ui/avatar-border";
 import {
   Loader2,
   User,
@@ -286,21 +287,13 @@ export default function AccountPage() {
           {/* Avatar */}
           <div className="flex items-center gap-5">
             <div className="relative group">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt="Avatar"
-                  width={64}
-                  height={64}
-                  loading="lazy"
-                  decoding="async"
-                  className="h-16 w-16 rounded-full object-cover border-2 border-border"
-                />
-              ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 text-primary text-lg font-bold border-2 border-border">
-                  {getInitials(displayName) || <User className="h-6 w-6" />}
-                </div>
-              )}
+              <BorderAvatar
+                src={avatarUrl}
+                alt={displayName}
+                fallback={getInitials(displayName) || undefined}
+                size="lg"
+                verified={!!avatarUrl}
+              />
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
