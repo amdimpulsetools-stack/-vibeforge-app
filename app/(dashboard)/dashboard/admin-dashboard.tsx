@@ -170,7 +170,7 @@ export function AdminDashboard({
       {/* ── ROW 1: Revenue | Pending Debt | Appointments ── */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Revenue */}
-        <div className="w-full rounded-2xl bg-emerald-600 p-6 shadow-lg shadow-emerald-600/20">
+        <div className="w-full rounded-2xl bg-emerald-600 p-5 shadow-lg shadow-emerald-600/20">
           <p className="text-sm font-medium text-white/70 mb-1">
             {isEs
               ? { month: "Ingresos del mes", week: "Ingresos (7 días)", today: "Ingresos de hoy" }[period]
@@ -180,13 +180,13 @@ export function AdminDashboard({
           <p className="text-3xl font-extrabold tracking-tight text-white">
             {formatCurrency(data.revenue)}
           </p>
-          <div className="mt-2">
+          <div className="mt-1.5">
             <GrowthBadge value={data.revenueGrowth} suffix={periodSuffix[period]} light />
           </div>
         </div>
 
         {/* Pending Debt */}
-        <div className="rounded-2xl border border-border/60 bg-card p-6">
+        <div className="rounded-2xl border border-border/60 bg-card p-5">
           <p className="text-sm font-medium text-muted-foreground mb-1">
             {isEs ? "Cobranza pendiente" : "Pending debt"}
           </p>
@@ -195,7 +195,7 @@ export function AdminDashboard({
               <p className="text-3xl font-extrabold tracking-tight text-orange-600 dark:text-orange-400">
                 {formatCurrency(data.pendingDebt)}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {isEs ? "por cobrar" : "to collect"}
               </p>
             </div>
@@ -203,7 +203,7 @@ export function AdminDashboard({
               <p className="text-3xl font-extrabold tracking-tight">
                 {data.debtorCount}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {isEs ? "pacientes deudores" : "patients with debt"}
               </p>
             </div>
@@ -211,7 +211,7 @@ export function AdminDashboard({
         </div>
 
         {/* Appointments summary */}
-        <div className="rounded-2xl border border-border/60 bg-card p-6">
+        <div className="rounded-2xl border border-border/60 bg-card p-5">
           <p className="text-sm font-medium text-muted-foreground mb-3">
             {isEs ? "Citas" : "Appointments"}
           </p>
