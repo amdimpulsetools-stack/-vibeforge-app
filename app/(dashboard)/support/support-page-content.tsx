@@ -132,7 +132,18 @@ export function SupportPageContent() {
 
   // Create new ticket
   const handleCreateTicket = async () => {
-    if (!organization?.id || !userId || !newSubject.trim() || !newMessage.trim()) return;
+    if (!newSubject.trim() || !newMessage.trim()) {
+      toast.error(t("support.fill_all_fields") || "Completa todos los campos");
+      return;
+    }
+    if (!organization?.id) {
+      toast.error("No se encontró tu organización. Intenta recargar la página.");
+      return;
+    }
+    if (!userId) {
+      toast.error("No se pudo verificar tu sesión. Intenta recargar la página.");
+      return;
+    }
     setSending(true);
 
     const { data: ticket, error: ticketError } = await supabase
@@ -148,7 +159,8 @@ export function SupportPageContent() {
       .single();
 
     if (ticketError || !ticket) {
-      toast.error(t("support.create_error"));
+      console.error("Ticket creation error:", ticketError);
+      toast.error(ticketError?.message || t("support.create_error"));
       setSending(false);
       return;
     }
@@ -162,7 +174,8 @@ export function SupportPageContent() {
     });
 
     if (msgError) {
-      toast.error(t("support.send_error"));
+      console.error("Message creation error:", msgError);
+      toast.error(msgError.message || t("support.send_error"));
     } else {
       toast.success(t("support.ticket_created"));
       setNewSubject("");
