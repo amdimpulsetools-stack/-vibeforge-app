@@ -1,13 +1,20 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
 import { Loader2, Zap, Building2, Mail, CheckCircle2, MessageCircle, BarChart3, Shield, Clock } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { ShimmerText } from "@/components/ui/shimmer-text";
+
+const ROTATING_PHRASES = [
+  "Tu clínica organizada desde el día 1",
+  "Tu agenda con IA para tomar mejores decisiones",
+  "Menos estrés, más orden, más citas",
+];
 
 interface InviteInfo {
   email: string;
@@ -26,9 +33,18 @@ export default function RegisterPage() {
   const [emailSent, setEmailSent] = useState(false);
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [loadingInvite, setLoadingInvite] = useState(false);
+  const [phraseIndex, setPhraseIndex] = useState(0);
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = searchParams.get("invite");
+
+  // Rotate phrases every 4 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPhraseIndex((prev) => (prev + 1) % ROTATING_PHRASES.length);
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Validate invite token on mount
   useEffect(() => {
@@ -384,10 +400,26 @@ export default function RegisterPage() {
               </span>
               14 días gratis · No requiere tarjeta
             </div>
-            <h2 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-white leading-tight">
-              Tu clínica organizada<br />
-              <span className="text-emerald-400">desde el día 1</span>
-            </h2>
+            <div className="h-[4.5rem] xl:h-[5.5rem] relative overflow-hidden">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={phraseIndex}
+                  initial={{ opacity: 0, y: 30, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: -30, filter: "blur(4px)" }}
+                  transition={{ duration: 0.5, ease: "easeInOut" }}
+                >
+                  <ShimmerText
+                    className="text-2xl xl:text-3xl font-extrabold tracking-tight text-emerald-400 leading-tight"
+                    variant="emerald"
+                    duration={2}
+                    delay={0.5}
+                  >
+                    {ROTATING_PHRASES[phraseIndex]}
+                  </ShimmerText>
+                </motion.div>
+              </AnimatePresence>
+            </div>
             <p className="text-base text-emerald-100/60 max-w-sm">
               Reduce cancelaciones, llena tu agenda y ten el control total de tu consultorio.
             </p>
