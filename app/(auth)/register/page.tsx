@@ -6,7 +6,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
-import { Loader2, Zap, Building2, Mail, CheckCircle2 } from "lucide-react";
+import { Loader2, Zap, Building2, Mail, CheckCircle2, MessageCircle, BarChart3, Shield, Clock } from "lucide-react";
+import { motion } from "framer-motion";
 
 interface InviteInfo {
   email: string;
@@ -359,35 +360,121 @@ export default function RegisterPage() {
         </div>
       </div>
 
-      {/* ── Right: Image placeholder ── */}
+      {/* ── Right: Branded panel ── */}
       <div className="hidden lg:flex lg:flex-1 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-primary/10 to-emerald-900/30" />
-        <div className="absolute inset-0 bg-[url('/register-bg.jpg')] bg-cover bg-center opacity-30" />
-        <div className="relative flex flex-col items-center justify-center w-full p-12">
-          <div className="glass-card rounded-2xl p-8 max-w-sm text-center space-y-4">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl gradient-primary shadow-lg gradient-glow">
-              <Zap className="h-7 w-7 text-white" />
+        {/* Background layers */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-emerald-900/90 to-slate-950" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-500/15 via-transparent to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-black/30 to-transparent" />
+        {/* Subtle grid pattern */}
+        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
+
+        <div className="relative flex flex-col justify-between w-full p-10 xl:p-14">
+          {/* Top: Hero headline */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="space-y-3"
+          >
+            <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-1.5 text-xs font-medium text-emerald-400">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" />
+              </span>
+              14 días gratis · No requiere tarjeta
             </div>
-            <h3 className="text-xl font-bold">
-              14 días de prueba gratis
-            </h3>
-            <p className="text-sm text-muted-foreground">
-              Gestiona tu consultorio sin límites. Sin tarjeta de crédito.
+            <h2 className="text-3xl xl:text-4xl font-extrabold tracking-tight text-white leading-tight">
+              Tu clínica organizada<br />
+              <span className="text-emerald-400">desde el día 1</span>
+            </h2>
+            <p className="text-base text-emerald-100/60 max-w-sm">
+              Reduce cancelaciones, llena tu agenda y ten el control total de tu consultorio.
             </p>
-            <div className="space-y-2 text-left">
-              {[
-                "Agenda inteligente",
-                "Gestión de pacientes",
-                "Reportes y estadísticas",
-                "Soporte personalizado",
-              ].map((feature) => (
-                <div key={feature} className="flex items-center gap-2 text-sm">
-                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-                  <span>{feature}</span>
+          </motion.div>
+
+          {/* Middle: Feature cards */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.4 }}
+            className="space-y-3 my-8"
+          >
+            {[
+              {
+                icon: MessageCircle,
+                title: "Recordatorios por WhatsApp",
+                desc: "Tus pacientes reciben confirmación automática. Menos inasistencias.",
+              },
+              {
+                icon: Clock,
+                title: "Historial clínico en 2 clics",
+                desc: "Accede al expediente completo de cualquier paciente al instante.",
+              },
+              {
+                icon: BarChart3,
+                title: "Reportes que sí entiendes",
+                desc: "Sabe cuánto facturaste, cuántas citas tuviste y cómo crece tu clínica.",
+              },
+              {
+                icon: Shield,
+                title: "Tus datos, siempre seguros",
+                desc: "Encriptación de extremo a extremo. Backups diarios automáticos.",
+              },
+            ].map((feature, i) => (
+              <motion.div
+                key={feature.title}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.4, delay: 0.5 + i * 0.1 }}
+                className="flex items-start gap-3.5 rounded-xl bg-white/[0.04] border border-white/[0.06] p-3.5 transition-colors hover:bg-white/[0.07]"
+              >
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <feature.icon className="h-4.5 w-4.5 text-emerald-400" />
                 </div>
-              ))}
+                <div>
+                  <p className="text-sm font-semibold text-white">{feature.title}</p>
+                  <p className="text-xs text-emerald-100/50 mt-0.5 leading-relaxed">{feature.desc}</p>
+                </div>
+              </motion.div>
+            ))}
+          </motion.div>
+
+          {/* Bottom: Social proof */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.8 }}
+            className="space-y-4"
+          >
+            {/* Testimonial */}
+            <div className="rounded-xl bg-white/[0.04] border border-white/[0.06] p-4">
+              <p className="text-sm text-emerald-100/70 italic leading-relaxed">
+                &ldquo;Antes perdía 2 horas al día organizando citas por WhatsApp. Ahora la agenda se llena sola y mis pacientes llegan puntuales.&rdquo;
+              </p>
+              <div className="mt-3 flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-bold text-emerald-400">
+                  DM
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-white">Dra. María Gonzales</p>
+                  <p className="text-[11px] text-emerald-100/40">Odontóloga · Lima, Perú</p>
+                </div>
+              </div>
             </div>
-          </div>
+
+            {/* Trust bar */}
+            <div className="flex items-center justify-center gap-6 text-emerald-100/30 text-[11px]">
+              <span className="flex items-center gap-1.5">
+                <Shield className="h-3 w-3" />
+                Datos encriptados
+              </span>
+              <span className="h-3 w-px bg-emerald-100/10" />
+              <span>HIPAA-ready</span>
+              <span className="h-3 w-px bg-emerald-100/10" />
+              <span>Soporte en &lt;2h</span>
+            </div>
+          </motion.div>
         </div>
       </div>
     </div>
