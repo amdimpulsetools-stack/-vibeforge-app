@@ -400,7 +400,7 @@ export default function RegisterPage() {
               </span>
               14 días gratis · No requiere tarjeta
             </div>
-            <div className="h-[4.5rem] xl:h-[5.5rem] relative overflow-hidden">
+            <div className="h-[6rem] xl:h-[7.5rem] relative overflow-hidden">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={phraseIndex}
@@ -410,7 +410,7 @@ export default function RegisterPage() {
                   transition={{ duration: 0.5, ease: "easeInOut" }}
                 >
                   <ShimmerText
-                    className="text-2xl xl:text-3xl font-extrabold tracking-tight text-emerald-400 leading-tight"
+                    className="text-3xl xl:text-4xl font-extrabold tracking-tight text-emerald-400 leading-snug"
                     variant="emerald"
                     duration={2}
                     delay={0.5}
