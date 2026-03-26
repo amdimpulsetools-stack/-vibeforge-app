@@ -9,9 +9,6 @@ import {
   FOUNDER_SESSION_TTL,
 } from "@/lib/founder-auth";
 
-// Allow ±2 time steps (60 seconds tolerance) to handle clock drift
-const totp = new TOTP({ window: 2 });
-
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
@@ -35,41 +32,30 @@ export async function POST(request: Request) {
     }
 
     if (!profile.totp_secret) {
-      return NextResponse.json(
-        { error: "TOTP not set up. Call /api/founder/totp/setup first." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "TOTP not set up" }, { status: 400 });
     }
 
     const body = await request.json();
     const code = body?.code as string;
 
     if (!code || !/^\d{6}$/.test(code)) {
-      return NextResponse.json(
-        { error: "Invalid code format" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid code format" }, { status: 400 });
     }
 
-    // Decrypt secret and verify with time tolerance
+    // Decrypt secret
     const secret = decrypt(profile.totp_secret);
 
-    // Debug: generate what the server expects right now
-    const expectedToken = totp.generate(secret);
-    console.log("[TOTP DEBUG] secret from DB:", profile.totp_secret?.slice(0, 10) + "...");
-    console.log("[TOTP DEBUG] decrypted secret:", secret);
-    console.log("[TOTP DEBUG] user code:", code);
-    console.log("[TOTP DEBUG] server expects:", expectedToken);
-    console.log("[TOTP DEBUG] server time:", new Date().toISOString());
+    if (!secret) {
+      return NextResponse.json({ error: "Failed to decrypt secret" }, { status: 500 });
+    }
 
-    const isValid = totp.check(code, secret);
-    console.log("[TOTP DEBUG] isValid:", isValid);
+    // Create TOTP instance WITH the secret set, then validate
+    const totp = new TOTP({ secret, window: 2 });
+    const delta = totp.validate({ token: code });
+    const isValid = delta !== null;
 
     if (!isValid) {
-      return NextResponse.json(
-        { error: "Invalid TOTP code" },
-        { status: 401 }
-      );
+      return NextResponse.json({ error: "Invalid TOTP code" }, { status: 401 });
     }
 
     // Enable TOTP if first time
@@ -96,9 +82,6 @@ export async function POST(request: Request) {
     return response;
   } catch (error) {
     console.error("TOTP verify error:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
