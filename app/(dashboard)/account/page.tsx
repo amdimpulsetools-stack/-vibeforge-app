@@ -302,8 +302,8 @@ export default function AccountPage() {
         <p className="mt-1 text-muted-foreground">{t("account.subtitle")}</p>
       </div>
 
-      {/* 3-COLUMN LAYOUT: Profile | Account Info | Limits */}
-      <div className="grid gap-6 lg:grid-cols-3 xl:grid-cols-[2fr_1fr_1fr] items-start">
+      {/* 3-COLUMN LAYOUT: Profile | Account Info + Plan | AI + Limits */}
+      <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1fr_1fr] items-start">
         {/* LEFT COLUMN: Avatar + Personal data + Password (single card) */}
         <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
           {/* Avatar */}
@@ -520,9 +520,10 @@ export default function AccountPage() {
           </form>
         </div>
 
-        {/* MIDDLE COLUMN: Founder badge, Role, Org, Plan info */}
-        <div className="space-y-6">
-          {/* Account info card — Founder + Role + Org in one card */}
+        {/* MIDDLE + RIGHT as a 2x2 sub-grid so rows align horizontally */}
+        {/* RIGHT SIDE: 2x2 sub-grid so rows align horizontally */}
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+          {/* ROW 1 LEFT: Account info */}
           <div className="rounded-2xl border border-border/60 bg-card p-5 space-y-4">
             {/* Founder badge */}
             {isFounder && (
@@ -567,8 +568,13 @@ export default function AccountPage() {
             )}
           </div>
 
-          {/* Plan info card — only for owner/admin */}
-          {isOrgAdmin && (
+          {/* ROW 1 RIGHT: AI Quota Ring Card — admin only */}
+          {isOrgAdmin && plan?.feature_ai_assistant ? (
+            <AiQuotaCard />
+          ) : <div />}
+
+          {/* ROW 2 LEFT: Plan info — admin only */}
+          {isOrgAdmin ? (
             <PlanSection
               plan={plan}
               subscription={subscription}
@@ -581,18 +587,10 @@ export default function AccountPage() {
               onRefetchPlan={refetch}
               planInfoOnly
             />
-          )}
-        </div>
+          ) : <div />}
 
-        {/* RIGHT COLUMN: AI Quota + Resource Limits */}
-        <div className="space-y-6">
-          {/* AI Quota Ring Card — admin only */}
-          {isOrgAdmin && plan?.feature_ai_assistant && (
-            <AiQuotaCard />
-          )}
-
-          {/* Resource limits — admin only */}
-          {isOrgAdmin && (
+          {/* ROW 2 RIGHT: Resource limits — admin only */}
+          {isOrgAdmin ? (
             <PlanSection
               plan={plan}
               subscription={subscription}
@@ -605,7 +603,7 @@ export default function AccountPage() {
               onRefetchPlan={refetch}
               limitsOnly
             />
-          )}
+          ) : <div />}
         </div>
       </div>
 
