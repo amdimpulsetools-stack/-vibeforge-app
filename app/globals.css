@@ -2,6 +2,19 @@
 
 @custom-variant dark (&:is(.dark *));
 
+@theme inline {
+  --animate-star-btn: star-btn calc(var(--duration) * 1s) linear infinite;
+}
+
+@keyframes star-btn {
+  0% {
+    offset-distance: 0%;
+  }
+  100% {
+    offset-distance: 100%;
+  }
+}
+
 /* ═══════════════════════════════════════════════════════════════════
    LIGHT THEME — Warm ivory with teal-emerald accent
    ═══════════════════════════════════════════════════════════════════ */
