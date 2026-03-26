@@ -93,12 +93,13 @@ export function StarButton({
       {...(props as React.AnchorHTMLAttributes<HTMLAnchorElement>)}
     >
       <div
-        className="absolute aspect-square inset-0 animate-star-btn bg-[radial-gradient(ellipse_at_center,var(--light-color),transparent,transparent)]"
+        className="absolute aspect-square inset-0 bg-[radial-gradient(ellipse_at_center,var(--light-color),transparent,transparent)]"
         style={
           {
             offsetPath: "var(--path)",
             offsetDistance: "0%",
             width: "var(--light-width)",
+            animation: `star-btn ${duration}s linear infinite`,
           } as CSSProperties
         }
       />
