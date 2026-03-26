@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { TOTP } from "otplib";
+import { verifySync } from "otplib";
 import { decrypt } from "@/lib/encryption";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -42,19 +42,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid code format" }, { status: 400 });
     }
 
-    // Decrypt secret
+    // Decrypt secret and verify with ±2 step window (60s tolerance)
     const secret = decrypt(profile.totp_secret);
 
     if (!secret) {
       return NextResponse.json({ error: "Failed to decrypt secret" }, { status: 500 });
     }
 
-    // Create TOTP instance WITH the secret set, then validate
-    const totp = new TOTP({ secret, window: 2 });
-    const delta = totp.validate({ token: code });
-    const isValid = delta !== null;
+    const result = verifySync({ token: code, secret, window: 2 });
 
-    if (!isValid) {
+    if (!result.valid) {
       return NextResponse.json({ error: "Invalid TOTP code" }, { status: 401 });
     }
 
