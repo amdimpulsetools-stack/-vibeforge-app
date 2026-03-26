@@ -54,6 +54,13 @@ export const metadata: Metadata = {
       "Software de gestión médica con IA incluida. Diseñado para LATAM.",
     locale: "es_PE",
     type: "website",
+    siteName: APP_NAME,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: `${APP_NAME} — Gestión integral para clínicas`,
+    description:
+      "Agenda inteligente, pacientes, reportes y asistente IA. Desde doctor independiente hasta clínica grande.",
   },
 };
 
