@@ -305,7 +305,7 @@ export default function AccountPage() {
       {/* 3-COLUMN LAYOUT: Profile | Account Info + Plan | AI + Limits */}
       <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1fr_1fr] items-start">
         {/* LEFT COLUMN: Avatar + Personal data + Password (single card) */}
-        <div className="rounded-2xl border border-border/60 bg-card px-5 py-7 space-y-4">
+        <div className="rounded-2xl border border-border/60 bg-card px-5 py-9 space-y-4">
           {/* Avatar row */}
           <div className="flex items-center gap-4">
             <div className="relative group shrink-0">
