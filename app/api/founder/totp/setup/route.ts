@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { generateSecret, generateURI } from "otplib";
 import QRCode from "qrcode";
-import { encrypt } from "@/lib/encryption";
+import { encrypt, decrypt } from "@/lib/encryption";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -18,10 +18,10 @@ export async function POST() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check is_founder
+    // Check is_founder and existing secret
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("is_founder")
+      .select("is_founder, totp_secret, totp_enabled")
       .eq("id", user.id)
       .single();
 
@@ -29,8 +29,13 @@ export async function POST() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Generate TOTP secret
-    const secret = generateSecret();
+    // Reuse existing secret if not yet enabled (avoid regenerating on page reload)
+    let secret: string;
+    if (profile.totp_secret && !profile.totp_enabled) {
+      secret = decrypt(profile.totp_secret);
+    } else {
+      secret = generateSecret();
+    }
 
     // Encrypt and save to DB (using admin client to bypass RLS)
     const encryptedSecret = encrypt(secret);

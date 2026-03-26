@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verify as verifyTotp } from "otplib";
+import { verifySync } from "otplib";
 import { decrypt } from "@/lib/encryption";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,7 +13,6 @@ export async function POST(request: Request) {
   try {
     const supabase = await createClient();
 
-    // Check auth
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -22,7 +21,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check is_founder
     const { data: profile } = await supabase
       .from("user_profiles")
       .select("is_founder, totp_secret, totp_enabled")
@@ -40,20 +38,19 @@ export async function POST(request: Request) {
       );
     }
 
-    // Parse request body
     const body = await request.json();
     const code = body?.code as string;
 
     if (!code || !/^\d{6}$/.test(code)) {
       return NextResponse.json(
-        { error: "Invalid code. Must be a 6-digit number." },
+        { error: "Invalid code format" },
         { status: 400 }
       );
     }
 
-    // Decrypt secret and verify code
+    // Decrypt secret and verify
     const secret = decrypt(profile.totp_secret);
-    const result = await verifyTotp({ token: code, secret });
+    const result = verifySync({ token: code, secret });
 
     if (!result.valid) {
       return NextResponse.json(
@@ -62,24 +59,16 @@ export async function POST(request: Request) {
       );
     }
 
-    // Enable TOTP if first time verification
+    // Enable TOTP if first time
     if (!profile.totp_enabled) {
       const admin = createAdminClient();
-      const { error: updateError } = await admin
+      await admin
         .from("user_profiles")
         .update({ totp_enabled: true })
         .eq("id", user.id);
-
-      if (updateError) {
-        console.error("Failed to enable TOTP:", updateError);
-        return NextResponse.json(
-          { error: "Failed to enable TOTP" },
-          { status: 500 }
-        );
-      }
     }
 
-    // Create 2FA session
+    // Create session
     const sessionToken = createFounder2FASession(user.id);
 
     const response = NextResponse.json({ success: true });
@@ -88,7 +77,7 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       path: "/founder-dashboard",
-      maxAge: FOUNDER_SESSION_TTL / 1000, // maxAge is in seconds
+      maxAge: FOUNDER_SESSION_TTL / 1000,
     });
 
     return response;
