@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifySync } from "otplib";
+import { TOTP } from "otplib";
 import { decrypt } from "@/lib/encryption";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,6 +8,9 @@ import {
   FOUNDER_SESSION_COOKIE,
   FOUNDER_SESSION_TTL,
 } from "@/lib/founder-auth";
+
+// Allow ±2 time steps (60 seconds tolerance) to handle clock drift
+const totp = new TOTP({ window: 2 });
 
 export async function POST(request: Request) {
   try {
@@ -48,11 +51,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Decrypt secret and verify
+    // Decrypt secret and verify with time tolerance
     const secret = decrypt(profile.totp_secret);
-    const result = verifySync({ token: code, secret });
+    const isValid = totp.check(code, secret);
 
-    if (!result.valid) {
+    if (!isValid) {
       return NextResponse.json(
         { error: "Invalid TOTP code" },
         { status: 401 }
