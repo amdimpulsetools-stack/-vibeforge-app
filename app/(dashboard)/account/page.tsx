@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 import { useBilling } from "@/hooks/use-billing";
 import { useAiQuota } from "@/hooks/use-ai-quota";
 import { BorderAvatar } from "@/components/ui/avatar-border";
+import { AvatarSilhouette, AVATAR_OPTIONS } from "@/components/ui/avatar-silhouettes";
+import type { AvatarOption as AvatarOptionType } from "@/hooks/use-user-avatar";
 import {
   Loader2,
   User,
@@ -65,6 +67,7 @@ export default function AccountPage() {
   const { plan, subscription, usage, daysRemaining, getLimit, isNearLimit, isAtLimit, loading: planLoading, refetch } = usePlan();
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarOption, setAvatarOption] = useState<AvatarOptionType | null>(null);
   const [isFounder, setIsFounder] = useState(false);
   const [platformRole, setPlatformRole] = useState<string | null>(null);
 
@@ -108,7 +111,7 @@ export default function AccountPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from("user_profiles")
-        .select("full_name, phone, avatar_url, professional_title, is_founder, role")
+        .select("full_name, phone, avatar_url, avatar_option, professional_title, is_founder, role")
         .eq("id", user.id)
         .single();
 
@@ -118,6 +121,7 @@ export default function AccountPage() {
         professional_title: (data?.professional_title as ProfessionalTitle) ?? null,
       });
       setAvatarUrl(data?.avatar_url ?? null);
+      setAvatarOption((data?.avatar_option as AvatarOptionType) ?? null);
       setIsFounder(data?.is_founder ?? false);
       setPlatformRole(data?.role ?? null);
       setProfileLoaded(true);
@@ -200,6 +204,28 @@ export default function AccountPage() {
 
     setAvatarUrl(null);
     toast.success(t("account.save_success"));
+  };
+
+  const handleAvatarOptionSelect = async (option: AvatarOptionType) => {
+    if (!user) return;
+    const newOption = avatarOption === option ? null : option;
+    setAvatarOption(newOption);
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("user_profiles")
+      .update({ avatar_option: newOption })
+      .eq("id", user.id);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    // If selecting a silhouette, clear the uploaded photo
+    if (newOption && avatarUrl) {
+      await supabase.from("user_profiles").update({ avatar_url: null }).eq("id", user.id);
+      setAvatarUrl(null);
+    }
   };
 
   const onSubmitProfile = async (values: ProfileFormData) => {
@@ -289,6 +315,7 @@ export default function AccountPage() {
             <div className="relative group">
               <BorderAvatar
                 src={avatarUrl}
+                avatarOption={!avatarUrl ? avatarOption : undefined}
                 alt={displayName}
                 fallback={getInitials(displayName) || undefined}
                 size="lg"
@@ -342,6 +369,33 @@ export default function AccountPage() {
               </div>
             </div>
           </div>
+
+          {/* Avatar silhouette picker */}
+          {!avatarUrl && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">
+                O elige un avatar predeterminado:
+              </p>
+              <div className="flex gap-2">
+                {AVATAR_OPTIONS.map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => handleAvatarOptionSelect(key)}
+                    className={cn(
+                      "flex flex-col items-center gap-1 rounded-xl border p-2.5 transition-all",
+                      avatarOption === key
+                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        : "border-border/60 hover:bg-accent/50"
+                    )}
+                  >
+                    <AvatarSilhouette option={key} className="h-8 w-8" />
+                    <span className="text-[10px] text-muted-foreground">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <hr className="border-border/40" />
 

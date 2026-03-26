@@ -1,11 +1,14 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AvatarSilhouette } from "@/components/ui/avatar-silhouettes";
 import { CheckIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { AvatarOption } from "@/hooks/use-user-avatar";
 
 interface BorderAvatarProps {
   src?: string | null;
+  avatarOption?: AvatarOption | null;
   alt?: string;
   fallback?: string;
   size?: "sm" | "md" | "lg";
@@ -31,8 +34,15 @@ const badgeIconClasses = {
   lg: "size-3.5",
 };
 
+const silhouetteSizeClasses = {
+  sm: "h-5 w-5",
+  md: "h-6 w-6",
+  lg: "h-10 w-10",
+};
+
 export function BorderAvatar({
   src,
+  avatarOption,
   alt = "avatar",
   fallback,
   size = "md",
@@ -63,7 +73,11 @@ export function BorderAvatar({
           />
         )}
         <AvatarFallback className="text-xs font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-          {initials}
+          {avatarOption ? (
+            <AvatarSilhouette option={avatarOption} className={silhouetteSizeClasses[size]} />
+          ) : (
+            initials
+          )}
         </AvatarFallback>
       </Avatar>
       {verified && (

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/hooks/use-user";
+import { useUserAvatar } from "@/hooks/use-user-avatar";
 import { useNotifications, type Notification } from "@/hooks/use-notifications";
 import { getInitials } from "@/lib/utils";
 import { BorderAvatar } from "@/components/ui/avatar-border";
@@ -87,6 +88,7 @@ function NotificationItem({
 
 export function Topbar() {
   const { user, loading } = useUser();
+  const { avatarUrl, avatarOption } = useUserAvatar();
   const {
     notifications,
     unreadCount,
@@ -191,6 +193,8 @@ export function Topbar() {
               {user?.email}
             </span>
             <BorderAvatar
+              src={avatarUrl}
+              avatarOption={avatarOption}
               alt={user?.email || "User"}
               fallback={user?.email ? getInitials(user.email) : "?"}
               size="sm"
