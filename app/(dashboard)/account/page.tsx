@@ -22,7 +22,6 @@ import { cn } from "@/lib/utils";
 import { useBilling } from "@/hooks/use-billing";
 import { useAiQuota } from "@/hooks/use-ai-quota";
 import { BorderAvatar } from "@/components/ui/avatar-border";
-import { StarButton } from "@/components/ui/star-button";
 import {
   Loader2,
   User,
@@ -999,14 +998,14 @@ function PlanSection({
         )}
 
         {/* Change plan button */}
-        <StarButton
+        <a
           href="/plans"
-          className="w-full rounded-xl"
-          duration={4}
-          lightWidth={120}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/25 transition-all hover:shadow-xl hover:shadow-emerald-600/30 hover:brightness-110"
         >
-          Cambiar plan →
-        </StarButton>
+          <Crown className="h-4 w-4" />
+          Cambiar plan
+          <ArrowRight className="h-3.5 w-3.5" />
+        </a>
       </div>
 
       {/* Resource limits card */}
