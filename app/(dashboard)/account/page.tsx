@@ -303,7 +303,7 @@ export default function AccountPage() {
       </div>
 
       {/* 3-COLUMN LAYOUT: Profile | Account Info | Limits */}
-      <div className="grid gap-6 lg:grid-cols-[1fr_280px_280px] items-start">
+      <div className="grid gap-6 lg:grid-cols-3 xl:grid-cols-[2fr_1fr_1fr] items-start">
         {/* LEFT COLUMN: Avatar + Personal data + Password (single card) */}
         <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
           {/* Avatar */}
