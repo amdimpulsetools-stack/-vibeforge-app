@@ -578,40 +578,25 @@ export default function AccountPage() {
             <AiQuotaCard />
           ) : <div />}
 
-          {/* ROW 2 LEFT: Plan info — admin only */}
-          {isOrgAdmin ? (
-            <PlanSection
-              plan={plan}
-              subscription={subscription}
-              usage={usage}
-              daysRemaining={daysRemaining}
-              getLimit={getLimit}
-              isNearLimit={isNearLimit}
-              isAtLimit={isAtLimit}
-              loading={planLoading}
-              onRefetchPlan={refetch}
-              planInfoOnly
-            />
-          ) : <div />}
+          {/* ROW 2 LEFT: Plan + Session stacked together */}
+          <div className="space-y-4">
+            {isOrgAdmin && (
+              <PlanSection
+                plan={plan}
+                subscription={subscription}
+                usage={usage}
+                daysRemaining={daysRemaining}
+                getLimit={getLimit}
+                isNearLimit={isNearLimit}
+                isAtLimit={isAtLimit}
+                loading={planLoading}
+                onRefetchPlan={refetch}
+                planInfoOnly
+              />
+            )}
 
-          {/* ROW 2 RIGHT: Resource limits — admin only */}
-          {isOrgAdmin ? (
-            <PlanSection
-              plan={plan}
-              subscription={subscription}
-              usage={usage}
-              daysRemaining={daysRemaining}
-              getLimit={getLimit}
-              isNearLimit={isNearLimit}
-              isAtLimit={isAtLimit}
-              loading={planLoading}
-              onRefetchPlan={refetch}
-              limitsOnly
-            />
-          ) : <div />}
-
-          {/* ROW 3 LEFT: Session info — below Plan */}
-          <div className="rounded-2xl border border-border/60 bg-card p-4">
+            {/* Session info — right below Plan */}
+            <div className="rounded-2xl border border-border/60 bg-card p-4">
             <div className="flex items-center gap-2 mb-2.5">
               <ShieldCheck className="h-4 w-4 text-muted-foreground" />
               <h2 className="text-sm font-semibold">Sesión activa</h2>
@@ -645,6 +630,23 @@ export default function AccountPage() {
               </div>
             </div>
           </div>
+          </div>
+
+          {/* ROW 2 RIGHT: Resource limits — admin only */}
+          {isOrgAdmin ? (
+            <PlanSection
+              plan={plan}
+              subscription={subscription}
+              usage={usage}
+              daysRemaining={daysRemaining}
+              getLimit={getLimit}
+              isNearLimit={isNearLimit}
+              isAtLimit={isAtLimit}
+              loading={planLoading}
+              onRefetchPlan={refetch}
+              limitsOnly
+            />
+          ) : <div />}
         </div>
       </div>
 
