@@ -83,6 +83,9 @@ export async function updateSession(request: NextRequest) {
     pathname === "/select-plan" ||
     pathname === "/waiting-for-plan";
 
+  // Founder panel — requires auth but skips subscription check
+  const isFounderPanel = pathname.startsWith("/founder-dashboard");
+
   // Redirigir a login si no autenticado y ruta protegida
   if (!user && !isPublic && !isOnboardingFlow) {
     const url = request.nextUrl.clone();
@@ -99,7 +102,7 @@ export async function updateSession(request: NextRequest) {
 
   // ── Onboarding + Plan check para rutas protegidas del dashboard ──
   // Single RPC replaces 3 sequential queries (profile, membership, subscription)
-  if (user && !isPublic && !isOnboardingFlow) {
+  if (user && !isPublic && !isOnboardingFlow && !isFounderPanel) {
     const { data: session } = await supabase.rpc("get_user_session_check", {
       p_user_id: user.id,
     });
