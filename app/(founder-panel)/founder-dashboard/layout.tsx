@@ -34,8 +34,10 @@ export default function FounderDashboardLayout({
   const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
+    // Skip if already authorized
+    if (authorized && !checking) return;
+
     const check = async () => {
-      // 1. Check auth
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -43,7 +45,6 @@ export default function FounderDashboardLayout({
         return;
       }
 
-      // 2. Check is_founder
       const { data: profile } = await supabase
         .from("user_profiles")
         .select("is_founder, totp_enabled")
@@ -55,25 +56,16 @@ export default function FounderDashboardLayout({
         return;
       }
 
-      // 3. Check 2FA session
       const res = await fetch("/api/founder/totp/status");
       const status = await res.json();
 
       if (!status.totpEnabled) {
-        // First time — need to setup TOTP, only redirect if on main page
-        if (pathname === "/founder-dashboard" || !pathname.startsWith("/founder-dashboard")) {
-          router.replace("/founder-dashboard?setup=true");
-        }
         setAuthorized(true);
         setChecking(false);
         return;
       }
 
       if (!status.verified) {
-        // Has TOTP but not verified — only redirect to verify page, not loop
-        if (!pathname.includes("verify")) {
-          router.replace("/founder-dashboard?verify=true");
-        }
         setAuthorized(false);
         setChecking(false);
         return;
@@ -83,7 +75,8 @@ export default function FounderDashboardLayout({
       setChecking(false);
     };
     check();
-  }, [router, pathname]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (checking) {
     return (
@@ -92,6 +85,9 @@ export default function FounderDashboardLayout({
       </div>
     );
   }
+
+  // Not authorized = show children (page.tsx handles showing verify/setup screens)
+  // Authorized = show full layout with navbar
 
   const handleLogout = async () => {
     const supabase = createClient();
