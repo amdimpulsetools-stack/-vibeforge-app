@@ -170,14 +170,22 @@ export function DayView({
   const isDayDisabled = schedulerConfig.disabledWeekdays.includes(currentDate.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6);
 
   return (
-    <div className="min-w-[600px]" onClick={() => setContextMenu(null)}>
-      {/* Disabled day banner */}
+    <div className="min-w-[600px] relative" onClick={() => setContextMenu(null)}>
+      {/* Disabled day overlay — blocks entire grid */}
       {isDayDisabled && (
-        <div className="flex items-center justify-center gap-2 rounded-lg bg-muted/60 border border-border/40 px-4 py-3 mb-2">
-          <Lock className="h-4 w-4 text-muted-foreground/60" />
-          <span className="text-sm font-medium text-muted-foreground/60">
-            {t("scheduler.day_closed") || "Este día está marcado como cerrado en la configuración de agenda"}
-          </span>
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-[2px] rounded-lg">
+          <div className="flex flex-col items-center gap-3 text-center p-8">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+              <Lock className="h-6 w-6 text-muted-foreground/50" />
+            </div>
+            <h3 className="text-lg font-semibold text-muted-foreground/70">
+              Día cerrado
+            </h3>
+            <p className="text-sm text-muted-foreground/50 max-w-xs">
+              Este día está deshabilitado en la configuración de agenda.
+              Puedes cambiarlo en Ajustes → Agenda.
+            </p>
+          </div>
         </div>
       )}
 
