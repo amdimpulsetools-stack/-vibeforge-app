@@ -527,7 +527,7 @@ export default function AccountPage() {
 
         {/* MIDDLE + RIGHT as a 2x2 sub-grid so rows align horizontally */}
         {/* RIGHT SIDE: 2x2 sub-grid so rows align horizontally */}
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 items-start">
           {/* ROW 1 LEFT: Account info */}
           <div className="rounded-2xl border border-border/60 bg-card p-5 space-y-4">
             {/* Founder badge */}
