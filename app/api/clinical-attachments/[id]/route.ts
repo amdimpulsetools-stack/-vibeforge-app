@@ -10,14 +10,26 @@ export async function DELETE(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Get attachment to know storage path
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
+
+  // Get attachment to know storage path and verify org ownership
   const { data: attachment } = await supabase
     .from("clinical_attachments")
-    .select("storage_path")
+    .select("storage_path, organization_id")
     .eq("id", id)
     .single();
 
   if (!attachment) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (attachment.organization_id !== membership.organization_id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   // Delete from storage
   await supabase.storage.from("clinical-files").remove([attachment.storage_path]);

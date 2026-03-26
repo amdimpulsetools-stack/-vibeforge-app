@@ -32,6 +32,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+  if (!membership) {
+    return NextResponse.json({ error: "No organization" }, { status: 403 });
+  }
+
   // Check SMTP configuration
   const smtpHost = process.env.SMTP_HOST;
   const smtpUser = process.env.SMTP_USER;
@@ -63,6 +73,11 @@ export async function POST(req: NextRequest) {
 
   if (apptError || !appointment) {
     return NextResponse.json({ error: "Cita no encontrada" }, { status: 404 });
+  }
+
+  // Verify appointment belongs to user's org
+  if (appointment.organization_id !== membership.organization_id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   // Determine recipient email — patient email from patients table or from extra_variables

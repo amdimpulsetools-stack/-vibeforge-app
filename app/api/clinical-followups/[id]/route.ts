@@ -20,6 +20,24 @@ export async function PATCH(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
+
+  // Verify followup belongs to user's org
+  const { data: followup } = await supabase
+    .from("clinical_followups")
+    .select("organization_id")
+    .eq("id", id)
+    .single();
+  if (!followup || followup.organization_id !== membership.organization_id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "JSON inválido" }, { status: 400 }); }
 
@@ -56,6 +74,24 @@ export async function DELETE(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
+
+  // Verify followup belongs to user's org
+  const { data: followup } = await supabase
+    .from("clinical_followups")
+    .select("organization_id")
+    .eq("id", id)
+    .single();
+  if (!followup || followup.organization_id !== membership.organization_id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { error } = await supabase.from("clinical_followups").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

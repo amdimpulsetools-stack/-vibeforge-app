@@ -25,6 +25,14 @@ export async function PATCH(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
+
   const rl = generalLimiter(user.id);
   if (!rl.success) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
@@ -33,6 +41,16 @@ export async function PATCH(
 
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+
+  // Verify prescription belongs to user's org
+  const { data: prescription } = await supabase
+    .from("prescriptions")
+    .select("organization_id")
+    .eq("id", id)
+    .single();
+  if (!prescription || prescription.organization_id !== membership.organization_id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { data, error } = await supabase
     .from("prescriptions")
@@ -53,6 +71,24 @@ export async function DELETE(
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
+
+  // Verify prescription belongs to user's org
+  const { data: prescription } = await supabase
+    .from("prescriptions")
+    .select("organization_id")
+    .eq("id", id)
+    .single();
+  if (!prescription || prescription.organization_id !== membership.organization_id) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { error } = await supabase.from("prescriptions").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

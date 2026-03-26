@@ -20,6 +20,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+  if (!membership) {
+    return NextResponse.json({ error: "No organization" }, { status: 403 });
+  }
+
   // Rate limit: 3 emails per minute per user
   const rl = emailLimiter(user.id);
   if (!rl.success) {
