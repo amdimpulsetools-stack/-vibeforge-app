@@ -305,10 +305,10 @@ export default function AccountPage() {
       {/* 3-COLUMN LAYOUT: Profile | Account Info + Plan | AI + Limits */}
       <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-[1fr_1fr] items-start">
         {/* LEFT COLUMN: Avatar + Personal data + Password (single card) */}
-        <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
-          {/* Avatar */}
-          <div className="flex items-center gap-5">
-            <div className="relative group">
+        <div className="rounded-2xl border border-border/60 bg-card p-5 space-y-4">
+          {/* Avatar row */}
+          <div className="flex items-center gap-4">
+            <div className="relative group shrink-0">
               <BorderAvatar
                 src={avatarUrl}
                 avatarOption={!avatarUrl ? avatarOption : undefined}
@@ -324,9 +324,9 @@ export default function AccountPage() {
                 className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
               >
                 {uploadingAvatar ? (
-                  <Loader2 className="h-5 w-5 animate-spin text-white" />
+                  <Loader2 className="h-4 w-4 animate-spin text-white" />
                 ) : (
-                  <Camera className="h-5 w-5 text-white" />
+                  <Camera className="h-4 w-4 text-white" />
                 )}
               </button>
               <input
@@ -340,14 +340,14 @@ export default function AccountPage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold truncate">{displayName}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-              <div className="mt-2 flex items-center gap-2">
+              <div className="mt-1.5 flex items-center gap-2 text-xs">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingAvatar}
-                  className="text-xs text-primary hover:underline"
+                  className="text-primary hover:underline"
                 >
-                  {t("account.upload_photo")}
+                  Subir foto
                 </button>
                 {avatarUrl && (
                   <>
@@ -356,54 +356,45 @@ export default function AccountPage() {
                       type="button"
                       onClick={handleAvatarRemove}
                       disabled={uploadingAvatar}
-                      className="text-xs text-destructive hover:underline"
+                      className="text-destructive hover:underline"
                     >
-                      {t("account.remove_photo")}
+                      Eliminar
                     </button>
                   </>
                 )}
               </div>
             </div>
-          </div>
-
-          {/* Avatar silhouette picker */}
-          {!avatarUrl && (
-            <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground">
-                O elige un avatar predeterminado:
-              </p>
-              <div className="flex gap-2">
-                {AVATAR_OPTIONS.map(({ key, label }) => (
+            {/* Silhouette picker — compact inline */}
+            {!avatarUrl && (
+              <div className="hidden sm:flex gap-1.5 shrink-0">
+                {AVATAR_OPTIONS.map(({ key }) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => handleAvatarOptionSelect(key)}
                     className={cn(
-                      "flex flex-col items-center gap-1 rounded-xl border p-2.5 transition-all",
+                      "flex items-center justify-center rounded-lg border p-1.5 transition-all",
                       avatarOption === key
-                        ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+                        ? "border-primary bg-primary/5 ring-1 ring-primary/20"
                         : "border-border/60 hover:bg-accent/50"
                     )}
                   >
-                    <AvatarSilhouette option={key} className="h-8 w-8" />
-                    <span className="text-[10px] text-muted-foreground">{label}</span>
+                    <AvatarSilhouette option={key} className="h-6 w-6" />
                   </button>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <hr className="border-border/40" />
 
-          {/* Personal data fields */}
-          <form onSubmit={handleSubmit(onSubmitProfile)} className="space-y-5">
-            <h2 className="text-lg font-semibold">
-              {t("account.personal_data")}
-            </h2>
+          {/* Personal data form */}
+          <form onSubmit={handleSubmit(onSubmitProfile)} className="space-y-3">
+            <h2 className="text-sm font-semibold">{t("account.personal_data")}</h2>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="full_name">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="full_name">
                   {t("account.full_name")}
                 </label>
                 <input
@@ -411,113 +402,165 @@ export default function AccountPage() {
                   type="text"
                   placeholder={t("account.full_name_placeholder")}
                   {...register("full_name")}
-                  className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                  className="w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
                 />
                 {errors.full_name && (
-                  <p className="text-xs text-destructive">
-                    {errors.full_name.message}
-                  </p>
+                  <p className="text-[11px] text-destructive">{errors.full_name.message}</p>
                 )}
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="phone">
-                  {t("account.phone")}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="phone">
+                  Celular
                 </label>
                 <input
                   id="phone"
                   type="tel"
-                  placeholder={t("account.phone_placeholder")}
+                  placeholder="+51 987 654 321"
                   {...register("phone")}
-                  className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                  className="w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
                 />
-                {errors.phone && (
-                  <p className="text-xs text-destructive">
-                    {errors.phone.message}
-                  </p>
-                )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="professional_title">
+                  Título profesional
+                </label>
+                <select
+                  id="professional_title"
+                  value={currentTitle ?? ""}
+                  onChange={(e) => setValue("professional_title", (e.target.value || null) as ProfessionalTitle | null, { shouldDirty: true })}
+                  className="w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                >
+                  <option value="">Sin título</option>
+                  {PROFESSIONAL_TITLES.map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={user?.email ?? ""}
+                  readOnly
+                  className="w-full rounded-lg border border-input bg-muted/30 px-3 py-2 text-sm text-muted-foreground cursor-not-allowed"
+                />
               </div>
             </div>
 
             <button
               type="submit"
               disabled={saving || !isDirty}
-              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {saving ? t("account.saving") : t("account.save")}
             </button>
           </form>
 
           <hr className="border-border/40" />
 
-          {/* Password section */}
-          <form onSubmit={handleSubmitPwd(onSubmitPassword)} className="space-y-5">
+          {/* Password section — compact */}
+          <form onSubmit={handleSubmitPwd(onSubmitPassword)} className="space-y-3">
             <div className="flex items-center gap-2">
-              <Lock className="h-5 w-5 text-muted-foreground" />
-              <h2 className="text-lg font-semibold">
-                {t("account.change_password")}
-              </h2>
+              <Lock className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">{t("account.change_password")}</h2>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="new_password">
-                {t("account.new_password")}
-              </label>
-              <div className="relative">
-                <input
-                  id="new_password"
-                  type={showPwd ? "text" : "password"}
-                  placeholder={t("account.password_min")}
-                  {...registerPwd("new_password")}
-                  className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 pr-10 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPwd(!showPwd)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showPwd ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </button>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="new_password">
+                  {t("account.new_password")}
+                </label>
+                <div className="relative">
+                  <input
+                    id="new_password"
+                    type={showPwd ? "text" : "password"}
+                    placeholder="Mínimo 6 caracteres"
+                    {...registerPwd("new_password")}
+                    className="w-full rounded-lg border border-input bg-background/50 px-3 py-2 pr-9 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPwd(!showPwd)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPwd ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                </div>
+                {errorsPwd.new_password && (
+                  <p className="text-[11px] text-destructive">{errorsPwd.new_password.message}</p>
+                )}
               </div>
-              {errorsPwd.new_password && (
-                <p className="text-xs text-destructive">
-                  {errorsPwd.new_password.message}
-                </p>
-              )}
-            </div>
 
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium" htmlFor="confirm_password">
-                {t("account.confirm_password")}
-              </label>
-              <input
-                id="confirm_password"
-                type={showPwd ? "text" : "password"}
-                placeholder={t("account.confirm_password")}
-                {...registerPwd("confirm_password")}
-                className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
-              />
-              {errorsPwd.confirm_password && (
-                <p className="text-xs text-destructive">
-                  {errorsPwd.confirm_password.message}
-                </p>
-              )}
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="confirm_password">
+                  {t("account.confirm_password")}
+                </label>
+                <input
+                  id="confirm_password"
+                  type={showPwd ? "text" : "password"}
+                  placeholder="Confirmar contraseña"
+                  {...registerPwd("confirm_password")}
+                  className="w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                />
+                {errorsPwd.confirm_password && (
+                  <p className="text-[11px] text-destructive">{errorsPwd.confirm_password.message}</p>
+                )}
+              </div>
             </div>
 
             <button
               type="submit"
               disabled={savingPwd}
-              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {savingPwd && <Loader2 className="h-4 w-4 animate-spin" />}
+              {savingPwd && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               {t("account.change_password")}
             </button>
           </form>
+
+          <hr className="border-border/40" />
+
+          {/* Session info */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">Sesión activa</h2>
+            </div>
+            <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2 text-xs">
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Proveedor</span>
+                <span className="font-medium">
+                  {user?.app_metadata?.provider === "google" ? "Google" : "Email"}
+                </span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Último acceso</span>
+                <span className="font-medium">
+                  {user?.last_sign_in_at
+                    ? new Date(user.last_sign_in_at).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                    : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">Cuenta creada</span>
+                <span className="font-medium">
+                  {user?.created_at
+                    ? new Date(user.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })
+                    : "—"}
+                </span>
+              </div>
+              <div className="flex justify-between py-1">
+                <span className="text-muted-foreground">ID</span>
+                <span className="font-medium font-mono text-[10px] text-muted-foreground">{user?.id?.slice(0, 8)}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* MIDDLE + RIGHT as a 2x2 sub-grid so rows align horizontally */}
