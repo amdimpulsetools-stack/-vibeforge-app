@@ -41,6 +41,7 @@ const jetbrainsMono = localFont({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://vibeforge.app"),
   title: {
     default: `${APP_NAME} — Gestión integral para clínicas y consultorios médicos`,
     template: `%s | ${APP_NAME}`,
