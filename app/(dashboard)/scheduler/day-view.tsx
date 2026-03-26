@@ -7,7 +7,7 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Lock, LockOpen, Coffee, CircleDollarSign, CheckCircle2, Video, AlertTriangle } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import { loadSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
 interface DayViewProps {
   date: Date;
@@ -123,15 +123,18 @@ export function DayView({
   onAppointmentDrop,
   onUnblock,
 }: DayViewProps) {
+  const { t } = useLanguage();
   const dateStr = format(date, "yyyy-MM-dd");
+  const currentDate = date;
   const dragApptId = useRef<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<{ time: string; officeId: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
-  // Scheduler config — start with defaults, then load from localStorage after mount
+  // Scheduler config — start with localStorage cache, then sync from DB
   const [schedulerConfig, setSchedulerConfig] = useState(DEFAULT_SCHEDULER_CONFIG);
   useEffect(() => {
     setSchedulerConfig(loadSchedulerConfig());
+    fetchSchedulerConfig().then(setSchedulerConfig);
   }, []);
   const TIME_SLOTS = useMemo(
     () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, getActiveInterval(schedulerConfig)),
@@ -164,8 +167,20 @@ export function DayView({
     return () => window.removeEventListener("click", handler);
   }, [contextMenu]);
 
+  const isDayDisabled = schedulerConfig.disabledWeekdays.includes(currentDate.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6);
+
   return (
     <div className="min-w-[600px]" onClick={() => setContextMenu(null)}>
+      {/* Disabled day banner */}
+      {isDayDisabled && (
+        <div className="flex items-center justify-center gap-2 rounded-lg bg-muted/60 border border-border/40 px-4 py-3 mb-2">
+          <Lock className="h-4 w-4 text-muted-foreground/60" />
+          <span className="text-sm font-medium text-muted-foreground/60">
+            {t("scheduler.day_closed") || "Este día está marcado como cerrado en la configuración de agenda"}
+          </span>
+        </div>
+      )}
+
       {/* Column headers */}
       <div className="sticky top-0 z-10 flex border-b border-border bg-card">
         <div className="w-20 shrink-0 border-r border-border" />

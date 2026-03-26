@@ -36,7 +36,8 @@ import {
 } from "lucide-react";
 import {
   loadSchedulerConfig,
-  saveSchedulerConfig,
+  fetchSchedulerConfig,
+  saveSchedulerConfigToDb,
   getHourOptions,
   type SchedulerConfig,
   type IntervalOption,
@@ -195,10 +196,15 @@ export default function SettingsPage() {
     loadSchedulerConfig()
   );
 
+  // Load from DB on mount (localStorage is the fast fallback)
+  useEffect(() => {
+    fetchSchedulerConfig().then(setSchedulerConfig);
+  }, []);
+
   const updateSchedulerConfig = (patch: Partial<SchedulerConfig>) => {
     const next = { ...schedulerConfig, ...patch };
     setSchedulerConfig(next);
-    saveSchedulerConfig(patch);
+    saveSchedulerConfigToDb(patch);
   };
 
   const {

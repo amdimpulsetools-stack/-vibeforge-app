@@ -8,7 +8,7 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign, Video } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
-import { loadSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
 
 interface WeekViewProps {
   currentDate: Date;
@@ -72,10 +72,11 @@ export function WeekView({
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  // Scheduler config — start with defaults, then load from localStorage after mount
+  // Scheduler config — start with localStorage cache, then sync from DB
   const [schedulerConfig, setSchedulerConfig] = useState(DEFAULT_SCHEDULER_CONFIG);
   useEffect(() => {
     setSchedulerConfig(loadSchedulerConfig());
+    fetchSchedulerConfig().then(setSchedulerConfig);
   }, []);
   const TIME_SLOTS = useMemo(
     () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, getActiveInterval(schedulerConfig)),
@@ -95,31 +96,37 @@ export function WeekView({
         {weekDays.map((day) => {
           const dayAppointments = getAppointmentsForDay(day);
           const today = isToday(day);
+          const isDayDisabled = schedulerConfig.disabledWeekdays.includes(day.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6);
 
           return (
             <div
               key={day.toISOString()}
               className={cn(
                 "flex-1 border-r border-border px-2 py-2 text-center",
-                today && "bg-primary/5"
+                today && !isDayDisabled && "bg-primary/5",
+                isDayDisabled && "bg-muted/60 opacity-60"
               )}
             >
-              <p className="text-xs text-muted-foreground capitalize">
+              <p className={cn("text-xs capitalize", isDayDisabled ? "text-muted-foreground/50" : "text-muted-foreground")}>
                 {format(day, "EEE", { locale: es })}
               </p>
               <p
                 className={cn(
                   "text-lg font-semibold",
-                  today && "text-primary"
+                  isDayDisabled ? "text-muted-foreground/40" : today ? "text-primary" : ""
                 )}
               >
                 {format(day, "d")}
               </p>
-              {dayAppointments.length > 0 && (
+              {isDayDisabled ? (
+                <span className="inline-block mt-0.5 text-[10px] text-muted-foreground/40 font-medium">
+                  {t("scheduler.closed") || "Cerrado"}
+                </span>
+              ) : dayAppointments.length > 0 ? (
                 <span className="inline-block mt-0.5 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                   {dayAppointments.length}
                 </span>
-              )}
+              ) : null}
             </div>
           );
         })}
@@ -157,7 +164,26 @@ export function WeekView({
               {weekDays.map((day) => {
                 const dateStr = format(day, "yyyy-MM-dd");
                 const today = isToday(day);
+                const isDayDisabled = schedulerConfig.disabledWeekdays.includes(day.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6);
                 const block = getBlockForDay(blocks, dateStr, time);
+
+                // ---- DISABLED day (closed) ----
+                if (isDayDisabled) {
+                  return (
+                    <div
+                      key={day.toISOString()}
+                      className="relative flex-1 border-r border-border bg-muted/40"
+                      style={{ height: "32px" }}
+                    >
+                      <div
+                        className="absolute inset-0"
+                        style={{
+                          backgroundImage: "repeating-linear-gradient(45deg, transparent, transparent 6px, rgba(128,128,128,0.06) 6px, rgba(128,128,128,0.06) 12px)",
+                        }}
+                      />
+                    </div>
+                  );
+                }
 
                 // ---- BLOCKED slot ----
                 if (block) {
