@@ -52,7 +52,7 @@ export default function EditDoctorPage() {
     const [doctorRes, servicesRes, doctorServicesRes, schedulesRes, officesRes] =
       await Promise.all([
         supabase.from("doctors").select("*").eq("id", id).single(),
-        supabase.from("services").select("*, service_categories(*)").eq("is_active", true).order("display_order"),
+        supabase.from("services").select("*, service_categories(id, name)").eq("is_active", true).order("display_order"),
         supabase.from("doctor_services").select("service_id").eq("doctor_id", id),
         supabase.from("doctor_schedules").select("*").eq("doctor_id", id).order("day_of_week").order("start_time"),
         supabase.from("offices").select("*").eq("is_active", true).order("display_order"),

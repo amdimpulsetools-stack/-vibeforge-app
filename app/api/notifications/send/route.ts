@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
   // 2. Fetch email template for this org + type
   const { data: template } = await supabase
     .from("email_templates")
-    .select("*")
+    .select("id, slug, subject, body, is_enabled, wa_enabled")
     .eq("organization_id", orgId)
     .eq("slug", type)
     .eq("is_enabled", true)
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
   // 3. Fetch email settings for branding
   const { data: emailSettings } = await supabase
     .from("email_settings")
-    .select("*")
+    .select("sender_name, reply_to_email, brand_color, email_logo_url")
     .eq("organization_id", orgId)
     .single();
 
@@ -237,7 +237,7 @@ export async function POST(req: NextRequest) {
         // Fetch WhatsApp config for this org
         const { data: waConfig } = await supabase
           .from("whatsapp_config")
-          .select("*")
+          .select("id, access_token, waba_id, phone_number_id, is_active")
           .eq("organization_id", orgId)
           .eq("is_active", true)
           .single();

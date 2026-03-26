@@ -33,7 +33,7 @@ export async function POST(request: Request) {
   // 3. Fetch plan from DB
   const { data: plan } = await supabase
     .from("plans")
-    .select("*")
+    .select("id, name, slug, description, price_monthly, price_yearly, currency, is_active")
     .eq("slug", plan_slug)
     .single();
 

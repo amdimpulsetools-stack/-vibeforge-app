@@ -209,7 +209,7 @@ export default function SchedulerPage() {
 
     const { data } = await supabase
       .from("schedule_blocks")
-      .select("*")
+      .select("id, block_date, start_time, end_time, office_id, all_day, reason, organization_id, created_at")
       .gte("block_date", startDate)
       .lte("block_date", endDate);
 

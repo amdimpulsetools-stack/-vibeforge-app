@@ -53,7 +53,7 @@ export default function ServicesPage() {
     const [servicesRes, categoriesRes] = await Promise.all([
       supabase
         .from("services")
-        .select("*, service_categories(*)")
+        .select("*, service_categories(id, name)")
         .order("display_order"),
       supabase
         .from("service_categories")

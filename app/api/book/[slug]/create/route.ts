@@ -82,7 +82,7 @@ export async function POST(
   // 2. Verify booking is enabled
   const { data: bookingSettings } = await supabase
     .from("booking_settings")
-    .select("*")
+    .select("id, is_enabled, max_advance_days, min_lead_hours, require_email, require_phone, require_dni")
     .eq("organization_id", org.id)
     .eq("is_enabled", true)
     .single();
@@ -374,7 +374,7 @@ async function sendBookingConfirmationEmail(
   // Fetch email template
   const { data: template } = await supabase
     .from("email_templates")
-    .select("*")
+    .select("id, slug, subject, body, is_enabled")
     .eq("organization_id", orgId)
     .eq("slug", "appointment_confirmation")
     .eq("is_enabled", true)
@@ -385,7 +385,7 @@ async function sendBookingConfirmationEmail(
   // Fetch email settings
   const { data: emailSettings } = await supabase
     .from("email_settings")
-    .select("*")
+    .select("sender_name, reply_to_email, brand_color, email_logo_url")
     .eq("organization_id", orgId)
     .single();
 

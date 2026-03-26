@@ -131,7 +131,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         .order("start_time", { ascending: false }),
       supabase
         .from("patient_payments")
-        .select("*")
+        .select("id, patient_id, appointment_id, amount, payment_method, payment_date, notes, organization_id, created_at")
         .eq("patient_id", patient.id)
         .order("payment_date", { ascending: false }),
     ]);

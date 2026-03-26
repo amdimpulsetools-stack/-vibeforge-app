@@ -43,7 +43,7 @@ export async function GET() {
   // Get current subscription
   const { data: sub } = await supabase
     .from("organization_subscriptions")
-    .select("*, plans(*)")
+    .select("*, plans(id, name, slug, price_monthly, price_yearly, addon_price_per_member, addon_price_per_office)")
     .eq("organization_id", membership.organization_id)
     .in("status", ["active", "trialing", "past_due"])
     .order("created_at", { ascending: false })
@@ -57,7 +57,7 @@ export async function GET() {
   // Get payment history
   const { data: payments } = await supabase
     .from("payment_history")
-    .select("*")
+    .select("id, organization_id, amount, currency, status, payment_method, mp_payment_id, created_at")
     .eq("organization_id", membership.organization_id)
     .order("created_at", { ascending: false })
     .limit(10);
@@ -124,7 +124,7 @@ export async function PUT(request: Request) {
   // Get current subscription with plan
   const { data: sub } = await supabase
     .from("organization_subscriptions")
-    .select("*, plans(*)")
+    .select("*, plans(id, name, slug, price_monthly, price_yearly, addon_price_per_member, addon_price_per_office)")
     .eq("organization_id", membership.organization_id)
     .in("status", ["active", "trialing"])
     .order("created_at", { ascending: false })
@@ -168,7 +168,7 @@ export async function PUT(request: Request) {
   // Get current total (base plan + existing addons)
   const { data: existingAddons } = await supabase
     .from("plan_addons")
-    .select("*")
+    .select("id, addon_type, quantity, unit_price, is_active")
     .eq("organization_id", membership.organization_id)
     .eq("is_active", true);
 

@@ -234,7 +234,7 @@ export function AppointmentFormModal({
     const supabase = createClient();
     const { data } = await supabase
       .from("patients")
-      .select("*")
+      .select("id, first_name, last_name, phone, email, birth_date, document_type, departamento, distrito, dni, organization_id")
       .eq("dni", dni.trim())
       .single();
 
@@ -343,7 +343,7 @@ export function AppointmentFormModal({
         if (patientError.code === "23505") {
           const { data: existingPatient } = await supabase
             .from("patients")
-            .select("*")
+            .select("id")
             .eq("dni", values.patient_dni.trim())
             .single();
           if (existingPatient) patientId = existingPatient.id;

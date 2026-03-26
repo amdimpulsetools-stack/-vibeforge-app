@@ -100,7 +100,7 @@ export async function PATCH(
   // Save version snapshot before updating (audit trail)
   const { data: currentNote } = await supabase
     .from("clinical_notes")
-    .select("*")
+    .select("id, organization_id, subjective, objective, assessment, plan, diagnosis_code, diagnosis_label, vitals, internal_notes")
     .eq("id", id)
     .single();
 

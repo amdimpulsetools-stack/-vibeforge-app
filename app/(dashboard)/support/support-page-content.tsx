@@ -65,7 +65,7 @@ export function SupportPageContent() {
     setLoading(true);
     const { data, error } = await supabase
       .from("support_tickets")
-      .select("*")
+      .select("id, organization_id, subject, status, priority, created_by, created_at, updated_at")
       .eq("organization_id", organization.id)
       .order("updated_at", { ascending: false });
 
@@ -85,7 +85,7 @@ export function SupportPageContent() {
   const loadMessages = useCallback(async (ticketId: string) => {
     const { data, error } = await supabase
       .from("support_messages")
-      .select("*")
+      .select("id, ticket_id, sender_id, sender_type, body, created_at")
       .eq("ticket_id", ticketId)
       .order("created_at", { ascending: true });
 

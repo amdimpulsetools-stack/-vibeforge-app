@@ -154,7 +154,7 @@ export async function GET(req: NextRequest) {
       // Fetch template for this org
       const { data: template } = await supabase
         .from("email_templates")
-        .select("*")
+        .select("id, slug, subject, body, is_enabled, wa_enabled")
         .eq("organization_id", orgId)
         .eq("slug", window.slug)
         .eq("is_enabled", true)
@@ -169,7 +169,7 @@ export async function GET(req: NextRequest) {
       // Fetch email settings
       const { data: emailSettings } = await supabase
         .from("email_settings")
-        .select("*")
+        .select("sender_name, reply_to_email, brand_color, email_logo_url")
         .eq("organization_id", orgId)
         .single();
 
@@ -211,7 +211,7 @@ export async function GET(req: NextRequest) {
       // Check if WhatsApp is configured for this org
       const { data: waConfig } = await supabase
         .from("whatsapp_config")
-        .select("*")
+        .select("id, access_token, waba_id, phone_number_id, is_active")
         .eq("organization_id", orgId)
         .eq("is_active", true)
         .maybeSingle();

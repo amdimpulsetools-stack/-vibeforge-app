@@ -137,12 +137,12 @@ export default function EmailSettingsTab() {
     const [settingsRes, templatesRes] = await Promise.all([
       supabase
         .from("email_settings")
-        .select("*")
+        .select("id, organization_id, sender_name, sender_email, reply_to_email, brand_color, email_logo_url")
         .eq("organization_id", organizationId)
         .maybeSingle(),
       supabase
         .from("email_templates")
-        .select("*")
+        .select("id, organization_id, slug, category, name, description, subject, body, is_enabled, wa_enabled, channel, timing_value, timing_unit, min_plan_slug, sort_order")
         .eq("organization_id", organizationId)
         .order("category")
         .order("sort_order"),

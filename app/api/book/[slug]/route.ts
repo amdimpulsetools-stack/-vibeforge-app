@@ -49,7 +49,7 @@ export async function GET(
   // 2. Check booking settings
   const { data: bookingSettings } = await supabase
     .from("booking_settings")
-    .select("*")
+    .select("id, is_enabled, max_advance_days, min_lead_hours, welcome_message, require_email, require_phone, require_dni, accent_color")
     .eq("organization_id", org.id)
     .eq("is_enabled", true)
     .single();

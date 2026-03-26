@@ -114,7 +114,7 @@ export function AppointmentSidebar({
     const supabase = createClient();
     const { data } = await supabase
       .from("patient_payments")
-      .select("*")
+      .select("id, appointment_id, patient_id, amount, payment_method, payment_date, notes, organization_id, created_at")
       .eq("appointment_id", appointment.id)
       .order("payment_date", { ascending: true });
     setPayments((data as PatientPayment[]) ?? []);

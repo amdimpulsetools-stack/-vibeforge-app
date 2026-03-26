@@ -45,7 +45,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("clinical_note_versions")
-    .select("*")
+    .select("id, clinical_note_id, version_number, edited_by, subjective, objective, assessment, plan, diagnosis_code, diagnosis_label, vitals, internal_notes, change_summary, created_at")
     .eq("clinical_note_id", id)
     .order("version_number", { ascending: false });
 

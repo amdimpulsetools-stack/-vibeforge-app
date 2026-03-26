@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   // Get plan details
   const { data: plan } = await supabase
     .from("plans")
-    .select("*")
+    .select("id, name, slug, price_monthly, price_yearly, is_active")
     .eq("id", plan_id)
     .eq("is_active", true)
     .single();

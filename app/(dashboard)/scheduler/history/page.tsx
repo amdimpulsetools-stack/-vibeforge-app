@@ -62,7 +62,7 @@ export default function AppointmentHistoryPage() {
 
     let query = supabase
       .from("appointments")
-      .select("*, doctors(*), offices(*), services(*)")
+      .select("*, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)")
       .gte("appointment_date", dateFrom)
       .lte("appointment_date", dateTo)
       .order("appointment_date", { ascending: sortDir === "asc" })

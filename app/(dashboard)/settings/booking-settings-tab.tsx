@@ -47,7 +47,7 @@ export default function BookingSettingsTab() {
       const supabase = createClient();
       const { data } = await supabase
         .from("booking_settings")
-        .select("*")
+        .select("id, is_enabled, max_advance_days, min_lead_hours, welcome_message, require_email, require_phone, require_dni, accent_color")
         .eq("organization_id", organizationId)
         .single();
 

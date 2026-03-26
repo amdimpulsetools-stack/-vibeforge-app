@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
   // Fetch WhatsApp config
   const { data: config } = await supabase
     .from("whatsapp_config")
-    .select("*")
+    .select("id, access_token, waba_id, phone_number_id, is_active")
     .eq("organization_id", member.organization_id)
     .eq("is_active", true)
     .single();

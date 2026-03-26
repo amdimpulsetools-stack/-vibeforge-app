@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("clinical_attachments")
-    .select("*")
+    .select("id, patient_id, clinical_note_id, appointment_id, file_name, file_type, file_size, storage_path, category, description, uploaded_by, organization_id, created_at")
     .order("created_at", { ascending: false });
 
   if (patientId) query = query.eq("patient_id", patientId);
