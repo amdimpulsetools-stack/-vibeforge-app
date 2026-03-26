@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { isValidMetaTemplateName } from "@/lib/whatsapp/templates";
+import { z } from "zod";
+
+const whatsappTemplateCreateSchema = z.object({
+  meta_template_name: z.string().min(1).max(512),
+  category: z.enum(["UTILITY", "MARKETING", "AUTHENTICATION"]).default("UTILITY"),
+  language: z.string().min(2).max(10).default("es"),
+  header_type: z.enum(["NONE", "TEXT", "IMAGE", "VIDEO", "DOCUMENT"]).default("NONE"),
+  header_content: z.string().max(1000).nullable().default(null),
+  body_text: z.string().max(1024).default(""),
+  footer_text: z.string().max(60).nullable().default(null),
+  buttons: z.array(z.record(z.unknown())).default([]),
+  variable_mapping: z.record(z.string(), z.unknown()).default({}),
+  sample_values: z.record(z.string(), z.unknown()).default({}),
+  local_template_id: z.string().uuid().nullable().default(null),
+});
 
 export const runtime = "nodejs";
 
@@ -67,15 +82,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No tienes permisos" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
+  let rawBody: unknown;
   try {
-    body = await req.json();
+    rawBody = await req.json();
   } catch {
     return NextResponse.json({ error: "Body inválido" }, { status: 400 });
   }
 
-  const metaTemplateName = body.meta_template_name as string;
-  if (!metaTemplateName || !isValidMetaTemplateName(metaTemplateName)) {
+  const parsed = whatsappTemplateCreateSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Datos inválidos", details: parsed.error.flatten() },
+      { status: 400 }
+    );
+  }
+
+  const body = parsed.data;
+
+  if (!isValidMetaTemplateName(body.meta_template_name)) {
     return NextResponse.json(
       { error: "Nombre de plantilla inválido. Solo minúsculas, números y guiones bajos." },
       { status: 400 }
@@ -86,18 +110,18 @@ export async function POST(req: NextRequest) {
     .from("whatsapp_templates")
     .insert({
       organization_id: member.organization_id,
-      local_template_id: (body.local_template_id as string) || null,
-      meta_template_name: metaTemplateName,
-      category: (body.category as string) || "UTILITY",
-      language: (body.language as string) || "es",
+      local_template_id: body.local_template_id,
+      meta_template_name: body.meta_template_name,
+      category: body.category,
+      language: body.language,
       status: "DRAFT",
-      header_type: (body.header_type as string) || "NONE",
-      header_content: (body.header_content as string) || null,
-      body_text: (body.body_text as string) || "",
-      footer_text: (body.footer_text as string) || null,
-      buttons: body.buttons || [],
-      variable_mapping: body.variable_mapping || {},
-      sample_values: body.sample_values || {},
+      header_type: body.header_type,
+      header_content: body.header_content,
+      body_text: body.body_text,
+      footer_text: body.footer_text,
+      buttons: body.buttons,
+      variable_mapping: body.variable_mapping,
+      sample_values: body.sample_values,
     })
     .select()
     .single();

@@ -107,15 +107,23 @@ function validateSql(sql: string): { valid: boolean; error?: string } {
 
   const normalized = stripped.toLowerCase().replace(/\s+/g, " ");
 
+  // Block stacked queries: no semicolons allowed (after comment stripping)
+  if (stripped.includes(";")) {
+    return { valid: false, error: "No se permiten múltiples sentencias" };
+  }
+
   // Enforce allowlist: query MUST start with SELECT or WITH (for CTEs)
   if (!normalized.startsWith("select") && !normalized.startsWith("with")) {
     return { valid: false, error: "Solo se permiten consultas SELECT" };
   }
 
   // If it starts with WITH (CTE), ensure the final statement is a SELECT
+  // and does not contain INSERT/UPDATE/DELETE/CREATE/DROP anywhere
   if (normalized.startsWith("with")) {
-    // Find the last top-level statement after CTEs — must be SELECT
-    // Match the final keyword after the last closing paren of CTE definitions
+    const dmlInCte = /\b(insert|update|delete|drop|alter|create|truncate)\b/i;
+    if (dmlInCte.test(stripped)) {
+      return { valid: false, error: "Las CTEs (WITH) solo pueden contener SELECT" };
+    }
     const finalSelectMatch = normalized.match(/\)\s*select\b/);
     if (!finalSelectMatch) {
       return { valid: false, error: "Las CTEs (WITH) solo pueden terminar con SELECT" };

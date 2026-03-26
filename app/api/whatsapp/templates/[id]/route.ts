@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { z } from "zod";
+
+const whatsappTemplateUpdateSchema = z.object({
+  meta_template_name: z.string().min(1).max(512),
+  category: z.enum(["UTILITY", "MARKETING", "AUTHENTICATION"]),
+  language: z.string().min(2).max(10),
+  header_type: z.enum(["NONE", "TEXT", "IMAGE", "VIDEO", "DOCUMENT"]),
+  header_content: z.string().max(1000).nullable(),
+  body_text: z.string().min(1).max(1024),
+  footer_text: z.string().max(60).nullable(),
+  buttons: z.array(z.record(z.unknown())),
+  variable_mapping: z.record(z.string(), z.unknown()),
+  sample_values: z.record(z.string(), z.unknown()),
+  local_template_id: z.string().uuid().nullable(),
+}).partial();
 
 export const runtime = "nodejs";
 
@@ -61,11 +76,19 @@ export async function PUT(
     return NextResponse.json({ error: "No tienes permisos" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
+  let rawBody: unknown;
   try {
-    body = await req.json();
+    rawBody = await req.json();
   } catch {
     return NextResponse.json({ error: "Body inválido" }, { status: 400 });
+  }
+
+  const parsed = whatsappTemplateUpdateSchema.safeParse(rawBody);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Datos inválidos", details: parsed.error.flatten() },
+      { status: 400 }
+    );
   }
 
   // Only allow editing drafts or rejected templates
@@ -86,18 +109,7 @@ export async function PUT(
     );
   }
 
-  const updatePayload: Record<string, unknown> = {};
-  const allowedFields = [
-    "meta_template_name", "category", "language", "header_type",
-    "header_content", "body_text", "footer_text", "buttons",
-    "variable_mapping", "sample_values", "local_template_id",
-  ];
-
-  for (const field of allowedFields) {
-    if (body[field] !== undefined) {
-      updatePayload[field] = body[field];
-    }
-  }
+  const updatePayload: Record<string, unknown> = { ...parsed.data };
 
   // Reset status to DRAFT when editing a rejected template
   if (existing.status === "REJECTED") {
