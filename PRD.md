@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-03-23
-> **Versión:** 0.3.0
+> **Última actualización:** 2026-03-26
+> **Versión:** 0.4.0
 > **Estado:** MVP — pre-staging (Vercel)
 
 ---
@@ -113,7 +113,7 @@
 | Tabla | Propósito |
 |-------|----------|
 | `auth.users` | Usuarios de Supabase Auth (email + Google OAuth) |
-| `user_profiles` | Extensión: full_name, avatar_url, phone, whatsapp_phone, professional_title, is_founder |
+| `user_profiles` | Extensión: full_name, avatar_url, avatar_option, phone, whatsapp_phone, professional_title, is_founder |
 | `organizations` | Tenant: name, slug, logo_url, organization_type, is_active, settings (JSONB: restrict_doctor_patients, etc.) |
 | `organization_members` | Relación user↔org con role (owner/admin/receptionist/doctor) |
 | `organization_invitations` | Invitaciones pendientes con token, email, role |
@@ -155,6 +155,8 @@
 | `lookup_values` | Valores de cada catálogo con label, value, color, display_order |
 | `email_settings` | Config SMTP por org: sender_name, sender_email, reply_to_email, brand_color, email_logo_url |
 | `email_templates` | Templates de email: slug, category, subject, body, is_enabled, channel, timing_value/unit, min_plan_slug |
+| `scheduler_settings` | Config de agenda por org: start_hour, end_hour, intervals, time_indicator, disabled_weekdays (persistido en DB) |
+| `booking_settings` | Config de reservas públicas por org: is_enabled, max_advance_days, min_lead_hours, campos requeridos |
 
 ### Planes y Billing
 | Tabla | Propósito |
@@ -430,6 +432,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ├── /clinical-attachments/[id] GET descarga / DELETE eliminar
 ├── /clinical-followups ...... GET/POST seguimientos clínicos
 ├── /clinical-followups/[id] . PATCH resolver seguimiento
+├── /scheduler-settings ...... GET/PUT config de agenda por org (DB-backed)
 ├── /ai-assistant ............ POST chat con AI
 ├── /book/[slug] ............. GET datos públicos de reserva (doctores, servicios, horarios)
 └── /book/[slug]/create ...... POST crear cita desde página pública
@@ -579,7 +582,8 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] Recordatorios automáticos por cron (F8)
 - [x] Notas clínicas por cita — formato SOAP (F9)
 - [x] Historia clínica completa (F9-EXT) — Plantillas, tratamientos, recetas, adjuntos, seguimientos, diagnósticos, versionado
-- [ ] Notificaciones in-app en tiempo real (F11)
+- [x] Notificaciones in-app (F11) — Tabla `notifications`, bell icon en topbar, realtime subscriptions
+- [x] Sistema de soporte / tickets (F16) — Chat con equipo de soporte, tabla `support_tickets` + `support_messages`, realtime
 - [ ] Consentimiento informado digital (F12) — Requisito legal Perú
 - [ ] Módulo de inventario básico (F13)
 - [ ] Portal del paciente (F14)
@@ -599,10 +603,12 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 |------|----------|
 | `useUser` | Usuario autenticado de Supabase (subscribe a cambios de auth) |
 | `useUserProfile` | Perfil extendido (full_name, role, avatar) |
+| `useUserAvatar` | Avatar del usuario: avatar_url + avatar_option (silueta SVG) desde user_profiles |
 | `useOrgRole` | Rol actual en la org + helpers: `isAdmin`, `isOwner`, `isDoctor`, `hasMinRole()` |
 | `usePlan` | Plan + suscripción + uso actual. Helpers: `isNearLimit()`, `isAtLimit()`, `getLimit()` |
 | `useBilling` | Info de billing de Mercado Pago + `addAddon()` para comprar extras |
 | `useCurrentDoctor` | Registro de doctor vinculado al usuario actual (solo para rol doctor) |
+| `useAiQuota` | Cuota de consultas IA: `{ used, limit, remaining, percentage }` |
 
 ### Jerarquía de Roles (para `hasMinRole`)
 `doctor(0) < receptionist(1) < admin(2) < owner(3)`
@@ -631,7 +637,11 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | `PlanLimitWarner` | Toast automático al 80% y 100% de uso de recursos del plan |
 | `AiAssistantPanel` | Panel flotante de chat AI con queries SELECT sobre la DB |
 | `Sidebar` | Navegación lateral colapsable con items por rol |
-| `Topbar` | Header con email, avatar e iniciales del usuario |
+| `Topbar` | Header con email, avatar (foto/silueta SVG/iniciales) del usuario |
+| `BorderAvatar` | Avatar con anillo emerald, badge verificado, soporte para foto + silueta SVG |
+| `AvatarSilhouette` | 4 siluetas SVG: Doctor, Doctora, Admin, Recepcionista |
+| `ShimmerText` | Texto con efecto shimmer animado (gradiente sweep) |
+| `StarButton` | Botón con animación de luz orbital en borde |
 
 ### Rate Limiting (API)
 | Limiter | Límite |
@@ -653,7 +663,8 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | `lib/constants.ts` | APP_NAME ("PacientesPro"), roles, tipos de org |
 | `lib/rate-limit.ts` | Rate limiter in-memory con sliding window |
 | `lib/email-template.ts` | Builder de HTML para emails transaccionales |
-| `lib/scheduler-config.ts` | Config del scheduler (localStorage): horarios, intervalos |
+| `lib/scheduler-config.ts` | Config del scheduler (DB + localStorage cache): horarios, intervalos, días deshabilitados. Funciones: `fetchSchedulerConfig()`, `saveSchedulerConfigToDb()` |
+| `lib/encryption.ts` | AES-256-GCM encrypt/decrypt con `ENCRYPTION_KEY` env var. Formato iv:authTag:ciphertext. Fallback a plaintext en dev |
 | `lib/peru-locations.ts` | Mapa de departamentos → distritos de Perú |
 | `lib/mercadopago/client.ts` | Clientes singleton de Mercado Pago SDK |
 | `lib/validations/*.ts` | Schemas Zod para cada entidad (account, patient, doctor, appointment, clinical-note, clinical-template, etc.) |
@@ -714,6 +725,8 @@ SMTP_PASS=
 SMTP_FROM=
 ANTHROPIC_API_KEY=
 MP_WEBHOOK_SECRET=
+ENCRYPTION_KEY=           # Opcional: AES-256 para encriptar tokens (32+ chars)
+CRON_SECRET=              # Bearer token para cron jobs (32+ chars)
 ```
 
 ---
@@ -784,11 +797,122 @@ MP_WEBHOOK_SECRET=
 - El insert a `ai_query_usage` ahora maneja errores explícitamente en lugar de fallar silenciosamente
 - Migración 061 aplicada directamente a la base de datos de producción
 
-### Auditoría de Producción (Rating: 7.5/10)
-- **81 indexes** verificados activos en la base de datos (incluyendo compuestos)
-- **Seguridad:** 8/10 — Headers, RLS, webhook signature validation, rate limiting
-- **Base de datos:** 8.5/10 — 61 migraciones, RLS completo, indexes activos
-- **Arquitectura:** 8.5/10 — Multi-tenant sólido, billing, roles
+### Auditoría de Producción (Rating: 8.5/10 — actualizado 2026-03-26)
+- **81+ indexes** verificados activos en la base de datos
+- **Seguridad:** 9/10 — Auditoría completa 16/16 issues resueltos, encryption at rest, CSP hardened, org checks en todos los PATCH/DELETE, Zod en todos los endpoints
+- **Base de datos:** 9/10 — 69 migraciones, RLS completo, scheduler settings en DB, avatar options
+- **Arquitectura:** 8.5/10 — Multi-tenant sólido, billing, roles, DB-backed config
 - **Performance:** 7.5/10 — Code splitting, React Query caching
 - **Testing:** 2/10 — Gap principal: 0 tests (pendiente)
 - **Pendientes para producción real:** Tests, CI/CD pipeline, migrar `<img>` a `next/image`
+
+---
+
+## 19. Changelog — Sesión 2026-03-26
+
+### UI/UX — Onboarding y Registro
+
+#### Panel Derecho Rediseñado (`/register`)
+- Fondo dark emerald con gradiente radial y patrón grid sutil
+- Texto rotatorio con ShimmerText: 3 frases benefit-oriented que rotan cada 4s con blur transition
+- 4 feature cards con iconos: WhatsApp reminders, historial clínico, reportes, seguridad
+- Testimonial card con social proof (Dra. María Gonzales)
+- Trust bar: "Datos encriptados · HIPAA-ready · Soporte en <2h"
+- Framer Motion entrance animations staggered
+
+#### Login Mejorado
+- Icono SVG de Google en botón OAuth (4 colores oficiales)
+- Checkbox "Recordar mi usuario" con persistencia en localStorage
+
+### UI/UX — Componentes Nuevos
+
+#### BorderAvatar (`components/ui/avatar-border.tsx`)
+- Avatar con anillo emerald, 3 tamaños (sm/md/lg), badge verificado con check
+- Soporte para foto, silueta SVG, o iniciales como fallback
+
+#### Avatares SVG Silueta (`components/ui/avatar-silhouettes.tsx`)
+- 4 siluetas minimistas: Doctor (estetoscopio), Doctora (cruz médica), Admin (corbata), Recepcionista (audífono)
+- Selector en página de cuenta cuando no hay foto subida
+- Columna `avatar_option` en `user_profiles` (migración 069)
+
+#### Topbar con Foto de Avatar
+- Hook `useUserAvatar` carga `avatar_url` + `avatar_option` del perfil
+- BorderAvatar integrado en topbar con foto/silueta/iniciales
+
+### UI/UX — Página de Cuenta Rediseñada
+
+#### Layout 3 Columnas (Admin/Owner)
+- **Izquierda (50%):** Avatar + Datos personales (4 campos: nombre, celular, título profesional, email read-only) + Cambiar contraseña (2 columnas)
+- **Centro-derecha (50%):** Sub-grid 2x2:
+  - Account info card (Founder + Rol + Org en un solo card)
+  - Consultas IA (anillo SVG)
+  - Plan info (estado, trial progress, botón gradient "Cambiar plan")
+  - Límites del plan (5 recursos con barras de progreso)
+- **Sesión activa:** Card compacto debajo de Plan (Proveedor, Último acceso, Cuenta creada, ID)
+- Inputs más compactos (py-2, rounded-lg, text-xs labels)
+- Campo "Título profesional" (Doctor/Especialista/Licenciado) ahora visible
+- Botón "Cambiar plan" con gradiente emerald→teal y shadow glow
+
+### UI/UX — Scheduler
+
+#### Calendario Mejorado
+- Marcadores de día circulares (rounded-full en vez de rounded-md)
+- Flechas de navegación con más espaciado del top
+- Botones nav circulares
+
+#### Configuración de Agenda Persistida en DB
+- **Migración 068:** Tabla `scheduler_settings` (por organización): start_hour, end_hour, intervals, time_indicator, disabled_weekdays
+- **API:** GET/PUT `/api/scheduler-settings` con auth + role checks
+- **Config layer:** `fetchSchedulerConfig()` carga de DB, `saveSchedulerConfigToDb()` guarda a DB, localStorage como cache/fallback
+- Settings page guarda a DB en vez de solo localStorage
+
+#### Días Deshabilitados Visibles en Scheduler
+- **Week view:** Headers con fondo sombreado, texto "Cerrado", overlay con rayas diagonales en time slots
+- **Day view:** Overlay completo con lock icon, "Día cerrado" y mensaje apuntando a Settings → Agenda. Bloquea interacción (z-50)
+
+### UI/UX — Dashboard Admin
+- Padding reducido en cards de Ingresos, Cobranza y Citas (p-6→p-5, mt-2→mt-1.5)
+- Contenido visualmente centrado
+
+### Soporte / Tickets
+- `handleCreateTicket` ahora muestra toasts de error específicos en vez de fallar silenciosamente
+- Logea errores RLS/DB al console para debugging
+
+### Seguridad — Auditoría Completa (16/16 issues resueltos)
+
+#### CRÍTICOS (4 fixes)
+- `/api/prescriptions/[id]` — Org membership check en PATCH/DELETE
+- `/api/treatment-plans/[id]` — Org membership check en PATCH/DELETE
+- `/api/clinical-followups/[id]` — Org membership check en PATCH/DELETE
+- `/api/clinical-attachments/[id]` — Org membership check en DELETE
+
+#### ALTOS (5 fixes)
+- `/api/email/send-test` — Org membership check
+- `/api/notifications/send` — Org + appointment ownership check
+- `/api/clinical-notes/[id]/versions` — Org check explícito (ya existía)
+- `/api/clinical-templates/[id]` — Org + role check (ya existía)
+- `/api/ai-assistant` — SQL hardened: block semicolons + CTE DML detection
+
+#### MEDIOS (5 Zod validation + 2 hardening)
+- `/api/scheduler-settings` PUT — Zod schema validation
+- `/api/whatsapp/config` PUT — Zod schema validation
+- `/api/whatsapp/send` POST — Zod schema validation
+- `/api/whatsapp/templates/[id]` PUT — Zod schema (reemplaza allowedFields)
+- `/api/whatsapp/templates` POST — Zod schema (reemplaza casting manual)
+- `lib/encryption.ts` — AES-256-GCM para `whatsapp_config.access_token`
+- CSP: `unsafe-eval` solo en desarrollo, removido en producción
+
+#### Client-Side (todo PASS)
+- Service role key aislado en server
+- XSS mitigado (sanitización HTML en markdown)
+- Security headers completos (HSTS, X-Frame, X-XSS, Referrer-Policy, Permissions-Policy)
+- Open redirect prevenido en auth callback
+- File upload validado (whitelist tipos, 10MB limit)
+- Webhooks con HMAC-SHA256 timing-safe
+
+### Migraciones Aplicadas
+- **068:** `scheduler_settings` — Config de agenda por org en DB
+- **069:** `avatar_option` en `user_profiles` — Siluetas SVG seleccionables
+
+### Variables de Entorno Nuevas
+- `ENCRYPTION_KEY` — Clave AES-256 para encriptar tokens sensibles (32+ chars). Opcional: sin ella funciona en plaintext
