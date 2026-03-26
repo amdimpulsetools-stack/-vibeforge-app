@@ -15,9 +15,8 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  // Only upload source maps in CI/production builds
   silent: !process.env.CI,
-  // Disable source map upload until DSN is configured
-  disableServerWebpackPlugin: !process.env.SENTRY_DSN,
-  disableClientWebpackPlugin: !process.env.SENTRY_DSN,
+  sourcemaps: {
+    disable: !process.env.SENTRY_DSN,
+  },
 });
