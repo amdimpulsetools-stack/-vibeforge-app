@@ -1017,6 +1017,7 @@ function PlanSection({
   return (
     <div className="space-y-4">
       {/* Plan info card */}
+      {!limitsOnly && (
       <div className="rounded-xl border border-border/60 bg-background p-4 space-y-4">
         {/* Plan name + status */}
         <div className="flex items-center justify-between">
@@ -1085,9 +1086,10 @@ function PlanSection({
           <ArrowRight className="h-3.5 w-3.5" />
         </a>
       </div>
+      )}
 
       {/* Resource limits card */}
-      {usage && (
+      {!planInfoOnly && usage && (
         <div className="rounded-xl border border-border/60 bg-background p-4 space-y-4">
           <div className="flex items-center gap-2">
             <HardDrive className="h-4 w-4 text-primary" />
