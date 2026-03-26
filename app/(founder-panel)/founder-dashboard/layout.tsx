@@ -60,16 +60,20 @@ export default function FounderDashboardLayout({
       const status = await res.json();
 
       if (!status.totpEnabled) {
-        // First time — need to setup TOTP
-        router.push("/founder-dashboard?setup=true");
+        // First time — need to setup TOTP, only redirect if on main page
+        if (pathname === "/founder-dashboard" || !pathname.startsWith("/founder-dashboard")) {
+          router.replace("/founder-dashboard?setup=true");
+        }
         setAuthorized(true);
         setChecking(false);
         return;
       }
 
       if (!status.verified) {
-        // Has TOTP but not verified this session
-        router.push("/founder-dashboard?verify=true");
+        // Has TOTP but not verified — only redirect to verify page, not loop
+        if (!pathname.includes("verify")) {
+          router.replace("/founder-dashboard?verify=true");
+        }
         setAuthorized(false);
         setChecking(false);
         return;
