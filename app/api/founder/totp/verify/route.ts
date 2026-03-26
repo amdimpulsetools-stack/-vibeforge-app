@@ -53,7 +53,17 @@ export async function POST(request: Request) {
 
     // Decrypt secret and verify with time tolerance
     const secret = decrypt(profile.totp_secret);
+
+    // Debug: generate what the server expects right now
+    const expectedToken = totp.generate(secret);
+    console.log("[TOTP DEBUG] secret from DB:", profile.totp_secret?.slice(0, 10) + "...");
+    console.log("[TOTP DEBUG] decrypted secret:", secret);
+    console.log("[TOTP DEBUG] user code:", code);
+    console.log("[TOTP DEBUG] server expects:", expectedToken);
+    console.log("[TOTP DEBUG] server time:", new Date().toISOString());
+
     const isValid = totp.check(code, secret);
+    console.log("[TOTP DEBUG] isValid:", isValid);
 
     if (!isValid) {
       return NextResponse.json(
