@@ -27,10 +27,46 @@ export async function PATCH(
     );
   }
 
+  // Verify org membership and role
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .limit(1)
+    .single();
+
+  if (!membership) {
+    return NextResponse.json({ error: "No organization membership" }, { status: 403 });
+  }
+
   const parsed = await parseBody(request, clinicalTemplateUpdateSchema);
   if (parsed.error) return parsed.error;
 
-  // RLS ensures only owner/admin can update
+  // Fetch the template to check ownership
+  const { data: template } = await supabase
+    .from("clinical_templates")
+    .select("organization_id, doctor_id, is_global")
+    .eq("id", id)
+    .single();
+
+  if (!template || template.organization_id !== membership.organization_id) {
+    return NextResponse.json({ error: "Plantilla no encontrada" }, { status: 404 });
+  }
+
+  // Admin/owner can modify any template; doctors can only modify their own non-global templates
+  if (!["owner", "admin"].includes(membership.role)) {
+    const { data: doctor } = await supabase
+      .from("doctors")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!doctor || template.doctor_id !== doctor.id || template.is_global) {
+      return NextResponse.json({ error: "No tienes permisos para modificar esta plantilla" }, { status: 403 });
+    }
+  }
+
   const { data, error } = await supabase
     .from("clinical_templates")
     .update(parsed.data)
@@ -69,7 +105,43 @@ export async function DELETE(
     );
   }
 
-  // RLS ensures only owner can delete
+  // Verify org membership and role
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .limit(1)
+    .single();
+
+  if (!membership) {
+    return NextResponse.json({ error: "No organization membership" }, { status: 403 });
+  }
+
+  // Fetch the template to check ownership
+  const { data: template } = await supabase
+    .from("clinical_templates")
+    .select("organization_id, doctor_id, is_global")
+    .eq("id", id)
+    .single();
+
+  if (!template || template.organization_id !== membership.organization_id) {
+    return NextResponse.json({ error: "Plantilla no encontrada" }, { status: 404 });
+  }
+
+  // Admin/owner can delete any template; doctors can only delete their own non-global templates
+  if (!["owner", "admin"].includes(membership.role)) {
+    const { data: doctor } = await supabase
+      .from("doctors")
+      .select("id")
+      .eq("user_id", user.id)
+      .single();
+
+    if (!doctor || template.doctor_id !== doctor.id || template.is_global) {
+      return NextResponse.json({ error: "No tienes permisos para eliminar esta plantilla" }, { status: 403 });
+    }
+  }
+
   const { error } = await supabase
     .from("clinical_templates")
     .delete()

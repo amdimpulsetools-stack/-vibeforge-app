@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
+import { z } from "zod";
+
+const whatsappConfigSchema = z.object({
+  waba_id: z.string().min(1).optional(),
+  phone_number_id: z.string().min(1).optional(),
+  access_token: z.string().min(1).optional(),
+  webhook_verify_token: z.string().min(1).optional(),
+  is_active: z.boolean().optional(),
+});
 
 export const runtime = "nodejs";
 
@@ -71,27 +80,30 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "No tienes permisos" }, { status: 403 });
   }
 
-  let body: Record<string, unknown>;
+  let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ error: "Body inválido" }, { status: 400 });
   }
 
+  const parsed = whatsappConfigSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Datos inválidos", details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const validated = parsed.data;
   const payload: Record<string, unknown> = {
     organization_id: member.organization_id,
   };
 
-  // Only update fields that are provided
-  if (typeof body.waba_id === "string") payload.waba_id = body.waba_id;
-  if (typeof body.phone_number_id === "string") payload.phone_number_id = body.phone_number_id;
-  if (typeof body.access_token === "string" && body.access_token !== "••••••••") {
-    payload.access_token = body.access_token;
+  if (validated.waba_id !== undefined) payload.waba_id = validated.waba_id;
+  if (validated.phone_number_id !== undefined) payload.phone_number_id = validated.phone_number_id;
+  if (validated.access_token !== undefined && validated.access_token !== "••••••••") {
+    payload.access_token = validated.access_token;
   }
-  if (typeof body.webhook_verify_token === "string") {
-    payload.webhook_verify_token = body.webhook_verify_token;
-  }
-  if (typeof body.is_active === "boolean") payload.is_active = body.is_active;
+  if (validated.webhook_verify_token !== undefined) payload.webhook_verify_token = validated.webhook_verify_token;
+  if (validated.is_active !== undefined) payload.is_active = validated.is_active;
 
   const { data, error } = await supabase
     .from("whatsapp_config")

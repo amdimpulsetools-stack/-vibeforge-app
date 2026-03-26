@@ -69,6 +69,12 @@ const FORBIDDEN_PATTERNS: Array<[RegExp, string]> = [
   [/\brevoke\s+/i, "REVOKE"],
   [/\bexecute\s+/i, "EXECUTE"],
   [/\bcopy\s+(to|from)\b/i, "COPY"],
+  [/\bperform\s+/i, "PERFORM"],
+  [/\bcall\s+/i, "CALL"],
+  [/\bdo\s+/i, "DO"],
+  [/\bload\s+/i, "LOAD"],
+  [/\bimport\s+/i, "IMPORT"],
+  [/\bexport\s+/i, "EXPORT"],
   [/pg_read_file/i, "pg_read_file"],
   [/pg_ls_dir/i, "pg_ls_dir"],
   [/pg_sleep/i, "pg_sleep"],
@@ -93,15 +99,33 @@ const ALLOWED_TABLES = [
 const MAX_MESSAGE_LENGTH = 1000;
 
 function validateSql(sql: string): { valid: boolean; error?: string } {
-  const normalized = sql.trim().toLowerCase();
+  // Strip SQL comments to prevent bypass via -- or /* */
+  const stripped = sql
+    .replace(/--[^\n]*/g, "")        // single-line comments
+    .replace(/\/\*[\s\S]*?\*\//g, "") // block comments
+    .trim();
 
+  const normalized = stripped.toLowerCase().replace(/\s+/g, " ");
+
+  // Enforce allowlist: query MUST start with SELECT or WITH (for CTEs)
   if (!normalized.startsWith("select") && !normalized.startsWith("with")) {
     return { valid: false, error: "Solo se permiten consultas SELECT" };
   }
 
+  // If it starts with WITH (CTE), ensure the final statement is a SELECT
+  if (normalized.startsWith("with")) {
+    // Find the last top-level statement after CTEs — must be SELECT
+    // Match the final keyword after the last closing paren of CTE definitions
+    const finalSelectMatch = normalized.match(/\)\s*select\b/);
+    if (!finalSelectMatch) {
+      return { valid: false, error: "Las CTEs (WITH) solo pueden terminar con SELECT" };
+    }
+  }
+
+  // Run forbidden patterns against the comment-stripped SQL
   for (const [pattern, label] of FORBIDDEN_PATTERNS) {
-    if (pattern.test(sql)) {
-      console.warn(`SQL blocked by pattern "${label}":`, sql.slice(0, 200));
+    if (pattern.test(stripped)) {
+      console.warn(`SQL blocked by pattern "${label}":`, stripped.slice(0, 200));
       return { valid: false, error: "La consulta contiene operaciones no permitidas" };
     }
   }

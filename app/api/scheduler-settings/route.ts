@@ -1,5 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { z } from "zod";
+
+const schedulerSettingsSchema = z.object({
+  start_hour: z.number().int().min(0).max(23),
+  end_hour: z.number().int().min(1).max(24),
+  intervals: z.array(z.union([z.literal(15), z.literal(20), z.literal(30), z.literal(45), z.literal(60)])).min(1),
+  time_indicator: z.boolean(),
+  disabled_weekdays: z.array(z.number().int().min(0).max(6)),
+}).partial();
 
 // GET /api/scheduler-settings — load org's scheduler config
 export async function GET() {
@@ -75,29 +84,19 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const body = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
 
-  // Validate fields
-  const update: Record<string, unknown> = {};
-  if (body.start_hour !== undefined) {
-    const h = Number(body.start_hour);
-    if (h >= 0 && h <= 23) update.start_hour = h;
+  const parsed = schedulerSettingsSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "validation_error", details: parsed.error.flatten() }, { status: 400 });
   }
-  if (body.end_hour !== undefined) {
-    const h = Number(body.end_hour);
-    if (h >= 1 && h <= 24) update.end_hour = h;
-  }
-  if (body.intervals !== undefined && Array.isArray(body.intervals)) {
-    const valid = body.intervals.filter((v: number) => [15, 20, 30, 45, 60].includes(v));
-    if (valid.length > 0) update.intervals = valid;
-  }
-  if (body.time_indicator !== undefined) {
-    update.time_indicator = Boolean(body.time_indicator);
-  }
-  if (body.disabled_weekdays !== undefined && Array.isArray(body.disabled_weekdays)) {
-    const valid = body.disabled_weekdays.filter((v: number) => v >= 0 && v <= 6);
-    update.disabled_weekdays = valid;
-  }
+
+  const update = parsed.data;
 
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: "no_valid_fields" }, { status: 400 });

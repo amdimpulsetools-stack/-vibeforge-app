@@ -3,6 +3,15 @@ import { createClient } from "@/lib/supabase/server";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
 import { sendWhatsAppMessage, resolveVariableValues } from "@/lib/whatsapp/send";
 import type { WhatsAppTemplate } from "@/lib/whatsapp/types";
+import { z } from "zod";
+
+const whatsappSendSchema = z.object({
+  template_id: z.string().uuid(),
+  recipient_phone: z.string().min(1),
+  patient_id: z.string().uuid().optional(),
+  appointment_id: z.string().uuid().optional(),
+  variables: z.record(z.string(), z.string()).optional(),
+});
 
 export const runtime = "nodejs";
 
@@ -38,26 +47,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Sin organización" }, { status: 403 });
   }
 
-  let body: {
-    template_id: string;
-    recipient_phone: string;
-    patient_id?: string;
-    appointment_id?: string;
-    variables?: Record<string, string>;
-  };
-
+  let rawBody: unknown;
   try {
-    body = await req.json();
+    rawBody = await req.json();
   } catch {
     return NextResponse.json({ error: "Body inválido" }, { status: 400 });
   }
 
-  if (!body.template_id || !body.recipient_phone) {
+  const parsed = whatsappSendSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "template_id y recipient_phone son requeridos" },
+      { error: "Datos inválidos", details: parsed.error.flatten() },
       { status: 400 }
     );
   }
+
+  const body = parsed.data;
 
   // Fetch approved template
   const { data: template } = await supabase
