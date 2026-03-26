@@ -37,7 +37,7 @@ export function useNotifications() {
     const supabase = createClient();
     const { data } = await supabase
       .from("notifications")
-      .select("*")
+      .select("id, organization_id, user_id, type, title, body, action_url, is_read, created_at")
       .eq("organization_id", organizationId)
       .order("created_at", { ascending: false })
       .limit(50);
