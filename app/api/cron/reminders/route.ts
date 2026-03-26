@@ -4,6 +4,7 @@ import { buildEmailHtml } from "@/lib/email-template";
 import nodemailer from "nodemailer";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
 import { sendWhatsAppMessage, resolveVariableValues } from "@/lib/whatsapp/send";
+import { decrypt } from "@/lib/encryption";
 import type { WhatsAppTemplate } from "@/lib/whatsapp/types";
 
 export const runtime = "nodejs";
@@ -232,7 +233,7 @@ export async function GET(req: NextRequest) {
           if (waT) {
             waTemplate = waT as unknown as WhatsAppTemplate;
             waClient = new WhatsAppClient({
-              accessToken: waConfig.access_token,
+              accessToken: decrypt(waConfig.access_token),
               wabaId: waConfig.waba_id,
               phoneNumberId: waConfig.phone_number_id,
             });

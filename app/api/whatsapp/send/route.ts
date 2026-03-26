@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
 import { sendWhatsAppMessage, resolveVariableValues } from "@/lib/whatsapp/send";
+import { decrypt } from "@/lib/encryption";
 import type { WhatsAppTemplate } from "@/lib/whatsapp/types";
 import { z } from "zod";
 
@@ -96,7 +97,7 @@ export async function POST(req: NextRequest) {
   }
 
   const client = new WhatsAppClient({
-    accessToken: config.access_token,
+    accessToken: decrypt(config.access_token),
     wabaId: config.waba_id,
     phoneNumberId: config.phone_number_id,
   });

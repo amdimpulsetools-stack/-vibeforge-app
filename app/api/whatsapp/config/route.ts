@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
+import { encrypt, decrypt } from "@/lib/encryption";
 import { z } from "zod";
 
 const whatsappConfigSchema = z.object({
@@ -100,7 +101,7 @@ export async function PUT(req: NextRequest) {
   if (validated.waba_id !== undefined) payload.waba_id = validated.waba_id;
   if (validated.phone_number_id !== undefined) payload.phone_number_id = validated.phone_number_id;
   if (validated.access_token !== undefined && validated.access_token !== "••••••••") {
-    payload.access_token = validated.access_token;
+    payload.access_token = encrypt(validated.access_token);
   }
   if (validated.webhook_verify_token !== undefined) payload.webhook_verify_token = validated.webhook_verify_token;
   if (validated.is_active !== undefined) payload.is_active = validated.is_active;
@@ -160,7 +161,7 @@ export async function POST() {
   }
 
   const client = new WhatsAppClient({
-    accessToken: config.access_token,
+    accessToken: decrypt(config.access_token),
     wabaId: config.waba_id,
     phoneNumberId: config.phone_number_id,
   });
