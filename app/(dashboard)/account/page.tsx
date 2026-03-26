@@ -522,59 +522,50 @@ export default function AccountPage() {
 
         {/* MIDDLE COLUMN: Founder badge, Role, Org, Plan info */}
         <div className="space-y-6">
-          {/* Founder badge */}
-          {isFounder && (
-            <div className="rounded-2xl border border-border/60 bg-card p-6">
-              <div className="flex items-center gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
-                  <Crown className="h-5 w-5 text-amber-500" />
+          {/* Account info card — Founder + Role + Org in one card */}
+          <div className="rounded-2xl border border-border/60 bg-card p-5 space-y-4">
+            {/* Founder badge */}
+            {isFounder && (
+              <div className="flex items-center gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-3.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-amber-500/20">
+                  <Crown className="h-4.5 w-4.5 text-amber-500" />
                 </div>
                 <div>
                   <p className="text-sm font-bold text-amber-500">Founder</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground">
                     Acceso completo a la plataforma
                   </p>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Organization role card */}
-          {orgRole && (
-            <div className="rounded-2xl border border-border/60 bg-card p-6">
-              <div className="flex items-center gap-2 mb-3">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                <span className="text-sm font-semibold">Rol en organización</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
-                <div className="flex items-center gap-3">
-                  {(() => {
-                    const RoleIcon = ORG_ROLE_LABELS[orgRole]?.icon ?? Users;
-                    return <RoleIcon className="h-4 w-4 text-muted-foreground" />;
-                  })()}
-                  <span className={cn(
-                    "rounded-full px-3 py-1 text-xs font-medium",
-                    ORG_ROLE_LABELS[orgRole]?.color ?? "bg-muted text-muted-foreground"
-                  )}>
-                    {ORG_ROLE_LABELS[orgRole]?.label ?? orgRole}
-                  </span>
+            {/* Organization role */}
+            {orgRole && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Rol en organización</span>
                 </div>
+                <span className={cn(
+                  "rounded-full px-3 py-1 text-xs font-medium",
+                  ORG_ROLE_LABELS[orgRole]?.color ?? "bg-muted text-muted-foreground"
+                )}>
+                  {ORG_ROLE_LABELS[orgRole]?.label ?? orgRole}
+                </span>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Organization name card */}
-          {organization && (
-            <div className="rounded-2xl border border-border/60 bg-card p-6">
-              <div className="flex items-center gap-2 mb-3">
-                <Building2 className="h-4 w-4 text-primary" />
-                <span className="text-sm font-semibold">Organización</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
+            {/* Organization name */}
+            {organization && (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Organización</span>
+                </div>
                 <span className="text-sm font-medium">{organization.name}</span>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Plan info card — only for owner/admin */}
           {isOrgAdmin && (
