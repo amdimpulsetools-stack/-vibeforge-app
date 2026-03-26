@@ -527,7 +527,7 @@ export default function AccountPage() {
 
         {/* MIDDLE + RIGHT as a 2x2 sub-grid so rows align horizontally */}
         {/* RIGHT SIDE: 2x2 sub-grid so rows align horizontally */}
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 auto-rows-fr">
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2">
           {/* ROW 1 LEFT: Account info */}
           <div className="rounded-2xl border border-border/60 bg-card p-5 space-y-4">
             {/* Founder badge */}
@@ -610,36 +610,36 @@ export default function AccountPage() {
             />
           ) : <div />}
 
-          {/* ROW 3: Session info — spans both columns */}
-          <div className="sm:col-span-2 rounded-2xl border border-border/60 bg-card p-4">
+          {/* ROW 3 LEFT: Session info — below Plan */}
+          <div className="rounded-2xl border border-border/60 bg-card p-4">
             <div className="flex items-center gap-2 mb-2.5">
               <ShieldCheck className="h-4 w-4 text-muted-foreground" />
               <h2 className="text-sm font-semibold">Sesión activa</h2>
             </div>
-            <div className="grid gap-x-8 gap-y-1 grid-cols-2 sm:grid-cols-4 text-xs">
-              <div className="space-y-0.5">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-xs">
+              <div>
                 <span className="text-muted-foreground">Proveedor</span>
-                <p className="font-medium">
+                <p className="font-semibold">
                   {user?.app_metadata?.provider === "google" ? "Google" : "Email"}
                 </p>
               </div>
-              <div className="space-y-0.5">
+              <div>
                 <span className="text-muted-foreground">Último acceso</span>
-                <p className="font-medium">
+                <p className="font-semibold">
                   {user?.last_sign_in_at
                     ? new Date(user.last_sign_in_at).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
                     : "—"}
                 </p>
               </div>
-              <div className="space-y-0.5">
+              <div>
                 <span className="text-muted-foreground">Cuenta creada</span>
-                <p className="font-medium">
+                <p className="font-semibold">
                   {user?.created_at
                     ? new Date(user.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })
                     : "—"}
                 </p>
               </div>
-              <div className="space-y-0.5">
+              <div>
                 <span className="text-muted-foreground">ID</span>
                 <p className="font-medium font-mono text-[10px] text-muted-foreground">{user?.id?.slice(0, 8)}</p>
               </div>
