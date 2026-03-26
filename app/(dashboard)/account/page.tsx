@@ -302,14 +302,10 @@ export default function AccountPage() {
         <p className="mt-1 text-muted-foreground">{t("account.subtitle")}</p>
       </div>
 
-      {/* TOP ROW: User info + Plan — side by side */}
-      <div className="grid gap-6 lg:grid-cols-2 items-start">
-        {/* LEFT: Avatar + personal data + password */}
-        <div className="space-y-6">
-        <form
-          onSubmit={handleSubmit(onSubmitProfile)}
-          className="rounded-2xl border border-border/60 bg-card p-6 space-y-5"
-        >
+      {/* 3-COLUMN LAYOUT: Profile | Account Info | Limits */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_280px_280px] items-start">
+        {/* LEFT COLUMN: Avatar + Personal data + Password (single card) */}
+        <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
           {/* Avatar */}
           <div className="flex items-center gap-5">
             <div className="relative group">
@@ -400,61 +396,63 @@ export default function AccountPage() {
           <hr className="border-border/40" />
 
           {/* Personal data fields */}
-          <h2 className="text-lg font-semibold">
-            {t("account.personal_data")}
-          </h2>
+          <form onSubmit={handleSubmit(onSubmitProfile)} className="space-y-5">
+            <h2 className="text-lg font-semibold">
+              {t("account.personal_data")}
+            </h2>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="full_name">
-              {t("account.full_name")}
-            </label>
-            <input
-              id="full_name"
-              type="text"
-              placeholder={t("account.full_name_placeholder")}
-              {...register("full_name")}
-              className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
-            />
-            {errors.full_name && (
-              <p className="text-xs text-destructive">
-                {errors.full_name.message}
-              </p>
-            )}
-          </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="full_name">
+                  {t("account.full_name")}
+                </label>
+                <input
+                  id="full_name"
+                  type="text"
+                  placeholder={t("account.full_name_placeholder")}
+                  {...register("full_name")}
+                  className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                />
+                {errors.full_name && (
+                  <p className="text-xs text-destructive">
+                    {errors.full_name.message}
+                  </p>
+                )}
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium" htmlFor="phone">
-              {t("account.phone")}
-            </label>
-            <input
-              id="phone"
-              type="tel"
-              placeholder={t("account.phone_placeholder")}
-              {...register("phone")}
-              className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
-            />
-            {errors.phone && (
-              <p className="text-xs text-destructive">
-                {errors.phone.message}
-              </p>
-            )}
-          </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="phone">
+                  {t("account.phone")}
+                </label>
+                <input
+                  id="phone"
+                  type="tel"
+                  placeholder={t("account.phone_placeholder")}
+                  {...register("phone")}
+                  className="w-full rounded-xl border border-input bg-background/50 px-4 py-2.5 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                />
+                {errors.phone && (
+                  <p className="text-xs text-destructive">
+                    {errors.phone.message}
+                  </p>
+                )}
+              </div>
+            </div>
 
-          <button
-            type="submit"
-            disabled={saving || !isDirty}
-            className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            {saving ? t("account.saving") : t("account.save")}
-          </button>
-        </form>
+            <button
+              type="submit"
+              disabled={saving || !isDirty}
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              {saving ? t("account.saving") : t("account.save")}
+            </button>
+          </form>
 
-          {/* Password form */}
-          <form
-            onSubmit={handleSubmitPwd(onSubmitPassword)}
-            className="rounded-2xl border border-border/60 bg-card p-6 space-y-5"
-          >
+          <hr className="border-border/40" />
+
+          {/* Password section */}
+          <form onSubmit={handleSubmitPwd(onSubmitPassword)} className="space-y-5">
             <div className="flex items-center gap-2">
               <Lock className="h-5 w-5 text-muted-foreground" />
               <h2 className="text-lg font-semibold">
@@ -522,16 +520,11 @@ export default function AccountPage() {
           </form>
         </div>
 
-        {/* RIGHT: Role & Organization Info */}
+        {/* MIDDLE COLUMN: Founder badge, Role, Org, Plan info */}
         <div className="space-y-6">
-          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              <h2 className="text-lg font-semibold">Mi cuenta</h2>
-            </div>
-
-            {/* Founder badge */}
-            {isFounder && (
+          {/* Founder badge */}
+          {isFounder && (
+            <div className="rounded-2xl border border-border/60 bg-card p-6">
               <div className="flex items-center gap-3 rounded-xl bg-amber-500/10 border border-amber-500/20 p-4">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/20">
                   <Crown className="h-5 w-5 text-amber-500" />
@@ -543,57 +536,84 @@ export default function AccountPage() {
                   </p>
                 </div>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Organization role */}
-            {orgRole && (
+          {/* Organization role card */}
+          {orgRole && (
+            <div className="rounded-2xl border border-border/60 bg-card p-6">
+              <div className="flex items-center gap-2 mb-3">
+                <ShieldCheck className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Rol en organización</span>
+              </div>
               <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
                 <div className="flex items-center gap-3">
                   {(() => {
                     const RoleIcon = ORG_ROLE_LABELS[orgRole]?.icon ?? Users;
                     return <RoleIcon className="h-4 w-4 text-muted-foreground" />;
                   })()}
-                  <span className="text-sm text-muted-foreground">Rol en organización</span>
+                  <span className={cn(
+                    "rounded-full px-3 py-1 text-xs font-medium",
+                    ORG_ROLE_LABELS[orgRole]?.color ?? "bg-muted text-muted-foreground"
+                  )}>
+                    {ORG_ROLE_LABELS[orgRole]?.label ?? orgRole}
+                  </span>
                 </div>
-                <span className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium",
-                  ORG_ROLE_LABELS[orgRole]?.color ?? "bg-muted text-muted-foreground"
-                )}>
-                  {ORG_ROLE_LABELS[orgRole]?.label ?? orgRole}
-                </span>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Organization name */}
-            {organization && (
+          {/* Organization name card */}
+          {organization && (
+            <div className="rounded-2xl border border-border/60 bg-card p-6">
+              <div className="flex items-center gap-2 mb-3">
+                <Building2 className="h-4 w-4 text-primary" />
+                <span className="text-sm font-semibold">Organización</span>
+              </div>
               <div className="flex items-center justify-between rounded-xl border border-border/60 bg-background p-4">
-                <div className="flex items-center gap-3">
-                  <Building2 className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Organización</span>
-                </div>
                 <span className="text-sm font-medium">{organization.name}</span>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* Plan & Subscription — only for owner/admin */}
-            {isOrgAdmin && (
-              <PlanSection
-                plan={plan}
-                subscription={subscription}
-                usage={usage}
-                daysRemaining={daysRemaining}
-                getLimit={getLimit}
-                isNearLimit={isNearLimit}
-                isAtLimit={isAtLimit}
-                loading={planLoading}
-                onRefetchPlan={refetch}
-              />
-            )}
-          </div>
+          {/* Plan info card — only for owner/admin */}
+          {isOrgAdmin && (
+            <PlanSection
+              plan={plan}
+              subscription={subscription}
+              usage={usage}
+              daysRemaining={daysRemaining}
+              getLimit={getLimit}
+              isNearLimit={isNearLimit}
+              isAtLimit={isAtLimit}
+              loading={planLoading}
+              onRefetchPlan={refetch}
+              planInfoOnly
+            />
+          )}
+        </div>
 
+        {/* RIGHT COLUMN: AI Quota + Resource Limits */}
+        <div className="space-y-6">
           {/* AI Quota Ring Card — admin only */}
           {isOrgAdmin && plan?.feature_ai_assistant && (
             <AiQuotaCard />
+          )}
+
+          {/* Resource limits — admin only */}
+          {isOrgAdmin && (
+            <PlanSection
+              plan={plan}
+              subscription={subscription}
+              usage={usage}
+              daysRemaining={daysRemaining}
+              getLimit={getLimit}
+              isNearLimit={isNearLimit}
+              isAtLimit={isAtLimit}
+              loading={planLoading}
+              onRefetchPlan={refetch}
+              limitsOnly
+            />
           )}
         </div>
       </div>
@@ -911,6 +931,8 @@ function PlanSection({
   isAtLimit,
   loading,
   onRefetchPlan,
+  planInfoOnly,
+  limitsOnly,
 }: {
   plan: ReturnType<typeof usePlan>["plan"];
   subscription: ReturnType<typeof usePlan>["subscription"];
@@ -921,6 +943,8 @@ function PlanSection({
   isAtLimit: ReturnType<typeof usePlan>["isAtLimit"];
   loading: boolean;
   onRefetchPlan: () => void;
+  planInfoOnly?: boolean;
+  limitsOnly?: boolean;
 }) {
   const [addonModal, setAddonModal] = useState<string | null>(null);
   if (loading) {
