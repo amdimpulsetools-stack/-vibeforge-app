@@ -523,44 +523,6 @@ export default function AccountPage() {
               {t("account.change_password")}
             </button>
           </form>
-
-          <hr className="border-border/40" />
-
-          {/* Session info */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">Sesión activa</h2>
-            </div>
-            <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2 text-xs">
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Proveedor</span>
-                <span className="font-medium">
-                  {user?.app_metadata?.provider === "google" ? "Google" : "Email"}
-                </span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Último acceso</span>
-                <span className="font-medium">
-                  {user?.last_sign_in_at
-                    ? new Date(user.last_sign_in_at).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
-                    : "—"}
-                </span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">Cuenta creada</span>
-                <span className="font-medium">
-                  {user?.created_at
-                    ? new Date(user.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })
-                    : "—"}
-                </span>
-              </div>
-              <div className="flex justify-between py-1">
-                <span className="text-muted-foreground">ID</span>
-                <span className="font-medium font-mono text-[10px] text-muted-foreground">{user?.id?.slice(0, 8)}</span>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* MIDDLE + RIGHT as a 2x2 sub-grid so rows align horizontally */}
@@ -647,6 +609,42 @@ export default function AccountPage() {
               limitsOnly
             />
           ) : <div />}
+
+          {/* ROW 3: Session info — spans both columns */}
+          <div className="sm:col-span-2 rounded-2xl border border-border/60 bg-card p-4">
+            <div className="flex items-center gap-2 mb-2.5">
+              <ShieldCheck className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">Sesión activa</h2>
+            </div>
+            <div className="grid gap-x-8 gap-y-1 grid-cols-2 sm:grid-cols-4 text-xs">
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground">Proveedor</span>
+                <p className="font-medium">
+                  {user?.app_metadata?.provider === "google" ? "Google" : "Email"}
+                </p>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground">Último acceso</span>
+                <p className="font-medium">
+                  {user?.last_sign_in_at
+                    ? new Date(user.last_sign_in_at).toLocaleDateString("es", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+                    : "—"}
+                </p>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground">Cuenta creada</span>
+                <p className="font-medium">
+                  {user?.created_at
+                    ? new Date(user.created_at).toLocaleDateString("es", { day: "numeric", month: "short", year: "numeric" })
+                    : "—"}
+                </p>
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-muted-foreground">ID</span>
+                <p className="font-medium font-mono text-[10px] text-muted-foreground">{user?.id?.slice(0, 8)}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
