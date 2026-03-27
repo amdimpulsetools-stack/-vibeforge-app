@@ -46,20 +46,11 @@ async function fetchMasterData(organizationId: string): Promise<SchedulerMasterD
       .eq("is_active", true)
       .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
       .order("display_order"),
-    supabase
-      .from("organization_members")
-      .select("id, user_id, role, is_active, user_profiles(full_name)")
-      .eq("is_active", true),
+    // Responsibles loaded via API (bypasses RLS issues with user_profiles)
+    fetch("/api/members/responsibles").then((r) => r.json()).catch(() => []),
   ]);
 
-  const members = receptionistMembersRes.data ?? [];
-  const lookupResponsibles = members.map((m) => {
-    const profile = (m as unknown as { user_profiles: { full_name: string | null } | null }).user_profiles;
-    return {
-      id: m.id,
-      label: profile?.full_name || "Miembro",
-    };
-  });
+  const lookupResponsibles = (receptionistMembersRes as { id: string; label: string }[]) ?? [];
 
   return {
     offices: (officesRes.data as Office[]) ?? [],
