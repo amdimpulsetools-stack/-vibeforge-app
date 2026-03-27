@@ -47,19 +47,19 @@ async function fetchMasterData(organizationId: string): Promise<SchedulerMasterD
       .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
       .order("display_order"),
     supabase
-      .from("lookup_values")
-      .select("id, label, display_order, lookup_categories!inner(slug)")
-      .eq("lookup_categories.slug", "responsible")
-      .eq("is_active", true)
-      .or(`organization_id.is.null,organization_id.eq.${organizationId}`)
-      .order("display_order"),
+      .from("organization_members")
+      .select("id, user_id, role, is_active, user_profiles(full_name)")
+      .eq("is_active", true),
   ]);
 
-  const responsibles = receptionistMembersRes.data ?? [];
-  const lookupResponsibles = responsibles.map((r) => ({
-    id: (r as Record<string, unknown>).id as string,
-    label: (r as Record<string, unknown>).label as string,
-  }));
+  const members = receptionistMembersRes.data ?? [];
+  const lookupResponsibles = members.map((m) => {
+    const profile = (m as unknown as { user_profiles: { full_name: string | null } | null }).user_profiles;
+    return {
+      id: m.id,
+      label: profile?.full_name || "Miembro",
+    };
+  });
 
   return {
     offices: (officesRes.data as Office[]) ?? [],
