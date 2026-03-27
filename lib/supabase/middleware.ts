@@ -122,8 +122,8 @@ export async function updateSession(request: NextRequest) {
       has_active_subscription: boolean;
     };
 
-    // 1. Onboarding incomplete
-    if (!s.has_whatsapp) {
+    // 1. Onboarding incomplete — only for owners/admins (invited members skip this)
+    if (!s.has_whatsapp && (s.role === "owner" || s.role === "admin")) {
       const url = request.nextUrl.clone();
       url.pathname = "/onboarding";
       return applySecurityHeaders(NextResponse.redirect(url));
