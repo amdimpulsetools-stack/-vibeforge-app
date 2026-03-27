@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Loader2, DollarSign, TrendingUp, Users, CreditCard } from "lucide-react";
 
 export default function RevenuePage() {
@@ -17,41 +16,9 @@ export default function RevenuePage() {
 
   useEffect(() => {
     const load = async () => {
-      const supabase = createClient();
-      const now = new Date();
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
-
-      const [paymentsRes, subsRes, monthPayRes] = await Promise.all([
-        supabase.from("patient_payments").select("amount"),
-        supabase.from("organization_subscriptions").select("status, plans(name, price_monthly)"),
-        supabase.from("patient_payments").select("amount").gte("payment_date", monthStart),
-      ]);
-
-      const payments = paymentsRes.data ?? [];
-      const monthPayments = monthPayRes.data ?? [];
-      const subs = (subsRes.data ?? []) as unknown as { status: string; plans: { name: string; price_monthly: number } | null }[];
-
-      const totalRevenue = payments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-      const monthlyRevenue = monthPayments.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-
-      // Plan breakdown
-      const planMap = new Map<string, { count: number; revenue: number }>();
-      for (const sub of subs) {
-        const name = sub.plans?.name ?? "Sin plan";
-        const existing = planMap.get(name) ?? { count: 0, revenue: 0 };
-        existing.count++;
-        if (sub.status === "active") existing.revenue += sub.plans?.price_monthly ?? 0;
-        planMap.set(name, existing);
-      }
-
-      setData({
-        totalRevenue,
-        monthlyRevenue,
-        activeSubscriptions: subs.filter((s) => s.status === "active").length,
-        trialingOrgs: subs.filter((s) => s.status === "trialing").length,
-        cancelledOrgs: subs.filter((s) => s.status === "cancelled").length,
-        planBreakdown: Array.from(planMap.entries()).map(([name, d]) => ({ name, ...d })),
-      });
+      const res = await fetch("/api/founder/stats/revenue");
+      if (!res.ok) { setLoading(false); return; }
+      setData(await res.json());
       setLoading(false);
     };
     load();

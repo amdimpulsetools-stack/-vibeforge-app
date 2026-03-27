@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Loader2, Activity, Database, HardDrive, MessageCircle, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,23 +18,9 @@ export default function HealthPage() {
 
   useEffect(() => {
     const load = async () => {
-      const supabase = createClient();
-
-      const [ticketsRes, resolvedRes, aiRes] = await Promise.all([
-        supabase.from("support_tickets").select("id").eq("status", "open"),
-        supabase.from("support_tickets").select("id").eq("status", "resolved"),
-        supabase.from("ai_query_usage").select("id"),
-      ]);
-
-      setData({
-        totalTables: 30,
-        totalMigrations: 70,
-        openTickets: ticketsRes.data?.length ?? 0,
-        resolvedTickets: resolvedRes.data?.length ?? 0,
-        totalAiQueries: aiRes.data?.length ?? 0,
-        webhookStatus: "ok",
-        dbStatus: "healthy",
-      });
+      const res = await fetch("/api/founder/stats/health");
+      if (!res.ok) { setLoading(false); return; }
+      setData(await res.json());
       setLoading(false);
     };
     load();

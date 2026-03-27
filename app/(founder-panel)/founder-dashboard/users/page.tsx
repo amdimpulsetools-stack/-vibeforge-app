@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { Loader2, Users, UserCheck, Stethoscope, ShieldCheck } from "lucide-react";
 
 export default function UsersPage() {
@@ -17,33 +16,9 @@ export default function UsersPage() {
 
   useEffect(() => {
     const load = async () => {
-      const supabase = createClient();
-
-      const [profilesRes, membersRes] = await Promise.all([
-        supabase.from("user_profiles").select("id, full_name, created_at").order("created_at", { ascending: false }).limit(20),
-        supabase.from("organization_members").select("user_id, role"),
-      ]);
-
-      const profiles = profilesRes.data ?? [];
-      const members = membersRes.data ?? [];
-
-      const roleMap = new Map<string, string>();
-      for (const m of members) roleMap.set(m.user_id, m.role);
-
-      setData({
-        totalUsers: profiles.length,
-        owners: members.filter((m) => m.role === "owner").length,
-        admins: members.filter((m) => m.role === "admin").length,
-        doctors: members.filter((m) => m.role === "doctor").length,
-        receptionists: members.filter((m) => m.role === "receptionist").length,
-        recentUsers: profiles.map((p) => ({
-          id: p.id,
-          full_name: p.full_name ?? "Sin nombre",
-          email: "",
-          created_at: p.created_at,
-          role: roleMap.get(p.id) ?? "—",
-        })),
-      });
+      const res = await fetch("/api/founder/stats/users");
+      if (!res.ok) { setLoading(false); return; }
+      setData(await res.json());
       setLoading(false);
     };
     load();
