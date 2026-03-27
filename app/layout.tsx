@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/components/language-provider";
 import { QueryProvider } from "@/components/query-provider";
+import { InviteTokenHandler } from "@/components/invite-token-handler";
 import { APP_NAME } from "@/lib/constants";
 import "./globals.css";
 
@@ -78,6 +79,7 @@ export default function RootLayout({
         <QueryProvider>
           <ThemeProvider>
             <LanguageProvider>
+              <InviteTokenHandler />
               {children}
             </LanguageProvider>
           </ThemeProvider>
