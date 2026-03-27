@@ -130,11 +130,10 @@ export function DayView({
   const [dragOverSlot, setDragOverSlot] = useState<{ time: string; officeId: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
-  // Scheduler config — start with localStorage cache, then sync from DB
-  const [schedulerConfig, setSchedulerConfig] = useState(DEFAULT_SCHEDULER_CONFIG);
+  // Scheduler config — instant from localStorage, DB sync in background (non-blocking)
+  const [schedulerConfig, setSchedulerConfig] = useState(() => loadSchedulerConfig());
   useEffect(() => {
-    setSchedulerConfig(loadSchedulerConfig());
-    fetchSchedulerConfig().then(setSchedulerConfig);
+    fetchSchedulerConfig().then(setSchedulerConfig).catch(() => {});
   }, []);
   const TIME_SLOTS = useMemo(
     () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, getActiveInterval(schedulerConfig)),
