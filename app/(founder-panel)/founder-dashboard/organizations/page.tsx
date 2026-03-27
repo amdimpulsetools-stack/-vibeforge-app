@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { Loader2, Building2, Users, CalendarDays } from "lucide-react";
+import { Loader2, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface OrgRow {
@@ -23,32 +22,10 @@ export default function OrganizationsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const supabase = createClient();
-
-      const { data: rawOrgs } = await supabase
-        .from("organizations")
-        .select("id, name, slug, is_active, organization_type, created_at")
-        .order("created_at", { ascending: false });
-
-      if (!rawOrgs) { setLoading(false); return; }
-
-      // Enrich with member count + subscription
-      const enriched: OrgRow[] = [];
-      for (const org of rawOrgs) {
-        const [membersRes, subRes] = await Promise.all([
-          supabase.from("organization_members").select("id").eq("organization_id", org.id),
-          supabase.from("organization_subscriptions").select("status, plans(name)").eq("organization_id", org.id).limit(1).single(),
-        ]);
-
-        enriched.push({
-          ...org,
-          member_count: membersRes.data?.length ?? 0,
-          subscription_status: (subRes.data as Record<string, unknown>)?.status as string ?? null,
-          plan_name: ((subRes.data as Record<string, unknown>)?.plans as Record<string, unknown>)?.name as string ?? null,
-        });
-      }
-
-      setOrgs(enriched);
+      const res = await fetch("/api/founder/stats/organizations");
+      if (!res.ok) { setLoading(false); return; }
+      const data = await res.json();
+      setOrgs(data);
       setLoading(false);
     };
     load();

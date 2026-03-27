@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
 import { Suspense } from "react";
 import {
   Shield,
@@ -228,41 +227,10 @@ function FounderDashboardContent() {
   const [loading, setLoading] = useState(true);
 
   const loadStats = useCallback(async () => {
-    const supabase = createClient();
-
-    const [orgsRes, usersRes, doctorsRes, patientsRes, apptsRes, monthApptsRes, subsRes, aiRes, ticketsRes, paymentsRes] = await Promise.all([
-      supabase.from("organizations").select("id, is_active"),
-      supabase.from("user_profiles").select("id"),
-      supabase.from("doctors").select("id"),
-      supabase.from("patients").select("id"),
-      supabase.from("appointments").select("id"),
-      supabase.from("appointments").select("id").gte("appointment_date", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0]),
-      supabase.from("organization_subscriptions").select("id, status"),
-      supabase.from("ai_query_usage").select("id").gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
-      supabase.from("support_tickets").select("id").eq("status", "open"),
-      supabase.from("patient_payments").select("amount"),
-    ]);
-
-    const orgs = orgsRes.data ?? [];
-    const subs = subsRes.data ?? [];
-    const payments = paymentsRes.data ?? [];
-    const totalRevenue = payments.reduce((sum, p) => sum + Number(p.amount ?? 0), 0);
-
-    setStats({
-      totalOrgs: orgs.length,
-      activeOrgs: orgs.filter((o) => o.is_active).length,
-      totalUsers: usersRes.data?.length ?? 0,
-      totalDoctors: doctorsRes.data?.length ?? 0,
-      totalPatients: patientsRes.data?.length ?? 0,
-      totalAppointments: apptsRes.data?.length ?? 0,
-      monthlyAppointments: monthApptsRes.data?.length ?? 0,
-      totalRevenue,
-      monthlyRevenue: 0, // TODO: filter by month
-      activeSubscriptions: subs.filter((s) => s.status === "active").length,
-      trialingOrgs: subs.filter((s) => s.status === "trialing").length,
-      aiQueriesThisMonth: aiRes.data?.length ?? 0,
-      openTickets: ticketsRes.data?.length ?? 0,
-    });
+    const res = await fetch("/api/founder/stats");
+    if (!res.ok) { setLoading(false); return; }
+    const data = await res.json();
+    setStats(data);
     setLoading(false);
   }, []);
 
