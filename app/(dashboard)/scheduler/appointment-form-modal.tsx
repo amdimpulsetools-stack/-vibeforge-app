@@ -416,6 +416,15 @@ export function AppointmentFormModal({
 
       if (payError) {
         toast.error("Cita creada, pero error al registrar anticipo: " + (payError.message || JSON.stringify(payError)));
+      } else {
+        // Notification: payment registered at appointment creation
+        supabase.from("notifications").insert({
+          organization_id: organizationId,
+          type: "payment_received",
+          title: "Pago registrado",
+          body: `S/. ${Number(depositAmount).toFixed(2)} — ${fullName}`,
+          action_url: `/scheduler`,
+        }).then(({ error: nErr }) => { if (nErr) console.error("[Notification] insert error:", nErr); });
       }
     }
 
@@ -424,6 +433,18 @@ export function AppointmentFormModal({
     if (error) {
       toast.error(t("scheduler.save_error") + ": " + error.message);
       return;
+    }
+
+    // Notification: new appointment created
+    if (newAppt) {
+      const doctor = doctors.find((d) => d.id === values.doctor_id);
+      supabase.from("notifications").insert({
+        organization_id: organizationId,
+        type: "appointment_created",
+        title: "Nueva cita agendada",
+        body: `${fullName} — ${values.appointment_date} ${values.start_time?.slice(0, 5)}${doctor ? ` · ${doctor.full_name}` : ""}`,
+        action_url: `/scheduler`,
+      }).then(({ error: nErr }) => { if (nErr) console.error("[Notification] insert error:", nErr); });
     }
 
     // Send appointment confirmation email to patient
