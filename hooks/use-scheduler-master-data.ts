@@ -12,7 +12,7 @@ interface SchedulerMasterData {
   doctorSchedules: Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[];
   lookupOrigins: LookupValue[];
   lookupPayments: LookupValue[];
-  lookupResponsibles: { id: string; label: string }[];
+  lookupResponsibles: { id: string; user_id?: string; label: string }[];
 }
 
 async function fetchMasterData(organizationId: string): Promise<SchedulerMasterData> {
@@ -50,7 +50,7 @@ async function fetchMasterData(organizationId: string): Promise<SchedulerMasterD
     fetch("/api/members/responsibles").then((r) => r.json()).catch(() => []),
   ]);
 
-  const lookupResponsibles = (receptionistMembersRes as { id: string; label: string }[]) ?? [];
+  const lookupResponsibles = (receptionistMembersRes as { id: string; user_id?: string; label: string }[]) ?? [];
 
   return {
     offices: (officesRes.data as Office[]) ?? [],

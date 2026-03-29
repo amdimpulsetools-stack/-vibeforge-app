@@ -37,6 +37,7 @@ export async function GET() {
 
   const result = members.map((m) => ({
     id: m.id,
+    user_id: m.user_id,
     label: profileMap.get(m.user_id) || "Recepcionista",
   }));
 

@@ -55,7 +55,7 @@ interface AppointmentFormModalProps {
   doctorSchedules: Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[];
   lookupOrigins: LookupValue[];
   lookupPayments: LookupValue[];
-  lookupResponsibles: { id: string; label: string }[];
+  lookupResponsibles: { id: string; user_id?: string; label: string }[];
   existingAppointments: AppointmentWithRelations[];
   organizationId: string;
   organizationName: string;
@@ -391,6 +391,7 @@ export function AppointmentFormModal({
         origin: values.origin || null,
         payment_method: values.payment_method || null,
         responsible: values.responsible || null,
+        responsible_user_id: lookupResponsibles.find((r) => r.label === values.responsible)?.user_id || null,
         notes: values.notes || null,
         meeting_url: values.meeting_url || null,
         price_snapshot: priceSnapshot,
