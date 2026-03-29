@@ -48,9 +48,12 @@ function NotificationItem({
   const Icon = config.icon;
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onClick(notification)}
-      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50 ${
+      onKeyDown={(e) => e.key === "Enter" && onClick(notification)}
+      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/50 cursor-pointer ${
         notification.is_read ? "opacity-60" : ""
       }`}
     >
@@ -82,7 +85,7 @@ function NotificationItem({
           <Check className="h-3.5 w-3.5" />
         </button>
       )}
-    </button>
+    </div>
   );
 }
 
