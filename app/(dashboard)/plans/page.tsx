@@ -10,25 +10,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2,
   Check,
-  X,
-  Crown,
-  Building2,
-  Users,
-  Stethoscope,
-  CalendarDays,
-  HardDrive,
-  Zap,
-  Rocket,
-  ArrowLeft,
   Sparkles,
-  Shield,
-  ChevronDown,
-  ChevronUp,
-  Star,
-  TrendingUp,
-  UserPlus,
-  Plus,
-  type LucideIcon,
+  ArrowLeft,
+  AlertTriangle,
 } from "lucide-react";
 
 /* ───── Types ───── */
@@ -57,53 +41,13 @@ interface Plan {
   feature_ai_assistant: boolean;
 }
 
-/* ───── Config maps ───── */
-const PLAN_META: Record<
-  string,
-  { icon: LucideIcon; accent: string; bg: string; badge: string; btn: string; glow: string }
-> = {
-  starter: {
-    icon: Zap,
-    accent: "text-emerald-400",
-    bg: "bg-emerald-500/5 border-emerald-500/20 hover:border-emerald-500/40",
-    badge: "bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20",
-    btn: "bg-emerald-600 hover:bg-emerald-500 shadow-emerald-500/25",
-    glow: "shadow-emerald-500/10",
-  },
-  professional: {
-    icon: Rocket,
-    accent: "text-blue-400",
-    bg: "bg-blue-500/5 border-blue-500/30 hover:border-blue-500/50",
-    badge: "bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20",
-    btn: "bg-blue-600 hover:bg-blue-500 shadow-blue-500/25",
-    glow: "shadow-blue-500/10",
-  },
-  enterprise: {
-    icon: Crown,
-    accent: "text-amber-400",
-    bg: "bg-amber-500/5 border-amber-500/20 hover:border-amber-500/40",
-    badge: "bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20",
-    btn: "bg-amber-600 hover:bg-amber-500 shadow-amber-500/25",
-    glow: "shadow-amber-500/10",
-  },
-};
-
-const AUDIENCE_LABELS: Record<string, string> = {
-  independiente: "Doctor Independiente",
-  centro_medico: "Centro Medico",
-  clinica: "Clinica / Hospital",
-};
-
-const DEFAULT_META = {
-  icon: Zap,
-  accent: "text-primary",
-  bg: "border-border bg-card",
-  badge: "bg-muted text-muted-foreground",
-  btn: "bg-primary hover:opacity-90",
-  glow: "",
-};
-
 /* ───── Helpers ───── */
+const PLAN_ANCHORS: Record<string, string> = {
+  starter: "Menos de lo que cobras por una consulta",
+  professional: "Menos de S/6 al día por tener tu centro organizado",
+  enterprise: "Divide entre tus doctores y sale menos de S/60 c/u",
+};
+
 function formatLimit(val: number | null): string {
   if (val === null) return "Ilimitado";
   return val.toLocaleString();
@@ -113,6 +57,22 @@ function formatStorage(mb: number | null): string {
   if (mb === null) return "Ilimitado";
   if (mb >= 1024) return `${(mb / 1024).toFixed(0)} GB`;
   return `${mb} MB`;
+}
+
+function buildFeatures(plan: Plan): string[] {
+  const features: string[] = [];
+  const docs = plan.max_doctor_members ?? plan.max_doctors;
+  features.push(docs === null ? "Doctores ilimitados" : `${docs} ${docs === 1 ? "doctor" : "doctores"}`);
+  features.push(plan.max_patients === null ? "Pacientes ilimitados" : `${formatLimit(plan.max_patients)} pacientes`);
+  features.push(plan.max_appointments_per_month === null ? "Citas ilimitadas" : `${formatLimit(plan.max_appointments_per_month)} citas/mes`);
+  features.push(plan.max_offices === null ? "Consultorios ilimitados" : `${plan.max_offices} ${plan.max_offices === 1 ? "consultorio" : "consultorios"}`);
+  features.push(plan.max_members === null ? "Miembros ilimitados" : `Hasta ${plan.max_members} ${plan.max_members === 1 ? "miembro" : "miembros"}`);
+  features.push(`${formatStorage(plan.max_storage_mb)} almacenamiento`);
+  if (plan.feature_reports) features.push("Reportes avanzados");
+  if (plan.feature_export) features.push("Exportar datos");
+  if (plan.feature_priority_support) features.push("Soporte prioritario");
+  if (plan.addon_price_per_office) features.push("Addons disponibles");
+  return features;
 }
 
 /* ───── Page ───── */
@@ -145,7 +105,6 @@ function PlansContent() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState<string | null>(null);
-  const [expandedPlan, setExpandedPlan] = useState<string | null>(null);
 
   // Handle payment callback from Mercado Pago
   useEffect(() => {
@@ -240,32 +199,28 @@ function PlansContent() {
   return (
     <div className="space-y-8">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <button
-            onClick={() => router.push("/account")}
-            className="mb-3 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Volver a mi cuenta
-          </button>
-          <h1 className="text-3xl font-extrabold tracking-tight">
-            Planes y precios
-          </h1>
-          <p className="mt-1 text-muted-foreground">
-            Elige el plan que mejor se adapte a las necesidades de tu practica.
-          </p>
-        </div>
+      <div>
+        <button
+          onClick={() => router.push("/account")}
+          className="mb-3 flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Volver a mi cuenta
+        </button>
+        <h1 className="text-3xl font-extrabold tracking-tight">
+          Planes y precios
+        </h1>
+        <p className="mt-2 text-base text-muted-foreground max-w-xl">
+          Elige el plan que mejor se adapte a tu realidad.
+          Sin contratos, sin sorpresas. IA incluida en todos.
+        </p>
       </div>
 
       {/* Current plan summary */}
       {currentPlan && subscription && (
         <div className="flex items-center gap-4 rounded-2xl border border-border/60 bg-card/50 px-6 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-            {(() => {
-              const PIcon = PLAN_META[currentPlan.slug]?.icon ?? Zap;
-              return <PIcon className={cn("h-5 w-5", PLAN_META[currentPlan.slug]?.accent ?? "text-primary")} />;
-            })()}
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <Check className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold">
@@ -280,424 +235,109 @@ function PlansContent() {
               {` — S/${currentPlan.price_monthly}/mes`}
             </p>
           </div>
-          {usage && (
-            <div className="hidden sm:flex items-center gap-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Users className="h-3.5 w-3.5" />
-                {usage.members}/{currentPlan.max_members ?? "\u221E"}
-              </span>
-              <span className="flex items-center gap-1">
-                <Stethoscope className="h-3.5 w-3.5" />
-                {usage.doctors}/{currentPlan.max_doctors ?? "\u221E"}
-              </span>
-              <span className="flex items-center gap-1">
-                <Building2 className="h-3.5 w-3.5" />
-                {usage.offices}/{currentPlan.max_offices ?? "\u221E"}
-              </span>
-            </div>
-          )}
         </div>
       )}
 
       {/* Plans Grid */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
         {plans.map((plan) => {
-          const meta = PLAN_META[plan.slug] ?? DEFAULT_META;
-          const PlanIcon = meta.icon;
           const isCurrent = isCurrentPlan(plan.slug);
           const action = getPlanAction(plan);
           const isPopular = plan.slug === "professional";
-          const isExpanded = expandedPlan === plan.id;
+          const features = buildFeatures(plan);
+          const anchor = PLAN_ANCHORS[plan.slug] ?? plan.description ?? "";
 
           return (
             <div
               key={plan.id}
               className={cn(
-                "relative flex flex-col rounded-2xl border p-6 transition-all duration-300",
-                meta.bg,
-                isCurrent && "ring-2 ring-primary/50",
-                isPopular && !isCurrent && "ring-2 ring-blue-500/30",
-                `hover:shadow-xl ${meta.glow}`
+                "relative flex flex-col rounded-2xl border p-6 transition-all",
+                isPopular
+                  ? "border-emerald-300 dark:border-emerald-500/40 bg-card shadow-xl shadow-emerald-100/40 dark:shadow-emerald-900/20 md:scale-105 md:-my-2 z-10"
+                  : "border-border bg-card shadow-sm hover:shadow-md",
+                isCurrent && "ring-2 ring-primary/50"
               )}
             >
-              {/* Badges */}
+              {/* Badge */}
               {isPopular && !isCurrent && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                  <span className="flex items-center gap-1 rounded-full bg-blue-600 px-4 py-1 text-xs font-semibold text-white shadow-lg shadow-blue-500/30">
-                    <Star className="h-3 w-3" />
-                    Recomendado
-                  </span>
-                </div>
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-3 py-0.5 text-[11px] font-semibold text-white shadow-sm">
+                  Recomendado
+                </span>
               )}
               {isCurrent && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
-                  <span className="flex items-center gap-1 rounded-full bg-primary px-4 py-1 text-xs font-semibold text-primary-foreground shadow-lg">
-                    <Check className="h-3 w-3" />
-                    Tu plan
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-0.5 text-[11px] font-semibold text-primary-foreground shadow-sm flex items-center gap-1">
+                  <Check className="h-3 w-3" />
+                  Tu plan
+                </span>
+              )}
+
+              <h3 className="text-lg font-bold">{plan.name}</h3>
+
+              {/* Price */}
+              <div className="mt-4">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-sm text-muted-foreground">S/</span>
+                  <span className="text-4xl font-extrabold tabular-nums">
+                    {plan.price_monthly}
                   </span>
+                  <span className="text-sm text-muted-foreground">/mes</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {anchor}
+                </p>
+              </div>
+
+              {/* IA badge */}
+              {plan.feature_ai_assistant && (
+                <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                  <Sparkles className="h-3 w-3" />
+                  IA incluida
                 </div>
               )}
 
-              {/* Plan header */}
-              <div className="mb-5 pt-1">
-                <div className="flex items-center gap-2 mb-3">
-                  <div
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold",
-                      meta.badge
-                    )}
-                  >
-                    <PlanIcon className="h-3.5 w-3.5" />
-                    {plan.name}
-                  </div>
-                </div>
+              {/* Feature list */}
+              <ul className="mt-5 space-y-2.5 flex-1">
+                {features.map((feat) => (
+                  <li key={feat} className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                    {feat}
+                  </li>
+                ))}
+              </ul>
 
-                {/* Audience */}
-                {plan.target_audience && (
-                  <p className="text-[11px] font-medium text-muted-foreground mb-2">
-                    Ideal para: {AUDIENCE_LABELS[plan.target_audience] ?? plan.target_audience}
-                  </p>
-                )}
-
-                {/* Price */}
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-4xl font-extrabold tracking-tight">
-                    S/{plan.price_monthly}
-                  </span>
-                  <span className="text-sm text-muted-foreground font-medium">/mes</span>
-                </div>
-                {plan.price_yearly && plan.price_monthly > 0 && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    o S/{plan.price_yearly}/año (ahorra S/{plan.price_monthly * 12 - plan.price_yearly})
-                  </p>
-                )}
-                {plan.description && (
-                  <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                    {plan.description}
-                  </p>
-                )}
-              </div>
-
-              {/* Team */}
-              <div className="space-y-2.5 mb-4">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Equipo
-                </h4>
-                <ResourceRow
-                  icon={Users}
-                  label="Miembros totales"
-                  value={formatLimit(plan.max_members)}
-                  current={isCurrent ? usage?.members : undefined}
-                  limit={plan.max_members}
-                />
-                <ResourceRow
-                  icon={Stethoscope}
-                  label="Especialistas"
-                  value={formatLimit(plan.max_doctor_members ?? plan.max_doctors)}
-                  current={isCurrent ? usage?.doctors : undefined}
-                  limit={plan.max_doctor_members ?? plan.max_doctors}
-                />
-                {(plan.max_admins ?? 0) > 0 && (
-                  <ResourceRow
-                    icon={UserPlus}
-                    label="Administradores"
-                    value={formatLimit(plan.max_admins)}
-                  />
-                )}
-              </div>
-
-              {/* Resources */}
-              <div className="space-y-2.5 mb-4">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Recursos
-                </h4>
-                <ResourceRow
-                  icon={Building2}
-                  label="Consultorios"
-                  value={formatLimit(plan.max_offices)}
-                  current={isCurrent ? usage?.offices : undefined}
-                  limit={plan.max_offices}
-                />
-                <ResourceRow
-                  icon={CalendarDays}
-                  label="Citas por mes"
-                  value={formatLimit(plan.max_appointments_per_month)}
-                />
-                <ResourceRow
-                  icon={Users}
-                  label="Pacientes"
-                  value={formatLimit(plan.max_patients)}
-                />
-                <ResourceRow
-                  icon={HardDrive}
-                  label="Almacenamiento"
-                  value={formatStorage(plan.max_storage_mb)}
-                />
-              </div>
-
-              {/* Addons (expandable) */}
-              {plan.addon_price_per_office && (
-                <div className="mb-4 rounded-xl bg-muted/30 border border-border/40 p-3">
-                  <div className="flex items-center gap-1.5">
-                    <Plus className="h-3.5 w-3.5 text-primary" />
-                    <span className="text-xs font-semibold text-primary">Ampliable</span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    +S/{plan.addon_price_per_office}/consultorio extra
-                  </p>
-                  {plan.addon_price_per_member && (
-                    <p className="text-[11px] text-muted-foreground">
-                      +S/{plan.addon_price_per_member}/miembro adicional
-                    </p>
+              {/* CTA button */}
+              <div className="mt-6">
+                <button
+                  onClick={() => handleChangePlan(plan.id)}
+                  disabled={isCurrent || selecting !== null}
+                  className={cn(
+                    "flex w-full h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                    isCurrent
+                      ? "border border-border bg-card text-muted-foreground"
+                      : isPopular
+                        ? "gradient-primary text-white shadow-md hover:opacity-90 hover:shadow-lg"
+                        : "border border-border bg-card text-foreground hover:bg-accent/50 hover:border-emerald-300 dark:hover:border-emerald-500/40"
                   )}
-                </div>
-              )}
-
-              {/* Features */}
-              <div className="flex-1 space-y-2 border-t border-border/30 pt-4 mb-6">
-                <FeatureCheck enabled={plan.feature_reports} label="Reportes avanzados" />
-                <FeatureCheck enabled={plan.feature_export} label="Exportar datos" />
-                <FeatureCheck enabled={plan.feature_ai_assistant ?? false} label="Asistente IA" />
-                <FeatureCheck enabled={plan.feature_priority_support} label="Soporte prioritario" />
+                >
+                  {selecting === plan.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : isCurrent ? (
+                    <Check className="h-4 w-4" />
+                  ) : null}
+                  {action.label}
+                  {!isCurrent && ` — S/${plan.price_monthly}/mes`}
+                </button>
               </div>
-
-              {/* CTA */}
-              <button
-                onClick={() => handleChangePlan(plan.id)}
-                disabled={isCurrent || selecting !== null}
-                className={cn(
-                  "flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition-all disabled:cursor-not-allowed",
-                  isCurrent
-                    ? "border border-border/60 bg-muted/50 text-muted-foreground"
-                    : cn(
-                        "text-white shadow-lg hover:shadow-xl hover:-translate-y-0.5",
-                        meta.btn
-                      ),
-                  selecting !== null && !isCurrent && "opacity-50"
-                )}
-              >
-                {selecting === plan.id ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : isCurrent ? (
-                  <Check className="h-4 w-4" />
-                ) : action.type === "upgrade" ? (
-                  <TrendingUp className="h-4 w-4" />
-                ) : null}
-                {action.label}
-              </button>
             </div>
           );
         })}
       </div>
 
-      {/* Comparison table (expanded details) */}
-      <ComparisonTable plans={plans} currentSlug={currentPlan?.slug ?? null} />
-
-      {/* Footer notes */}
-      <div className="flex items-start gap-3 rounded-2xl border border-border/40 bg-card/50 p-5">
-        <Shield className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-        <div className="space-y-1">
-          <p className="text-sm font-medium">Sin compromisos</p>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            Pagos procesados de forma segura con Mercado Pago.
-            Puedes cambiar o cancelar tu plan en cualquier momento sin penalizaciones.
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ───── Sub-components ───── */
-
-function ResourceRow({
-  icon: Icon,
-  label,
-  value,
-  current,
-  limit,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value: string;
-  current?: number;
-  limit?: number | null;
-}) {
-  const showBar = current !== undefined && limit !== null && limit !== undefined;
-  const pct = showBar ? Math.min((current / limit) * 100, 100) : 0;
-  const isNear = showBar && pct >= 80;
-  const isAt = showBar && current >= limit;
-
-  return (
-    <div className="space-y-1">
-      <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Icon className="h-4 w-4 shrink-0" />
-          <span>{label}</span>
-        </div>
-        <span className="font-semibold tabular-nums">
-          {current !== undefined ? (
-            <span>
-              <span className={cn(isAt && "text-destructive", isNear && !isAt && "text-amber-500")}>
-                {current}
-              </span>
-              <span className="text-muted-foreground font-normal"> / {value}</span>
-            </span>
-          ) : (
-            value
-          )}
-        </span>
-      </div>
-      {showBar && (
-        <div className="h-1 w-full rounded-full bg-muted/60 overflow-hidden">
-          <div
-            className={cn(
-              "h-full rounded-full transition-all duration-500",
-              isAt ? "bg-destructive" : isNear ? "bg-amber-500" : "bg-primary/60"
-            )}
-            style={{ width: `${pct}%` }}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FeatureCheck({ enabled, label }: { enabled: boolean; label: string }) {
-  return (
-    <div className="flex items-center gap-2.5 text-sm">
-      {enabled ? (
-        <div className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-emerald-500/15">
-          <Check className="h-3 w-3 text-emerald-500" />
-        </div>
-      ) : (
-        <div className="flex h-4.5 w-4.5 items-center justify-center rounded-full bg-muted">
-          <X className="h-3 w-3 text-muted-foreground/40" />
-        </div>
-      )}
-      <span className={enabled ? "text-foreground" : "text-muted-foreground/50"}>
-        {label}
-      </span>
-    </div>
-  );
-}
-
-function ComparisonTable({
-  plans,
-  currentSlug,
-}: {
-  plans: Plan[];
-  currentSlug: string | null;
-}) {
-  const [open, setOpen] = useState(false);
-
-  if (plans.length === 0) return null;
-
-  const rows: { label: string; key: string; format?: (v: Plan) => string }[] = [
-    { label: "Miembros", key: "max_members", format: (p) => formatLimit(p.max_members) },
-    { label: "Especialistas", key: "max_doctors", format: (p) => formatLimit(p.max_doctor_members ?? p.max_doctors) },
-    { label: "Consultorios", key: "max_offices", format: (p) => formatLimit(p.max_offices) },
-    { label: "Pacientes", key: "max_patients", format: (p) => formatLimit(p.max_patients) },
-    { label: "Citas / mes", key: "max_appointments_per_month", format: (p) => formatLimit(p.max_appointments_per_month) },
-    { label: "Almacenamiento", key: "max_storage_mb", format: (p) => formatStorage(p.max_storage_mb) },
-  ];
-
-  const featureRows: { label: string; key: keyof Plan }[] = [
-    { label: "Reportes", key: "feature_reports" },
-    { label: "Exportar datos", key: "feature_export" },
-    { label: "Asistente IA", key: "feature_ai_assistant" },
-    { label: "Soporte prioritario", key: "feature_priority_support" },
-  ];
-
-  return (
-    <div className="rounded-2xl border border-border/40 bg-card/50 overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between px-6 py-4 text-sm font-semibold hover:bg-muted/30 transition-colors"
-      >
-        <span>Comparar planes en detalle</span>
-        {open ? (
-          <ChevronUp className="h-4 w-4 text-muted-foreground" />
-        ) : (
-          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-        )}
-      </button>
-
-      {open && (
-        <div className="border-t border-border/40 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/40">
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Caracteristica
-                </th>
-                {plans.map((plan) => (
-                  <th
-                    key={plan.id}
-                    className={cn(
-                      "px-4 py-3 text-center text-xs font-medium uppercase tracking-wider",
-                      plan.slug === currentSlug
-                        ? "text-primary bg-primary/5"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    {plan.name}
-                    {plan.slug === currentSlug && (
-                      <span className="ml-1 text-[10px] normal-case">(actual)</span>
-                    )}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.key} className="border-b border-border/20">
-                  <td className="px-6 py-2.5 text-muted-foreground">{row.label}</td>
-                  {plans.map((plan) => (
-                    <td
-                      key={plan.id}
-                      className={cn(
-                        "px-4 py-2.5 text-center font-medium tabular-nums",
-                        plan.slug === currentSlug && "bg-primary/5"
-                      )}
-                    >
-                      {row.format ? row.format(plan) : "—"}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-              <tr>
-                <td
-                  colSpan={plans.length + 1}
-                  className="px-6 py-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground bg-muted/20"
-                >
-                  Funciones
-                </td>
-              </tr>
-              {featureRows.map((row) => (
-                <tr key={row.key} className="border-b border-border/20">
-                  <td className="px-6 py-2.5 text-muted-foreground">{row.label}</td>
-                  {plans.map((plan) => (
-                    <td
-                      key={plan.id}
-                      className={cn(
-                        "px-4 py-2.5 text-center",
-                        plan.slug === currentSlug && "bg-primary/5"
-                      )}
-                    >
-                      {(plan[row.key] as boolean) ? (
-                        <Check className="h-4 w-4 text-emerald-500 mx-auto" />
-                      ) : (
-                        <X className="h-4 w-4 text-muted-foreground/30 mx-auto" />
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <p className="text-center text-sm text-muted-foreground mt-10 max-w-xl mx-auto">
+        ¿Necesitas algo entre planes? Todos incluyen{" "}
+        <span className="font-medium text-foreground">addons flexibles</span>:
+        agrega doctores, consultorios o miembros de equipo adicionales sin cambiar de plan.
+      </p>
     </div>
   );
 }
