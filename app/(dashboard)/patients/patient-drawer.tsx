@@ -307,7 +307,8 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const tabs: { key: DrawerTab; label: string; icon: typeof Clock }[] = [
     { key: "info", label: "Datos", icon: Edit2 },
     { key: "history", label: t("patients.tab_history"), icon: Clock },
-    { key: "clinical", label: "Clínico", icon: Stethoscope },
+    // Clinical tab only visible for doctors and admins, not receptionists
+    ...(isAdmin || currentDoctorId ? [{ key: "clinical" as DrawerTab, label: "Clínico", icon: Stethoscope }] : []),
     { key: "finances", label: t("patients.tab_finances"), icon: DollarSign },
     { key: "marketing", label: t("patients.tab_marketing"), icon: Megaphone },
   ];
