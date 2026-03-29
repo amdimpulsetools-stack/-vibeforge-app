@@ -422,6 +422,7 @@ export default function AccountPage() {
                 />
               </div>
 
+              {orgRole !== "receptionist" && (
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground" htmlFor="professional_title">
                   Título profesional
@@ -438,6 +439,7 @@ export default function AccountPage() {
                   ))}
                 </select>
               </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">
