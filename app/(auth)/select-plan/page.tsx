@@ -9,16 +9,8 @@ import {
   Zap,
   Check,
   Loader2,
-  Crown,
-  Building2,
-  Users,
-  Stethoscope,
-  CalendarDays,
-  HardDrive,
-  Plus,
-  UserPlus,
+  Sparkles,
   AlertTriangle,
-  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -47,34 +39,10 @@ interface Plan {
   feature_ai_assistant: boolean;
 }
 
-const PLAN_ICONS: Record<string, LucideIcon> = {
-  starter: Stethoscope,
-  professional: Building2,
-  enterprise: Crown,
-};
-
-const PLAN_COLORS: Record<string, string> = {
-  starter: "border-emerald-500/50 bg-emerald-500/5",
-  professional: "border-blue-500/50 bg-blue-500/5 ring-2 ring-blue-500/20",
-  enterprise: "border-amber-500/50 bg-amber-500/5",
-};
-
-const PLAN_BADGE_COLORS: Record<string, string> = {
-  starter: "bg-emerald-500/10 text-emerald-500",
-  professional: "bg-blue-500/10 text-blue-500",
-  enterprise: "bg-amber-500/10 text-amber-500",
-};
-
-const PLAN_BTN_COLORS: Record<string, string> = {
-  starter: "bg-emerald-600 hover:bg-emerald-700",
-  professional: "bg-blue-600 hover:bg-blue-700",
-  enterprise: "bg-amber-600 hover:bg-amber-700",
-};
-
-const AUDIENCE_LABELS: Record<string, string> = {
-  independiente: "Doctor Independiente",
-  centro_medico: "Centro Médico",
-  clinica: "Clínica",
+const PLAN_ANCHORS: Record<string, string> = {
+  starter: "Menos de lo que cobras por una consulta",
+  professional: "Menos de S/6 al día por tener tu centro organizado",
+  enterprise: "Divide entre tus doctores y sale menos de S/60 c/u",
 };
 
 function formatLimit(val: number | null): string {
@@ -86,6 +54,22 @@ function formatStorage(mb: number | null): string {
   if (mb === null) return "Ilimitado";
   if (mb >= 1024) return `${(mb / 1024).toFixed(0)} GB`;
   return `${mb} MB`;
+}
+
+function buildFeatures(plan: Plan): string[] {
+  const features: string[] = [];
+  const docs = plan.max_doctor_members ?? plan.max_doctors;
+  features.push(docs === null ? "Doctores ilimitados" : `${docs} ${docs === 1 ? "doctor" : "doctores"}`);
+  features.push(plan.max_patients === null ? "Pacientes ilimitados" : `${formatLimit(plan.max_patients)} pacientes`);
+  features.push(plan.max_appointments_per_month === null ? "Citas ilimitadas" : `${formatLimit(plan.max_appointments_per_month)} citas/mes`);
+  features.push(plan.max_offices === null ? "Consultorios ilimitados" : `${plan.max_offices} ${plan.max_offices === 1 ? "consultorio" : "consultorios"}`);
+  features.push(plan.max_members === null ? "Miembros ilimitados" : `Hasta ${plan.max_members} ${plan.max_members === 1 ? "miembro" : "miembros"}`);
+  features.push(`${formatStorage(plan.max_storage_mb)} almacenamiento`);
+  if (plan.feature_reports) features.push("Reportes avanzados");
+  if (plan.feature_export) features.push("Exportar datos");
+  if (plan.feature_priority_support) features.push("Soporte prioritario");
+  if (plan.addon_price_per_office) features.push("Addons disponibles");
+  return features;
 }
 
 export default function SelectPlanPageWrapper() {
@@ -292,19 +276,19 @@ function SelectPlanPage() {
     <div className="min-h-screen bg-background px-4 py-12">
       <div className="mx-auto max-w-5xl">
         {/* Header */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-14">
           <div className="flex items-center justify-center gap-2 mb-4">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
               <Zap className="h-5 w-5" />
             </div>
             <span className="text-xl font-bold">{APP_NAME}</span>
           </div>
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+          <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
             Elige tu plan
           </h1>
-          <p className="mt-2 text-muted-foreground max-w-lg mx-auto">
+          <p className="mt-3 text-base text-muted-foreground max-w-xl mx-auto">
             Selecciona el plan que mejor se adapte a tu realidad.
-            Puedes cambiar de plan en cualquier momento.
+            Sin contratos, sin sorpresas. IA incluida en todos.
           </p>
         </div>
 
@@ -325,165 +309,72 @@ function SelectPlanPage() {
         )}
 
         {/* Plans grid */}
-        <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           {plans.map((plan) => {
-            const PlanIcon = PLAN_ICONS[plan.slug] ?? Zap;
             const isPopular = plan.slug === "professional";
+            const features = buildFeatures(plan);
+            const anchor = PLAN_ANCHORS[plan.slug] ?? plan.description ?? "";
 
             return (
               <div
                 key={plan.id}
                 className={cn(
-                  "relative flex flex-col rounded-2xl border p-6 transition-all hover:shadow-lg",
-                  PLAN_COLORS[plan.slug] ?? "border-border bg-card"
+                  "relative flex flex-col rounded-2xl border p-6 transition-all",
+                  isPopular
+                    ? "border-emerald-300 dark:border-emerald-500/40 bg-card shadow-xl shadow-emerald-100/40 dark:shadow-emerald-900/20 md:scale-105 md:-my-2 z-10"
+                    : "border-border bg-card shadow-sm hover:shadow-md"
                 )}
               >
                 {isPopular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <span className="rounded-full bg-blue-600 px-4 py-1 text-xs font-semibold text-white">
-                      Recomendado
-                    </span>
-                  </div>
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-3 py-0.5 text-[11px] font-semibold text-white shadow-sm">
+                    Recomendado
+                  </span>
                 )}
 
-                {/* Plan header */}
-                <div className="mb-6">
-                  <div
-                    className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium mb-3",
-                      PLAN_BADGE_COLORS[plan.slug] ?? "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    <PlanIcon className="h-3.5 w-3.5" />
-                    {plan.name}
-                  </div>
+                <h3 className="text-lg font-bold">{plan.name}</h3>
 
-                  {/* Target audience badge */}
-                  {plan.target_audience && (
-                    <p className="text-[11px] font-medium text-muted-foreground mb-2">
-                      {AUDIENCE_LABELS[plan.target_audience] ?? plan.target_audience}
-                    </p>
-                  )}
-
+                {/* Price */}
+                <div className="mt-4">
                   <div className="flex items-baseline gap-1">
-                    <span className="text-4xl font-bold">
-                      S/{plan.price_monthly}
+                    <span className="text-sm text-muted-foreground">S/</span>
+                    <span className="text-4xl font-extrabold tabular-nums">
+                      {plan.price_monthly}
                     </span>
                     <span className="text-sm text-muted-foreground">/mes</span>
                   </div>
-                  {plan.description && (
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {plan.description}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {anchor}
+                  </p>
                 </div>
 
-                {/* Team composition */}
-                <div className="space-y-2 mb-4">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Equipo incluido
-                  </h4>
-                  <Feature
-                    icon={Users}
-                    label="Miembros totales"
-                    value={formatLimit(plan.max_members)}
-                  />
-                  {(plan.max_admins ?? 0) > 0 && (
-                    <Feature
-                      icon={UserPlus}
-                      label="Administradores"
-                      value={formatLimit(plan.max_admins)}
-                    />
-                  )}
-                  {(plan.max_receptionists ?? 0) > 0 && (
-                    <Feature
-                      icon={UserPlus}
-                      label="Recepcionistas"
-                      value={formatLimit(plan.max_receptionists)}
-                    />
-                  )}
-                  <Feature
-                    icon={Stethoscope}
-                    label="Especialistas"
-                    value={formatLimit(plan.max_doctor_members ?? plan.max_doctors)}
-                  />
-                </div>
-
-                {/* Resources */}
-                <div className="space-y-2 mb-4">
-                  <h4 className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    Recursos
-                  </h4>
-                  <Feature
-                    icon={Building2}
-                    label="Consultorios"
-                    value={formatLimit(plan.max_offices)}
-                  />
-                  <Feature
-                    icon={CalendarDays}
-                    label="Citas/mes"
-                    value={formatLimit(plan.max_appointments_per_month)}
-                  />
-                  <Feature
-                    icon={Users}
-                    label="Pacientes"
-                    value={formatLimit(plan.max_patients)}
-                  />
-                  <Feature
-                    icon={HardDrive}
-                    label="Almacenamiento"
-                    value={formatStorage(plan.max_storage_mb)}
-                  />
-                </div>
-
-                {/* Expandable info */}
-                {plan.addon_price_per_office && (
-                  <div className="mb-4 rounded-lg bg-muted/30 p-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Plus className="h-3 w-3 text-primary" />
-                      <span className="text-[11px] font-bold text-primary">
-                        Ampliable
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">
-                      +S/{plan.addon_price_per_office}/consultorio extra
-                    </p>
-                    {plan.addon_price_per_member && (
-                      <p className="text-[11px] text-muted-foreground">
-                        +S/{plan.addon_price_per_member}/miembro adicional
-                      </p>
-                    )}
+                {/* IA badge */}
+                {plan.feature_ai_assistant && (
+                  <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                    <Sparkles className="h-3 w-3" />
+                    IA incluida
                   </div>
                 )}
 
-                {/* Feature flags */}
-                <div className="flex-1 border-t border-border/50 pt-3 space-y-2 mb-6">
-                  <FeatureFlag
-                    enabled={plan.feature_reports}
-                    label="Reportes"
-                  />
-                  <FeatureFlag
-                    enabled={plan.feature_export}
-                    label="Exportar datos"
-                  />
-                  <FeatureFlag
-                    enabled={plan.feature_ai_assistant ?? false}
-                    label="Asistente IA"
-                  />
-                  <FeatureFlag
-                    enabled={plan.feature_priority_support}
-                    label="Soporte prioritario"
-                  />
-                </div>
+                {/* Feature list */}
+                <ul className="mt-5 space-y-2.5 flex-1">
+                  {features.map((feat) => (
+                    <li key={feat} className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+                      {feat}
+                    </li>
+                  ))}
+                </ul>
 
-                {/* CTA */}
-                <div className="space-y-2">
+                {/* CTA buttons */}
+                <div className="mt-6 space-y-2">
                   <button
                     onClick={() => handleStartTrial(plan.id)}
                     disabled={selecting !== null}
                     className={cn(
-                      "flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold text-white transition-all disabled:opacity-50",
-                      PLAN_BTN_COLORS[plan.slug] ?? "bg-primary hover:opacity-90"
+                      "flex w-full h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50",
+                      isPopular
+                        ? "gradient-primary text-white shadow-md hover:opacity-90 hover:shadow-lg"
+                        : "border border-border bg-card text-foreground hover:bg-accent/50 hover:border-emerald-300 dark:hover:border-emerald-500/40"
                     )}
                   >
                     {selecting === plan.id ? (
@@ -494,7 +385,7 @@ function SelectPlanPage() {
                   <button
                     onClick={() => handleSelect(plan.id)}
                     disabled={selecting !== null}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-card/50 px-4 py-2.5 text-xs font-medium text-muted-foreground transition-all hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
+                    className="flex w-full h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card/50 text-xs font-medium text-muted-foreground transition-all hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
                   >
                     Pagar suscripción — S/{plan.price_monthly}/mes
                   </button>
@@ -504,53 +395,12 @@ function SelectPlanPage() {
           })}
         </div>
 
-        <p className="mt-8 text-center text-xs text-muted-foreground">
-          Pagos procesados de forma segura con Mercado Pago.
-          Puedes cambiar o cancelar tu plan en cualquier momento.
+        <p className="text-center text-sm text-muted-foreground mt-10 max-w-xl mx-auto">
+          ¿Necesitas algo entre planes? Todos incluyen{" "}
+          <span className="font-medium text-foreground">addons flexibles</span>:
+          agrega doctores, consultorios o miembros de equipo adicionales sin cambiar de plan.
         </p>
       </div>
-    </div>
-  );
-}
-
-function Feature({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof Users;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="flex items-center justify-between text-sm">
-      <div className="flex items-center gap-2 text-muted-foreground">
-        <Icon className="h-4 w-4" />
-        <span>{label}</span>
-      </div>
-      <span className="font-medium">{value}</span>
-    </div>
-  );
-}
-
-function FeatureFlag({
-  enabled,
-  label,
-}: {
-  enabled: boolean;
-  label: string;
-}) {
-  return (
-    <div className="flex items-center gap-2 text-sm">
-      <Check
-        className={cn(
-          "h-4 w-4",
-          enabled ? "text-emerald-500" : "text-muted-foreground/30"
-        )}
-      />
-      <span className={enabled ? "" : "text-muted-foreground/50 line-through"}>
-        {label}
-      </span>
     </div>
   );
 }
