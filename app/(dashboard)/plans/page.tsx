@@ -239,7 +239,7 @@ function PlansContent() {
       )}
 
       {/* Plans Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start max-w-4xl mx-auto">
         {plans.map((plan) => {
           const isCurrent = isCurrentPlan(plan.slug);
           const action = getPlanAction(plan);
@@ -251,7 +251,7 @@ function PlansContent() {
             <div
               key={plan.id}
               className={cn(
-                "relative flex flex-col rounded-2xl border p-6 transition-all",
+                "relative flex flex-col rounded-2xl border p-5 transition-all",
                 isPopular
                   ? "border-emerald-300 dark:border-emerald-500/40 bg-card shadow-xl shadow-emerald-100/40 dark:shadow-emerald-900/20 md:scale-105 md:-my-2 z-10"
                   : "border-border bg-card shadow-sm hover:shadow-md",
@@ -277,7 +277,7 @@ function PlansContent() {
               <div className="mt-4">
                 <div className="flex items-baseline gap-1">
                   <span className="text-sm text-muted-foreground">S/</span>
-                  <span className="text-4xl font-extrabold tabular-nums">
+                  <span className="text-3xl font-extrabold tabular-nums">
                     {plan.price_monthly}
                   </span>
                   <span className="text-sm text-muted-foreground">/mes</span>
@@ -298,7 +298,7 @@ function PlansContent() {
               {/* Feature list */}
               <ul className="mt-5 space-y-2.5 flex-1">
                 {features.map((feat) => (
-                  <li key={feat} className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <li key={feat} className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Check className="h-4 w-4 text-emerald-500 shrink-0" />
                     {feat}
                   </li>

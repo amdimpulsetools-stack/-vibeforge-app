@@ -20,6 +20,7 @@ import {
   X,
   Check,
   GripVertical,
+  Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -102,6 +103,7 @@ export default function LookupsPage() {
       {activeCategory && (
         <LookupValueList
           category={activeCategory}
+          categorySlug={activeSlug}
           showColor={activeTabConfig?.showColor ?? false}
           onUpdate={fetchData}
           isAdmin={isAdmin}
@@ -111,13 +113,32 @@ export default function LookupsPage() {
   );
 }
 
+/** Core appointment status values that must not be edited/deleted */
+const SYSTEM_APPOINTMENT_STATUS_VALUES = new Set([
+  "scheduled",
+  "confirmed",
+  "completed",
+  "cancelled",
+  "no_show",
+]);
+
+function isSystemProtected(item: LookupValue, categorySlug: string): boolean {
+  if (item.is_default) return true;
+  if (categorySlug === LOOKUP_SLUGS.APPOINTMENT_STATUS) {
+    return SYSTEM_APPOINTMENT_STATUS_VALUES.has(item.value);
+  }
+  return false;
+}
+
 function LookupValueList({
   category,
+  categorySlug,
   showColor,
   onUpdate,
   isAdmin,
 }: {
   category: LookupCategory & { lookup_values: LookupValue[] };
+  categorySlug: string;
   showColor: boolean;
   onUpdate: () => void;
   isAdmin: boolean;
@@ -199,64 +220,73 @@ function LookupValueList({
       )}
 
       <div className="space-y-2">
-        {category.lookup_values.map((item) => (
-          <div
-            key={item.id}
-            className="flex items-center justify-between rounded-xl border border-border bg-card p-4"
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground w-6 text-center">
-                {item.display_order}
-              </span>
-              {showColor && item.color && (
-                <div
-                  className="h-5 w-5 rounded-full border border-border"
-                  style={{ backgroundColor: item.color }}
-                />
+        {category.lookup_values.map((item) => {
+          const isProtected = isSystemProtected(item, categorySlug);
+          return (
+            <div
+              key={item.id}
+              className={cn(
+                "flex items-center justify-between rounded-xl border border-border bg-card p-4",
+                isProtected && "opacity-75"
               )}
-              <div>
-                <span className="font-medium">{item.label}</span>
-                <span className="ml-2 text-xs text-muted-foreground font-mono">
-                  {item.value}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground w-6 text-center">
+                  {item.display_order}
                 </span>
+                {showColor && item.color && (
+                  <div
+                    className="h-5 w-5 rounded-full border border-border"
+                    style={{ backgroundColor: item.color }}
+                  />
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{item.label}</span>
+                  <span className="ml-1 text-xs text-muted-foreground font-mono">
+                    {item.value}
+                  </span>
+                  {isProtected && (
+                    <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => isAdmin && !isProtected && handleToggleActive(item)}
+                  disabled={!isAdmin || isProtected}
+                  className={cn(
+                    "rounded-full px-3 py-1 text-xs font-medium transition-colors",
+                    item.is_active
+                      ? "bg-emerald-500/10 text-emerald-500"
+                      : "bg-muted text-muted-foreground",
+                    (!isAdmin || isProtected) && "cursor-default"
+                  )}
+                >
+                  {item.is_active ? t("common.active") : t("common.inactive")}
+                </button>
+                {isAdmin && !isProtected && (
+                  <button
+                    onClick={() => {
+                      setEditingValue(item);
+                      setShowForm(true);
+                    }}
+                    className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                )}
+                {isAdmin && !isProtected && (
+                  <button
+                    onClick={() => handleDelete(item.id)}
+                    className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => isAdmin && handleToggleActive(item)}
-                disabled={!isAdmin}
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium transition-colors",
-                  item.is_active
-                    ? "bg-emerald-500/10 text-emerald-500"
-                    : "bg-muted text-muted-foreground",
-                  !isAdmin && "cursor-default"
-                )}
-              >
-                {item.is_active ? t("common.active") : t("common.inactive")}
-              </button>
-              {isAdmin && (
-                <button
-                  onClick={() => {
-                    setEditingValue(item);
-                    setShowForm(true);
-                  }}
-                  className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                >
-                  <Pencil className="h-4 w-4" />
-                </button>
-              )}
-              {isAdmin && (
-                <button
-                  onClick={() => handleDelete(item.id)}
-                  className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -147,8 +147,6 @@ export default function MembersPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteOptionIdx, setInviteOptionIdx] = useState(0);
   const [inviting, setInviting] = useState(false);
-  const [changingRole, setChangingRole] = useState<string | null>(null);
-
   const isAdmin = orgRole === "owner" || orgRole === "admin";
   const memberLimitReached = isAtLimit("members");
   const isIndependientePlan = plan?.target_audience === "independiente";
@@ -241,28 +239,6 @@ export default function MembersPage() {
     } finally {
       setInviting(false);
     }
-  };
-
-  const handleChangeRole = async (
-    memberId: string,
-    newRole: "admin" | "receptionist" | "doctor"
-  ) => {
-    setChangingRole(memberId);
-    const res = await fetch(`/api/members/${memberId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ role: newRole }),
-    });
-
-    setChangingRole(null);
-
-    if (!res.ok) {
-      toast.error(t("members.role_change_error"));
-      return;
-    }
-
-    toast.success(t("members.role_change_success"));
-    fetchMembers();
   };
 
   const handleRemove = async (member: Member) => {
@@ -453,52 +429,13 @@ export default function MembersPage() {
               </div>
 
               <div className="flex items-center gap-3">
-                {/* Role badge / selector */}
-                {member.role === "owner" ? (
-                  <span
-                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${display.colorClass}`}
-                  >
-                    <DisplayIcon className="h-3.5 w-3.5" />
-                    {display.label}
-                  </span>
-                ) : isAdmin ? (
-                  <div className="flex items-center gap-2">
-                    <span
-                      className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${display.colorClass}`}
-                    >
-                      <DisplayIcon className="h-3.5 w-3.5" />
-                      {display.label}
-                    </span>
-                    <select
-                      value={member.role}
-                      onChange={(e) =>
-                        handleChangeRole(
-                          member.id,
-                          e.target.value as "admin" | "receptionist" | "doctor"
-                        )
-                      }
-                      disabled={changingRole === member.id || !member.is_active}
-                      className="rounded-lg border border-input bg-background px-2 py-1 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors disabled:opacity-50"
-                    >
-                      <option value="admin">
-                        {t("members.role_admin")}
-                      </option>
-                      <option value="receptionist">
-                        {t("members.role_receptionist")}
-                      </option>
-                      <option value="doctor">
-                        {t("members.title_doctor")}
-                      </option>
-                    </select>
-                  </div>
-                ) : (
-                  <span
-                    className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${display.colorClass}`}
-                  >
-                    <DisplayIcon className="h-3.5 w-3.5" />
-                    {display.label}
-                  </span>
-                )}
+                {/* Role badge (read-only) */}
+                <span
+                  className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${display.colorClass}`}
+                >
+                  <DisplayIcon className="h-3.5 w-3.5" />
+                  {display.label}
+                </span>
 
                 {/* Deactivate / Activate button */}
                 {isAdmin && member.role !== "owner" && (
