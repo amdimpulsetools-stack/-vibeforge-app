@@ -467,6 +467,7 @@ export default function SchedulerPage() {
           organizationId={organizationId ?? ""}
           organizationName={organization?.name ?? ""}
           organizationAddress={organization?.address || ""}
+          currentDoctorId={isDoctor ? currentDoctorId : null}
           onClose={handleFormClose}
           onSaved={handleSaved}
         />

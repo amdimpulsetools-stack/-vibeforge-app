@@ -60,6 +60,8 @@ interface AppointmentFormModalProps {
   organizationId: string;
   organizationName: string;
   organizationAddress: string;
+  /** If the current user is a doctor, only show their own record in the doctor select */
+  currentDoctorId?: string | null;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -78,10 +80,16 @@ export function AppointmentFormModal({
   organizationId,
   organizationName,
   organizationAddress,
+  currentDoctorId,
   onClose,
   onSaved,
 }: AppointmentFormModalProps) {
   const { t } = useLanguage();
+
+  // If current user is a doctor, only show their own record
+  const availableDoctors = currentDoctorId
+    ? doctors.filter((d) => d.id === currentDoctorId)
+    : doctors;
   const [saving, setSaving] = useState(false);
   const [searchingPatient, setSearchingPatient] = useState(false);
   const [foundPatient, setFoundPatient] = useState<Patient | null>(null);
@@ -118,7 +126,7 @@ export function AppointmentFormModal({
       patient_phone: "",
       patient_dni: "",
       patient_id: "",
-      doctor_id: "",
+      doctor_id: currentDoctorId ?? "",
       office_id: defaults?.officeId ?? "",
       service_id: "",
       appointment_date: defaults?.date ?? new Date().toISOString().split("T")[0],
@@ -738,7 +746,7 @@ export function AppointmentFormModal({
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               >
                 <option value="">-- {t("scheduler.doctor")} --</option>
-                {doctors.map((d) => (
+                {availableDoctors.map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.full_name}
                   </option>
