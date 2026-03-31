@@ -324,6 +324,7 @@ export function DoctorDashboard({ userName }: { userName: string }) {
           value={stats.week_appointments}
           icon={Activity}
           color="purple"
+          subtitle={`${stats.month_completed} completadas este mes`}
         />
         <KpiCard
           title="Ingresos del mes"
