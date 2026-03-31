@@ -24,6 +24,8 @@ import {
   ExternalLink,
   Ban,
   RotateCcw,
+  Rocket,
+  ArrowRight,
 } from "lucide-react";
 import { usePlan } from "@/hooks/use-plan";
 
@@ -293,6 +295,50 @@ export default function MembersPage() {
 
   return (
     <div className="space-y-6">
+      {/* Upgrade banner for independiente plan */}
+      {plan?.slug === "independiente" && (
+        <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 via-teal-500/5 to-transparent p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Rocket className="h-5 w-5 text-emerald-500" />
+            <h3 className="text-lg font-semibold">
+              {language === "es" ? "Haz crecer tu equipo" : "Grow your team"}
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-4 sm:gap-6 items-start">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium text-muted-foreground mb-2">
+                {language === "es" ? "Tu plan actual" : "Your current plan"}
+              </p>
+              <p className="text-sm">1 {language === "es" ? "doctor" : "doctor"}</p>
+              <p className="text-sm">0 {language === "es" ? "recepcionistas" : "receptionists"}</p>
+              <p className="text-sm">1 {language === "es" ? "consultorio" : "office"}</p>
+              <p className="text-sm">100 {language === "es" ? "citas/mes" : "appointments/mo"}</p>
+              <p className="text-sm">30 {language === "es" ? "consultas IA" : "AI queries"}</p>
+            </div>
+            <div className="hidden sm:flex items-center justify-center self-center">
+              <ArrowRight className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium text-emerald-500 mb-2">Centro Médico</p>
+              <p className="text-sm font-medium">3 {language === "es" ? "doctores" : "doctors"}</p>
+              <p className="text-sm font-medium">2 {language === "es" ? "recepcionistas" : "receptionists"}</p>
+              <p className="text-sm font-medium">3 {language === "es" ? "consultorios" : "offices"}</p>
+              <p className="text-sm font-medium">500 {language === "es" ? "citas/mes" : "appointments/mo"}</p>
+              <p className="text-sm font-medium">120 {language === "es" ? "consultas IA" : "AI queries"}</p>
+            </div>
+          </div>
+          <div className="mt-5">
+            <a
+              href="/plans"
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
+            >
+              {language === "es" ? "Mejorar plan" : "Upgrade plan"} — S/169.90/{language === "es" ? "mes" : "mo"}
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
