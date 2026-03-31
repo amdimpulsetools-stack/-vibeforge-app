@@ -220,8 +220,8 @@ export function DoctorDashboard({ userName }: { userName: string }) {
   const stats = data.stats;
   const firstName = userName.split(" ")[0] || userName;
   const completionRateMonth =
-    stats.month_total > 0
-      ? Math.round((stats.month_completed / stats.month_total) * 100)
+    (stats.month_total ?? 0) > 0
+      ? Math.round((stats.month_completed / (stats.month_total ?? 1)) * 100)
       : 0;
 
   const todayProgress =
@@ -341,11 +341,11 @@ export function DoctorDashboard({ userName }: { userName: string }) {
           subtitle={stats.new_patients_month > 0 ? `+${stats.new_patients_month} nuevos` : undefined}
         />
         <KpiCard
-          title="Tasa completado"
+          title="Tasa de completados"
           value={`${completionRateMonth}%`}
           icon={Target}
           color="amber"
-          subtitle={`${stats.month_completed}/${stats.month_total} este mes`}
+          subtitle={`${stats.month_completed}/${stats.month_total ?? 0} citas este mes`}
           isText
         />
       </motion.div>
