@@ -146,9 +146,6 @@ const EXAMPLE_QUERIES = [
 export function AiAssistantPanel() {
   const { isOrgAdmin } = useOrganization();
   const { quota, loading: quotaLoading, refetch: refetchQuota } = useAiQuota();
-
-  // Only show for admin/owner
-  if (!isOrgAdmin) return null;
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -259,6 +256,9 @@ export function AiAssistantPanel() {
       sendMessage();
     }
   };
+
+  // Only render for admin/owner (after all hooks)
+  if (!isOrgAdmin) return null;
 
   return (
     <>
