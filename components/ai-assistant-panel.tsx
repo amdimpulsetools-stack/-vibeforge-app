@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Bot, X, Send, Loader2, Download, ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAiQuota } from "@/hooks/use-ai-quota";
+import { useOrganization } from "@/components/organization-provider";
 
 interface Message {
   id: string;
@@ -143,7 +144,11 @@ const EXAMPLE_QUERIES = [
 ];
 
 export function AiAssistantPanel() {
+  const { isOrgAdmin } = useOrganization();
   const { quota, loading: quotaLoading, refetch: refetchQuota } = useAiQuota();
+
+  // Only show for admin/owner
+  if (!isOrgAdmin) return null;
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
     {
