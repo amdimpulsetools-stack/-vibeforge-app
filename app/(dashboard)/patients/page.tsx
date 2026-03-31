@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrganization } from "@/components/organization-provider";
+import { usePlan } from "@/hooks/use-plan";
 import { PatientDrawer } from "./patient-drawer";
 import { PatientFormModal } from "./patient-form-modal";
 import { BulkImportModal } from "./bulk-import-modal";
@@ -45,6 +46,8 @@ export default function PatientsPage() {
   const { t } = useLanguage();
   const { isDoctor } = useOrgRole();
   const { organization } = useOrganization();
+  const { plan } = usePlan();
+  const canExport = plan?.feature_export !== false;
   const isDoctorRestricted =
     isDoctor &&
     (organization as any)?.settings?.restrict_doctor_patients === true;
@@ -359,18 +362,19 @@ export default function PatientsPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setShowBulkImport(true)}
-                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                title="Importar pacientes desde CSV"
+                onClick={() => canExport && setShowBulkImport(true)}
+                disabled={!canExport}
+                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                title={canExport ? "Importar pacientes desde CSV" : "Disponible en plan Centro Médico"}
               >
                 <Upload className="h-4 w-4" />
                 <span className="hidden sm:inline">Importar</span>
               </button>
               <button
-                onClick={handleExportCSV}
-                disabled={filteredPatients.length === 0 || exporting}
-                className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
-                title="Exportar CSV"
+                onClick={canExport ? handleExportCSV : undefined}
+                disabled={!canExport || filteredPatients.length === 0 || exporting}
+                className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title={canExport ? "Exportar CSV" : "Disponible en plan Centro Médico"}
               >
                 {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                 CSV
