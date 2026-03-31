@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AdminDashboard } from "./admin-dashboard";
 import { DoctorDashboardWrapper } from "./doctor-dashboard-wrapper";
+import { OwnerDoctorSection } from "./owner-doctor-section";
 import {
   format,
   subDays,
@@ -196,17 +197,32 @@ export default async function DashboardPage() {
     total: number;
   }>;
 
+  // Check if the owner/admin also has a linked doctor record
+  const { data: linkedDoctor } = await supabase
+    .from("doctors")
+    .select("id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .maybeSingle();
+
+  const userName = user.user_metadata?.full_name || user.email || "";
+
   return (
-    <AdminDashboard
-      userName={user.user_metadata?.full_name || user.email || ""}
-      periodData={{
-        month: monthData,
-        week: weekData,
-        today: todayData,
-      }}
-      receptionistPerformance={receptionistPerformance}
-      topTreatments={topTreatments}
-      monthlyRevenueGoal={Number(stats.monthly_revenue_goal ?? 0)}
-    />
+    <>
+      <AdminDashboard
+        userName={userName}
+        periodData={{
+          month: monthData,
+          week: weekData,
+          today: todayData,
+        }}
+        receptionistPerformance={receptionistPerformance}
+        topTreatments={topTreatments}
+        monthlyRevenueGoal={Number(stats.monthly_revenue_goal ?? 0)}
+      />
+      {linkedDoctor && (
+        <OwnerDoctorSection userName={userName} />
+      )}
+    </>
   );
 }
