@@ -64,9 +64,11 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
   const onSubmit = async (values: PatientFormData) => {
     setSaving(true);
     const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
     const { error } = await supabase.from("patients").insert({
       organization_id: organizationId,
+      created_by: user?.id ?? null,
       dni: values.dni || null,
       document_type: values.document_type,
       first_name: values.first_name,

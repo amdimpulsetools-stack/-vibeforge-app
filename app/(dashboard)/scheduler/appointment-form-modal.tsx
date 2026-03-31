@@ -322,6 +322,7 @@ export function AppointmentFormModal({
 
     setSaving(true);
     const supabase = createClient();
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
 
     // Build full name for appointment record
     const fullName = `${values.patient_name.trim()} ${values.patient_last_name.trim()}`.trim();
@@ -342,6 +343,7 @@ export function AppointmentFormModal({
           departamento: patientDepartamento || null,
           distrito: patientDistrito || null,
           organization_id: organizationId,
+          created_by: currentUser?.id ?? null,
         })
         .select()
         .single();

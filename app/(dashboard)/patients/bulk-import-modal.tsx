@@ -378,6 +378,7 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
     setImportProgress(0);
 
     const supabase = createClient();
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
     let success = 0;
     let failed = 0;
     let duplicates = 0;
@@ -407,6 +408,7 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
           custom_field_1: p.custom_field_1?.substring(0, 200) || null,
           custom_field_2: p.custom_field_2?.substring(0, 200) || null,
           status: "active" as const,
+          created_by: currentUser?.id ?? null,
         };
       });
 
