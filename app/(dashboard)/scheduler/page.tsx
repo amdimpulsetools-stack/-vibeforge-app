@@ -13,6 +13,7 @@ import type {
   ScheduleBlock,
 } from "@/types/admin";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
+import { useOrgRole } from "@/hooks/use-org-role";
 import { useSchedulerMasterData } from "@/hooks/use-scheduler-master-data";
 import { SchedulerHeader } from "./scheduler-header";
 import { DayView } from "./day-view";
@@ -89,6 +90,7 @@ export default function SchedulerPage() {
   const { t } = useLanguage();
   const { organizationId, organization } = useOrganization();
   const { doctorId: currentDoctorId, isDoctor } = useCurrentDoctor();
+  const { isOwner } = useOrgRole();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
@@ -467,7 +469,8 @@ export default function SchedulerPage() {
           organizationId={organizationId ?? ""}
           organizationName={organization?.name ?? ""}
           organizationAddress={organization?.address || ""}
-          currentDoctorId={isDoctor ? currentDoctorId : null}
+          currentDoctorId={(isDoctor || (isOwner && currentDoctorId)) ? currentDoctorId : null}
+          restrictToDoctor={isDoctor && !isOwner}
           onClose={handleFormClose}
           onSaved={handleSaved}
         />

@@ -60,8 +60,10 @@ interface AppointmentFormModalProps {
   organizationId: string;
   organizationName: string;
   organizationAddress: string;
-  /** If the current user is a doctor, only show their own record in the doctor select */
+  /** If the current user is a doctor, pre-select (and optionally restrict to) their own record */
   currentDoctorId?: string | null;
+  /** When true, only show the current doctor in the doctor select (default: true for backwards compat) */
+  restrictToDoctor?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }
@@ -81,13 +83,14 @@ export function AppointmentFormModal({
   organizationName,
   organizationAddress,
   currentDoctorId,
+  restrictToDoctor = true,
   onClose,
   onSaved,
 }: AppointmentFormModalProps) {
   const { t } = useLanguage();
 
-  // If current user is a doctor, only show their own record
-  const availableDoctors = currentDoctorId
+  // If current user is a doctor and restricted, only show their own record
+  const availableDoctors = currentDoctorId && restrictToDoctor
     ? doctors.filter((d) => d.id === currentDoctorId)
     : doctors;
   const [saving, setSaving] = useState(false);
