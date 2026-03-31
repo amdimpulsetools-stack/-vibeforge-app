@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
@@ -68,7 +69,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    // Use admin client to bypass RLS recursion issues on update
+    const admin = createAdminClient();
+    const { data, error } = await admin
       .from("clinical_notes")
       .update({
         is_signed: true,
