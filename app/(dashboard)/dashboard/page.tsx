@@ -30,13 +30,22 @@ export default async function DashboardPage() {
 
   if (!membership) redirect("/login");
 
+  // Get display name from user_profiles (updated by user in account page)
+  const { data: profile } = await supabase
+    .from("user_profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .single();
+
+  const displayName = profile?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "";
+
   const role = membership.role as "owner" | "admin" | "receptionist" | "doctor";
 
   // Doctor role: show personal dashboard
   if (role === "doctor") {
     return (
       <DoctorDashboardWrapper
-        userName={user.user_metadata?.full_name || user.email || ""}
+        userName={displayName}
       />
     );
   }
@@ -205,7 +214,7 @@ export default async function DashboardPage() {
     .limit(1)
     .maybeSingle();
 
-  const userName = user.user_metadata?.full_name || user.email || "";
+  const userName = displayName;
 
   return (
     <>
