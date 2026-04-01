@@ -27,7 +27,10 @@ export function InviteTokenHandler() {
     if (!accessToken || !refreshToken) return;
 
     const handleInvite = async () => {
-      // 1. Set the session
+      // 1. Clear hash immediately so user doesn't see the long URL
+      window.history.replaceState(null, "", "/");
+
+      // 2. Set the session
       const supabase = createClient();
       const { error } = await supabase.auth.setSession({
         access_token: accessToken,
@@ -40,16 +43,11 @@ export function InviteTokenHandler() {
         return;
       }
 
-      // 2. Accept the pending invitation (adds user to org, removes auto-created org)
-      try {
-        await fetch("/api/auth/accept-invite", { method: "POST" });
-      } catch {
-        // Non-blocking — invitation might have been accepted already
-      }
-
-      // 3. Clear hash and redirect to reset-password
-      window.history.replaceState(null, "", "/");
+      // 3. Redirect to reset-password immediately
       router.push("/reset-password");
+
+      // 4. Accept invitation in background (non-blocking)
+      fetch("/api/auth/accept-invite", { method: "POST" }).catch(() => {});
     };
 
     handleInvite();
