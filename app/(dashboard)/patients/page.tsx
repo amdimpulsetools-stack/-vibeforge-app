@@ -362,10 +362,9 @@ export default function PatientsPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => canExport && setShowBulkImport(true)}
-                disabled={!canExport}
-                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                title={canExport ? "Importar pacientes desde CSV" : "Disponible en plan Centro Médico"}
+                onClick={() => setShowBulkImport(true)}
+                className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                title="Importar pacientes desde CSV"
               >
                 <Upload className="h-4 w-4" />
                 <span className="hidden sm:inline">Importar</span>
