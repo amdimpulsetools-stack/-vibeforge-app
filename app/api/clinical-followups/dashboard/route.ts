@@ -63,8 +63,8 @@ export async function GET(request: NextRequest) {
 
       return { ...item, urgency, days_diff: daysDiff };
     })
-    // Only show up to 30 days out
-    .filter((item) => item.days_diff <= 30);
+    // Show all future followups (no cutoff limit)
+    .filter((item) => item.days_diff <= 365);
 
   const overdue = items.filter((i) => i.urgency === "overdue");
   const thisWeek = items.filter((i) => i.urgency === "this_week");
