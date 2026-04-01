@@ -797,14 +797,14 @@ CRON_SECRET=              # Bearer token para cron jobs (32+ chars)
 - El insert a `ai_query_usage` ahora maneja errores explícitamente en lugar de fallar silenciosamente
 - Migración 061 aplicada directamente a la base de datos de producción
 
-### Auditoría de Producción (Rating: 8.5/10 — actualizado 2026-03-26)
+### Auditoría de Producción (Rating: 9/10 — actualizado 2026-03-31)
 - **81+ indexes** verificados activos en la base de datos
-- **Seguridad:** 9/10 — Auditoría completa 16/16 issues resueltos, encryption at rest, CSP hardened, org checks en todos los PATCH/DELETE, Zod en todos los endpoints
-- **Base de datos:** 9/10 — 69 migraciones, RLS completo, scheduler settings en DB, avatar options
-- **Arquitectura:** 8.5/10 — Multi-tenant sólido, billing, roles, DB-backed config
-- **Performance:** 7.5/10 — Code splitting, React Query caching
-- **Testing:** 2/10 — Gap principal: 0 tests (pendiente)
-- **Pendientes para producción real:** Tests, CI/CD pipeline, migrar `<img>` a `next/image`
+- **Seguridad:** 9.5/10 — Auditoría completa 16/16 issues resueltos, encryption at rest, CSP hardened, org checks en todos los PATCH/DELETE, Zod en todos los endpoints, TOTP 2FA para founder panel
+- **Base de datos:** 9.5/10 — 75 migraciones, RLS completo, scheduler settings en DB, avatar options, responsible_user_id, created_by en patients
+- **Arquitectura:** 9/10 — Multi-tenant sólido, billing, roles, DB-backed config, owner+doctor dual role
+- **Performance:** 8/10 — 26 queries optimizadas, singleton Supabase client, lazy loading
+- **Testing:** 2/10 — Gap principal: 0 tests automatizados (script de seed users disponible)
+- **Pendientes para producción real:** Tests automatizados, CI/CD pipeline
 
 ---
 
@@ -916,3 +916,86 @@ CRON_SECRET=              # Bearer token para cron jobs (32+ chars)
 
 ### Variables de Entorno Nuevas
 - `ENCRYPTION_KEY` — Clave AES-256 para encriptar tokens sensibles (32+ chars). Opcional: sin ella funciona en plaintext
+
+---
+
+## 20. Changelog — Sesión 2026-03-31
+
+### Founder Panel con 2FA (TOTP)
+- **Panel separado** en `/founder-dashboard` con layout propio (navbar horizontal, sin sidebar de clínica)
+- **Autenticación 2FA** con Google Authenticator / Authy (TOTP RFC 6238)
+- **5 páginas:** Overview (12 stat cards), Organizaciones (tabla), Revenue (desglose por plan), Usuarios (owners/admins + miembros), Health (DB, webhooks, soporte, auditoría)
+- **APIs con admin client** (`/api/founder/stats/*`) para bypass RLS y ver data cross-org
+- **Sesión 4h** con cookie httpOnly, secure, sameSite strict
+- Migraciones: 070 (totp_secret + totp_enabled en user_profiles)
+
+### Owner + Doctor (Plan Independiente)
+- Owner con doctor record vinculado hereda permisos de doctor
+- **Dashboard dual:** AdminDashboard + sección colapsable "Mi Consulta" con DoctorDashboard
+- Owner puede crear/firmar notas clínicas, ver tab Clínico en drawer pacientes
+- Scheduler pre-selecciona al owner como doctor en formularios
+- AI Assistant visible para owner (no para doctores miembros ni recepcionistas)
+- Trigger `handle_new_user` ahora seedea solo 1 consultorio por defecto
+
+### Flujo de Invitación Mejorado
+- `InviteTokenHandler` captura tokens de invitación en hash URL
+- `/api/auth/accept-invite` acepta invitación automáticamente (agrega a org, elimina org auto-creada)
+- Redirect optimizado: reset-password primero, accept-invite en background
+- Middleware: miembros invitados saltan onboarding, prefiere org con suscripción activa
+- RPC `get_user_session_check` ordena membresías por org con plan activo
+
+### Seguridad — RLS Fixes
+- `user_profiles` peer visibility: nueva función `get_org_peer_user_ids()` SECURITY DEFINER (evita recursión)
+- `user_profiles` UPDATE: nueva función `get_own_is_founder()` SECURITY DEFINER (evita recursión con peer policy)
+- Clinical notes signing: usa admin client para bypass RLS en firma
+- `organization_members` role check: agregado `receptionist` al constraint
+
+### Performance
+- **Supabase client singleton** — elimina LockManager timeout (10000ms) en dev
+- **26 queries optimizadas** — select("*") reemplazado con columnas específicas
+- **Scheduler config instant** — localStorage en useState initializer, DB sync en background
+- **Responsables via API** — `/api/members/responsibles` con admin client (bypass RLS)
+
+### UI/UX — Páginas de Planes Rediseñadas
+- `/select-plan` y `/plans` rediseñados con estilo de landing page pricing
+- Cards limpios con precio grande, badge "IA incluida", feature list con checks
+- Plan popular (Centro Médico) con scale-105, borde emerald, badge "Recomendado"
+- Banners de upgrade contextuales en Members y Offices para plan independiente
+
+### UI/UX — Otras Mejoras
+- Notificaciones con fondo sólido (`bg-background`) y z-[100] para estar encima de todo
+- Botón nested fix en NotificationItem (div con role="button" en vez de button anidado)
+- Tab "Clínico" oculto para recepcionistas en drawer de pacientes
+- Título profesional oculto para recepcionistas en Account
+- CSV export desactivado para plan independiente (feature_export = false)
+- Dashboard greeting usa `user_profiles.full_name` en vez de email
+
+### Datos y Tracking
+- **`responsible_user_id`** en appointments — dashboard agrupa por user_id y resuelve nombre actual (no texto histórico)
+- **`created_by`** en patients — doctores ven pacientes que crearon aunque no tengan citas
+- Notificaciones al crear cita + al registrar pago en creación de cita
+- Doctor solo ve su propio registro en select de doctor al crear citas
+- Followups visibles hasta 365 días (antes 30)
+- `get_doctor_personal_stats` RPC: todos los campos del dashboard (month_total, today_completed, etc.)
+
+### Planes Actualizados
+- **Independiente:** IA activada con 30 consultas/mes, 1 consultorio default
+- **Centro Médico:** 6 miembros (1 owner + 3 doctores + 2 recepcionistas), 3 consultorios
+
+### Migraciones Aplicadas (070-075)
+- **070:** totp_secret + totp_enabled en user_profiles
+- **071:** user_profiles peer visibility (get_org_peer_user_ids)
+- **072:** user_profiles UPDATE policy fix (get_own_is_founder)
+- **073:** responsible_user_id en appointments + backfill
+- **074:** get_doctor_personal_stats con todos los campos
+- **075:** created_by en patients + RLS actualizada
+
+### Scripts
+- `scripts/seed-test-users.ts` — Crea 9 usuarios de prueba en 3 orgs con Gmail aliases
+
+### Roadmap Post-V1
+- **V1.1:** WhatsApp CRM (chat directo, tipo Leadsales)
+- **V1.2:** UTM Attribution (tracking automático de fuente de citas desde campañas Meta)
+- **V1.3:** Mensajes masivos WhatsApp API (marketing automation)
+- **V1.4:** Boletas/Facturas SUNAT (Nubefact o similar)
+- **V2.0:** IA avanzada (resúmenes automáticos, sugerencias diagnóstico, analytics predictivo)
