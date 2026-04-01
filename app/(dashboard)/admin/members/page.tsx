@@ -565,27 +565,46 @@ export default function MembersPage() {
                   {MEMBER_TYPE_OPTIONS.map((opt, idx) => {
                     const Icon = ICON_MAP[opt.iconKey];
                     const isSelected = inviteOptionIdx === idx;
+                    const isDoctorRole = opt.role === "doctor";
+                    const isReceptionistRole = opt.role === "receptionist";
+                    const doctorLimitReached = isAtLimit("doctors");
+                    const receptionistLimitReached = isAtLimit("receptionists");
+                    const isDisabled = (isDoctorRole && doctorLimitReached) || (isReceptionistRole && receptionistLimitReached);
+                    const tooltipText = isDoctorRole && doctorLimitReached
+                      ? (language === "es" ? "Límite de doctores alcanzado. Añade un cupo desde tu panel de cuenta." : "Doctor limit reached. Add a slot from your account panel.")
+                      : isReceptionistRole && receptionistLimitReached
+                        ? (language === "es" ? "Límite de recepcionistas alcanzado. Añade un cupo desde tu panel de cuenta." : "Receptionist limit reached. Add a slot from your account panel.")
+                        : "";
                     return (
-                      <button
-                        key={`${opt.role}-${opt.title ?? "none"}`}
-                        type="button"
-                        onClick={() => setInviteOptionIdx(idx)}
-                        className={`flex items-start gap-2.5 rounded-lg border p-3 text-left transition-all ${
-                          isSelected
-                            ? "border-primary bg-primary/10 ring-1 ring-primary"
-                            : "border-border hover:border-muted-foreground/30"
-                        }`}
-                      >
-                        <Icon className="mt-0.5 h-4 w-4 shrink-0" />
-                        <div>
-                          <p className="text-sm font-medium">
-                            {t(opt.labelKey)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {t(opt.descKey)}
-                          </p>
-                        </div>
-                      </button>
+                      <div key={`${opt.role}-${opt.title ?? "none"}`} className="relative group/role">
+                        <button
+                          type="button"
+                          onClick={() => !isDisabled && setInviteOptionIdx(idx)}
+                          disabled={isDisabled}
+                          className={`flex w-full items-start gap-2.5 rounded-lg border p-3 text-left transition-all ${
+                            isDisabled
+                              ? "border-border/40 opacity-40 cursor-not-allowed"
+                              : isSelected
+                                ? "border-primary bg-primary/10 ring-1 ring-primary"
+                                : "border-border hover:border-muted-foreground/30"
+                          }`}
+                        >
+                          <Icon className="mt-0.5 h-4 w-4 shrink-0" />
+                          <div>
+                            <p className="text-sm font-medium">
+                              {t(opt.labelKey)}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {t(opt.descKey)}
+                            </p>
+                          </div>
+                        </button>
+                        {isDisabled && tooltipText && (
+                          <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 w-56 rounded-lg bg-popover border border-border p-2 text-xs text-muted-foreground shadow-lg opacity-0 pointer-events-none group-hover/role:opacity-100 transition-opacity z-50 text-center">
+                            {tooltipText}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
