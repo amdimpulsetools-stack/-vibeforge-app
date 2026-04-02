@@ -58,6 +58,9 @@ interface AppointmentFormModalProps {
   lookupResponsibles: { id: string; user_id?: string; label: string }[];
   existingAppointments: AppointmentWithRelations[];
   blocks?: { block_date: string; start_time: string | null; end_time: string | null; all_day: boolean; office_id: string | null }[];
+  /** Org schedule hours — appointments outside this range are rejected */
+  scheduleStartHour?: number;
+  scheduleEndHour?: number;
   organizationId: string;
   organizationName: string;
   organizationAddress: string;
@@ -81,6 +84,8 @@ export function AppointmentFormModal({
   lookupResponsibles,
   existingAppointments,
   blocks = [],
+  scheduleStartHour = 8,
+  scheduleEndHour = 20,
   organizationId,
   organizationName,
   organizationAddress,
@@ -273,6 +278,15 @@ export function AppointmentFormModal({
 
   const checkConflicts = () => {
     if (!watchedDate || !watchedStartTime || !endTime) return null;
+
+    // Check if appointment is outside org schedule hours
+    const startHourStr = `${String(scheduleStartHour).padStart(2, "0")}:00`;
+    const endHourStr = `${String(scheduleEndHour).padStart(2, "0")}:00`;
+    if (watchedStartTime < startHourStr || endTime > endHourStr) {
+      return language === "es"
+        ? `Fuera del horario de atención (${startHourStr} - ${endHourStr}). Ajusta la hora.`
+        : `Outside business hours (${startHourStr} - ${endHourStr}). Adjust the time.`;
+    }
 
     // Check schedule blocks (time blocks that prevent appointments)
     const blockConflict = blocks.find((b) => {

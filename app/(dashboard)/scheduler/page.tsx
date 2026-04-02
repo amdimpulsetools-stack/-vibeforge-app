@@ -23,7 +23,7 @@ import {
   DEFAULT_BREAK_TIME_CONFIG,
   type BreakTimeConfig,
 } from "./break-time-dialog";
-import { loadOfficeFilter, saveOfficeFilter } from "@/lib/scheduler-config";
+import { loadOfficeFilter, saveOfficeFilter, loadSchedulerConfig } from "@/lib/scheduler-config";
 
 // Lazy-load heavy modal/sidebar components (only downloaded when opened)
 const ModalLoader = () => (
@@ -91,6 +91,7 @@ export default function SchedulerPage() {
   const { organizationId, organization } = useOrganization();
   const { doctorId: currentDoctorId, isDoctor } = useCurrentDoctor();
   const { isOwner } = useOrgRole();
+  const schedulerConfig = useMemo(() => loadSchedulerConfig(), []);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
@@ -467,6 +468,8 @@ export default function SchedulerPage() {
           lookupResponsibles={lookupResponsibles}
           existingAppointments={appointments}
           blocks={allBlocks}
+          scheduleStartHour={schedulerConfig.startHour}
+          scheduleEndHour={schedulerConfig.endHour}
           organizationId={organizationId ?? ""}
           organizationName={organization?.name ?? ""}
           organizationAddress={organization?.address || ""}
