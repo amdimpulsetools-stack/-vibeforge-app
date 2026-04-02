@@ -57,6 +57,7 @@ interface AppointmentFormModalProps {
   lookupPayments: LookupValue[];
   lookupResponsibles: { id: string; user_id?: string; label: string }[];
   existingAppointments: AppointmentWithRelations[];
+  blocks?: { block_date: string; start_time: string | null; end_time: string | null; all_day: boolean; office_id: string | null }[];
   organizationId: string;
   organizationName: string;
   organizationAddress: string;
@@ -79,6 +80,7 @@ export function AppointmentFormModal({
   lookupPayments,
   lookupResponsibles,
   existingAppointments,
+  blocks = [],
   organizationId,
   organizationName,
   organizationAddress,
@@ -87,7 +89,7 @@ export function AppointmentFormModal({
   onClose,
   onSaved,
 }: AppointmentFormModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   // If current user is a doctor and restricted, only show their own record
   const availableDoctors = currentDoctorId && restrictToDoctor
@@ -271,6 +273,22 @@ export function AppointmentFormModal({
 
   const checkConflicts = () => {
     if (!watchedDate || !watchedStartTime || !endTime) return null;
+
+    // Check schedule blocks (time blocks that prevent appointments)
+    const blockConflict = blocks.find((b) => {
+      if (b.block_date !== watchedDate) return false;
+      if (b.office_id && b.office_id !== watchedOffice) return false;
+      if (b.all_day) return true;
+      const bStart = b.start_time?.slice(0, 5) ?? "00:00";
+      const bEnd = b.end_time?.slice(0, 5) ?? "23:59";
+      return watchedStartTime < bEnd && endTime > bStart;
+    });
+
+    if (blockConflict) {
+      return language === "es"
+        ? "Este horario está bloqueado. Selecciona otro horario o consultorio."
+        : "This time slot is blocked. Select another time or office.";
+    }
 
     const officeConflict = existingAppointments.find(
       (a) =>

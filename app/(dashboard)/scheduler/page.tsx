@@ -466,6 +466,7 @@ export default function SchedulerPage() {
           lookupPayments={lookupPayments}
           lookupResponsibles={lookupResponsibles}
           existingAppointments={appointments}
+          blocks={allBlocks}
           organizationId={organizationId ?? ""}
           organizationName={organization?.name ?? ""}
           organizationAddress={organization?.address || ""}
