@@ -323,6 +323,10 @@ export function AppointmentFormModal({
   const conflict = checkConflicts();
 
   const onSubmit = async (values: AppointmentFormData) => {
+    if (conflict) {
+      toast.error(conflict);
+      return;
+    }
     if (doctorDayError) {
       toast.error("El doctor no atiende en el día seleccionado");
       return;
@@ -1050,7 +1054,7 @@ export function AppointmentFormModal({
           </button>
           <button
             onClick={handleSubmit(onSubmit)}
-            disabled={saving || !!conflict?.includes("Conflicto") || doctorDayError}
+            disabled={saving || !!conflict || doctorDayError}
             className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
