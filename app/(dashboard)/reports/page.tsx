@@ -65,7 +65,7 @@ export default function ReportsPage() {
         .order("payment_date"),
       supabase
         .from("patients")
-        .select("id, first_name, last_name, origin, created_at")
+        .select("id, first_name, last_name, origin, departamento, distrito, created_at")
         .gte("created_at", dateFrom)
         .lte("created_at", dateTo + "T23:59:59")
         .order("created_at"),

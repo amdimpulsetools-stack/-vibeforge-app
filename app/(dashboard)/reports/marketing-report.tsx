@@ -8,6 +8,7 @@ import {
   Users,
   TrendingUp,
   Target,
+  MapPin,
 } from "lucide-react";
 import {
   PieChart,
@@ -197,6 +198,40 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
 
   const newPatientsCount = patients.length;
 
+  // Demographic: departamento distribution
+  const departamentoData = useMemo(() => {
+    const map = new Map<string, number>();
+    patients.forEach((p) => {
+      const dep = (p as any).departamento || "Sin departamento";
+      map.set(dep, (map.get(dep) ?? 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [patients]);
+
+  // Demographic: distrito distribution (top 10)
+  const distritoData = useMemo(() => {
+    const map = new Map<string, number>();
+    patients.forEach((p) => {
+      const dist = (p as any).distrito || "Sin distrito";
+      map.set(dist, (map.get(dist) ?? 0) + 1);
+    });
+    return Array.from(map.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 15);
+  }, [patients]);
+
+  // Patients with demographic data filled
+  const patientsWithLocation = useMemo(() => {
+    return patients.filter((p) => (p as any).departamento || (p as any).distrito).length;
+  }, [patients]);
+
+  const demographicCoverage = newPatientsCount > 0
+    ? ((patientsWithLocation / newPatientsCount) * 100).toFixed(0)
+    : "0";
+
   // ── Imperative handle for parent export ──
   useImperativeHandle(ref, () => ({
     getExportConfig: (): ReportExportConfig => ({
@@ -222,10 +257,26 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
           headers: ["Origen", "Agendados", "Atendidos", "Tasa de conversión (%)"],
           rows: conversionByOrigin.map((r) => [r.name, r.total, r.completed, `${r.rate}%`]),
         },
+        {
+          title: "Distribución por Departamento",
+          headers: ["Departamento", "Pacientes", "Porcentaje"],
+          rows: departamentoData.map((d) => {
+            const total = departamentoData.reduce((s, x) => s + x.value, 0);
+            return [d.name, d.value, `${total > 0 ? ((d.value / total) * 100).toFixed(1) : 0}%`];
+          }),
+        },
+        {
+          title: "Top Distritos",
+          headers: ["Distrito", "Pacientes", "Porcentaje"],
+          rows: distritoData.map((d) => {
+            const total = patients.length;
+            return [d.name, d.value, `${total > 0 ? ((d.value / total) * 100).toFixed(1) : 0}%`];
+          }),
+        },
       ],
       filename: `reporte_marketing_${dateFrom}_${dateTo}`,
     }),
-  }), [conversionData, originData, conversionByOrigin, newPatientsCount, dateFrom, dateTo]);
+  }), [conversionData, originData, conversionByOrigin, departamentoData, distritoData, patients.length, newPatientsCount, dateFrom, dateTo]);
 
   return (
     <div className="space-y-6">
@@ -357,6 +408,131 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
           )}
         </div>
       </div>
+
+      {/* ── Demografía ─────────────────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-primary" />
+            <h3 className="text-sm font-semibold">Demografía de Pacientes</h3>
+          </div>
+          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
+            {demographicCoverage}% con ubicación
+          </span>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Departamento donut chart */}
+          <div>
+            <h4 className="text-xs font-semibold text-muted-foreground mb-3">Distribución por Departamento</h4>
+            {departamentoData.length > 0 && departamentoData[0].name !== "Sin departamento" ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <PieChart>
+                  <Pie
+                    data={departamentoData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={50}
+                    outerRadius={85}
+                    paddingAngle={2}
+                    dataKey="value"
+                    nameKey="name"
+                    label={departamentoData.length <= 8 ? renderCustomLabel : undefined}
+                    animationDuration={800}
+                    animationEasing="ease-out"
+                  >
+                    {departamentoData.map((_entry, index) => (
+                      <Cell
+                        key={`dep-${index}`}
+                        fill={CHART_COLORS[index % CHART_COLORS.length]}
+                        stroke="hsl(var(--card))"
+                        strokeWidth={1.5}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<PieTooltip />} />
+                  <Legend
+                    iconType="square"
+                    iconSize={8}
+                    wrapperStyle={{ fontSize: 11 }}
+                    formatter={(value: string) => {
+                      const item = departamentoData.find((d) => d.name === value);
+                      return item ? `${value} (${item.value})` : value;
+                    }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="py-10 text-center text-sm text-muted-foreground">Sin datos de departamento registrados</p>
+            )}
+          </div>
+
+          {/* Top distritos bar chart */}
+          <div>
+            <h4 className="text-xs font-semibold text-muted-foreground mb-3">Top Distritos</h4>
+            {distritoData.length > 0 && distritoData[0].name !== "Sin distrito" ? (
+              <ResponsiveContainer width="100%" height={260}>
+                <BarChart data={distritoData} layout="vertical" barCategoryGap="20%">
+                  <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
+                  <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.length > 14 ? v.slice(0, 14) + "..." : v} />
+                  <Tooltip content={<CustomTooltip />} cursor={false} />
+                  <Bar dataKey="value" name="Pacientes" fill="#10b981" radius={[0, 4, 4, 0]} animationDuration={800} animationEasing="ease-out" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <p className="py-10 text-center text-sm text-muted-foreground">Sin datos de distrito registrados</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Demographic detail table */}
+      {departamentoData.length > 0 && departamentoData[0].name !== "Sin departamento" && (
+        <div className="rounded-xl border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-5 py-3">
+            <h3 className="text-sm font-semibold">Detalle por Departamento y Distrito</h3>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-muted-foreground">Departamento</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">Pacientes</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">% del Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {departamentoData
+                  .filter((d) => d.name !== "Sin departamento")
+                  .map((row) => {
+                    const total = departamentoData.reduce((s, x) => s + x.value, 0);
+                    const pct = total > 0 ? ((row.value / total) * 100).toFixed(1) : "0";
+                    return (
+                      <tr key={row.name} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-2.5 font-medium flex items-center gap-2">
+                          <MapPin className="h-3 w-3 text-primary" />
+                          {row.name}
+                        </td>
+                        <td className="px-4 py-2.5 text-center font-medium">{row.value}</td>
+                        <td className="px-4 py-2.5 text-center">
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-primary transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-muted-foreground">{pct}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 });
