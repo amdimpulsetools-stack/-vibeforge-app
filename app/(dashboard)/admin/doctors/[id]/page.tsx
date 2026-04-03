@@ -543,7 +543,7 @@ function ScheduleTab({
             >
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">
-                  {t("schedule.office")}
+                  {t("schedule.day")}
                 </label>
                 <select
                   value={block.day_of_week}

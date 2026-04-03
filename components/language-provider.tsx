@@ -200,6 +200,7 @@ const translations: Record<Language, Record<string, string>> = {
     "lookups.delete_confirm": "¿Eliminar este valor?",
 
     // Schedule (admin)
+    "schedule.day": "Día",
     "schedule.start_time": "Hora inicio",
     "schedule.end_time": "Hora fin",
     "schedule.office": "Consultorio",
@@ -795,6 +796,7 @@ const translations: Record<Language, Record<string, string>> = {
     "lookups.delete_confirm": "Delete this value?",
 
     // Schedule (admin)
+    "schedule.day": "Day",
     "schedule.start_time": "Start time",
     "schedule.end_time": "End time",
     "schedule.office": "Office",

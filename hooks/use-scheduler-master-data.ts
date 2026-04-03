@@ -9,7 +9,7 @@ interface SchedulerMasterData {
   doctors: Doctor[];
   services: Service[];
   doctorServices: { doctor_id: string; service_id: string }[];
-  doctorSchedules: Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[];
+  doctorSchedules: Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time" | "office_id">[];
   lookupOrigins: LookupValue[];
   lookupPayments: LookupValue[];
   lookupResponsibles: { id: string; user_id?: string; label: string }[];
@@ -31,7 +31,7 @@ async function fetchMasterData(organizationId: string): Promise<SchedulerMasterD
     supabase.from("doctors").select("*").eq("is_active", true).order("full_name"),
     supabase.from("services").select("*").eq("is_active", true).order("name"),
     supabase.from("doctor_services").select("doctor_id, service_id"),
-    supabase.from("doctor_schedules").select("doctor_id, day_of_week, start_time, end_time"),
+    supabase.from("doctor_schedules").select("doctor_id, day_of_week, start_time, end_time, office_id"),
     supabase
       .from("lookup_values")
       .select("*, lookup_categories!inner(slug)")
@@ -57,7 +57,7 @@ async function fetchMasterData(organizationId: string): Promise<SchedulerMasterD
     doctors: (doctorsRes.data as Doctor[]) ?? [],
     services: (servicesRes.data as Service[]) ?? [],
     doctorServices: (doctorServicesRes.data as { doctor_id: string; service_id: string }[]) ?? [],
-    doctorSchedules: (doctorSchedulesRes.data as Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[]) ?? [],
+    doctorSchedules: (doctorSchedulesRes.data as Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time" | "office_id">[]) ?? [],
     lookupOrigins: (originsRes.data as LookupValue[]) ?? [],
     lookupPayments: (paymentsRes.data as LookupValue[]) ?? [],
     lookupResponsibles,

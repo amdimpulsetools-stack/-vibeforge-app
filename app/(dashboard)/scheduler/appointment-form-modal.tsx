@@ -52,7 +52,7 @@ interface AppointmentFormModalProps {
   doctors: Doctor[];
   services: Service[];
   doctorServices: DoctorServiceEntry[];
-  doctorSchedules: Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time">[];
+  doctorSchedules: Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time" | "office_id">[];
   lookupOrigins: LookupValue[];
   lookupPayments: LookupValue[];
   lookupResponsibles: { id: string; user_id?: string; label: string }[];
@@ -244,6 +244,26 @@ export function AppointmentFormModal({
     !!watchedDate &&
     appointmentDow !== null &&
     !doctorScheduleForDay;
+
+  // Filter offices based on doctor's schedule for the selected day
+  const filteredOffices = useMemo(() => {
+    if (!watchedDoctor || appointmentDow === null) return offices;
+    const scheduleOfficeIds = doctorSchedules
+      .filter((ds) => ds.doctor_id === watchedDoctor && ds.day_of_week === appointmentDow && ds.office_id)
+      .map((ds) => ds.office_id!);
+    // If no office restriction set in any schedule block for this day, show all offices
+    if (scheduleOfficeIds.length === 0) return offices;
+    return offices.filter((o) => scheduleOfficeIds.includes(o.id));
+  }, [watchedDoctor, appointmentDow, doctorSchedules, offices]);
+
+  // Auto-select office when only one is available, or reset if current selection is no longer valid
+  useEffect(() => {
+    if (filteredOffices.length === 1) {
+      setValue("office_id", filteredOffices[0].id);
+    } else if (watchedOffice && !filteredOffices.some((o) => o.id === watchedOffice)) {
+      setValue("office_id", "");
+    }
+  }, [filteredOffices, watchedOffice, setValue]);
 
   // Search patient by DNI
   const searchPatientByDni = useCallback(async (dni: string) => {
@@ -804,7 +824,7 @@ export function AppointmentFormModal({
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               >
                 <option value="">-- {t("scheduler.office")} --</option>
-                {offices.map((o) => (
+                {filteredOffices.map((o) => (
                   <option key={o.id} value={o.id}>
                     {o.name}
                   </option>

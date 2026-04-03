@@ -79,11 +79,13 @@ export function AppointmentSidebar({
 }: AppointmentSidebarProps) {
   const { t } = useLanguage();
   const { profile } = useUserProfile();
-  const { isAdmin } = useOrgRole();
+  const { isAdmin, isDoctor: isDoctorRole } = useOrgRole();
   const { doctorId: currentDoctorId } = useCurrentDoctor();
   const [updating, setUpdating] = useState(false);
   const [editing, setEditing] = useState(false);
   const [showClinicalNote, setShowClinicalNote] = useState(false);
+  const [showCancelReason, setShowCancelReason] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
 
   // ── Payments / cobros ────────────────────────────────────────────────────
   const [payments, setPayments] = useState<PatientPayment[]>([]);
@@ -221,12 +223,18 @@ export function AppointmentSidebar({
     [services, editService]
   );
 
-  const updateStatus = async (newStatus: string) => {
+  const updateStatus = async (newStatus: string, reason?: string) => {
     setUpdating(true);
     const supabase = createClient();
+    const updatePayload: Record<string, unknown> = { status: newStatus };
+    if (reason) {
+      updatePayload.notes = appointment.notes
+        ? `${appointment.notes}\n[Motivo de cancelación]: ${reason}`
+        : `[Motivo de cancelación]: ${reason}`;
+    }
     const { error } = await supabase
       .from("appointments")
-      .update({ status: newStatus })
+      .update(updatePayload)
       .eq("id", appointment.id);
 
     setUpdating(false);
@@ -630,8 +638,8 @@ export function AppointmentSidebar({
         {/* Action buttons — hidden while editing or when readOnly */}
         {!editing && !readOnly && (
           <div className="space-y-2 pt-2 border-t border-border">
-            {/* Reschedule — always shown for non-cancelled */}
-            {appointment.status !== "cancelled" && onReschedule && (
+            {/* Reschedule — hidden for doctor role (doctors cannot reschedule) */}
+            {appointment.status !== "cancelled" && onReschedule && !isDoctorRole && (
               <button
                 onClick={onReschedule}
                 disabled={updating}
@@ -674,14 +682,62 @@ export function AppointmentSidebar({
                     No asistió
                   </button>
                 )}
-                <button
-                  onClick={() => updateStatus("cancelled")}
-                  disabled={updating}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
-                >
-                  {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                  {t("scheduler.cancel_appointment")}
-                </button>
+
+                {/* Cancel button — doctors: only their own appointments, with mandatory reason */}
+                {isDoctorRole && currentDoctorId === appointment.doctor_id ? (
+                  <>
+                    {!showCancelReason ? (
+                      <button
+                        onClick={() => setShowCancelReason(true)}
+                        disabled={updating}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        {t("scheduler.cancel_appointment")}
+                      </button>
+                    ) : (
+                      <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+                        <p className="text-xs font-medium text-destructive">Motivo de cancelación (obligatorio)</p>
+                        <textarea
+                          value={cancelReason}
+                          onChange={(e) => setCancelReason(e.target.value)}
+                          placeholder="Escriba el motivo de la cancelación..."
+                          rows={2}
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-destructive/50 resize-none"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setShowCancelReason(false); setCancelReason(""); }}
+                            className="flex-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors"
+                          >
+                            Volver
+                          </button>
+                          <button
+                            onClick={() => {
+                              updateStatus("cancelled", cancelReason);
+                              setShowCancelReason(false);
+                              setCancelReason("");
+                            }}
+                            disabled={updating || !cancelReason.trim()}
+                            className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
+                          >
+                            {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                            Confirmar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : !isDoctorRole ? (
+                  <button
+                    onClick={() => updateStatus("cancelled")}
+                    disabled={updating}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+                  >
+                    {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                    {t("scheduler.cancel_appointment")}
+                  </button>
+                ) : null}
               </>
             )}
           </div>
