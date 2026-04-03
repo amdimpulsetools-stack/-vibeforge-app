@@ -719,10 +719,10 @@ export function AppointmentSidebar({
                               setCancelReason("");
                             }}
                             disabled={updating || !cancelReason.trim()}
-                            className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-destructive px-3 py-1.5 text-xs font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
+                            className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-destructive px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
                           >
                             {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
-                            Confirmar
+                            Cancelar cita
                           </button>
                         </div>
                       </div>

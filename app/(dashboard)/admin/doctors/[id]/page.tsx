@@ -521,6 +521,9 @@ function ScheduleTab({
           <div>
             <h3 className="text-lg font-semibold">{t("doctors.schedule_title")}</h3>
             <p className="text-sm text-muted-foreground">{t("doctors.schedule_desc")}</p>
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              Seleccione un consultorio específico por bloque para restringir al doctor, o deje &quot;Todos los consultorios&quot; para acceso completo.
+            </p>
           </div>
           <button
             onClick={addBlock}
@@ -588,9 +591,12 @@ function ScheduleTab({
                 <select
                   value={block.office_id}
                   onChange={(e) => updateBlock(index, "office_id", e.target.value)}
-                  className="rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  className={cn(
+                    "rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50",
+                    block.office_id ? "text-foreground" : "text-muted-foreground"
+                  )}
                 >
-                  <option value="">--</option>
+                  <option value="">Todos los consultorios</option>
                   {offices.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.name}
