@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-03-26
-> **Versión:** 0.4.0
-> **Estado:** MVP — pre-staging (Vercel)
+> **Última actualización:** 2026-04-05
+> **Versión:** 0.5.0
+> **Estado:** MVP — listo para staging (Vercel)
 
 ---
 
@@ -67,10 +67,11 @@
 | **Founder** | Superusuario de plataforma | Dashboard cross-org con métricas globales (flag `is_founder` en `user_profiles`) |
 
 ### Restricciones por Rol en UI
-- **Doctor:** No puede interactuar con citas de otros doctores en el scheduler
+- **Doctor:** No puede interactuar con citas de otros doctores en el scheduler. No puede reprogramar citas. Solo puede cancelar sus propias citas con motivo obligatorio. Restringido a consultorios asignados en su horario
 - **Receptionist:** Redirigido a `/scheduler` como página principal
-- **Admin/Owner:** Ve dashboard administrativo con KPIs globales de la org
+- **Admin/Owner:** Ve dashboard administrativo con KPIs globales de la org. Puede cancelar y reprogramar cualquier cita
 - **Non-admin:** Ve mensaje "acceso denegado" en `/settings` y secciones admin
+- **Owner+Doctor (Independiente):** Dashboard dual: AdminDashboard + sección colapsable "Mi Consulta" con DoctorDashboard
 
 ---
 
@@ -80,12 +81,13 @@
 - 1 miembro, 1 doctor, 1 consultorio
 - 150 pacientes, 100 citas/mes, 100MB storage
 - Sin recepcionistas ni admins adicionales
-- Reportes básicos, sin exportación, sin AI
+- Reportes básicos, AI Assistant (30 consultas/mes), sin exportación
+- Owner actúa simultáneamente como doctor (rol dual)
 
 ### Plan Centro Médico (Professional) — S/49/mes
-- 4 miembros, 2 doctores, 2 consultorios
+- 6 miembros totales, 3 doctores, 3 consultorios, 2 recepcionistas
 - 1,000 pacientes, 500 citas/mes, 2GB storage
-- 1 admin, 1 recepcionista
+- 1 admin
 - Reportes + exportación + AI Assistant
 - Add-ons: S/15/consultorio extra, S/10/miembro extra
 
@@ -124,7 +126,7 @@
 | `offices` | Consultorios/salas: name, code, phone, address, display_order |
 | `doctors` | Doctores: name, specialty, cmp, user_id (link a cuenta), default_meeting_url, is_active |
 | `doctor_services` | Relación N:N doctor↔servicio |
-| `doctor_schedules` | Horarios semanales por doctor (día, hora inicio/fin) |
+| `doctor_schedules` | Horarios semanales por doctor (día, hora inicio/fin, office_id para restricción de consultorio) |
 | `service_categories` | Categorías de servicios (General, Dental, etc.) |
 | `services` | Servicios médicos: name, duration_minutes, base_price, category_id, modality (in_person/virtual/both) |
 
@@ -195,6 +197,10 @@
 | `get_at_risk_patients(p_months_threshold)` | Pacientes en riesgo de abandono según umbral de meses sin visita |
 | `get_patient_ltv(p_limit)` | Top pacientes por Lifetime Value: revenue total, visitas, promedio por visita |
 | `get_retention_trend(p_months)` | Tendencia mensual de retención: nuevos vs recurrentes por mes |
+| `get_org_peer_user_ids()` | SECURITY DEFINER: retorna user_ids de la misma org (evita recursión RLS en user_profiles) |
+| `get_own_is_founder()` | SECURITY DEFINER: retorna is_founder del usuario actual (evita recursión RLS en UPDATE de user_profiles) |
+| `org_select_patients(org_id)` | Pacientes visibles para el doctor actual (todos o solo created_by según config org) |
+| `get_user_session_check()` | Validación de sesión: retorna memberships ordenadas por org con suscripción activa |
 
 ---
 
@@ -225,10 +231,12 @@
 2. Grid visual por consultorio × franja horaria
 3. Crear cita: click en slot → modal con formulario (paciente, doctor, servicio, hora)
 4. Drag & drop para reagendar
-5. Detección de conflictos de horario
+5. Detección de conflictos: schedule blocks, horario de org, conflictos de consultorio y doctor
 6. Bloques de tiempo y break times (almuerzos recurrentes)
-7. Doctor solo ve sus propias citas
-8. Historial de citas pasadas en `/scheduler/history`
+7. Doctor solo ve sus propias citas, solo cancela (con motivo), no reprograma
+8. Consultorios filtrados por horario del doctor (si tiene restricción)
+9. Validación de horario del doctor: aviso si no trabaja ese día
+10. Historial de citas pasadas en `/scheduler/history`
 
 ### 7.4 Gestión de Pacientes
 1. Lista con búsqueda por nombre, DNI, teléfono
@@ -240,7 +248,7 @@
 ### 7.5 Reportes
 1. Cuatro tipos de reporte con selector de rango de fechas y presets (hoy, 7d, 30d, 90d, este mes):
    - **Financiero:** Ingresos, cobranza, balance pendiente
-   - **Marketing:** Fuentes de adquisición, tendencias de nuevos pacientes
+   - **Marketing:** Fuentes de adquisición, tendencias de nuevos pacientes, demografía (departamento/distrito con gráficos dona y barras horizontales)
    - **Operacional:** Estadísticas de citas, tasas de completado/cancelación, utilización
    - **Retención:** Pacientes recurrentes vs nuevos, tasa de retención, frecuencia de visita, pacientes en riesgo de abandono, LTV por paciente
 2. Gráficas con Recharts (barras con estilo pill, áreas con gradiente)
@@ -590,9 +598,12 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [ ] Reportes con IA generativa (F15)
 - [ ] App móvil o PWA
 - [ ] Facturación electrónica
-- [ ] Add-ons de plan (UI para comprar consultorios/miembros extra)
+- [x] Add-ons de plan (API para comprar consultorios/miembros extra vía MP)
+- [ ] Add-ons de plan (UI frontend para comprar extras desde el panel)
+- [ ] Bloqueo de usuario desactivado (modal "Su usuario ha sido desactivado")
 - [ ] Tests automatizados (unit, integration, e2e)
 - [ ] Optimización de performance y caching
+- [ ] Custom SMTP en Supabase Auth (para envío de invitaciones sin rate limit)
 
 ---
 
@@ -725,8 +736,9 @@ SMTP_PASS=
 SMTP_FROM=
 ANTHROPIC_API_KEY=
 MP_WEBHOOK_SECRET=
-ENCRYPTION_KEY=           # Opcional: AES-256 para encriptar tokens (32+ chars)
+ENCRYPTION_KEY=           # Opcional: AES-256 para encriptar TOTP secrets (32+ chars)
 CRON_SECRET=              # Bearer token para cron jobs (32+ chars)
+MP_TEST_PAYER_EMAIL=      # Email del comprador de prueba MP (solo test mode)
 ```
 
 ---
@@ -992,6 +1004,47 @@ CRON_SECRET=              # Bearer token para cron jobs (32+ chars)
 
 ### Scripts
 - `scripts/seed-test-users.ts` — Crea 9 usuarios de prueba en 3 orgs con Gmail aliases
+
+---
+
+## 21. Changelog — Sesión 2026-04-05
+
+### Restricciones de Rol Doctor
+- **Reprogramar (Reprogramar):** Botón oculto para doctores — solo visible para owner/admin/recepcionista
+- **Cancelar:** Doctores solo pueden cancelar sus propias citas, con motivo obligatorio (textarea). El motivo se guarda en notas de la cita como `[Motivo de cancelación]: ...`
+- **Otros botones** (Confirmar, Completar, No asistió): Disponibles para doctores en sus propias citas
+- Botón rojo "Cancelar cita" con texto visible (fix: text-white en vez de text-destructive-foreground)
+
+### Filtrado de Consultorios por Horario del Doctor
+- `doctor_schedules.office_id` ahora se incluye en query de `useSchedulerMasterData`
+- Al crear cita, el dropdown de consultorio filtra según la combinación doctor + día
+- Si el doctor tiene oficinas específicas asignadas, solo aparecen esas
+- Auto-selección cuando solo hay 1 consultorio disponible
+- Reset automático si la selección actual deja de ser válida
+
+### Configuración de Consultorios por Doctor (Admin)
+- Corregido label incorrecto en schedule tab: "Consultorio" → "Día" en selector de día
+- Select de consultorio: "--" cambiado a "Todos los consultorios" para claridad
+- Nota informativa para owner/admin sobre restricción de consultorios
+- Traducción `schedule.day` agregada (ES/EN)
+
+### Demografía en Reportes de Marketing
+- Query de pacientes ahora incluye `departamento` y `distrito`
+- Gráfico dona: distribución por departamento
+- Gráfico barras horizontales: top 15 distritos
+- Tabla detallada: departamento, pacientes, % con barra de progreso visual
+- Badge de cobertura: "X% con ubicación" para monitorear calidad de datos
+- Datos demográficos incluidos en exportación de reporte
+
+### Fix Build Error
+- `app/api/founder/totp/verify/route.ts`: Cambiado `window: 2` a `epochTolerance: 60` (otplib v13 API)
+
+### Auditoría de Producción (Rating: 9/10 — actualizado 2026-04-05)
+- **Build:** Compilación limpia sin errores (fix TOTP)
+- **Seguridad:** 9.5/10 — Restricciones de rol doctor aplicadas en UI
+- **Base de datos:** 9.5/10 — 75 migraciones, office_id en doctor_schedules funcional
+- **Mercado Pago:** Integración completa (checkout, webhook, addons). Signature verification con HMAC-SHA256 + timing-safe comparison. Flujos: suscripción nueva, upgrade con addons, cancelación, pago rechazado → past_due
+- **Listo para Vercel:** Build pasa, env vars documentadas, middleware configurado
 
 ### Roadmap Post-V1
 - **V1.1:** WhatsApp CRM (chat directo, tipo Leadsales)

@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Failed to decrypt secret" }, { status: 500 });
     }
 
-    const result = verifySync({ token: code, secret, window: 2 });
+    const result = verifySync({ token: code, secret, epochTolerance: 60 });
 
     if (!result.valid) {
       return NextResponse.json({ error: "Invalid TOTP code" }, { status: 401 });
