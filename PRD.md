@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-04-05
-> **Versión:** 0.5.0
+> **Última actualización:** 2026-04-09
+> **Versión:** 0.6.0
 > **Estado:** MVP — listo para staging (Vercel)
 
 ---
@@ -604,6 +604,10 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [ ] Tests automatizados (unit, integration, e2e)
 - [ ] Optimización de performance y caching
 - [ ] Custom SMTP en Supabase Auth (para envío de invitaciones sin rate limit)
+- [ ] Especialidades: select editable en Settings (solo Owner)
+- [ ] Especialidades: tabla `doctor_specialties` + asignación en admin de doctores
+- [ ] Especialidades: tabs condicionales en historia clínica según especialidad del doctor
+- [ ] Especialidades: primer módulo vertical (Endocrinología Pediátrica o Fertilidad)
 
 ---
 
@@ -1052,3 +1056,88 @@ MP_TEST_PAYER_EMAIL=      # Email del comprador de prueba MP (solo test mode)
 - **V1.3:** Mensajes masivos WhatsApp API (marketing automation)
 - **V1.4:** Boletas/Facturas SUNAT (Nubefact o similar)
 - **V2.0:** IA avanzada (resúmenes automáticos, sugerencias diagnóstico, analytics predictivo)
+
+---
+
+## 22. Sistema de Especialidades Médicas
+
+> **Estado:** Fase 1 implementada (infraestructura + onboarding). Fases 2-4 pendientes.
+
+### Arquitectura
+
+```
+specialties (catálogo global, 28 especialidades seed)
+├── organization_specialties (many-to-many: org ↔ especialidades activas)
+├── organizations.primary_specialty_id (acceso rápido a la principal)
+├── doctor_specialties (pendiente: doctor ↔ especialidades)
+└── specialty_clinical_data (JSONB genérico para datos clínicos por especialidad)
+```
+
+### Tablas existentes (migradas)
+
+| Tabla | Estado | Descripción |
+|---|---|---|
+| `specialties` | Migrada | 28 especialidades LATAM con slug, icon, description |
+| `organization_specialties` | Migrada | Vínculo org ↔ especialidad (many-to-many) |
+| `organizations.primary_specialty_id` | Migrada | FK a especialidad principal |
+| `specialty_clinical_data` | Migrada | Almacén genérico JSONB para datos clínicos por especialidad |
+
+### Migraciones futuras (NO implementar aún)
+
+| Migración | Tabla/Cambio | Propósito | Cuándo |
+|---|---|---|---|
+| `doctor_specialties` | `doctor_id UUID, specialty_id UUID, UNIQUE(doctor_id, specialty_id)` | Vincular doctores a sus especialidades individuales | Fase 2 (primer módulo vertical) |
+| `specialty_modules` | `id, specialty_id, name, slug, module_type, config JSONB` | Registro de módulos disponibles por especialidad | Fase 2 |
+| `organization_modules` | `organization_id, module_id, is_active, activated_at` | Qué módulos tiene activos cada org | Fase 2 |
+| `specialty_field_definitions` | `specialty_id, field_name, field_type, field_config JSONB` | Campos personalizados por especialidad (ej: "presión intraocular" para oftalmología) | Fase 3 |
+
+### Lógica de visibilidad de tabs clínicos (Fase 2)
+
+```
+Rol Owner/Admin:
+  → Ve TODOS los tabs de especialidades activas de la org
+  → Ve tabs "Histórico" (solo lectura) de especialidades desactivadas con datos
+
+Rol Doctor:
+  → Ve solo tabs de SUS especialidades (via doctor_specialties)
+  → Si la org tiene 1 sola especialidad → ve todo (no necesita filtro)
+
+Rol Recepcionista:
+  → No ve tabs clínicos de especialidad (solo datos generales del paciente)
+```
+
+### Cambio de especialidad — Reglas
+
+| Regla | Detalle |
+|---|---|
+| Quién puede cambiar | Solo Owner, desde Settings → General |
+| Confirmación requerida | Modal: "¿Estás seguro? Los datos clínicos previos se mantendrán" |
+| Datos al cambiar | **Nunca se borran.** Se ocultan tabs, datos persisten en `specialty_clinical_data` |
+| Datos previos | Se muestran en tab "Histórico" en modo solo lectura |
+| Al reactivar especialidad | Todos los datos reaparecen con escritura habilitada |
+| Impacto en billing | Cambio de especialidad no cancela add-ons pagados |
+| Sin política DELETE | `specialty_clinical_data` no tiene DELETE policy (cumplimiento legal/auditoría) |
+
+### Especialidades seed (28)
+
+Medicina General, Odontología, Ginecología y Obstetricia, Pediatría, Dermatología, Oftalmología, Cardiología, Endocrinología, Endocrinología Pediátrica, Medicina Reproductiva, Nutrición, Psicología, Psiquiatría, Traumatología y Ortopedia, Otorrinolaringología, Urología, Neurología, Gastroenterología, Neumología, Fisioterapia, Cirugía General, Cirugía Plástica, Medicina Estética, Oncología, Nefrología, Reumatología, Medicina Interna, Otra especialidad.
+
+### Fases de implementación
+
+| Fase | Contenido | Estado |
+|---|---|---|
+| **Fase 1** | Tablas `specialties`, `organization_specialties`, `specialty_clinical_data`. Select con búsqueda en onboarding. Primary specialty en org. | Implementado |
+| **Fase 2** | Tabla `doctor_specialties`. Primer módulo vertical (según primer cliente). Tabs condicionales en historia clínica. Filtro por rol de doctor. | Pendiente |
+| **Fase 3** | Módulos premium como add-on en billing. UI de activación/desactivación de módulos en Settings. Campos custom por especialidad. | Pendiente |
+| **Fase 4** | Marketplace de módulos. Módulos creados por terceros. API para extensiones. | Futuro |
+
+### Primeros módulos verticales candidatos
+
+| Especialidad | Módulo | Funcionalidades clave |
+|---|---|---|
+| Endocrinología Pediátrica | Curvas de crecimiento | Percentiles OMS, gráfica talla/peso vs edad, alertas de desviación |
+| Medicina Reproductiva | Tracking de fertilidad | Ciclos de estimulación, conteo de óvulos, etapas FIV, criopreservación |
+| Odontología | Odontograma | Mapa dental visual, plan de tratamiento por pieza, historial por diente |
+| Dermatología | Mapa corporal | Fotos comparativas, seguimiento de lesiones, antes/después |
+| Nutrición | Plan nutricional | IMC, macros, plan alimenticio, seguimiento de peso con gráfica |
+| Oftalmología | Examen visual | Agudeza visual, presión intraocular, fondo de ojo, receta de lentes |
