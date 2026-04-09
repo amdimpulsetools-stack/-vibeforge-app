@@ -11,6 +11,7 @@ export interface Database {
           slug: string;
           logo_url: string | null;
           address: string | null;
+          primary_specialty_id: string | null;
           plan: "free" | "pro" | "enterprise";
           is_active: boolean;
           created_at: string;
@@ -833,6 +834,56 @@ export interface Database {
           reviewed_at?: string | null;
           last_synced_at?: string | null;
           updated_at?: string;
+        };
+      };
+      specialties: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          icon: string | null;
+          description: string | null;
+          is_active: boolean;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug: string;
+          icon?: string | null;
+          description?: string | null;
+          is_active?: boolean;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          slug?: string;
+          icon?: string | null;
+          description?: string | null;
+          is_active?: boolean;
+          sort_order?: number;
+        };
+      };
+      organization_specialties: {
+        Row: {
+          id: string;
+          organization_id: string;
+          specialty_id: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          specialty_id: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          specialty_id?: string;
         };
       };
       whatsapp_message_logs: {
