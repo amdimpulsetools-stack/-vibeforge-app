@@ -21,12 +21,18 @@ import {
   DollarSign,
 } from "lucide-react";
 
+const PAGE_SIZE = 50;
+
 export default function AppointmentHistoryPage() {
   const { t } = useLanguage();
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Filters
   const [dateFrom, setDateFrom] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
@@ -55,18 +61,23 @@ export default function AppointmentHistoryPage() {
     fetchMaster();
   }, []);
 
-  // Fetch appointments
-  const fetchHistory = useCallback(async () => {
-    setLoading(true);
+  // Fetch appointments with pagination
+  const fetchHistory = useCallback(async (pageNum = 0, append = false) => {
+    if (!append) setLoading(true);
+    else setLoadingMore(true);
+
     const supabase = createClient();
+    const from = pageNum * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
     let query = supabase
       .from("appointments")
-      .select("*, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)")
+      .select("*, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)", { count: "exact" })
       .gte("appointment_date", dateFrom)
       .lte("appointment_date", dateTo)
       .order("appointment_date", { ascending: sortDir === "asc" })
-      .order("start_time", { ascending: sortDir === "asc" });
+      .order("start_time", { ascending: sortDir === "asc" })
+      .range(from, to);
 
     if (filterStatus !== "all") {
       query = query.eq("status", filterStatus);
@@ -80,14 +91,37 @@ export default function AppointmentHistoryPage() {
       query = query.eq("service_id", filterService);
     }
 
-    const { data } = await query;
-    setAppointments((data as AppointmentWithRelations[]) ?? []);
+    const { data, count } = await query;
+    const newData = (data as AppointmentWithRelations[]) ?? [];
+
+    if (append) {
+      setAppointments((prev) => [...prev, ...newData]);
+    } else {
+      setAppointments(newData);
+    }
+
+    setTotalCount(count ?? 0);
+    setHasMore(newData.length === PAGE_SIZE);
     setLoading(false);
+    setLoadingMore(false);
   }, [dateFrom, dateTo, filterStatus, filterDoctor, filterService, sortDir]);
 
+  // Reset pagination when filters change
   useEffect(() => {
-    fetchHistory();
+    setPage(0);
+    fetchHistory(0, false);
   }, [fetchHistory]);
+
+  // Load more pages
+  useEffect(() => {
+    if (page > 0) {
+      fetchHistory(page, true);
+    }
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const loadMore = () => {
+    if (hasMore && !loadingMore) setPage((p) => p + 1);
+  };
 
   // Client-side text filter
   const filtered = appointments.filter((a) => {
@@ -239,7 +273,7 @@ export default function AppointmentHistoryPage() {
             />
           </div>
           <div className="flex gap-4 text-xs text-muted-foreground">
-            <span>{sorted.length} {t("history.records")}</span>
+            <span>{sorted.length} de {totalCount} {t("history.records")}</span>
             <span className="text-emerald-500">{completedCount} {t("scheduler.status_completed").toLowerCase()}</span>
             <span className="text-red-500">{cancelledCount} {t("scheduler.status_cancelled").toLowerCase()}</span>
             <span className="font-medium text-foreground">S/. {totalRevenue.toFixed(2)}</span>
@@ -259,6 +293,7 @@ export default function AppointmentHistoryPage() {
             <p className="text-sm">{t("common.no_results")}</p>
           </div>
         ) : (
+          <div>
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-card border-b border-border">
               <tr className="text-xs text-muted-foreground">
@@ -364,6 +399,25 @@ export default function AppointmentHistoryPage() {
               })}
             </tbody>
           </table>
+          {hasMore && (
+            <div className="flex justify-center py-4 border-t border-border">
+              <button
+                onClick={loadMore}
+                disabled={loadingMore}
+                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Cargando...
+                  </>
+                ) : (
+                  `Cargar más (${appointments.length} de ${totalCount})`
+                )}
+              </button>
+            </div>
+          )}
+          </div>
         )}
       </div>
     </div>
