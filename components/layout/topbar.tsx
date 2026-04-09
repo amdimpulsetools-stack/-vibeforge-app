@@ -122,7 +122,7 @@ export function Topbar() {
   };
 
   return (
-    <header className="relative z-[100] flex h-16 items-center justify-between border-b border-border/40 bg-background/80 backdrop-blur-sm px-6">
+    <header className="relative z-40 flex h-16 items-center justify-between border-b border-border/40 bg-background/80 backdrop-blur-sm px-6">
       <div>{/* Breadcrumbs o titulo dinamico */}</div>
       <div className="flex items-center gap-3">
         {/* Notification bell */}

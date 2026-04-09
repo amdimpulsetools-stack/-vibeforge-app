@@ -49,7 +49,7 @@ export function ClinicalNoteModal({
 }: ClinicalNoteModalProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto p-0">
+      <DialogContent className="max-w-[95vw] xl:max-w-7xl max-h-[90vh] overflow-y-auto p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border sticky top-0 bg-card z-10">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Stethoscope className="h-5 w-5 text-emerald-500" />
@@ -82,33 +82,30 @@ export function ClinicalNoteModal({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="px-6 py-5 space-y-6">
-          {/* SOAP Clinical Note — now with full width */}
-          <ClinicalNotePanel
-            appointmentId={appointmentId}
-            patientId={patientId}
-            doctorId={doctorId}
-            canEdit={canEdit}
-            appointmentStatus={appointmentStatus}
-            patientName={patientName}
-            patientDni={patientDni}
-            doctorName={doctorName}
-            serviceName={serviceName}
-            appointmentDate={appointmentDate}
-            appointmentTime={appointmentTime}
-            clinicName={clinicName}
-            wideLayout
-          />
-
-          {/* Treatment Plans, Prescriptions & Follow-ups */}
-          {patientId && (
-            <div className="border-t border-border pt-6 space-y-6">
-              <TreatmentPlansPanel
+        <div className="px-6 py-5">
+          <div className="grid grid-cols-1 xl:grid-cols-[1fr_380px] gap-6">
+            {/* Left: SOAP Clinical Note */}
+            <div>
+              <ClinicalNotePanel
+                appointmentId={appointmentId}
                 patientId={patientId}
                 doctorId={doctorId}
                 canEdit={canEdit}
+                appointmentStatus={appointmentStatus}
+                patientName={patientName}
+                patientDni={patientDni}
+                doctorName={doctorName}
+                serviceName={serviceName}
+                appointmentDate={appointmentDate}
+                appointmentTime={appointmentTime}
+                clinicName={clinicName}
+                wideLayout
               />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            </div>
+
+            {/* Right: Prescriptions, Exams, Treatment Plans, Follow-ups */}
+            {patientId && (
+              <div className="space-y-5 xl:border-l xl:border-border xl:pl-6">
                 <PrescriptionsPanel
                   patientId={patientId}
                   doctorId={doctorId}
@@ -120,6 +117,22 @@ export function ClinicalNoteModal({
                   appointmentDate={appointmentDate}
                   clinicName={clinicName}
                 />
+                <ExamOrdersPanel
+                  patientId={patientId}
+                  doctorId={doctorId}
+                  appointmentId={appointmentId}
+                  canEdit={canEdit}
+                  patientName={patientName}
+                  patientDni={patientDni}
+                  doctorName={doctorName}
+                  appointmentDate={appointmentDate}
+                  clinicName={clinicName}
+                />
+                <TreatmentPlansPanel
+                  patientId={patientId}
+                  doctorId={doctorId}
+                  canEdit={canEdit}
+                />
                 <ClinicalFollowupsPanel
                   patientId={patientId}
                   doctorId={doctorId}
@@ -127,19 +140,8 @@ export function ClinicalNoteModal({
                   canEdit={canEdit}
                 />
               </div>
-              <ExamOrdersPanel
-                patientId={patientId}
-                doctorId={doctorId}
-                appointmentId={appointmentId}
-                canEdit={canEdit}
-                patientName={patientName}
-                patientDni={patientDni}
-                doctorName={doctorName}
-                appointmentDate={appointmentDate}
-                clinicName={clinicName}
-              />
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
