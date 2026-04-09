@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
-import { Loader2, Zap, LogOut, ChevronDown } from "lucide-react";
+import { Loader2, Zap, LogOut, ChevronDown, Search, Check } from "lucide-react";
 
 const COUNTRIES = [
   { code: "PE", dial: "+51", flag: "🇵🇪", name: "Perú" },
@@ -23,6 +23,13 @@ const COUNTRIES = [
   { code: "ES", dial: "+34", flag: "🇪🇸", name: "España" },
 ];
 
+interface Specialty {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+}
+
 export default function OnboardingPage() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -31,19 +38,51 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<Specialty | null>(null);
+  const [specialtySearch, setSpecialtySearch] = useState("");
+  const [specialtyDropdownOpen, setSpecialtyDropdownOpen] = useState(false);
   const router = useRouter();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const specialtyDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setDropdownOpen(false);
       }
+      if (specialtyDropdownRef.current && !specialtyDropdownRef.current.contains(e.target as Node)) {
+        setSpecialtyDropdownOpen(false);
+      }
     };
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  // Fetch specialties
+  useEffect(() => {
+    const fetchSpecialties = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("specialties")
+        .select("id, name, slug, description")
+        .eq("is_active", true)
+        .order("sort_order");
+      if (data) setSpecialties(data);
+    };
+    fetchSpecialties();
+  }, []);
+
+  const filteredSpecialties = useMemo(() => {
+    if (!specialtySearch.trim()) return specialties;
+    const term = specialtySearch.toLowerCase();
+    return specialties.filter(
+      (s) =>
+        s.name.toLowerCase().includes(term) ||
+        s.description?.toLowerCase().includes(term)
+    );
+  }, [specialties, specialtySearch]);
 
   // Check auth and pre-fill name if available
   useEffect(() => {
@@ -81,7 +120,7 @@ export default function OnboardingPage() {
     init();
   }, [router]);
 
-  const isFormValid = fullName.trim().length > 0 && phone.trim().length >= 6;
+  const isFormValid = fullName.trim().length > 0 && phone.trim().length >= 6 && selectedSpecialty !== null;
 
   const handleSubmit = async () => {
     if (!isFormValid) return;
@@ -118,6 +157,32 @@ export default function OnboardingPage() {
     await supabase.auth.updateUser({
       data: { full_name: fullName.trim() },
     });
+
+    // Save specialty to organization
+    if (selectedSpecialty) {
+      const { data: membership } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .single();
+
+      if (membership) {
+        // Set primary specialty
+        await supabase
+          .from("organizations")
+          .update({ primary_specialty_id: selectedSpecialty.id })
+          .eq("id", membership.organization_id);
+
+        // Link in organization_specialties
+        await supabase
+          .from("organization_specialties")
+          .upsert({
+            organization_id: membership.organization_id,
+            specialty_id: selectedSpecialty.id,
+          }, { onConflict: "organization_id,specialty_id" });
+      }
+    }
 
     router.push("/select-plan");
   };
@@ -171,6 +236,75 @@ export default function OnboardingPage() {
               onChange={(e) => setFullName(e.target.value)}
               className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
             />
+          </div>
+
+          {/* Specialty search select */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-semibold">
+              Especialidad principal
+            </label>
+            <div className="relative" ref={specialtyDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setSpecialtyDropdownOpen(!specialtyDropdownOpen)}
+                className={`flex h-11 w-full items-center justify-between rounded-xl border bg-background/50 px-4 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-ring/50 ${
+                  selectedSpecialty
+                    ? "border-primary/50 text-foreground"
+                    : "border-input text-muted-foreground/60"
+                }`}
+              >
+                <span>{selectedSpecialty?.name || "Selecciona tu especialidad"}</span>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${specialtyDropdownOpen ? "rotate-180" : ""}`} />
+              </button>
+
+              {specialtyDropdownOpen && (
+                <div className="absolute top-full left-0 z-50 mt-1 w-full rounded-xl border border-border bg-popover shadow-xl overflow-hidden">
+                  {/* Search input */}
+                  <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+                    <Search className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <input
+                      type="text"
+                      value={specialtySearch}
+                      onChange={(e) => setSpecialtySearch(e.target.value)}
+                      placeholder="Buscar especialidad..."
+                      className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground/60 focus:outline-none"
+                      autoFocus
+                    />
+                  </div>
+                  {/* Options list */}
+                  <div className="max-h-52 overflow-y-auto py-1">
+                    {filteredSpecialties.length === 0 ? (
+                      <p className="px-3 py-2 text-sm text-muted-foreground">No se encontraron resultados</p>
+                    ) : (
+                      filteredSpecialties.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSpecialty(s);
+                            setSpecialtyDropdownOpen(false);
+                            setSpecialtySearch("");
+                          }}
+                          className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-accent/50 ${
+                            selectedSpecialty?.id === s.id ? "bg-primary/10 text-primary" : ""
+                          }`}
+                        >
+                          <div className="flex-1 text-left">
+                            <p className="font-medium">{s.name}</p>
+                            {s.description && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
+                            )}
+                          </div>
+                          {selectedSpecialty?.id === s.id && (
+                            <Check className="h-4 w-4 text-primary shrink-0" />
+                          )}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* WhatsApp phone with country selector */}

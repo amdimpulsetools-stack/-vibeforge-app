@@ -8,6 +8,7 @@ import {
   ClipboardList,
   ListOrdered,
   UsersRound,
+  FlaskConical,
   ArrowRight,
 } from "lucide-react";
 
@@ -17,6 +18,7 @@ interface AdminPageContentProps {
   serviceCount: number;
   lookupCount: number;
   memberCount: number;
+  examCount?: number;
 }
 
 export function AdminPageContent({
@@ -25,6 +27,7 @@ export function AdminPageContent({
   serviceCount,
   lookupCount,
   memberCount,
+  examCount = 0,
 }: AdminPageContentProps) {
   const { t } = useLanguage();
 
@@ -63,6 +66,13 @@ export function AdminPageContent({
       href: "/admin/members",
       icon: UsersRound,
       count: memberCount,
+    },
+    {
+      title: "Catálogo de Exámenes",
+      desc: "Configura los exámenes disponibles para solicitar",
+      href: "/admin/exam-catalog",
+      icon: FlaskConical,
+      count: examCount,
     },
   ];
 
