@@ -11,6 +11,7 @@ import { ClinicalNotePanel } from "./clinical-note-panel";
 import { PrescriptionsPanel } from "@/app/(dashboard)/patients/prescriptions-panel";
 import { ClinicalFollowupsPanel } from "@/app/(dashboard)/patients/clinical-followups-panel";
 import { TreatmentPlansPanel } from "@/app/(dashboard)/patients/treatment-plans-panel";
+import { ExamOrdersPanel } from "@/app/(dashboard)/patients/exam-orders-panel";
 import { User, CalendarDays, Clock, Stethoscope } from "lucide-react";
 
 interface ClinicalNoteModalProps {
@@ -126,6 +127,17 @@ export function ClinicalNoteModal({
                   canEdit={canEdit}
                 />
               </div>
+              <ExamOrdersPanel
+                patientId={patientId}
+                doctorId={doctorId}
+                appointmentId={appointmentId}
+                canEdit={canEdit}
+                patientName={patientName}
+                patientDni={patientDni}
+                doctorName={doctorName}
+                appointmentDate={appointmentDate}
+                clinicName={clinicName}
+              />
             </div>
           )}
         </div>

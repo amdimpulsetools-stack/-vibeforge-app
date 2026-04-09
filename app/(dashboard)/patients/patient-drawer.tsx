@@ -51,6 +51,7 @@ import { TreatmentPlansPanel } from "./treatment-plans-panel";
 import { PrescriptionsPanel } from "./prescriptions-panel";
 import { ClinicalAttachmentsPanel } from "./clinical-attachments-panel";
 import { ClinicalFollowupsPanel } from "./clinical-followups-panel";
+import { ExamOrdersPanel } from "./exam-orders-panel";
 import { VitalsTrendsChart } from "./vitals-trends-chart";
 import { DiagnosisHistoryPanel } from "./diagnosis-history-panel";
 import { ClinicalHistoryModal } from "./clinical-history-modal";
@@ -896,6 +897,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               <DiagnosisHistoryPanel patientId={patient.id} clinicalNotes={clinicalNotes} />
               <TreatmentPlansPanel patientId={patient.id} canEdit={false} />
               <PrescriptionsPanel patientId={patient.id} canEdit={false} />
+              <ExamOrdersPanel patientId={patient.id} canEdit={false} />
               <ClinicalFollowupsPanel patientId={patient.id} canEdit={false} />
               <ClinicalAttachmentsPanel patientId={patient.id} canEdit={false} />
             </div>

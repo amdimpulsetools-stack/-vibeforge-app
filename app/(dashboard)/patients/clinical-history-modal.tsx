@@ -21,6 +21,7 @@ import { TreatmentPlansPanel } from "./treatment-plans-panel";
 import { PrescriptionsPanel } from "./prescriptions-panel";
 import { ClinicalFollowupsPanel } from "./clinical-followups-panel";
 import { ClinicalAttachmentsPanel } from "./clinical-attachments-panel";
+import { ExamOrdersPanel } from "./exam-orders-panel";
 
 interface ClinicalHistoryModalProps {
   patient: PatientWithTags;
@@ -335,6 +336,11 @@ export function ClinicalHistoryModal({
                   canEdit={canEdit}
                 />
               </div>
+              <ExamOrdersPanel
+                patientId={patient.id}
+                doctorId={doctorId ?? undefined}
+                canEdit={canEdit}
+              />
               <ClinicalAttachmentsPanel
                 patientId={patient.id}
                 canEdit={canEdit}
