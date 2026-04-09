@@ -35,6 +35,7 @@ export default function RegisterPageWrapper() {
 function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -73,8 +74,34 @@ function RegisterPage() {
       .finally(() => setLoadingInvite(false));
   }, [inviteToken]);
 
+  // Password strength calculation
+  const getPasswordStrength = (pwd: string) => {
+    let score = 0;
+    if (pwd.length >= 6) score++;
+    if (pwd.length >= 8) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[0-9]/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+    return score; // 0-5
+  };
+
+  const passwordStrength = getPasswordStrength(password);
+  const strengthLabel = ["", "Muy débil", "Débil", "Aceptable", "Fuerte", "Muy fuerte"][passwordStrength] || "";
+  const strengthColor = ["", "bg-red-500", "bg-orange-500", "bg-yellow-500", "bg-emerald-500", "bg-emerald-400"][passwordStrength] || "";
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (password !== confirmPassword) {
+      toast.error("Las contraseñas no coinciden");
+      return;
+    }
+
+    if (passwordStrength < 3) {
+      toast.error("La contraseña es muy débil. Usa al menos 8 caracteres con mayúsculas y números.");
+      return;
+    }
+
     setLoading(true);
 
     if (inviteToken) {
@@ -353,13 +380,55 @@ function RegisterPage() {
               <input
                 id="password"
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder="Mín. 8 caracteres, mayúscula y número"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
                 className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
               />
+              {password.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <div
+                        key={i}
+                        className={`h-1.5 flex-1 rounded-full transition-colors ${
+                          i <= passwordStrength ? strengthColor : "bg-muted"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className={`text-xs ${passwordStrength >= 4 ? "text-emerald-500" : passwordStrength >= 3 ? "text-yellow-500" : "text-red-500"}`}>
+                    {strengthLabel}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="confirmPassword" className="text-sm font-semibold">
+                Confirmar contraseña
+              </label>
+              <input
+                id="confirmPassword"
+                type="password"
+                placeholder="Repite tu contraseña"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                minLength={6}
+                className={`flex h-11 w-full rounded-xl border bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 transition-all ${
+                  confirmPassword.length > 0 && password !== confirmPassword
+                    ? "border-red-500 focus:border-red-500"
+                    : confirmPassword.length > 0 && password === confirmPassword
+                    ? "border-emerald-500 focus:border-emerald-500"
+                    : "border-input focus:border-primary/50"
+                }`}
+              />
+              {confirmPassword.length > 0 && password !== confirmPassword && (
+                <p className="text-xs text-red-500">Las contraseñas no coinciden</p>
+              )}
             </div>
 
             <button

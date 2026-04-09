@@ -12,6 +12,8 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   Clock,
   User,
@@ -21,12 +23,16 @@ import {
   DollarSign,
 } from "lucide-react";
 
+const PAGE_SIZE = 50;
+
 export default function AppointmentHistoryPage() {
   const { t } = useLanguage();
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Filters
   const [dateFrom, setDateFrom] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
@@ -55,18 +61,21 @@ export default function AppointmentHistoryPage() {
     fetchMaster();
   }, []);
 
-  // Fetch appointments
-  const fetchHistory = useCallback(async () => {
+  // Fetch appointments with pagination
+  const fetchHistory = useCallback(async (pageNum = 0) => {
     setLoading(true);
     const supabase = createClient();
+    const from = pageNum * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
 
     let query = supabase
       .from("appointments")
-      .select("*, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)")
+      .select("*, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)", { count: "exact" })
       .gte("appointment_date", dateFrom)
       .lte("appointment_date", dateTo)
       .order("appointment_date", { ascending: sortDir === "asc" })
-      .order("start_time", { ascending: sortDir === "asc" });
+      .order("start_time", { ascending: sortDir === "asc" })
+      .range(from, to);
 
     if (filterStatus !== "all") {
       query = query.eq("status", filterStatus);
@@ -80,14 +89,26 @@ export default function AppointmentHistoryPage() {
       query = query.eq("service_id", filterService);
     }
 
-    const { data } = await query;
+    const { data, count } = await query;
     setAppointments((data as AppointmentWithRelations[]) ?? []);
+    setTotalCount(count ?? 0);
     setLoading(false);
   }, [dateFrom, dateTo, filterStatus, filterDoctor, filterService, sortDir]);
 
+  // Reset pagination when filters change
   useEffect(() => {
-    fetchHistory();
+    setPage(0);
+    fetchHistory(0);
   }, [fetchHistory]);
+
+  // Fetch when page changes
+  useEffect(() => {
+    fetchHistory(page);
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const canPrev = page > 0;
+  const canNext = page < totalPages - 1;
 
   // Client-side text filter
   const filtered = appointments.filter((a) => {
@@ -239,7 +260,7 @@ export default function AppointmentHistoryPage() {
             />
           </div>
           <div className="flex gap-4 text-xs text-muted-foreground">
-            <span>{sorted.length} {t("history.records")}</span>
+            <span>{totalCount} {t("history.records")}</span>
             <span className="text-emerald-500">{completedCount} {t("scheduler.status_completed").toLowerCase()}</span>
             <span className="text-red-500">{cancelledCount} {t("scheduler.status_cancelled").toLowerCase()}</span>
             <span className="font-medium text-foreground">S/. {totalRevenue.toFixed(2)}</span>
@@ -259,6 +280,7 @@ export default function AppointmentHistoryPage() {
             <p className="text-sm">{t("common.no_results")}</p>
           </div>
         ) : (
+          <div>
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 bg-card border-b border-border">
               <tr className="text-xs text-muted-foreground">
@@ -364,6 +386,33 @@ export default function AppointmentHistoryPage() {
               })}
             </tbody>
           </table>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-border px-4 py-3">
+              <span className="text-xs text-muted-foreground">
+                {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} de {totalCount}
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage((p) => p - 1)}
+                  disabled={!canPrev}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <span className="text-sm font-medium tabular-nums">
+                  {page + 1} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage((p) => p + 1)}
+                  disabled={!canNext}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+          </div>
         )}
       </div>
     </div>
