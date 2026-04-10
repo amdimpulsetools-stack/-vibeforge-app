@@ -70,6 +70,21 @@ export async function POST(request: NextRequest) {
 
   const { items, ...orderData } = parsed.data;
 
+  // Server-side guard: if the linked clinical note is signed, forbid creating new orders
+  if (orderData.appointment_id) {
+    const { data: note } = await supabase
+      .from("clinical_notes")
+      .select("is_signed")
+      .eq("appointment_id", orderData.appointment_id)
+      .maybeSingle();
+    if (note?.is_signed === true) {
+      return NextResponse.json(
+        { error: "La nota clínica está firmada. No se pueden crear nuevas órdenes de exámenes." },
+        { status: 403 }
+      );
+    }
+  }
+
   // Create order
   const { data: order, error: orderError } = await supabase
     .from("exam_orders")

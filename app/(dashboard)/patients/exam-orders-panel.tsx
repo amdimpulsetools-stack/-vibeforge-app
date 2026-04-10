@@ -59,6 +59,8 @@ interface ExamOrdersPanelProps {
   appointmentId?: string;
   clinicalNoteId?: string;
   canEdit: boolean;
+  /** If true, the clinical note is signed — prevents creating NEW orders but allows marking items as completed */
+  isSigned?: boolean;
   patientName?: string;
   patientDni?: string | null;
   doctorName?: string;
@@ -72,6 +74,7 @@ export function ExamOrdersPanel({
   appointmentId,
   clinicalNoteId,
   canEdit,
+  isSigned = false,
   patientName,
   patientDni,
   doctorName,
@@ -268,7 +271,7 @@ export function ExamOrdersPanel({
               clinicName={clinicName}
             />
           )}
-          {canEdit && doctorId && (
+          {canEdit && doctorId && !isSigned && (
             <button
               onClick={() => setShowForm(!showForm)}
               className="flex items-center gap-1 rounded-md bg-cyan-500/10 px-2 py-1 text-[10px] font-medium text-cyan-600 hover:bg-cyan-500/20 transition-colors"
@@ -281,7 +284,7 @@ export function ExamOrdersPanel({
       </div>
 
       {/* Create form */}
-      {showForm && (
+      {showForm && !isSigned && (
         <div className="rounded-lg border border-border bg-card p-3 space-y-3">
           {/* Exam selection from catalog */}
           <div className="space-y-1.5">

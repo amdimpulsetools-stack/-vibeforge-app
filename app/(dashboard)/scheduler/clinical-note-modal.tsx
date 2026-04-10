@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -7,12 +8,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { createClient } from "@/lib/supabase/client";
 import { ClinicalNotePanel } from "./clinical-note-panel";
 import { PrescriptionsPanel } from "@/app/(dashboard)/patients/prescriptions-panel";
 import { ClinicalFollowupsPanel } from "@/app/(dashboard)/patients/clinical-followups-panel";
 import { TreatmentPlansPanel } from "@/app/(dashboard)/patients/treatment-plans-panel";
 import { ExamOrdersPanel } from "@/app/(dashboard)/patients/exam-orders-panel";
-import { User, CalendarDays, Clock, Stethoscope } from "lucide-react";
+import { User, CalendarDays, Clock, Stethoscope, Lock } from "lucide-react";
 
 interface ClinicalNoteModalProps {
   open: boolean;
@@ -47,6 +49,26 @@ export function ClinicalNoteModal({
   appointmentTime,
   clinicName,
 }: ClinicalNoteModalProps) {
+  const [isSigned, setIsSigned] = useState(false);
+
+  // Fetch the clinical note's signed status when modal opens
+  useEffect(() => {
+    if (!open || !appointmentId) return;
+    const fetchSignedStatus = async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("clinical_notes")
+        .select("is_signed")
+        .eq("appointment_id", appointmentId)
+        .maybeSingle();
+      setIsSigned(data?.is_signed === true);
+    };
+    fetchSignedStatus();
+    // Poll every 2 seconds while modal is open to detect when user signs
+    const interval = setInterval(fetchSignedStatus, 2000);
+    return () => clearInterval(interval);
+  }, [open, appointmentId]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] xl:max-w-7xl max-h-[90vh] overflow-y-auto p-0">
@@ -54,6 +76,12 @@ export function ClinicalNoteModal({
           <DialogTitle className="flex items-center gap-2 text-base">
             <Stethoscope className="h-5 w-5 text-emerald-500" />
             Historia Clínica
+            {isSigned && (
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600">
+                <Lock className="h-3 w-3" />
+                Nota firmada
+              </span>
+            )}
           </DialogTitle>
           <DialogDescription asChild>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-1">
@@ -111,6 +139,7 @@ export function ClinicalNoteModal({
                   doctorId={doctorId}
                   appointmentId={appointmentId}
                   canEdit={canEdit}
+                  isSigned={isSigned}
                   patientName={patientName}
                   patientDni={patientDni}
                   doctorName={doctorName}
@@ -122,6 +151,7 @@ export function ClinicalNoteModal({
                   doctorId={doctorId}
                   appointmentId={appointmentId}
                   canEdit={canEdit}
+                  isSigned={isSigned}
                   patientName={patientName}
                   patientDni={patientDni}
                   doctorName={doctorName}
