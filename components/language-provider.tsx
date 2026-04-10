@@ -27,6 +27,7 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.admin_variables": "Variables Globales",
     "nav.admin_members": "Miembros",
     "nav.admin_clinical_templates": "Plantillas Clínicas",
+    "nav.admin_exam_catalog": "Catálogo de Exámenes",
     "nav.founder": "Founder",
     "nav.integrations": "Integraciones",
 
@@ -623,6 +624,7 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.admin_variables": "Global Variables",
     "nav.admin_members": "Members",
     "nav.admin_clinical_templates": "Clinical Templates",
+    "nav.admin_exam_catalog": "Exam Catalog",
     "nav.founder": "Founder",
     "nav.integrations": "Integraciones",
 

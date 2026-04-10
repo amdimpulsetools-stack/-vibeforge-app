@@ -33,6 +33,7 @@ import {
   LayoutTemplate,
   ClipboardCheck,
   Headphones,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 
@@ -82,6 +83,7 @@ const navEntries: NavEntry[] = [
       { titleKey: "nav.admin_lookups", href: "/admin/lookups", icon: ListOrdered },
       { titleKey: "nav.admin_members", href: "/admin/members", icon: UsersRound },
       { titleKey: "nav.admin_clinical_templates", href: "/admin/clinical-templates", icon: LayoutTemplate },
+      { titleKey: "nav.admin_exam_catalog", href: "/admin/exam-catalog", icon: FlaskConical },
     ],
   },
   { titleKey: "nav.account", href: "/account", icon: UserCircle },
