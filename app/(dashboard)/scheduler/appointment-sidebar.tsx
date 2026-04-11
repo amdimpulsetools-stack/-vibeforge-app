@@ -94,6 +94,7 @@ export function AppointmentSidebar({
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("");
   const [payRef, setPayRef] = useState("");
+  const [sendAsInvoice, setSendAsInvoice] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
 
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
@@ -199,10 +200,22 @@ export function AppointmentSidebar({
       },
     });
 
+    // Optionally also send the invoice (factura) email
+    if (sendAsInvoice) {
+      sendNotification({
+        type: "payment_invoice",
+        appointment_id: appointment.id,
+        extra_variables: {
+          monto_pagado: `S/. ${Number(payAmount).toFixed(2)}`,
+        },
+      });
+    }
+
     setShowAddPayment(false);
     setPayAmount("");
     setPayMethod("");
     setPayRef("");
+    setSendAsInvoice(false);
     fetchPayments();
   };
 
@@ -901,6 +914,17 @@ export function AppointmentSidebar({
                     placeholder="Nro. operación (opcional)"
                     className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                   />
+
+                  {/* Send as invoice toggle */}
+                  <label className="flex items-center gap-2 text-[11px] text-muted-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={sendAsInvoice}
+                      onChange={(e) => setSendAsInvoice(e.target.checked)}
+                      className="rounded"
+                    />
+                    Enviar también como factura (empresa con RUC)
+                  </label>
 
                   {/* Actions */}
                   <div className="flex gap-2">

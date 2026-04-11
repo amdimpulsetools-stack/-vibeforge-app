@@ -650,6 +650,7 @@ export interface Database {
           reply_to_email: string | null;
           brand_color: string;
           email_logo_url: string | null;
+          notification_emails: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -661,6 +662,7 @@ export interface Database {
           reply_to_email?: string | null;
           brand_color?: string;
           email_logo_url?: string | null;
+          notification_emails?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -672,6 +674,7 @@ export interface Database {
           reply_to_email?: string | null;
           brand_color?: string;
           email_logo_url?: string | null;
+          notification_emails?: string | null;
           updated_at?: string;
         };
       };
