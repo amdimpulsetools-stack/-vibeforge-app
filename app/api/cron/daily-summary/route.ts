@@ -212,11 +212,230 @@ export async function GET(req: NextRequest) {
 
   const totalSent = results.reduce((sum, r) => sum + r.sent, 0);
 
+  // ══════════════════════════════════════════════════════════════════
+  // PHASE 2: Marketing emails (birthday + follow-up)
+  // ══════════════════════════════════════════════════════════════════
+  const marketingResults = {
+    birthday_sent: 0,
+    followup_sent: 0,
+  };
+
+  // Today's month-day for birthday matching (MM-DD)
+  const todayMonth = peruNow.getUTCMonth() + 1;
+  const todayDay = peruNow.getUTCDate();
+
+  // Build org list from email_templates with marketing templates enabled
+  const { data: marketingTemplates } = await supabase
+    .from("email_templates")
+    .select("organization_id, slug, subject, body")
+    .in("slug", ["marketing_birthday", "marketing_followup"])
+    .eq("is_enabled", true);
+
+  if (marketingTemplates && marketingTemplates.length > 0) {
+    // Group templates by org
+    const templatesByOrg = new Map<string, Map<string, { subject: string; body: string }>>();
+    for (const tpl of marketingTemplates) {
+      if (!templatesByOrg.has(tpl.organization_id)) {
+        templatesByOrg.set(tpl.organization_id, new Map());
+      }
+      templatesByOrg.get(tpl.organization_id)!.set(tpl.slug, {
+        subject: tpl.subject,
+        body: tpl.body,
+      });
+    }
+
+    // Shared SMTP transporter
+    const port = Number(process.env.SMTP_PORT) || 587;
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port,
+      secure: port === 465,
+      auth: { user: smtpUser, pass: smtpPass },
+      tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+    });
+    const fromAddress = process.env.SMTP_FROM || smtpUser;
+
+    for (const [orgId, orgTemplates] of templatesByOrg) {
+      // Fetch org settings
+      const { data: org } = await supabase
+        .from("organizations")
+        .select("name, address, google_maps_url")
+        .eq("id", orgId)
+        .single();
+      const { data: emailSettings } = await supabase
+        .from("email_settings")
+        .select("sender_name, reply_to_email, brand_color, email_logo_url")
+        .eq("organization_id", orgId)
+        .single();
+      const { data: clinicPhoneVar } = await supabase
+        .from("global_variables")
+        .select("value")
+        .eq("organization_id", orgId)
+        .eq("key", "clinic_phone")
+        .maybeSingle();
+
+      const clinicName = org?.name || emailSettings?.sender_name || "VibeForge";
+      const brandColor = emailSettings?.brand_color || "#10b981";
+      const logoUrl = emailSettings?.email_logo_url || null;
+      const fromName = emailSettings?.sender_name || clinicName;
+      const replyTo = emailSettings?.reply_to_email || undefined;
+
+      const renderTemplate = (tpl: { subject: string; body: string }, patientName: string) => {
+        const vars: Record<string, string> = {
+          "{{paciente_nombre}}": patientName,
+          "{{clinica_nombre}}": clinicName,
+          "{{clinica_telefono}}": clinicPhoneVar?.value || "",
+          "{{direccion_clinica}}": org?.address || "",
+          "{{link_ubicacion}}": org?.google_maps_url || "",
+        };
+        let subject = tpl.subject;
+        let body = tpl.body;
+        for (const [k, v] of Object.entries(vars)) {
+          subject = subject.replaceAll(k, v);
+          body = body.replaceAll(k, v);
+        }
+        return { subject, body };
+      };
+
+      // ── BIRTHDAY ──
+      const birthdayTpl = orgTemplates.get("marketing_birthday");
+      if (birthdayTpl) {
+        // Find patients with birthday today (matching month-day)
+        const { data: birthdayPatients } = await supabase
+          .from("patients")
+          .select("id, first_name, last_name, email, birth_date")
+          .eq("organization_id", orgId)
+          .eq("status", "active")
+          .not("email", "is", null)
+          .not("birth_date", "is", null);
+
+        const birthdayToday = (birthdayPatients || []).filter((p: { birth_date: string | null }) => {
+          if (!p.birth_date) return false;
+          const d = new Date(p.birth_date);
+          return d.getUTCMonth() + 1 === todayMonth && d.getUTCDate() === todayDay;
+        });
+
+        for (const patient of birthdayToday) {
+          const patientName = `${patient.first_name} ${patient.last_name}`.trim();
+          const { subject, body } = renderTemplate(birthdayTpl, patientName);
+          const html = buildEmailHtml({ body, brandColor, logoUrl, clinicName });
+
+          try {
+            await transporter.sendMail({
+              from: `${fromName} <${fromAddress}>`,
+              replyTo,
+              to: patient.email!,
+              subject,
+              html,
+            });
+            marketingResults.birthday_sent++;
+            // Log to avoid sending twice (safety)
+            await supabase.from("marketing_email_logs").insert({
+              organization_id: orgId,
+              patient_id: patient.id,
+              template_slug: "marketing_birthday",
+            });
+          } catch (err) {
+            console.error(`[Birthday] Error ${patient.email}:`, err);
+          }
+        }
+      }
+
+      // ── FOLLOW-UP (patients who haven't returned in 90+ days) ──
+      const followupTpl = orgTemplates.get("marketing_followup");
+      if (followupTpl) {
+        // Patients whose last appointment was 90+ days ago AND haven't received a follow-up in the last 60 days
+        const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+        const sixtyDaysAgo = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+
+        // Get all active patients with email in this org
+        const { data: allPatients } = await supabase
+          .from("patients")
+          .select("id, first_name, last_name, email")
+          .eq("organization_id", orgId)
+          .eq("status", "active")
+          .not("email", "is", null);
+
+        if (allPatients && allPatients.length > 0) {
+          // Batch query: latest appointment per patient in this org
+          const patientIds = allPatients.map((p: { id: string }) => p.id);
+
+          // Get latest appointment date per patient
+          const { data: lastAppts } = await supabase
+            .from("appointments")
+            .select("patient_id, appointment_date")
+            .in("patient_id", patientIds)
+            .eq("organization_id", orgId)
+            .eq("status", "completed")
+            .order("appointment_date", { ascending: false });
+
+          const lastApptByPatient = new Map<string, string>();
+          for (const a of (lastAppts || [])) {
+            const apt = a as { patient_id: string | null; appointment_date: string };
+            if (apt.patient_id && !lastApptByPatient.has(apt.patient_id)) {
+              lastApptByPatient.set(apt.patient_id, apt.appointment_date);
+            }
+          }
+
+          // Get recent follow-up logs
+          const { data: recentLogs } = await supabase
+            .from("marketing_email_logs")
+            .select("patient_id")
+            .eq("organization_id", orgId)
+            .eq("template_slug", "marketing_followup")
+            .gte("sent_at", sixtyDaysAgo);
+
+          const recentlyContacted = new Set((recentLogs || []).map((l: { patient_id: string }) => l.patient_id));
+
+          // Filter: last appt > 90 days ago AND not contacted in 60 days
+          const toFollowUp = allPatients.filter((p: { id: string }) => {
+            const lastDate = lastApptByPatient.get(p.id);
+            if (!lastDate) return false; // Never had a completed appointment
+            if (lastDate >= ninetyDaysAgo) return false; // Recent appt
+            if (recentlyContacted.has(p.id)) return false; // Already contacted
+            return true;
+          });
+
+          // Limit to 20 per day per org to avoid spam looking
+          const toSend = toFollowUp.slice(0, 20);
+
+          for (const patient of toSend) {
+            const patientName = `${patient.first_name} ${patient.last_name}`.trim();
+            const { subject, body } = renderTemplate(followupTpl, patientName);
+            const html = buildEmailHtml({ body, brandColor, logoUrl, clinicName });
+
+            try {
+              await transporter.sendMail({
+                from: `${fromName} <${fromAddress}>`,
+                replyTo,
+                to: (patient as { email: string }).email,
+                subject,
+                html,
+              });
+              marketingResults.followup_sent++;
+              await supabase.from("marketing_email_logs").insert({
+                organization_id: orgId,
+                patient_id: patient.id,
+                template_slug: "marketing_followup",
+              });
+            } catch (err) {
+              console.error(`[Followup] Error:`, err);
+            }
+          }
+        }
+      }
+    }
+  }
+
   return NextResponse.json({
     success: true,
     date: todayStr,
     orgs_processed: results.length,
     total_emails_sent: totalSent,
+    marketing: marketingResults,
     results,
   });
 }

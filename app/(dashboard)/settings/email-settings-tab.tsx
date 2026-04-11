@@ -263,13 +263,14 @@ export default function EmailSettingsTab() {
         </div>
 
         {CATEGORIES.map((category) => {
-          // Hide unimplemented templates (only daily summary is functional for team)
+          // Hide unimplemented templates
           const HIDDEN_SLUGS = new Set([
             "team_new_appointment",
             "team_cancellation",
             "patient_post_consultation",
             "patient_review_request",
             "marketing_campaign",
+            "payment_pending",
           ]);
           const categoryTemplates = templates.filter(
             (t) => t.category === category && !HIDDEN_SLUGS.has(t.slug)

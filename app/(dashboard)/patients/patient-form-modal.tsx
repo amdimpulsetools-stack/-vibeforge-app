@@ -66,27 +66,31 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    const { error } = await supabase.from("patients").insert({
-      organization_id: organizationId,
-      created_by: user?.id ?? null,
-      dni: values.dni || null,
-      document_type: values.document_type,
-      first_name: values.first_name,
-      last_name: values.last_name,
-      phone: values.phone || null,
-      email: values.email || null,
-      birth_date: values.birth_date || null,
-      departamento: values.is_foreigner ? null : (values.departamento || null),
-      distrito: values.is_foreigner ? null : (values.distrito || null),
-      is_foreigner: values.is_foreigner,
-      nationality: values.is_foreigner ? (values.nationality || null) : null,
-      status: values.status,
-      origin: values.origin || null,
-      custom_field_1: values.custom_field_1 || null,
-      custom_field_2: values.custom_field_2 || null,
-      referral_source: values.referral_source || null,
-      notes: values.notes || null,
-    });
+    const { data: newPatient, error } = await supabase
+      .from("patients")
+      .insert({
+        organization_id: organizationId,
+        created_by: user?.id ?? null,
+        dni: values.dni || null,
+        document_type: values.document_type,
+        first_name: values.first_name,
+        last_name: values.last_name,
+        phone: values.phone || null,
+        email: values.email || null,
+        birth_date: values.birth_date || null,
+        departamento: values.is_foreigner ? null : (values.departamento || null),
+        distrito: values.is_foreigner ? null : (values.distrito || null),
+        is_foreigner: values.is_foreigner,
+        nationality: values.is_foreigner ? (values.nationality || null) : null,
+        status: values.status,
+        origin: values.origin || null,
+        custom_field_1: values.custom_field_1 || null,
+        custom_field_2: values.custom_field_2 || null,
+        referral_source: values.referral_source || null,
+        notes: values.notes || null,
+      })
+      .select("id")
+      .single();
 
     setSaving(false);
 
@@ -109,6 +113,15 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
     }).then(({ error: nErr }) => {
       if (nErr) console.error("[Notification] insert error:", nErr);
     });
+
+    // Send welcome email (fire and forget, only if patient has email)
+    if (newPatient?.id && values.email) {
+      fetch("/api/notifications/send-patient", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "patient_welcome", patient_id: newPatient.id }),
+      }).catch((err) => console.error("[Welcome email]", err));
+    }
 
     toast.success(t("patients.save_success"));
     onSaved();
