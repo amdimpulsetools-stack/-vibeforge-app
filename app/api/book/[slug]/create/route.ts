@@ -397,6 +397,27 @@ async function sendBookingConfirmationEmail(
     .eq("key", "clinic_phone")
     .single();
 
+  // Fetch org address + maps
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("address, google_maps_url")
+    .eq("id", orgId)
+    .single();
+
+  // Fetch appointment's service/price/instructions from the just-created appointment
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("price_snapshot, services(pre_appointment_instructions, base_price)")
+    .eq("id", appointmentId)
+    .single();
+
+  const apptService = (appt?.services as any) || null;
+  const rawAmount = (appt as any)?.price_snapshot ?? apptService?.base_price ?? null;
+  const montoCita =
+    rawAmount != null && !isNaN(Number(rawAmount))
+      ? `S/. ${Number(rawAmount).toFixed(2)}`
+      : "";
+
   const formattedDate = new Date(date + "T12:00:00").toLocaleDateString(
     "es-PE",
     { weekday: "long", day: "2-digit", month: "long", year: "numeric" }
@@ -408,8 +429,12 @@ async function sendBookingConfirmationEmail(
     "{{fecha_cita}}": formattedDate,
     "{{hora_cita}}": time,
     "{{servicio}}": serviceName,
+    "{{instrucciones_servicio}}": apptService?.pre_appointment_instructions || "",
+    "{{monto_cita}}": montoCita,
     "{{clinica_nombre}}": orgName,
     "{{clinica_telefono}}": clinicPhoneVar?.value || "",
+    "{{direccion_clinica}}": org?.address || "",
+    "{{link_ubicacion}}": org?.google_maps_url || "",
     "{{consultorio}}": "",
     "{{link_cancelar}}": "",
     "{{link_reagendar}}": "",

@@ -218,6 +218,7 @@ export default function SettingsPage() {
       name: organization?.name ?? "",
       slug: organization?.slug ?? "",
       address: organization?.address ?? "",
+      google_maps_url: (organization as any)?.google_maps_url ?? "",
     },
   });
 
@@ -228,6 +229,7 @@ export default function SettingsPage() {
         name: organization.name ?? "",
         slug: organization.slug ?? "",
         address: organization.address ?? "",
+        google_maps_url: (organization as any).google_maps_url ?? "",
       });
     }
   }, [organization, reset]);
@@ -326,7 +328,12 @@ export default function SettingsPage() {
     const supabase = createClient();
     const { error } = await supabase
       .from("organizations")
-      .update({ name: values.name, slug: values.slug, address: values.address || null })
+      .update({
+        name: values.name,
+        slug: values.slug,
+        address: values.address || null,
+        google_maps_url: values.google_maps_url || null,
+      })
       .eq("id", organizationId);
 
     setSaving(false);
@@ -587,6 +594,31 @@ export default function SettingsPage() {
                 {errors.address && (
                   <p className="text-xs text-destructive">
                     {errors.address.message}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium" htmlFor="org_maps_url">
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                    Link de ubicación (Google Maps)
+                  </span>
+                </label>
+                <input
+                  id="org_maps_url"
+                  type="url"
+                  disabled={!isOrgAdmin}
+                  placeholder="https://maps.google.com/?q=..."
+                  {...register("google_maps_url")}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Pega el enlace de Google Maps para incluirlo en los correos de confirmación.
+                </p>
+                {errors.google_maps_url && (
+                  <p className="text-xs text-destructive">
+                    {errors.google_maps_url.message}
                   </p>
                 )}
               </div>

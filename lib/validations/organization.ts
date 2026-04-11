@@ -18,6 +18,12 @@ export const organizationSchema = z.object({
     .max(250, "La dirección no puede superar 250 caracteres")
     .optional()
     .or(z.literal("")),
+  google_maps_url: z
+    .string()
+    .max(500, "El enlace no puede superar 500 caracteres")
+    .url("Debe ser una URL válida")
+    .optional()
+    .or(z.literal("")),
 });
 
 export type OrganizationFormData = z.infer<typeof organizationSchema>;

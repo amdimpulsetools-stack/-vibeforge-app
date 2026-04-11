@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
       *,
       doctors ( full_name ),
       offices ( name ),
-      services ( name ),
+      services ( name, base_price, pre_appointment_instructions ),
       patients ( email, first_name, last_name, phone )
     `
     )
@@ -123,10 +123,10 @@ export async function POST(req: NextRequest) {
     .eq("key", "clinic_phone")
     .single();
 
-  // 5. Fetch organization name
+  // 5. Fetch organization name + address + maps url
   const { data: org } = await supabase
     .from("organizations")
-    .select("name")
+    .select("name, address, google_maps_url")
     .eq("id", orgId)
     .single();
 
@@ -150,6 +150,16 @@ export async function POST(req: NextRequest) {
     year: "numeric",
   });
 
+  // Compute appointment amount (price_snapshot if set, otherwise service.base_price)
+  const rawAmount =
+    (appointment as any).price_snapshot ??
+    service?.base_price ??
+    null;
+  const montoCita =
+    rawAmount != null && !isNaN(Number(rawAmount))
+      ? `S/. ${Number(rawAmount).toFixed(2)}`
+      : "";
+
   const variables: Record<string, string> = {
     "{{paciente_nombre}}": patientName || "",
     "{{doctor_nombre}}": doctor?.full_name || "",
@@ -159,6 +169,10 @@ export async function POST(req: NextRequest) {
     "{{servicio}}": service?.name || "",
     "{{clinica_nombre}}": org?.name || "",
     "{{clinica_telefono}}": clinicPhoneVar?.value || "",
+    "{{direccion_clinica}}": org?.address || "",
+    "{{link_ubicacion}}": org?.google_maps_url || "",
+    "{{instrucciones_servicio}}": service?.pre_appointment_instructions || "",
+    "{{monto_cita}}": montoCita,
     "{{link_cancelar}}": "", // TODO: generate public links
     "{{link_reagendar}}": "",
     "{{link_reunion}}": (appointment as any).meeting_url || "",
