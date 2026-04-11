@@ -11,6 +11,7 @@ export interface Database {
           slug: string;
           logo_url: string | null;
           address: string | null;
+          google_maps_url: string | null;
           primary_specialty_id: string | null;
           plan: "free" | "pro" | "enterprise";
           is_active: boolean;
@@ -167,6 +168,7 @@ export interface Database {
           category_id: string;
           base_price: number;
           duration_minutes: number;
+          pre_appointment_instructions: string | null;
           is_active: boolean;
           display_order: number;
           organization_id: string;
@@ -179,6 +181,7 @@ export interface Database {
           category_id: string;
           base_price?: number;
           duration_minutes?: number;
+          pre_appointment_instructions?: string | null;
           is_active?: boolean;
           display_order?: number;
           organization_id: string;
@@ -191,6 +194,7 @@ export interface Database {
           category_id?: string;
           base_price?: number;
           duration_minutes?: number;
+          pre_appointment_instructions?: string | null;
           is_active?: boolean;
           display_order?: number;
           organization_id?: string;

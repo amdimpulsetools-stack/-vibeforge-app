@@ -89,9 +89,10 @@ export async function GET(req: NextRequest) {
         end_time,
         status,
         organization_id,
+        price_snapshot,
         doctors ( full_name ),
         offices ( name ),
-        services ( name ),
+        services ( name, base_price, pre_appointment_instructions ),
         patients ( email, first_name, last_name, phone )
       `
       )
@@ -173,10 +174,10 @@ export async function GET(req: NextRequest) {
         .eq("organization_id", orgId)
         .single();
 
-      // Fetch org name
+      // Fetch org name + address + maps url
       const { data: org } = await supabase
         .from("organizations")
-        .select("name")
+        .select("name, address, google_maps_url")
         .eq("id", orgId)
         .single();
 
@@ -280,6 +281,16 @@ export async function GET(req: NextRequest) {
           year: "numeric",
         });
 
+        // Compute appointment amount
+        const rawAmount =
+          (appt as any).price_snapshot ??
+          service?.base_price ??
+          null;
+        const montoCita =
+          rawAmount != null && !isNaN(Number(rawAmount))
+            ? `S/. ${Number(rawAmount).toFixed(2)}`
+            : "";
+
         const variables: Record<string, string> = {
           "{{paciente_nombre}}": patientName || "",
           "{{doctor_nombre}}": doctor?.full_name || "",
@@ -289,6 +300,10 @@ export async function GET(req: NextRequest) {
           "{{servicio}}": service?.name || "",
           "{{clinica_nombre}}": clinicName,
           "{{clinica_telefono}}": clinicPhoneVar?.value || "",
+          "{{direccion_clinica}}": org?.address || "",
+          "{{link_ubicacion}}": org?.google_maps_url || "",
+          "{{instrucciones_servicio}}": service?.pre_appointment_instructions || "",
+          "{{monto_cita}}": montoCita,
           "{{link_cancelar}}": "",
           "{{link_reagendar}}": "",
         };

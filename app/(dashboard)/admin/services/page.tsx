@@ -396,6 +396,7 @@ function ServiceForm({
       base_price: service?.base_price ?? 0,
       duration_minutes: service?.duration_minutes ?? 30,
       modality: (service as any)?.modality ?? "in_person",
+      pre_appointment_instructions: (service as any)?.pre_appointment_instructions ?? "",
       is_active: service?.is_active ?? true,
     },
   });
@@ -414,6 +415,7 @@ function ServiceForm({
       base_price: values.base_price,
       duration_minutes: values.duration_minutes,
       modality: values.modality,
+      pre_appointment_instructions: values.pre_appointment_instructions || null,
       is_active: values.is_active,
     };
 
@@ -532,6 +534,23 @@ function ServiceForm({
             </label>
           ))}
         </div>
+      </div>
+
+      {/* Pre-appointment instructions */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">Instrucciones previas para el paciente</label>
+        <textarea
+          {...register("pre_appointment_instructions")}
+          rows={2}
+          placeholder="Ej: Venir en ayunas 8 horas antes, traer exámenes previos, etc."
+          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
+        />
+        <p className="text-xs text-muted-foreground">
+          Estas instrucciones se incluirán automáticamente en los correos de confirmación usando la variable <code className="rounded bg-muted px-1">{"{{instrucciones_servicio}}"}</code>.
+        </p>
+        {errors.pre_appointment_instructions && (
+          <p className="text-xs text-destructive">{errors.pre_appointment_instructions.message}</p>
+        )}
       </div>
 
       <label className="flex items-center gap-2 text-sm">
