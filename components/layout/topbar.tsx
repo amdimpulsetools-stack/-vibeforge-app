@@ -15,7 +15,9 @@ import {
   Info,
   Check,
   CheckCheck,
+  Menu,
 } from "lucide-react";
+import { useMobileNav } from "./mobile-nav-context";
 
 const TYPE_CONFIG: Record<string, { icon: typeof Bell; className: string }> = {
   appointment_created: { icon: CalendarPlus, className: "text-emerald-500" },
@@ -92,6 +94,7 @@ function NotificationItem({
 export function Topbar() {
   const { user, loading } = useUser();
   const { avatarUrl, avatarOption } = useUserAvatar();
+  const { toggle: toggleMobileNav } = useMobileNav();
   const {
     notifications,
     unreadCount,
@@ -122,8 +125,17 @@ export function Topbar() {
   };
 
   return (
-    <header className="relative z-40 flex h-16 items-center justify-between border-b border-border/40 bg-background/80 backdrop-blur-sm px-6">
-      <div>{/* Breadcrumbs o titulo dinamico */}</div>
+    <header className="relative z-40 flex h-16 items-center justify-between border-b border-border/40 bg-background/80 backdrop-blur-sm px-4 md:px-6">
+      <div className="flex items-center">
+        {/* Mobile hamburger menu */}
+        <button
+          onClick={toggleMobileNav}
+          className="md:hidden flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          aria-label="Abrir menú"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
+      </div>
       <div className="flex items-center gap-3">
         {/* Notification bell */}
         <div ref={dropdownRef} className="relative">
@@ -142,7 +154,7 @@ export function Topbar() {
 
           {/* Dropdown */}
           {open && (
-            <div className="absolute right-0 top-full z-[100] mt-2 w-[360px] rounded-xl border border-border bg-background shadow-xl">
+            <div className="absolute right-0 top-full z-[100] mt-2 w-[calc(100vw-2rem)] sm:w-[360px] max-w-[360px] rounded-xl border border-border bg-background shadow-xl">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">Notificaciones</h3>

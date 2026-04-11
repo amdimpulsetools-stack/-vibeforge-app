@@ -386,9 +386,9 @@ export default function SchedulerPage() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] gap-4">
+    <div className="flex h-[calc(100vh-7rem)] md:gap-4">
       {/* Left column: header + calendar */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card min-w-0">
         <SchedulerHeader
           currentDate={currentDate}
           viewMode={viewMode}

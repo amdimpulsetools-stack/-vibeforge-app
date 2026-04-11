@@ -379,7 +379,14 @@ export function AppointmentSidebar({
     "w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors";
 
   return (
-    <div className="w-80 shrink-0 rounded-xl border border-border bg-card overflow-y-auto">
+    <>
+      {/* Mobile backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-sm shrink-0 border-l border-border bg-card overflow-y-auto md:relative md:inset-auto md:w-80 md:max-w-none md:rounded-xl md:border md:z-auto">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="text-sm font-semibold">{t("scheduler.details")}</h3>
@@ -1024,5 +1031,6 @@ export function AppointmentSidebar({
         )}
       </div>
     </div>
+    </>
   );
 }
