@@ -41,6 +41,7 @@ interface EmailSettings {
   reply_to_email: string | null;
   brand_color: string;
   email_logo_url: string | null;
+  notification_emails: string | null;
 }
 
 interface EmailTemplate {
@@ -145,7 +146,7 @@ export default function EmailSettingsTab() {
     const [settingsRes, templatesRes] = await Promise.all([
       supabase
         .from("email_settings")
-        .select("id, organization_id, sender_name, sender_email, reply_to_email, brand_color, email_logo_url")
+        .select("id, organization_id, sender_name, sender_email, reply_to_email, brand_color, email_logo_url, notification_emails")
         .eq("organization_id", organizationId)
         .maybeSingle(),
       supabase
@@ -167,6 +168,7 @@ export default function EmailSettingsTab() {
         reply_to_email: null,
         brand_color: "#10b981",
         email_logo_url: organization?.logo_url ?? null,
+        notification_emails: null,
       };
 
       const { data: created } = await supabase
@@ -261,8 +263,10 @@ export default function EmailSettingsTab() {
         </div>
 
         {CATEGORIES.map((category) => {
+          // Hide unimplemented team templates (only daily summary is functional)
+          const HIDDEN_SLUGS = new Set(["team_new_appointment", "team_cancellation"]);
           const categoryTemplates = templates.filter(
-            (t) => t.category === category
+            (t) => t.category === category && !HIDDEN_SLUGS.has(t.slug)
           );
           if (categoryTemplates.length === 0) return null;
 
@@ -374,6 +378,7 @@ function GeneralSettings({
       reply_to_email: settings.reply_to_email,
       brand_color: settings.brand_color,
       email_logo_url: settings.email_logo_url,
+      notification_emails: settings.notification_emails || null,
     };
 
     const { data, error } = await supabase
@@ -492,6 +497,27 @@ function GeneralSettings({
           }
           className={inputClass}
         />
+      </div>
+
+      {/* Team notification emails (for daily summary, etc.) */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5" />
+          Correos del equipo (resumen diario)
+        </label>
+        <textarea
+          disabled={!isAdmin}
+          placeholder="admin@clinica.pe, recepcion@clinica.pe"
+          value={settings.notification_emails ?? ""}
+          rows={2}
+          onChange={(e) =>
+            setSettings({ ...settings, notification_emails: e.target.value || null })
+          }
+          className={`${inputClass} resize-none`}
+        />
+        <p className="text-xs text-muted-foreground">
+          Lista de correos (separados por coma) que recibirán el resumen diario del día. Se envía cada mañana automáticamente.
+        </p>
       </div>
 
       {/* Brand color + Logo row */}
