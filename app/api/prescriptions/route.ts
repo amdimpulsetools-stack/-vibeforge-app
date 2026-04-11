@@ -74,6 +74,22 @@ export async function POST(request: NextRequest) {
 
   if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
 
+  // Server-side guard: if the linked clinical note is signed, forbid creating new prescriptions
+  const firstItem = (parsedItems[0] as { success: true; data: z.infer<typeof prescriptionSchema> }).data;
+  if (firstItem.appointment_id) {
+    const { data: note } = await supabase
+      .from("clinical_notes")
+      .select("is_signed")
+      .eq("appointment_id", firstItem.appointment_id)
+      .maybeSingle();
+    if (note?.is_signed === true) {
+      return NextResponse.json(
+        { error: "La nota clínica está firmada. No se pueden crear nuevas prescripciones." },
+        { status: 403 }
+      );
+    }
+  }
+
   const insertData = parsedItems.map((p: { success: boolean; data?: z.infer<typeof prescriptionSchema> }) => ({
     ...(p as { success: true; data: z.infer<typeof prescriptionSchema> }).data,
     organization_id: membership.organization_id,

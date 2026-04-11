@@ -46,14 +46,16 @@ export default function WaitingForPlanPage() {
         }
 
         // If org already has an active subscription, go to dashboard
-        const { data: subs } = await supabase
-          .from("organization_subscriptions")
-          .select("id")
-          .eq("organization_id", member.organization_id)
-          .in("status", ["active", "trialing"])
-          .limit(1);
+        // Use the same RPC as middleware to ensure consistent trial expiration check
+        const { data: session } = await supabase.rpc("get_user_session_check", {
+          p_user_id: user.id,
+        });
 
-        if (subs && subs.length > 0) {
+        const hasActiveSubscription = Array.isArray(session) && session.length > 0
+          ? session[0]?.has_active_subscription === true
+          : (session as { has_active_subscription?: boolean } | null)?.has_active_subscription === true;
+
+        if (hasActiveSubscription) {
           router.push("/dashboard");
           return;
         }
