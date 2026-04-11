@@ -91,15 +91,23 @@ const navEntries: NavEntry[] = [
   { titleKey: "nav.settings", href: "/settings", icon: Settings, adminOnly: true },
 ];
 
+import { useMobileNav } from "./mobile-nav-context";
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { t } = useLanguage();
   const { organization } = useOrganization();
   const { isAdmin } = useOrgRole();
+  const { isOpen: mobileOpen, setOpen: setMobileOpen } = useMobileNav();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isFounder, setIsFounder] = useState(false);
+
+  // Close mobile drawer when route changes
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname, setMobileOpen]);
 
   // Check founder status once
   useEffect(() => {
@@ -213,12 +221,26 @@ export function Sidebar() {
   };
 
   return (
-    <aside
-      className={cn(
-        "flex h-screen flex-col bg-sidebar-bg border-r border-border/60 transition-all duration-300 relative",
-        collapsed ? "w-[64px]" : "w-[250px]"
+    <>
+      {/* Mobile backdrop */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm md:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
       )}
-    >
+      <aside
+        className={cn(
+          "flex h-screen flex-col bg-sidebar-bg border-r border-border/60 transition-all duration-300 relative",
+          // Desktop: static sidebar with collapse
+          "md:relative md:translate-x-0",
+          collapsed ? "md:w-[64px]" : "md:w-[250px]",
+          // Mobile: fixed drawer that slides in from left
+          "fixed inset-y-0 left-0 z-50 w-[250px]",
+          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        )}
+      >
       {/* Subtle gradient overlay at top */}
       <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none" />
 
@@ -251,7 +273,7 @@ export function Sidebar() {
         <button
           onClick={() => setCollapsed(!collapsed)}
           className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/70 hover:bg-accent hover:text-foreground transition-all duration-200",
+            "hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/70 hover:bg-accent hover:text-foreground transition-all duration-200",
             collapsed ? "mx-auto" : "ml-auto"
           )}
         >
@@ -261,6 +283,14 @@ export function Sidebar() {
               collapsed && "rotate-180"
             )}
           />
+        </button>
+        {/* Mobile close button */}
+        <button
+          onClick={() => setMobileOpen(false)}
+          className="md:hidden ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/70 hover:bg-accent hover:text-foreground transition-all duration-200"
+          aria-label="Cerrar menú"
+        >
+          <ChevronLeft className="h-4 w-4" />
         </button>
       </div>
 
@@ -321,5 +351,6 @@ export function Sidebar() {
         </button>
       </div>
     </aside>
+    </>
   );
 }
