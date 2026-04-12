@@ -2,12 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/landing/navbar";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
-import {
-  PRODUCT_FEATURES,
-  FEATURES_BY_CATEGORY,
-  PRODUCT_CATEGORIES,
-} from "@/lib/product-features";
-import { APP_NAME } from "@/lib/constants";
+import { PRODUCT_FEATURES } from "@/lib/product-features";
 
 export const metadata: Metadata = {
   title: `Producto — Software Médico Todo en Uno | REPLACE`,
@@ -95,49 +90,53 @@ export default function ProductOverviewPage() {
         </div>
       </section>
 
-      {/* Features by category */}
+      {/* All features */}
       <section className="py-16 px-4 md:px-6 bg-slate-50">
         <div className="mx-auto max-w-6xl">
-          {(
-            Object.keys(FEATURES_BY_CATEGORY) as Array<
-              keyof typeof FEATURES_BY_CATEGORY
-            >
-          ).map((cat) => (
-            <div key={cat} className="mb-16 last:mb-0">
-              <div className="mb-8 text-center">
-                <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">
-                  {PRODUCT_CATEGORIES[cat]}
-                </h2>
-              </div>
-
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {FEATURES_BY_CATEGORY[cat].map((feature) => {
-                  const Icon = feature.icon;
-                  return (
-                    <Link
-                      key={feature.slug}
-                      href={`/producto/${feature.slug}`}
-                      className="group rounded-2xl border border-slate-200 bg-white p-6 hover:border-emerald-300 hover:shadow-lg transition-all"
-                    >
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors mb-4">
-                        <Icon className="h-6 w-6" />
-                      </div>
-                      <h3 className="text-lg font-bold text-slate-900 mb-2">
-                        {feature.title}
-                      </h3>
-                      <p className="text-sm text-slate-600 leading-relaxed mb-4">
-                        {feature.description}
-                      </p>
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 group-hover:gap-2 transition-all">
-                        Más información
-                        <ArrowRight className="h-3 w-3" />
-                      </span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+          <div className="mb-12 text-center">
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">
+              7 módulos. Una sola plataforma.
+            </h2>
+            <p className="mt-3 text-lg text-slate-600">
+              Todo lo que necesitas para gestionar tu clínica, sin cambiar de herramienta.
+            </p>
+          </div>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {PRODUCT_FEATURES.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <Link
+                  key={feature.slug}
+                  href={`/producto/${feature.slug}`}
+                  className="group rounded-2xl border border-slate-200 bg-white p-6 hover:border-emerald-300 hover:shadow-lg transition-all"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors mb-4">
+                    <Icon className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">
+                    {feature.title}
+                  </h3>
+                  <p className="text-sm text-slate-600 leading-relaxed mb-3">
+                    {feature.description}
+                  </p>
+                  {feature.includes && (
+                    <ul className="mb-4 space-y-1">
+                      {feature.includes.map((inc) => (
+                        <li key={inc} className="flex items-center gap-1.5 text-xs text-slate-500">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                          {inc}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 group-hover:gap-2 transition-all">
+                    Más información
+                    <ArrowRight className="h-3 w-3" />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </section>
 
