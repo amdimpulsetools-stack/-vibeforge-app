@@ -557,9 +557,9 @@ export function AppointmentFormModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-2xl rounded-xl border border-border bg-card shadow-xl">
+      <div className="mx-4 w-full max-w-2xl max-h-[95vh] overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-4 md:px-6 py-3 md:py-4">
           <h3 className="text-lg font-semibold">{t("scheduler.new_appointment")}</h3>
           <button
             onClick={onClose}
@@ -572,7 +572,7 @@ export function AppointmentFormModal({
         {/* Form */}
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="max-h-[70vh] overflow-y-auto px-6 py-4 space-y-4"
+          className="max-h-[70vh] overflow-y-auto px-4 md:px-6 py-4 space-y-4"
         >
           {/* Conflict warning */}
           {conflict && (
@@ -589,7 +589,7 @@ export function AppointmentFormModal({
               <select
                 value={docType}
                 onChange={(e) => setDocType(e.target.value as "DNI" | "CE" | "Pasaporte")}
-                className="w-[100px] shrink-0 rounded-lg border border-input bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                className="w-[80px] sm:w-[100px] shrink-0 rounded-lg border border-input bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               >
                 <option value="DNI">DNI</option>
                 <option value="CE">CE</option>
@@ -734,8 +734,8 @@ export function AppointmentFormModal({
           <input type="hidden" {...register("patient_id")} />
 
           {/* Date & Time */}
-          <div className="grid gap-4 sm:grid-cols-3">
-            <div className="space-y-1.5">
+          <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
+            <div className="space-y-1.5 col-span-2 md:col-span-1">
               <label className="text-sm font-medium">{t("scheduler.date")} *</label>
               <input
                 type="date"
@@ -1078,7 +1078,7 @@ export function AppointmentFormModal({
         </form>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+        <div className="flex justify-end gap-2 border-t border-border px-4 md:px-6 py-3 md:py-4">
           <button
             type="button"
             onClick={onClose}

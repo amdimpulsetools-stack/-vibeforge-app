@@ -168,7 +168,7 @@ export default function ClinicalTemplatesPage() {
     <RoleGate minRole="doctor">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Plantillas Clínicas</h1>
             <p className="text-muted-foreground">
@@ -177,7 +177,7 @@ export default function ClinicalTemplatesPage() {
           </div>
           <button
             onClick={openCreate}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+            className="self-start flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
           >
             <Plus className="h-4 w-4" />
             Nueva plantilla

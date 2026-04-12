@@ -159,7 +159,7 @@ export function AdminDashboard({
           </div>
           <Link
             href="/reports"
-            className="flex items-center gap-2 rounded-xl border border-border/60 bg-card px-4 py-2.5 text-sm font-medium transition-all hover:bg-accent/50 hover:border-border"
+            className="hidden md:flex items-center gap-2 rounded-xl border border-border/60 bg-card px-4 py-2.5 text-sm font-medium transition-all hover:bg-accent/50 hover:border-border"
           >
             <FileText className="h-4 w-4" />
             {isEs ? "Ver reportes" : "View reports"}

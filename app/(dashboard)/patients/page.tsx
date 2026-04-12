@@ -348,8 +348,8 @@ export default function PatientsPage() {
       {/* Main List */}
       <div className={cn("flex flex-1 flex-col overflow-hidden", selectedPatient && "hidden md:flex")}>
         {/* Header */}
-        <div className="border-b border-border bg-card px-6 py-4">
-          <div className="flex items-center justify-between">
+        <div className="border-b border-border bg-card px-4 md:px-6 py-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-xl font-bold">{t("patients.title")}</h1>
               <p className="text-sm text-muted-foreground">{t("patients.subtitle")}</p>
@@ -360,7 +360,7 @@ export default function PatientsPage() {
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => setShowBulkImport(true)}
                 className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"

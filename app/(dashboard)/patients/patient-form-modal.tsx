@@ -129,9 +129,9 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-lg rounded-xl border border-border bg-card shadow-xl">
+      <div className="mx-2 md:mx-4 w-full max-w-lg max-h-[95vh] overflow-hidden flex flex-col rounded-xl border border-border bg-card shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-4 md:px-6 py-3 md:py-4">
           <h3 className="text-lg font-semibold">{t("patients.add")}</h3>
           <button
             onClick={onClose}
@@ -144,7 +144,7 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
         {/* Form */}
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="max-h-[70vh] overflow-y-auto px-6 py-4 space-y-4"
+          className="flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4"
         >
           {/* Document type + DNI */}
           <div className="space-y-1.5">
@@ -306,7 +306,7 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
         </form>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+        <div className="flex justify-end gap-2 border-t border-border px-4 md:px-6 py-3 md:py-4">
           <button
             type="button"
             onClick={onClose}

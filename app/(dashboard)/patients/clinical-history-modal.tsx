@@ -65,7 +65,7 @@ export function ClinicalHistoryModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="relative w-full max-w-5xl mx-4 max-h-[90vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
+      <div className="relative w-full max-w-[95vw] md:max-w-5xl mx-2 md:mx-4 max-h-[95vh] md:max-h-[90vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0">
           <div className="flex items-center gap-3">
@@ -259,7 +259,7 @@ export function ClinicalHistoryModal({
                                   Signos Vitales
                                 </span>
                               </div>
-                              <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-8 gap-2">
                                 {VITALS_FIELDS.filter(
                                   (f) =>
                                     note.vitals?.[
