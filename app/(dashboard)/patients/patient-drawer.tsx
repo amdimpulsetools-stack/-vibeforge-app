@@ -111,6 +111,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [loadingNotes, setLoadingNotes] = useState(false);
   const [expandedNote, setExpandedNote] = useState<string | null>(null);
   const [clinicalModalOpen, setClinicalModalOpen] = useState(false);
+  const [expandedView, setExpandedView] = useState(false);
 
   // Payment form
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -350,12 +351,21 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setExpandedView(true)}
+              className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              title="Vista expandida"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Contact info */}
@@ -1105,6 +1115,285 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         doctorId={currentDoctorId}
         canEdit={isAdmin || !!currentDoctorId}
       />
+
+      {/* Expanded Patient View Modal */}
+      {expandedView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 md:p-6">
+          <div className="w-full max-w-6xl max-h-[95vh] rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
+            {/* Expanded Header */}
+            <div className="shrink-0 border-b border-border px-6 py-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-4">
+                  <div
+                    className="flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold text-white"
+                    style={{ backgroundColor: PATIENT_STATUS_COLORS[patient.status] ?? "#9ca3af" }}
+                  >
+                    {patient.first_name?.[0]}{patient.last_name?.[0]}
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">
+                      {patient.first_name} {patient.last_name}
+                    </h2>
+                    <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
+                      {patient.dni && <span>DNI: {patient.dni}</span>}
+                      {patient.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{patient.phone}</span>}
+                      {patient.email && <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{patient.email}</span>}
+                      <span
+                        className="rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={{
+                          backgroundColor: (PATIENT_STATUS_COLORS[patient.status] ?? "#9ca3af") + "20",
+                          color: PATIENT_STATUS_COLORS[patient.status] ?? "#9ca3af",
+                        }}
+                      >
+                        {t(`patients.${patient.status}`)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setExpandedView(false)}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Tabs in expanded view */}
+              <div className="flex gap-1 mt-4 overflow-x-auto">
+                {tabs.map((tab) => {
+                  const TabIcon = tab.icon;
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={() => setActiveTab(tab.key)}
+                      className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors ${
+                        activeTab === tab.key
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      }`}
+                    >
+                      <TabIcon className="h-4 w-4" />
+                      {tab.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Expanded Content — reuses the same content as drawer */}
+            <div className="flex-1 overflow-y-auto p-6">
+              {/* ===== INFO TAB ===== */}
+              {activeTab === "info" && (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Datos personales</h3>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <div><label className="text-xs text-muted-foreground">Nombre</label><p className="text-sm font-medium">{patient.first_name}</p></div>
+                      <div><label className="text-xs text-muted-foreground">Apellido</label><p className="text-sm font-medium">{patient.last_name}</p></div>
+                      <div><label className="text-xs text-muted-foreground">DNI</label><p className="text-sm font-medium">{patient.dni || "—"}</p></div>
+                      <div><label className="text-xs text-muted-foreground">Fecha de nacimiento</label><p className="text-sm font-medium">{patient.birth_date || "—"}</p></div>
+                      <div><label className="text-xs text-muted-foreground">Teléfono</label><p className="text-sm font-medium">{patient.phone || "—"}</p></div>
+                      <div><label className="text-xs text-muted-foreground">Email</label><p className="text-sm font-medium">{patient.email || "—"}</p></div>
+                      <div><label className="text-xs text-muted-foreground">Departamento</label><p className="text-sm font-medium">{patient.departamento || "—"}</p></div>
+                      <div><label className="text-xs text-muted-foreground">Distrito</label><p className="text-sm font-medium">{patient.distrito || "—"}</p></div>
+                    </div>
+                    {patient.notes && (
+                      <div><label className="text-xs text-muted-foreground">Notas</label><p className="text-sm">{patient.notes}</p></div>
+                    )}
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Resumen</h3>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
+                        <p className="text-2xl font-bold text-primary">{appointments.length}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Citas</p>
+                      </div>
+                      <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
+                        <p className="text-2xl font-bold text-emerald-600">
+                          S/. {payments.reduce((s, p) => s + Number(p.amount), 0).toFixed(0)}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Pagado</p>
+                      </div>
+                      <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
+                        <p className="text-2xl font-bold text-blue-600">{clinicalNotes.length}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Notas clínicas</p>
+                      </div>
+                    </div>
+                    {/* Tags */}
+                    <div>
+                      <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Etiquetas</h3>
+                      <div className="flex flex-wrap gap-1.5">
+                        {patient.patient_tags.length === 0 && <span className="text-xs text-muted-foreground">Sin etiquetas</span>}
+                        {patient.patient_tags.map((tag) => (
+                          <span key={tag.id} className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">{tag.tag}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ===== HISTORY TAB ===== */}
+              {activeTab === "history" && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    Historial de citas ({appointments.length})
+                  </h3>
+                  {loading ? (
+                    <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                  ) : appointments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">Sin citas registradas</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm min-w-[600px]">
+                        <thead>
+                          <tr className="border-b border-border text-xs text-muted-foreground">
+                            <th className="text-left py-2 px-3 font-medium">Fecha</th>
+                            <th className="text-left py-2 px-3 font-medium">Hora</th>
+                            <th className="text-left py-2 px-3 font-medium">Doctor</th>
+                            <th className="text-left py-2 px-3 font-medium">Servicio</th>
+                            <th className="text-left py-2 px-3 font-medium">Estado</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {appointments.map((appt) => (
+                            <tr key={appt.id} className="border-b border-border/50 hover:bg-muted/30">
+                              <td className="py-2.5 px-3">{appt.appointment_date}</td>
+                              <td className="py-2.5 px-3 text-muted-foreground">{appt.start_time?.slice(0, 5)}</td>
+                              <td className="py-2.5 px-3">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: appt.doctors?.color }} />
+                                  {appt.doctors?.full_name}
+                                </span>
+                              </td>
+                              <td className="py-2.5 px-3 text-muted-foreground">{appt.services?.name}</td>
+                              <td className="py-2.5 px-3">
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                                  style={{
+                                    backgroundColor: (APPOINTMENT_STATUS_COLORS[appt.status] ?? "#9ca3af") + "20",
+                                    color: APPOINTMENT_STATUS_COLORS[appt.status] ?? "#9ca3af",
+                                  }}
+                                >
+                                  {t(`scheduler.status_${appt.status}`)}
+                                </span>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ===== CLINICAL TAB ===== */}
+              {activeTab === "clinical" && (
+                <div className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Historia clínica</h3>
+                    <button
+                      onClick={() => { setClinicalModalOpen(true); setExpandedView(false); }}
+                      className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors"
+                    >
+                      <Maximize2 className="h-3 w-3" />
+                      Ver historial completo
+                    </button>
+                  </div>
+                  <VitalsTrendsChart patientId={patient.id} clinicalNotes={clinicalNotes} />
+                  <DiagnosisHistoryPanel patientId={patient.id} clinicalNotes={clinicalNotes} />
+                  <TreatmentPlansPanel patientId={patient.id} canEdit={false} />
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <PrescriptionsPanel patientId={patient.id} canEdit={false} />
+                    <ExamOrdersPanel patientId={patient.id} canEdit={false} />
+                  </div>
+                  <ClinicalFollowupsPanel patientId={patient.id} canEdit={false} />
+                  <ClinicalAttachmentsPanel patientId={patient.id} canEdit={false} />
+                </div>
+              )}
+
+              {/* ===== FINANCES TAB ===== */}
+              {activeTab === "finances" && (
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+                    Finanzas ({payments.length} pagos)
+                  </h3>
+                  {payments.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-4">Sin pagos registrados</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border text-xs text-muted-foreground">
+                            <th className="text-left py-2 px-3 font-medium">Fecha</th>
+                            <th className="text-right py-2 px-3 font-medium">Monto</th>
+                            <th className="text-left py-2 px-3 font-medium">Método</th>
+                            <th className="text-left py-2 px-3 font-medium">Notas</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {payments.map((pay) => (
+                            <tr key={pay.id} className="border-b border-border/50">
+                              <td className="py-2.5 px-3">{pay.payment_date}</td>
+                              <td className="py-2.5 px-3 text-right font-medium text-emerald-600">S/. {Number(pay.amount).toFixed(2)}</td>
+                              <td className="py-2.5 px-3 text-muted-foreground">{pay.payment_method || "—"}</td>
+                              <td className="py-2.5 px-3 text-muted-foreground text-xs">{pay.notes || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  <div className="rounded-xl border border-border bg-muted/30 p-4">
+                    <div className="grid grid-cols-2 gap-4 text-center">
+                      <div>
+                        <p className="text-2xl font-bold text-emerald-600">S/. {payments.reduce((s, p) => s + Number(p.amount), 0).toFixed(2)}</p>
+                        <p className="text-xs text-muted-foreground">Total pagado</p>
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-muted-foreground">{payments.length}</p>
+                        <p className="text-xs text-muted-foreground">Transacciones</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ===== MARKETING TAB ===== */}
+              {activeTab === "marketing" && (
+                <div className="grid gap-6 md:grid-cols-2">
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Datos de marketing</h3>
+                    <div className="space-y-3">
+                      <div><label className="text-xs text-muted-foreground">Origen</label><p className="text-sm font-medium">{patient.origin || "—"}</p></div>
+                      <div><label className="text-xs text-muted-foreground">Fuente de referido</label><p className="text-sm font-medium">{patient.referral_source || "—"}</p></div>
+                      <div><label className="text-xs text-muted-foreground">Campo personalizado 1</label><p className="text-sm font-medium">{patient.custom_field_1 || "—"}</p></div>
+                      <div><label className="text-xs text-muted-foreground">Campo personalizado 2</label><p className="text-sm font-medium">{patient.custom_field_2 || "—"}</p></div>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Métricas</h3>
+                    <div className="space-y-3">
+                      <div className="rounded-xl border border-border bg-muted/30 p-4">
+                        <p className="text-xs text-muted-foreground">Primera cita</p>
+                        <p className="text-sm font-medium">{appointments.length > 0 ? appointments[appointments.length - 1]?.appointment_date : "—"}</p>
+                      </div>
+                      <div className="rounded-xl border border-border bg-muted/30 p-4">
+                        <p className="text-xs text-muted-foreground">Última cita</p>
+                        <p className="text-sm font-medium">{appointments.length > 0 ? appointments[0]?.appointment_date : "—"}</p>
+                      </div>
+                      <div className="rounded-xl border border-border bg-muted/30 p-4">
+                        <p className="text-xs text-muted-foreground">Total de visitas</p>
+                        <p className="text-sm font-medium">{appointments.filter(a => a.status === "completed").length} completadas de {appointments.length}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

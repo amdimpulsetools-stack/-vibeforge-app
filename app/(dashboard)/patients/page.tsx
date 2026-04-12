@@ -13,6 +13,7 @@ import {
   X,
   Loader2,
   ChevronRight,
+  ChevronLeft,
   ChevronDown,
   Tag,
   Calendar,
@@ -53,7 +54,7 @@ export default function PatientsPage() {
     (organization as any)?.settings?.restrict_doctor_patients === true;
   const [patients, setPatients] = useState<PatientWithTags[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [changingPage, setChangingPage] = useState(false);
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -61,7 +62,6 @@ export default function PatientsPage() {
   const [showForm, setShowForm] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
   const [page, setPage] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
 
   // Extra data (appointments/payments) — loaded on-demand for debt/service filters and CSV
@@ -114,12 +114,12 @@ export default function PatientsPage() {
     setPage(0);
     setPatients([]);
     setExtraData({});
-    setHasMore(true);
   }, [statusFilter, debouncedSearch, dateFrom, dateTo, origenFilter]);
 
   // Lightweight list query — only patient data + tags, NO appointments/payments
-  const fetchPatients = useCallback(async (pageNum: number, append = false) => {
-    if (append) setLoadingMore(true); else setLoading(true);
+  const fetchPatients = useCallback(async (pageNum: number) => {
+    setLoading(true);
+    setChangingPage(true);
     const supabase = createClient();
 
     const from = pageNum * PAGE_SIZE;
@@ -152,27 +152,26 @@ export default function PatientsPage() {
     }
 
     const { data, count } = await query;
-    const newData = (data as unknown as PatientWithTags[]) ?? [];
-
-    if (append) {
-      setPatients((prev) => [...prev, ...newData]);
-    } else {
-      setPatients(newData);
-    }
+    setPatients((data as unknown as PatientWithTags[]) ?? []);
     setTotalCount(count ?? 0);
-    setHasMore(newData.length === PAGE_SIZE);
     setLoading(false);
-    setLoadingMore(false);
+    setChangingPage(false);
   }, [statusFilter, debouncedSearch, dateFrom, dateTo, origenFilter]);
 
-  // Fetch when page or filters change
+  // Reset to page 0 when filters change
   useEffect(() => {
-    fetchPatients(page, page > 0);
-  }, [fetchPatients, page]);
+    setPage(0);
+    fetchPatients(0);
+  }, [fetchPatients]);
 
-  const loadMore = () => {
-    if (hasMore && !loadingMore) setPage((p) => p + 1);
-  };
+  // Fetch when page changes (but not on filter change — that's handled above)
+  useEffect(() => {
+    if (page > 0) fetchPatients(page);
+  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+  const canPrev = page > 0;
+  const canNext = page < totalPages - 1;
 
   // On-demand: fetch appointments/payments for loaded patients (debt/service filter + CSV)
   const fetchExtraData = useCallback(async (patientIds: string[]): Promise<Record<string, PatientExtraData>> => {
@@ -700,19 +699,31 @@ export default function PatientsPage() {
                 );
               })}
 
-              {/* Load More */}
-              {hasMore && (
-                <div className="flex justify-center py-4">
-                  <button
-                    onClick={loadMore}
-                    disabled={loadingMore}
-                    className="flex items-center gap-2 rounded-lg bg-muted px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50 transition-colors"
-                  >
-                    {loadingMore ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : null}
-                    {loadingMore ? "Cargando..." : "Cargar más"}
-                  </button>
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-border px-4 py-3 mt-2">
+                  <span className="text-xs text-muted-foreground">
+                    {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} de {totalCount}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage((p) => p - 1)}
+                      disabled={!canPrev || changingPage}
+                      className="flex h-10 w-10 md:h-8 md:w-8 items-center justify-center rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </button>
+                    <span className="text-sm font-medium tabular-nums min-w-[4rem] text-center">
+                      {page + 1} / {totalPages}
+                    </span>
+                    <button
+                      onClick={() => setPage((p) => p + 1)}
+                      disabled={!canNext || changingPage}
+                      className="flex h-10 w-10 md:h-8 md:w-8 items-center justify-center rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -721,7 +732,7 @@ export default function PatientsPage() {
 
         {/* Footer count */}
         <div className="border-t border-border bg-card px-6 py-2 text-xs text-muted-foreground flex items-center gap-2">
-          {filteredPatients.length} de {totalCount} {totalCount === 1 ? "paciente" : "pacientes"}
+          {totalCount} {totalCount === 1 ? "paciente" : "pacientes"}{totalPages > 1 ? ` · Página ${page + 1} de ${totalPages}` : ""}
           {loadingExtra && (
             <span className="flex items-center gap-1 text-primary">
               <Loader2 className="h-3 w-3 animate-spin" />

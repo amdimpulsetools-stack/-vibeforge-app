@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-04-09
-> **Versión:** 0.6.0
-> **Estado:** MVP — listo para staging (Vercel)
+> **Última actualización:** 2026-04-12
+> **Versión:** 0.7.0
+> **Estado:** MVP — desplegado en Vercel (producción)
 
 ---
 
@@ -581,24 +581,30 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Modal expandido de Historia Clínica** — Botón "Ver en grande" en tab clínico del drawer de pacientes. Modal amplio (max-w-5xl) con notas SOAP en layout 2 columnas, texto legible (text-sm vs text-xs), vitales en grid 8 columnas, paneles clínicos completos editables para doctores/admins. Resuelve `doctorId` via `useCurrentDoctor`. Componente: `patients/clinical-history-modal.tsx`
 - [x] **Panel centralizado de seguimientos (`/scheduler/follow-ups`)** — Vista dedicada accesible desde sidebar (bajo Agenda → Seguimientos). Muestra todos los seguimientos clínicos de la organización con filtros por estado y prioridad semáforo
 - [x] **Planes de tratamiento editables en modales clínicos** — `TreatmentPlansPanel` integrado en el modal de nota clínica (scheduler) y en el modal expandido de historia clínica (pacientes) con `canEdit=true` y `doctorId`. Doctores y admins pueden crear planes desde ambos contextos
+- [x] **Órdenes de exámenes médicos** — Catálogo configurable (exam_categories + exam_catalog) por owner/admin. Doctor selecciona exámenes del catálogo o escribe manualmente, agrega indicaciones (ej: "en ayunas"), diagnóstico presuntivo CIE-10. Impresión profesional A5. Tracking por item: pendiente → parcial → completado. Integrado en clinical-note-modal, clinical-history-modal y patient-drawer
+- [x] **Bloqueo post-firma** — Al firmar nota clínica: prescripciones y exámenes nuevos bloqueados (UI + API 403). Suspender Rx y marcar resultados de exámenes sigue permitido. Polling cada 2s para detección automática
+- [x] **Email: bienvenida paciente nuevo** — Se envía automáticamente al crear paciente con email. Endpoint `/api/notifications/send-patient`
+- [x] **Email: cumpleaños** — Cron diario (7am Perú) envía felicitación a pacientes cuya fecha de nacimiento coincide con hoy
+- [x] **Email: seguimiento pacientes inactivos** — Cron diario detecta pacientes sin cita completada en 90+ días. Máx 20/día/org. Cooldown 60 días via `marketing_email_logs`
+- [x] **Email: factura (payment_invoice)** — Checkbox opcional al registrar pago. Envía recibo + factura si está marcado
+- [x] **Resumen diario del equipo** — Cron diario envía tabla de citas del día a emails configurados en `email_settings.notification_emails`
+- [x] **4 nuevas variables de email** — `{{direccion_clinica}}`, `{{link_ubicacion}}`, `{{instrucciones_servicio}}`, `{{monto_cita}}`. Instrucciones configurables por servicio (`services.pre_appointment_instructions`). Google Maps URL en Settings
+- [x] **Confirmación de contraseña en registro** — Campo "Confirmar contraseña" con validación visual en tiempo real + indicador de fortaleza 5 niveles
+- [x] **Paginación historial de citas** — 50 por página con flechas prev/next (servidor-side con .range())
+- [x] **Responsive mobile (Fase 1)** — Sidebar como drawer con hamburger, scheduler sidebar como overlay fullscreen, patient drawer w-full, topbar hamburger, notificaciones dropdown responsivo
+- [x] **Responsive mobile (Fase 2+3)** — Reports/Settings tabs con scroll horizontal, patients header stacking, dashboard botón oculto, members cards stacking, history table overflow-x-auto, modals con padding compacto, touch targets 40px+, vitals grid progresivo
+- [x] **Páginas de producto SEO** — 7 páginas premium bajo /producto/ con mega-menu full-width en landing navbar: Agenda Médica, Historia Clínica, Gestión de Pacientes, Comunicación Automatizada, Asistente IA, Reportes y Analítica, Gestión de Equipo. Cada una con storytelling, mockups, pain stats, before/after, schema.org, breadcrumbs
 
 ### Pendiente / Por Mejorar
 - [ ] Impresión de recibo/comprobante (F3) — Requiere evaluar formato legal Perú (SUNAT)
 - [ ] Confirmación de cita desde email 1-click (F4) — Token seguro temporal
 - [ ] WhatsApp Business API (F6 Fase 2) — Envío automático vía Twilio/360dialog
-- [x] Booking online / agenda pública (F7)
-- [x] Recordatorios automáticos por cron (F8)
-- [x] Notas clínicas por cita — formato SOAP (F9)
-- [x] Historia clínica completa (F9-EXT) — Plantillas, tratamientos, recetas, adjuntos, seguimientos, diagnósticos, versionado
-- [x] Notificaciones in-app (F11) — Tabla `notifications`, bell icon en topbar, realtime subscriptions
-- [x] Sistema de soporte / tickets (F16) — Chat con equipo de soporte, tabla `support_tickets` + `support_messages`, realtime
 - [ ] Consentimiento informado digital (F12) — Requisito legal Perú
 - [ ] Módulo de inventario básico (F13)
 - [ ] Portal del paciente (F14)
 - [ ] Reportes con IA generativa (F15)
 - [ ] App móvil o PWA
-- [ ] Facturación electrónica
-- [x] Add-ons de plan (API para comprar consultorios/miembros extra vía MP)
+- [ ] Facturación electrónica SUNAT
 - [ ] Add-ons de plan (UI frontend para comprar extras desde el panel)
 - [ ] Bloqueo de usuario desactivado (modal "Su usuario ha sido desactivado")
 - [ ] Tests automatizados (unit, integration, e2e)
@@ -608,6 +614,14 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [ ] Especialidades: tabla `doctor_specialties` + asignación en admin de doctores
 - [ ] Especialidades: tabs condicionales en historia clínica según especialidad del doctor
 - [ ] Especialidades: primer módulo vertical (Endocrinología Pediátrica o Fertilidad)
+- [ ] Emails: post-consulta, pedir reseña, campaña marketing (plantillas ocultas, sin lógica de envío)
+- [ ] Emails: pago pendiente (plantilla oculta, sin trigger)
+- [ ] Screenshots reales para placeholders en /producto/* pages
+- [ ] SEO: páginas por especialidad (/especialidades/[slug])
+- [ ] SEO: páginas comparativas (vs Doctoralia, vs Dentalink, etc.)
+- [ ] SEO: blog + artículos long-tail
+- [ ] SEO: lead magnets (calculadora ROI, plantillas SOAP, etc.)
+- [ ] Reemplazo global de "REPLACE" por nombre final del software
 
 ---
 
@@ -641,6 +655,9 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | `treatment-plans-panel.tsx` | Planes de tratamiento con barra de progreso y sesiones |
 | `diagnosis-history-panel.tsx` | Timeline de diagnósticos con frecuencia y códigos CIE-10 |
 | `admin/clinical-templates/page.tsx` | CRUD de plantillas clínicas (global/personal, 15 especialidades) |
+| `exam-orders-panel.tsx` | Panel de órdenes de exámenes: búsqueda en catálogo, selección múltiple, indicaciones, tracking de estado |
+| `exam-order-print.tsx` | Vista de impresión de orden de exámenes A5 con diagnóstico y firma |
+| `admin/exam-catalog/page.tsx` | CRUD de catálogo de exámenes por categoría (Laboratorio, Imagenología, etc.) |
 
 ### Componentes de Arquitectura
 | Componente | Propósito |
@@ -651,8 +668,9 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | `RoleGate` | Renderizado condicional por rol: `<RoleGate minRole="admin">...</RoleGate>` |
 | `PlanLimitWarner` | Toast automático al 80% y 100% de uso de recursos del plan |
 | `AiAssistantPanel` | Panel flotante de chat AI con queries SELECT sobre la DB |
-| `Sidebar` | Navegación lateral colapsable con items por rol |
-| `Topbar` | Header con email, avatar (foto/silueta SVG/iniciales) del usuario |
+| `Sidebar` | Navegación lateral: drawer en mobile (hamburger), colapsable en desktop |
+| `Topbar` | Header con hamburger (mobile only), email, avatar, notificaciones |
+| `MobileNavProvider` | Context compartido para estado del drawer mobile sidebar |
 | `BorderAvatar` | Avatar con anillo emerald, badge verificado, soporte para foto + silueta SVG |
 | `AvatarSilhouette` | 4 siluetas SVG: Doctor, Doctora, Admin, Recepcionista |
 | `ShimmerText` | Texto con efecto shimmer animado (gradiente sweep) |
@@ -1043,12 +1061,83 @@ MP_TEST_PAYER_EMAIL=      # Email del comprador de prueba MP (solo test mode)
 ### Fix Build Error
 - `app/api/founder/totp/verify/route.ts`: Cambiado `window: 2` a `epochTolerance: 60` (otplib v13 API)
 
-### Auditoría de Producción (Rating: 9/10 — actualizado 2026-04-05)
-- **Build:** Compilación limpia sin errores (fix TOTP)
-- **Seguridad:** 9.5/10 — Restricciones de rol doctor aplicadas en UI
-- **Base de datos:** 9.5/10 — 75 migraciones, office_id en doctor_schedules funcional
-- **Mercado Pago:** Integración completa (checkout, webhook, addons). Signature verification con HMAC-SHA256 + timing-safe comparison. Flujos: suscripción nueva, upgrade con addons, cancelación, pago rechazado → past_due
-- **Listo para Vercel:** Build pasa, env vars documentadas, middleware configurado
+### Auditoría de Producción (Rating: 9.5/10 — actualizado 2026-04-12)
+- **Build:** Compilación limpia sin errores. NODE_OPTIONS="--max-old-space-size=4096" para build con muchas páginas SSG
+- **Seguridad:** 9.5/10 — Restricciones de rol doctor, bloqueo post-firma en notas clínicas (UI + API), RLS roles corregidos (owner/admin/doctor)
+- **Base de datos:** 9.5/10 — 82 migraciones. Nuevas tablas: exam_catalog, exam_orders, specialties, marketing_email_logs
+- **Mercado Pago:** Integración completa (checkout, webhook, addons)
+- **Emails:** 11 plantillas funcionales (confirmación, recordatorios, recibo, factura, bienvenida, cumpleaños, seguimiento, resumen diario). 6 plantillas ocultas (pendientes de implementación)
+- **Responsive:** Sidebar drawer mobile, scheduler overlay, modals/tables con overflow, touch targets 40px+
+- **SEO:** 7 páginas de producto SSG con schema.org, breadcrumbs, mega-menu full-width
+- **Desplegado:** Vercel (producción), 2 cron jobs (reminders + daily-summary/marketing)
+
+---
+
+## 21.5. Changelog — Sesión 2026-04-09 a 2026-04-12 (v0.7.0)
+
+### Exámenes médicos
+- Tablas: `exam_categories`, `exam_catalog`, `exam_orders`, `exam_order_items` (migración 078)
+- Admin: `/admin/exam-catalog` con categorías + exámenes configurables
+- Doctor: panel ExamOrdersPanel con búsqueda en catálogo, selección múltiple, indicaciones, diagnóstico CIE-10
+- Tracking: pendiente → parcial → completado (auto-calcula por items)
+- Impresión: A5 landscape profesional con firma
+
+### Bloqueo post-firma de nota clínica
+- UI: botones "Recetar" y "Solicitar" ocultos cuando `is_signed=true`
+- API: POST `/api/prescriptions` y `/api/exam-orders` rechazan con 403 si nota firmada
+- Polling: modal detecta firma cada 2 segundos
+- Badge: "Nota firmada" visible en header del modal
+
+### Sistema de emails (11 funcionales)
+- `patient_welcome`: auto al crear paciente con email (via `/api/notifications/send-patient`)
+- `marketing_birthday`: cron diario, match MM-DD, registro en `marketing_email_logs`
+- `marketing_followup`: cron diario, pacientes sin cita 90+ días, cooldown 60 días, máx 20/org/día
+- `payment_invoice`: checkbox opt-in al registrar pago
+- `team_daily_summary`: cron diario 7am Perú, tabla de citas del día a `notification_emails`
+- 4 variables nuevas: `direccion_clinica`, `link_ubicacion`, `instrucciones_servicio`, `monto_cita`
+- Campos nuevos: `services.pre_appointment_instructions`, `organizations.google_maps_url`, `email_settings.notification_emails`
+- Plantillas ocultas: post-consulta, pedir reseña, campaña, pago pendiente, nueva cita equipo, cancelación equipo
+
+### Registro y seguridad
+- Confirmar contraseña con validación visual en tiempo real (borde rojo/verde)
+- Indicador de fortaleza: 5 niveles (muy débil → muy fuerte), mínimo "Aceptable"
+
+### Paginación historial de citas
+- 50 registros por página con flechas prev/next
+- Server-side con Supabase `.range()`, total count exact
+
+### Especialidades (Fase 1)
+- 28 especialidades seed (LATAM common) + select con búsqueda en onboarding
+- Tablas: `specialties`, `organization_specialties`, `specialty_clinical_data`
+- `organizations.primary_specialty_id` para acceso rápido
+
+### Responsive mobile
+- **Fase 1**: Sidebar → drawer con backdrop + hamburger en topbar (mobile only). Scheduler sidebar → overlay fullscreen. Layout padding compacto (p-4 vs p-7)
+- **Fase 2**: Reports/Settings tabs con overflow-x-auto scroll. Patients header flex-col en mobile. Dashboard botón reportes oculto. Clinical templates botón debajo del subtítulo. Members cards stacking vertical
+- **Fase 3**: History table overflow-x-auto min-w-[900px]. Appointment form date span 2cols. DNI select w-[80px]. Pagination buttons 40px touch. Vitals grid 2→4→8 cols. Modal paddings compactos. Clinical history modal max-w-[95vw]
+
+### Páginas de producto (SEO)
+- `lib/product-features.ts`: 7 features con metadata SEO, keywords, slugs
+- Mega-menu full-width en navbar con 3 columnas + highlight IA
+- `/producto`: overview page con 7 feature cards + includes badges
+- 7 páginas premium con storytelling (SSG):
+  1. `/producto/agenda-medica-online` — Calendar mockup + booking mockup
+  2. `/producto/historia-clinica-electronica` — SOAP mockup + 3 sub-features
+  3. `/producto/gestion-pacientes` — Patient card mockup + lifecycle journey
+  4. `/producto/comunicacion-automatizada` — WhatsApp mockup + 8 message types
+  5. `/producto/asistente-ia-consultorio` — Chat AI mockup + before/after
+  6. `/producto/reportes-clinica-medica` — Dashboard KPI mockup + 4 report areas
+  7. `/producto/gestion-equipo-medico` — 4 role cards con permisos
+- Cada página: hero provocativo, pain stats (fondo oscuro), features, before/after, testimonial placeholder, CTA aversión a la pérdida, schema.org, breadcrumbs
+- `/producto` añadido a rutas públicas del middleware (no requiere auth)
+
+### Fixes varios
+- Vercel cron: `*/30` → `0 13 * * *` (Hobby plan solo permite daily)
+- Topbar z-index: `z-[100]` → `z-40` (no se superpone a modals)
+- RLS exam_orders: roles corregidos (owner/admin/doctor en vez de 'member')
+- Sidebar exam-catalog agregado a navegación admin
+- waiting-for-plan: loop fix usando misma RPC que middleware
+- Clinical note modal: 2 columnas (SOAP izq + paneles der) en pantallas xl
 
 ### Roadmap Post-V1
 - **V1.1:** WhatsApp CRM (chat directo, tipo Leadsales)
