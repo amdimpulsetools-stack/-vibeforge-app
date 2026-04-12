@@ -434,11 +434,11 @@ export default function MembersPage() {
           return (
             <div
               key={member.id}
-              className={`flex items-center justify-between rounded-xl border border-border bg-card p-4 ${
+              className={`flex flex-col gap-3 md:flex-row md:items-center md:justify-between rounded-xl border border-border bg-card p-4 ${
                 !member.is_active ? "opacity-60" : ""
               }`}
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 min-w-0">
                 {/* Avatar */}
                 {member.avatar_url ? (
                   <img
@@ -448,33 +448,33 @@ export default function MembersPage() {
                     height={40}
                     loading="lazy"
                     decoding="async"
-                    className="h-10 w-10 rounded-full object-cover"
+                    className="h-10 w-10 rounded-full object-cover shrink-0"
                   />
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary shrink-0">
                     {getInitials(member.full_name ?? member.email ?? "?")}
                   </div>
                 )}
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h4 className="font-medium">
+                    <h4 className="font-medium truncate">
                       {member.full_name ?? t("members.unnamed")}
                     </h4>
                     {!member.is_active && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground shrink-0">
                         {t("members.status_inactive")}
                       </span>
                     )}
                   </div>
                   {member.email && (
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-xs text-muted-foreground truncate">
                       {member.email}
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-end">
                 {/* Role badge (read-only) */}
                 <span
                   className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${display.colorClass}`}

@@ -422,12 +422,12 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 rounded-xl border border-border bg-muted/30 p-1">
+      <div className="flex gap-1 rounded-xl border border-border bg-muted/30 p-1 overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+            className={`flex shrink-0 md:flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all whitespace-nowrap ${
               activeTab === tab.id
                 ? "bg-card text-foreground shadow-sm border border-border"
                 : "text-muted-foreground hover:text-foreground"

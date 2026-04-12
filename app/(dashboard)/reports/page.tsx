@@ -151,13 +151,13 @@ export default function ReportsPage() {
           </div>
 
           {/* Tabs */}
-          <div className="mt-4 flex gap-1">
+          <div className="mt-4 flex gap-1 overflow-x-auto -mx-6 px-6 pb-1">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+                  "flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap shrink-0",
                   activeTab === tab.key
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -171,7 +171,7 @@ export default function ReportsPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {/* AI Summary Panel (appears when active) */}
           <AiSummaryPanel />
 
