@@ -70,13 +70,14 @@ export function Navbar() {
               />
             </button>
 
-            {/* Mega menu panel */}
+            {/* Mega menu panel — full width */}
             {productOpen && (
               <div
                 onMouseLeave={() => setProductOpen(false)}
-                className="absolute top-full left-1/2 -translate-x-1/2 mt-3 w-[min(900px,calc(100vw-2rem))] rounded-2xl border border-slate-200 bg-white shadow-2xl overflow-hidden"
+                className="fixed left-0 right-0 top-16 z-50 border-b border-slate-200 bg-white shadow-2xl"
               >
-                <div className="grid grid-cols-4 gap-0">
+                <div className="mx-auto max-w-7xl">
+                  <div className="grid grid-cols-4 gap-0">
                   {/* Columna 1: Funciones principales */}
                   <div className="p-6 border-r border-slate-100">
                     <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
@@ -203,6 +204,7 @@ export function Navbar() {
                   </div>
                 </div>
 
+                </div>
                 {/* Footer bar */}
                 <div className="border-t border-slate-100 bg-slate-50 px-6 py-3">
                   <Link
