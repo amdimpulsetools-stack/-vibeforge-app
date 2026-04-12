@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { APP_NAME } from "@/lib/constants";
 import { Zap, ArrowRight, Menu, X, ChevronDown, Sparkles } from "lucide-react";
-import { FEATURES_BY_CATEGORY, PRODUCT_CATEGORIES } from "@/lib/product-features";
+import { PRODUCT_FEATURES } from "@/lib/product-features";
 
 const SIMPLE_LINKS = [
   { label: "Planes", href: "/#pricing" },
@@ -77,133 +77,109 @@ export function Navbar() {
                 className="fixed left-0 right-0 top-16 z-50 border-b border-slate-200 bg-white shadow-2xl"
               >
                 <div className="mx-auto max-w-7xl">
-                  <div className="grid grid-cols-4 gap-0">
-                  {/* Columna 1: Funciones principales */}
-                  <div className="p-6 border-r border-slate-100">
-                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
-                      {PRODUCT_CATEGORIES.funciones}
-                    </h3>
-                    <ul className="space-y-3">
-                      {FEATURES_BY_CATEGORY.funciones.map((feature) => {
+                  <div className="grid grid-cols-3 gap-0">
+                    {/* Columna 1: Features 1-3 */}
+                    <div className="p-6 border-r border-slate-100 space-y-3">
+                      {PRODUCT_FEATURES.slice(0, 3).map((feature) => {
                         const Icon = feature.icon;
                         return (
-                          <li key={feature.slug}>
-                            <Link
-                              href={`/producto/${feature.slug}`}
-                              onClick={() => setProductOpen(false)}
-                              className="group/item flex items-start gap-2.5 rounded-lg p-2 -m-2 hover:bg-emerald-50/50 transition-colors"
-                            >
-                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
-                                <Icon className="h-3.5 w-3.5" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-slate-900 leading-tight">
-                                  {feature.title}
-                                </p>
-                                <p className="text-xs text-slate-500 mt-0.5 leading-snug line-clamp-2">
-                                  {feature.tagline}
-                                </p>
-                              </div>
-                            </Link>
-                          </li>
+                          <Link
+                            key={feature.slug}
+                            href={`/producto/${feature.slug}`}
+                            onClick={() => setProductOpen(false)}
+                            className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors"
+                          >
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
+                              <Icon className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900 leading-tight">
+                                {feature.title}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5 leading-snug">
+                                {feature.tagline}
+                              </p>
+                            </div>
+                          </Link>
                         );
                       })}
-                    </ul>
-                  </div>
-
-                  {/* Columna 2: Automatización */}
-                  <div className="p-6 border-r border-slate-100">
-                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
-                      {PRODUCT_CATEGORIES.automatizacion}
-                    </h3>
-                    <ul className="space-y-3">
-                      {FEATURES_BY_CATEGORY.automatizacion.map((feature) => {
-                        const Icon = feature.icon;
-                        return (
-                          <li key={feature.slug}>
-                            <Link
-                              href={`/producto/${feature.slug}`}
-                              onClick={() => setProductOpen(false)}
-                              className="group/item flex items-start gap-2.5 rounded-lg p-2 -m-2 hover:bg-emerald-50/50 transition-colors"
-                            >
-                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
-                                <Icon className="h-3.5 w-3.5" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-slate-900 leading-tight">
-                                  {feature.title}
-                                </p>
-                                <p className="text-xs text-slate-500 mt-0.5 leading-snug line-clamp-2">
-                                  {feature.tagline}
-                                </p>
-                              </div>
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-
-                  {/* Columna 3: Análisis */}
-                  <div className="p-6 border-r border-slate-100">
-                    <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
-                      {PRODUCT_CATEGORIES.analisis}
-                    </h3>
-                    <ul className="space-y-3">
-                      {FEATURES_BY_CATEGORY.analisis.map((feature) => {
-                        const Icon = feature.icon;
-                        return (
-                          <li key={feature.slug}>
-                            <Link
-                              href={`/producto/${feature.slug}`}
-                              onClick={() => setProductOpen(false)}
-                              className="group/item flex items-start gap-2.5 rounded-lg p-2 -m-2 hover:bg-emerald-50/50 transition-colors"
-                            >
-                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
-                                <Icon className="h-3.5 w-3.5" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-slate-900 leading-tight">
-                                  {feature.title}
-                                </p>
-                                <p className="text-xs text-slate-500 mt-0.5 leading-snug line-clamp-2">
-                                  {feature.tagline}
-                                </p>
-                              </div>
-                            </Link>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-
-                  {/* Columna 4: Highlight IA */}
-                  <div className="p-6 bg-gradient-to-br from-emerald-50 to-emerald-100/50">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary shadow-md">
-                        <Sparkles className="h-4 w-4 text-white" />
-                      </div>
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
-                        Destacado
-                      </span>
                     </div>
-                    <h3 className="text-base font-bold text-slate-900 mb-2">
-                      Asistente IA
-                    </h3>
-                    <p className="text-xs text-slate-600 mb-4 leading-relaxed">
-                      Pregúntale cuánto facturaste este mes, tus pacientes frecuentes y más.
-                    </p>
-                    <Link
-                      href="/producto/asistente-ia-consultorio"
-                      onClick={() => setProductOpen(false)}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700 hover:text-emerald-900 transition-colors"
-                    >
-                      Ver cómo funciona
-                      <ArrowRight className="h-3 w-3" />
-                    </Link>
-                  </div>
-                </div>
 
+                    {/* Columna 2: Features 4-6 */}
+                    <div className="p-6 border-r border-slate-100 space-y-3">
+                      {PRODUCT_FEATURES.slice(3, 6).map((feature) => {
+                        const Icon = feature.icon;
+                        return (
+                          <Link
+                            key={feature.slug}
+                            href={`/producto/${feature.slug}`}
+                            onClick={() => setProductOpen(false)}
+                            className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors"
+                          >
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
+                              <Icon className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900 leading-tight">
+                                {feature.title}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5 leading-snug">
+                                {feature.tagline}
+                              </p>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+
+                    {/* Columna 3: Feature 7 + Highlight IA */}
+                    <div className="p-6 space-y-4">
+                      {PRODUCT_FEATURES.slice(6).map((feature) => {
+                        const Icon = feature.icon;
+                        return (
+                          <Link
+                            key={feature.slug}
+                            href={`/producto/${feature.slug}`}
+                            onClick={() => setProductOpen(false)}
+                            className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors"
+                          >
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
+                              <Icon className="h-4 w-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-slate-900 leading-tight">
+                                {feature.title}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-0.5 leading-snug">
+                                {feature.tagline}
+                              </p>
+                            </div>
+                          </Link>
+                        );
+                      })}
+
+                      {/* IA Highlight card */}
+                      <div className="mt-2 rounded-xl bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-200 p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 shadow-sm">
+                            <Sparkles className="h-3.5 w-3.5 text-white" />
+                          </div>
+                          <span className="text-xs font-bold text-violet-700">Nuevo</span>
+                        </div>
+                        <p className="text-xs text-slate-600 mb-2">
+                          Pregúntale a tu clínica cuánto facturaste, tus pacientes frecuentes y más.
+                        </p>
+                        <Link
+                          href="/producto/asistente-ia-consultorio"
+                          onClick={() => setProductOpen(false)}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-violet-700 hover:text-violet-900 transition-colors"
+                        >
+                          Ver Asistente IA
+                          <ArrowRight className="h-3 w-3" />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 {/* Footer bar */}
                 <div className="border-t border-slate-100 bg-slate-50 px-6 py-3">
@@ -274,32 +250,20 @@ export function Navbar() {
               />
             </button>
             {mobileProductOpen && (
-              <div className="pl-3 pb-2 space-y-4 border-l-2 border-emerald-200 ml-1">
-                {(Object.keys(FEATURES_BY_CATEGORY) as Array<keyof typeof FEATURES_BY_CATEGORY>).map(
-                  (cat) => (
-                    <div key={cat}>
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2 mt-2">
-                        {PRODUCT_CATEGORIES[cat]}
-                      </p>
-                      <ul className="space-y-2">
-                        {FEATURES_BY_CATEGORY[cat].map((feature) => (
-                          <li key={feature.slug}>
-                            <Link
-                              href={`/producto/${feature.slug}`}
-                              onClick={() => {
-                                setMobileOpen(false);
-                                setMobileProductOpen(false);
-                              }}
-                              className="block py-1 text-sm text-slate-600 hover:text-emerald-600"
-                            >
-                              {feature.title}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                )}
+              <div className="pl-3 pb-2 space-y-2 border-l-2 border-emerald-200 ml-1 mt-1">
+                {PRODUCT_FEATURES.map((feature) => (
+                  <Link
+                    key={feature.slug}
+                    href={`/producto/${feature.slug}`}
+                    onClick={() => {
+                      setMobileOpen(false);
+                      setMobileProductOpen(false);
+                    }}
+                    className="block py-1.5 text-sm text-slate-600 hover:text-emerald-600"
+                  >
+                    {feature.title}
+                  </Link>
+                ))}
                 <Link
                   href="/producto"
                   onClick={() => {

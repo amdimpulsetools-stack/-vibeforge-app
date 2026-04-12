@@ -6,9 +6,7 @@ import { ArrowRight, CheckCircle2, Check, ChevronRight } from "lucide-react";
 import {
   PRODUCT_FEATURES,
   getFeatureBySlug,
-  PRODUCT_CATEGORIES,
 } from "@/lib/product-features";
-import { APP_NAME } from "@/lib/constants";
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -168,7 +166,7 @@ export default async function FeaturePage({ params }: PageProps) {
   const useCases =
     FEATURE_USE_CASES[feature.slug] || FEATURE_USE_CASES["agenda-medica-online"];
   const relatedFeatures = PRODUCT_FEATURES.filter(
-    (f) => f.category === feature.category && f.slug !== feature.slug
+    (f) => f.slug !== feature.slug
   ).slice(0, 3);
 
   return (
@@ -197,7 +195,7 @@ export default async function FeaturePage({ params }: PageProps) {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 mb-4">
                 <Icon className="h-3.5 w-3.5" />
-                {PRODUCT_CATEGORIES[feature.category]}
+                REPLACE
               </div>
               <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
                 {feature.title}
