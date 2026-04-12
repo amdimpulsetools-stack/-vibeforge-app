@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { APP_NAME } from "@/lib/constants";
-import { Zap, ArrowRight, Menu, X, ChevronDown, Sparkles } from "lucide-react";
+import { Zap, ArrowRight, Menu, X, ChevronDown, Sparkles, BookOpen, Calculator, HelpCircle, Handshake, Mail, FileText, Headphones } from "lucide-react";
 import { PRODUCT_FEATURES } from "@/lib/product-features";
 
 const SIMPLE_LINKS = [
@@ -15,8 +15,11 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [productOpen, setProductOpen] = useState(false);
+  const [resourcesOpen, setResourcesOpen] = useState(false);
   const [mobileProductOpen, setMobileProductOpen] = useState(false);
+  const [mobileResourcesOpen, setMobileResourcesOpen] = useState(false);
   const productRef = useRef<HTMLDivElement>(null);
+  const resourcesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -29,6 +32,9 @@ export function Navbar() {
     const handleClickOutside = (e: MouseEvent) => {
       if (productRef.current && !productRef.current.contains(e.target as Node)) {
         setProductOpen(false);
+      }
+      if (resourcesRef.current && !resourcesRef.current.contains(e.target as Node)) {
+        setResourcesOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -196,6 +202,132 @@ export function Navbar() {
             )}
           </div>
 
+          {/* Recursos dropdown */}
+          <div ref={resourcesRef} className="relative">
+            <button
+              onClick={() => { setResourcesOpen(!resourcesOpen); setProductOpen(false); }}
+              onMouseEnter={() => { setResourcesOpen(true); setProductOpen(false); }}
+              className="flex items-center gap-1 text-sm font-medium text-slate-600 transition-colors hover:text-emerald-600"
+              aria-expanded={resourcesOpen}
+            >
+              Recursos
+              <ChevronDown className={`h-4 w-4 transition-transform ${resourcesOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {resourcesOpen && (
+              <div
+                onMouseLeave={() => setResourcesOpen(false)}
+                className="fixed left-0 right-0 top-16 z-50 border-b border-slate-200 bg-white shadow-2xl"
+              >
+                <div className="mx-auto max-w-7xl">
+                  <div className="grid grid-cols-3 gap-0">
+                    {/* Col 1: Conoce REPLACE */}
+                    <div className="p-6 border-r border-slate-100">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
+                        Conoce REPLACE
+                      </h3>
+                      <div className="space-y-3">
+                        <Link href="/blog" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
+                            <BookOpen className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Blog</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Aprende sobre gestión de clínicas y tecnología médica</p>
+                          </div>
+                        </Link>
+                        <Link href="/base-conocimientos" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 group-hover/item:bg-blue-600 group-hover/item:text-white transition-colors">
+                            <HelpCircle className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Base de conocimientos</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Configuración, guías y funciones avanzadas</p>
+                          </div>
+                        </Link>
+                      </div>
+                    </div>
+
+                    {/* Col 2: Herramientas gratuitas */}
+                    <div className="p-6 border-r border-slate-100">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
+                        Herramientas gratuitas
+                      </h3>
+                      <div className="space-y-3">
+                        <Link href="/calculadora-whatsapp" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-600 group-hover/item:bg-green-600 group-hover/item:text-white transition-colors">
+                            <Calculator className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Calculadora de precios WhatsApp</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Estima el costo de tus mensajes de recordatorio vía WhatsApp API</p>
+                          </div>
+                        </Link>
+                        <Link href="/blog/notas-soap-formato-medico" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-600 group-hover/item:bg-violet-600 group-hover/item:text-white transition-colors">
+                            <FileText className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Plantilla SOAP gratis</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Notas clínicas con ejemplos por 5 especialidades</p>
+                          </div>
+                        </Link>
+                      </div>
+                    </div>
+
+                    {/* Col 3: Contáctanos */}
+                    <div className="p-6">
+                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
+                        Contáctanos
+                      </h3>
+                      <div className="space-y-3">
+                        <Link href="/contacto" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-600 group-hover/item:bg-teal-600 group-hover/item:text-white transition-colors">
+                            <Mail className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Contacta nuestro equipo</p>
+                          </div>
+                        </Link>
+                        <Link href="/soporte" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-pink-100 text-pink-600 group-hover/item:bg-pink-600 group-hover/item:text-white transition-colors">
+                            <Headphones className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Obtén ayuda premium</p>
+                          </div>
+                        </Link>
+                        <Link href="/socios" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 group-hover/item:bg-indigo-600 group-hover/item:text-white transition-colors">
+                            <Handshake className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">Conviértete en socio</p>
+                          </div>
+                        </Link>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="border-t border-slate-100 bg-slate-50">
+                  <div className="mx-auto max-w-7xl flex items-center justify-between px-6 py-3">
+                    <Link href="/contacto" onClick={() => setResourcesOpen(false)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-600 transition-colors">
+                      <Headphones className="h-3.5 w-3.5" />
+                      Contactar soporte
+                    </Link>
+                    <Link href="/socios" onClick={() => setResourcesOpen(false)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-600 transition-colors">
+                      <Handshake className="h-3.5 w-3.5" />
+                      Contratar un socio experto
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Simple links */}
           {SIMPLE_LINKS.map((link) => (
             <a
@@ -274,6 +406,35 @@ export function Navbar() {
                 >
                   Ver todas las funcionalidades →
                 </Link>
+              </div>
+            )}
+
+            {/* Recursos collapsible */}
+            <button
+              onClick={() => setMobileResourcesOpen(!mobileResourcesOpen)}
+              className="flex w-full items-center justify-between py-2 text-sm font-medium text-slate-700"
+            >
+              Recursos
+              <ChevronDown className={`h-4 w-4 transition-transform ${mobileResourcesOpen ? "rotate-180" : ""}`} />
+            </button>
+            {mobileResourcesOpen && (
+              <div className="pl-3 pb-2 space-y-2 border-l-2 border-emerald-200 ml-1 mt-1">
+                {[
+                  { label: "Blog", href: "/blog" },
+                  { label: "Base de conocimientos", href: "/base-conocimientos" },
+                  { label: "Calculadora WhatsApp", href: "/calculadora-whatsapp" },
+                  { label: "Contacto", href: "/contacto" },
+                  { label: "Conviértete en socio", href: "/socios" },
+                ].map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => { setMobileOpen(false); setMobileResourcesOpen(false); }}
+                    className="block py-1.5 text-sm text-slate-600 hover:text-emerald-600"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
               </div>
             )}
 
