@@ -360,7 +360,7 @@ export default async function FeaturePage({ params }: PageProps) {
             Empieza con {feature.title} hoy
           </h2>
           <p className="mt-4 text-lg text-slate-600">
-            Prueba {APP_NAME} gratis por 14 días. Sin tarjeta de crédito.
+            Prueba REPLACE gratis por 14 días. Sin tarjeta de crédito.
           </p>
           <div className="mt-8 flex items-center justify-center gap-3">
             <Link
@@ -392,19 +392,19 @@ export default async function FeaturePage({ params }: PageProps) {
                 "@type": "ListItem",
                 position: 1,
                 name: "Inicio",
-                item: "https://saas-orcin-seven.vercel.app/",
+                item: "https://REPLACE.com/",
               },
               {
                 "@type": "ListItem",
                 position: 2,
                 name: "Producto",
-                item: "https://saas-orcin-seven.vercel.app/producto",
+                item: "https://REPLACE.com/producto",
               },
               {
                 "@type": "ListItem",
                 position: 3,
                 name: feature.title,
-                item: `https://saas-orcin-seven.vercel.app/producto/${feature.slug}`,
+                item: `https://REPLACE.com/producto/${feature.slug}`,
               },
             ],
           }),
@@ -416,7 +416,7 @@ export default async function FeaturePage({ params }: PageProps) {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: `${APP_NAME} — ${feature.title}`,
+            name: `$REPLACE — ${feature.title}`,
             applicationCategory: "MedicalApplication",
             operatingSystem: "Web",
             description: feature.metaDescription,
