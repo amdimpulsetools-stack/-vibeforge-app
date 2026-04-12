@@ -34,29 +34,37 @@ export const BLOG_CATEGORIES: BlogCategory[] = [
 ];
 
 export const BLOG_ARTICLES: BlogArticle[] = [
-  // ── Featured ──
+  // ── Featured (blogs completos) ──
   {
-    slug: "como-reducir-inasistencias-clinica",
-    title: "Cómo reducir las inasistencias en tu clínica hasta un 40%",
-    excerpt: "Las inasistencias son el enemigo silencioso de tu agenda. Descubre las 5 estrategias comprobadas que usan las clínicas más exitosas de LATAM para que sus pacientes siempre lleguen puntuales.",
-    category: "agenda",
-    readTime: "8 min",
+    slug: "digitalizar-consultorio-medico-peru",
+    title: "Cómo digitalizar tu consultorio médico en Perú: guía paso a paso 2026",
+    excerpt: "Guía paso a paso para digitalizar tu consultorio médico en Perú. Del cuaderno al software en 30 días sin perder pacientes ni complicarte.",
+    category: "gestion",
+    readTime: "12 min",
     date: "2026-04-10",
     featured: true,
     imageAlt: "Doctor revisando agenda digital en tablet",
   },
   {
-    slug: "historia-clinica-electronica-guia-completa",
-    title: "Historia Clínica Electrónica: guía completa para médicos en 2026",
-    excerpt: "Todo lo que necesitas saber sobre la HCE: qué es, beneficios legales, cómo elegir un software, requisitos SOAP, CIE-10 y firma digital. Guía definitiva.",
-    category: "historia-clinica",
-    readTime: "12 min",
+    slug: "reducir-ausentismo-pacientes-clinica",
+    title: "Cómo reducir el ausentismo de pacientes en tu clínica hasta un 40%",
+    excerpt: "5 estrategias comprobadas para reducir inasistencias en tu consultorio. Incluye calculadora de pérdidas y automatización WhatsApp.",
+    category: "agenda",
+    readTime: "10 min",
     date: "2026-04-08",
     featured: true,
-    imageAlt: "Pantalla de historia clínica electrónica",
+    imageAlt: "Calendario de citas médicas con recordatorios",
   },
 
-  // ── Regular articles ──
+  // ── Regular articles (blog 3 completo + placeholders) ──
+  {
+    slug: "notas-soap-formato-medico",
+    title: "Notas SOAP: formato, ejemplos y cómo digitalizarlas en tu consultorio",
+    excerpt: "Qué son las notas SOAP, cómo estructurarlas correctamente y por qué digitalizarlas. Incluye ejemplos por especialidad y plantilla descargable.",
+    category: "historia-clinica",
+    readTime: "11 min",
+    date: "2026-04-06",
+  },
   {
     slug: "mejores-software-medicos-peru-2026",
     title: "Los 7 mejores software médicos en Perú para 2026",
