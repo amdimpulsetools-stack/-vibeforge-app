@@ -220,7 +220,7 @@ export function Navbar() {
                 className="fixed left-0 right-0 top-16 z-50 border-b border-slate-200 bg-white shadow-2xl"
               >
                 <div className="mx-auto max-w-7xl">
-                  <div className="grid grid-cols-4 gap-0">
+                  <div className="grid grid-cols-3 gap-0">
                     {/* Col 1: Conoce REPLACE */}
                     <div className="p-6 border-r border-slate-100">
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
@@ -254,13 +254,13 @@ export function Navbar() {
                         Herramientas gratuitas
                       </h3>
                       <div className="space-y-3">
-                        <Link href="/calculadora-recordatorios" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600 group-hover/item:bg-amber-600 group-hover/item:text-white transition-colors">
+                        <Link href="/calculadora-whatsapp" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-600 group-hover/item:bg-green-600 group-hover/item:text-white transition-colors">
                             <Calculator className="h-4 w-4" />
                           </div>
                           <div>
-                            <p className="text-sm font-semibold text-slate-900">Calculadora de recordatorios</p>
-                            <p className="text-xs text-slate-500 mt-0.5">Estima cuánto ahorras con recordatorios automáticos</p>
+                            <p className="text-sm font-semibold text-slate-900">Calculadora de precios WhatsApp</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Estima el costo de tus mensajes de recordatorio vía WhatsApp API</p>
                           </div>
                         </Link>
                         <Link href="/blog/notas-soap-formato-medico" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
@@ -276,7 +276,7 @@ export function Navbar() {
                     </div>
 
                     {/* Col 3: Contáctanos */}
-                    <div className="p-6 border-r border-slate-100">
+                    <div className="p-6">
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
                         Contáctanos
                       </h3>
@@ -308,29 +308,6 @@ export function Navbar() {
                       </div>
                     </div>
 
-                    {/* Col 4: Artículos tops */}
-                    <div className="p-6 bg-gradient-to-br from-slate-50 to-emerald-50/30">
-                      <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
-                        Artículos tops
-                      </h3>
-                      <div className="space-y-3">
-                        {[
-                          { title: "Cómo digitalizar tu consultorio", href: "/blog/digitalizar-consultorio-medico-peru", color: "bg-emerald-100" },
-                          { title: "Reducir ausentismo hasta 40%", href: "/blog/reducir-ausentismo-pacientes-clinica", color: "bg-blue-100" },
-                          { title: "Notas SOAP: guía práctica", href: "/blog/notas-soap-formato-medico", color: "bg-violet-100" },
-                        ].map((article) => (
-                          <Link
-                            key={article.href}
-                            href={article.href}
-                            onClick={() => setResourcesOpen(false)}
-                            className="flex items-center gap-3 rounded-lg p-2 -m-1 hover:bg-white/70 transition-colors"
-                          >
-                            <div className={`h-10 w-10 rounded-xl ${article.color} shrink-0`} />
-                            <p className="text-sm font-semibold text-slate-900 leading-snug">{article.title}</p>
-                          </Link>
-                        ))}
-                      </div>
-                    </div>
                   </div>
                 </div>
 
@@ -445,7 +422,7 @@ export function Navbar() {
                 {[
                   { label: "Blog", href: "/blog" },
                   { label: "Base de conocimientos", href: "/base-conocimientos" },
-                  { label: "Calculadora de recordatorios", href: "/calculadora-recordatorios" },
+                  { label: "Calculadora WhatsApp", href: "/calculadora-whatsapp" },
                   { label: "Contacto", href: "/contacto" },
                   { label: "Conviértete en socio", href: "/socios" },
                 ].map((item) => (
