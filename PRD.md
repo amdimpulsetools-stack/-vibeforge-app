@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-12
-> **Versión:** 0.7.0
-> **Estado:** MVP — desplegado en Vercel (producción)
+> **Versión:** 0.8.0
+> **Estado:** MVP — desplegado en Vercel (producción) + Landing/Blog/SEO
 
 ---
 
@@ -616,11 +616,18 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [ ] Especialidades: primer módulo vertical (Endocrinología Pediátrica o Fertilidad)
 - [ ] Emails: post-consulta, pedir reseña, campaña marketing (plantillas ocultas, sin lógica de envío)
 - [ ] Emails: pago pendiente (plantilla oculta, sin trigger)
-- [ ] Screenshots reales para placeholders en /producto/* pages
+- [ ] Screenshots reales para placeholders en /producto/* y /blog/*
 - [ ] SEO: páginas por especialidad (/especialidades/[slug])
 - [ ] SEO: páginas comparativas (vs Doctoralia, vs Dentalink, etc.)
-- [ ] SEO: blog + artículos long-tail
-- [ ] SEO: lead magnets (calculadora ROI, plantillas SOAP, etc.)
+- [x] SEO: blog con 3 artículos completos + 9 placeholders
+- [x] SEO: lead magnets (checklist, calculadora ausentismo, plantilla SOAP)
+- [x] SEO: calculadora de precios WhatsApp (/calculadora-whatsapp)
+- [ ] SEO: página pilar "Software de gestión para clínicas en Perú"
+- [ ] Página /base-conocimientos (hub de ayuda con categorías)
+- [ ] Página /contacto (formulario)
+- [ ] Página /socios (programa de socios)
+- [ ] Conectar lead magnets con captura de email real (Resend/Mailchimp)
+- [ ] Imágenes reales para blogs (fotos/ilustraciones)
 - [ ] Reemplazo global de "REPLACE" por nombre final del software
 
 ---
@@ -1138,6 +1145,95 @@ MP_TEST_PAYER_EMAIL=      # Email del comprador de prueba MP (solo test mode)
 - Sidebar exam-catalog agregado a navegación admin
 - waiting-for-plan: loop fix usando misma RPC que middleware
 - Clinical note modal: 2 columnas (SOAP izq + paneles der) en pantallas xl
+
+---
+
+## 21.6. Changelog — Sesión 2026-04-12 (v0.8.0) — Landing, Blog, SEO
+
+### Vista expandida de paciente
+- Botón Maximize (⛶) en el header del drawer de paciente
+- Abre modal max-w-6xl con 5 tabs en layout amplio (2 columnas donde aplica)
+- Info: datos personales + 3 KPI cards (citas, pagado, notas) + etiquetas
+- Historial: tabla completa con overflow-x-auto
+- Clínico: prescripciones/exámenes en 2 cols + link a historial completo
+- Finanzas: tabla de pagos + card resumen
+- Marketing: datos de origen + métricas (primera/última cita)
+
+### Paginación de pacientes
+- Cambió de "Cargar más" a paginación con flechas prev/next
+- 25 pacientes por página, server-side con .range()
+- Footer: "X pacientes · Página Y de Z"
+- Touch targets 40px en mobile, 32px en desktop
+
+### Páginas de producto (SEO) — Reestructuración 13→7
+- `lib/product-features.ts`: 7 features agrupadas (antes 13)
+  1. Agenda Médica Online (+ booking)
+  2. Historia Clínica Electrónica (+ recetas + exámenes)
+  3. Gestión de Pacientes
+  4. Comunicación Automatizada (WhatsApp + email)
+  5. Asistente Médico con IA
+  6. Reportes y Analítica (+ retención + cobros)
+  7. Gestión de Equipo Médico
+- Mega-menu actualizado: 3 columnas + highlight IA
+- 7 páginas premium con storytelling (cada una ~600 líneas):
+  - Hero provocativo + mockup visual
+  - Pain stats en fondo oscuro con datos
+  - Features con beneficios detallados
+  - Before/after o journey del usuario
+  - Testimonial placeholder
+  - CTA con aversión a la pérdida
+  - Schema.org + breadcrumbs
+
+### Mega-menu "Recursos"
+- Dropdown full-width con 3 columnas:
+  1. Conoce REPLACE: Blog + Base de conocimientos
+  2. Herramientas gratuitas: Calculadora WhatsApp + Plantilla SOAP
+  3. Contáctanos: Contacto + Soporte + Socios
+- Footer: "Contactar soporte" + "Contratar socio experto"
+- Mobile: accordion colapsable
+
+### Calculadora de precios WhatsApp (/calculadora-whatsapp)
+- Estimador rápido para clínicas: input citas/día + días/semana
+  → auto-calcula: recordatorios, confirmaciones, seguimientos, cumpleaños
+  → muestra costo estimado mensual en USD
+- Calculadora manual (estilo Kommo): selector país (10 países LATAM)
+  + sliders de marketing y utilidad con precio/mensaje
+  + card verde con total estimado
+- FAQ con 5 preguntas sobre WhatsApp Business API
+- Precios de Meta API actualizados 2026
+
+### Blog (/blog)
+- Página index estilo Kommo: search bar, 9 category pills, featured articles,
+  article grid 3 cols, "Lo mejor del Blog" category links, CTA banner
+- Ruta dinámica /blog/[slug] con SSG para 12 artículos
+- Markdown rendering: react-markdown + gray-matter + remark-gfm
+- Layout Kommo-style: hero verde + 2 columnas (content + sticky sidebar)
+- Sidebar: author card, tabla de contenidos (auto-generated), CTA, share buttons
+- Typography audited: H2 28px+border, H3 21.6px bold, body 15px/1.85
+  Blockquotes gradient, tables rounded, emoji bullets, decorative HR
+
+### SEO Strategy (content/blog/ESTRATEGIA-SEO.md)
+- Pilar-Cluster architecture: 1 pillar page + 4 clusters (16 blogs planned)
+- Keyword map with search volume, intent, funnel stage
+- Lead magnet per blog with specific CTAs
+- GEO rules for AI Overview citability
+- 3-month editorial calendar
+
+### 3 Blog posts completos (2,500-3,500 palabras cada uno)
+1. `digitalizar-consultorio-medico-peru.md` — TOFU
+   - 6 pasos, tablas de costos, errores comunes, FAQ, lead magnet: checklist 21 pasos
+2. `reducir-ausentismo-pacientes-clinica.md` — MOFU
+   - 5 estrategias, caso práctico 25%→7%, calculadora, FAQ
+3. `notas-soap-formato-medico.md` — MOFU
+   - SOAP explicado, ejemplos por 5 especialidades (tablas), FAQ
+
+### 3 Lead magnets (content/blog/lead-magnets/)
+1. Checklist 21 pasos para digitalizar consultorio (PDF)
+2. Calculadora de pérdidas por ausentismo (Excel)
+3. Plantilla SOAP por 5 especialidades (PDF)
+
+### Rutas públicas agregadas al middleware
+`/producto`, `/blog`, `/base-conocimientos`, `/calculadora-whatsapp`, `/contacto`, `/socios`, `/soporte`
 
 ### Roadmap Post-V1
 - **V1.1:** WhatsApp CRM (chat directo, tipo Leadsales)
