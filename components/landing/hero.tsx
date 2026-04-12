@@ -61,17 +61,17 @@ export function Hero() {
 
           {/* Title */}
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl text-slate-900 opacity-0 animate-[fadeUp_0.6s_0.2s_ease-out_forwards]">
-            Tu clínica completa.{" "}
+            La primera agenda clínica{" "}
             <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-              En una sola plataforma.
+              con IA.
             </span>
           </h1>
 
           {/* Subtitle */}
           <p className="mt-6 text-lg text-slate-600 sm:text-xl max-w-2xl mx-auto leading-relaxed opacity-0 animate-[fadeUp_0.6s_0.35s_ease-out_forwards]">
-            Agenda inteligente, gestión de pacientes, control de equipo y
-            asistente con IA. Desde el doctor independiente hasta la clínica
-            con 10 consultorios. Planes desde S/69.90/mes.
+            Aumenta tus pacientes y tu productividad. Agenda inteligente,
+            historia clínica, recordatorios WhatsApp, reportes y asistente con IA.
+            Desde el doctor independiente hasta la clínica con 10 consultorios.
           </p>
 
           {/* CTA buttons */}
