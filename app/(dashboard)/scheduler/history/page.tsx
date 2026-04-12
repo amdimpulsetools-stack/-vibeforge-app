@@ -280,8 +280,8 @@ export default function AppointmentHistoryPage() {
             <p className="text-sm">{t("common.no_results")}</p>
           </div>
         ) : (
-          <div>
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[900px]">
             <thead className="sticky top-0 z-10 bg-card border-b border-border">
               <tr className="text-xs text-muted-foreground">
                 <th
@@ -395,9 +395,9 @@ export default function AppointmentHistoryPage() {
                 <button
                   onClick={() => setPage((p) => p - 1)}
                   disabled={!canPrev}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="flex h-10 w-10 md:h-8 md:w-8 items-center justify-center rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  <ChevronLeft className="h-4 w-4" />
+                  <ChevronLeft className="h-5 w-5 md:h-4 md:w-4" />
                 </button>
                 <span className="text-sm font-medium tabular-nums">
                   {page + 1} / {totalPages}
@@ -405,9 +405,9 @@ export default function AppointmentHistoryPage() {
                 <button
                   onClick={() => setPage((p) => p + 1)}
                   disabled={!canNext}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="flex h-10 w-10 md:h-8 md:w-8 items-center justify-center rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronRight className="h-5 w-5 md:h-4 md:w-4" />
                 </button>
               </div>
             </div>
