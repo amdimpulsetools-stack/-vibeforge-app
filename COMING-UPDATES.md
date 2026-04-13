@@ -82,6 +82,42 @@
 
 ---
 
+## 🧾 Facturación
+
+- [ ] **Boletas y facturas electrónicas vinculadas a SUNAT** — Generar comprobantes de pago directamente desde el sistema:
+  - Al registrar un pago, opción de generar boleta (persona natural) o factura (empresa con RUC)
+  - Integración con SUNAT vía API (Nubefact, Efact, o similar como proveedor de facturación electrónica)
+  - Datos del comprobante: RUC/DNI del paciente, monto, tipo de servicio, IGV, serie y correlativo
+  - PDF del comprobante generado automáticamente y enviado por email al paciente
+  - Dashboard de comprobantes emitidos (por periodo, tipo, estado)
+  - Requisitos: cuenta con proveedor de facturación electrónica autorizado por SUNAT, certificado digital
+  - Ideal para clínicas que actualmente emiten comprobantes manuales o en sistemas separados
+
+---
+
+## 💬 CRM Multi-canal
+
+- [ ] **CRM con WhatsApp API, Instagram API Messages y Facebook Messenger** — Bandeja de mensajes unificada tipo Kommo/Leadsales:
+  - Chat en tiempo real desde el panel de REPLACE
+  - Bandeja unificada: todos los mensajes de WhatsApp, Instagram DMs y Facebook Messenger en un solo lugar
+  - Vinculación automática de mensajes con la ficha del paciente (match por teléfono o nombre)
+  - Historial de conversaciones por paciente (visible en el drawer del paciente)
+  - Envío de mensajes directos desde la ficha del paciente
+  - Plantillas de respuesta rápida para preguntas frecuentes
+  - Asignación de conversaciones a miembros del equipo
+  - Estados: nueva, en proceso, resuelta
+  - Notificaciones de nuevos mensajes en el topbar
+  - Integraciones requeridas:
+    - WhatsApp Business API (Meta) — ya tenemos la base con recordatorios
+    - Instagram Messaging API (Meta) — requiere aprobación de la app
+    - Facebook Messenger API (Meta) — requiere Facebook Page vinculada
+  - Fases de implementación:
+    1. **Fase 1:** WhatsApp chat bidireccional (recibir + responder)
+    2. **Fase 2:** Instagram DMs + Facebook Messenger
+    3. **Fase 3:** Automatizaciones (respuestas automáticas, bots, flujos)
+
+---
+
 ## 🔜 Prioridad sugerida
 
 | # | Feature | Esfuerzo | Impacto | Prioridad |
@@ -95,6 +131,8 @@
 | 7 | Reporte IA por paciente | Alto | Alto (diferenciador) | 🟡 Media |
 | 8 | Google Calendar sync | Alto | Alto (integración clave) | 🟠 Media-baja |
 | 9 | Links Zoom/Meet automáticos | Alto | Medio (teleconsulta) | 🟠 Media-baja |
+| 10 | Facturación SUNAT (boletas/facturas) | Alto | Alto (requisito legal Perú) | 🟡 Media |
+| 11 | CRM multi-canal (WhatsApp + IG + FB) | Muy alto | Muy alto (diferenciador) | 🟡 Media |
 
 ---
 
