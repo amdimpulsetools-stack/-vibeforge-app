@@ -425,8 +425,8 @@ export default function MembersPage() {
         </div>
       )}
 
-      {/* Members list */}
-      <div className="space-y-3">
+      {/* Members grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filtered.map((member) => {
           const display = getMemberDisplay(member, t);
           const DisplayIcon = display.icon;
@@ -434,84 +434,86 @@ export default function MembersPage() {
           return (
             <div
               key={member.id}
-              className={`flex flex-col gap-3 md:flex-row md:items-center md:justify-between rounded-xl border border-border bg-card p-4 ${
+              className={`rounded-xl border border-border bg-card overflow-hidden transition-shadow hover:shadow-md ${
                 !member.is_active ? "opacity-60" : ""
               }`}
             >
-              <div className="flex items-center gap-4 min-w-0">
-                {/* Avatar */}
-                {member.avatar_url ? (
-                  <img
-                    src={member.avatar_url}
-                    alt=""
-                    width={40}
-                    height={40}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-10 w-10 rounded-full object-cover shrink-0"
-                  />
-                ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary shrink-0">
-                    {getInitials(member.full_name ?? member.email ?? "?")}
-                  </div>
-                )}
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-medium truncate">
+              {/* Header: avatar + name + role badge */}
+              <div className="p-4 pb-3">
+                <div className="flex items-center gap-3">
+                  {member.avatar_url ? (
+                    <img
+                      src={member.avatar_url}
+                      alt=""
+                      width={48}
+                      height={48}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-12 w-12 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary shrink-0">
+                      {getInitials(member.full_name ?? member.email ?? "?")}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <h4 className="font-semibold truncate">
                       {member.full_name ?? t("members.unnamed")}
                     </h4>
-                    {!member.is_active && (
-                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground shrink-0">
-                        {t("members.status_inactive")}
-                      </span>
-                    )}
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium mt-0.5 ${display.colorClass}`}
+                    >
+                      <DisplayIcon className="h-3 w-3" />
+                      {display.label}
+                    </span>
                   </div>
-                  {member.email && (
-                    <p className="text-xs text-muted-foreground truncate">
-                      {member.email}
-                    </p>
+                </div>
+              </div>
+
+              {/* Email */}
+              {member.email && (
+                <div className="px-4 pb-3">
+                  <p className="text-xs text-muted-foreground truncate">{member.email}</p>
+                </div>
+              )}
+
+              {/* Status */}
+              <div className="px-4 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">Estado</span>
+                  {member.is_active ? (
+                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">Activo</span>
+                  ) : (
+                    <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-600">Inactivo</span>
                   )}
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 md:gap-3 flex-wrap justify-end">
-                {/* Role badge (read-only) */}
-                <span
-                  className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${display.colorClass}`}
-                >
-                  <DisplayIcon className="h-3.5 w-3.5" />
-                  {display.label}
-                </span>
-
-                {/* Deactivate / Activate button */}
-                {isAdmin && member.role !== "owner" && (
+              {/* Footer actions */}
+              {isAdmin && member.role !== "owner" && (
+                <div className="border-t border-border flex">
                   <button
                     onClick={() => handleToggleActive(member)}
-                    title={member.is_active ? t("members.deactivate") : t("members.activate")}
-                    className={`rounded-lg p-2 transition-colors ${
+                    className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors border-r border-border ${
                       member.is_active
                         ? "text-muted-foreground hover:bg-amber-500/10 hover:text-amber-600"
                         : "text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-600"
                     }`}
                   >
                     {member.is_active ? (
-                      <Ban className="h-4 w-4" />
+                      <><Ban className="h-3 w-3" /> Desactivar</>
                     ) : (
-                      <RotateCcw className="h-4 w-4" />
+                      <><RotateCcw className="h-3 w-3" /> Activar</>
                     )}
                   </button>
-                )}
-
-                {/* Remove button (not for owner, not for self) */}
-                {isAdmin && member.role !== "owner" && (
                   <button
                     onClick={() => handleRemove(member)}
-                    className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                    className="flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3 w-3" /> Eliminar
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           );
         })}

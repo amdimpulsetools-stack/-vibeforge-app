@@ -14,6 +14,7 @@ import {
   Search,
   Users,
   Info,
+  Plus,
 } from "lucide-react";
 
 export default function DoctorsPage() {
@@ -25,10 +26,9 @@ export default function DoctorsPage() {
 
   const fetchDoctors = async () => {
     const supabase = createClient();
-    // Only show doctors linked to organization members (user_id IS NOT NULL)
     const { data } = await supabase
       .from("doctors")
-      .select("*")
+      .select("*, doctor_schedules(day_of_week, start_time, end_time, is_active)")
       .not("user_id", "is", null)
       .order("full_name");
     setDoctors(data ?? []);
@@ -119,54 +119,98 @@ export default function DoctorsPage() {
         </div>
       )}
 
-      <div className="space-y-3">
-        {filtered.map((doctor) => (
-          <div
-            key={doctor.id}
-            className="flex items-center justify-between rounded-xl border border-border bg-card p-4"
-          >
-            <div className="flex items-center gap-4">
-              {/* Avatar con color */}
-              <div
-                className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-white"
-                style={{ backgroundColor: doctor.color }}
-              >
-                {getInitials(doctor.full_name)}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filtered.map((doctor) => {
+          const schedules = (doctor as any).doctor_schedules ?? [];
+          const activeDays = new Set(schedules.filter((s: any) => s.is_active).map((s: any) => s.day_of_week));
+          const todayDow = new Date().getDay();
+          const todaySchedule = schedules.find((s: any) => s.day_of_week === todayDow && s.is_active);
+          const dayLabels = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+
+          return (
+            <div
+              key={doctor.id}
+              className={`rounded-xl border border-border bg-card overflow-hidden transition-shadow hover:shadow-md ${!doctor.is_active ? "opacity-60" : ""}`}
+            >
+              {/* Header with avatar + name */}
+              <div className="p-4 pb-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-full text-sm font-bold text-white shrink-0"
+                    style={{ backgroundColor: doctor.color }}
+                  >
+                    {getInitials(doctor.full_name)}
+                  </div>
+                  <div className="min-w-0">
+                    <h4 className="font-semibold truncate">{doctor.full_name}</h4>
+                    <p className="text-xs text-muted-foreground">CMP: {doctor.cmp}</p>
+                  </div>
+                </div>
               </div>
-              <div>
-                <h4 className="font-medium">{doctor.full_name}</h4>
-                <p className="text-xs text-muted-foreground">CMP: {doctor.cmp}</p>
+
+              {/* Weekly schedule dots */}
+              <div className="px-4 pb-3">
+                <div className="flex items-center gap-1">
+                  {dayLabels.map((label, idx) => (
+                    <div key={idx} className="flex-1 text-center">
+                      <p className="text-[9px] text-muted-foreground mb-1">{label}</p>
+                      <div
+                        className={`mx-auto h-2 w-2 rounded-full ${
+                          activeDays.has(idx)
+                            ? "bg-emerald-500"
+                            : "bg-muted"
+                        }`}
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* Color indicator */}
-              <div
-                className="h-4 w-4 rounded-full border border-border"
-                style={{ backgroundColor: doctor.color }}
-                title={t("doctors.color")}
-              />
-              <button
-                onClick={() => isAdmin && handleToggleActive(doctor)}
-                disabled={!isAdmin}
-                className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                  doctor.is_active
-                    ? "bg-emerald-500/10 text-emerald-500"
-                    : "bg-muted text-muted-foreground"
-                } ${!isAdmin ? "cursor-default" : ""}`}
-              >
-                {doctor.is_active ? t("doctors.active") : t("doctors.inactive")}
-              </button>
+
+              {/* Today status */}
+              <div className="px-4 pb-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">Hoy</span>
+                  {todaySchedule ? (
+                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">Disponible</span>
+                  ) : (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">No atiende</span>
+                  )}
+                </div>
+                {todaySchedule && (
+                  <span className="text-[10px] text-muted-foreground">
+                    {todaySchedule.start_time?.slice(0, 5)} - {todaySchedule.end_time?.slice(0, 5)}
+                  </span>
+                )}
+              </div>
+
+              {/* Footer actions */}
               {isAdmin && (
-                <Link
-                  href={`/admin/doctors/${doctor.id}`}
-                  className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Link>
+                <div className="border-t border-border">
+                  <Link
+                    href={`/admin/doctors/${doctor.id}`}
+                    className="flex w-full items-center justify-center gap-2 py-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Editar Doctor
+                  </Link>
+                </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
+
+        {/* Add new doctor card */}
+        {isAdmin && (
+          <Link
+            href="/admin/doctors/new"
+            className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-border bg-card/50 p-8 text-muted-foreground hover:border-primary/40 hover:text-primary transition-colors min-h-[200px]"
+          >
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <Plus className="h-5 w-5" />
+            </div>
+            <span className="text-sm font-medium">{t("doctors.add")}</span>
+          </Link>
+        )}
       </div>
     </div>
   );
