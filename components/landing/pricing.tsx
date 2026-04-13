@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Check, Sparkles, ArrowRight } from "lucide-react";
+import { Check, Sparkles, ArrowRight, Building2, Phone, Shield } from "lucide-react";
 
 const plans = [
   {
@@ -13,13 +13,14 @@ const plans = [
     anchor: "Menos de lo que cobras por una consulta",
     anchorAnnual: "Ahorra S/139.80 al año — 2 meses gratis",
     features: [
-      "1 doctor",
-      "150 pacientes",
+      "1 doctor + 1 consultorio",
+      "150 pacientes activos",
       "100 citas/mes",
-      "1 consultorio",
-      "1 miembro de equipo",
-      "Asistente IA (básico)",
-      "Addons disponibles",
+      "Historia clínica SOAP + recetas",
+      "Recordatorios WhatsApp y email",
+      "Reserva online para pacientes",
+      "Asistente IA (30 consultas/mes)",
+      "Reportes básicos",
     ],
     highlight: false,
     badge: null,
@@ -32,13 +33,14 @@ const plans = [
     anchor: "Menos de S/6 al día por tener tu centro organizado",
     anchorAnnual: "Ahorra S/339.80 al año — 2 meses gratis",
     features: [
-      "2 doctores",
-      "1,000 pacientes",
-      "Citas ilimitadas",
-      "4 consultorios",
-      "Hasta 4 miembros",
-      "Asistente IA (avanzado)",
-      "Addons disponibles",
+      "Hasta 5 doctores + 3 consultorios",
+      "1,000 pacientes · Citas ilimitadas",
+      "Hasta 8 miembros del equipo",
+      "Todo lo de Independiente, más:",
+      "Asistente IA (100 consultas/mes)",
+      "Reportes completos + exportación CSV",
+      "Resumen diario del equipo por email",
+      "3 módulos de especialidad incluidos",
     ],
     highlight: true,
     badge: "Más popular",
@@ -48,16 +50,17 @@ const plans = [
     priceMonthly: "569.90",
     priceAnnual: "474.92",
     savingsAnnual: "1,139.80",
-    anchor: "Con 10 doctores, son S/57 por doctor al mes",
+    anchor: "Con 10 doctores: S/57 por doctor al mes",
     anchorAnnual: "Ahorra S/1,139.80 al año — 2 meses gratis",
     features: [
-      "10 doctores",
-      "Pacientes ilimitados",
-      "Citas ilimitadas",
-      "10 consultorios",
-      "Hasta 14 miembros",
-      "Asistente IA (máximo)",
-      "Addons disponibles",
+      "Hasta 15 doctores + 10 consultorios",
+      "Pacientes y citas ilimitadas",
+      "Miembros de equipo ilimitados",
+      "Todo lo de Centro Médico, más:",
+      "Asistente IA sin límites",
+      "Todos los módulos de especialidad",
+      "Onboarding personalizado 1-on-1",
+      "Soporte prioritario (<4 horas)",
     ],
     highlight: false,
     badge: null,
@@ -198,6 +201,49 @@ export function Pricing() {
           <span className="font-medium text-slate-700">addons flexibles</span>:
           agrega doctores, consultorios o miembros de equipo adicionales sin cambiar de plan.
         </p>
+
+        {/* Enterprise banner */}
+        <div className="mt-12 mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 p-8 md:p-10 text-white shadow-xl">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+            <div>
+              <div className="flex items-center gap-3 mb-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 backdrop-blur">
+                  <Building2 className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Enterprise</h3>
+                  <p className="text-xs text-slate-400">Para clínicas con más de 15 doctores</p>
+                </div>
+              </div>
+              <p className="text-sm text-slate-300 leading-relaxed max-w-lg">
+                Infraestructura dedicada, funciones ultrapersonalizadas y escalabilidad sin límites.
+                Para operaciones que necesitan control total sobre datos, integraciones y soporte.
+              </p>
+              <div className="flex flex-wrap gap-3 mt-4">
+                {[
+                  { icon: Shield, text: "Base de datos dedicada" },
+                  { icon: Sparkles, text: "IA sin límites + reportes custom" },
+                  { icon: Phone, text: "Soporte dedicado 24/7" },
+                ].map((item) => (
+                  <span key={item.text} className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
+                    <item.icon className="h-3 w-3 text-emerald-400" />
+                    {item.text}
+                  </span>
+                ))}
+              </div>
+            </div>
+            <div className="shrink-0">
+              <Link
+                href="/contacto"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-slate-900 hover:bg-emerald-50 transition-colors whitespace-nowrap"
+              >
+                Contactar ventas
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <p className="text-[10px] text-slate-500 mt-2 text-center">Precio a medida</p>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
