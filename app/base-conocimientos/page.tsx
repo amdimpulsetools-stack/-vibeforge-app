@@ -25,42 +25,12 @@ const POPULAR_SEARCHES = [
 ];
 
 const FEATURED_ARTICLES = [
-  {
-    title: "Comienza con REPLACE: guía de inicio rápido",
-    desc: "Aprende a configurar tu cuenta, agregar doctores, crear servicios y agendar tu primera cita en menos de 10 minutos.",
-    category: "como-empezar",
-    readTime: "4 min",
-  },
-  {
-    title: "Cómo configurar recordatorios por WhatsApp",
-    desc: "Conecta WhatsApp Business API y activa recordatorios automáticos 24h y 2h antes de cada cita.",
-    category: "comunicacion",
-    readTime: "5 min",
-  },
-  {
-    title: "Crear notas clínicas SOAP con plantillas",
-    desc: "Usa el editor SOAP con autocompletado CIE-10, signos vitales y plantillas reutilizables por especialidad.",
-    category: "historia-clinica",
-    readTime: "6 min",
-  },
-  {
-    title: "Gestionar roles y permisos del equipo",
-    desc: "Configura los 4 roles (Owner, Admin, Recepcionista, Doctor) y define qué puede ver y hacer cada uno.",
-    category: "seguridad-roles",
-    readTime: "4 min",
-  },
-  {
-    title: "Registrar pagos y controlar deudas",
-    desc: "Cómo registrar pagos por cita, visualizar saldos pendientes y enviar recibos automáticos por email.",
-    category: "reportes",
-    readTime: "5 min",
-  },
-  {
-    title: "Configurar la reserva online para pacientes",
-    desc: "Genera un link público donde tus pacientes reservan 24/7. Sincronización automática con tu agenda.",
-    category: "agenda-citas",
-    readTime: "4 min",
-  },
+  { slug: "guia-inicio-rapido", title: "Comienza con REPLACE: guía de inicio rápido", desc: "Aprende a configurar tu cuenta, agregar doctores, crear servicios y agendar tu primera cita en menos de 10 minutos.", category: "como-empezar", readTime: "4 min" },
+  { slug: "configurar-recordatorios-whatsapp", title: "Cómo configurar recordatorios por WhatsApp", desc: "Conecta WhatsApp Business API y activa recordatorios automáticos 24h y 2h antes de cada cita.", category: "comunicacion", readTime: "5 min" },
+  { slug: "notas-soap-plantillas", title: "Crear notas clínicas SOAP con plantillas", desc: "Usa el editor SOAP con autocompletado CIE-10, signos vitales y plantillas reutilizables por especialidad.", category: "historia-clinica", readTime: "6 min" },
+  { slug: "roles-permisos", title: "Gestionar roles y permisos del equipo", desc: "Configura los 4 roles (Owner, Admin, Recepcionista, Doctor) y define qué puede ver y hacer cada uno.", category: "seguridad-roles", readTime: "4 min" },
+  { slug: "registrar-pagos-deudas", title: "Registrar pagos y controlar deudas", desc: "Cómo registrar pagos por cita, visualizar saldos pendientes y enviar recibos automáticos por email.", category: "reportes", readTime: "5 min" },
+  { slug: "reserva-online-pacientes", title: "Configurar la reserva online para pacientes", desc: "Genera un link público donde tus pacientes reservan 24/7. Sincronización automática con tu agenda.", category: "agenda-citas", readTime: "4 min" },
 ];
 
 export default function BaseConocimientosPage() {
@@ -155,9 +125,10 @@ export default function BaseConocimientosPage() {
               {filteredArticles.map((article, idx) => {
                 const catInfo = CATEGORIES.find((c) => c.slug === article.category);
                 return (
-                  <div
+                  <Link
                     key={idx}
-                    className="flex items-start justify-between gap-4 rounded-xl px-4 py-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 cursor-pointer group"
+                    href={`/base-conocimientos/${article.slug || ""}`}
+                    className="flex items-start justify-between gap-4 rounded-xl px-4 py-4 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 group"
                   >
                     <div className="min-w-0">
                       <h3 className="text-base font-bold text-slate-900 group-hover:text-emerald-700 transition-colors">
@@ -178,7 +149,7 @@ export default function BaseConocimientosPage() {
                         {article.readTime}
                       </span>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
