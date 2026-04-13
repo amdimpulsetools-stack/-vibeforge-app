@@ -456,7 +456,7 @@ export function AppointmentSidebar({
           {/* Date & Time — read-only (use Reprogramar for these) */}
           <div className="flex items-center gap-3">
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm">{appointment.appointment_date}</p>
+            <p className="text-sm">{appointment.appointment_date.split("-").reverse().join("/")}</p>
           </div>
           <div className="flex items-center gap-3">
             <Clock className="h-4 w-4 text-muted-foreground" />

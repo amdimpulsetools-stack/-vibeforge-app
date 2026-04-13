@@ -348,7 +348,7 @@ export default function AppointmentHistoryPage() {
 
                 return (
                   <tr key={appt.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-4 py-3 whitespace-nowrap">{appt.appointment_date}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">{appt.appointment_date.split("-").reverse().join("/")}</td>
                     <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                       {appt.start_time.slice(0, 5)} — {appt.end_time.slice(0, 5)}
                     </td>
