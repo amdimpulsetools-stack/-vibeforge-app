@@ -6,11 +6,18 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function formatDate(date: string | Date) {
-  return new Intl.DateTimeFormat("es", {
-    day: "numeric",
-    month: "short",
+  return new Intl.DateTimeFormat("es-PE", {
+    day: "2-digit",
+    month: "2-digit",
     year: "numeric",
-  }).format(new Date(date));
+  }).format(new Date(typeof date === "string" && !date.includes("T") ? date + "T12:00:00" : date));
+}
+
+/** Quick dd/mm/yyyy formatter for ISO date strings like "2026-02-21" */
+export function fmtDate(isoDate: string): string {
+  if (!isoDate || isoDate.length < 10) return isoDate || "";
+  const [y, m, d] = isoDate.slice(0, 10).split("-");
+  return `${d}/${m}/${y}`;
 }
 
 export function formatDateTime(date: string | Date) {

@@ -712,7 +712,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <StatusIcon className="h-4 w-4" style={{ color: statusColor }} />
-                        <span className="text-xs font-semibold">{appt.appointment_date}</span>
+                        <span className="text-xs font-semibold">{appt.appointment_date.split("-").reverse().join("/")}</span>
                         <span className="text-xs text-muted-foreground">
                           {appt.start_time.slice(0, 5)} — {appt.end_time.slice(0, 5)}
                         </span>
@@ -1003,7 +1003,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                             .filter((a) => a.status !== "cancelled")
                             .map((a) => (
                               <option key={a.id} value={a.id}>
-                                {a.appointment_date} — {a.services?.name} — S/. {Number(a.services?.base_price ?? 0).toFixed(2)}
+                                {a.appointment_date.split("-").reverse().join("/")} — {a.services?.name} — S/. {Number(a.services?.base_price ?? 0).toFixed(2)}
                               </option>
                             ))}
                         </select>
@@ -1042,7 +1042,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         <div>
                           <p className="text-xs font-medium">S/. {Number(p.amount).toFixed(2)}</p>
                           <p className="text-[10px] text-muted-foreground">
-                            {p.payment_date} {p.payment_method && `• ${p.payment_method}`}
+                            {p.payment_date.split("-").reverse().join("/")} {p.payment_method && `• ${p.payment_method}`}
                           </p>
                           {p.notes && (
                             <p className="text-[10px] text-muted-foreground">{p.notes}</p>
@@ -1258,7 +1258,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         <tbody>
                           {appointments.map((appt) => (
                             <tr key={appt.id} className="border-b border-border/50 hover:bg-muted/30">
-                              <td className="py-2.5 px-3">{appt.appointment_date}</td>
+                              <td className="py-2.5 px-3">{appt.appointment_date.split("-").reverse().join("/")}</td>
                               <td className="py-2.5 px-3 text-muted-foreground">{appt.start_time?.slice(0, 5)}</td>
                               <td className="py-2.5 px-3">
                                 <span className="flex items-center gap-1.5">
@@ -1334,7 +1334,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         <tbody>
                           {payments.map((pay) => (
                             <tr key={pay.id} className="border-b border-border/50">
-                              <td className="py-2.5 px-3">{pay.payment_date}</td>
+                              <td className="py-2.5 px-3">{pay.payment_date.split("-").reverse().join("/")}</td>
                               <td className="py-2.5 px-3 text-right font-medium text-emerald-600">S/. {Number(pay.amount).toFixed(2)}</td>
                               <td className="py-2.5 px-3 text-muted-foreground">{pay.payment_method || "—"}</td>
                               <td className="py-2.5 px-3 text-muted-foreground text-xs">{pay.notes || "—"}</td>
@@ -1376,11 +1376,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     <div className="space-y-3">
                       <div className="rounded-xl border border-border bg-muted/30 p-4">
                         <p className="text-xs text-muted-foreground">Primera cita</p>
-                        <p className="text-sm font-medium">{appointments.length > 0 ? appointments[appointments.length - 1]?.appointment_date : "—"}</p>
+                        <p className="text-sm font-medium">{appointments.length > 0 ? appointments[appointments.length - 1]?.appointment_date.split("-").reverse().join("/") : "—"}</p>
                       </div>
                       <div className="rounded-xl border border-border bg-muted/30 p-4">
                         <p className="text-xs text-muted-foreground">Última cita</p>
-                        <p className="text-sm font-medium">{appointments.length > 0 ? appointments[0]?.appointment_date : "—"}</p>
+                        <p className="text-sm font-medium">{appointments.length > 0 ? appointments[0]?.appointment_date.split("-").reverse().join("/") : "—"}</p>
                       </div>
                       <div className="rounded-xl border border-border bg-muted/30 p-4">
                         <p className="text-xs text-muted-foreground">Total de visitas</p>

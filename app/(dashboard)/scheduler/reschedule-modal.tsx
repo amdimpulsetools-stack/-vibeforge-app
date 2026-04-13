@@ -168,7 +168,7 @@ export function RescheduleModal({
           <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
             <p className="font-medium text-foreground">Cita actual:</p>
             <p>{appointment.patient_name} — {appointment.services?.name}</p>
-            <p>{appointment.appointment_date} · {appointment.start_time.slice(0, 5)} – {appointment.end_time.slice(0, 5)}</p>
+            <p>{appointment.appointment_date.split("-").reverse().join("/")} · {appointment.start_time.slice(0, 5)} – {appointment.end_time.slice(0, 5)}</p>
             <p>{appointment.offices?.name} · {appointment.doctors?.full_name}</p>
           </div>
 
