@@ -3,12 +3,14 @@
 import { useMemo, forwardRef, useImperativeHandle } from "react";
 import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Patient } from "@/types/admin";
+import { calculateAge } from "@/lib/export";
 import {
   Megaphone,
   Users,
   TrendingUp,
   Target,
   MapPin,
+  Cake,
 } from "lucide-react";
 import {
   PieChart,
@@ -232,6 +234,39 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
     ? ((patientsWithLocation / newPatientsCount) * 100).toFixed(0)
     : "0";
 
+  // ── Age statistics ────────────────────────────────────────────
+  const AGE_BUCKETS: { name: string; min: number; max: number }[] = [
+    { name: "0-17", min: 0, max: 17 },
+    { name: "18-30", min: 18, max: 30 },
+    { name: "31-45", min: 31, max: 45 },
+    { name: "46-60", min: 46, max: 60 },
+    { name: "60+", min: 61, max: 200 },
+  ];
+
+  const ageStats = useMemo(() => {
+    const ages: number[] = [];
+    const buckets = AGE_BUCKETS.map((b) => ({ name: b.name, value: 0 }));
+
+    patients.forEach((p) => {
+      const birthDate = (p as unknown as { birth_date?: string | null }).birth_date;
+      const age = calculateAge(birthDate);
+      if (age === null || age < 0 || age > 130) return;
+      ages.push(age);
+      const idx = AGE_BUCKETS.findIndex((b) => age >= b.min && age <= b.max);
+      if (idx >= 0) buckets[idx].value += 1;
+    });
+
+    const withBirthDate = ages.length;
+    const avg = withBirthDate > 0
+      ? Math.round((ages.reduce((s, a) => s + a, 0) / withBirthDate) * 10) / 10
+      : 0;
+    const coverage = newPatientsCount > 0
+      ? ((withBirthDate / newPatientsCount) * 100).toFixed(0)
+      : "0";
+
+    return { ages, buckets, withBirthDate, avg, coverage };
+  }, [patients, newPatientsCount]);
+
   // ── Imperative handle for parent export ──
   useImperativeHandle(ref, () => ({
     getExportConfig: (): ReportExportConfig => ({
@@ -273,10 +308,19 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
             return [d.name, d.value, `${total > 0 ? ((d.value / total) * 100).toFixed(1) : 0}%`];
           }),
         },
+        {
+          title: "Distribución por Edad",
+          headers: ["Rango de edad", "Pacientes", "Porcentaje"],
+          rows: ageStats.buckets.map((b) => [
+            b.name,
+            b.value,
+            `${ageStats.withBirthDate > 0 ? ((b.value / ageStats.withBirthDate) * 100).toFixed(1) : 0}%`,
+          ]),
+        },
       ],
       filename: `reporte_marketing_${dateFrom}_${dateTo}`,
     }),
-  }), [conversionData, originData, conversionByOrigin, departamentoData, distritoData, patients.length, newPatientsCount, dateFrom, dateTo]);
+  }), [conversionData, originData, conversionByOrigin, departamentoData, distritoData, patients.length, newPatientsCount, ageStats, dateFrom, dateTo]);
 
   return (
     <div className="space-y-6">
@@ -484,6 +528,87 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
             )}
           </div>
         </div>
+      </div>
+
+      {/* ── Edades de Pacientes ─────────────────────────────── */}
+      <div className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Cake className="h-5 w-5 text-primary" />
+            <h3 className="text-sm font-semibold">Edad de Pacientes</h3>
+          </div>
+          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
+            {ageStats.coverage}% con fecha de nacimiento
+          </span>
+        </div>
+
+        {ageStats.withBirthDate === 0 ? (
+          <p className="py-10 text-center text-sm text-muted-foreground">
+            Sin datos de fecha de nacimiento registrados en este periodo
+          </p>
+        ) : (
+          <>
+            <div className="grid gap-4 md:grid-cols-3 mb-5">
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Edad promedio
+                </p>
+                <p className="mt-1 text-2xl font-bold text-primary">
+                  {ageStats.avg} <span className="text-sm font-normal text-muted-foreground">años</span>
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Con fecha registrada
+                </p>
+                <p className="mt-1 text-2xl font-bold">
+                  {ageStats.withBirthDate}
+                  <span className="text-sm font-normal text-muted-foreground">
+                    {" / "}{newPatientsCount}
+                  </span>
+                </p>
+              </div>
+              <div className="rounded-lg border border-border bg-muted/20 p-3">
+                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Rango más frecuente
+                </p>
+                <p className="mt-1 text-2xl font-bold">
+                  {ageStats.buckets.reduce((max, b) => (b.value > max.value ? b : max), ageStats.buckets[0]).name}
+                  <span className="text-sm font-normal text-muted-foreground"> años</span>
+                </p>
+              </div>
+            </div>
+
+            <h4 className="text-xs font-semibold text-muted-foreground mb-3">
+              Distribución por Rango de Edad
+            </h4>
+            <ResponsiveContainer width="100%" height={240}>
+              <BarChart data={ageStats.buckets} barCategoryGap="30%">
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                <YAxis
+                  tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  tickLine={false}
+                  axisLine={false}
+                  allowDecimals={false}
+                />
+                <Tooltip content={<CustomTooltip />} cursor={false} />
+                <Bar
+                  dataKey="value"
+                  name="Pacientes"
+                  fill="#10b981"
+                  radius={999}
+                  animationDuration={800}
+                  animationEasing="ease-out"
+                />
+              </BarChart>
+            </ResponsiveContainer>
+          </>
+        )}
       </div>
 
       {/* Demographic detail table */}

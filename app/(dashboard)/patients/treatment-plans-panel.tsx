@@ -5,12 +5,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type {
   TreatmentPlanWithSessions,
-  TreatmentSession,
 } from "@/types/clinical-history";
 import {
   TREATMENT_STATUS_CONFIG,
   SESSION_STATUS_CONFIG,
 } from "@/types/clinical-history";
+import type { TreatmentPlanTemplateWithDoctor } from "@/types/treatment-plan-templates";
 import {
   ClipboardList,
   Plus,
@@ -20,6 +20,7 @@ import {
   X,
   Pause,
   RotateCcw,
+  LayoutTemplate,
 } from "lucide-react";
 
 interface TreatmentPlansPanelProps {
@@ -40,6 +41,12 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
   const [description, setDescription] = useState("");
   const [totalSessions, setTotalSessions] = useState("");
   const [notes, setNotes] = useState("");
+  const [diagnosisCode, setDiagnosisCode] = useState<string | null>(null);
+  const [diagnosisLabel, setDiagnosisLabel] = useState<string | null>(null);
+
+  // Templates
+  const [templates, setTemplates] = useState<TreatmentPlanTemplateWithDoctor[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
 
   const fetchPlans = useCallback(async () => {
     try {
@@ -52,7 +59,41 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
     setLoading(false);
   }, [patientId]);
 
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const res = await fetch("/api/treatment-plan-templates");
+      const json = await res.json();
+      setTemplates(json.data ?? []);
+    } catch {
+      // Silent: templates are optional
+    }
+  }, []);
+
   useEffect(() => { fetchPlans(); }, [fetchPlans]);
+  useEffect(() => { if (canEdit) fetchTemplates(); }, [fetchTemplates, canEdit]);
+
+  const applyTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) return;
+    const tpl = templates.find((t) => t.id === templateId);
+    if (!tpl) return;
+    if (tpl.title_template) setTitle(tpl.title_template);
+    else if (tpl.name) setTitle(tpl.name);
+    if (tpl.description) setDescription(tpl.description);
+    if (tpl.total_sessions != null) setTotalSessions(String(tpl.total_sessions));
+    setDiagnosisCode(tpl.diagnosis_code);
+    setDiagnosisLabel(tpl.diagnosis_label);
+  };
+
+  const resetForm = () => {
+    setTitle("");
+    setDescription("");
+    setTotalSessions("");
+    setNotes("");
+    setDiagnosisCode(null);
+    setDiagnosisLabel(null);
+    setSelectedTemplateId("");
+  };
 
   const handleCreate = async () => {
     if (!title.trim() || !doctorId) return;
@@ -68,12 +109,14 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
           description: description || null,
           total_sessions: totalSessions ? Number(totalSessions) : null,
           notes: notes || null,
+          diagnosis_code: diagnosisCode || null,
+          diagnosis_label: diagnosisLabel || null,
         }),
       });
       if (res.ok) {
         toast.success("Plan de tratamiento creado");
         setShowForm(false);
-        setTitle(""); setDescription(""); setTotalSessions(""); setNotes("");
+        resetForm();
         fetchPlans();
       } else {
         const json = await res.json();
@@ -142,6 +185,27 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
       {/* Create form */}
       {showForm && (
         <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+          {templates.length > 0 && (
+            <div className="space-y-1">
+              <label className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
+                <LayoutTemplate className="h-3 w-3" />
+                Aplicar plantilla (opcional)
+              </label>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => applyTemplate(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
+              >
+                <option value="">— Sin plantilla —</option>
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                    {t.total_sessions != null ? ` (${t.total_sessions} sesiones)` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <input
             type="text"
             value={title}
@@ -175,7 +239,7 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
                 Crear
               </button>
               <button
-                onClick={() => setShowForm(false)}
+                onClick={() => { setShowForm(false); resetForm(); }}
                 className="rounded-md border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent"
               >
                 <X className="h-3 w-3" />

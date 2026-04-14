@@ -83,6 +83,7 @@ const navEntries: NavEntry[] = [
       { titleKey: "nav.admin_lookups", href: "/admin/lookups", icon: ListOrdered },
       { titleKey: "nav.admin_members", href: "/admin/members", icon: UsersRound },
       { titleKey: "nav.admin_clinical_templates", href: "/admin/clinical-templates", icon: LayoutTemplate },
+      { titleKey: "nav.admin_treatment_plan_templates", href: "/admin/treatment-plan-templates", icon: ClipboardList },
       { titleKey: "nav.admin_exam_catalog", href: "/admin/exam-catalog", icon: FlaskConical },
     ],
   },

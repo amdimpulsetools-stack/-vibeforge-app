@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { parseBody } from "@/lib/api-utils";
 import { startTrialSchema } from "@/lib/validations/api";
+import { sendTrialWelcomeEmail } from "@/lib/trial-welcome-email";
 
 // POST /api/plans/start-trial — start a 14-day trial for a plan
 export async function POST(request: Request) {
@@ -107,6 +108,22 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  // Send welcome email (fire-and-forget, never blocks the response)
+  const { data: profile } = await supabase
+    .from("user_profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  sendTrialWelcomeEmail({
+    supabase,
+    organizationId: membership.organization_id,
+    ownerEmail: user.email,
+    ownerName: profile?.full_name ?? null,
+  }).catch((err) => {
+    console.warn("[start-trial] welcome email failed:", err);
+  });
 
   return NextResponse.json(subscription);
 }
