@@ -1,6 +1,6 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-12
+> **Última actualización:** 2026-04-14
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -93,6 +93,24 @@
   - Requisitos: cuenta con proveedor de facturación electrónica autorizado por SUNAT, certificado digital
   - Ideal para clínicas que actualmente emiten comprobantes manuales o en sistemas separados
 
+- [ ] **Descuentos condicionales a tratamientos según servicios** — Aplicar descuentos automáticos o sugeridos al registrar pagos de planes de tratamiento, condicionados por el/los servicio(s) incluidos:
+  - Reglas de descuento configurables en Admin → Servicios (o sección dedicada de "Descuentos y Promociones")
+  - Condiciones soportadas:
+    - Descuento aplicable solo a ciertos servicios (ej: "Fisioterapia", "Ortodoncia fase 2")
+    - Por cantidad de sesiones (ej: 10% al comprar 10+ sesiones del mismo servicio)
+    - Por pago adelantado del plan completo (ej: 15% si paga todas las sesiones por adelantado)
+    - Por combinación de servicios (ej: 20% si contrata Fisioterapia + Masajes)
+    - Vigencia temporal (fechas de inicio/fin de promoción)
+  - Tipo de descuento: porcentaje (%) o monto fijo (S/.)
+  - Al registrar el pago del tratamiento, el sistema:
+    - Detecta si el plan/servicio califica para algún descuento activo
+    - Muestra badge "Descuento disponible: 10%" junto al total
+    - Opción de aplicar con un click o ignorar
+    - Registra el descuento aplicado en el comprobante y en reportes
+  - Auditoría: log de descuentos aplicados (quién, cuándo, a qué paciente, monto original vs final)
+  - Reporte de impacto de descuentos (cuánto se ha descontado por período/servicio)
+  - Permisos: solo admin/owner puede crear/editar reglas; doctores/recepción solo aplicar
+
 ---
 
 ## 💬 CRM Multi-canal
@@ -133,6 +151,7 @@
 | 9 | Links Zoom/Meet automáticos | Alto | Medio (teleconsulta) | 🟠 Media-baja |
 | 10 | Facturación SUNAT (boletas/facturas) | Alto | Alto (requisito legal Perú) | 🟡 Media |
 | 11 | CRM multi-canal (WhatsApp + IG + FB) | Muy alto | Muy alto (diferenciador) | 🟡 Media |
+| 12 | Descuentos condicionales a tratamientos | Medio | Alto (conversión/fidelización) | 🟡 Media |
 
 ---
 
