@@ -120,3 +120,9 @@ export { clinicalNoteSchema, clinicalNoteUpdateSchema, signNoteSchema } from "./
 
 // ── Clinical Templates ──────────────────────────────────────────────
 export { clinicalTemplateSchema, clinicalTemplateUpdateSchema } from "./clinical-template";
+
+// ── Treatment Plan Templates ────────────────────────────────────────
+export {
+  treatmentPlanTemplateSchema,
+  treatmentPlanTemplateUpdateSchema,
+} from "./treatment-plan-template";
