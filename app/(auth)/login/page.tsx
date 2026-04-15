@@ -6,15 +6,62 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
-import { Loader2, Zap } from "lucide-react";
+import { AlertTriangle, Loader2, Mail, Zap } from "lucide-react";
 
 const REMEMBERED_EMAIL_KEY = "vibeforge_remembered_email";
+
+type AuthBanner = {
+  title: string;
+  description: string;
+  canResend: boolean;
+};
+
+function parseAuthError(query: URLSearchParams, hash: URLSearchParams): AuthBanner | null {
+  const code = query.get("error") || hash.get("error_code") || hash.get("error");
+  const desc = hash.get("error_description") || query.get("error_description");
+  if (!code) return null;
+
+  if (code === "otp_expired" || code === "access_denied") {
+    return {
+      title: "El enlace de confirmación expiró o ya fue usado",
+      description:
+        "Suele pasar cuando el escáner de seguridad de tu correo abre el enlace antes que tú. " +
+        "Ingresa tu email y te enviamos uno nuevo.",
+      canResend: true,
+    };
+  }
+  if (code === "exchange_failed") {
+    return {
+      title: "No pudimos completar el inicio de sesión",
+      description: "Intenta iniciar sesión de nuevo o solicita un nuevo enlace.",
+      canResend: true,
+    };
+  }
+  if (code === "auth_failed") {
+    return {
+      title: "No pudimos verificar el enlace",
+      description: desc
+        ? decodeURIComponent(desc.replace(/\+/g, " "))
+        : "El enlace no es válido. Intenta iniciar sesión o reenvía el correo de confirmación.",
+      canResend: true,
+    };
+  }
+  return {
+    title: "Error de autenticación",
+    description: desc
+      ? decodeURIComponent(desc.replace(/\+/g, " "))
+      : code,
+    canResend: false,
+  };
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [authBanner, setAuthBanner] = useState<AuthBanner | null>(null);
+  const [resending, setResending] = useState(false);
   const router = useRouter();
 
   // Load remembered email on mount
@@ -24,7 +71,42 @@ export default function LoginPage() {
       setEmail(saved);
       setRememberMe(true);
     }
+
+    // Parse auth errors from both query string and hash fragment
+    if (typeof window !== "undefined") {
+      const query = new URLSearchParams(window.location.search);
+      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      const banner = parseAuthError(query, hash);
+      if (banner) {
+        setAuthBanner(banner);
+        // Clean URL (keep path only) so a refresh doesn't re-show the error
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
   }, []);
+
+  const handleResend = async () => {
+    if (!email) {
+      toast.error("Ingresa tu email primero");
+      return;
+    }
+    setResending(true);
+    const supabase = createClient();
+    const { error } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/onboarding`,
+      },
+    });
+    setResending(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Enlace enviado. Revisa tu correo (y spam).");
+    setAuthBanner(null);
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,6 +160,38 @@ export default function LoginPage() {
             Ingresa tus credenciales para continuar
           </p>
         </div>
+
+        {/* Auth error banner */}
+        {authBanner && (
+          <div className="rounded-2xl border border-amber-400/40 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-950/30">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div className="flex-1 space-y-2">
+                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                  {authBanner.title}
+                </p>
+                <p className="text-xs leading-relaxed text-amber-800/90 dark:text-amber-200/80">
+                  {authBanner.description}
+                </p>
+                {authBanner.canResend && (
+                  <button
+                    type="button"
+                    onClick={handleResend}
+                    disabled={resending}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-amber-400/60 bg-white px-3 py-1.5 text-xs font-medium text-amber-900 shadow-sm transition-colors hover:bg-amber-100 disabled:opacity-50 dark:border-amber-500/40 dark:bg-amber-900/40 dark:text-amber-100 dark:hover:bg-amber-900/60"
+                  >
+                    {resending ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Mail className="h-3.5 w-3.5" />
+                    )}
+                    Reenviar enlace de confirmación
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Form */}
         <div className="glass-card rounded-2xl p-7 shadow-xl">

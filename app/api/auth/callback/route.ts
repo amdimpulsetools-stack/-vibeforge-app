@@ -9,6 +9,16 @@ export async function GET(request: Request) {
   // Prevent open redirect: only allow relative paths, block protocol-relative URLs
   const next = rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/dashboard";
 
+  // Forward Supabase-provided errors (expired/used link, access denied, etc.)
+  const supabaseError = searchParams.get("error");
+  const supabaseErrorCode = searchParams.get("error_code");
+  if (supabaseError || supabaseErrorCode) {
+    const params = new URLSearchParams({
+      error: supabaseErrorCode || supabaseError || "auth_failed",
+    });
+    return NextResponse.redirect(`${origin}/login?${params.toString()}`);
+  }
+
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
@@ -25,7 +35,10 @@ export async function GET(request: Request) {
 
       return NextResponse.redirect(`${origin}${next}`);
     }
+    // exchange failed — forward a descriptive code
+    return NextResponse.redirect(`${origin}/login?error=exchange_failed`);
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth_failed`);
 }
+
