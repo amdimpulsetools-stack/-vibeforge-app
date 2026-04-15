@@ -278,7 +278,7 @@ export function StepService({ state, setState }: StepServiceProps) {
 
 // ── Shared bits ────────────────────────────────────────────────────
 const inputCls =
-  "flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all";
+  "flex h-11 w-full rounded-xl border border-input bg-card px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all";
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
