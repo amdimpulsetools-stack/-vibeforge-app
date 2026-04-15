@@ -15,7 +15,7 @@
    LIGHT THEME — Soft cool gray canvas with white cards, emerald accent
    ═══════════════════════════════════════════════════════════════════ */
 :root {
-  --background: #eef0f1;
+  --background: #fbfbfb;
   --foreground: oklch(0.14 0.012 260);
   --card: #ffffff;
   --card-foreground: oklch(0.14 0.012 260);
