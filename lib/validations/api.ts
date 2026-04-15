@@ -46,6 +46,11 @@ export const sendTestEmailSchema = z.object({
   to: z.string().email("Email de destinatario inválido"),
   subject: z.string().min(1, "Asunto requerido").max(200),
   body: z.string().min(1, "Cuerpo del correo requerido"),
+  /**
+   * Optional rich-text HTML body. When present, takes precedence over `body`
+   * (which becomes the plain-text fallback). Sanitized again server-side.
+   */
+  body_html: z.string().max(100_000).optional().or(z.literal("")),
   brand_color: z.string().optional(),
   logo_url: z.string().url().optional().or(z.literal("")),
   clinic_name: z.string().optional(),

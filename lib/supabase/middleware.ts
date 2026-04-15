@@ -116,6 +116,7 @@ export async function updateSession(request: NextRequest) {
 
     const s = session as {
       has_whatsapp: boolean;
+      onboarding_completed: boolean;
       organization_id: string | null;
       role: string | null;
       is_founder: boolean;
@@ -123,7 +124,10 @@ export async function updateSession(request: NextRequest) {
     };
 
     // 1. Onboarding incomplete — only for owners/admins (invited members skip this)
-    if (!s.has_whatsapp && (s.role === "owner" || s.role === "admin")) {
+    // Uses org-level `onboarding_completed_at` flag (migration 085). Falls back to
+    // `has_whatsapp` so deploys before the migration lands don't break the gate.
+    const onboardingDone = s.onboarding_completed ?? s.has_whatsapp;
+    if (!onboardingDone && (s.role === "owner" || s.role === "admin")) {
       const url = request.nextUrl.clone();
       url.pathname = "/onboarding";
       return applySecurityHeaders(NextResponse.redirect(url));

@@ -155,7 +155,7 @@ export async function GET(req: NextRequest) {
       // Fetch template for this org
       const { data: template } = await supabase
         .from("email_templates")
-        .select("id, slug, subject, body, is_enabled, wa_enabled")
+        .select("id, slug, subject, body, body_html, is_enabled, wa_enabled")
         .eq("organization_id", orgId)
         .eq("slug", window.slug)
         .eq("is_enabled", true)
@@ -310,14 +310,25 @@ export async function GET(req: NextRequest) {
 
         let subject = template.subject;
         let emailBody = template.body;
+        let emailBodyHtml = (template as { body_html?: string | null }).body_html ?? null;
 
         for (const [key, value] of Object.entries(variables)) {
           subject = subject.replaceAll(key, value);
           emailBody = emailBody.replaceAll(key, value);
+          if (emailBodyHtml) {
+            const escaped = value
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+            emailBodyHtml = emailBodyHtml.replaceAll(key, escaped);
+          }
         }
 
         const html = buildEmailHtml({
           body: emailBody,
+          bodyHtml: emailBodyHtml,
           brandColor,
           logoUrl,
           clinicName,

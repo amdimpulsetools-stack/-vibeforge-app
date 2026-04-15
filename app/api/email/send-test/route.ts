@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
     to,
     subject,
     body: emailBody,
+    body_html,
     brand_color,
     logo_url,
     clinic_name,
@@ -76,6 +77,7 @@ export async function POST(req: NextRequest) {
   try {
     const html = buildEmailHtml({
       body: emailBody,
+      bodyHtml: body_html || null,
       brandColor: brand_color || "#10b981",
       logoUrl: logo_url,
       clinicName: clinic_name,

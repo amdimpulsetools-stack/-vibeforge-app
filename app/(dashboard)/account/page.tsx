@@ -82,7 +82,7 @@ export default function AccountPage() {
     formState: { errors, isDirty },
   } = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
-    defaultValues: { full_name: "", phone: "", professional_title: null },
+    defaultValues: { full_name: "", phone: "", whatsapp_phone: "", professional_title: null },
   });
 
   const currentTitle = watch("professional_title");
@@ -111,13 +111,14 @@ export default function AccountPage() {
       const supabase = createClient();
       const { data } = await supabase
         .from("user_profiles")
-        .select("full_name, phone, avatar_url, avatar_option, professional_title, is_founder, role")
+        .select("full_name, phone, whatsapp_phone, avatar_url, avatar_option, professional_title, is_founder, role")
         .eq("id", user.id)
         .single();
 
       reset({
         full_name: data?.full_name ?? user.user_metadata?.full_name ?? "",
         phone: data?.phone ?? "",
+        whatsapp_phone: data?.whatsapp_phone ?? "",
         professional_title: (data?.professional_title as ProfessionalTitle) ?? null,
       });
       setAvatarUrl(data?.avatar_url ?? null);
@@ -237,6 +238,7 @@ export default function AccountPage() {
       id: user.id,
       full_name: values.full_name,
       phone: values.phone || null,
+      whatsapp_phone: values.whatsapp_phone || null,
       professional_title: values.professional_title || null,
     });
 
@@ -420,6 +422,22 @@ export default function AccountPage() {
                   {...register("phone")}
                   className="w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="whatsapp_phone">
+                  WhatsApp personal
+                </label>
+                <input
+                  id="whatsapp_phone"
+                  type="tel"
+                  placeholder="+51 987 654 321"
+                  {...register("whatsapp_phone")}
+                  className="w-full rounded-lg border border-input bg-background/50 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                />
+                {errors.whatsapp_phone && (
+                  <p className="text-[11px] text-destructive">{errors.whatsapp_phone.message}</p>
+                )}
               </div>
 
               {orgRole !== "receptionist" && (
