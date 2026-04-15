@@ -31,6 +31,7 @@ import {
   Megaphone,
   CalendarCheck,
   MessageCircle,
+  RefreshCw,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -139,6 +140,7 @@ export default function EmailSettingsTab() {
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [seedingTemplates, setSeedingTemplates] = useState(false);
 
   // ── Fetch data ─────────────────────────────────────────────────────────────
 
@@ -264,6 +266,67 @@ export default function EmailSettingsTab() {
             </p>
           </div>
         </div>
+
+        {(() => {
+          const HIDDEN_SLUGS = new Set([
+            "team_new_appointment",
+            "team_cancellation",
+            "patient_post_consultation",
+            "patient_review_request",
+            "marketing_campaign",
+            "payment_pending",
+          ]);
+          const hasAny = templates.some((tpl) => !HIDDEN_SLUGS.has(tpl.slug));
+          if (hasAny) return null;
+          return (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/60 bg-muted/20 px-6 py-10 text-center">
+              <Mail className="h-8 w-8 text-muted-foreground/60" />
+              <div className="space-y-1">
+                <p className="text-sm font-medium">
+                  {t("email.no_templates_title")}
+                </p>
+                <p className="text-xs text-muted-foreground max-w-sm">
+                  {t("email.no_templates_description")}
+                </p>
+              </div>
+              {isOrgAdmin && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setSeedingTemplates(true);
+                    try {
+                      const res = await fetch("/api/email-templates/seed", {
+                        method: "POST",
+                      });
+                      const json = await res.json().catch(() => ({}));
+                      if (!res.ok) {
+                        toast.error(json.error ?? t("email.seed_error"));
+                        return;
+                      }
+                      toast.success(t("email.seed_success"));
+                      await fetchData();
+                    } catch (err) {
+                      const msg =
+                        err instanceof Error ? err.message : "Error";
+                      toast.error(msg);
+                    } finally {
+                      setSeedingTemplates(false);
+                    }
+                  }}
+                  disabled={seedingTemplates}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                >
+                  {seedingTemplates ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  {t("email.seed_button")}
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
         {CATEGORIES.map((category) => {
           // Hide unimplemented templates
