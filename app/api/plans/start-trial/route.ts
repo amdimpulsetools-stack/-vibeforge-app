@@ -1,8 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { parseBody } from "@/lib/api-utils";
 import { startTrialSchema } from "@/lib/validations/api";
 import { sendTrialWelcomeEmail } from "@/lib/trial-welcome-email";
+
+export const runtime = "nodejs";
 
 // POST /api/plans/start-trial — start a 14-day trial for a plan
 export async function POST(request: Request) {
@@ -70,7 +72,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "plan_not_found" }, { status: 404 });
   }
 
-  // Check for existing active/trialing subscription
+  // Check for existing active/trialing subscription — those block a new trial
   const { data: existing } = await supabase
     .from("organization_subscriptions")
     .select("id, status")
@@ -83,6 +85,18 @@ export async function POST(request: Request) {
       { error: "Ya tienes una suscripción activa" },
       { status: 409 }
     );
+  }
+
+  // Clean up stale pending rows (from abandoned Mercado Pago checkouts, etc.)
+  // so they don't clutter the table. Failures here are non-fatal.
+  const { error: cleanupError } = await supabase
+    .from("organization_subscriptions")
+    .delete()
+    .eq("organization_id", membership.organization_id)
+    .in("status", ["pending", "expired", "canceled"]);
+
+  if (cleanupError) {
+    console.warn("[start-trial] cleanup of stale rows failed:", cleanupError.message);
   }
 
   // Create trial subscription (14 days)
@@ -102,27 +116,40 @@ export async function POST(request: Request) {
     .single();
 
   if (subError) {
-    console.error("Trial creation error:", subError);
+    console.error("[start-trial] subscription insert failed:", JSON.stringify(subError));
     return NextResponse.json(
-      { error: "trial_creation_failed" },
+      {
+        error: "trial_creation_failed",
+        detail: subError.message,
+        code: subError.code,
+      },
       { status: 500 }
     );
   }
 
-  // Send welcome email (fire-and-forget, never blocks the response)
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("full_name")
-    .eq("id", user.id)
-    .maybeSingle();
+  // Send welcome email AFTER the response is sent, so it never blocks the
+  // client. `after` runs in a post-response phase in Vercel's runtime and
+  // swallows its own errors inside sendTrialWelcomeEmail.
+  const ownerEmail = user.email;
+  const organizationId = membership.organization_id;
 
-  sendTrialWelcomeEmail({
-    supabase,
-    organizationId: membership.organization_id,
-    ownerEmail: user.email,
-    ownerName: profile?.full_name ?? null,
-  }).catch((err) => {
-    console.warn("[start-trial] welcome email failed:", err);
+  after(async () => {
+    try {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      await sendTrialWelcomeEmail({
+        supabase,
+        organizationId,
+        ownerEmail,
+        ownerName: profile?.full_name ?? null,
+      });
+    } catch (err) {
+      console.warn("[start-trial] welcome email failed:", err);
+    }
   });
 
   return NextResponse.json(subscription);

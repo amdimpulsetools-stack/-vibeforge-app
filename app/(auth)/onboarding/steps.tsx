@@ -244,6 +244,9 @@ export function StepService({ state, setState }: StepServiceProps) {
             onChange={(e) => setState({ serviceName: e.target.value })}
             className={inputCls}
           />
+          <p className="text-xs text-muted-foreground">
+            Se creará automáticamente la categoría <span className="font-medium">General</span>. Podrás reorganizar luego desde Admin → Servicios.
+          </p>
         </Field>
         <div className="grid grid-cols-2 gap-4">
           <Field label="Duración (min)">
