@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-04-12
-> **Versión:** 0.8.0
-> **Estado:** MVP — desplegado en Vercel (producción) + Landing/Blog/SEO
+> **Última actualización:** 2026-04-15
+> **Versión:** 0.8.1
+> **Estado:** MVP — desplegado en Vercel (producción) + Landing/Blog/SEO + Hardening UX Trial/Auth
 
 ---
 
@@ -1241,6 +1241,46 @@ MP_TEST_PAYER_EMAIL=      # Email del comprador de prueba MP (solo test mode)
 - **V1.3:** Mensajes masivos WhatsApp API (marketing automation)
 - **V1.4:** Boletas/Facturas SUNAT (Nubefact o similar)
 - **V2.0:** IA avanzada (resúmenes automáticos, sugerencias diagnóstico, analytics predictivo)
+
+---
+
+## 21.7. Changelog — Sesión 2026-04-15 (v0.8.1) — Hardening UX Trial/Auth + Tema
+
+### Tema visual (surface hierarchy)
+- `--background`: `#eef0f1` → `#fbfbfb` (fondo general más claro)
+- Inputs, textareas y campos del onboarding: `bg-transparent` / `bg-background/50` → `bg-card` (blanco `#ffffff`)
+- Archivos: `app/globals.css`, `components/ui/input.tsx`, `components/ui/textarea.tsx`, `app/(auth)/onboarding/steps.tsx`
+- Jerarquía resultante: fondo gris suave `#fbfbfb` → cards `#ffffff` → inputs blancos con borde
+
+### Auth — manejo de `otp_expired` / `access_denied`
+- **Problema:** el escáner de seguridad del correo (Gmail/Outlook) abre el enlace de confirmación antes que el usuario, consumiendo el link PKCE único. El usuario veía una URL cruda con `#error=access_denied&error_code=otp_expired`.
+- **Fix en `app/api/auth/callback/route.ts`:** detecta `error` / `error_code` de Supabase en query params y redirige a `/login?error=<code>` con el código preservado. Añadido branch `exchange_failed` para fallos de `exchangeCodeForSession`.
+- **Fix en `app/(auth)/login/page.tsx`:** nueva función `parseAuthError(query, hash)` que lee tanto query string como hash fragment. Banner ámbar (AlertTriangle) explica el problema en español, ofrece botón **"Reenviar enlace de confirmación"** que llama `supabase.auth.resend({ type: "signup" })`. Limpia la URL con `history.replaceState` tras mostrar el banner.
+- Códigos manejados: `otp_expired`, `access_denied`, `exchange_failed`, `auth_failed`.
+
+### Onboarding — hint sobre categoría "General"
+- Step 4 (primer servicio) ahora muestra texto aclaratorio: *"Se creará automáticamente la categoría **General**. Podrás reorganizar luego desde Admin → Servicios."*
+- Clarifica el comportamiento silencioso del backend (que auto-crea la categoría si no existe) sin pedirle al usuario un campo extra.
+- Archivo: `app/(auth)/onboarding/steps.tsx`.
+
+### Trial de 14 días — hardening end-to-end
+- **Runtime explícito:** `export const runtime = "nodejs"` en `/api/plans/start-trial` (nodemailer requiere Node, no Edge).
+- **Limpieza de filas huérfanas:** al iniciar el trial se borran filas `pending | expired | canceled` de la misma org (las sobras de checkouts Mercado Pago abandonados ya no bloquean reintentos).
+- **Email no bloqueante:** `sendTrialWelcomeEmail` se programa con `after()` de `next/server` para correr en fase post-respuesta, evitando que el `socketTimeout: 15s` de nodemailer retenga la función serverless y el cliente reciba timeout.
+- **Errores transparentes:** si el insert de `organization_subscriptions` falla, la API devuelve `{ error, detail, code }` con el mensaje real de Supabase (antes era un genérico `trial_creation_failed`).
+- **Cliente:** `select-plan/page.tsx` `handleStartTrial` ahora hace `res.text()` primero + `JSON.parse` con fallback; si el backend responde HTML (ej. 504 de Vercel), el usuario ve el mensaje real en vez de `"Error de conexión"`. El catch usa `err.message` cuando está disponible.
+
+### Limpieza DB (producción)
+- Eliminada fila `organization_subscriptions` huérfana (`cfe38e38-adb8-4a73-815c-95ff2fbcd580`, status=`pending`) de la org `db445605-5587-4b87-a732-abfd8152ee34` (chaivana).
+
+### Diagnóstico documentado — `email rate limit exceeded`
+- **No es bug del código:** es el límite del SMTP interno de Supabase (2 correos/hora/proyecto) cuando se hacen múltiples pruebas de signup/reenvío.
+- Solución recomendada: configurar **Custom SMTP** en Supabase Dashboard → *Authentication → SMTP Settings* con las mismas credenciales `SMTP_HOST/USER/PASS` que ya usa la app. Beneficios: elimina el límite de 2/hora y hace que los correos salgan desde el dominio propio (reduce drásticamente el `otp_expired` por escáneres de seguridad).
+
+### Commits
+- `710cc11` — tema `#fbfbfb` + inputs `#ffffff`
+- `646d642` — auth callback + banner ámbar con resend
+- `bbec0e6` — trial start hardening + mensajes de error reales + hint categoría General
 
 ---
 
