@@ -18,6 +18,11 @@ export const profileSchema = z.object({
     .max(20, "El celular no puede superar 20 caracteres")
     .optional()
     .or(z.literal("")),
+  whatsapp_phone: z
+    .string()
+    .max(20, "El WhatsApp no puede superar 20 caracteres")
+    .optional()
+    .or(z.literal("")),
   professional_title: z
     .enum(["doctor", "especialista", "licenciada"])
     .nullable()
