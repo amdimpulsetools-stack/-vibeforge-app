@@ -53,43 +53,73 @@ interface NavGroup {
 
 type NavEntry = NavItem | NavGroup;
 
+interface NavSection {
+  labelKey?: string;
+  adminOnly?: boolean;
+  entries: NavEntry[];
+}
+
 function isNavGroup(entry: NavEntry): entry is NavGroup {
   return "items" in entry;
 }
 
-const navEntries: NavEntry[] = [
-  // Dashboard: visible to all roles (doctor sees personal, admin sees org-wide)
-  { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
+const navSections: NavSection[] = [
   {
-    titleKey: "nav.scheduler",
-    icon: CalendarDays,
-    items: [
-      { titleKey: "nav.scheduler_calendar", href: "/scheduler", icon: CalendarDays },
-      { titleKey: "nav.scheduler_followups", href: "/scheduler/follow-ups", icon: ClipboardCheck },
-      { titleKey: "nav.scheduler_history", href: "/scheduler/history", icon: History },
+    labelKey: "nav.section_main",
+    entries: [
+      { titleKey: "nav.dashboard", href: "/dashboard", icon: LayoutDashboard },
     ],
   },
-  { titleKey: "nav.patients", href: "/patients", icon: Users },
-  // Reports: admin+ only
-  { titleKey: "nav.reports", href: "/reports", icon: BarChart3, adminOnly: true },
   {
-    titleKey: "nav.admin",
-    icon: ShieldCheck,
+    labelKey: "nav.section_work",
+    entries: [
+      {
+        titleKey: "nav.scheduler",
+        icon: CalendarDays,
+        items: [
+          { titleKey: "nav.scheduler_calendar", href: "/scheduler", icon: CalendarDays },
+          { titleKey: "nav.scheduler_followups", href: "/scheduler/follow-ups", icon: ClipboardCheck },
+          { titleKey: "nav.scheduler_history", href: "/scheduler/history", icon: History },
+        ],
+      },
+      { titleKey: "nav.patients", href: "/patients", icon: Users },
+    ],
+  },
+  {
+    labelKey: "nav.section_insights",
     adminOnly: true,
-    items: [
-      { titleKey: "nav.admin_offices", href: "/admin/offices", icon: Building2 },
-      { titleKey: "nav.admin_doctors", href: "/admin/doctors", icon: Stethoscope },
-      { titleKey: "nav.admin_services", href: "/admin/services", icon: ClipboardList },
-      { titleKey: "nav.admin_lookups", href: "/admin/lookups", icon: ListOrdered },
-      { titleKey: "nav.admin_members", href: "/admin/members", icon: UsersRound },
-      { titleKey: "nav.admin_clinical_templates", href: "/admin/clinical-templates", icon: LayoutTemplate },
-      { titleKey: "nav.admin_treatment_plan_templates", href: "/admin/treatment-plan-templates", icon: ClipboardList },
-      { titleKey: "nav.admin_exam_catalog", href: "/admin/exam-catalog", icon: FlaskConical },
+    entries: [
+      { titleKey: "nav.reports", href: "/reports", icon: BarChart3, adminOnly: true },
     ],
   },
-  { titleKey: "nav.account", href: "/account", icon: UserCircle },
-  // Settings: admin+ only
-  { titleKey: "nav.settings", href: "/settings", icon: Settings, adminOnly: true },
+  {
+    labelKey: "nav.section_management",
+    adminOnly: true,
+    entries: [
+      {
+        titleKey: "nav.admin",
+        icon: ShieldCheck,
+        adminOnly: true,
+        items: [
+          { titleKey: "nav.admin_offices", href: "/admin/offices", icon: Building2 },
+          { titleKey: "nav.admin_doctors", href: "/admin/doctors", icon: Stethoscope },
+          { titleKey: "nav.admin_services", href: "/admin/services", icon: ClipboardList },
+          { titleKey: "nav.admin_lookups", href: "/admin/lookups", icon: ListOrdered },
+          { titleKey: "nav.admin_members", href: "/admin/members", icon: UsersRound },
+          { titleKey: "nav.admin_clinical_templates", href: "/admin/clinical-templates", icon: LayoutTemplate },
+          { titleKey: "nav.admin_treatment_plan_templates", href: "/admin/treatment-plan-templates", icon: ClipboardList },
+          { titleKey: "nav.admin_exam_catalog", href: "/admin/exam-catalog", icon: FlaskConical },
+        ],
+      },
+    ],
+  },
+  {
+    labelKey: "nav.section_settings",
+    entries: [
+      { titleKey: "nav.account", href: "/account", icon: UserCircle },
+      { titleKey: "nav.settings", href: "/settings", icon: Settings, adminOnly: true },
+    ],
+  },
 ];
 
 import { useMobileNav } from "./mobile-nav-context";
@@ -161,7 +191,7 @@ export function Sidebar() {
           <item.icon
             className={cn(
               "h-[18px] w-[18px] shrink-0 transition-colors",
-              isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+              isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
             )}
           />
           {!collapsed && <span className="truncate">{t(item.titleKey)}</span>}
@@ -197,7 +227,7 @@ export function Sidebar() {
           <group.icon
             className={cn(
               "h-[18px] w-[18px] shrink-0 transition-colors",
-              groupActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+              groupActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
             )}
           />
           {!collapsed && (
@@ -296,10 +326,29 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="relative flex-1 space-y-0.5 overflow-y-auto p-2.5">
-        {navEntries.map((entry) =>
-          isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)
-        )}
+      <nav className="relative flex-1 overflow-y-auto p-2.5">
+        {navSections.map((section, idx) => {
+          if (section.adminOnly && !isAdmin) return null;
+          // Filter visible entries to avoid empty sections
+          const visibleEntries = section.entries.filter(
+            (e) => !((e as { adminOnly?: boolean }).adminOnly) || isAdmin
+          );
+          if (visibleEntries.length === 0) return null;
+          return (
+            <div key={section.labelKey ?? idx} className={cn(idx > 0 && "mt-4")}>
+              {!collapsed && section.labelKey && (
+                <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  {t(section.labelKey)}
+                </div>
+              )}
+              <div className="space-y-0.5">
+                {visibleEntries.map((entry) =>
+                  isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)
+                )}
+              </div>
+            </div>
+          );
+        })}
 
         {/* Founder links (platform superuser) */}
         {isFounder && (
@@ -334,7 +383,7 @@ export function Sidebar() {
             <Headphones
               className={cn(
                 "h-[18px] w-[18px] shrink-0 transition-colors",
-                isPathActive("/support") ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                isPathActive("/support") ? "text-primary" : "text-primary/70 group-hover:text-primary"
               )}
             />
             {!collapsed && <span className="truncate">{t("nav.support")}</span>}

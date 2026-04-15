@@ -12,14 +12,14 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   LIGHT THEME — Warm ivory with teal-emerald accent
+   LIGHT THEME — Soft cool gray canvas with white cards, emerald accent
    ═══════════════════════════════════════════════════════════════════ */
 :root {
-  --background: oklch(1 0 0);
+  --background: #eef0f1;
   --foreground: oklch(0.14 0.012 260);
-  --card: oklch(1 0 0);
+  --card: #ffffff;
   --card-foreground: oklch(0.14 0.012 260);
-  --popover: oklch(1 0 0);
+  --popover: #ffffff;
   --popover-foreground: oklch(0.14 0.012 260);
   --primary: oklch(0.55 0.175 163);
   --primary-foreground: oklch(0.98 0.005 163);
@@ -36,7 +36,7 @@
   --ring: oklch(0.55 0.175 163);
   --radius: 0.75rem;
   /* Extended tokens */
-  --sidebar-bg: oklch(0.97 0.004 80);
+  --sidebar-bg: #ffffff;
   --glow-primary: oklch(0.55 0.175 163 / 0.08);
   --warm-accent: oklch(0.72 0.14 75);
 }

@@ -31,6 +31,11 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.admin_exam_catalog": "Catálogo de Exámenes",
     "nav.founder": "Founder",
     "nav.integrations": "Integraciones",
+    "nav.section_main": "Principal",
+    "nav.section_work": "Trabajo",
+    "nav.section_insights": "Análisis",
+    "nav.section_management": "Administración",
+    "nav.section_settings": "Preferencias",
 
     // Account page
     "account.title": "Mi cuenta",
@@ -629,6 +634,11 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.admin_exam_catalog": "Exam Catalog",
     "nav.founder": "Founder",
     "nav.integrations": "Integraciones",
+    "nav.section_main": "Main",
+    "nav.section_work": "Work",
+    "nav.section_insights": "Insights",
+    "nav.section_management": "Management",
+    "nav.section_settings": "Preferences",
 
     // Account page
     "account.title": "My Account",
