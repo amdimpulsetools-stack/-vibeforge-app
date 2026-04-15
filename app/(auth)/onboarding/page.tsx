@@ -1,189 +1,314 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
-import { Loader2, Zap, LogOut, ChevronDown, Search, Check } from "lucide-react";
+import { Loader2, Zap, LogOut, ArrowLeft, ArrowRight, Check, X } from "lucide-react";
+import {
+  StepWelcome,
+  StepPersonal,
+  StepClinic,
+  StepHours,
+  StepService,
+} from "./steps";
+import { COUNTRIES, TOTAL_STEPS, type Specialty, type WizardState } from "./types";
 
-const COUNTRIES = [
-  { code: "PE", dial: "+51", flag: "🇵🇪", name: "Perú" },
-  { code: "MX", dial: "+52", flag: "🇲🇽", name: "México" },
-  { code: "CO", dial: "+57", flag: "🇨🇴", name: "Colombia" },
-  { code: "AR", dial: "+54", flag: "🇦🇷", name: "Argentina" },
-  { code: "CL", dial: "+56", flag: "🇨🇱", name: "Chile" },
-  { code: "EC", dial: "+593", flag: "🇪🇨", name: "Ecuador" },
-  { code: "BO", dial: "+591", flag: "🇧🇴", name: "Bolivia" },
-  { code: "PY", dial: "+595", flag: "🇵🇾", name: "Paraguay" },
-  { code: "UY", dial: "+598", flag: "🇺🇾", name: "Uruguay" },
-  { code: "VE", dial: "+58", flag: "🇻🇪", name: "Venezuela" },
-  { code: "BR", dial: "+55", flag: "🇧🇷", name: "Brasil" },
-  { code: "US", dial: "+1", flag: "🇺🇸", name: "Estados Unidos" },
-  { code: "ES", dial: "+34", flag: "🇪🇸", name: "España" },
-];
-
-interface Specialty {
-  id: string;
-  name: string;
-  slug: string;
-  description: string | null;
-}
+const INITIAL_STATE: WizardState = {
+  fullName: "",
+  phone: "",
+  country: COUNTRIES[0],
+  selectedSpecialty: null,
+  clinicName: "",
+  clinicPhone: "",
+  clinicEmail: "",
+  startHour: 8,
+  endHour: 20,
+  interval: 15,
+  activeDays: [1, 2, 3, 4, 5], // L-V by default
+  serviceName: "",
+  serviceDuration: 30,
+  servicePrice: "",
+};
 
 export default function OnboardingPage() {
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [country, setCountry] = useState(COUNTRIES[0]);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [specialties, setSpecialties] = useState<Specialty[]>([]);
-  const [selectedSpecialty, setSelectedSpecialty] = useState<Specialty | null>(null);
-  const [specialtySearch, setSpecialtySearch] = useState("");
-  const [specialtyDropdownOpen, setSpecialtyDropdownOpen] = useState(false);
   const router = useRouter();
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const specialtyDropdownRef = useRef<HTMLDivElement>(null);
+  const [step, setStep] = useState(0);
+  const [state, setState] = useState<WizardState>(INITIAL_STATE);
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  // Close dropdowns on outside click
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
-      }
-      if (specialtyDropdownRef.current && !specialtyDropdownRef.current.contains(e.target as Node)) {
-        setSpecialtyDropdownOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
+  const patchState = (patch: Partial<WizardState>) =>
+    setState((prev) => ({ ...prev, ...patch }));
 
-  // Fetch specialties
+  // ── Auth + prefill ────────────────────────────────────────────
   useEffect(() => {
-    const fetchSpecialties = async () => {
+    const init = async () => {
       const supabase = createClient();
-      const { data } = await supabase
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.push("/register");
+        return;
+      }
+      setUserEmail(user.email ?? null);
+
+      // Already onboarded? Skip to select-plan.
+      const { data: membership } = await supabase
+        .from("organization_members")
+        .select("organization_id")
+        .eq("user_id", user.id)
+        .eq("is_active", true)
+        .limit(1)
+        .single();
+
+      if (membership) {
+        const { data: org } = await supabase
+          .from("organizations")
+          .select("onboarding_completed_at, name")
+          .eq("id", membership.organization_id)
+          .single();
+        if (org?.onboarding_completed_at) {
+          router.push("/select-plan");
+          return;
+        }
+        if (org?.name) patchState({ clinicName: org.name });
+      }
+
+      const metaName = user.user_metadata?.full_name;
+      if (metaName) patchState({ fullName: metaName });
+      if (user.email) patchState({ clinicEmail: user.email });
+
+      // Fetch specialties
+      const { data: specs } = await supabase
         .from("specialties")
         .select("id, name, slug, description")
         .eq("is_active", true)
         .order("sort_order");
-      if (data) setSpecialties(data);
+      if (specs) setSpecialties(specs);
+
+      setCheckingAuth(false);
     };
-    fetchSpecialties();
+    init();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredSpecialties = useMemo(() => {
-    if (!specialtySearch.trim()) return specialties;
-    const term = specialtySearch.toLowerCase();
-    return specialties.filter(
-      (s) =>
-        s.name.toLowerCase().includes(term) ||
-        s.description?.toLowerCase().includes(term)
-    );
-  }, [specialties, specialtySearch]);
+  // ── Per-step validation ────────────────────────────────────────
+  const canAdvance = (() => {
+    if (step === 1) {
+      return state.fullName.trim().length > 0
+        && state.phone.trim().length >= 6
+        && state.selectedSpecialty !== null;
+    }
+    if (step === 2) {
+      // Clinic name + phone required; email optional but if given must look like one
+      if (state.clinicName.trim().length < 2) return false;
+      if (state.clinicPhone.trim().length < 6) return false;
+      if (state.clinicEmail && !/^\S+@\S+\.\S+$/.test(state.clinicEmail)) return false;
+      return true;
+    }
+    if (step === 3) {
+      return state.activeDays.length > 0 && state.endHour > state.startHour;
+    }
+    return true; // step 0 + step 4 (service is optional)
+  })();
 
-  // Check auth and pre-fill name if available
-  useEffect(() => {
-    const init = async () => {
-      const supabase = createClient();
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
+  // ── Save everything + complete ─────────────────────────────────
+  const handleFinish = async () => {
+    if (!canAdvance) return;
+    setSaving(true);
+    const supabase = createClient();
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push("/register");
         return;
       }
 
-      setUserEmail(user.email ?? null);
+      const fullPhone = `${state.country.dial}${state.phone.replace(/\D/g, "")}`;
 
-      // Pre-fill name from user metadata if available
-      const metaName = user.user_metadata?.full_name;
-      if (metaName) setFullName(metaName);
-
-      // Check if already onboarded (has phone number)
-      const { data: profile } = await supabase
+      // 1. User profile
+      await supabase
         .from("user_profiles")
-        .select("whatsapp_phone")
-        .eq("id", user.id)
-        .single();
+        .update({
+          full_name: state.fullName.trim(),
+          whatsapp_phone: fullPhone,
+        })
+        .eq("id", user.id);
 
-      if (profile?.whatsapp_phone) {
-        router.push("/select-plan");
-        return;
-      }
+      await supabase.auth.updateUser({ data: { full_name: state.fullName.trim() } });
 
-      setCheckingAuth(false);
-    };
-    init();
-  }, [router]);
-
-  const isFormValid = fullName.trim().length > 0 && phone.trim().length >= 6 && selectedSpecialty !== null;
-
-  const handleSubmit = async () => {
-    if (!isFormValid) return;
-    setLoading(true);
-
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      router.push("/register");
-      return;
-    }
-
-    const fullPhone = `${country.dial}${phone.replace(/\D/g, "")}`;
-
-    // Update user profile
-    const { error } = await supabase
-      .from("user_profiles")
-      .update({
-        full_name: fullName.trim(),
-        whatsapp_phone: fullPhone,
-      })
-      .eq("id", user.id);
-
-    if (error) {
-      toast.error("Error al guardar tu información");
-      setLoading(false);
-      return;
-    }
-
-    // Also update auth metadata
-    await supabase.auth.updateUser({
-      data: { full_name: fullName.trim() },
-    });
-
-    // Save specialty to organization
-    if (selectedSpecialty) {
+      // 2. Org + specialty
       const { data: membership } = await supabase
         .from("organization_members")
         .select("organization_id")
         .eq("user_id", user.id)
+        .eq("is_active", true)
         .limit(1)
         .single();
 
-      if (membership) {
-        // Set primary specialty
+      if (!membership) {
+        toast.error("No se encontró tu organización");
+        setSaving(false);
+        return;
+      }
+      const orgId = membership.organization_id;
+
+      if (state.selectedSpecialty) {
         await supabase
           .from("organizations")
-          .update({ primary_specialty_id: selectedSpecialty.id })
-          .eq("id", membership.organization_id);
+          .update({
+            name: state.clinicName.trim(),
+            primary_specialty_id: state.selectedSpecialty.id,
+          })
+          .eq("id", orgId);
 
-        // Link in organization_specialties
         await supabase
           .from("organization_specialties")
-          .upsert({
-            organization_id: membership.organization_id,
-            specialty_id: selectedSpecialty.id,
-          }, { onConflict: "organization_id,specialty_id" });
+          .upsert(
+            { organization_id: orgId, specialty_id: state.selectedSpecialty.id },
+            { onConflict: "organization_id,specialty_id" }
+          );
+      } else {
+        await supabase
+          .from("organizations")
+          .update({ name: state.clinicName.trim() })
+          .eq("id", orgId);
       }
+
+      // 3. Global variables — clinic_phone, clinic_email
+      //    Upsert the two keys independently to avoid trampling unrelated rows.
+      if (state.clinicPhone.trim()) {
+        await supabase
+          .from("global_variables")
+          .upsert(
+            {
+              organization_id: orgId,
+              key: "clinic_phone",
+              name: "Teléfono de contacto",
+              value: state.clinicPhone.trim(),
+              description: "Teléfono principal de la clínica",
+              sort_order: 2,
+            },
+            { onConflict: "organization_id,key" }
+          );
+      }
+      if (state.clinicEmail.trim()) {
+        await supabase
+          .from("global_variables")
+          .upsert(
+            {
+              organization_id: orgId,
+              key: "clinic_email",
+              name: "Email de contacto",
+              value: state.clinicEmail.trim(),
+              description: "Email principal de la clínica",
+              sort_order: 3,
+            },
+            { onConflict: "organization_id,key" }
+          );
+      }
+
+      // 4. Scheduler settings (hours + interval + disabled weekdays)
+      const allDays = [0, 1, 2, 3, 4, 5, 6];
+      const disabledWeekdays = allDays.filter((d) => !state.activeDays.includes(d));
+      await fetch("/api/scheduler-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          start_hour: state.startHour,
+          end_hour: state.endHour,
+          intervals: [state.interval],
+          disabled_weekdays: disabledWeekdays,
+        }),
+      });
+
+      // 5. First service (optional) — requires a category. Create "General"
+      //    per-org on-demand, then insert the service.
+      const serviceName = state.serviceName.trim();
+      if (serviceName) {
+        let categoryId: string | null = null;
+        const { data: existingCat } = await supabase
+          .from("service_categories")
+          .select("id")
+          .eq("organization_id", orgId)
+          .eq("name", "General")
+          .maybeSingle();
+
+        if (existingCat?.id) {
+          categoryId = existingCat.id;
+        } else {
+          const { data: newCat } = await supabase
+            .from("service_categories")
+            .insert({
+              organization_id: orgId,
+              name: "General",
+              description: "Categoría por defecto",
+              display_order: 0,
+            })
+            .select("id")
+            .single();
+          categoryId = newCat?.id ?? null;
+        }
+
+        if (categoryId) {
+          // duration_minutes must be a multiple of 15 (CHECK constraint).
+          const duration = Math.max(15, Math.round(state.serviceDuration / 15) * 15);
+          const price = state.servicePrice ? Number(state.servicePrice) : 0;
+          await supabase.from("services").insert({
+            organization_id: orgId,
+            category_id: categoryId,
+            name: serviceName,
+            duration_minutes: duration,
+            base_price: isFinite(price) && price >= 0 ? price : 0,
+          });
+        }
+      }
+
+      // 6. Mark organization onboarding as completed
+      const res = await fetch("/api/onboarding/complete", { method: "POST" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.error || "Error al finalizar el onboarding");
+        setSaving(false);
+        return;
+      }
+
+      router.push("/select-plan");
+    } catch (err) {
+      console.error("Onboarding finish error:", err);
+      toast.error("Ocurrió un error guardando tu información");
+      setSaving(false);
+    }
+  };
+
+  // ── Skip setup ─────────────────────────────────────────────────
+  const handleSkip = async () => {
+    if (saving) return;
+    setSaving(true);
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // Skipping still requires a WhatsApp phone so notifications work.
+    // If the user already provided one in step 1 we persist it; otherwise
+    // we leave it null and the middleware's has_whatsapp fallback will
+    // keep them here — but because we also mark onboarding_completed_at,
+    // the new gate lets them through. Skip is an explicit escape hatch.
+    if (user && state.phone.trim()) {
+      const fullPhone = `${state.country.dial}${state.phone.replace(/\D/g, "")}`;
+      await supabase
+        .from("user_profiles")
+        .update({ whatsapp_phone: fullPhone })
+        .eq("id", user.id);
     }
 
+    const res = await fetch("/api/onboarding/complete", { method: "POST" });
+    setSaving(false);
+    if (!res.ok) {
+      toast.error("No se pudo omitir la configuración");
+      return;
+    }
     router.push("/select-plan");
   };
 
@@ -202,193 +327,96 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl gradient-primary shadow-lg gradient-glow">
-            <Zap className="h-7 w-7 text-white" />
+    <div className="relative flex min-h-screen flex-col items-center justify-center p-4">
+      {/* Top-right Skip setup */}
+      <button
+        type="button"
+        onClick={handleSkip}
+        disabled={saving}
+        className="absolute right-4 top-4 inline-flex items-center gap-1 text-sm text-rose-500 hover:text-rose-400 disabled:opacity-50"
+      >
+        Omitir configuración
+        <X className="h-3.5 w-3.5" />
+      </button>
+
+      {/* Main card */}
+      <div className="w-full max-w-lg space-y-6">
+        {/* Logo */}
+        <div className="flex justify-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl gradient-primary shadow-lg gradient-glow">
+            <Zap className="h-6 w-6 text-white" />
           </div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-xs font-medium text-primary mb-4">
-            Inicia prueba de 14 días
-          </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">
-            Personaliza tu cuenta
-          </h1>
-          <p className="mt-2 text-sm text-muted-foreground max-w-xs mx-auto">
-            Ingresa tu información personal para recibir noticias y
-            actualizaciones importantes sobre {APP_NAME}
-          </p>
         </div>
 
-        {/* Form */}
-        <div className="glass-card rounded-2xl p-7 shadow-xl space-y-5">
-          {/* Full name */}
-          <div className="space-y-1.5">
-            <label htmlFor="fullName" className="text-sm font-semibold">
-              Nombre completo
-            </label>
-            <input
-              id="fullName"
-              type="text"
-              placeholder="Juan Pérez"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
-            />
+        {/* Progress dots (hidden on welcome) */}
+        {step > 0 && (
+          <div className="flex justify-center gap-1.5">
+            {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map((n) => (
+              <span
+                key={n}
+                className={`h-1.5 rounded-full transition-all ${
+                  n === step
+                    ? "w-8 bg-primary"
+                    : n < step
+                    ? "w-4 bg-primary/50"
+                    : "w-4 bg-muted"
+                }`}
+              />
+            ))}
           </div>
+        )}
 
-          {/* Specialty search select */}
-          <div className="space-y-1.5">
-            <label className="text-sm font-semibold">
-              Especialidad principal
-            </label>
-            <div className="relative" ref={specialtyDropdownRef}>
+        {/* Step body */}
+        <div className="glass-card rounded-2xl p-7 shadow-xl">
+          {step === 0 && <StepWelcome onStart={() => setStep(1)} />}
+          {step === 1 && <StepPersonal state={state} specialties={specialties} setState={patchState} />}
+          {step === 2 && <StepClinic state={state} setState={patchState} />}
+          {step === 3 && <StepHours state={state} setState={patchState} />}
+          {step === 4 && <StepService state={state} setState={patchState} />}
+        </div>
+
+        {/* Footer navigation */}
+        {step > 0 && (
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setStep((s) => Math.max(1, s - 1))}
+              disabled={step === 1 || saving}
+              className="flex items-center gap-1.5 rounded-full bg-muted px-4 py-2 text-sm font-medium text-foreground hover:bg-muted/80 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Atrás
+            </button>
+
+            {step < TOTAL_STEPS ? (
               <button
                 type="button"
-                onClick={() => setSpecialtyDropdownOpen(!specialtyDropdownOpen)}
-                className={`flex h-11 w-full items-center justify-between rounded-xl border bg-background/50 px-4 text-sm transition-all focus:outline-none focus:ring-2 focus:ring-ring/50 ${
-                  selectedSpecialty
-                    ? "border-primary/50 text-foreground"
-                    : "border-input text-muted-foreground/60"
-                }`}
+                onClick={() => canAdvance && setStep((s) => s + 1)}
+                disabled={!canAdvance || saving}
+                className="flex items-center gap-1.5 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>{selectedSpecialty?.name || "Selecciona tu especialidad"}</span>
-                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${specialtyDropdownOpen ? "rotate-180" : ""}`} />
+                Siguiente
+                <ArrowRight className="h-4 w-4" />
               </button>
-
-              {specialtyDropdownOpen && (
-                <div className="absolute top-full left-0 z-50 mt-1 w-full rounded-xl border border-border bg-popover shadow-xl overflow-hidden">
-                  {/* Search input */}
-                  <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-                    <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-                    <input
-                      type="text"
-                      value={specialtySearch}
-                      onChange={(e) => setSpecialtySearch(e.target.value)}
-                      placeholder="Buscar especialidad..."
-                      className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground/60 focus:outline-none"
-                      autoFocus
-                    />
-                  </div>
-                  {/* Options list */}
-                  <div className="max-h-52 overflow-y-auto py-1">
-                    {filteredSpecialties.length === 0 ? (
-                      <p className="px-3 py-2 text-sm text-muted-foreground">No se encontraron resultados</p>
-                    ) : (
-                      filteredSpecialties.map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedSpecialty(s);
-                            setSpecialtyDropdownOpen(false);
-                            setSpecialtySearch("");
-                          }}
-                          className={`flex w-full items-center gap-3 px-3 py-2.5 text-sm transition-colors hover:bg-accent/50 ${
-                            selectedSpecialty?.id === s.id ? "bg-primary/10 text-primary" : ""
-                          }`}
-                        >
-                          <div className="flex-1 text-left">
-                            <p className="font-medium">{s.name}</p>
-                            {s.description && (
-                              <p className="text-xs text-muted-foreground mt-0.5">{s.description}</p>
-                            )}
-                          </div>
-                          {selectedSpecialty?.id === s.id && (
-                            <Check className="h-4 w-4 text-primary shrink-0" />
-                          )}
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* WhatsApp phone with country selector */}
-          <div className="space-y-1.5">
-            <label htmlFor="phone" className="text-sm font-semibold">
-              Número de WhatsApp personal
-            </label>
-            <div className="flex gap-2">
-              {/* Country selector */}
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex h-11 items-center gap-1.5 rounded-xl border border-input bg-background/50 px-3 text-sm transition-all hover:bg-accent/50 focus:outline-none focus:ring-2 focus:ring-ring/50"
-                >
-                  <span className="text-lg leading-none">{country.flag}</span>
-                  <span className="text-muted-foreground">{country.dial}</span>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-                </button>
-
-                {dropdownOpen && (
-                  <div className="absolute top-full left-0 z-50 mt-1 w-56 rounded-xl border border-border bg-popover shadow-xl overflow-hidden">
-                    <div className="max-h-60 overflow-y-auto py-1">
-                      {COUNTRIES.map((c) => (
-                        <button
-                          key={c.code}
-                          type="button"
-                          onClick={() => {
-                            setCountry(c);
-                            setDropdownOpen(false);
-                          }}
-                          className={`flex w-full items-center gap-3 px-3 py-2 text-sm transition-colors hover:bg-accent/50 ${
-                            c.code === country.code
-                              ? "bg-primary/10 text-primary"
-                              : ""
-                          }`}
-                        >
-                          <span className="text-lg leading-none">{c.flag}</span>
-                          <span className="flex-1 text-left">{c.name}</span>
-                          <span className="text-muted-foreground text-xs">
-                            {c.dial}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleFinish}
+                disabled={saving}
+                className="flex items-center gap-1.5 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-md hover:opacity-90 disabled:opacity-50"
+              >
+                {saving ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="h-4 w-4" />
                 )}
-              </div>
-
-              {/* Phone input */}
-              <input
-                id="phone"
-                type="tel"
-                placeholder="987 654 321"
-                value={phone}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/[^\d\s-]/g, "");
-                  setPhone(val);
-                }}
-                className="flex h-11 flex-1 rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
-              />
-            </div>
+                Completar y entrar
+              </button>
+            )}
           </div>
+        )}
 
-          {/* Submit button */}
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !isFormValid}
-            className={`flex h-11 w-full items-center justify-center rounded-xl text-sm font-semibold shadow-md transition-all disabled:opacity-50 ${
-              isFormValid
-                ? "gradient-primary text-white hover:opacity-90 hover:shadow-lg"
-                : "bg-muted text-muted-foreground cursor-not-allowed"
-            }`}
-          >
-            {loading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
-            {isFormValid
-              ? "Ir a mi panel"
-              : "Rellene ambos campos para continuar"}
-          </button>
-        </div>
-
-        {/* Logged-in footer */}
+        {/* Footer: logged-in user */}
         {userEmail && (
           <div className="text-center text-sm text-muted-foreground">
             Ingresaste como{" "}
