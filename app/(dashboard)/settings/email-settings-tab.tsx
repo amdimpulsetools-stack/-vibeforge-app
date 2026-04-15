@@ -6,6 +6,8 @@ import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { usePlan } from "@/hooks/use-plan";
 import { toast } from "sonner";
+import { RichTextEditor, type RichTextEditorHandle } from "@/components/rich-text-editor";
+import { substituteVariables } from "@/lib/sanitize-email-html";
 import {
   Mail,
   Settings2,
@@ -53,6 +55,7 @@ interface EmailTemplate {
   description: string | null;
   subject: string;
   body: string;
+  body_html: string | null;
   is_enabled: boolean;
   wa_enabled: boolean;
   channel: "email" | "whatsapp" | "both";
@@ -151,7 +154,7 @@ export default function EmailSettingsTab() {
         .maybeSingle(),
       supabase
         .from("email_templates")
-        .select("id, organization_id, slug, category, name, description, subject, body, is_enabled, wa_enabled, channel, timing_value, timing_unit, min_plan_slug, sort_order")
+        .select("id, organization_id, slug, category, name, description, subject, body, body_html, is_enabled, wa_enabled, channel, timing_value, timing_unit, min_plan_slug, sort_order")
         .eq("organization_id", organizationId)
         .order("category")
         .order("sort_order"),
@@ -823,11 +826,17 @@ function TemplateEditor({
   onSave: (updated: EmailTemplate) => void;
 }) {
   const { t, language } = useLanguage();
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const editorRef = useRef<RichTextEditorHandle>(null);
+
+  // Pre-existing templates seeded with plain text have `body_html = null`.
+  // Convert them to HTML once so the rich editor can render them and so the
+  // user sees exactly what they had before.
+  const initialBodyHtml = template.body_html ?? plainBodyToHtml(template.body);
 
   const [form, setForm] = useState({
     subject: template.subject,
     body: template.body,
+    body_html: initialBodyHtml,
     is_enabled: template.is_enabled,
     wa_enabled: template.wa_enabled,
     channel: template.channel,
@@ -842,11 +851,17 @@ function TemplateEditor({
     setSaving(true);
     const supabase = createClient();
 
+    // Keep `body` (plain) in sync with the HTML for the legacy send path
+    // and for displaying in places that don't render HTML. We do this as a
+    // lossy, best-effort extraction; the authoritative version is body_html.
+    const plainFallback = htmlToPlainText(form.body_html);
+
     const { error } = await supabase
       .from("email_templates")
       .update({
         subject: form.subject,
-        body: form.body,
+        body: plainFallback,
+        body_html: form.body_html,
         is_enabled: form.is_enabled,
         wa_enabled: form.wa_enabled,
         channel: form.channel,
@@ -863,31 +878,14 @@ function TemplateEditor({
     }
 
     toast.success(t("email.save_template_success"));
-    onSave({ ...template, ...form });
+    onSave({ ...template, ...form, body: plainFallback });
   };
 
   const insertVariable = (variable: string) => {
-    const textarea = bodyRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const newBody =
-      form.body.substring(0, start) + variable + form.body.substring(end);
-    setForm({ ...form, body: newBody });
-
-    // Restore cursor position after React re-render
-    requestAnimationFrame(() => {
-      textarea.focus();
-      const pos = start + variable.length;
-      textarea.setSelectionRange(pos, pos);
-    });
+    editorRef.current?.insertText(variable);
   };
 
-  const previewBody = form.body.replace(
-    /\{\{[a-z_]+\}\}/g,
-    (match) => PREVIEW_DATA[match] ?? match
-  );
+  const previewBodyHtml = substituteVariables(form.body_html, PREVIEW_DATA);
 
   const previewSubject = form.subject.replace(
     /\{\{[a-z_]+\}\}/g,
@@ -1028,13 +1026,12 @@ function TemplateEditor({
         {/* Body */}
         <div className="space-y-1.5">
           <label className="text-sm font-medium">{t("email.body")}</label>
-          <textarea
-            ref={bodyRef}
-            value={form.body}
-            onChange={(e) => setForm({ ...form, body: e.target.value })}
+          <RichTextEditor
+            ref={editorRef}
+            value={form.body_html}
+            onChange={(html) => setForm((f) => ({ ...f, body_html: html }))}
             disabled={isLocked}
-            rows={6}
-            className={inputClass + " resize-y min-h-[120px]"}
+            minHeight={240}
           />
         </div>
 
@@ -1090,10 +1087,11 @@ function TemplateEditor({
                 </p>
                 <p className="text-sm font-semibold">{previewSubject}</p>
               </div>
-              {/* Body */}
-              <div className="text-sm leading-relaxed whitespace-pre-wrap">
-                {previewBody}
-              </div>
+              {/* Body (rendered HTML — already sanitized client-side and again server-side before send) */}
+              <div
+                className="text-sm leading-relaxed prose prose-sm max-w-none [&_p]:my-2 [&_h1]:text-xl [&_h1]:font-bold [&_h2]:text-lg [&_h2]:font-semibold [&_h3]:text-base [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_blockquote]:border-l-2 [&_blockquote]:border-muted [&_blockquote]:pl-3 [&_blockquote]:italic [&_a]:text-primary [&_a]:underline"
+                dangerouslySetInnerHTML={{ __html: previewBodyHtml }}
+              />
             </div>
           )}
         </div>
@@ -1131,7 +1129,8 @@ function TemplateEditor({
                     body: JSON.stringify({
                       to: testEmail,
                       subject: previewSubject,
-                      body: previewBody,
+                      body: htmlToPlainText(previewBodyHtml),
+                      body_html: previewBodyHtml,
                       brand_color: emailSettings?.brand_color || "#10b981",
                       logo_url: emailSettings?.email_logo_url,
                       clinic_name: clinicName,
@@ -1186,4 +1185,35 @@ function TemplateEditor({
       </div>
     </div>
   );
+}
+
+// ── Plain-text ⇄ HTML helpers ────────────────────────────────────────────────
+// Used to keep the legacy `body` column in sync with the new rich `body_html`.
+// The conversion is intentionally lossy: the `body_html` column is the
+// authoritative source; `body` is a best-effort plain-text fallback.
+
+function plainBodyToHtml(plain: string): string {
+  if (!plain) return "<p></p>";
+  // Split on double newlines → paragraphs; single newlines → <br>.
+  const paragraphs = plain.split(/\n{2,}/).map((p) => {
+    const escaped = p
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+    return `<p>${escaped.replace(/\n/g, "<br/>")}</p>`;
+  });
+  return paragraphs.join("");
+}
+
+function htmlToPlainText(html: string): string {
+  if (!html) return "";
+  if (typeof window === "undefined") return html; // SSR guard — not used in practice
+  const tmp = document.createElement("div");
+  tmp.innerHTML = html;
+  // Convert <br> and block-ending tags to line breaks before extracting text
+  tmp.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
+  tmp.querySelectorAll("p, div, h1, h2, h3, li, blockquote").forEach((el) => {
+    el.append("\n");
+  });
+  return (tmp.textContent || "").replace(/\n{3,}/g, "\n\n").trim();
 }

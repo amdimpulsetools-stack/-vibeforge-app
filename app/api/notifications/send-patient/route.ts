@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   // Fetch template
   const { data: template } = await supabase
     .from("email_templates")
-    .select("subject, body, is_enabled")
+    .select("subject, body, body_html, is_enabled")
     .eq("organization_id", orgId)
     .eq("slug", type)
     .eq("is_enabled", true)
@@ -109,9 +109,19 @@ export async function POST(req: NextRequest) {
 
   let subject = template.subject;
   let emailBody = template.body;
+  let emailBodyHtml = (template as { body_html?: string | null }).body_html ?? null;
   for (const [key, value] of Object.entries(variables)) {
     subject = subject.replaceAll(key, value);
     emailBody = emailBody.replaceAll(key, value);
+    if (emailBodyHtml) {
+      const escaped = value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+      emailBodyHtml = emailBodyHtml.replaceAll(key, escaped);
+    }
   }
 
   const brandColor = emailSettings?.brand_color || "#10b981";
@@ -119,6 +129,7 @@ export async function POST(req: NextRequest) {
 
   const html = buildEmailHtml({
     body: emailBody,
+    bodyHtml: emailBodyHtml,
     brandColor,
     logoUrl,
     clinicName,

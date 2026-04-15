@@ -3,6 +3,8 @@
  * Uses inline styles for maximum email client compatibility.
  */
 
+import { sanitizeEmailHtml } from "@/lib/sanitize-email-html";
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, "&amp;")
@@ -30,12 +32,21 @@ function sanitizeUrl(url: string): string {
 
 export function buildEmailHtml({
   body,
+  bodyHtml,
   brandColor = "#10b981",
   logoUrl,
   clinicName,
   footerText,
 }: {
+  /** Plain-text body. Used when `bodyHtml` is not provided. */
   body: string;
+  /**
+   * Optional pre-rendered HTML body (from the rich-text editor). When
+   * present, takes precedence. Sanitized again here server-side as a
+   * defense-in-depth measure — even if the client was bypassed, the only
+   * HTML that reaches the email is what the allow-list permits.
+   */
+  bodyHtml?: string | null;
   brandColor?: string;
   logoUrl?: string | null;
   clinicName?: string | null;
@@ -46,7 +57,9 @@ export function buildEmailHtml({
   const safeClinicName = clinicName ? escapeHtml(clinicName) : "";
   const safeFooterText = footerText ? escapeHtml(footerText) : "";
   const safeLogoUrl = logoUrl ? sanitizeUrl(logoUrl) : "";
-  const safeBody = escapeHtml(body).replace(/\n/g, "<br/>");
+  const safeBody = bodyHtml
+    ? sanitizeEmailHtml(bodyHtml)
+    : escapeHtml(body).replace(/\n/g, "<br/>");
 
   const logoBlock = safeLogoUrl
     ? `<img src="${safeLogoUrl}" alt="${safeClinicName}" style="max-height:48px;max-width:180px;display:block;" />`
