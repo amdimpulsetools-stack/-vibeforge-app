@@ -203,17 +203,27 @@ function SelectPlanPage() {
         body: JSON.stringify({ plan_id: planId }),
       });
 
+      // Try JSON first; fall back to raw text so HTML error pages surface too
+      const raw = await res.text();
+      let data: { error?: string; detail?: string } = {};
+      try {
+        data = raw ? JSON.parse(raw) : {};
+      } catch {
+        // Non-JSON response (e.g. HTML error page) — keep raw text
+        data = { error: raw.slice(0, 200) };
+      }
+
       if (!res.ok) {
-        const data = await res.json();
-        toast.error(data.detail || data.error || "Error al iniciar la prueba");
+        toast.error(data.detail || data.error || `Error al iniciar la prueba (${res.status})`);
         setSelecting(null);
         return;
       }
 
       toast.success("¡Prueba de 14 días activada!");
       router.push("/dashboard");
-    } catch {
-      toast.error("Error de conexión");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error de conexión";
+      toast.error(msg);
       setSelecting(null);
     }
   };
