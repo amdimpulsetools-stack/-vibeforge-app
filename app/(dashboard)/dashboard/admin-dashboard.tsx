@@ -170,7 +170,7 @@ export function AdminDashboard({
       {/* ── ROW 1: Revenue | Pending Debt | Appointments ── */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Revenue */}
-        <div className="w-full rounded-2xl bg-emerald-600 p-5 shadow-lg shadow-emerald-600/20">
+        <div className="w-full rounded-2xl bg-emerald-600 p-5 shadow-lg shadow-emerald-600/20 flex flex-col justify-center">
           <p className="text-sm font-medium text-white/70 mb-1">
             {isEs
               ? { month: "Ingresos del mes", week: "Ingresos (7 días)", today: "Ingresos de hoy" }[period]
@@ -186,7 +186,7 @@ export function AdminDashboard({
         </div>
 
         {/* Pending Debt */}
-        <div className="rounded-2xl border border-border/60 bg-card p-5">
+        <div className="rounded-2xl border border-border/60 bg-card p-5 flex flex-col justify-center">
           <p className="text-sm font-medium text-muted-foreground mb-1">
             {isEs ? "Cobranza pendiente" : "Pending debt"}
           </p>
