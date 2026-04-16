@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { searchCIE10, type CIE10Entry } from "@/lib/cie10-catalog";
 import { ClinicalNotePrintButton } from "./clinical-note-print";
+import { PatientContextCard } from "./patient-context-card";
 
 interface ClinicalNotePanelProps {
   appointmentId: string;
@@ -331,6 +332,9 @@ export function ClinicalNotePanel({
 
   return (
     <div className="space-y-4">
+      {/* Patient antecedents context */}
+      <PatientContextCard patientId={patientId} canEdit={canEdit} />
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
