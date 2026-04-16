@@ -1,6 +1,8 @@
 export interface CIE10Entry {
   code: string;
   label: string;
+  /** Flag rendered in the picker when the code comes from the org catalog. */
+  custom?: boolean;
 }
 
 export const CIE10_CATALOG: CIE10Entry[] = [
@@ -157,30 +159,48 @@ export const CIE10_CATALOG: CIE10Entry[] = [
   { code: "Z76", label: "Personas en contacto con servicios de salud por otras circunstancias" },
 ];
 
+function normalize(s: string): string {
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 /**
  * Searches the CIE-10 catalog by code or label (case-insensitive).
  * Returns up to 10 matching results.
  */
 export function searchCIE10(query: string): CIE10Entry[] {
+  return searchCIE10WithCustom(query, []);
+}
+
+/**
+ * Same as searchCIE10 but also searches the org's custom codes.
+ * Custom codes matching the query are prepended (max 5) so they're
+ * discoverable even when the global catalog returns many hits.
+ */
+export function searchCIE10WithCustom(
+  query: string,
+  customCodes: CIE10Entry[]
+): CIE10Entry[] {
   if (!query || query.trim().length === 0) {
     return [];
   }
 
-  const normalizedQuery = query
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+  const normalizedQuery = normalize(query);
 
-  return CIE10_CATALOG.filter((entry) => {
-    const normalizedCode = entry.code.toLowerCase();
-    const normalizedLabel = entry.label
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+  const matches = (entry: CIE10Entry) => {
+    const code = entry.code.toLowerCase();
+    const label = normalize(entry.label);
+    return code.includes(normalizedQuery) || label.includes(normalizedQuery);
+  };
 
-    return (
-      normalizedCode.includes(normalizedQuery) ||
-      normalizedLabel.includes(normalizedQuery)
-    );
-  }).slice(0, 10);
+  const custom = customCodes
+    .filter(matches)
+    .map((c) => ({ ...c, custom: true as const }))
+    .slice(0, 5);
+
+  const customCodeSet = new Set(custom.map((c) => c.code.toUpperCase()));
+  const global = CIE10_CATALOG.filter(
+    (entry) => matches(entry) && !customCodeSet.has(entry.code.toUpperCase())
+  ).slice(0, 10 - custom.length);
+
+  return [...custom, ...global];
 }

@@ -1,12 +1,14 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-15
+> **Última actualización:** 2026-04-16
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
 
 ## ✅ Entregados
 
+- [x] **Catálogo CIE-10 personalizable por organización** — Tabla `custom_diagnosis_codes` con RLS, API CRUD (`/api/custom-diagnosis-codes`), panel Admin → Diagnósticos CIE-10 y merge automático en el buscador de la nota clínica (códigos personalizados aparecen etiquetados). *(v0.8.2 — 2026-04-16)*
+- [x] **Antecedentes del paciente en la nota clínica** — Tarjeta colapsable en el panel de nota clínica con alergias, condiciones crónicas, medicación activa y últimos 5 diagnósticos. 3 tablas normalizadas con RLS (`patient_allergies`, `patient_conditions`, `patient_medications`). *(v0.8.2 — 2026-04-16)*
 - [x] **Email de activación de trial** — Plantilla `trial_welcome` con variables dinámicas. Enviado post-respuesta via `after()` de Next.js. *(v0.8.1 — 2026-04-15)*
 - [x] **Estadísticas de edades en /reports** — Promedio, distribución por rangos, gráfica. Basado en `patients.birth_date`. *(commit 4ecac98 — 2026-04-12)*
 - [x] **Plantillas de tratamiento** — Admin → Plantillas de Tratamiento. Pre-llena plan de tratamiento con nombre, descripción, sesiones, diagnóstico CIE-10. *(commit 4ecac98 — 2026-04-12)*
@@ -37,14 +39,7 @@
 
 ## 🏥 Historia Clínica
 
-- [ ] **Catálogo CIE-10 personalizable por organización** — Actualmente el catálogo CIE-10 es un array estático (~160 diagnósticos comunes) en `lib/cie10-catalog.ts`. Muchas especialidades necesitan códigos que no están en la lista base.
-  - Crear tabla `custom_diagnosis_codes` con `organization_id`, `code`, `label`, `specialty_id` (opcional)
-  - Admin → Diagnósticos CIE-10: interfaz para buscar/agregar códigos de especialidad
-  - El buscador en la nota clínica consulta: catálogo global + códigos custom de la org
-  - Opción de importar lotes de códigos (CSV o listado por especialidad)
-  - Los códigos custom se muestran etiquetados como "personalizado" en el selector
-  - No reemplaza el catálogo global, solo lo extiende por org
-  - Ejemplo: Endocrinología necesita E28.2 (SOP), E21.0 (hiperparatiroidismo primario), etc.
+- [ ] **Importación masiva de códigos CIE-10** — La base ya permite agregar códigos personalizados uno a uno. Falta importar lotes (CSV/Excel) por especialidad para ahorrar tiempo a clínicas con muchos diagnósticos específicos.
 
 ---
 
@@ -141,8 +136,9 @@
 | 9 | Links Zoom/Meet automáticos | Alto | Medio (teleconsulta) | 🟠 Media-baja |
 | 10 | Facturación SUNAT (boletas/facturas) | Alto | Alto (requisito legal Perú) | 🟡 Media |
 | 11 | CRM multi-canal (WhatsApp + IG + FB) | Muy alto | Muy alto (diferenciador) | 🟡 Media |
-| 12 | Catálogo CIE-10 personalizable | Medio | Alto (especialidades) | 🟡 Media |
+| ~~12~~ | ~~Catálogo CIE-10 personalizable~~ | ~~Medio~~ | ~~Alto~~ | ✅ Entregado |
 | 13 | Descuentos condicionales | Medio | Medio (billing) | 🟠 Media-baja |
+| 14 | Importación masiva CIE-10 (CSV) | Bajo | Medio | 🟠 Media-baja |
 
 ---
 

@@ -22,7 +22,7 @@ import {
   CloudOff,
   Cloud,
 } from "lucide-react";
-import { searchCIE10, type CIE10Entry } from "@/lib/cie10-catalog";
+import { searchCIE10WithCustom, type CIE10Entry } from "@/lib/cie10-catalog";
 import { ClinicalNotePrintButton } from "./clinical-note-print";
 import { PatientContextCard } from "./patient-context-card";
 
@@ -79,6 +79,7 @@ export function ClinicalNotePanel({
   const [cie10Query, setCie10Query] = useState("");
   const [cie10Results, setCie10Results] = useState<CIE10Entry[]>([]);
   const [showCie10, setShowCie10] = useState(false);
+  const [customCie10, setCustomCie10] = useState<CIE10Entry[]>([]);
 
   // Template state
   const [templates, setTemplates] = useState<ClinicalTemplateWithDoctor[]>([]);
@@ -195,6 +196,28 @@ export function ClinicalNotePanel({
   useEffect(() => {
     fetchNote();
   }, [fetchNote]);
+
+  // Load org's custom CIE-10 codes so they appear in the search
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/custom-diagnosis-codes");
+        if (!res.ok) return;
+        const json = await res.json();
+        if (cancelled) return;
+        const entries = (json.data ?? []).map(
+          (c: { code: string; label: string }) => ({ code: c.code, label: c.label })
+        );
+        setCustomCie10(entries);
+      } catch {
+        // Silent fail — search still works with global catalog
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const fetchTemplates = useCallback(async () => {
     if (templates.length > 0) return; // already loaded
@@ -503,7 +526,7 @@ export function ClinicalNotePanel({
                     const q = e.target.value;
                     setCie10Query(q);
                     if (q.length >= 2) {
-                      setCie10Results(searchCIE10(q));
+                      setCie10Results(searchCIE10WithCustom(q, customCie10));
                       setShowCie10(true);
                     } else {
                       setShowCie10(false);
@@ -534,7 +557,12 @@ export function ClinicalNotePanel({
                         className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-accent transition-colors"
                       >
                         <span className="font-mono font-semibold text-primary shrink-0">{entry.code}</span>
-                        <span className="text-foreground truncate">{entry.label}</span>
+                        <span className="text-foreground truncate flex-1">{entry.label}</span>
+                        {entry.custom && (
+                          <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
+                            personalizado
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
