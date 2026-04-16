@@ -9,6 +9,7 @@ import {
   ListOrdered,
   UsersRound,
   FlaskConical,
+  BookOpen,
   ArrowRight,
 } from "lucide-react";
 
@@ -19,6 +20,7 @@ interface AdminPageContentProps {
   lookupCount: number;
   memberCount: number;
   examCount?: number;
+  diagnosisCodesCount?: number;
 }
 
 export function AdminPageContent({
@@ -28,6 +30,7 @@ export function AdminPageContent({
   lookupCount,
   memberCount,
   examCount = 0,
+  diagnosisCodesCount = 0,
 }: AdminPageContentProps) {
   const { t } = useLanguage();
 
@@ -73,6 +76,13 @@ export function AdminPageContent({
       href: "/admin/exam-catalog",
       icon: FlaskConical,
       count: examCount,
+    },
+    {
+      title: "Diagnósticos CIE-10",
+      desc: "Extiende el catálogo con códigos de tu especialidad",
+      href: "/admin/diagnosis-codes",
+      icon: BookOpen,
+      count: diagnosisCodesCount,
     },
   ];
 

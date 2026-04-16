@@ -34,6 +34,7 @@ import {
   ClipboardCheck,
   Headphones,
   FlaskConical,
+  BookOpen,
   type LucideIcon,
 } from "lucide-react";
 
@@ -109,6 +110,7 @@ const navSections: NavSection[] = [
           { titleKey: "nav.admin_clinical_templates", href: "/admin/clinical-templates", icon: LayoutTemplate },
           { titleKey: "nav.admin_treatment_plan_templates", href: "/admin/treatment-plan-templates", icon: ClipboardList },
           { titleKey: "nav.admin_exam_catalog", href: "/admin/exam-catalog", icon: FlaskConical },
+          { titleKey: "nav.admin_diagnosis_codes", href: "/admin/diagnosis-codes", icon: BookOpen },
         ],
       },
     ],
