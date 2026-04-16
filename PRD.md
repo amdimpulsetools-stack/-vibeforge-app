@@ -1284,6 +1284,51 @@ MP_TEST_PAYER_EMAIL=      # Email del comprador de prueba MP (solo test mode)
 
 ---
 
+## 21.8. Changelog — Sesión 2026-04-16 (v0.8.2) — Antecedentes clínicos + CIE-10 personalizable
+
+### Corrección — Doctor no podía interactuar con su cita
+- **Problema:** el doctor `oscardlopez@outlook.com` (Jose Lopez) veía su cita asignada pero la nota clínica aparecía bloqueada (solo lectura).
+- **Causa raíz:** 3 registros duplicados en `doctors` para el mismo `user_id`, generados por ciclos repetidos de auto-creación. El hook `useCurrentDoctor()` no filtraba por `is_active` ni ordenaba, así que a veces retornaba un doctor inactivo → `currentDoctorId !== appointment.doctor_id` → panel bloqueado.
+- **Fix en `hooks/use-current-doctor.ts`:** `.eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle()`.
+- **Limpieza DB (producción):** consolidados citas, horarios y servicios al registro canónico `4ec5776b`; los 2 duplicados desactivados con sufijo `[DUPLICADO - MIGRADO]` y luego restaurado `full_name = 'Jose Lopez'` al canónico.
+
+### Antecedentes del paciente en la nota clínica
+- **Motivación:** el doctor necesita ver alergias, condiciones crónicas y diagnósticos previos sin salir del panel de nota clínica (feedback directo de cliente).
+- **Migración 087:** 3 tablas normalizadas con RLS (lectura por miembros de org, escritura por org, borrado solo admin/owner):
+  - `patient_allergies`: sustancia, severidad (`leve`/`moderada`/`severa`), reacción, notas
+  - `patient_conditions`: condición, código ICD, tipo (`chronic`/`personal`/`family`), estado, fecha dx, familiar
+  - `patient_medications`: nombre, dosis, frecuencia, vía, fechas inicio/fin, doctor prescriptor
+- **API `/api/patients/[id]/antecedents`:** GET (4 queries paralelas + últimos 5 diagnósticos de `clinical_notes` con join a `doctors`), POST (discrimina por `type`), PATCH y DELETE (soft-delete con `is_active = false`).
+- **`types/patient-antecedents.ts`:** interfaces `PatientAllergy`, `PatientCondition`, `PatientMedication`, `PatientAntecedents`.
+- **`PatientContextCard`** (`scheduler/patient-context-card.tsx`):
+  - Tarjeta colapsable, auto-expande si existen alergias
+  - `AllergyBadge` con colores por severidad (rojo/ámbar/amarillo)
+  - `ConditionRow` con labels de tipo (Crónica/Antec. personal/Antec. familiar)
+  - `MedicationRow` con dosis y frecuencia
+  - Sección de últimos 5 diagnósticos CIE-10
+  - `InlineAddForm` para agregar alergias/condiciones/medicamentos directamente
+- **Integración:** renderizada sobre el encabezado de la nota clínica en `clinical-note-panel.tsx`.
+
+### Catálogo CIE-10 personalizable por organización
+- **Motivación:** el catálogo global estático (~160 códigos en `lib/cie10-catalog.ts`) no cubre diagnósticos de especialidades como endocrinología, dermatología, etc.
+- **Migración 088:** tabla `custom_diagnosis_codes` con `organization_id`, `code` (UNIQUE por org), `label`, `specialty_id` (FK opcional a `specialties`), `notes`, `created_by`. RLS: lectura por miembros, CUD solo owner/admin.
+- **API `/api/custom-diagnosis-codes`:** GET (lista por org), POST (insert con detección de duplicado `23505`), PATCH (update label/specialty/notes), DELETE.
+- **Admin → Diagnósticos CIE-10** (`admin/diagnosis-codes/page.tsx`): tabla con búsqueda, formulario inline para agregar/editar, conteo de catálogo global vs. personalizado, selector de especialidad.
+- **`searchCIE10WithCustom()`** en `lib/cie10-catalog.ts`: nueva función que mezcla hasta 5 resultados custom (etiquetados con `custom: true`) + el resto del catálogo global, sin duplicados.
+- **Integración en nota clínica:** `clinical-note-panel.tsx` carga los códigos custom de la org al montar y los pasa a `searchCIE10WithCustom`. En el dropdown, los resultados custom muestran badge "personalizado".
+- **Navegación:** sidebar con icono `BookOpen` + card en admin page con conteo. Traducciones ES/EN agregadas.
+
+### COMING-UPDATES.md
+- Movidos a ✅ Entregados: "Catálogo CIE-10 personalizable" y "Antecedentes del paciente en nota clínica"
+- Nuevo item pendiente: "Importación masiva de códigos CIE-10 (CSV/Excel)"
+
+### Commits
+- `4d2bd01` — fix: doctor appointment blocked — duplicate doctor records + missing filter
+- `145d89e` — feat: patient antecedents (allergies, conditions, medications) in clinical note
+- `be11615` — feat: custom CIE-10 diagnosis codes per organization
+
+---
+
 ## 22. Sistema de Especialidades Médicas
 
 > **Estado:** Fase 1 implementada (infraestructura + onboarding). Fases 2-4 pendientes.

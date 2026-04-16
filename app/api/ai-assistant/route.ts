@@ -5,35 +5,67 @@ import { parseBody } from "@/lib/api-utils";
 import { aiAssistantSchema } from "@/lib/validations/api";
 
 const SCHEMA_CONTEXT = `
-Eres un generador de SQL para una clínica médica. Tu ÚNICA tarea es generar la consulta SQL necesaria para responder la pregunta del usuario.
+Eres un generador de SQL para una clínica médica multi-tenant. Tu ÚNICA tarea es generar la consulta SQL que responde la pregunta del usuario.
 
-ESQUEMA DE LA BASE DE DATOS (Multi-Tenant — cada tabla tiene organization_id, RLS filtra automáticamente):
-- patients: id, first_name, last_name, dni, phone, email, status (active/inactive), notes, referral_source, custom_field_1, custom_field_2, organization_id, created_at
-- appointments: id, patient_name, patient_phone, patient_id, doctor_id, office_id, service_id, appointment_date (YYYY-MM-DD), start_time, end_time, status (scheduled/confirmed/completed/cancelled), origin, payment_method, responsible, notes, organization_id, created_at
-- doctors: id, full_name, cmp, color, is_active, organization_id
-- offices: id, name, display_order, is_active, organization_id
-- services: id, name, base_price, duration_minutes, is_active, category_id, organization_id
-- patient_payments: id, patient_id, appointment_id, amount, payment_method, payment_date, notes, organization_id
-- patient_tags: id, patient_id, tag, organization_id
-- schedule_blocks: id, block_date, start_time, end_time, office_id, all_day, reason, organization_id
-NOTA: No filtres por organization_id en tus queries — las políticas RLS lo hacen automáticamente.
+ESQUEMA (cada tabla tiene organization_id — NO filtres por él, RLS lo hace):
+
+- patients: id, first_name, last_name, dni, phone, email, status ('active'/'inactive'), notes, referral_source, custom_field_1, custom_field_2, created_at
+- appointments: id, patient_name, patient_phone, patient_id, doctor_id, office_id, service_id, appointment_date (DATE, YYYY-MM-DD), start_time, end_time, status ('scheduled'/'confirmed'/'completed'/'cancelled'/'no_show'), origin, payment_method, responsible, notes, price_snapshot (NUMERIC — precio acordado al momento de crear la cita), meeting_url, responsible_user_id, created_at
+- doctors: id, full_name, cmp, color, is_active, created_at
+- offices: id, name, display_order, is_active
+- services: id, name, base_price, duration_minutes, is_active, category_id
+- patient_payments: id, patient_id, appointment_id, amount (NUMERIC), payment_method, payment_date (DATE), notes, created_at
+- patient_tags: id, patient_id, tag
+- schedule_blocks: id, block_date, start_time, end_time, office_id, all_day, reason
+- service_categories: id, name, sort_order
+
+MODELO DE PAGOS / DEUDA (IMPORTANTE):
+- "Lo que el paciente debe pagar" de una cita = appointments.price_snapshot.
+- "Lo que el paciente ya pagó" = SUM(patient_payments.amount) donde appointment_id coincide.
+- Deuda pendiente por cita = price_snapshot - COALESCE(SUM(payments.amount), 0).
+- Una cita está pendiente de pago cuando deuda > 0. Incluir citas status IN ('completed','confirmed','scheduled') según contexto.
+- Cuando el usuario dice "este mes", usa DATE_TRUNC('month', CURRENT_DATE) sobre appointment_date.
+- Cuando el usuario dice "clientes/pacientes que deben" agrupa por paciente y suma la deuda.
 
 REGLAS ESTRICTAS:
 1. Responde ÚNICAMENTE con el bloque SQL entre triple backticks. Sin explicaciones.
-2. Solo SELECT. Nunca INSERT, UPDATE, DELETE, DROP, ALTER, CREATE.
+2. Solo SELECT o WITH ... SELECT. Nunca INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE.
 3. Limita siempre a 100 filas con LIMIT 100.
-4. Usa JOIN cuando necesites datos de varias tablas.
-5. Si la pregunta no requiere consultar la base de datos, responde exactamente: NO_SQL_NEEDED
+4. Usa JOIN / LEFT JOIN según corresponda. Usa COALESCE cuando sumes pagos.
+5. Si el paciente no tiene profile (patient_id IS NULL) usa appointments.patient_name para identificar.
+6. Si la pregunta no requiere BD, responde exactamente: NO_SQL_NEEDED
 
-EJEMPLOS:
-Pregunta: "¿Cuál es el doctor con más citas completadas este mes?"
-Respuesta:
+EJEMPLO — "¿Qué pacientes deben dinero este mes?"
 \`\`\`sql
-SELECT d.full_name, COUNT(*) as total_citas
+SELECT
+  COALESCE(p.first_name || ' ' || p.last_name, a.patient_name) AS paciente,
+  a.patient_phone AS telefono,
+  SUM(a.price_snapshot) AS total_facturado,
+  COALESCE(SUM(pay_totals.pagado), 0) AS total_pagado,
+  SUM(a.price_snapshot) - COALESCE(SUM(pay_totals.pagado), 0) AS deuda
+FROM appointments a
+LEFT JOIN patients p ON p.id = a.patient_id
+LEFT JOIN (
+  SELECT appointment_id, SUM(amount) AS pagado
+  FROM patient_payments
+  GROUP BY appointment_id
+) pay_totals ON pay_totals.appointment_id = a.id
+WHERE DATE_TRUNC('month', a.appointment_date) = DATE_TRUNC('month', CURRENT_DATE)
+  AND a.status IN ('completed','confirmed','scheduled')
+  AND a.price_snapshot IS NOT NULL
+GROUP BY COALESCE(p.first_name || ' ' || p.last_name, a.patient_name), a.patient_phone
+HAVING SUM(a.price_snapshot) - COALESCE(SUM(pay_totals.pagado), 0) > 0
+ORDER BY deuda DESC
+LIMIT 100
+\`\`\`
+
+EJEMPLO — "Doctor con más citas completadas este mes"
+\`\`\`sql
+SELECT d.full_name, COUNT(*) AS total_citas
 FROM appointments a
 JOIN doctors d ON a.doctor_id = d.id
 WHERE a.status = 'completed'
-  AND DATE_TRUNC('month', a.appointment_date::date) = DATE_TRUNC('month', CURRENT_DATE)
+  AND DATE_TRUNC('month', a.appointment_date) = DATE_TRUNC('month', CURRENT_DATE)
 GROUP BY d.id, d.full_name
 ORDER BY total_citas DESC
 LIMIT 1
@@ -349,15 +381,66 @@ export async function POST(req: NextRequest) {
 
     let queryData: Record<string, unknown>[] = [];
     let sqlError: string | null = null;
+    let executedSql = sql;
+
+    const runQuery = async (rawSql: string) => {
+      const supabase = await createClient();
+      const { data, error } = await supabase.rpc("ai_readonly_query", {
+        query: rawSql,
+      });
+      if (error) return { data: null, error: error.message };
+      return {
+        data: Array.isArray(data) ? data : data ? [data] : [],
+        error: null as string | null,
+      };
+    };
 
     try {
-      const supabase = await createClient();
-      const { data, error } = await supabase.rpc("ai_readonly_query", { query: sql });
+      const first = await runQuery(sql);
+      if (first.error) {
+        sqlError = first.error;
+        console.warn("AI SQL attempt 1 failed:", first.error, "\nSQL:", sql);
 
-      if (error) {
-        sqlError = error.message;
+        // Retry once: feed the error back to the LLM so it can self-correct.
+        const retryResult = await callAnthropic(
+          apiKey,
+          SCHEMA_CONTEXT,
+          [
+            ...recentHistory,
+            { role: "user", content: message },
+            { role: "assistant", content: sqlGenResult.text },
+            {
+              role: "user",
+              content: `La consulta anterior falló con el error:\n"${first.error}"\n\nCorrige el SQL y responde solo con el bloque \`\`\`sql ...\`\`\` corregido.`,
+            },
+          ],
+          512
+        );
+
+        const retrySql = retryResult.text
+          ? extractSqlFromResponse(retryResult.text)
+          : null;
+        if (retrySql) {
+          const retryValidation = validateSql(retrySql);
+          if (retryValidation.valid) {
+            executedSql = retrySql;
+            const second = await runQuery(retrySql);
+            if (second.error) {
+              sqlError = second.error;
+              console.error(
+                "AI SQL retry failed:",
+                second.error,
+                "\nSQL:",
+                retrySql
+              );
+            } else {
+              sqlError = null;
+              queryData = second.data ?? [];
+            }
+          }
+        }
       } else {
-        queryData = Array.isArray(data) ? data : (data ? [data] : []);
+        queryData = first.data ?? [];
       }
     } catch (err) {
       sqlError = "Error al ejecutar la consulta";
@@ -365,9 +448,17 @@ export async function POST(req: NextRequest) {
     }
 
     if (sqlError) {
-      console.error("AI SQL error:", sqlError);
+      console.error(
+        "AI SQL final error:",
+        sqlError,
+        "\nMessage:",
+        message,
+        "\nSQL:",
+        executedSql
+      );
       return NextResponse.json({
-        response: "Tuve un problema al consultar los datos. Por favor, intenta de nuevo.",
+        response:
+          "No pude obtener esos datos. Intenta reformular tu pregunta de forma más específica (por ejemplo: mencionando un mes, un doctor o un servicio).",
         data: null,
         sql: null,
         sqlError: null,
