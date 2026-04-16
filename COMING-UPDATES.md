@@ -1,13 +1,19 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-12
+> **Última actualización:** 2026-04-15
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
 
-## 📧 Correos
+## ✅ Entregados
 
-- [ ] **Email de activación de trial** — Cuando el usuario inicia su periodo de prueba de 14 días, recibe un email de bienvenida con: pasos para empezar, link al dashboard, link a la guía de inicio rápido, y fecha de vencimiento del trial.
+- [x] **Email de activación de trial** — Plantilla `trial_welcome` con variables dinámicas. Enviado post-respuesta via `after()` de Next.js. *(v0.8.1 — 2026-04-15)*
+- [x] **Estadísticas de edades en /reports** — Promedio, distribución por rangos, gráfica. Basado en `patients.birth_date`. *(commit 4ecac98 — 2026-04-12)*
+- [x] **Plantillas de tratamiento** — Admin → Plantillas de Tratamiento. Pre-llena plan de tratamiento con nombre, descripción, sesiones, diagnóstico CIE-10. *(commit 4ecac98 — 2026-04-12)*
+
+---
+
+## 📧 Correos
 
 - [ ] **Notificaciones periódicas de reportes (admin/owner)** — Activar envío automático de resumen de métricas por email:
   - Diario: citas del día anterior, ingresos, no-shows
@@ -19,16 +25,6 @@
 
 ## 📊 Reportes
 
-- [ ] **Estadísticas de edades en /reports** — Agregar al reporte de marketing o general:
-  - Promedio de edad de pacientes
-  - Distribución por rangos de edad (0-17, 18-30, 31-45, 46-60, 60+)
-  - Gráfica de barras o donut con porcentajes
-  - Basado en `patients.birth_date` (solo pacientes con fecha registrada)
-
----
-
-## 👥 Pacientes
-
 - [ ] **Reporte IA por paciente (timeline cronológico)** — Botón "Reporte IA" en la ficha expandida del paciente que genera:
   - Resumen cronológico con lenguaje fluido (narrativo, no bullets)
   - Mecánica similar al Asistente IA de /reports pero enfocado en un solo paciente
@@ -36,6 +32,19 @@
   - Formato timeline visual con fechas y descripciones
   - Ejemplo de output: *"María López ha sido paciente desde el 15 de enero de 2026. En su primera consulta fue diagnosticada con SOP (E28.2) por la Dra. García. Se le prescribió metformina 850mg y se solicitó ecografía pélvica. En su control del 12 de febrero, los resultados de la ecografía mostraron..."*
   - Útil para: referencias a otros especialistas, auditorías, continuidad del cuidado
+
+---
+
+## 🏥 Historia Clínica
+
+- [ ] **Catálogo CIE-10 personalizable por organización** — Actualmente el catálogo CIE-10 es un array estático (~160 diagnósticos comunes) en `lib/cie10-catalog.ts`. Muchas especialidades necesitan códigos que no están en la lista base.
+  - Crear tabla `custom_diagnosis_codes` con `organization_id`, `code`, `label`, `specialty_id` (opcional)
+  - Admin → Diagnósticos CIE-10: interfaz para buscar/agregar códigos de especialidad
+  - El buscador en la nota clínica consulta: catálogo global + códigos custom de la org
+  - Opción de importar lotes de códigos (CSV o listado por especialidad)
+  - Los códigos custom se muestran etiquetados como "personalizado" en el selector
+  - No reemplaza el catálogo global, solo lo extiende por org
+  - Ejemplo: Endocrinología necesita E28.2 (SOP), E21.0 (hiperparatiroidismo primario), etc.
 
 ---
 
@@ -72,14 +81,6 @@
   - Configuración por doctor en su perfil (conectar/desconectar su Google Calendar)
   - Futuro: sincronización inversa (citas creadas en Google Calendar → REPLACE)
 
-- [ ] **Plantillas de tratamiento** — Similar a las plantillas SOAP pero para planes de tratamiento:
-  - El doctor puede seleccionar una plantilla predefinida o crear una personalizada
-  - Plantilla incluye: nombre del tratamiento, descripción, número de sesiones, duración estimada, diagnóstico asociado
-  - Ejemplos: "Ortodoncia fase 1 (12 sesiones)", "Fisioterapia lumbar (10 sesiones)", "Control prenatal (9 meses)"
-  - Al seleccionar la plantilla, se pre-llena el formulario de plan de tratamiento
-  - El doctor puede personalizar cualquier campo antes de guardar
-  - Las plantillas se gestionan en Admin → Plantillas de Tratamiento (o dentro de la misma sección de plantillas clínicas)
-
 ---
 
 ## 🧾 Facturación
@@ -92,6 +93,13 @@
   - Dashboard de comprobantes emitidos (por periodo, tipo, estado)
   - Requisitos: cuenta con proveedor de facturación electrónica autorizado por SUNAT, certificado digital
   - Ideal para clínicas que actualmente emiten comprobantes manuales o en sistemas separados
+
+- [ ] **Descuentos condicionales a tratamientos** — Aplicar descuentos por condiciones configurables:
+  - Por cantidad de sesiones (ej: 10% si compra 10+ sesiones)
+  - Por pago adelantado (ej: 5% si paga el tratamiento completo)
+  - Por combinación de servicios (ej: limpieza + blanqueamiento = -15%)
+  - Por vigencia temporal (ej: promoción válida hasta cierta fecha)
+  - Configurable desde Admin → Tratamientos o Servicios
 
 ---
 
@@ -122,17 +130,19 @@
 
 | # | Feature | Esfuerzo | Impacto | Prioridad |
 |---|---|---|---|---|
-| 1 | Email activación trial | Bajo | Alto (primera impresión) | 🔴 Alta |
+| ~~1~~ | ~~Email activación trial~~ | ~~Bajo~~ | ~~Alto~~ | ✅ Entregado |
 | 2 | Bloques de horarios (copiar) | Medio | Alto (uso diario recepcionista) | 🔴 Alta |
-| 3 | Estadísticas de edades | Bajo | Medio | 🟡 Media |
+| ~~3~~ | ~~Estadísticas de edades~~ | ~~Bajo~~ | ~~Medio~~ | ✅ Entregado |
 | 4 | Bloque hora único en calendar | Bajo | Medio (UX) | 🟡 Media |
-| 5 | Plantillas de tratamiento | Medio | Alto (ahorra tiempo doctor) | 🟡 Media |
+| ~~5~~ | ~~Plantillas de tratamiento~~ | ~~Medio~~ | ~~Alto~~ | ✅ Entregado |
 | 6 | Notificaciones periódicas | Medio | Alto (engagement) | 🟡 Media |
 | 7 | Reporte IA por paciente | Alto | Alto (diferenciador) | 🟡 Media |
 | 8 | Google Calendar sync | Alto | Alto (integración clave) | 🟠 Media-baja |
 | 9 | Links Zoom/Meet automáticos | Alto | Medio (teleconsulta) | 🟠 Media-baja |
 | 10 | Facturación SUNAT (boletas/facturas) | Alto | Alto (requisito legal Perú) | 🟡 Media |
 | 11 | CRM multi-canal (WhatsApp + IG + FB) | Muy alto | Muy alto (diferenciador) | 🟡 Media |
+| 12 | Catálogo CIE-10 personalizable | Medio | Alto (especialidades) | 🟡 Media |
+| 13 | Descuentos condicionales | Medio | Medio (billing) | 🟠 Media-baja |
 
 ---
 
