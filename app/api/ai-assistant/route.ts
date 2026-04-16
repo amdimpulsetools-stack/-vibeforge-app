@@ -27,6 +27,11 @@ MODELO DE PAGOS / DEUDA (IMPORTANTE):
 - Cuando el usuario dice "este mes", usa DATE_TRUNC('month', CURRENT_DATE) sobre appointment_date.
 - Cuando el usuario dice "clientes/pacientes que deben" agrupa por paciente y suma la deuda.
 
+FOLLOW-UPS Y CONTEXTO PREVIO:
+- Si en la conversación previa hay un mensaje del asistente que contiene "[SQL_PREVIO]: ...", esa fue la consulta usada para responder antes.
+- Cuando la pregunta actual es un follow-up ("y sus nombres", "y el mes pasado", "ahora agrúpalo por doctor", "muéstrame más detalles"), REUTILIZA los filtros del SQL_PREVIO (mismas tablas, mismas fechas, mismas condiciones) y solo agrega/cambia las columnas o agrupaciones que pide la nueva pregunta.
+- Solo descarta el contexto previo si la nueva pregunta cambia claramente de tema.
+
 REGLAS ESTRICTAS:
 1. Responde ÚNICAMENTE con el bloque SQL entre triple backticks. Sin explicaciones.
 2. Solo SELECT o WITH ... SELECT. Nunca INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, TRUNCATE.
@@ -87,6 +92,14 @@ EJEMPLOS DE BUENAS RESPUESTAS:
 - "Hoy se atendieron 15 citas en total."
 - "Hay 3 pacientes con pagos pendientes: Juan Pérez ($150), María García ($80) y Pedro López ($200)."
 - "No se encontraron citas para ese período."
+
+AL FINAL DE TU RESPUESTA, en una nueva línea, agrega EXACTAMENTE este formato JSON con 2-3 preguntas sugeridas que continúan naturalmente desde la pregunta del usuario:
+SUGGESTIONS: ["pregunta 1", "pregunta 2", "pregunta 3"]
+
+Las sugerencias deben ser preguntas concretas que el usuario podría hacer a continuación, basadas en el contexto. Ejemplos:
+- Si respondiste sobre cantidad de pacientes con deuda → sugerir: ["Dame sus nombres y montos", "Compara con el mes pasado", "Agrupa la deuda por doctor"]
+- Si respondiste sobre el doctor con más citas → sugerir: ["Cuáles fueron sus servicios más vendidos", "Cuántos pacientes nuevos atendió", "Y el mes pasado quién lideraba"]
+- Si no hubo resultados → sugerir reformulaciones más amplias.
 `;
 
 const FORBIDDEN_PATTERNS: Array<[RegExp, string]> = [
@@ -176,6 +189,36 @@ function validateSql(sql: string): { valid: boolean; error?: string } {
 function extractSqlFromResponse(text: string): string | null {
   const match = text.match(/```sql\s*([\s\S]*?)```/i);
   return match ? match[1].trim() : null;
+}
+
+const FALLBACK_SUGGESTIONS = [
+  "¿Cuántos pacientes nuevos este mes?",
+  "¿Citas completadas hoy?",
+  "Top 3 servicios más solicitados este mes",
+];
+
+function extractSuggestionsAndAnswer(text: string): {
+  answer: string;
+  suggestions: string[];
+} {
+  const match = text.match(/SUGGESTIONS:\s*(\[[\s\S]*?\])\s*$/);
+  if (!match) return { answer: text.trim(), suggestions: [] };
+
+  let suggestions: string[] = [];
+  try {
+    const parsed = JSON.parse(match[1]);
+    if (Array.isArray(parsed)) {
+      suggestions = parsed
+        .filter((s): s is string => typeof s === "string")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 3);
+    }
+  } catch {
+    // ignore — keep answer without suggestions
+  }
+  const answer = text.replace(match[0], "").trim();
+  return { answer, suggestions };
 }
 
 async function callAnthropic(
@@ -314,6 +357,7 @@ export async function POST(req: NextRequest) {
         response: "Solo puedo consultar información, no modificar registros.",
         data: null,
         sql: null,
+        suggestions: FALLBACK_SUGGESTIONS,
       });
     }
 
@@ -349,12 +393,16 @@ export async function POST(req: NextRequest) {
           ...recentHistory,
           { role: "user", content: `Pregunta: ${message}\n\nNo se requiere consultar la base de datos para responder esto.` },
         ],
-        256
+        320
+      );
+      const direct = extractSuggestionsAndAnswer(
+        directResult.text ?? "No tengo información para responder esa pregunta."
       );
       return NextResponse.json({
-        response: directResult.text ?? "No tengo información para responder esa pregunta.",
+        response: direct.answer,
         data: null,
         sql: null,
+        suggestions: direct.suggestions.length ? direct.suggestions : FALLBACK_SUGGESTIONS,
       });
     }
 
@@ -365,6 +413,7 @@ export async function POST(req: NextRequest) {
         response: "No pude generar una consulta para esa pregunta. Intenta reformularla.",
         data: null,
         sql: null,
+        suggestions: FALLBACK_SUGGESTIONS,
       });
     }
 
@@ -376,6 +425,7 @@ export async function POST(req: NextRequest) {
         data: null,
         sql: null,
         sqlError: null,
+        suggestions: FALLBACK_SUGGESTIONS,
       });
     }
 
@@ -462,6 +512,7 @@ export async function POST(req: NextRequest) {
         data: null,
         sql: null,
         sqlError: null,
+        suggestions: FALLBACK_SUGGESTIONS,
       });
     }
 
@@ -478,7 +529,7 @@ export async function POST(req: NextRequest) {
         ...recentHistory,
         { role: "user", content: `Pregunta del usuario: "${message}"\n\n${dataContext}` },
       ],
-      256
+      400
     );
 
     // ── Log AI query usage ──────────────────────────────────────────────────
@@ -494,11 +545,16 @@ export async function POST(req: NextRequest) {
       console.error("Failed to log AI query usage:", usageError.message);
     }
 
+    const final = extractSuggestionsAndAnswer(
+      answerResult.text ?? "No pude interpretar los resultados."
+    );
+
     return NextResponse.json({
-      response: answerResult.text ?? "No pude interpretar los resultados.",
+      response: final.answer,
       data: queryData,
-      sql: null,
+      sql: executedSql,
       sqlError: null,
+      suggestions: final.suggestions.length ? final.suggestions : FALLBACK_SUGGESTIONS,
     });
   } catch (err) {
     console.error("AI assistant error:", err);

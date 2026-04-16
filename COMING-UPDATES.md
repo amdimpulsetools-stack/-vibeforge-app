@@ -25,6 +25,17 @@
 
 ---
 
+## 🤖 Asistente IA
+
+- [ ] **Persistencia de conversación por día (sesiones de chat IA)** — Actualmente el contexto vive solo en memoria del navegador (últimas 10 interacciones + SQL previo embebido) lo cual es ligero y rápido. Próxima iteración:
+  - Tabla `ai_chat_sessions (id, organization_id, user_id, started_at, ended_at)` y `ai_chat_messages (id, session_id, role, content, sql, data_snapshot, created_at)` con RLS.
+  - Agrupación automática por día (1 sesión por usuario por día).
+  - Sidebar con historial: "Hoy", "Ayer", "Esta semana".
+  - Permite retomar conversaciones, exportar reportes y auditar uso.
+  - Ventaja: análisis posterior de qué preguntan los usuarios, mejora del prompt.
+
+---
+
 ## 📊 Reportes
 
 - [ ] **Reporte IA por paciente (timeline cronológico)** — Botón "Reporte IA" en la ficha expandida del paciente que genera:

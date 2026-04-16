@@ -13,6 +13,7 @@ interface Message {
   data?: Record<string, unknown>[] | null;
   sql?: string | null;
   sqlError?: string | null;
+  suggestions?: string[];
   timestamp: Date;
 }
 
@@ -79,7 +80,15 @@ function DataTable({ data }: { data: Record<string, unknown>[] }) {
   );
 }
 
-function MessageBubble({ message }: { message: Message }) {
+function MessageBubble({
+  message,
+  onSuggestionClick,
+  suggestionsDisabled,
+}: {
+  message: Message;
+  onSuggestionClick?: (suggestion: string) => void;
+  suggestionsDisabled?: boolean;
+}) {
   const isUser = message.role === "user";
 
   return (
@@ -128,6 +137,24 @@ function MessageBubble({ message }: { message: Message }) {
           <p className="text-xs text-muted-foreground italic">No se encontraron resultados.</p>
         )}
 
+        {/* Suggestion chips (follow-up questions) */}
+        {!isUser && message.suggestions && message.suggestions.length > 0 && onSuggestionClick && (
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {message.suggestions.map((s) => (
+              <button
+                key={s}
+                onClick={() => onSuggestionClick(s)}
+                disabled={suggestionsDisabled}
+                className="flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1 text-[11px] text-emerald-700 hover:bg-emerald-500/15 hover:border-emerald-500/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                title="Hacer esta pregunta"
+              >
+                <Sparkles className="h-2.5 w-2.5" />
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
+
         <span className="text-[10px] text-muted-foreground/50" suppressHydrationWarning>
           {message.timestamp.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}
         </span>
@@ -174,8 +201,8 @@ export function AiAssistantPanel() {
     }
   }, [open]);
 
-  const sendMessage = async () => {
-    const text = input.trim();
+  const sendMessage = async (overrideText?: string) => {
+    const text = (overrideText ?? input).trim();
     if (!text || loading) return;
 
     const userMsg: Message = {
@@ -186,15 +213,29 @@ export function AiAssistantPanel() {
     };
 
     setMessages((prev) => [...prev, userMsg]);
-    setInput("");
+    if (!overrideText) setInput("");
     setLoading(true);
 
     try {
-      // Send last 10 messages (5 exchanges) as conversation context
+      // Send last 10 messages (5 exchanges) as conversation context.
+      // For assistant turns that ran SQL, embed the SQL as [SQL_PREVIO] so
+      // the LLM can reuse filters/joins on follow-up questions.
       const history = messages
         .filter((m) => m.id !== "welcome")
         .slice(-10)
-        .map((m) => ({ role: m.role, content: m.content }));
+        .map((m) => {
+          if (m.role === "assistant" && m.sql) {
+            const answerSnippet =
+              m.content.length > 600 ? m.content.slice(0, 600) + "…" : m.content;
+            const sqlSnippet =
+              m.sql.length > 1000 ? m.sql.slice(0, 1000) + "…" : m.sql;
+            return {
+              role: m.role,
+              content: `${answerSnippet}\n\n[SQL_PREVIO]: ${sqlSnippet}`,
+            };
+          }
+          return { role: m.role, content: m.content };
+        });
 
       const res = await fetch("/api/ai-assistant", {
         method: "POST",
@@ -229,6 +270,7 @@ export function AiAssistantPanel() {
           data: json.data,
           sql: json.sql,
           sqlError: json.sqlError,
+          suggestions: Array.isArray(json.suggestions) ? json.suggestions : [],
           timestamp: new Date(),
         },
       ]);
@@ -255,6 +297,11 @@ export function AiAssistantPanel() {
       e.preventDefault();
       sendMessage();
     }
+  };
+
+  const handleSuggestionClick = (suggestion: string) => {
+    if (loading || quota.remaining === 0) return;
+    sendMessage(suggestion);
   };
 
   // Only render for admin/owner (after all hooks)
@@ -320,8 +367,13 @@ export function AiAssistantPanel() {
 
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-          {messages.map((msg) => (
-            <MessageBubble key={msg.id} message={msg} />
+          {messages.map((msg, i) => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onSuggestionClick={i === messages.length - 1 ? handleSuggestionClick : undefined}
+              suggestionsDisabled={loading || quota.remaining === 0}
+            />
           ))}
 
           {loading && (
@@ -365,7 +417,7 @@ export function AiAssistantPanel() {
               className="flex-1 resize-none rounded-xl border border-input bg-background/50 px-3 py-2 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={loading || !input.trim() || quota.remaining === 0}
               className="flex h-auto w-10 shrink-0 items-center justify-center rounded-xl gradient-primary text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
             >
