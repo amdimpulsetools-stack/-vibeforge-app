@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/landing/navbar";
+import { Reveal } from "@/components/landing/reveal";
 import {
   ArrowRight, ChevronRight, MessageCircle, Mail, Bell, Smartphone,
   CheckCircle2, X, Check, Clock, Gift, UserPlus, CalendarX2, Receipt,
@@ -99,7 +100,10 @@ export default function ComunicacionPage() {
             </div>
 
             {/* Floating Gmail confirmation card — top right */}
-            <div className="hidden lg:block absolute -top-6 -right-40 w-64 rotate-3 z-20">
+            <div
+              className="hidden lg:block absolute -top-6 -right-40 w-64 rotate-3 z-20 hero-float-card"
+              style={{ ["--float-delay" as string]: "0.7s" }}
+            >
               <div className="rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
                 <div className="bg-slate-50 px-3 py-2 flex items-center gap-2 border-b border-slate-200">
                   <div className="flex gap-1">
@@ -142,7 +146,10 @@ export default function ComunicacionPage() {
             </div>
 
             {/* Floating Birthday discount card — bottom left */}
-            <div className="hidden lg:block absolute -bottom-8 -left-40 w-60 -rotate-3 z-20">
+            <div
+              className="hidden lg:block absolute -bottom-8 -left-40 w-60 -rotate-3 z-20 hero-float-card"
+              style={{ ["--float-delay" as string]: "1.2s" }}
+            >
               <div className="rounded-xl border border-pink-200 bg-gradient-to-br from-pink-50 to-rose-50 shadow-2xl overflow-hidden">
                 <div className="bg-gradient-to-r from-pink-500 to-rose-500 px-3 py-2 flex items-center gap-2">
                   <Gift className="h-4 w-4 text-white" />
@@ -189,11 +196,11 @@ export default function ComunicacionPage() {
               { stat: "8%", label: "con recordatorios", desc: "las clínicas con WhatsApp + email reducen no-shows a menos del 10%" },
               { stat: "4h/sem", label: "de tu recepcionista", desc: "se gasta llamando para confirmar citas que podrían confirmarse solas" },
             ].map((item, idx) => (
-              <div key={idx} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
+              <Reveal key={idx} delay={idx * 120} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
                 <p className="text-4xl font-extrabold text-green-400">{item.stat}</p>
                 <p className="text-sm font-semibold text-white mt-1">{item.label}</p>
                 <p className="text-sm text-slate-400 mt-2">{item.desc}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -213,7 +220,7 @@ export default function ComunicacionPage() {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {EMAIL_TYPES.map((et) => {
+            {EMAIL_TYPES.map((et, idx) => {
               const Icon = et.icon;
               const colorMap: Record<string, string> = {
                 amber: "bg-amber-100 text-amber-600", emerald: "bg-emerald-100 text-emerald-600",
@@ -222,13 +229,13 @@ export default function ComunicacionPage() {
                 violet: "bg-violet-100 text-violet-600",
               };
               return (
-                <div key={et.label} className="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
+                <Reveal key={et.label} delay={idx * 80} className="rounded-xl border border-slate-200 bg-white p-4 hover:shadow-md transition-shadow">
                   <div className={`inline-flex h-9 w-9 items-center justify-center rounded-lg ${colorMap[et.color]} mb-3`}>
                     <Icon className="h-4 w-4" />
                   </div>
                   <h3 className="text-sm font-bold text-slate-900 mb-1">{et.label}</h3>
                   <p className="text-xs text-slate-500 leading-relaxed">{et.desc}</p>
-                </div>
+                </Reveal>
               );
             })}
           </div>

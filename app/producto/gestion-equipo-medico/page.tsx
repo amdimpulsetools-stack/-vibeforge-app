@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/landing/navbar";
+import { Reveal } from "@/components/landing/reveal";
 import {
   ArrowRight, ChevronRight, UsersRound, ShieldCheck, UserCheck, UserX,
   Eye, EyeOff, Lock, Mail, CheckCircle2, Crown, Stethoscope, ClipboardList,
@@ -115,11 +116,11 @@ export default function GestionEquipoPage() {
               { stat: "1 error", label: "de un miembro", desc: "puede borrar, modificar o ver información sensible de pacientes sin restricción" },
               { stat: "0%", label: "de auditoría", desc: "en la mayoría de softwares: nadie registra quién hizo qué ni cuándo" },
             ].map((item, idx) => (
-              <div key={idx} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
+              <Reveal key={idx} delay={idx * 120} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
                 <p className="text-4xl font-extrabold text-red-400">{item.stat}</p>
                 <p className="text-sm font-semibold text-white mt-1">{item.label}</p>
                 <p className="text-sm text-slate-400 mt-2">{item.desc}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -135,10 +136,10 @@ export default function GestionEquipoPage() {
             <p className="mt-3 text-lg text-slate-600">Cada persona ve lo que necesita para hacer su trabajo. Nada más, nada menos.</p>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
-            {ROLES.map((r) => {
+            {ROLES.map((r, idx) => {
               const Icon = r.icon;
               return (
-                <div key={r.role} className={`rounded-2xl border bg-white p-6 hover:shadow-lg transition-shadow ${r.color.split(" ")[2]}`}>
+                <Reveal key={r.role} delay={idx * 110} className={`rounded-2xl border bg-white p-6 hover:shadow-lg transition-shadow ${r.color.split(" ")[2]}`}>
                   <div className="flex items-center gap-3 mb-4">
                     <div className={`flex h-11 w-11 items-center justify-center rounded-xl border ${r.color}`}>
                       <Icon className="h-5 w-5" />
@@ -156,7 +157,7 @@ export default function GestionEquipoPage() {
                       </li>
                     ))}
                   </ul>
-                </div>
+                </Reveal>
               );
             })}
           </div>
@@ -171,14 +172,14 @@ export default function GestionEquipoPage() {
               { icon: Mail, title: "Invitaciones por email", desc: "Invita a tu equipo con un enlace seguro. El nuevo miembro se registra y automáticamente hereda el rol asignado." },
               { icon: Building2, title: "Horarios por doctor", desc: "Cada doctor con su propia agenda: días, horarios, consultorios asignados. Sin conflictos entre profesionales." },
               { icon: Eye, title: "Auditoría de acciones", desc: "Registro automático de quién hizo qué: quién canceló la cita, quién editó la nota, quién registró el pago." },
-            ].map((item) => {
+            ].map((item, idx) => {
               const Icon = item.icon;
               return (
-                <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+                <Reveal key={item.title} delay={idx * 140} className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
                   <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 mb-4"><Icon className="h-6 w-6" /></div>
                   <h3 className="text-base font-bold text-slate-900 mb-2">{item.title}</h3>
                   <p className="text-sm text-slate-600 leading-relaxed">{item.desc}</p>
-                </div>
+                </Reveal>
               );
             })}
           </div>

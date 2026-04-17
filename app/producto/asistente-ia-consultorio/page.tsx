@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/landing/navbar";
+import { Reveal } from "@/components/landing/reveal";
 import {
   ArrowRight,
   ChevronRight,
@@ -231,7 +232,10 @@ export default function AsistenteIAPage() {
             </div>
 
             {/* Floating card — No-show alert (top-left) */}
-            <div className="hidden lg:block absolute -top-8 -left-48 w-64 -rotate-3 z-20">
+            <div
+              className="hidden lg:block absolute -top-8 -left-48 w-64 -rotate-3 z-20 hero-float-card"
+              style={{ ["--float-delay" as string]: "0.6s" }}
+            >
               <div className="rounded-xl border border-amber-200 bg-white shadow-2xl overflow-hidden">
                 <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-2 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4 text-white" />
@@ -263,7 +267,10 @@ export default function AsistenteIAPage() {
             </div>
 
             {/* Floating card — Best performer (top-right) */}
-            <div className="hidden lg:block absolute -top-6 -right-48 w-64 rotate-3 z-20">
+            <div
+              className="hidden lg:block absolute -top-6 -right-48 w-64 rotate-3 z-20 hero-float-card"
+              style={{ ["--float-delay" as string]: "1.1s" }}
+            >
               <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 shadow-2xl overflow-hidden">
                 <div className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 px-3 py-2 flex items-center gap-2">
                   <Trophy className="h-4 w-4 text-white" />
@@ -295,7 +302,10 @@ export default function AsistenteIAPage() {
             </div>
 
             {/* Floating card — Loading analysis (bottom-right) */}
-            <div className="hidden lg:block absolute -bottom-8 -right-40 w-56 rotate-2 z-20">
+            <div
+              className="hidden lg:block absolute -bottom-8 -right-40 w-56 rotate-2 z-20 hero-float-card"
+              style={{ ["--float-delay" as string]: "1.6s" }}
+            >
               <div className="rounded-xl border border-violet-200 bg-white shadow-2xl overflow-hidden">
                 <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-3 py-2 flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-white" />
@@ -406,11 +416,11 @@ export default function AsistenteIAPage() {
                 desc: "no regresan después de la primera consulta (y nadie lo nota)",
               },
             ].map((item, idx) => (
-              <div key={idx} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
+              <Reveal key={idx} delay={idx * 120} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
                 <p className="text-4xl font-extrabold text-emerald-400">{item.stat}</p>
                 <p className="text-sm font-semibold text-white mt-1">{item.label}</p>
                 <p className="text-sm text-slate-400 mt-2">{item.desc}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -452,8 +462,9 @@ export default function AsistenteIAPage() {
               };
 
               return (
-                <div
+                <Reveal
                   key={idx}
+                  delay={idx * 120}
                   className={`rounded-2xl border bg-white p-6 hover:shadow-lg transition-all ${borderMap[example.color]}`}
                 >
                   <div className="flex items-center gap-3 mb-4">
@@ -482,7 +493,7 @@ export default function AsistenteIAPage() {
                       {example.answer}
                     </p>
                   </div>
-                </div>
+                </Reveal>
               );
             })}
           </div>
@@ -505,8 +516,9 @@ export default function AsistenteIAPage() {
 
           <div className="space-y-4">
             {BEFORE_AFTER.map((item, idx) => (
-              <div
+              <Reveal
                 key={idx}
+                delay={idx * 100}
                 className="grid md:grid-cols-[1fr_auto_1fr] gap-4 items-center rounded-2xl border border-slate-200 bg-white p-5 md:p-6"
               >
                 {/* Before */}
@@ -540,7 +552,7 @@ export default function AsistenteIAPage() {
                     <p className="text-sm text-slate-700">{item.after}</p>
                   </div>
                 </div>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -580,17 +592,17 @@ export default function AsistenteIAPage() {
                 title: "Recibe insights accionables",
                 desc: "No solo números — recibes contexto, comparaciones y recomendaciones concretas para tu práctica.",
               },
-            ].map((item) => {
+            ].map((item, idx) => {
               const Icon = item.icon;
               return (
-                <div key={item.step} className="text-center">
+                <Reveal key={item.step} delay={idx * 150} className="text-center">
                   <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-gradient-to-br from-violet-100 to-purple-100 border border-violet-200 mb-4">
                     <Icon className="h-7 w-7 text-violet-600" />
                   </div>
                   <div className="text-xs font-bold text-violet-500 mb-2">PASO {item.step}</div>
                   <h3 className="text-lg font-bold text-slate-900 mb-2">{item.title}</h3>
                   <p className="text-sm text-slate-600 leading-relaxed">{item.desc}</p>
-                </div>
+                </Reveal>
               );
             })}
           </div>
@@ -625,16 +637,16 @@ export default function AsistenteIAPage() {
                 title: "Contexto médico",
                 desc: "Entiende terminología clínica, CIE-10, flujos de consultorio y métricas relevantes para tu práctica.",
               },
-            ].map((item) => {
+            ].map((item, idx) => {
               const Icon = item.icon;
               return (
-                <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+                <Reveal key={item.title} delay={idx * 150} className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
                   <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-violet-100 text-violet-600 mb-4">
                     <Icon className="h-6 w-6" />
                   </div>
                   <h3 className="text-base font-bold text-slate-900 mb-2">{item.title}</h3>
                   <p className="text-sm text-slate-600 leading-relaxed">{item.desc}</p>
-                </div>
+                </Reveal>
               );
             })}
           </div>

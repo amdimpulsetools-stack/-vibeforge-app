@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/landing/navbar";
 import { PatientCardsCarousel } from "@/components/landing/patient-cards-carousel";
+import { Reveal } from "@/components/landing/reveal";
 import {
   ArrowRight,
   ChevronRight,
@@ -118,12 +119,12 @@ export default function GestionPacientesPage() {
             ].map((item, idx) => {
               const Icon = item.icon;
               return (
-                <div key={idx} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
+                <Reveal key={idx} delay={idx * 120} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
                   <Icon className="h-6 w-6 text-amber-400 mx-auto mb-3" />
                   <p className="text-4xl font-extrabold text-amber-400">{item.stat}</p>
                   <p className="text-sm font-semibold text-white mt-1">{item.label}</p>
                   <p className="text-sm text-slate-400 mt-2">{item.desc}</p>
-                </div>
+                </Reveal>
               );
             })}
           </div>
