@@ -1,0 +1,256 @@
+"use client";
+
+import { useState } from "react";
+import { useOrgAddons, type Addon } from "@/hooks/use-org-addons";
+import { useOrgRole } from "@/hooks/use-org-role";
+import { toast } from "sonner";
+import {
+  Loader2,
+  Sparkles,
+  Star,
+  Lock,
+  CheckCircle2,
+  Scan,
+  Smile,
+  Apple,
+  Brain,
+  Baby,
+  Eye,
+  HeartPulse,
+  Bone,
+  Video,
+  BarChart3,
+  Package,
+  FlaskConical,
+} from "lucide-react";
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  Scan,
+  Smile,
+  Apple,
+  Brain,
+  Baby,
+  Eye,
+  HeartPulse,
+  Bone,
+  Sparkles,
+  Video,
+  BarChart3,
+  Package,
+  FlaskConical,
+};
+
+const CATEGORY_LABELS: Record<string, { es: string; en: string }> = {
+  specialty: { es: "Especialidades Médicas", en: "Medical Specialties" },
+  workflow: { es: "Flujos de Trabajo", en: "Workflows" },
+  clinical: { es: "Clínico", en: "Clinical" },
+};
+
+const PLAN_LABELS: Record<string, string> = {
+  starter: "Starter",
+  professional: "Professional",
+  enterprise: "Enterprise",
+};
+
+export default function ModulosTab() {
+  const { addons, loading, toggleAddon } = useOrgAddons();
+  const { isAdmin } = useOrgRole();
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  const handleToggle = async (addon: Addon) => {
+    if (!isAdmin) return;
+    setToggling(addon.key);
+    const ok = await toggleAddon(addon.key, !addon.enabled);
+    setToggling(null);
+    if (ok) {
+      toast.success(
+        addon.enabled
+          ? `${addon.name} desactivado`
+          : `${addon.name} activado`
+      );
+    } else {
+      toast.error("Error al cambiar el módulo");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const recommended = addons.filter((a) => a.recommended);
+  const byCategory = addons.reduce(
+    (acc, a) => {
+      (acc[a.category] ??= []).push(a);
+      return acc;
+    },
+    {} as Record<string, Addon[]>
+  );
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <h2 className="text-lg font-semibold">Módulos</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Activa herramientas especializadas para tu clínica. Los módulos recomendados
+          se basan en la especialidad que elegiste durante el onboarding.
+        </p>
+      </div>
+
+      {/* Recommended section */}
+      {recommended.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Star className="h-4 w-4 text-amber-500" />
+            <h3 className="text-sm font-semibold">Recomendados para tu especialidad</h3>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {recommended.map((addon) => (
+              <AddonCard
+                key={addon.key}
+                addon={addon}
+                toggling={toggling === addon.key}
+                isAdmin={isAdmin}
+                onToggle={() => handleToggle(addon)}
+                highlighted
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* All modules by category */}
+      {(["specialty", "workflow", "clinical"] as const).map((cat) => {
+        const items = byCategory[cat];
+        if (!items?.length) return null;
+        const label = CATEGORY_LABELS[cat];
+        return (
+          <div key={cat} className="space-y-3">
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+              {label.es}
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {items.map((addon) => (
+                <AddonCard
+                  key={addon.key}
+                  addon={addon}
+                  toggling={toggling === addon.key}
+                  isAdmin={isAdmin}
+                  onToggle={() => handleToggle(addon)}
+                />
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AddonCard({
+  addon,
+  toggling,
+  isAdmin,
+  onToggle,
+  highlighted,
+}: {
+  addon: Addon;
+  toggling: boolean;
+  isAdmin: boolean;
+  onToggle: () => void;
+  highlighted?: boolean;
+}) {
+  const Icon = ICON_MAP[addon.icon ?? ""] ?? Sparkles;
+
+  return (
+    <div
+      className={`relative rounded-2xl border p-4 transition-all ${
+        addon.enabled
+          ? "border-primary/40 bg-primary/5 ring-1 ring-primary/20"
+          : highlighted
+            ? "border-amber-500/30 bg-amber-500/5"
+            : "border-border/60 bg-card hover:border-border"
+      }`}
+    >
+      {/* Top row: icon + toggle */}
+      <div className="flex items-start justify-between gap-3">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+            addon.enabled
+              ? "bg-primary/10 text-primary"
+              : "bg-muted/60 text-muted-foreground"
+          }`}
+        >
+          <Icon className="h-5 w-5" />
+        </div>
+
+        {/* Toggle or lock */}
+        {isAdmin ? (
+          <button
+            onClick={onToggle}
+            disabled={toggling}
+            className="relative shrink-0"
+            title={addon.enabled ? "Desactivar módulo" : "Activar módulo"}
+          >
+            {toggling ? (
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            ) : (
+              <div className="relative">
+                <div
+                  className={`h-6 w-11 rounded-full transition-colors ${
+                    addon.enabled ? "bg-primary" : "bg-muted"
+                  }`}
+                />
+                <div
+                  className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                    addon.enabled ? "translate-x-5" : ""
+                  }`}
+                />
+              </div>
+            )}
+          </button>
+        ) : addon.enabled ? (
+          <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
+        ) : (
+          <Lock className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+        )}
+      </div>
+
+      {/* Name + badges */}
+      <div className="mt-3 space-y-1.5">
+        <div className="flex items-center gap-2">
+          <h4 className="text-sm font-semibold leading-tight">{addon.name}</h4>
+          {addon.is_premium && (
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-500">
+              <Sparkles className="h-2.5 w-2.5" />
+              PRO
+            </span>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+          {addon.description}
+        </p>
+      </div>
+
+      {/* Footer */}
+      <div className="mt-3 flex items-center gap-2 text-[10px] text-muted-foreground">
+        {addon.enabled && addon.activated_at && (
+          <span className="inline-flex items-center gap-1 text-primary font-medium">
+            <CheckCircle2 className="h-3 w-3" />
+            Activo
+          </span>
+        )}
+        {addon.is_premium && (
+          <span>
+            Plan {PLAN_LABELS[addon.min_plan] ?? addon.min_plan}+
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}

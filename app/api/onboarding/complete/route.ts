@@ -48,14 +48,55 @@ export async function POST() {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  const orgId = membership.organization_id;
+
   const { error } = await supabase
     .from("organizations")
     .update({ onboarding_completed_at: new Date().toISOString() })
-    .eq("id", membership.organization_id);
+    .eq("id", orgId);
 
   if (error) {
     console.error("Onboarding complete error:", error);
     return NextResponse.json({ error: "Error al completar el onboarding" }, { status: 500 });
+  }
+
+  // Auto-activate addon modules that match the org's specialty
+  try {
+    const { data: orgSpecs } = await supabase
+      .from("organization_specialties")
+      .select("specialties(slug)")
+      .eq("organization_id", orgId);
+
+    const slugs = (orgSpecs ?? [])
+      .map((r) => (r.specialties as unknown as { slug: string } | null)?.slug)
+      .filter(Boolean) as string[];
+
+    if (slugs.length > 0) {
+      const { data: matchingAddons } = await supabase
+        .from("addons")
+        .select("key, specialties")
+        .eq("is_active", true)
+        .eq("is_premium", false);
+
+      const toActivate = (matchingAddons ?? []).filter((a) =>
+        Array.isArray(a.specialties) &&
+        a.specialties.some((s: string) => slugs.includes(s))
+      );
+
+      if (toActivate.length > 0) {
+        await supabase.from("organization_addons").upsert(
+          toActivate.map((a) => ({
+            organization_id: orgId,
+            addon_key: a.key,
+            enabled: true,
+            activated_by: user.id,
+          })),
+          { onConflict: "organization_id,addon_key" }
+        );
+      }
+    }
+  } catch (addonErr) {
+    console.error("Addon auto-activation error:", addonErr);
   }
 
   return NextResponse.json({ success: true });
