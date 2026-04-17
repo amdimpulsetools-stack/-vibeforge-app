@@ -6,6 +6,11 @@ import {
   Receipt,
   MousePointerClick,
   Sparkles,
+  GraduationCap,
+  Brain,
+  ListPlus,
+  Target,
+  BadgePercent,
 } from "lucide-react";
 import { Reveal } from "@/components/landing/reveal";
 
@@ -52,6 +57,41 @@ const UPCOMING_FEATURES = [
     status: "En planificación",
     color: "orange",
   },
+  {
+    icon: GraduationCap,
+    title: "Entrenamiento de Recepcionistas",
+    desc: "Modelo de entrenamiento de respuestas y técnicas de venta para que tu recepcionista cierre más citas y mejore la conversión.",
+    status: "En planificación",
+    color: "pink",
+  },
+  {
+    icon: Brain,
+    title: "Reporte IA Inteligente Ampliado",
+    desc: "Más datos accionables en el reporte de IA: tendencias, predicciones de demanda, recomendaciones personalizadas por doctor y servicio.",
+    status: "En desarrollo",
+    color: "indigo",
+  },
+  {
+    icon: ListPlus,
+    title: "Custom Fields en Ficha del Paciente",
+    desc: "Crea campos personalizados en la ficha del paciente eligiendo el tipo de campo (texto, número, fecha, opciones). Disponible como add-on.",
+    status: "Próximamente",
+    color: "cyan",
+  },
+  {
+    icon: Target,
+    title: "Metas para Recepcionistas",
+    desc: "Define objetivos mensuales de citas agendadas, conversión y cobros. Seguimiento en tiempo real con dashboard de desempeño.",
+    status: "En planificación",
+    color: "rose",
+  },
+  {
+    icon: BadgePercent,
+    title: "Servicio Sin Costo (Cortesía)",
+    desc: "Toggle en la ficha del paciente para anular el costo de un servicio por canje o trato especial. Confirmación con modal para evitar errores.",
+    status: "Próximamente",
+    color: "lime",
+  },
 ];
 
 const STATUS_STYLES: Record<string, string> = {
@@ -67,6 +107,11 @@ const COLOR_MAP: Record<string, string> = {
   blue: "bg-blue-100 text-blue-600",
   teal: "bg-teal-100 text-teal-600",
   orange: "bg-orange-100 text-orange-600",
+  pink: "bg-pink-100 text-pink-600",
+  indigo: "bg-indigo-100 text-indigo-600",
+  cyan: "bg-cyan-100 text-cyan-600",
+  rose: "bg-rose-100 text-rose-600",
+  lime: "bg-lime-100 text-lime-600",
 };
 
 export function ComingUpdates() {
