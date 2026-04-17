@@ -60,7 +60,7 @@ export default function ComunicacionPage() {
           </h1>
           <p className="mt-6 text-lg md:text-xl text-slate-600 leading-relaxed max-w-2xl mx-auto">
             Cada cita confirmada. Cada recordatorio enviado. Cada recibo entregado.
-            <strong className="text-slate-900"> Sin que tú ni tu recepcionista toquen un solo botón.</strong>
+            <strong className="text-slate-900"> Tu recepcionista se enfoca en lo más importante, cerrar citas y agendar pacientes.</strong>
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link href="/register" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 px-6 text-sm font-semibold text-white shadow-lg hover:opacity-90 transition-all w-full sm:w-auto">
@@ -70,29 +70,95 @@ export default function ComunicacionPage() {
           </div>
         </div>
 
-        {/* WhatsApp mockup */}
-        <div className="mt-16 mx-auto max-w-sm">
-          <div className="rounded-2xl border border-slate-200 bg-[#ECE5DD] shadow-xl overflow-hidden">
-            <div className="bg-[#075E54] px-4 py-3 flex items-center gap-3">
-              <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center">
-                <Zap className="h-4 w-4 text-white" />
+        {/* WhatsApp mockup with floating cards */}
+        <div className="mt-16 mx-auto max-w-sm relative lg:max-w-2xl lg:px-32">
+          <div className="relative mx-auto max-w-sm">
+            <div className="rounded-2xl border border-slate-200 bg-[#ECE5DD] shadow-xl overflow-hidden">
+              <div className="bg-[#075E54] px-4 py-3 flex items-center gap-3">
+                <div className="h-9 w-9 rounded-full bg-white/20 flex items-center justify-center">
+                  <Zap className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-white text-sm font-bold">Clínica REPLACE</p>
+                  <p className="text-green-200 text-[10px]">Mensaje automático</p>
+                </div>
               </div>
-              <div>
-                <p className="text-white text-sm font-bold">Clínica REPLACE</p>
-                <p className="text-green-200 text-[10px]">Mensaje automático</p>
+              <div className="p-4 space-y-3">
+                <div className="max-w-[85%] rounded-xl rounded-tl-md bg-white px-4 py-2.5 shadow-sm">
+                  <p className="text-sm text-slate-800">Hola <strong>María</strong> 👋</p>
+                  <p className="text-sm text-slate-800 mt-1">
+                    Te recordamos que tienes una cita <strong>mañana martes 9 de abril</strong> a las <strong>10:30 AM</strong> con la <strong>Dra. Angela Quispe</strong>.
+                  </p>
+                  <p className="text-sm text-slate-800 mt-1">📍 Consultorio #1</p>
+                  <p className="text-sm text-slate-600 mt-2 italic">
+                    Por favor llega 10 minutos antes. Si necesitas cancelar, avísanos con anticipación.
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-2 text-right">3:00 p.m. ✓✓</p>
+                </div>
               </div>
             </div>
-            <div className="p-4 space-y-3">
-              <div className="max-w-[85%] rounded-xl rounded-tl-md bg-white px-4 py-2.5 shadow-sm">
-                <p className="text-sm text-slate-800">Hola <strong>María</strong> 👋</p>
-                <p className="text-sm text-slate-800 mt-1">
-                  Te recordamos que tienes una cita <strong>mañana martes 9 de abril</strong> a las <strong>10:30 AM</strong> con la <strong>Dra. Angela Quispe</strong>.
-                </p>
-                <p className="text-sm text-slate-800 mt-1">📍 Consultorio #1</p>
-                <p className="text-sm text-slate-600 mt-2 italic">
-                  Por favor llega 10 minutos antes. Si necesitas cancelar, avísanos con anticipación.
-                </p>
-                <p className="text-[10px] text-slate-400 mt-2 text-right">3:00 p.m. ✓✓</p>
+
+            {/* Floating Gmail confirmation card — top right */}
+            <div className="hidden lg:block absolute -top-6 -right-40 w-64 rotate-3 z-20">
+              <div className="rounded-xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
+                <div className="bg-slate-50 px-3 py-2 flex items-center gap-2 border-b border-slate-200">
+                  <div className="flex gap-1">
+                    <span className="h-2 w-2 rounded-full bg-red-400" />
+                    <span className="h-2 w-2 rounded-full bg-amber-400" />
+                    <span className="h-2 w-2 rounded-full bg-green-400" />
+                  </div>
+                  <span className="text-[10px] font-semibold text-slate-500 ml-1">Bandeja de entrada</span>
+                </div>
+                <div className="p-3">
+                  <div className="flex items-start gap-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-red-500 to-red-600 shadow-sm">
+                      <Mail className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-bold text-slate-900 truncate">Clínica REPLACE</p>
+                        <span className="text-[9px] text-slate-400">3:00 p.m.</span>
+                      </div>
+                      <p className="text-[11px] font-semibold text-slate-800 mt-0.5 leading-tight">
+                        Confirmación de tu cita — Dra. Angela Quispe
+                      </p>
+                      <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                        Mar 9 abr · 10:30 AM · Consultorio #1
+                      </p>
+                    </div>
+                  </div>
+                  <button className="mt-3 w-full inline-flex items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-red-500 to-red-600 px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm">
+                    <Mail className="h-3 w-3" /> Abrir en Gmail
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Floating Birthday discount card — bottom left */}
+            <div className="hidden lg:block absolute -bottom-8 -left-40 w-60 -rotate-3 z-20">
+              <div className="rounded-xl border border-pink-200 bg-gradient-to-br from-pink-50 to-rose-50 shadow-2xl overflow-hidden">
+                <div className="bg-gradient-to-r from-pink-500 to-rose-500 px-3 py-2 flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-white" />
+                  <span className="text-[10px] font-bold text-white uppercase tracking-wide">
+                    Feliz cumpleaños 🎂
+                  </span>
+                </div>
+                <div className="p-3">
+                  <p className="text-[11px] text-slate-700 leading-snug">
+                    Hola <strong>María</strong>, en tu día tenemos un regalo para ti:
+                  </p>
+                  <div className="mt-2 rounded-lg border-2 border-dashed border-pink-400 bg-white px-3 py-2 text-center">
+                    <p className="text-2xl font-extrabold bg-gradient-to-r from-pink-600 to-rose-500 bg-clip-text text-transparent">
+                      10% OFF
+                    </p>
+                    <p className="text-[9px] font-semibold text-slate-500 uppercase tracking-wide">
+                      en tu próxima consulta
+                    </p>
+                  </div>
+                  <p className="text-[9px] text-slate-500 mt-2 text-center">
+                    Válido por 30 días · Código: <strong className="text-pink-600">BDAY10</strong>
+                  </p>
+                </div>
               </div>
             </div>
           </div>
