@@ -18,6 +18,14 @@ import {
   MousePointerClick,
   Ban,
   Bell,
+  FileSpreadsheet,
+  Table2,
+  Trash2,
+  RefreshCw,
+  Eye,
+  BarChart3,
+  Brain,
+  Rocket,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -156,7 +164,7 @@ export default function AgendaMedicaPage() {
 
           <div className="mt-12 grid gap-6 md:grid-cols-3">
             {[
-              { icon: Ban, stat: "S/. 850", label: "al mes", desc: "pierde un consultorio promedio por inasistencias no gestionadas" },
+              { icon: Ban, stat: "S/. 4,500", label: "al mes", desc: "pierde un centro médico promedio por inasistencias no gestionadas" },
               { icon: Clock, stat: "4 horas", label: "cada semana", desc: "gasta una recepcionista llamando para confirmar citas" },
               { icon: AlertTriangle, stat: "1 de 4", label: "pacientes", desc: "no se presenta a su cita si no recibe un recordatorio" },
             ].map((item, idx) => {
@@ -170,6 +178,150 @@ export default function AgendaMedicaPage() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════ */}
+      {/* EXCEL TRAP                                       */}
+      {/* ════════════════════════════════════════════════ */}
+      <section className="py-20 px-4 md:px-6 bg-amber-50/60">
+        <div className="mx-auto max-w-4xl">
+          <div className="text-center mb-14">
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100 px-4 py-1.5 text-xs font-semibold text-amber-800 mb-5">
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              La trampa del Excel
+            </div>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 leading-tight">
+              Excel es útil, pero
+              <span className="text-amber-600"> no te protege.</span>
+            </h2>
+            <p className="mt-4 text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
+              Muchos consultorios dan el salto del cuaderno a Excel creyendo que resolvieron el problema.
+              La realidad: solo cambiaron un riesgo por otro.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              {
+                icon: AlertTriangle,
+                title: "Cero detección de conflictos",
+                desc: "Puedes agendar dos pacientes a la misma hora sin darte cuenta. Excel no te avisa, tú descubres el error cuando ambos llegan.",
+              },
+              {
+                icon: Eye,
+                title: "Visualmente agotador",
+                desc: "Celdas diminutas, colores manuales, fórmulas que se rompen. Después de 30 minutos tus ojos se cansan y los errores se multiplican.",
+              },
+              {
+                icon: Table2,
+                title: "Decenas de pestañas",
+                desc: "Una pestaña por doctor, otra por consultorio, otra por mes. Buscar la cita de un paciente se convierte en un juego de adivinanzas.",
+              },
+              {
+                icon: Trash2,
+                title: "Un clic borra todo",
+                desc: "Cualquiera puede modificar o borrar una celda por accidente. Sin historial, sin auditoría, sin forma de recuperar lo perdido.",
+              },
+              {
+                icon: RefreshCw,
+                title: "Reinventar cada mes",
+                desc: "Cada mes creas una hoja nueva, copias formatos, ajustas fechas. Horas de trabajo repetitivo que no aportan valor a tu clínica.",
+              },
+              {
+                icon: BarChart3,
+                title: "Sin métricas reales",
+                desc: "¿Cuántos no-shows tuviste? ¿Qué doctor tiene más demanda? ¿Qué horario se llena primero? Excel no te responde. Tú tampoco sabes.",
+              },
+            ].map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.title} className="rounded-2xl border border-amber-200 bg-white p-6 hover:shadow-md transition-shadow">
+                  <Icon className="h-6 w-6 text-amber-600 mb-3" />
+                  <h3 className="text-base font-bold text-slate-900 mb-2">{item.title}</h3>
+                  <p className="text-sm text-slate-600 leading-relaxed">{item.desc}</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-10 text-center">
+            <p className="text-base font-semibold text-slate-800">
+              Excel fue diseñado para hojas de cálculo,{" "}
+              <span className="text-emerald-600">no para gestionar la salud de tus pacientes.</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ════════════════════════════════════════════════ */}
+      {/* MISSING DATA + MODERN EXPERIENCE                */}
+      {/* ════════════════════════════════════════════════ */}
+      <section className="py-20 px-4 md:px-6 bg-gradient-to-b from-white to-slate-50">
+        <div className="mx-auto max-w-5xl">
+          <div className="grid gap-8 md:grid-cols-2">
+            {/* Missing patient data */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 hover:shadow-lg transition-shadow">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border bg-violet-100 text-violet-600 border-violet-200 mb-5">
+                <Brain className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">
+                Información que hoy no capturas
+                <span className="text-violet-600"> te cuesta pacientes.</span>
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed mb-4">
+                ¿De dónde vienen tus pacientes? ¿Cuántos son nuevos vs. recurrentes? ¿Qué servicio genera más ingresos?
+                Sin estos datos, tus decisiones de marketing son suposiciones.
+              </p>
+              <ul className="space-y-2.5">
+                {[
+                  "Fuente de referencia (Instagram, Google, recomendación)",
+                  "Historial de visitas y frecuencia de retorno",
+                  "Servicios más demandados por perfil de paciente",
+                  "Datos demográficos para campañas dirigidas",
+                ].map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
+                    <CheckCircle2 className="h-4 w-4 text-violet-500 shrink-0 mt-0.5" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 text-xs text-slate-500 italic">
+                REPLACE captura automáticamente estos datos en cada registro, convirtiendo cada cita en inteligencia para tu negocio.
+              </p>
+            </div>
+
+            {/* Modern experience */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-8 hover:shadow-lg transition-shadow">
+              <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl border bg-emerald-100 text-emerald-600 border-emerald-200 mb-5">
+                <Rocket className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-3">
+                Un entorno que
+                <span className="text-emerald-600"> acelera todo.</span>
+              </h3>
+              <p className="text-sm text-slate-600 leading-relaxed mb-4">
+                Interfaz moderna diseñada para fluir, no para aprender manuales.
+                Tu equipo la domina en minutos. La velocidad se nota desde el primer día.
+              </p>
+              <ul className="space-y-2.5">
+                {[
+                  "3 clics para agendar — no 15 pasos en un formulario eterno",
+                  "Búsqueda instantánea de pacientes, doctores y horarios",
+                  "Vista adaptable: día, semana o mes según tu flujo",
+                  "Funciona en celular, tablet y computadora sin instalar nada",
+                ].map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-sm text-slate-700">
+                    <Zap className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-4 text-xs text-slate-500 italic">
+                Menos clics, menos errores, más pacientes atendidos. Productividad real, no promesas.
+              </p>
+            </div>
           </div>
         </div>
       </section>
