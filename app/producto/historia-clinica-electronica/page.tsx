@@ -17,6 +17,8 @@ import {
   Printer,
   History,
   Brain,
+  Activity,
+  TrendingUp,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -70,9 +72,11 @@ export default function HistoriaClinicaPage() {
           </h1>
 
           <p className="mt-6 text-lg md:text-xl text-slate-600 leading-relaxed max-w-2xl mx-auto">
-            Cada nota clínica, cada receta, cada orden de examen — todo en un solo lugar.
-            Accesible desde cualquier dispositivo. Firmado digitalmente.
-            <strong className="text-slate-900"> Legalmente válido.</strong>
+            Cada nota clínica, cada receta, cada orden de examen —{" "}
+            <strong className="text-slate-900">todo en un solo lugar</strong>.
+            Accesible desde cualquier dispositivo.{" "}
+            <strong className="text-slate-900">Firmado digitalmente</strong>.{" "}
+            <strong className="text-slate-900">Legalmente válido.</strong>
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -89,9 +93,108 @@ export default function HistoriaClinicaPage() {
           </div>
         </div>
 
-        {/* SOAP Note mockup */}
-        <div className="mt-16 mx-auto max-w-2xl">
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+        {/* SOAP Note mockup + floating cards */}
+        <div className="mt-16 mb-20 mx-auto max-w-2xl relative">
+          {/* Floating: Vital Signs (top-right) */}
+          <div className="hidden lg:block absolute -top-10 -right-20 w-52 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-3 z-20">
+            <div className="flex items-center gap-1.5 mb-3">
+              <Activity className="h-4 w-4 text-red-500" />
+              <span className="text-xs font-bold text-slate-900">Signos vitales</span>
+              <span className="ml-auto text-[9px] text-slate-400">Hoy</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg bg-red-50 p-2 text-center">
+                <p className="text-[9px] text-red-600 font-semibold uppercase tracking-wide">PA</p>
+                <p className="text-sm font-extrabold text-slate-900">120/80</p>
+                <p className="text-[8px] text-slate-400">mmHg</p>
+              </div>
+              <div className="rounded-lg bg-pink-50 p-2 text-center">
+                <p className="text-[9px] text-pink-600 font-semibold uppercase tracking-wide">FC</p>
+                <p className="text-sm font-extrabold text-slate-900">72</p>
+                <p className="text-[8px] text-slate-400">lpm</p>
+              </div>
+              <div className="rounded-lg bg-blue-50 p-2 text-center">
+                <p className="text-[9px] text-blue-600 font-semibold uppercase tracking-wide">SpO₂</p>
+                <p className="text-sm font-extrabold text-slate-900">98%</p>
+                <p className="text-[8px] text-slate-400">sat</p>
+              </div>
+              <div className="rounded-lg bg-amber-50 p-2 text-center">
+                <p className="text-[9px] text-amber-600 font-semibold uppercase tracking-wide">T°</p>
+                <p className="text-sm font-extrabold text-slate-900">36.5</p>
+                <p className="text-[8px] text-slate-400">°C</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Floating: Tracking Graph (bottom-left) */}
+          <div className="hidden lg:block absolute -bottom-14 -left-20 w-60 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 -rotate-3 z-20">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5">
+                <TrendingUp className="h-4 w-4 text-emerald-500" />
+                <span className="text-xs font-bold text-slate-900">Presión arterial</span>
+              </div>
+              <span className="text-[9px] text-slate-400">30 días</span>
+            </div>
+            <svg viewBox="0 0 200 60" className="w-full h-16" preserveAspectRatio="none">
+              <defs>
+                <linearGradient id="sparkFillHCE" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+                  <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              <path
+                d="M 0 45 L 22 42 L 44 38 L 66 30 L 88 34 L 110 22 L 132 26 L 154 16 L 176 20 L 200 12 L 200 60 L 0 60 Z"
+                fill="url(#sparkFillHCE)"
+              />
+              <path
+                d="M 0 45 L 22 42 L 44 38 L 66 30 L 88 34 L 110 22 L 132 26 L 154 16 L 176 20 L 200 12"
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="200" cy="12" r="3" fill="#10b981" />
+            </svg>
+            <div className="flex items-center justify-between text-[10px] mt-1.5 pt-2 border-t border-slate-100">
+              <span className="text-slate-500">Último: <span className="font-bold text-slate-900">120/80</span></span>
+              <span className="text-emerald-600 font-semibold flex items-center gap-0.5">
+                <TrendingUp className="h-2.5 w-2.5" />
+                Mejorando
+              </span>
+            </div>
+          </div>
+
+          {/* Floating: Prescription (middle-right, below vitals) */}
+          <div className="hidden lg:block absolute -bottom-8 -right-16 w-60 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-2 z-20">
+            <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700 font-extrabold text-base">
+                R<span className="text-[10px]">x</span>
+              </div>
+              <div>
+                <p className="text-[11px] font-bold text-slate-900">Receta Médica</p>
+                <p className="text-[9px] text-slate-500">Dra. García — CMP 54321</p>
+              </div>
+              <Lock className="ml-auto h-3 w-3 text-emerald-500" />
+            </div>
+            <div className="space-y-2.5">
+              <div>
+                <p className="text-xs font-bold text-slate-900">Ibuprofeno 400mg</p>
+                <p className="text-[10px] text-slate-500 leading-tight">1 tab c/8h · 5 días · Vía oral</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-slate-900">Omeprazol 20mg</p>
+                <p className="text-[10px] text-slate-500 leading-tight">1 cáp en ayunas · 7 días</p>
+              </div>
+            </div>
+            <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between">
+              <span className="text-[9px] text-slate-400 italic">Firmada digitalmente</span>
+              <span className="text-[9px] font-mono text-slate-400">#RX-2845</span>
+            </div>
+          </div>
+
+          {/* Main SOAP Note mockup */}
+          <div className="relative z-10 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
             <div className="flex items-center gap-3 border-b border-slate-200 px-5 py-3 bg-slate-50">
               <Stethoscope className="h-5 w-5 text-blue-600" />
               <span className="text-sm font-bold text-slate-900">Nota Clínica (SOAP)</span>
@@ -134,7 +237,8 @@ export default function HistoriaClinicaPage() {
             <span className="text-red-400"> El paciente no.</span>
           </h2>
           <p className="mt-6 text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Carpetas apiladas en un armario. Notas ilegibles. Recetas que el paciente pierde.
+            Carpetas apiladas en un armario. <strong className="text-white">Notas ilegibles</strong>.{" "}
+            <strong className="text-white">Recetas que el paciente pierde</strong>.
             Resultados de laboratorio que nadie puede encontrar.
             ¿Así quieres que funcione tu práctica médica?
           </p>
@@ -178,9 +282,11 @@ export default function HistoriaClinicaPage() {
                 Documenta en 2 minutos lo que antes tomaba 10
               </h3>
               <p className="text-base text-slate-600 mb-6 leading-relaxed">
-                Formato SOAP estructurado con autocompletado de diagnósticos CIE-10,
-                signos vitales con gráficas de tendencia, plantillas reutilizables por
-                especialidad y firma digital con versionado automático.
+                Formato SOAP estructurado con{" "}
+                <strong className="text-slate-900">autocompletado de diagnósticos CIE-10</strong>,{" "}
+                <strong className="text-slate-900">signos vitales con gráficas de tendencia</strong>,
+                plantillas reutilizables por especialidad y{" "}
+                <strong className="text-slate-900">firma digital con versionado automático</strong>.
               </p>
               <ul className="space-y-3">
                 {[
@@ -222,9 +328,10 @@ export default function HistoriaClinicaPage() {
                 Recetas que no se pierden y siempre se leen
               </h3>
               <p className="text-base text-slate-600 mb-6 leading-relaxed">
-                Crea prescripciones con dosis, vía, frecuencia y duración.
-                Imprime en formato A5 profesional o envía por email.
-                El historial completo queda vinculado al paciente — siempre.
+                Crea prescripciones con{" "}
+                <strong className="text-slate-900">dosis, vía, frecuencia y duración</strong>.
+                Imprime en <strong className="text-slate-900">formato A5 profesional</strong> o envía por email.{" "}
+                <strong className="text-slate-900">El historial completo queda vinculado al paciente</strong> — siempre.
               </p>
               <ul className="space-y-3">
                 {[
@@ -254,9 +361,10 @@ export default function HistoriaClinicaPage() {
                 Del diagnóstico al laboratorio en 30 segundos
               </h3>
               <p className="text-base text-slate-600 mb-6 leading-relaxed">
-                Catálogo personalizable por categoría (laboratorio, imagenología, cardiología).
-                El doctor selecciona exámenes, agrega indicaciones, imprime la orden.
-                El seguimiento de resultados queda en la ficha del paciente.
+                <strong className="text-slate-900">Catálogo personalizable por categoría</strong>{" "}
+                (laboratorio, imagenología, cardiología).
+                El doctor selecciona exámenes, agrega indicaciones, imprime la orden.{" "}
+                <strong className="text-slate-900">El seguimiento de resultados queda en la ficha del paciente</strong>.
               </p>
               <ul className="space-y-3">
                 {[
@@ -354,7 +462,8 @@ export default function HistoriaClinicaPage() {
             <span className="text-blue-400">es un riesgo clínico.</span>
           </h2>
           <p className="mt-6 text-lg text-slate-400 max-w-xl mx-auto">
-            Digitaliza tu práctica hoy. Cada nota, receta y examen quedará seguro para siempre.
+            Digitaliza tu práctica hoy.{" "}
+            <strong className="text-white">Cada nota, receta y examen quedará seguro para siempre</strong>.
             14 días gratis. Sin tarjeta de crédito.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
