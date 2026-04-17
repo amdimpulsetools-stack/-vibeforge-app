@@ -42,6 +42,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
+import { useOrgAddons } from "@/hooks/use-org-addons";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
 import { calculateAge } from "@/lib/export";
@@ -55,7 +56,9 @@ import { ExamOrdersPanel } from "./exam-orders-panel";
 import { VitalsTrendsChart } from "./vitals-trends-chart";
 import { DiagnosisHistoryPanel } from "./diagnosis-history-panel";
 import { ClinicalHistoryModal } from "./clinical-history-modal";
-import { Maximize2 } from "lucide-react";
+import { GrowthCurvesPanel } from "./growth-curves-panel";
+import type { Sex } from "@/lib/growth-curves";
+import { TrendingUp, Maximize2 } from "lucide-react";
 
 interface PatientDrawerProps {
   patient: PatientWithTags;
@@ -63,7 +66,9 @@ interface PatientDrawerProps {
   onUpdate: () => void;
 }
 
-type DrawerTab = "info" | "history" | "clinical" | "finances" | "marketing";
+type DrawerTab = "info" | "history" | "clinical" | "growth" | "finances" | "marketing";
+
+type PatientWithSex = PatientWithTags & { sex?: Sex | null };
 
 type AppointmentWithDetails = Appointment & {
   doctors: Doctor;
@@ -75,8 +80,10 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const { t } = useLanguage();
   const { organizationId } = useOrganization();
   const { isAdmin } = useOrgRole();
+  const { hasAddon } = useOrgAddons();
   const { doctorId: currentDoctorId } = useCurrentDoctor();
   const [activeTab, setActiveTab] = useState<DrawerTab>("info");
+  const patientSex = (patient as PatientWithSex).sex ?? null;
   const [appointments, setAppointments] = useState<AppointmentWithDetails[]>([]);
   const [payments, setPayments] = useState<PatientPayment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,6 +105,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [infoNationality, setInfoNationality] = useState(patient.nationality ?? "");
   const [infoNotes, setInfoNotes] = useState(patient.notes ?? "");
   const [infoStatus, setInfoStatus] = useState(patient.status ?? "active");
+  const [infoSex, setInfoSex] = useState<Sex | "">((patient as PatientWithSex).sex ?? "");
   const [savingInfo, setSavingInfo] = useState(false);
 
   // Marketing fields
@@ -181,6 +189,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     setInfoNationality(patient.nationality ?? "");
     setInfoNotes(patient.notes ?? "");
     setInfoStatus(patient.status ?? "active");
+    setInfoSex((patient as PatientWithSex).sex ?? "");
     setCustomField1(patient.custom_field_1 ?? "");
     setCustomField2(patient.custom_field_2 ?? "");
     setReferralSource(patient.referral_source ?? "");
@@ -218,7 +227,8 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         nationality: infoIsForeigner ? (infoNationality || null) : null,
         notes: infoNotes.trim() || null,
         status: infoStatus,
-      })
+        sex: infoSex || null,
+      } as never)
       .eq("id", patient.id);
 
     setSavingInfo(false);
@@ -306,11 +316,13 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     fetchHistory();
   };
 
+  const showGrowthTab = hasAddon("growth_curves") && (isAdmin || !!currentDoctorId);
   const tabs: { key: DrawerTab; label: string; icon: typeof Clock }[] = [
     { key: "info", label: "Datos", icon: Edit2 },
     { key: "history", label: t("patients.tab_history"), icon: Clock },
     // Clinical tab only visible for doctors and admins, not receptionists
     ...(isAdmin || currentDoctorId ? [{ key: "clinical" as DrawerTab, label: "Clínico", icon: Stethoscope }] : []),
+    ...(showGrowthTab ? [{ key: "growth" as DrawerTab, label: "Crecimiento", icon: TrendingUp }] : []),
     { key: "finances", label: t("patients.tab_finances"), icon: DollarSign },
     { key: "marketing", label: t("patients.tab_marketing"), icon: Megaphone },
   ];
@@ -551,6 +563,20 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                 onChange={(e) => setInfoBirthDate(e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               />
+            </div>
+
+            {/* Sexo biológico (required for WHO growth curves) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium">Sexo biológico</label>
+              <select
+                value={infoSex}
+                onChange={(e) => setInfoSex(e.target.value as Sex | "")}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              >
+                <option value="">-- Seleccionar --</option>
+                <option value="male">Masculino</option>
+                <option value="female">Femenino</option>
+              </select>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -912,6 +938,16 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               <ClinicalAttachmentsPanel patientId={patient.id} canEdit={false} />
             </div>
           </div>
+        )}
+
+        {/* ===== GROWTH TAB ===== */}
+        {activeTab === "growth" && (
+          <GrowthCurvesPanel
+            patientId={patient.id}
+            birthDate={patient.birth_date ?? null}
+            sex={patientSex}
+            onRequestSexUpdate={() => setActiveTab("info")}
+          />
         )}
 
         {/* ===== FINANCES TAB ===== */}
@@ -1310,6 +1346,16 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   <ClinicalFollowupsPanel patientId={patient.id} canEdit={false} />
                   <ClinicalAttachmentsPanel patientId={patient.id} canEdit={false} />
                 </div>
+              )}
+
+              {/* ===== GROWTH TAB ===== */}
+              {activeTab === "growth" && (
+                <GrowthCurvesPanel
+                  patientId={patient.id}
+                  birthDate={patient.birth_date ?? null}
+                  sex={patientSex}
+                  onRequestSexUpdate={() => setActiveTab("info")}
+                />
               )}
 
               {/* ===== FINANCES TAB ===== */}
