@@ -16,6 +16,9 @@ import {
   Brain,
   Target,
   ShieldCheck,
+  AlertTriangle,
+  Trophy,
+  Loader2,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -154,8 +157,9 @@ export default function AsistenteIAPage() {
             </div>
           </div>
 
-          {/* Hero visual — AI chat mockup */}
-          <div className="mt-16 mx-auto max-w-2xl">
+          {/* Hero visual — AI chat mockup with floating recommendation cards */}
+          <div className="mt-16 mx-auto max-w-2xl relative lg:max-w-5xl lg:px-40">
+            <div className="relative mx-auto max-w-2xl">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 shadow-xl overflow-hidden">
               {/* Chat header */}
               <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-5 py-3">
@@ -224,6 +228,144 @@ export default function AsistenteIAPage() {
                   <span className="text-sm text-slate-400">Pregunta lo que quieras sobre tu clínica...</span>
                 </div>
               </div>
+            </div>
+
+            {/* Floating card — No-show alert (top-left) */}
+            <div className="hidden lg:block absolute -top-8 -left-48 w-64 -rotate-3 z-20">
+              <div className="rounded-xl border border-amber-200 bg-white shadow-2xl overflow-hidden">
+                <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-3 py-2 flex items-center gap-2">
+                  <AlertTriangle className="h-4 w-4 text-white" />
+                  <span className="text-[10px] font-bold text-white uppercase tracking-wide">
+                    Alerta IA
+                  </span>
+                </div>
+                <div className="p-3">
+                  <div className="flex items-baseline gap-1.5 mb-1.5">
+                    <p className="text-2xl font-extrabold text-amber-600">25%</p>
+                    <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide">
+                      no-show
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-slate-700 leading-snug">
+                    Tasa de inasistencia <strong className="text-slate-900">por encima del promedio</strong>.
+                  </p>
+                  <div className="mt-2 rounded-lg bg-emerald-50 border border-emerald-200 p-2">
+                    <p className="text-[10px] font-semibold text-emerald-700 flex items-center gap-1">
+                      <Sparkles className="h-3 w-3" />
+                      Recomendación
+                    </p>
+                    <p className="text-[10px] text-slate-700 mt-0.5 leading-snug">
+                      Activa confirmaciones automáticas <strong>24 horas antes</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Floating card — Best performer (top-right) */}
+            <div className="hidden lg:block absolute -top-6 -right-48 w-64 rotate-3 z-20">
+              <div className="rounded-xl border border-amber-200 bg-gradient-to-br from-amber-50 to-yellow-50 shadow-2xl overflow-hidden">
+                <div className="bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 px-3 py-2 flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-white" />
+                  <span className="text-[10px] font-bold text-white uppercase tracking-wide">
+                    Top del mes
+                  </span>
+                </div>
+                <div className="p-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-yellow-500 text-sm font-bold text-white shadow-md">
+                      RM
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-bold text-slate-900 truncate">
+                        Dr. Renzo Mendoza
+                      </p>
+                      <p className="text-[10px] text-slate-500">Cardiología</p>
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-700 leading-snug mt-2">
+                    <strong className="text-slate-900">Mejor desempeño</strong> del mes en facturación.
+                  </p>
+                  <div className="mt-2 flex items-center justify-between rounded-lg bg-white border border-amber-200 px-2.5 py-1.5">
+                    <span className="text-[10px] font-semibold text-slate-500 uppercase">Facturado</span>
+                    <span className="text-sm font-extrabold text-amber-600">S/. 8,420</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Floating card — Loading analysis (bottom-right) */}
+            <div className="hidden lg:block absolute -bottom-8 -right-40 w-56 rotate-2 z-20">
+              <div className="rounded-xl border border-violet-200 bg-white shadow-2xl overflow-hidden">
+                <div className="bg-gradient-to-r from-violet-600 to-purple-600 px-3 py-2 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-white" />
+                  <span className="text-[10px] font-bold text-white uppercase tracking-wide">
+                    IA procesando
+                  </span>
+                </div>
+                <div className="p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Loader2 className="h-4 w-4 text-violet-600 animate-spin" />
+                    <p className="text-[11px] font-semibold text-slate-900">
+                      Analizando rendimiento del mes
+                    </p>
+                  </div>
+                  {/* Loading bars skeleton */}
+                  <div className="space-y-1.5 mt-3">
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                      <div className="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full w-[78%] rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 ai-loading-bar-1" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-violet-500" />
+                      <div className="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full w-[55%] rounded-full bg-gradient-to-r from-violet-400 to-violet-500 ai-loading-bar-2" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                      <div className="h-1.5 flex-1 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full w-[42%] rounded-full bg-gradient-to-r from-amber-400 to-amber-500 ai-loading-bar-3" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 mt-3">
+                    <span className="h-1 w-1 rounded-full bg-violet-500 ai-dot-1" />
+                    <span className="h-1 w-1 rounded-full bg-violet-500 ai-dot-2" />
+                    <span className="h-1 w-1 rounded-full bg-violet-500 ai-dot-3" />
+                    <span className="text-[9px] text-slate-500 ml-1">Procesando 142 citas…</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <style>{`
+              @keyframes ai-bar-pulse {
+                0%, 100% { opacity: 0.6; transform: scaleX(0.85); }
+                50% { opacity: 1; transform: scaleX(1); }
+              }
+              .ai-loading-bar-1, .ai-loading-bar-2, .ai-loading-bar-3 {
+                transform-origin: left;
+                animation: ai-bar-pulse 1.6s ease-in-out infinite;
+              }
+              .ai-loading-bar-2 { animation-delay: 0.2s; }
+              .ai-loading-bar-3 { animation-delay: 0.4s; }
+              @keyframes ai-dot-bounce {
+                0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+                30% { opacity: 1; transform: translateY(-2px); }
+              }
+              .ai-dot-1, .ai-dot-2, .ai-dot-3 {
+                animation: ai-dot-bounce 1.2s ease-in-out infinite;
+              }
+              .ai-dot-2 { animation-delay: 0.15s; }
+              .ai-dot-3 { animation-delay: 0.3s; }
+              @media (prefers-reduced-motion: reduce) {
+                .ai-loading-bar-1, .ai-loading-bar-2, .ai-loading-bar-3,
+                .ai-dot-1, .ai-dot-2, .ai-dot-3 { animation: none; }
+              }
+            `}</style>
             </div>
           </div>
         </div>
