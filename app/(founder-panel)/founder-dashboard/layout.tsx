@@ -12,11 +12,13 @@ import {
   Shield,
   LogOut,
   Loader2,
+  Crown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { label: "Overview", href: "/founder-dashboard", icon: LayoutDashboard },
+  { label: "Owners", href: "/founder-dashboard/owners", icon: Crown },
   { label: "Organizaciones", href: "/founder-dashboard/organizations", icon: Building2 },
   { label: "Revenue", href: "/founder-dashboard/revenue", icon: DollarSign },
   { label: "Usuarios", href: "/founder-dashboard/users", icon: Users },

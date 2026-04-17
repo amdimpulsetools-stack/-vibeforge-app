@@ -12,10 +12,18 @@ import {
   Users,
   DollarSign,
   TrendingUp,
+  TrendingDown,
   Activity,
   Headphones,
   CalendarDays,
   Bot,
+  AlertTriangle,
+  Moon,
+  ArrowUpRight,
+  ArrowDownRight,
+  Percent,
+  Repeat,
+  Zap,
 } from "lucide-react";
 
 // ─── 2FA Gate Component ────────────────────────────────────
@@ -182,11 +190,20 @@ interface PlatformStats {
   totalAppointments: number;
   monthlyAppointments: number;
   totalRevenue: number;
-  monthlyRevenue: number;
   activeSubscriptions: number;
   trialingOrgs: number;
   aiQueriesThisMonth: number;
   openTickets: number;
+  mrr: number;
+  arr: number;
+  currentMonthRevenue: number;
+  prevMonthRevenue: number;
+  revenueDelta: number;
+  churnedThisMonth: number;
+  churnRate: number;
+  trialConversion: number;
+  activationRate: number;
+  dormantOrgs: number;
 }
 
 function StatCard({
@@ -254,35 +271,83 @@ function FounderDashboardContent() {
     );
   }
 
+  const deltaPositive = stats.revenueDelta >= 0;
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Platform Overview</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Métricas en tiempo real de toda la plataforma
+          Métricas SaaS en tiempo real
         </p>
       </div>
 
-      {/* Row 1: Core metrics */}
+      {/* Row 1: Revenue & SaaS KPIs */}
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-border/60 bg-card p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">MRR</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+              <DollarSign className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold tracking-tight">S/{stats.mrr.toLocaleString()}</p>
+          <p className="text-[10px] text-muted-foreground">ARR: S/{stats.arr.toLocaleString()}</p>
+        </div>
+
+        <div className="rounded-xl border border-border/60 bg-card p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Revenue este mes</span>
+            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${deltaPositive ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
+              {deltaPositive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+            </div>
+          </div>
+          <p className="text-2xl font-bold tracking-tight">S/{stats.currentMonthRevenue.toLocaleString()}</p>
+          <p className={`text-[10px] font-medium ${deltaPositive ? "text-emerald-500" : "text-red-500"}`}>
+            {deltaPositive ? "+" : ""}{stats.revenueDelta}% vs mes anterior
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-border/60 bg-card p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Churn rate</span>
+            <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${stats.churnRate > 5 ? "bg-red-500/10 text-red-500" : "bg-emerald-500/10 text-emerald-500"}`}>
+              {stats.churnRate > 5 ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
+            </div>
+          </div>
+          <p className="text-2xl font-bold tracking-tight">{stats.churnRate}%</p>
+          <p className="text-[10px] text-muted-foreground">{stats.churnedThisMonth} churned este mes</p>
+        </div>
+
+        <div className="rounded-xl border border-border/60 bg-card p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Trial → Paid</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+              <Repeat className="h-4 w-4" />
+            </div>
+          </div>
+          <p className="text-2xl font-bold tracking-tight">{stats.trialConversion}%</p>
+          <p className="text-[10px] text-muted-foreground">{stats.trialingOrgs} en trial ahora</p>
+        </div>
+      </div>
+
+      {/* Row 2: Platform scale */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard label="Organizaciones" value={stats.totalOrgs} icon={Building2} color="bg-blue-500/10 text-blue-500" />
-        <StatCard label="Orgs activas" value={stats.activeOrgs} icon={Activity} color="bg-emerald-500/10 text-emerald-500" />
-        <StatCard label="Usuarios totales" value={stats.totalUsers} icon={Users} color="bg-purple-500/10 text-purple-500" />
-        <StatCard label="Doctores" value={stats.totalDoctors} icon={Users} color="bg-amber-500/10 text-amber-500" />
+        <StatCard label="Suscripciones activas" value={stats.activeSubscriptions} icon={DollarSign} color="bg-emerald-500/10 text-emerald-500" />
+        <StatCard label="Tasa de activación" value={`${stats.activationRate}%`} icon={Zap} color="bg-amber-500/10 text-amber-500" />
+        <StatCard
+          label="Dormantes"
+          value={stats.dormantOrgs}
+          icon={Moon}
+          color={stats.dormantOrgs > 0 ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"}
+        />
       </div>
 
-      {/* Row 2: Business metrics */}
+      {/* Row 3: Operations */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <StatCard label="Pacientes totales" value={stats.totalPatients.toLocaleString()} icon={Users} color="bg-sky-500/10 text-sky-500" />
-        <StatCard label="Citas totales" value={stats.totalAppointments.toLocaleString()} icon={CalendarDays} color="bg-emerald-500/10 text-emerald-500" />
         <StatCard label="Citas este mes" value={stats.monthlyAppointments.toLocaleString()} icon={CalendarDays} color="bg-blue-500/10 text-blue-500" />
-        <StatCard label="Revenue total" value={`S/${stats.totalRevenue.toLocaleString()}`} icon={DollarSign} color="bg-emerald-500/10 text-emerald-500" />
-      </div>
-
-      {/* Row 3: Subscriptions + Support */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Suscripciones activas" value={stats.activeSubscriptions} icon={DollarSign} color="bg-emerald-500/10 text-emerald-500" />
-        <StatCard label="En trial" value={stats.trialingOrgs} icon={TrendingUp} color="bg-amber-500/10 text-amber-500" />
         <StatCard label="Queries IA (mes)" value={stats.aiQueriesThisMonth} icon={Bot} color="bg-purple-500/10 text-purple-500" />
         <StatCard label="Tickets abiertos" value={stats.openTickets} icon={Headphones} color="bg-red-500/10 text-red-500" />
       </div>
