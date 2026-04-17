@@ -185,16 +185,16 @@ export default function AgendaMedicaPage() {
       {/* ════════════════════════════════════════════════ */}
       {/* EXCEL TRAP                                       */}
       {/* ════════════════════════════════════════════════ */}
-      <section className="py-20 px-4 md:px-6 bg-amber-50/60">
+      <section className="py-20 px-4 md:px-6 bg-green-50/60">
         <div className="mx-auto max-w-4xl">
           <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-100 px-4 py-1.5 text-xs font-semibold text-amber-800 mb-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-green-300 bg-green-100 px-4 py-1.5 text-xs font-semibold text-green-800 mb-5">
               <FileSpreadsheet className="h-3.5 w-3.5" />
               La trampa del Excel
             </div>
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900 leading-tight">
               Excel es útil, pero
-              <span className="text-amber-600"> no te protege.</span>
+              <span className="text-green-700"> no te protege.</span>
             </h2>
             <p className="mt-4 text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
               Muchos consultorios dan el salto del cuaderno a Excel creyendo que resolvieron el problema.
@@ -237,8 +237,8 @@ export default function AgendaMedicaPage() {
             ].map((item) => {
               const Icon = item.icon;
               return (
-                <div key={item.title} className="rounded-2xl border border-amber-200 bg-white p-6 hover:shadow-md transition-shadow">
-                  <Icon className="h-6 w-6 text-amber-600 mb-3" />
+                <div key={item.title} className="rounded-2xl border border-green-200 bg-white p-6 hover:shadow-md transition-shadow">
+                  <Icon className="h-6 w-6 text-green-700 mb-3" />
                   <h3 className="text-base font-bold text-slate-900 mb-2">{item.title}</h3>
                   <p className="text-sm text-slate-600 leading-relaxed">{item.desc}</p>
                 </div>
