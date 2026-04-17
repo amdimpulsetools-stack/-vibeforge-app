@@ -26,6 +26,11 @@ import {
   BarChart3,
   Brain,
   Rocket,
+  CreditCard,
+  CircleDollarSign,
+  CalendarClock,
+  ShieldAlert,
+  Plus,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -102,9 +107,103 @@ export default function AgendaMedicaPage() {
             </div>
           </div>
 
-          {/* Calendar visual mockup */}
-          <div className="mt-16 mx-auto max-w-3xl">
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+          {/* Calendar visual mockup + floating action cards */}
+          <div className="mt-16 mb-16 mx-auto max-w-3xl relative">
+            {/* Floating: Conflict alert (top-left) */}
+            <div className="hidden lg:block absolute -top-8 -left-20 w-56 rounded-2xl border border-red-200 bg-white shadow-2xl p-4 -rotate-3 z-20">
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100">
+                  <ShieldAlert className="h-4 w-4 text-red-600" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-red-700">Conflicto detectado</p>
+                  <p className="text-[9px] text-red-500">08:30 — Consultorio A</p>
+                </div>
+              </div>
+              <div className="rounded-lg bg-red-50 border border-red-100 p-2.5">
+                <p className="text-[10px] text-red-800 leading-snug">
+                  <span className="font-bold">Dra. García</span> no está disponible a esa hora.
+                  Ya tiene una cita con Carlos Ríos.
+                </p>
+              </div>
+              <div className="mt-2 flex gap-1.5">
+                <span className="rounded-md bg-red-100 px-2 py-0.5 text-[9px] font-semibold text-red-700">
+                  Ver alternativas
+                </span>
+                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-600">
+                  Cambiar doctor
+                </span>
+              </div>
+            </div>
+
+            {/* Floating: Partial payment (top-right) */}
+            <div className="hidden lg:block absolute -top-6 -right-20 w-56 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-2 z-20">
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
+                  <CreditCard className="h-4 w-4 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-[11px] font-bold text-slate-900">Pago parcial</p>
+                  <p className="text-[9px] text-slate-500">María López — Consulta</p>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Total</span>
+                  <span className="font-bold text-slate-900">S/. 150.00</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Pagado</span>
+                  <span className="font-bold text-emerald-600">S/. 80.00</span>
+                </div>
+                <div className="h-px bg-slate-200" />
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Pendiente</span>
+                  <span className="font-bold text-amber-600">S/. 70.00</span>
+                </div>
+              </div>
+              <div className="mt-2.5 flex items-center gap-2">
+                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-semibold text-emerald-700 flex items-center gap-1">
+                  <CreditCard className="h-2.5 w-2.5" /> Yape
+                </span>
+                <span className="text-[9px] text-slate-400">15 mar 2026</span>
+              </div>
+            </div>
+
+            {/* Floating: Reschedule button (bottom-left) */}
+            <div className="hidden lg:block absolute -bottom-10 -left-16 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 -rotate-2 z-20">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100">
+                  <CalendarClock className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-900">Reprogramar cita</p>
+                  <p className="text-[10px] text-slate-500">Ana Mendoza · 09:00</p>
+                </div>
+                <div className="ml-2 rounded-lg bg-blue-600 px-3 py-1.5 text-[10px] font-semibold text-white">
+                  Mover a 10:30
+                </div>
+              </div>
+            </div>
+
+            {/* Floating: Add payment button (bottom-right) */}
+            <div className="hidden lg:block absolute -bottom-8 -right-14 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-3 z-20">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
+                  <CircleDollarSign className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-900">Añadir pago</p>
+                  <p className="text-[10px] text-slate-500">Pedro Jiménez · S/. 200</p>
+                </div>
+                <div className="ml-2 flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-[10px] font-semibold text-white">
+                  <Plus className="h-3 w-3" /> Registrar
+                </div>
+              </div>
+            </div>
+
+            {/* Main calendar card */}
+            <div className="relative z-10 rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
               {/* Header bar */}
               <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3 bg-slate-50">
                 <div className="flex items-center gap-3">
