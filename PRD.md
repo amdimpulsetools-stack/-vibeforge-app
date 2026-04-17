@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-04-15
-> **Versión:** 0.8.1
-> **Estado:** MVP — desplegado en Vercel (producción) + Landing/Blog/SEO + Hardening UX Trial/Auth
+> **Última actualización:** 2026-04-17
+> **Versión:** 0.9.0
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico)
 
 ---
 
@@ -136,7 +136,8 @@
 | `appointments` | Citas: patient_name, doctor_id, office_id, service_id, date, start/end_time, status, origin, payment_method, responsible, notes, price_snapshot, meeting_url |
 | `appointment_edit_history` | Historial de cambios en citas |
 | `appointment_payments` | Pagos asociados a citas |
-| `patients` | Directorio: dni, document_type (DNI/CE/Pasaporte), first_name, last_name, phone, email, birth_date, departamento, distrito, is_foreigner, nationality, status, origin, referral_source, custom_field_1, custom_field_2, notes |
+| `patients` | Directorio: dni, document_type (DNI/CE/Pasaporte), first_name, last_name, phone, email, birth_date, sex (male/female — requerido para percentiles OMS), departamento, distrito, is_foreigner, nationality, status, origin, referral_source, custom_field_1, custom_field_2, notes |
+| `patient_anthropometry` | Mediciones antropométricas longitudinales: measurement_date, weight_kg, height_cm, head_circumference_cm, notes, recorded_by. Usado por el addon `growth_curves` para graficar percentiles OMS |
 | `patient_tags` | Etiquetas/badges por paciente |
 | `patient_payments` | Pagos por paciente (puede estar linkeado a appointment) |
 | `schedule_blocks` | Bloques de tiempo no disponible en el scheduler |
@@ -173,6 +174,18 @@
 |-------|----------|
 | `ai_conversations` | Conversaciones del asistente AI |
 | `ai_messages` | Mensajes individuales de cada conversación |
+
+### Módulos / Addons (Verticalización por especialidad)
+| Tabla | Propósito |
+|-------|----------|
+| `addons` | Catálogo global de módulos: key, name, description, category (specialty/workflow/clinical), specialties[] (slugs a los que aplica), icon, is_premium, min_plan, sort_order |
+| `organization_addons` | Activación por org: organization_id, addon_key, enabled, settings (JSONB), activated_at, activated_by |
+
+### Founder (Superusuario de plataforma)
+| Tabla | Propósito |
+|-------|----------|
+| `founder_notes` | Notas privadas del founder por organización (seguimiento comercial) |
+| `owner_lifecycle_events` | Eventos de ciclo de vida de owners: signup, trial_start, plan_upgrade, churn, etc. Usado para el embudo del founder panel |
 
 ### RPCs (Funciones de Base de Datos)
 | Función | Propósito |
@@ -440,6 +453,13 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ├── /clinical-attachments/[id] GET descarga / DELETE eliminar
 ├── /clinical-followups ...... GET/POST seguimientos clínicos
 ├── /clinical-followups/[id] . PATCH resolver seguimiento
+├── /patients/[id]/anthropometry  GET/POST/DELETE mediciones antropométricas (addon growth_curves)
+├── /patients/[id]/antecedents    GET/POST/PATCH/DELETE alergias, condiciones, medicamentos
+├── /addons .................. GET catálogo enriquecido con activación/recomendación por org, POST toggle (admin)
+├── /onboarding/complete ..... POST marca onboarding como completo + auto-activa addons según especialidad
+├── /founder ................. GET stats globales de plataforma
+├── /founder/stats/owners .... GET métricas del embudo de owners (signups, trials, conversiones)
+├── /founder/notes ........... GET/POST/DELETE notas privadas por organización
 ├── /scheduler-settings ...... GET/PUT config de agenda por org (DB-backed)
 ├── /ai-assistant ............ POST chat con AI
 ├── /book/[slug] ............. GET datos públicos de reserva (doctores, servicios, horarios)
@@ -483,6 +503,18 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 
 ### Settings (Correos)
 - Configuración de email (remitente, templates)
+
+### Settings (Integraciones)
+- Marketplace visual de integraciones externas (WhatsApp Business API, Mercado Pago, Google Calendar, etc.)
+- Tarjetas con estado (disponible / próximamente / conectado)
+- Wizard guiado por integración (ej. WhatsApp: paso a paso para conectar Business API)
+
+### Settings (Módulos)
+- Gestión de addons activos por organización — ver Sección 22
+- Sección "Recomendados para tu especialidad" basada en la especialidad elegida en onboarding
+- Agrupación por categoría: Especialidad médica, Flujos de trabajo, Clínico
+- Toggle on/off por módulo (owner/admin). Badge PRO para addons premium
+- Auto-activación de addons gratuitos que coinciden con la especialidad al completar el onboarding
 
 ### Variables Globales (Seed automático)
 - `clinic_name` — Nombre del consultorio
@@ -594,6 +626,10 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Responsive mobile (Fase 1)** — Sidebar como drawer con hamburger, scheduler sidebar como overlay fullscreen, patient drawer w-full, topbar hamburger, notificaciones dropdown responsivo
 - [x] **Responsive mobile (Fase 2+3)** — Reports/Settings tabs con scroll horizontal, patients header stacking, dashboard botón oculto, members cards stacking, history table overflow-x-auto, modals con padding compacto, touch targets 40px+, vitals grid progresivo
 - [x] **Páginas de producto SEO** — 7 páginas premium bajo /producto/ con mega-menu full-width en landing navbar: Agenda Médica, Historia Clínica, Gestión de Pacientes, Comunicación Automatizada, Asistente IA, Reportes y Analítica, Gestión de Equipo. Cada una con storytelling, mockups, pain stats, before/after, schema.org, breadcrumbs
+- [x] **Marketplace de integraciones (Settings → Integraciones)** — Tab dedicado con tarjetas de integraciones externas y estado por org (conectado/disponible/próximamente). Wizard guiado para WhatsApp Business API paso a paso. Lock visual en tabs de integraciones aún no activadas hasta conexión completa
+- [x] **Founder: tracking completo de owners** — Tab "Organizaciones" con embudo de signups → trial → conversión. RPC `get_owner_lifecycle_funnel()`. Tabla `owner_lifecycle_events` (signup, trial_start, plan_upgrade, churn). Vista detalle por owner con notas privadas (`founder_notes`). Endpoints: `/api/founder/stats/owners`, `/api/founder/notes`
+- [x] **Sistema de Addons / Módulos Verticales** — Infraestructura escalable para verticalización por especialidad. Catálogo global (`addons`) + activación por org (`organization_addons`). 14 addons seed (10 especialidad + 4 workflow). Auto-activación de addons gratuitos que matchean la especialidad elegida en onboarding. Nuevo tab "Módulos" en Settings con sección de recomendados, agrupación por categoría, toggle on/off (owner/admin), badges PRO. Hook `useOrgAddons` con `hasAddon(key)` para gating de UI. API `/api/addons` con Zod + rate limiting. Migración 091
+- [x] **Addon de Curvas de Crecimiento OMS (primer vertical pediátrico)** — Addon `growth_curves` específico para endocrinología pediátrica y pediatría. Tabla `patient_anthropometry` para mediciones longitudinales (peso, talla, perímetro cefálico). Campo `patients.sex` (requerido por WHO). Componente `GrowthCurvesPanel` con Recharts ComposedChart: banda sombreada P3–P97, 5 líneas de percentiles (P3/P15/P50/P85/P97), scatter conectado con trayectoria del paciente, tooltip con Z-score y percentil. 4 métricas: Peso/Edad, Talla/Edad, IMC/Edad, Perímetro Cefálico/Edad. Tablas LMS OMS en `lib/growth-curves/who-data.ts` (WHO Child Growth Standards 0–5a + Growth Reference 5–19a). Cálculo de Z-score/percentil vía fórmula LMS. Pestaña "Crecimiento" en el drawer de paciente gated por `hasAddon('growth_curves')`. Selector de sexo biológico en tab Datos. API `/api/patients/[id]/anthropometry`. Migración 092
 
 ### Pendiente / Por Mejorar
 - [ ] Impresión de recibo/comprobante (F3) — Requiere evaluar formato legal Perú (SUNAT)
@@ -610,10 +646,13 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [ ] Tests automatizados (unit, integration, e2e)
 - [ ] Optimización de performance y caching
 - [ ] Custom SMTP en Supabase Auth (para envío de invitaciones sin rate limit)
+- [x] Especialidades: primer módulo vertical entregado — Curvas de crecimiento OMS (Endocrinología Pediátrica / Pediatría)
 - [ ] Especialidades: select editable en Settings (solo Owner)
 - [ ] Especialidades: tabla `doctor_specialties` + asignación en admin de doctores
 - [ ] Especialidades: tabs condicionales en historia clínica según especialidad del doctor
-- [ ] Especialidades: primer módulo vertical (Endocrinología Pediátrica o Fertilidad)
+- [ ] Especialidades: segundo módulo vertical — Odontograma (Odontología) o Tracking de fertilidad (Medicina Reproductiva)
+- [ ] Growth curves: expansión de tablas LMS OMS a granularidad mensual completa (actualmente trimestral para 0–5a, anual para 5–19a)
+- [ ] Growth curves: integración con signos vitales de notas clínicas SOAP (auto-registrar antropometría al firmar)
 - [ ] Emails: post-consulta, pedir reseña, campaña marketing (plantillas ocultas, sin lógica de envío)
 - [ ] Emails: pago pendiente (plantilla oculta, sin trigger)
 - [ ] Screenshots reales para placeholders en /producto/* y /blog/*
@@ -645,6 +684,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | `useBilling` | Info de billing de Mercado Pago + `addAddon()` para comprar extras |
 | `useCurrentDoctor` | Registro de doctor vinculado al usuario actual (solo para rol doctor) |
 | `useAiQuota` | Cuota de consultas IA: `{ used, limit, remaining, percentage }` |
+| `useOrgAddons` | Catálogo de módulos + activación por org. Helpers: `hasAddon(key)`, `toggleAddon(key, enabled)`, `refetch()`. Usado para gating condicional de features (ej. tab de Crecimiento en el drawer de paciente) |
 
 ### Jerarquía de Roles (para `hasMinRole`)
 `doctor(0) < receptionist(1) < admin(2) < owner(3)`
@@ -1397,17 +1437,79 @@ Medicina General, Odontología, Ginecología y Obstetricia, Pediatría, Dermatol
 | Fase | Contenido | Estado |
 |---|---|---|
 | **Fase 1** | Tablas `specialties`, `organization_specialties`, `specialty_clinical_data`. Select con búsqueda en onboarding. Primary specialty en org. | Implementado |
-| **Fase 2** | Tabla `doctor_specialties`. Primer módulo vertical (según primer cliente). Tabs condicionales en historia clínica. Filtro por rol de doctor. | Pendiente |
-| **Fase 3** | Módulos premium como add-on en billing. UI de activación/desactivación de módulos en Settings. Campos custom por especialidad. | Pendiente |
+| **Fase 2** | Infraestructura de addons (`addons`, `organization_addons`). Auto-activación por especialidad en onboarding. UI de gestión en Settings → Módulos. Primer módulo vertical entregado: **Curvas de crecimiento OMS** para endocrinología pediátrica / pediatría (migraciones 091, 092). | Parcialmente implementado |
+| **Fase 3** | Tabla `doctor_specialties`. Tabs condicionales en historia clínica según especialidad del doctor. Módulos premium cobrables (campo `is_premium` + `min_plan` ya presentes en catálogo). Campos custom por especialidad. | Pendiente |
 | **Fase 4** | Marketplace de módulos. Módulos creados por terceros. API para extensiones. | Futuro |
 
 ### Primeros módulos verticales candidatos
 
-| Especialidad | Módulo | Funcionalidades clave |
-|---|---|---|
-| Endocrinología Pediátrica | Curvas de crecimiento | Percentiles OMS, gráfica talla/peso vs edad, alertas de desviación |
-| Medicina Reproductiva | Tracking de fertilidad | Ciclos de estimulación, conteo de óvulos, etapas FIV, criopreservación |
-| Odontología | Odontograma | Mapa dental visual, plan de tratamiento por pieza, historial por diente |
-| Dermatología | Mapa corporal | Fotos comparativas, seguimiento de lesiones, antes/después |
-| Nutrición | Plan nutricional | IMC, macros, plan alimenticio, seguimiento de peso con gráfica |
-| Oftalmología | Examen visual | Agudeza visual, presión intraocular, fondo de ojo, receta de lentes |
+| Especialidad | Módulo | Funcionalidades clave | Estado |
+|---|---|---|---|
+| Endocrinología Pediátrica / Pediatría | Curvas de crecimiento (`growth_curves`) | Percentiles OMS P3/P15/P50/P85/P97 para peso, talla, IMC y perímetro cefálico. Z-score por medición. Trayectoria del paciente superpuesta. Banda P3–P97 sombreada. | **Implementado (migración 092)** |
+| Medicina Reproductiva | Tracking de fertilidad | Ciclos de estimulación, conteo de óvulos, etapas FIV, criopreservación | Pendiente |
+| Odontología | Odontograma | Mapa dental visual, plan de tratamiento por pieza, historial por diente | Pendiente |
+| Dermatología | Mapa corporal | Fotos comparativas, seguimiento de lesiones, antes/después | Pendiente |
+| Nutrición | Plan nutricional | IMC, macros, plan alimenticio, seguimiento de peso con gráfica | Pendiente |
+| Oftalmología | Examen visual | Agudeza visual, presión intraocular, fondo de ojo, receta de lentes | Pendiente |
+
+---
+
+## 23. Changelog — Sesión 2026-04-17 (v0.9.0)
+
+### Sistema de Addons / Verticalización por Especialidad (migración 091)
+
+Entregamos la infraestructura escalable para módulos verticales de especialidad, evitando hardcodear features por vertical.
+
+- **Catálogo global `addons`:** key, name, description, category (specialty/workflow/clinical), specialties[] (slugs a los que aplica), icon, is_premium, min_plan, sort_order. 14 addons seed: 10 de especialidad (dermatology, odontology, nutrition, psychology, pediatrics, ophthalmology, gynecology, cardiology, traumatology, aesthetic) + 4 de workflow (telehealth, advanced_reports, inventory, lab_integration).
+- **Activación por org `organization_addons`:** organization_id, addon_key, enabled, settings (JSONB), activated_at, activated_by. RLS con políticas separadas para select/insert/update/delete (owner/admin).
+- **Auto-activación en onboarding:** al completar onboarding, se activan automáticamente los addons gratuitos cuya lista de `specialties` contiene alguna de las especialidades elegidas por la org.
+- **UI Settings → Módulos:** nuevo tab en Settings con sección "Recomendados para tu especialidad", grid agrupado por categoría, toggle on/off por módulo (owner/admin), badge PRO para premium, vista read-only con ícono de candado para no-admins.
+- **Hook `useOrgAddons`:** catálogo enriquecido + `hasAddon(key)` + `toggleAddon(key, enabled)` + `refetch()`. Gating de UI en cualquier componente del dashboard.
+- **API `/api/addons`:** GET devuelve catálogo enriquecido con `enabled` y `recommended` por org. POST (solo admin/owner) togglea el addon con upsert y Zod.
+
+### Primer Vertical — Curvas de Crecimiento OMS (migración 092)
+
+Primer addon vertical completo, para endocrinología pediátrica y pediatría.
+
+- **Esquema:** `patients.sex` (male/female), tabla `patient_anthropometry` (measurement_date, weight_kg, height_cm, head_circumference_cm, notes, recorded_by) con RLS multi-tenant.
+- **Tablas LMS OMS (`lib/growth-curves/`):** WHO Child Growth Standards (0–5 años) + WHO Growth Reference (5–19 años). Parámetros Lambda-Mu-Sigma para weight-for-age, height-for-age, BMI-for-age (ambos sexos, 0–19 años) y head-circumference-for-age (0–36 meses).
+- **Cálculo:** Z-score vía fórmula LMS `Z = ((x/M)^L − 1) / (L·S)`. Percentil vía CDF normal estándar (Abramowitz & Stegun). Interpolación lineal entre puntos LMS. Reverso para graficar las líneas de percentiles.
+- **Componente `GrowthCurvesPanel` (Recharts ComposedChart):** banda P3–P97 sombreada en emerald, 5 líneas de percentiles (P3/P15/P97 punteadas, P15/P85 dashed, P50 sólida emerald), scatter con línea de trayectoria del paciente en indigo. Tooltip con valor, percentil y Z-score por punto. Tarjeta resumen de la última medición con colores semáforo (verde <15–85>, ámbar 3–15/85–97, rojo <3 o >97).
+- **4 métricas seleccionables:** Peso/Edad, Talla/Edad, IMC/Edad (auto-calculado desde peso y talla), Perímetro Cefálico.
+- **Formulario inline** para registrar nuevas mediciones, con validación. Historial tabular con botón de eliminación.
+- **Integración drawer paciente:** nueva pestaña "Crecimiento" gated por `hasAddon("growth_curves")`, visible solo a doctores/admins. Selector de sexo biológico en tab Datos (requerido por las tablas OMS). Empty states amigables cuando falta fecha de nacimiento o sexo.
+- **API `/api/patients/[id]/anthropometry`:** GET (cronológico) / POST (Zod, al menos una medición) / DELETE (por entryId).
+
+### Founder Panel — Tracking de Owners
+
+- Tabla `owner_lifecycle_events` con eventos: signup, trial_start, plan_upgrade, churn.
+- Tabla `founder_notes` para anotaciones privadas por organización.
+- Endpoints `/api/founder/stats/owners` y `/api/founder/notes`.
+- Tab "Organizaciones" en founder dashboard con embudo de conversión y notas editables por owner.
+
+### Marketplace de Integraciones
+
+- Nuevo tab "Integraciones" en Settings con tarjetas de integraciones externas (WhatsApp Business API, Mercado Pago, Google Calendar, etc.) y estado por org.
+- Wizard paso a paso para conectar WhatsApp Business API.
+- Bloqueo visual (candado) en tabs de integraciones aún no activadas.
+
+### Mejoras Menores
+
+- Fix sidebar: eliminadas entradas duplicadas de Founder e Integraciones.
+- Lock de tabs de WhatsApp hasta que la API esté conectada (consistencia con el marketplace).
+
+### Archivos Nuevos Clave
+
+- `supabase/migrations/091_addon_modules.sql`
+- `supabase/migrations/092_growth_curves_pediatric.sql`
+- `lib/growth-curves/{types,who-data,index}.ts`
+- `hooks/use-org-addons.ts`
+- `app/api/addons/route.ts`
+- `app/api/patients/[id]/anthropometry/route.ts`
+- `app/(dashboard)/settings/modulos-tab.tsx`
+- `app/(dashboard)/patients/growth-curves-panel.tsx`
+
+### Cambios de Alcance
+
+- Fase 2 de Especialidades (Sección 22) pasa de "Pendiente" a "Parcialmente implementado": la infraestructura de addons + el primer vertical completo están entregados; quedan pendientes `doctor_specialties`, tabs condicionales en historia clínica, y módulos premium cobrables.
+- Pendientes movidos a Completado: sistema de módulos verticales, primer vertical (endocrinología pediátrica), marketplace de integraciones, tracking de owners del founder.
