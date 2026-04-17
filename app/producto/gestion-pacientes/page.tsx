@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/landing/navbar";
+import { PatientCardsCarousel } from "@/components/landing/patient-cards-carousel";
 import {
   ArrowRight,
   ChevronRight,
@@ -87,44 +88,9 @@ export default function GestionPacientesPage() {
           </div>
         </div>
 
-        {/* Patient card mockup */}
-        <div className="mt-16 mx-auto max-w-md">
-          <div className="rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
-            <div className="bg-teal-600 px-5 py-4 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/20 text-lg font-bold text-white">
-                ML
-              </div>
-              <div>
-                <p className="text-white font-bold">María López Gutiérrez</p>
-                <p className="text-teal-200 text-xs">DNI: 45678912 · 34 años · Lima, San Borja</p>
-              </div>
-            </div>
-            <div className="p-4 space-y-3">
-              <div className="grid grid-cols-3 gap-3 text-center">
-                <div className="rounded-lg bg-slate-50 p-2">
-                  <p className="text-lg font-bold text-teal-600">24</p>
-                  <p className="text-[10px] text-slate-500">Citas totales</p>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-2">
-                  <p className="text-lg font-bold text-emerald-600">S/. 2,400</p>
-                  <p className="text-[10px] text-slate-500">Valor total</p>
-                </div>
-                <div className="rounded-lg bg-slate-50 p-2">
-                  <p className="text-lg font-bold text-blue-600">3</p>
-                  <p className="text-[10px] text-slate-500">Tratamientos</p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {["Ginecología", "SOP", "Control mensual", "Seguro EPS"].map((tag) => (
-                  <span key={tag} className="rounded-full bg-teal-100 px-2.5 py-0.5 text-[10px] font-medium text-teal-700">{tag}</span>
-                ))}
-              </div>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <Clock className="h-3 w-3" />
-                Última cita: 15 mar 2026 — Dra. Angela Quispe
-              </div>
-            </div>
-          </div>
+        {/* Patient cards carousel — overview, marketing, clinical history */}
+        <div className="mt-16">
+          <PatientCardsCarousel />
         </div>
       </section>
 
