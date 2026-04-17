@@ -33,6 +33,7 @@ import {
   Smartphone,
   Globe2,
   Phone,
+  Plug,
 } from "lucide-react";
 import {
   loadSchedulerConfig,
@@ -57,8 +58,9 @@ const WhatsAppClipboardTab = dynamic(() => import("./whatsapp-clipboard-tab"), {
 const WhatsAppConfigTab = dynamic(() => import("./whatsapp-config-tab"), { loading: TabLoader });
 const WhatsAppTemplatesTab = dynamic(() => import("./whatsapp-templates-tab"), { loading: TabLoader });
 const BookingSettingsTab = dynamic(() => import("./booking-settings-tab"), { loading: TabLoader });
+const IntegracionesTab = dynamic(() => import("./integraciones-tab"), { loading: TabLoader });
 
-type Tab = "general" | "agenda" | "reservas" | "correos" | "whatsapp" | "whatsapp-api" | "permisos";
+type Tab = "general" | "agenda" | "reservas" | "correos" | "whatsapp" | "whatsapp-api" | "integraciones" | "permisos";
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
@@ -73,7 +75,7 @@ export default function SettingsPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const VALID_TABS: Tab[] = ["general", "agenda", "reservas", "correos", "whatsapp", "whatsapp-api", "permisos"];
+  const VALID_TABS: Tab[] = ["general", "agenda", "reservas", "correos", "whatsapp", "whatsapp-api", "integraciones", "permisos"];
   const tabParam = searchParams.get("tab") as Tab | null;
   const activeTab: Tab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "general";
   const setActiveTab = (tab: Tab) => {
@@ -87,6 +89,16 @@ export default function SettingsPage() {
   );
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // ── WhatsApp integration status ──────────────────────────────────────────
+  const [waConnected, setWaConnected] = useState(false);
+  useEffect(() => {
+    if (!organizationId) return;
+    fetch("/api/whatsapp/config")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d?.is_active) setWaConnected(true); })
+      .catch(() => {});
+  }, [organizationId]);
 
   // ── Revenue goal ─────────────────────────────────────────────────────────
   const [revenueGoal, setRevenueGoal] = useState<string>("");
@@ -363,6 +375,7 @@ export default function SettingsPage() {
     { id: "correos", label: language === "es" ? "Correos" : "Emails", icon: <Mail className="h-4 w-4" /> },
     { id: "whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" /> },
     { id: "whatsapp-api", label: "WA Business", icon: <Smartphone className="h-4 w-4" /> },
+    { id: "integraciones", label: language === "es" ? "Integraciones" : "Integrations", icon: <Plug className="h-4 w-4" /> },
     { id: "permisos", label: language === "es" ? "Permisos" : "Permissions", icon: <Shield className="h-4 w-4" /> },
   ];
 
@@ -423,20 +436,26 @@ export default function SettingsPage() {
 
       {/* Tab navigation */}
       <div className="flex gap-1 rounded-xl border border-border bg-muted/30 p-1 overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex shrink-0 md:flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all whitespace-nowrap ${
-              activeTab === tab.id
-                ? "bg-card text-foreground shadow-sm border border-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const waLocked = !waConnected && (tab.id === "whatsapp" || tab.id === "whatsapp-api");
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex shrink-0 md:flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "bg-card text-foreground shadow-sm border border-border"
+                  : waLocked
+                    ? "text-muted-foreground/40 hover:text-muted-foreground/60"
+                    : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {waLocked && <Lock className="h-3 w-3 opacity-50" />}
+              {tab.icon}
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── General tab ──────────────────────────────────────────────────────── */}
@@ -1045,18 +1064,62 @@ export default function SettingsPage() {
       {activeTab === "correos" && <EmailSettingsTab />}
 
       {/* ── WhatsApp tab ─────────────────────────────────────────────────────── */}
-      {activeTab === "whatsapp" && <WhatsAppClipboardTab />}
+      {activeTab === "whatsapp" && (
+        !waConnected ? (
+          <WhatsAppLockedBanner es={language === "es"} onGoToIntegraciones={() => setActiveTab("integraciones")} />
+        ) : (
+          <WhatsAppClipboardTab />
+        )
+      )}
 
       {/* ── WhatsApp Business API tab ──────────────────────────────────────── */}
       {activeTab === "whatsapp-api" && (
-        <div className="space-y-6">
-          <WhatsAppConfigTab />
-          <WhatsAppTemplatesTab />
-        </div>
+        !waConnected ? (
+          <WhatsAppLockedBanner es={language === "es"} onGoToIntegraciones={() => setActiveTab("integraciones")} />
+        ) : (
+          <div className="space-y-6">
+            <WhatsAppConfigTab />
+            <WhatsAppTemplatesTab />
+          </div>
+        )
       )}
+
+      {/* ── Integraciones tab ────────────────────────────────────────────────── */}
+      {activeTab === "integraciones" && <IntegracionesTab />}
 
       {/* ── Permisos tab ─────────────────────────────────────────────────────── */}
       {activeTab === "permisos" && <PermissionsSettingsTab />}
+    </div>
+  );
+}
+
+function WhatsAppLockedBanner({
+  es,
+  onGoToIntegraciones,
+}: {
+  es: boolean;
+  onGoToIntegraciones: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 mb-5">
+        <Lock className="h-7 w-7 text-muted-foreground/60" />
+      </div>
+      <h3 className="text-lg font-semibold text-foreground/80">
+        {es ? "WhatsApp API no conectado" : "WhatsApp API not connected"}
+      </h3>
+      <p className="mt-2 max-w-md text-sm text-muted-foreground">
+        {es
+          ? "Para usar plantillas, mensajes y recordatorios de WhatsApp, primero activa tu WhatsApp Business API desde la pestaña Integraciones."
+          : "To use WhatsApp templates, messages and reminders, first activate your WhatsApp Business API from the Integrations tab."}
+      </p>
+      <button
+        onClick={onGoToIntegraciones}
+        className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
+      >
+        <Plug className="h-4 w-4" />
+        {es ? "Ir a Integraciones" : "Go to Integrations"}
+      </button>
     </div>
   );
 }
