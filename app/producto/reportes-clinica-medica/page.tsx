@@ -60,8 +60,9 @@ export default function ReportesPage() {
           </div>
         </div>
 
-        {/* Dashboard mockup */}
-        <div className="mt-16 mx-auto max-w-3xl">
+        {/* Dashboard mockup with floating cards */}
+        <div className="mt-16 mx-auto max-w-3xl relative lg:max-w-6xl lg:px-44">
+          <div className="relative mx-auto max-w-3xl">
           <div className="rounded-2xl border border-slate-200 bg-white shadow-xl overflow-hidden">
             <div className="border-b border-slate-100 px-5 py-3 flex items-center justify-between bg-slate-50">
               <span className="text-sm font-bold text-slate-900">Dashboard — Abril 2026</span>
@@ -89,22 +90,210 @@ export default function ReportesPage() {
                 ))}
               </div>
 
-              {/* Mini chart placeholder */}
+              {/* Charts */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-lg border border-slate-100 p-4 h-32 flex items-center justify-center">
-                  <div className="text-center">
-                    <LineChart className="h-6 w-6 text-slate-300 mx-auto mb-1" />
-                    <p className="text-[10px] text-slate-400">Ingresos por semana</p>
-                  </div>
+                {/* Weekly revenue line chart */}
+                <div className="rounded-lg border border-slate-100 p-4">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-3">Ingresos por semana</p>
+                  <svg viewBox="0 0 240 80" className="w-full h-auto" preserveAspectRatio="xMidYMid meet">
+                    <defs>
+                      <linearGradient id="rev-grad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+                        <stop offset="100%" stopColor="#10b981" stopOpacity="0.02" />
+                      </linearGradient>
+                    </defs>
+                    {/* Grid lines */}
+                    <line x1="30" y1="10" x2="230" y2="10" stroke="#f1f5f9" strokeWidth="0.5" />
+                    <line x1="30" y1="30" x2="230" y2="30" stroke="#f1f5f9" strokeWidth="0.5" />
+                    <line x1="30" y1="50" x2="230" y2="50" stroke="#f1f5f9" strokeWidth="0.5" />
+                    <line x1="30" y1="70" x2="230" y2="70" stroke="#f1f5f9" strokeWidth="0.5" />
+                    {/* Y labels */}
+                    <text x="26" y="13" fontSize="5" fill="#94a3b8" textAnchor="end">5k</text>
+                    <text x="26" y="33" fontSize="5" fill="#94a3b8" textAnchor="end">4k</text>
+                    <text x="26" y="53" fontSize="5" fill="#94a3b8" textAnchor="end">3k</text>
+                    <text x="26" y="73" fontSize="5" fill="#94a3b8" textAnchor="end">2k</text>
+                    {/* Area fill */}
+                    <path d="M50,55 L90,38 L130,42 L170,22 L210,15 L210,70 L50,70 Z" fill="url(#rev-grad)" />
+                    {/* Line */}
+                    <polyline points="50,55 90,38 130,42 170,22 210,15" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    {/* Dots */}
+                    <circle cx="50" cy="55" r="2.5" fill="#fff" stroke="#10b981" strokeWidth="1.5" />
+                    <circle cx="90" cy="38" r="2.5" fill="#fff" stroke="#10b981" strokeWidth="1.5" />
+                    <circle cx="130" cy="42" r="2.5" fill="#fff" stroke="#10b981" strokeWidth="1.5" />
+                    <circle cx="170" cy="22" r="2.5" fill="#fff" stroke="#10b981" strokeWidth="1.5" />
+                    <circle cx="210" cy="15" r="3" fill="#10b981" stroke="#fff" strokeWidth="1.5" />
+                    {/* X labels */}
+                    <text x="50" y="78" fontSize="5" fill="#94a3b8" textAnchor="middle">Sem 1</text>
+                    <text x="90" y="78" fontSize="5" fill="#94a3b8" textAnchor="middle">Sem 2</text>
+                    <text x="130" y="78" fontSize="5" fill="#94a3b8" textAnchor="middle">Sem 3</text>
+                    <text x="170" y="78" fontSize="5" fill="#94a3b8" textAnchor="middle">Sem 4</text>
+                    <text x="210" y="78" fontSize="5" fill="#94a3b8" textAnchor="middle">Actual</text>
+                  </svg>
                 </div>
-                <div className="rounded-lg border border-slate-100 p-4 h-32 flex items-center justify-center">
-                  <div className="text-center">
-                    <PieChart className="h-6 w-6 text-slate-300 mx-auto mb-1" />
-                    <p className="text-[10px] text-slate-400">Origen de pacientes</p>
+
+                {/* Patient origin donut chart */}
+                <div className="rounded-lg border border-slate-100 p-4">
+                  <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wide mb-3">Origen de pacientes</p>
+                  <div className="flex items-center gap-3">
+                    <svg viewBox="0 0 80 80" className="w-20 h-20 shrink-0">
+                      {/* Instagram 34% */}
+                      <circle cx="40" cy="40" r="30" fill="none" stroke="#a855f7" strokeWidth="8"
+                        strokeDasharray="65.03 123.57" strokeDashoffset="0"
+                        transform="rotate(-90 40 40)" />
+                      {/* Referidos 28% */}
+                      <circle cx="40" cy="40" r="30" fill="none" stroke="#3b82f6" strokeWidth="8"
+                        strokeDasharray="52.78 135.82" strokeDashoffset="-65.03"
+                        transform="rotate(-90 40 40)" />
+                      {/* Google 18% */}
+                      <circle cx="40" cy="40" r="30" fill="none" stroke="#10b981" strokeWidth="8"
+                        strokeDasharray="33.93 154.67" strokeDashoffset="-117.81"
+                        transform="rotate(-90 40 40)" />
+                      {/* TikTok 12% */}
+                      <circle cx="40" cy="40" r="30" fill="none" stroke="#f59e0b" strokeWidth="8"
+                        strokeDasharray="22.62 166" strokeDashoffset="-151.74"
+                        transform="rotate(-90 40 40)" />
+                      {/* Otros 8% */}
+                      <circle cx="40" cy="40" r="30" fill="none" stroke="#94a3b8" strokeWidth="8"
+                        strokeDasharray="15.08 173.52" strokeDashoffset="-174.36"
+                        transform="rotate(-90 40 40)" />
+                      <text x="40" y="38" fontSize="8" fontWeight="bold" fill="#1e293b" textAnchor="middle">142</text>
+                      <text x="40" y="46" fontSize="4.5" fill="#64748b" textAnchor="middle">pacientes</text>
+                    </svg>
+                    <div className="space-y-1 flex-1">
+                      {[
+                        { label: "Instagram", pct: "34%", color: "bg-violet-500" },
+                        { label: "Referidos", pct: "28%", color: "bg-blue-500" },
+                        { label: "Google", pct: "18%", color: "bg-emerald-500" },
+                        { label: "TikTok", pct: "12%", color: "bg-amber-500" },
+                        { label: "Otros", pct: "8%", color: "bg-slate-400" },
+                      ].map((s) => (
+                        <div key={s.label} className="flex items-center gap-1.5 text-[9px]">
+                          <span className={`h-1.5 w-1.5 rounded-full ${s.color}`} />
+                          <span className="text-slate-600 flex-1">{s.label}</span>
+                          <span className="font-bold text-slate-800">{s.pct}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Floating card — Pending collections (top-right) */}
+          <div className="hidden lg:block absolute -top-6 -right-52 w-56 rotate-2 z-20">
+            <div className="rounded-xl border border-red-200 bg-white shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-red-500 to-rose-500 px-3 py-2 flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-white" />
+                <span className="text-[10px] font-bold text-white uppercase tracking-wide">
+                  Pendiente de cobro
+                </span>
+              </div>
+              <div className="p-3">
+                <p className="text-2xl font-extrabold text-red-600">S/. 3,350</p>
+                <p className="text-[10px] text-slate-500 mt-0.5">acumulado de 8 pacientes</p>
+                <div className="mt-2 space-y-1.5">
+                  {[
+                    { name: "María López", amount: "S/. 850" },
+                    { name: "Carlos Ríos", amount: "S/. 620" },
+                    { name: "Ana Mendoza", amount: "S/. 480" },
+                  ].map((p) => (
+                    <div key={p.name} className="flex items-center justify-between text-[10px]">
+                      <span className="text-slate-600">{p.name}</span>
+                      <span className="font-bold text-red-600">{p.amount}</span>
+                    </div>
+                  ))}
+                  <p className="text-[9px] text-slate-400 italic text-right">+5 más...</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Floating card — Demographics donut (bottom-left) */}
+          <div className="hidden lg:block absolute -bottom-10 -left-52 w-56 -rotate-3 z-20">
+            <div className="rounded-xl border border-blue-200 bg-white shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-white" />
+                <span className="text-[10px] font-bold text-white uppercase tracking-wide">
+                  Demografía
+                </span>
+              </div>
+              <div className="p-3">
+                <div className="flex items-center gap-3">
+                  <svg viewBox="0 0 80 80" className="w-16 h-16 shrink-0">
+                    {/* Lima 75% */}
+                    <circle cx="40" cy="40" r="28" fill="none" stroke="#3b82f6" strokeWidth="10"
+                      strokeDasharray="131.95 44.65" strokeDashoffset="0"
+                      transform="rotate(-90 40 40)" />
+                    {/* Arequipa 9% */}
+                    <circle cx="40" cy="40" r="28" fill="none" stroke="#8b5cf6" strokeWidth="10"
+                      strokeDasharray="15.83 160.77" strokeDashoffset="-131.95"
+                      transform="rotate(-90 40 40)" />
+                    {/* Cusco 6% */}
+                    <circle cx="40" cy="40" r="28" fill="none" stroke="#f59e0b" strokeWidth="10"
+                      strokeDasharray="10.56 166.04" strokeDashoffset="-147.78"
+                      transform="rotate(-90 40 40)" />
+                    {/* Otros 10% */}
+                    <circle cx="40" cy="40" r="28" fill="none" stroke="#94a3b8" strokeWidth="10"
+                      strokeDasharray="17.59 159.01" strokeDashoffset="-158.34"
+                      transform="rotate(-90 40 40)" />
+                    <text x="40" y="38" fontSize="9" fontWeight="bold" fill="#1e293b" textAnchor="middle">75%</text>
+                    <text x="40" y="46" fontSize="4.5" fill="#64748b" textAnchor="middle">Lima</text>
+                  </svg>
+                  <div className="space-y-1 flex-1">
+                    {[
+                      { label: "Lima", pct: "75%", color: "bg-blue-500" },
+                      { label: "Arequipa", pct: "9%", color: "bg-violet-500" },
+                      { label: "Cusco", pct: "6%", color: "bg-amber-500" },
+                      { label: "Otros", pct: "10%", color: "bg-slate-400" },
+                    ].map((r) => (
+                      <div key={r.label} className="flex items-center gap-1.5 text-[9px]">
+                        <span className={`h-1.5 w-1.5 rounded-full ${r.color}`} />
+                        <span className="text-slate-600 flex-1">{r.label}</span>
+                        <span className="font-bold text-slate-800">{r.pct}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Floating card — Billing by doctor (bottom-right) */}
+          <div className="hidden lg:block absolute -bottom-12 -right-48 w-60 rotate-3 z-20">
+            <div className="rounded-xl border border-emerald-200 bg-white shadow-2xl overflow-hidden">
+              <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 flex items-center gap-2">
+                <DollarSign className="h-4 w-4 text-white" />
+                <span className="text-[10px] font-bold text-white uppercase tracking-wide">
+                  Facturación por doctor
+                </span>
+              </div>
+              <div className="p-3 space-y-2">
+                {[
+                  { name: "Dra. Angela Quispe", amount: "S/. 8,420", pct: 100 },
+                  { name: "Dr. Renzo Mendoza", amount: "S/. 5,680", pct: 67 },
+                  { name: "Dra. Lucía Paredes", amount: "S/. 4,350", pct: 52 },
+                ].map((doc) => (
+                  <div key={doc.name}>
+                    <div className="flex items-center justify-between text-[10px] mb-0.5">
+                      <span className="text-slate-700 font-medium truncate">{doc.name}</span>
+                      <span className="font-bold text-emerald-700 ml-2 shrink-0">{doc.amount}</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-500"
+                        style={{ width: `${doc.pct}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                <div className="pt-1 border-t border-slate-100 flex items-center justify-between text-[10px]">
+                  <span className="text-slate-500 font-semibold">Total mes</span>
+                  <span className="font-extrabold text-slate-900">S/. 18,450</span>
+                </div>
+              </div>
+            </div>
+          </div>
           </div>
         </div>
       </section>
