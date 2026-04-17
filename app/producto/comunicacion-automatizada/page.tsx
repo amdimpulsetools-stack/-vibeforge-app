@@ -111,9 +111,19 @@ export default function ComunicacionPage() {
                 </div>
                 <div className="p-3">
                   <div className="flex items-start gap-2">
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-gradient-to-br from-red-500 to-red-600 shadow-sm">
-                      <Mail className="h-4 w-4 text-white" />
-                    </div>
+                    {/* Gmail logo */}
+                    <svg className="h-8 w-8 shrink-0" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" fill="#EA4335"/>
+                      <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z" fill="url(#gmail-grad)"/>
+                      <defs>
+                        <linearGradient id="gmail-grad" x1="0" y1="0" x2="24" y2="24">
+                          <stop offset="0%" stopColor="#EA4335"/>
+                          <stop offset="30%" stopColor="#FBBC05"/>
+                          <stop offset="60%" stopColor="#34A853"/>
+                          <stop offset="100%" stopColor="#4285F4"/>
+                        </linearGradient>
+                      </defs>
+                    </svg>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <p className="text-[11px] font-bold text-slate-900 truncate">Clínica REPLACE</p>
@@ -127,9 +137,6 @@ export default function ComunicacionPage() {
                       </p>
                     </div>
                   </div>
-                  <button className="mt-3 w-full inline-flex items-center justify-center gap-1.5 rounded-md bg-gradient-to-r from-red-500 to-red-600 px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm">
-                    <Mail className="h-3 w-3" /> Abrir en Gmail
-                  </button>
                 </div>
               </div>
             </div>
