@@ -29,7 +29,6 @@ import {
   BarChart3,
   History,
   Crown,
-  Cable,
   LayoutTemplate,
   ClipboardCheck,
   Headphones,
@@ -358,13 +357,8 @@ export function Sidebar() {
             <div className="my-2 border-t border-border/30" />
             {renderNavItem({
               titleKey: "nav.founder",
-              href: "/founder",
+              href: "/founder-dashboard",
               icon: Crown,
-            })}
-            {renderNavItem({
-              titleKey: "nav.integrations",
-              href: "/founder/integrations",
-              icon: Cable,
             })}
           </>
         )}
