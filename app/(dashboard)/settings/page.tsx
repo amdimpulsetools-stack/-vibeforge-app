@@ -34,6 +34,7 @@ import {
   Globe2,
   Phone,
   Plug,
+  Blocks,
 } from "lucide-react";
 import {
   loadSchedulerConfig,
@@ -59,8 +60,9 @@ const WhatsAppConfigTab = dynamic(() => import("./whatsapp-config-tab"), { loadi
 const WhatsAppTemplatesTab = dynamic(() => import("./whatsapp-templates-tab"), { loading: TabLoader });
 const BookingSettingsTab = dynamic(() => import("./booking-settings-tab"), { loading: TabLoader });
 const IntegracionesTab = dynamic(() => import("./integraciones-tab"), { loading: TabLoader });
+const ModulosTab = dynamic(() => import("./modulos-tab"), { loading: TabLoader });
 
-type Tab = "general" | "agenda" | "reservas" | "correos" | "whatsapp" | "whatsapp-api" | "integraciones" | "permisos";
+type Tab = "general" | "agenda" | "reservas" | "correos" | "whatsapp" | "whatsapp-api" | "integraciones" | "modulos" | "permisos";
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
@@ -75,7 +77,7 @@ export default function SettingsPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const VALID_TABS: Tab[] = ["general", "agenda", "reservas", "correos", "whatsapp", "whatsapp-api", "integraciones", "permisos"];
+  const VALID_TABS: Tab[] = ["general", "agenda", "reservas", "correos", "whatsapp", "whatsapp-api", "integraciones", "modulos", "permisos"];
   const tabParam = searchParams.get("tab") as Tab | null;
   const activeTab: Tab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "general";
   const setActiveTab = (tab: Tab) => {
@@ -376,6 +378,7 @@ export default function SettingsPage() {
     { id: "whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" /> },
     { id: "whatsapp-api", label: "WA Business", icon: <Smartphone className="h-4 w-4" /> },
     { id: "integraciones", label: language === "es" ? "Integraciones" : "Integrations", icon: <Plug className="h-4 w-4" /> },
+    { id: "modulos", label: language === "es" ? "Módulos" : "Modules", icon: <Blocks className="h-4 w-4" /> },
     { id: "permisos", label: language === "es" ? "Permisos" : "Permissions", icon: <Shield className="h-4 w-4" /> },
   ];
 
@@ -1086,6 +1089,9 @@ export default function SettingsPage() {
 
       {/* ── Integraciones tab ────────────────────────────────────────────────── */}
       {activeTab === "integraciones" && <IntegracionesTab />}
+
+      {/* ── Módulos tab ──────────────────────────────────────────────────────── */}
+      {activeTab === "modulos" && <ModulosTab />}
 
       {/* ── Permisos tab ─────────────────────────────────────────────────────── */}
       {activeTab === "permisos" && <PermissionsSettingsTab />}
