@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/landing/navbar";
+import { Reveal } from "@/components/landing/reveal";
 import {
   ArrowRight, ChevronRight, BarChart3, DollarSign, TrendingUp, Users,
   HeartPulse, Wallet, Target, PieChart, MapPin, CheckCircle2,
@@ -181,7 +182,10 @@ export default function ReportesPage() {
           </div>
 
           {/* Floating card — Pending collections (top-right) */}
-          <div className="hidden lg:block absolute -top-6 -right-52 w-56 rotate-2 z-20">
+          <div
+            className="hidden lg:block absolute -top-6 -right-52 w-56 rotate-2 z-20 hero-float-card"
+            style={{ ["--float-delay" as string]: "0.6s" }}
+          >
             <div className="rounded-xl border border-red-200 bg-white shadow-2xl overflow-hidden">
               <div className="bg-gradient-to-r from-red-500 to-rose-500 px-3 py-2 flex items-center gap-2">
                 <Wallet className="h-4 w-4 text-white" />
@@ -210,7 +214,10 @@ export default function ReportesPage() {
           </div>
 
           {/* Floating card — Demographics donut (bottom-left) */}
-          <div className="hidden lg:block absolute -bottom-10 -left-52 w-56 -rotate-3 z-20">
+          <div
+            className="hidden lg:block absolute -bottom-10 -left-52 w-56 -rotate-3 z-20 hero-float-card"
+            style={{ ["--float-delay" as string]: "1.1s" }}
+          >
             <div className="rounded-xl border border-blue-200 bg-white shadow-2xl overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-3 py-2 flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-white" />
@@ -260,7 +267,10 @@ export default function ReportesPage() {
           </div>
 
           {/* Floating card — Billing by doctor (bottom-right) */}
-          <div className="hidden lg:block absolute -bottom-12 -right-48 w-60 rotate-3 z-20">
+          <div
+            className="hidden lg:block absolute -bottom-12 -right-48 w-60 rotate-3 z-20 hero-float-card"
+            style={{ ["--float-delay" as string]: "1.6s" }}
+          >
             <div className="rounded-xl border border-emerald-200 bg-white shadow-2xl overflow-hidden">
               <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-3 py-2 flex items-center gap-2">
                 <DollarSign className="h-4 w-4 text-white" />
@@ -316,11 +326,11 @@ export default function ReportesPage() {
               { stat: "S/. 3,200", label: "promedio", desc: "en deudas no cobradas que un consultorio acumula sin saberlo" },
               { stat: "0 datos", label: "de marketing", desc: "la mayoría no sabe de dónde vienen sus pacientes nuevos" },
             ].map((item, idx) => (
-              <div key={idx} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
+              <Reveal key={idx} delay={idx * 120} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
                 <p className="text-4xl font-extrabold text-orange-400">{item.stat}</p>
                 <p className="text-sm font-semibold text-white mt-1">{item.label}</p>
                 <p className="text-sm text-slate-400 mt-2">{item.desc}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -338,7 +348,7 @@ export default function ReportesPage() {
 
           <div className="space-y-16">
             {/* Financiero */}
-            <div className="grid gap-10 md:grid-cols-2 items-center">
+            <Reveal className="grid gap-10 md:grid-cols-2 items-center">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 mb-4">
                   <DollarSign className="h-3.5 w-3.5" /> Reporte Financiero
@@ -357,10 +367,10 @@ export default function ReportesPage() {
               <div className="aspect-[4/3] rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center">
                 <div className="text-center"><DollarSign className="h-8 w-8 text-slate-300 mx-auto mb-2" /><p className="text-xs text-slate-400">Captura: Reporte financiero</p></div>
               </div>
-            </div>
+            </Reveal>
 
             {/* Retención */}
-            <div className="grid gap-10 md:grid-cols-2 items-center">
+            <Reveal className="grid gap-10 md:grid-cols-2 items-center">
               <div className="order-2 md:order-1 aspect-[4/3] rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center">
                 <div className="text-center"><HeartPulse className="h-8 w-8 text-slate-300 mx-auto mb-2" /><p className="text-xs text-slate-400">Captura: Dashboard retención</p></div>
               </div>
@@ -379,10 +389,10 @@ export default function ReportesPage() {
                   ))}
                 </ul>
               </div>
-            </div>
+            </Reveal>
 
             {/* Marketing */}
-            <div className="grid gap-10 md:grid-cols-2 items-center">
+            <Reveal className="grid gap-10 md:grid-cols-2 items-center">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700 mb-4">
                   <TrendingUp className="h-3.5 w-3.5" /> Reporte de Marketing
@@ -401,10 +411,10 @@ export default function ReportesPage() {
               <div className="aspect-[4/3] rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center">
                 <div className="text-center"><PieChart className="h-8 w-8 text-slate-300 mx-auto mb-2" /><p className="text-xs text-slate-400">Captura: Origen de pacientes</p></div>
               </div>
-            </div>
+            </Reveal>
 
             {/* Cobros */}
-            <div className="grid gap-10 md:grid-cols-2 items-center">
+            <Reveal className="grid gap-10 md:grid-cols-2 items-center">
               <div className="order-2 md:order-1 aspect-[4/3] rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center">
                 <div className="text-center"><Wallet className="h-8 w-8 text-slate-300 mx-auto mb-2" /><p className="text-xs text-slate-400">Captura: Control de cobros</p></div>
               </div>
@@ -423,7 +433,7 @@ export default function ReportesPage() {
                   ))}
                 </ul>
               </div>
-            </div>
+            </Reveal>
           </div>
         </div>
       </section>

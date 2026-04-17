@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/landing/navbar";
+import { Reveal } from "@/components/landing/reveal";
 import {
   ArrowRight,
   ChevronRight,
@@ -110,7 +111,10 @@ export default function AgendaMedicaPage() {
           {/* Calendar visual mockup + floating action cards */}
           <div className="mt-16 mb-16 mx-auto max-w-3xl relative">
             {/* Floating: Conflict alert (top-left) */}
-            <div className="hidden lg:block absolute -top-8 -left-20 w-56 rounded-2xl border border-red-200 bg-white shadow-2xl p-4 -rotate-3 z-20">
+            <div
+              className="hidden lg:block absolute -top-8 -left-20 w-56 rounded-2xl border border-red-200 bg-white shadow-2xl p-4 -rotate-3 z-20 hero-float-card"
+              style={{ ["--float-delay" as string]: "0.5s" }}
+            >
               <div className="flex items-center gap-2 mb-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100">
                   <ShieldAlert className="h-4 w-4 text-red-600" />
@@ -137,7 +141,10 @@ export default function AgendaMedicaPage() {
             </div>
 
             {/* Floating: Partial payment (top-right) */}
-            <div className="hidden lg:block absolute -top-6 -right-20 w-56 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-2 z-20">
+            <div
+              className="hidden lg:block absolute -top-6 -right-20 w-56 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-2 z-20 hero-float-card"
+              style={{ ["--float-delay" as string]: "0.9s" }}
+            >
               <div className="flex items-center gap-2 mb-2.5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
                   <CreditCard className="h-4 w-4 text-amber-600" />
@@ -171,7 +178,10 @@ export default function AgendaMedicaPage() {
             </div>
 
             {/* Floating: Reschedule button (bottom-left) */}
-            <div className="hidden lg:block absolute -bottom-10 -left-16 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 -rotate-2 z-20">
+            <div
+              className="hidden lg:block absolute -bottom-10 -left-16 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 -rotate-2 z-20 hero-float-card"
+              style={{ ["--float-delay" as string]: "1.3s" }}
+            >
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100">
                   <CalendarClock className="h-5 w-5 text-blue-600" />
@@ -187,7 +197,10 @@ export default function AgendaMedicaPage() {
             </div>
 
             {/* Floating: Add payment button (bottom-right) */}
-            <div className="hidden lg:block absolute -bottom-8 -right-14 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-3 z-20">
+            <div
+              className="hidden lg:block absolute -bottom-8 -right-14 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-3 z-20 hero-float-card"
+              style={{ ["--float-delay" as string]: "1.7s" }}
+            >
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
                   <CircleDollarSign className="h-5 w-5 text-emerald-600" />
@@ -269,12 +282,12 @@ export default function AgendaMedicaPage() {
             ].map((item, idx) => {
               const Icon = item.icon;
               return (
-                <div key={idx} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
+                <Reveal key={idx} delay={idx * 120} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
                   <Icon className="h-6 w-6 text-red-400 mx-auto mb-3" />
                   <p className="text-4xl font-extrabold text-red-400">{item.stat}</p>
                   <p className="text-sm font-semibold text-white mt-1">{item.label}</p>
                   <p className="text-sm text-slate-400 mt-2">{item.desc}</p>
-                </div>
+                </Reveal>
               );
             })}
           </div>

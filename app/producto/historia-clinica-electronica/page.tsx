@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Navbar } from "@/components/landing/navbar";
+import { Reveal } from "@/components/landing/reveal";
 import {
   ArrowRight,
   ChevronRight,
@@ -96,7 +97,10 @@ export default function HistoriaClinicaPage() {
         {/* SOAP Note mockup + floating cards */}
         <div className="mt-16 mb-20 mx-auto max-w-2xl relative">
           {/* Floating: Vital Signs (top-right) */}
-          <div className="hidden lg:block absolute -top-10 -right-20 w-52 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-3 z-20">
+          <div
+            className="hidden lg:block absolute -top-10 -right-20 w-52 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-3 z-20 hero-float-card"
+            style={{ ["--float-delay" as string]: "0.6s" }}
+          >
             <div className="flex items-center gap-1.5 mb-3">
               <Activity className="h-4 w-4 text-red-500" />
               <span className="text-xs font-bold text-slate-900">Signos vitales</span>
@@ -127,7 +131,10 @@ export default function HistoriaClinicaPage() {
           </div>
 
           {/* Floating: Tracking Graph (bottom-left) */}
-          <div className="hidden lg:block absolute -bottom-14 -left-20 w-60 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 -rotate-3 z-20">
+          <div
+            className="hidden lg:block absolute -bottom-14 -left-20 w-60 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 -rotate-3 z-20 hero-float-card"
+            style={{ ["--float-delay" as string]: "1.1s" }}
+          >
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5">
                 <TrendingUp className="h-4 w-4 text-emerald-500" />
@@ -166,7 +173,10 @@ export default function HistoriaClinicaPage() {
           </div>
 
           {/* Floating: Prescription (middle-right, below vitals) */}
-          <div className="hidden lg:block absolute -bottom-8 -right-16 w-60 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-2 z-20">
+          <div
+            className="hidden lg:block absolute -bottom-8 -right-16 w-60 rounded-2xl border border-slate-200 bg-white shadow-2xl p-4 rotate-2 z-20 hero-float-card"
+            style={{ ["--float-delay" as string]: "1.6s" }}
+          >
             <div className="flex items-center gap-2 mb-3 pb-2.5 border-b border-slate-100">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-700 font-extrabold text-base">
                 R<span className="text-[10px]">x</span>
@@ -249,11 +259,11 @@ export default function HistoriaClinicaPage() {
               { stat: "15 min", label: "por paciente", desc: "se pierden buscando notas antiguas en carpetas o archivos desordenados" },
               { stat: "1 de 3", label: "recetas", desc: "se pierden antes de que el paciente llegue a la farmacia" },
             ].map((item, idx) => (
-              <div key={idx} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
+              <Reveal key={idx} delay={idx * 120} className="rounded-2xl border border-slate-700 bg-slate-800/50 p-6">
                 <p className="text-4xl font-extrabold text-blue-400">{item.stat}</p>
                 <p className="text-sm font-semibold text-white mt-1">{item.label}</p>
                 <p className="text-sm text-slate-400 mt-2">{item.desc}</p>
-              </div>
+              </Reveal>
             ))}
           </div>
         </div>
@@ -413,16 +423,16 @@ export default function HistoriaClinicaPage() {
                 title: "Todo en un timeline",
                 desc: "Cada nota, receta y orden queda vinculada al paciente en un historial cronológico. Nada se pierde. Todo es rastreable.",
               },
-            ].map((item) => {
+            ].map((item, idx) => {
               const Icon = item.icon;
               return (
-                <div key={item.title} className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
+                <Reveal key={item.title} delay={idx * 150} className="rounded-2xl border border-slate-200 bg-white p-6 text-center">
                   <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-blue-600 mb-4">
                     <Icon className="h-6 w-6" />
                   </div>
                   <h3 className="text-base font-bold text-slate-900 mb-2">{item.title}</h3>
                   <p className="text-sm text-slate-600 leading-relaxed">{item.desc}</p>
-                </div>
+                </Reveal>
               );
             })}
           </div>

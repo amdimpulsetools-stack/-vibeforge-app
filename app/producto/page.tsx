@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Navbar } from "@/components/landing/navbar";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 import { PRODUCT_FEATURES } from "@/lib/product-features";
+import { Reveal } from "@/components/landing/reveal";
 
 export const metadata: Metadata = {
   title: `Producto — Software Médico Todo en Uno | REPLACE`,
@@ -102,13 +103,13 @@ export default function ProductOverviewPage() {
             </p>
           </div>
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {PRODUCT_FEATURES.map((feature) => {
+            {PRODUCT_FEATURES.map((feature, idx) => {
               const Icon = feature.icon;
               return (
+                <Reveal key={feature.slug} delay={idx * 80}>
                 <Link
-                  key={feature.slug}
                   href={`/producto/${feature.slug}`}
-                  className="group rounded-2xl border border-slate-200 bg-white p-6 hover:border-emerald-300 hover:shadow-lg transition-all"
+                  className="group rounded-2xl border border-slate-200 bg-white p-6 hover:border-emerald-300 hover:shadow-lg transition-all block h-full"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors mb-4">
                     <Icon className="h-6 w-6" />
@@ -134,6 +135,7 @@ export default function ProductOverviewPage() {
                     <ArrowRight className="h-3 w-3" />
                   </span>
                 </Link>
+                </Reveal>
               );
             })}
           </div>
