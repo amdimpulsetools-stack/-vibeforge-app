@@ -1,6 +1,6 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-16
+> **Última actualización:** 2026-04-18
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -45,6 +45,20 @@
   - Formato timeline visual con fechas y descripciones
   - Ejemplo de output: *"María López ha sido paciente desde el 15 de enero de 2026. En su primera consulta fue diagnosticada con SOP (E28.2) por la Dra. García. Se le prescribió metformina 850mg y se solicitó ecografía pélvica. En su control del 12 de febrero, los resultados de la ecografía mostraron..."*
   - Útil para: referencias a otros especialistas, auditorías, continuidad del cuidado
+
+---
+
+## 🏷️ Pacientes
+
+- [ ] **Etiqueta "Paciente Recurrente" automática** — Tag automático en DB cuando el paciente acumula 2+ citas completadas. Columna computada o trigger que actualice una bandera `is_recurring` en `patients`. Badge visible en lista de pacientes, drawer y scheduler. Permite filtrar pacientes recurrentes vs nuevos en reportes y segmentación.
+
+---
+
+## 📏 Límites y Storage
+
+- [ ] **Límites de plan: UX de soft-wall** — ¿Qué pasa cuando la org pasa de 500, 1000 o 3000 pacientes activos? Definir mensajes de bloqueo suave (modal "Has alcanzado el límite de tu plan"), CTA de upgrade, y comportamiento: ¿bloquear creación de nuevos pacientes o solo advertir? Aplicar para cada recurso con límite (pacientes, citas/mes, miembros, doctores, consultorios, storage).
+
+- [ ] **Storage: límites y mensajes de espacio** — Auditar dónde se pueden subir imágenes (avatares, logos, adjuntos clínicos, fotos antes/después). Al acercarse o agotar el storage del plan, mostrar alerta con uso actual vs límite y CTA de upgrade. Mensaje claro: "Has alcanzado tu límite de almacenamiento (X MB/GB). Mejora tu plan para seguir subiendo archivos."
 
 ---
 
@@ -109,6 +123,35 @@
 
 ---
 
+## 🧩 Módulos / Addons por Especialidad
+
+- [ ] **Módulo de Laboratorio (addon `lab_integration`)** — Conexión con laboratorios, recepción de resultados digitales, asociación a historias clínicas y órdenes de exámenes. El addon seed ya existe en la tabla `addons`; falta la implementación de UI y flujos:
+  - Recepción de resultados vía API o carga manual (PDF/imagen)
+  - Vinculación automática con orden de examen existente
+  - Visualización de resultados en timeline del paciente
+  - Alertas de valores fuera de rango
+
+- [ ] **Módulo Dermatología: antes/después con optimización de imágenes** — Addon `dermatology` ya registrado. Implementar:
+  - Galería de fotos comparativas (antes/después) por zona corporal
+  - Compresión y resize automático (max 1200px, WebP) para no agotar storage
+  - Timeline visual de evolución de lesiones
+  - Anotaciones sobre la imagen (marcadores, zoom)
+
+- [ ] **Grabación de consulta + transcripción con IA** — Grabar audio de la consulta médica desde el navegador:
+  - Transcribir con Whisper/similar
+  - Generar automáticamente nota SOAP pre-llenada vía LLM
+  - El doctor revisa, edita y firma
+  - Requiere: evaluación de privacidad médica, consentimiento del paciente, y costos de API
+  - Almacenamiento del audio opcional (configurable por org)
+
+- [ ] **Bundle Consulta + Tratamiento** — Permitir crear un "paquete" que agrupe un servicio de consulta + sesiones de tratamiento en un solo cobro:
+  - Precio bundle con descuento opcional
+  - Al agendar, se crean la cita inicial + las sesiones del plan de tratamiento automáticamente
+  - Tracking de progreso del bundle (sesiones completadas / pendientes)
+  - Configurable desde Admin → Servicios
+
+---
+
 ## 💬 CRM Multi-canal
 
 - [ ] **CRM con WhatsApp API, Instagram API Messages y Facebook Messenger** — Bandeja de mensajes unificada tipo Kommo/Leadsales:
@@ -150,6 +193,13 @@
 | ~~12~~ | ~~Catálogo CIE-10 personalizable~~ | ~~Medio~~ | ~~Alto~~ | ✅ Entregado |
 | 13 | Descuentos condicionales | Medio | Medio (billing) | 🟠 Media-baja |
 | 14 | Importación masiva CIE-10 (CSV) | Bajo | Medio | 🟠 Media-baja |
+| 15 | Etiqueta "Paciente Recurrente" | Bajo | Alto (segmentación) | 🔴 Alta |
+| 16 | Límites de plan: soft-wall UX | Medio | Alto (monetización) | 🔴 Alta |
+| 17 | Storage: límites y mensajes | Medio | Alto (monetización) | 🟡 Media |
+| 18 | Módulo Laboratorio (addon) | Alto | Alto (especialidades) | 🟡 Media |
+| 19 | Grabación + transcripción IA | Muy alto | Muy alto (diferenciador) | 🟡 Media |
+| 20 | Dermatología: antes/después | Alto | Alto (especialidades) | 🟡 Media |
+| 21 | Bundle Consulta + Tratamiento | Medio | Alto (billing + UX) | 🟡 Media |
 
 ---
 
