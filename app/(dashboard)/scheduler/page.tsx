@@ -52,6 +52,10 @@ const BreakTimeDialog = dynamic(
   () => import("./break-time-dialog").then((m) => ({ default: m.BreakTimeDialog })),
   { loading: ModalLoader }
 );
+const AvailableSlotsModal = dynamic(
+  () => import("./available-slots-modal").then((m) => ({ default: m.AvailableSlotsModal })),
+  { loading: ModalLoader }
+);
 
 export type ViewMode = "day" | "week";
 
@@ -128,6 +132,9 @@ export default function SchedulerPage() {
   // Break time
   const [showBreakTimeDialog, setShowBreakTimeDialog] = useState(false);
   const [breakTimeConfig, setBreakTimeConfig] = useState<BreakTimeConfig>(DEFAULT_BREAK_TIME_CONFIG);
+
+  // Share available slots (lazy-loaded — data fetched only when opened)
+  const [showAvailableSlots, setShowAvailableSlots] = useState(false);
 
   // Office filter
   const [selectedOfficeIds, setSelectedOfficeIds] = useState<string[]>([]);
@@ -400,6 +407,9 @@ export default function SchedulerPage() {
           }}
           onNewBlock={() => setShowBlockDialog(true)}
           onBreakTime={() => setShowBreakTimeDialog(true)}
+          onShareAvailableSlots={
+            doctors.length > 0 ? () => setShowAvailableSlots(true) : undefined
+          }
           breakTimeEnabled={breakTimeConfig.enabled}
           appointments={appointments}
           offices={offices}
@@ -518,6 +528,16 @@ export default function SchedulerPage() {
               config.enabled ? "Break Time activado" : "Break Time desactivado"
             );
           }}
+        />
+      )}
+
+      {/* Share available slots modal — lazy-loaded and data fetched on open */}
+      {showAvailableSlots && (
+        <AvailableSlotsModal
+          open={showAvailableSlots}
+          onClose={() => setShowAvailableSlots(false)}
+          doctors={doctors}
+          initialDoctorId={isDoctor ? currentDoctorId : null}
         />
       )}
     </div>
