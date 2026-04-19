@@ -55,6 +55,59 @@
 
 ---
 
+## 👤 Portal del Paciente (addon `patient_portal`)
+
+- [ ] **Portal del Paciente — minimalista, mobile-first, sin fricción** — Módulo completo para que el paciente gestione su relación con la clínica desde su celular. Dos capacidades núcleo ligadas por un login único:
+
+  **Auth sin fricción:**
+  - Magic link por email (v1) + WhatsApp OTP (v2, cuando lo pida el volumen)
+  - Sin contraseñas, sin registro manual: el paciente ingresa su email, si coincide con un registro en `patients` de alguna organización activa, recibe el link de acceso
+  - Deep links firmados en recordatorios de WhatsApp/email — el paciente hace click y entra logueado en 1 paso
+  - Token de sesión con duración corta (ej: 30 días con refresh)
+
+  **1. Mis citas (home):**
+  - Card grande con la próxima cita: fecha legible, hora, doctor, consultorio, dirección, mapa opcional
+  - CTA principal "Confirmar asistencia" + secundarios (WhatsApp clínica, reagendar, cancelar)
+  - Historial colapsable con citas pasadas (estado, doctor, diagnóstico si la clínica lo permite compartir)
+  - Indicadores visuales: confirmada (verde), pendiente (azul), cancelada (gris)
+
+  **2. Reservar cita:**
+  - Flujo de 3 pasos: servicio → doctor (o "cualquiera") → fecha/hora
+  - Reutiliza la lógica de `/book/[slug]` pero con datos del paciente ya cargados (no formulario)
+  - Preview antes de confirmar + email/WhatsApp de confirmación automático
+
+  **3. Mis documentos (opcional, configurable por org):**
+  - Recetas médicas descargables (PDF)
+  - Órdenes de exámenes
+  - Resultados de laboratorio (cuando se implemente el addon `lab_integration`)
+  - Cada tipo activable/desactivable por org en Settings → Portal
+
+  **Diseño:**
+  - Mobile-first (90%+ de pacientes entran desde WhatsApp en el celular)
+  - Paleta neutra + accent emerald, cards redondeadas, tipografía grande y respirable
+  - Un CTA principal por pantalla, sin sidebar, sin onboarding, directo al grano
+  - Bottom tab bar en mobile (Citas / Reservar / Documentos)
+  - Branding por clínica: logo + color accent configurable
+
+  **Decisiones por owner (Settings → Portal):**
+  - ¿Puede el paciente cancelar/reagendar? (sí/no + antelación mínima, ej. 24h)
+  - ¿Muestra recetas, órdenes, resultados? (3 toggles)
+  - Política de autenticación (solo email, solo WhatsApp, ambos)
+  - Dominio personalizado opcional (portal.miclinica.pe)
+
+  **Gating por plan:**
+  - Addon `patient_portal` (ya sembrado en `addons` o por sembrar)
+  - Free: hasta N reservas/mes desde portal
+  - Pro: ilimitado + branding custom
+
+  **Consideraciones técnicas:**
+  - RLS estricta: un paciente solo ve SUS datos (match por `email` + `organization_id`)
+  - Un mismo email en 2 clínicas → selector de clínica al loguear
+  - Rate limit en magic link request (anti-spam)
+  - Lock optimista al reservar (evitar doble-booking del mismo slot)
+
+---
+
 ## 📏 Límites y Storage
 
 - [ ] **Límites de plan: UX de soft-wall** — ¿Qué pasa cuando la org pasa de 500, 1000 o 3000 pacientes activos? Definir mensajes de bloqueo suave (modal "Has alcanzado el límite de tu plan"), CTA de upgrade, y comportamiento: ¿bloquear creación de nuevos pacientes o solo advertir? Aplicar para cada recurso con límite (pacientes, citas/mes, miembros, doctores, consultorios, storage).
@@ -187,6 +240,7 @@
 | 19 | Grabación + transcripción IA | Muy alto | Muy alto (diferenciador) | 🟡 Media |
 | 20 | Dermatología: antes/después | Alto | Alto (especialidades) | 🟡 Media |
 | 21 | Bundle Consulta + Tratamiento | Medio | Alto (billing + UX) | 🟡 Media |
+| 22 | **Portal del Paciente** (mis citas + auto-reserva) | Muy alto | Muy alto (diferenciador + retención) | 🔴 Alta |
 
 ---
 
