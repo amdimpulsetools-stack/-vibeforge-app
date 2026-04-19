@@ -669,6 +669,15 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [ ] Imágenes reales para blogs (fotos/ilustraciones)
 - [ ] Reemplazo global de "REPLACE" por nombre final del software
 
+### Coming Updates (roadmap próximo)
+- [ ] **Etiqueta "Paciente Recurrente" automática** — Tag automático en DB cuando el paciente acumula 2+ citas completadas. Columna computada o trigger que actualice una bandera `is_recurring` en `patients`. Badge visible en lista, drawer y scheduler
+- [ ] **Límites de plan: UX de soft-wall** — ¿Qué pasa cuando la org pasa de 500, 1000 o 3000 pacientes activos? Definir mensajes de bloqueo suave (modal "Has alcanzado el límite de tu plan"), CTA de upgrade, y comportamiento: ¿bloquear creación de nuevos pacientes o solo advertir? Aplicar para cada recurso con límite (pacientes, citas/mes, miembros, doctores, consultorios, storage)
+- [ ] **Storage: límites y mensajes de espacio** — Auditar dónde se pueden subir imágenes (avatares, logos, adjuntos clínicos, fotos antes/después). Al acercarse o agotar el storage del plan, mostrar alerta con uso actual vs límite y CTA de upgrade. Mensaje claro: "Has alcanzado tu límite de almacenamiento (X MB/GB). Mejora tu plan para seguir subiendo archivos"
+- [ ] **Módulo de Laboratorio (addon `lab_integration`)** — Conexión con laboratorios, recepción de resultados digitales, asociación a historias clínicas y órdenes de exámenes. Ya existe el addon seed; falta la implementación de UI y flujos
+- [ ] **Grabación de consulta + transcripción con IA** — Grabar audio de la consulta médica, transcribir con Whisper/similar, y generar automáticamente nota SOAP pre-llenada vía LLM. Requiere evaluación de privacidad médica, consentimiento del paciente, y costos de API
+- [ ] **Módulo Dermatología: antes/después con optimización de imágenes** — Addon `dermatology` ya registrado. Implementar galería de fotos comparativas (antes/después) por zona corporal, con compresión y resize automático (ej: max 1200px, WebP) para no agotar storage. Timeline visual de evolución de lesiones
+- [ ] **Bundle Consulta + Tratamiento** — Permitir crear un "paquete" que agrupe un servicio de consulta + sesiones de tratamiento en un solo cobro. Precio bundle con descuento opcional. Al agendar, se crean la cita inicial + las sesiones del plan de tratamiento automáticamente
+
 ---
 
 ## 13. Hooks y Componentes Clave

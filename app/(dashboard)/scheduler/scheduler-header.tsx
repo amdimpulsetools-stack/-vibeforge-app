@@ -18,6 +18,7 @@ import {
   Coffee,
   Building2,
   Check,
+  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -31,6 +32,7 @@ interface SchedulerHeaderProps {
   onNewAppointment: () => void;
   onNewBlock?: () => void;
   onBreakTime?: () => void;
+  onShareAvailableSlots?: () => void;
   breakTimeEnabled?: boolean;
   appointments: AppointmentWithRelations[];
   offices: Office[];
@@ -46,6 +48,7 @@ export function SchedulerHeader({
   onNewAppointment,
   onNewBlock,
   onBreakTime,
+  onShareAvailableSlots,
   breakTimeEnabled,
   appointments,
   offices,
@@ -319,6 +322,26 @@ export function SchedulerHeader({
                 <div className="relative rounded-lg bg-popover border border-border px-3 py-1.5 shadow-lg">
                   <div className="absolute -top-1 left-1/2 -translate-x-1/2 h-2 w-2 rotate-45 bg-popover border-l border-t border-border" />
                   <span className="text-xs font-medium text-foreground whitespace-nowrap">Break Time</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Compartir horarios disponibles (para WhatsApp) */}
+          {onShareAvailableSlots && (
+            <div className="relative group">
+              <button
+                onClick={onShareAvailableSlots}
+                className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+              >
+                <Share2 className="h-4 w-4" />
+              </button>
+              <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-150 absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50">
+                <div className="relative rounded-lg bg-popover border border-border px-3 py-1.5 shadow-lg">
+                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 h-2 w-2 rotate-45 bg-popover border-l border-t border-border" />
+                  <span className="text-xs font-medium text-foreground whitespace-nowrap">
+                    Compartir horarios
+                  </span>
                 </div>
               </div>
             </div>

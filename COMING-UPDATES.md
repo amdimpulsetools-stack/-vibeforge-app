@@ -1,6 +1,6 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-16
+> **Última actualización:** 2026-04-18
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -12,6 +12,7 @@
 - [x] **Email de activación de trial** — Plantilla `trial_welcome` con variables dinámicas. Enviado post-respuesta via `after()` de Next.js. *(v0.8.1 — 2026-04-15)*
 - [x] **Estadísticas de edades en /reports** — Promedio, distribución por rangos, gráfica. Basado en `patients.birth_date`. *(commit 4ecac98 — 2026-04-12)*
 - [x] **Plantillas de tratamiento** — Admin → Plantillas de Tratamiento. Pre-llena plan de tratamiento con nombre, descripción, sesiones, diagnóstico CIE-10. *(commit 4ecac98 — 2026-04-12)*
+- [x] **Generador de bloques de horarios disponibles (copiar al portapapeles)** — Botón Share en scheduler header → modal lazy-loaded. API server-side computa slots libres. Selector de doctor, días, intervalo. Copiar al portapapeles para WhatsApp. *(v0.9.1 — 2026-04-19)*
 
 ---
 
@@ -48,6 +49,20 @@
 
 ---
 
+## 🏷️ Pacientes
+
+- [ ] **Etiqueta "Paciente Recurrente" automática** — Tag automático en DB cuando el paciente acumula 2+ citas completadas. Columna computada o trigger que actualice una bandera `is_recurring` en `patients`. Badge visible en lista de pacientes, drawer y scheduler. Permite filtrar pacientes recurrentes vs nuevos en reportes y segmentación.
+
+---
+
+## 📏 Límites y Storage
+
+- [ ] **Límites de plan: UX de soft-wall** — ¿Qué pasa cuando la org pasa de 500, 1000 o 3000 pacientes activos? Definir mensajes de bloqueo suave (modal "Has alcanzado el límite de tu plan"), CTA de upgrade, y comportamiento: ¿bloquear creación de nuevos pacientes o solo advertir? Aplicar para cada recurso con límite (pacientes, citas/mes, miembros, doctores, consultorios, storage).
+
+- [ ] **Storage: límites y mensajes de espacio** — Auditar dónde se pueden subir imágenes (avatares, logos, adjuntos clínicos, fotos antes/después). Al acercarse o agotar el storage del plan, mostrar alerta con uso actual vs límite y CTA de upgrade. Mensaje claro: "Has alcanzado tu límite de almacenamiento (X MB/GB). Mejora tu plan para seguir subiendo archivos."
+
+---
+
 ## 🏥 Historia Clínica
 
 - [ ] **Importación masiva de códigos CIE-10** — La base ya permite agregar códigos personalizados uno a uno. Falta importar lotes (CSV/Excel) por especialidad para ahorrar tiempo a clínicas con muchos diagnósticos específicos.
@@ -62,21 +77,7 @@
   - Se muestra en el sidebar de la cita con botón para copiar/abrir
   - Requiere: integración con Zoom API o Google Calendar API
 
-- [ ] **Generador de bloques de horarios disponibles (copiar al portapapeles)** — Para que el equipo pueda compartir horarios rápidamente:
-  - Botón/ícono en la agenda que abre un modal
-  - Seleccionar doctor
-  - Seleccionar días que desea ofrecer (checkboxes por día)
-  - Click en "Generar"
-  - El sistema consulta la disponibilidad real del doctor (excluyendo citas ocupadas, bloqueos)
-  - Genera texto formateado en un textbox con botón "Copiar":
-    ```
-    El Dr. Juan tiene citas disponibles:
-    📅 Lunes 13 de abril: 9:00am, 5:00pm, 5:30pm
-    📅 Martes 14 de abril: 8:30am, 10:00am, 11:30am
-    📅 Miércoles 15 de abril: 9:00am, 9:30am
-    ```
-  - Los bloques se generan en base a la duración del intervalo configurado (15min, 20min, 30min, etc.)
-  - Ideal para copiar y pegar en WhatsApp o email al paciente
+- [x] **Generador de bloques de horarios disponibles (copiar al portapapeles)** — Botón Share en scheduler header → modal lazy-loaded con selector de doctor, rango de días (3/5/7/10), intervalo (15/30/45/60 min). Slots computados server-side descontando citas, bloqueos y horarios pasados. Chips seleccionables por día, preview en vivo, copiar al portapapeles para WhatsApp. *(v0.9.1 — 2026-04-19)*
 
 - [ ] **Bloque de hora único en vista de calendario** — Actualmente se puede visualizar la agenda con diferentes intervalos (15min, 20min, 30min). Restricción: solo se puede seleccionar UN tipo de bloque a la vez en el view del calendar. No se permite mezclar 2 o más intervalos simultáneamente.
 
@@ -109,6 +110,35 @@
 
 ---
 
+## 🧩 Módulos / Addons por Especialidad
+
+- [ ] **Módulo de Laboratorio (addon `lab_integration`)** — Conexión con laboratorios, recepción de resultados digitales, asociación a historias clínicas y órdenes de exámenes. El addon seed ya existe en la tabla `addons`; falta la implementación de UI y flujos:
+  - Recepción de resultados vía API o carga manual (PDF/imagen)
+  - Vinculación automática con orden de examen existente
+  - Visualización de resultados en timeline del paciente
+  - Alertas de valores fuera de rango
+
+- [ ] **Módulo Dermatología: antes/después con optimización de imágenes** — Addon `dermatology` ya registrado. Implementar:
+  - Galería de fotos comparativas (antes/después) por zona corporal
+  - Compresión y resize automático (max 1200px, WebP) para no agotar storage
+  - Timeline visual de evolución de lesiones
+  - Anotaciones sobre la imagen (marcadores, zoom)
+
+- [ ] **Grabación de consulta + transcripción con IA** — Grabar audio de la consulta médica desde el navegador:
+  - Transcribir con Whisper/similar
+  - Generar automáticamente nota SOAP pre-llenada vía LLM
+  - El doctor revisa, edita y firma
+  - Requiere: evaluación de privacidad médica, consentimiento del paciente, y costos de API
+  - Almacenamiento del audio opcional (configurable por org)
+
+- [ ] **Bundle Consulta + Tratamiento** — Permitir crear un "paquete" que agrupe un servicio de consulta + sesiones de tratamiento en un solo cobro:
+  - Precio bundle con descuento opcional
+  - Al agendar, se crean la cita inicial + las sesiones del plan de tratamiento automáticamente
+  - Tracking de progreso del bundle (sesiones completadas / pendientes)
+  - Configurable desde Admin → Servicios
+
+---
+
 ## 💬 CRM Multi-canal
 
 - [ ] **CRM con WhatsApp API, Instagram API Messages y Facebook Messenger** — Bandeja de mensajes unificada tipo Kommo/Leadsales:
@@ -137,7 +167,7 @@
 | # | Feature | Esfuerzo | Impacto | Prioridad |
 |---|---|---|---|---|
 | ~~1~~ | ~~Email activación trial~~ | ~~Bajo~~ | ~~Alto~~ | ✅ Entregado |
-| 2 | Bloques de horarios (copiar) | Medio | Alto (uso diario recepcionista) | 🔴 Alta |
+| ~~2~~ | ~~Bloques de horarios (copiar)~~ | ~~Medio~~ | ~~Alto (uso diario recepcionista)~~ | ✅ Entregado |
 | ~~3~~ | ~~Estadísticas de edades~~ | ~~Bajo~~ | ~~Medio~~ | ✅ Entregado |
 | 4 | Bloque hora único en calendar | Bajo | Medio (UX) | 🟡 Media |
 | ~~5~~ | ~~Plantillas de tratamiento~~ | ~~Medio~~ | ~~Alto~~ | ✅ Entregado |
@@ -150,6 +180,13 @@
 | ~~12~~ | ~~Catálogo CIE-10 personalizable~~ | ~~Medio~~ | ~~Alto~~ | ✅ Entregado |
 | 13 | Descuentos condicionales | Medio | Medio (billing) | 🟠 Media-baja |
 | 14 | Importación masiva CIE-10 (CSV) | Bajo | Medio | 🟠 Media-baja |
+| 15 | Etiqueta "Paciente Recurrente" | Bajo | Alto (segmentación) | 🔴 Alta |
+| 16 | Límites de plan: soft-wall UX | Medio | Alto (monetización) | 🔴 Alta |
+| 17 | Storage: límites y mensajes | Medio | Alto (monetización) | 🟡 Media |
+| 18 | Módulo Laboratorio (addon) | Alto | Alto (especialidades) | 🟡 Media |
+| 19 | Grabación + transcripción IA | Muy alto | Muy alto (diferenciador) | 🟡 Media |
+| 20 | Dermatología: antes/después | Alto | Alto (especialidades) | 🟡 Media |
+| 21 | Bundle Consulta + Tratamiento | Medio | Alto (billing + UX) | 🟡 Media |
 
 ---
 
