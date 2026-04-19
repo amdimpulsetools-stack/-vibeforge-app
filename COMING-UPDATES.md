@@ -12,6 +12,7 @@
 - [x] **Email de activación de trial** — Plantilla `trial_welcome` con variables dinámicas. Enviado post-respuesta via `after()` de Next.js. *(v0.8.1 — 2026-04-15)*
 - [x] **Estadísticas de edades en /reports** — Promedio, distribución por rangos, gráfica. Basado en `patients.birth_date`. *(commit 4ecac98 — 2026-04-12)*
 - [x] **Plantillas de tratamiento** — Admin → Plantillas de Tratamiento. Pre-llena plan de tratamiento con nombre, descripción, sesiones, diagnóstico CIE-10. *(commit 4ecac98 — 2026-04-12)*
+- [x] **Generador de bloques de horarios disponibles (copiar al portapapeles)** — Botón Share en scheduler header → modal lazy-loaded. API server-side computa slots libres. Selector de doctor, días, intervalo. Copiar al portapapeles para WhatsApp. *(v0.9.1 — 2026-04-19)*
 
 ---
 
@@ -76,21 +77,7 @@
   - Se muestra en el sidebar de la cita con botón para copiar/abrir
   - Requiere: integración con Zoom API o Google Calendar API
 
-- [ ] **Generador de bloques de horarios disponibles (copiar al portapapeles)** — Para que el equipo pueda compartir horarios rápidamente:
-  - Botón/ícono en la agenda que abre un modal
-  - Seleccionar doctor
-  - Seleccionar días que desea ofrecer (checkboxes por día)
-  - Click en "Generar"
-  - El sistema consulta la disponibilidad real del doctor (excluyendo citas ocupadas, bloqueos)
-  - Genera texto formateado en un textbox con botón "Copiar":
-    ```
-    El Dr. Juan tiene citas disponibles:
-    📅 Lunes 13 de abril: 9:00am, 5:00pm, 5:30pm
-    📅 Martes 14 de abril: 8:30am, 10:00am, 11:30am
-    📅 Miércoles 15 de abril: 9:00am, 9:30am
-    ```
-  - Los bloques se generan en base a la duración del intervalo configurado (15min, 20min, 30min, etc.)
-  - Ideal para copiar y pegar en WhatsApp o email al paciente
+- [x] **Generador de bloques de horarios disponibles (copiar al portapapeles)** — Botón Share en scheduler header → modal lazy-loaded con selector de doctor, rango de días (3/5/7/10), intervalo (15/30/45/60 min). Slots computados server-side descontando citas, bloqueos y horarios pasados. Chips seleccionables por día, preview en vivo, copiar al portapapeles para WhatsApp. *(v0.9.1 — 2026-04-19)*
 
 - [ ] **Bloque de hora único en vista de calendario** — Actualmente se puede visualizar la agenda con diferentes intervalos (15min, 20min, 30min). Restricción: solo se puede seleccionar UN tipo de bloque a la vez en el view del calendar. No se permite mezclar 2 o más intervalos simultáneamente.
 
@@ -180,7 +167,7 @@
 | # | Feature | Esfuerzo | Impacto | Prioridad |
 |---|---|---|---|---|
 | ~~1~~ | ~~Email activación trial~~ | ~~Bajo~~ | ~~Alto~~ | ✅ Entregado |
-| 2 | Bloques de horarios (copiar) | Medio | Alto (uso diario recepcionista) | 🔴 Alta |
+| ~~2~~ | ~~Bloques de horarios (copiar)~~ | ~~Medio~~ | ~~Alto (uso diario recepcionista)~~ | ✅ Entregado |
 | ~~3~~ | ~~Estadísticas de edades~~ | ~~Bajo~~ | ~~Medio~~ | ✅ Entregado |
 | 4 | Bloque hora único en calendar | Bajo | Medio (UX) | 🟡 Media |
 | ~~5~~ | ~~Plantillas de tratamiento~~ | ~~Medio~~ | ~~Alto~~ | ✅ Entregado |
