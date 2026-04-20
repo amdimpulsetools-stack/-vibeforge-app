@@ -13,6 +13,7 @@
 - [x] **Estadísticas de edades en /reports** — Promedio, distribución por rangos, gráfica. Basado en `patients.birth_date`. *(commit 4ecac98 — 2026-04-12)*
 - [x] **Plantillas de tratamiento** — Admin → Plantillas de Tratamiento. Pre-llena plan de tratamiento con nombre, descripción, sesiones, diagnóstico CIE-10. *(commit 4ecac98 — 2026-04-12)*
 - [x] **Generador de bloques de horarios disponibles (copiar al portapapeles)** — Botón Share en scheduler header → modal lazy-loaded. API server-side computa slots libres. Selector de doctor, días, intervalo. Copiar al portapapeles para WhatsApp. *(v0.9.1 — 2026-04-19)*
+- [x] **Portal del Paciente — Phase 1** — Magic link auth (sin contraseña), registro de paciente nuevo (DNI, nombre, teléfono), página Mis Citas (próximas + historial), cancelar cita con validación de antelación mínima, settings del portal en dashboard (activar/desactivar, permitir cancelar, horas mínimas, mensaje de bienvenida). Deep links `{{link_cancelar}}` y `{{link_reagendar}}` en emails de recordatorio. Link "¿Ya eres paciente?" en página de reserva pública. *(v0.10.0 — 2026-04-20)*
 
 ---
 
@@ -55,56 +56,13 @@
 
 ---
 
-## 👤 Portal del Paciente (addon `patient_portal`)
+## 👤 Portal del Paciente — Próximas fases
 
-- [ ] **Portal del Paciente — minimalista, mobile-first, sin fricción** — Módulo completo para que el paciente gestione su relación con la clínica desde su celular. Dos capacidades núcleo ligadas por un login único:
-
-  **Auth sin fricción:**
-  - Magic link por email (v1) + WhatsApp OTP (v2, cuando lo pida el volumen)
-  - Sin contraseñas, sin registro manual: el paciente ingresa su email, si coincide con un registro en `patients` de alguna organización activa, recibe el link de acceso
-  - Deep links firmados en recordatorios de WhatsApp/email — el paciente hace click y entra logueado en 1 paso
-  - Token de sesión con duración corta (ej: 30 días con refresh)
-
-  **1. Mis citas (home):**
-  - Card grande con la próxima cita: fecha legible, hora, doctor, consultorio, dirección, mapa opcional
-  - CTA principal "Confirmar asistencia" + secundarios (WhatsApp clínica, reagendar, cancelar)
-  - Historial colapsable con citas pasadas (estado, doctor, diagnóstico si la clínica lo permite compartir)
-  - Indicadores visuales: confirmada (verde), pendiente (azul), cancelada (gris)
-
-  **2. Reservar cita:**
-  - Flujo de 3 pasos: servicio → doctor (o "cualquiera") → fecha/hora
-  - Reutiliza la lógica de `/book/[slug]` pero con datos del paciente ya cargados (no formulario)
-  - Preview antes de confirmar + email/WhatsApp de confirmación automático
-
-  **3. Mis documentos (opcional, configurable por org):**
-  - Recetas médicas descargables (PDF)
-  - Órdenes de exámenes
-  - Resultados de laboratorio (cuando se implemente el addon `lab_integration`)
-  - Cada tipo activable/desactivable por org en Settings → Portal
-
-  **Diseño:**
-  - Mobile-first (90%+ de pacientes entran desde WhatsApp en el celular)
-  - Paleta neutra + accent emerald, cards redondeadas, tipografía grande y respirable
-  - Un CTA principal por pantalla, sin sidebar, sin onboarding, directo al grano
-  - Bottom tab bar en mobile (Citas / Reservar / Documentos)
-  - Branding por clínica: logo + color accent configurable
-
-  **Decisiones por owner (Settings → Portal):**
-  - ¿Puede el paciente cancelar/reagendar? (sí/no + antelación mínima, ej. 24h)
-  - ¿Muestra recetas, órdenes, resultados? (3 toggles)
-  - Política de autenticación (solo email, solo WhatsApp, ambos)
-  - Dominio personalizado opcional (portal.miclinica.pe)
-
-  **Gating por plan:**
-  - Addon `patient_portal` (ya sembrado en `addons` o por sembrar)
-  - Free: hasta N reservas/mes desde portal
-  - Pro: ilimitado + branding custom
-
-  **Consideraciones técnicas:**
-  - RLS estricta: un paciente solo ve SUS datos (match por `email` + `organization_id`)
-  - Un mismo email en 2 clínicas → selector de clínica al loguear
-  - Rate limit en magic link request (anti-spam)
-  - Lock optimista al reservar (evitar doble-booking del mismo slot)
+- [ ] **Portal Phase 2 — Reservar cita desde el portal** — Flujo de 3 pasos (servicio → doctor → fecha/hora) reutilizando lógica de `/book/[slug]` con datos del paciente pre-cargados. Preview + confirmación automática.
+- [ ] **Portal Phase 3 — Reprogramar cita** — Botón reagendar en Mis Citas → flujo de selección de nueva fecha/hora sin cancelar la anterior hasta confirmar.
+- [ ] **Portal Phase 4 — Mis documentos** — Recetas, órdenes de exámenes y resultados descargables (PDF). Cada tipo activable/desactivable por org.
+- [ ] **Portal — WhatsApp OTP auth** — Login alternativo por OTP via WhatsApp (cuando el volumen lo justifique).
+- [ ] **Portal — Dominio personalizado** — `portal.miclinica.pe` con configuración DNS.
 
 ---
 
@@ -240,7 +198,7 @@
 | 19 | Grabación + transcripción IA | Muy alto | Muy alto (diferenciador) | 🟡 Media |
 | 20 | Dermatología: antes/después | Alto | Alto (especialidades) | 🟡 Media |
 | 21 | Bundle Consulta + Tratamiento | Medio | Alto (billing + UX) | 🟡 Media |
-| 22 | **Portal del Paciente** (mis citas + auto-reserva) | Muy alto | Muy alto (diferenciador + retención) | 🔴 Alta |
+| ~~22~~ | ~~Portal del Paciente Phase 1~~ (auth + mis citas + cancelar) | ~~Muy alto~~ | ~~Muy alto~~ | ✅ Entregado |
 
 ---
 

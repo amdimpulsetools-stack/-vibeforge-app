@@ -46,7 +46,11 @@ export default function PortalLoginPage() {
           return;
         }
         if (data.organization) {
-          setOrgInfo(data.organization);
+          setOrgInfo({
+            name: data.organization.name,
+            logo_url: data.organization.logo_url,
+            accent_color: data.portal_settings?.accent_color || null,
+          });
         }
       } catch {
         // ignore
@@ -55,24 +59,7 @@ export default function PortalLoginPage() {
       }
     }
 
-    async function fetchOrg() {
-      try {
-        const res = await fetch(`/api/book/${slug}`);
-        if (res.ok) {
-          const data = await res.json();
-          setOrgInfo({
-            name: data.organization?.name || "",
-            logo_url: data.organization?.logo_url || null,
-            accent_color: data.booking_settings?.accent_color || null,
-          });
-        }
-      } catch {
-        // ignore
-      }
-    }
-
     checkExisting();
-    fetchOrg();
   }, [slug, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {

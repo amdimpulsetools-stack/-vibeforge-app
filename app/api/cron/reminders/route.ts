@@ -174,11 +174,18 @@ export async function GET(req: NextRequest) {
         .eq("organization_id", orgId)
         .single();
 
-      // Fetch org name + address + maps url
+      // Fetch org name + address + maps url + slug
       const { data: org } = await supabase
         .from("organizations")
-        .select("name, address, google_maps_url")
+        .select("name, slug, address, google_maps_url")
         .eq("id", orgId)
+        .single();
+
+      // Check if patient portal is enabled for deep links
+      const { data: portalSettings } = await supabase
+        .from("booking_settings")
+        .select("portal_enabled")
+        .eq("organization_id", orgId)
         .single();
 
       // Fetch clinic phone
@@ -201,6 +208,10 @@ export async function GET(req: NextRequest) {
         greetingTimeout: 10000,
         socketTimeout: 15000,
       });
+
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.vibeforge.com";
+      const portalEnabled = portalSettings?.portal_enabled && org?.slug;
+      const portalBaseUrl = portalEnabled ? `${appUrl}/portal/${org.slug}` : "";
 
       const fromAddress = process.env.SMTP_FROM || smtpUser;
       const fromName = emailSettings?.sender_name || org?.name || "VibeForge";
@@ -304,8 +315,8 @@ export async function GET(req: NextRequest) {
           "{{link_ubicacion}}": org?.google_maps_url || "",
           "{{instrucciones_servicio}}": service?.pre_appointment_instructions || "",
           "{{monto_cita}}": montoCita,
-          "{{link_cancelar}}": "",
-          "{{link_reagendar}}": "",
+          "{{link_cancelar}}": portalBaseUrl ? `${portalBaseUrl}/mis-citas` : "",
+          "{{link_reagendar}}": portalBaseUrl ? `${portalBaseUrl}/mis-citas` : "",
         };
 
         let subject = template.subject;

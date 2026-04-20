@@ -10,12 +10,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "missing_slug" }, { status: 400 });
   }
 
+  const supabase = createAdminClient();
+
   const session = await getPortalSession(slug);
   if (!session) {
-    return NextResponse.json({ authenticated: false });
-  }
+    const { data: org } = await supabase
+      .from("organizations")
+      .select("id, name, slug, logo_url")
+      .eq("slug", slug)
+      .eq("is_active", true)
+      .single();
 
-  const supabase = createAdminClient();
+    let portalSettings = null;
+    if (org) {
+      const { data: settings } = await supabase
+        .from("booking_settings")
+        .select("portal_enabled, accent_color, portal_welcome_message")
+        .eq("organization_id", org.id)
+        .single();
+      portalSettings = settings;
+    }
+
+    return NextResponse.json({
+      authenticated: false,
+      organization: org ? { name: org.name, slug: org.slug, logo_url: org.logo_url } : null,
+      portal_settings: portalSettings,
+    });
+  }
 
   let patient = null;
   if (session.patient_id) {

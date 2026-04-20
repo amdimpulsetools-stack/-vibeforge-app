@@ -49,7 +49,7 @@ export async function GET(
   // 2. Check booking settings
   const { data: bookingSettings } = await supabase
     .from("booking_settings")
-    .select("id, is_enabled, max_advance_days, min_lead_hours, welcome_message, require_email, require_phone, require_dni, accent_color")
+    .select("id, is_enabled, max_advance_days, min_lead_hours, welcome_message, require_email, require_phone, require_dni, accent_color, portal_enabled")
     .eq("organization_id", org.id)
     .eq("is_enabled", true)
     .single();
@@ -153,6 +153,7 @@ export async function GET(
       require_phone: bookingSettings.require_phone,
       require_dni: bookingSettings.require_dni,
       accent_color: bookingSettings.accent_color,
+      portal_enabled: bookingSettings.portal_enabled || false,
     },
     doctors: doctors || [],
     services: services || [],
