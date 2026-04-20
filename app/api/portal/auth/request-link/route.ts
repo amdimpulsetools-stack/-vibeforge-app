@@ -61,13 +61,27 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
+  const normalizedEmail = email.toLowerCase().trim();
+
+  const { data: existingPatient } = await supabase
+    .from("patients")
+    .select("id")
+    .eq("organization_id", org.id)
+    .or(`email.eq.${normalizedEmail},portal_email.eq.${normalizedEmail}`)
+    .limit(1)
+    .maybeSingle();
+
+  if (!existingPatient) {
+    return NextResponse.json({ success: true });
+  }
+
   const token = generateToken();
   const expiresAt = new Date();
   expiresAt.setMinutes(expiresAt.getMinutes() + 15);
 
   await supabase.from("patient_portal_tokens").insert({
     organization_id: org.id,
-    email: email.toLowerCase().trim(),
+    email: normalizedEmail,
     token,
     expires_at: expiresAt.toISOString(),
   });
