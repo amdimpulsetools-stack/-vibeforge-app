@@ -38,6 +38,7 @@ interface BookingSettings {
   require_phone: boolean;
   require_dni: boolean;
   accent_color: string | null;
+  portal_enabled: boolean;
 }
 
 interface BookingDoctor {
@@ -944,7 +945,16 @@ export default function PublicBookingPage() {
       </div>
 
       {/* Footer */}
-      <footer className="mt-auto border-t border-zinc-800 py-6 text-center">
+      <footer className="mt-auto border-t border-zinc-800 py-6 text-center space-y-2">
+        {settings.portal_enabled && (
+          <a
+            href={`/portal/${org.slug}`}
+            className="inline-flex items-center gap-1.5 text-sm hover:underline transition-colors"
+            style={{ color: accentColor }}
+          >
+            ¿Ya eres paciente? Entra a tu portal
+          </a>
+        )}
         <p className="text-xs text-zinc-600">
           Reserva en línea · {org.name}
         </p>
