@@ -64,15 +64,37 @@ export async function POST(req: NextRequest) {
 
   const { data: patient } = await supabase
     .from("patients")
-    .select("id")
+    .select("id, first_name, last_name, dni, portal_email, portal_verified_at")
     .eq("organization_id", org.id)
-    .eq("portal_email", email)
-    .single();
+    .or(`email.eq.${email},portal_email.eq.${email}`)
+    .limit(1)
+    .maybeSingle();
 
-  await createPortalSession(org.id, email, patient?.id || null);
+  const hasCompleteData = !!(
+    patient &&
+    patient.first_name &&
+    patient.last_name &&
+    patient.dni
+  );
+
+  if (patient && (!patient.portal_email || !patient.portal_verified_at)) {
+    await supabase
+      .from("patients")
+      .update({
+        portal_email: email,
+        portal_verified_at: patient.portal_verified_at || new Date().toISOString(),
+      })
+      .eq("id", patient.id);
+  }
+
+  await createPortalSession(
+    org.id,
+    email,
+    hasCompleteData ? patient.id : null
+  );
 
   return NextResponse.json({
     success: true,
-    needs_registration: !patient,
+    needs_registration: !hasCompleteData,
   });
 }
