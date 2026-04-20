@@ -76,15 +76,21 @@ export default function PortalLoginPage() {
         body: JSON.stringify({ email: email.trim().toLowerCase(), slug }),
       });
 
+      let data: Record<string, unknown> = {};
+      try {
+        data = await res.json();
+      } catch {
+        // non-JSON response
+      }
+
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Error al enviar");
+        setError((data.error as string) || "Error al enviar. Intenta de nuevo.");
         return;
       }
 
       setSent(true);
     } catch {
-      setError("Error de conexión");
+      setError("Error de conexión. Verifica tu internet e intenta de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -92,8 +98,8 @@ export default function PortalLoginPage() {
 
   if (checkingSession) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50">
+        <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
       </div>
     );
   }
@@ -112,26 +118,26 @@ export default function PortalLoginPage() {
             <img
               src={orgInfo.logo_url}
               alt={orgInfo.name}
-              className="mx-auto mb-4 h-16 w-16 rounded-2xl object-cover"
+              className="mx-auto mb-4 h-16 w-16 rounded-2xl object-cover shadow-sm"
             />
           ) : (
             <div
               className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
-              style={{ backgroundColor: accent + "20" }}
+              style={{ backgroundColor: accent + "15" }}
             >
               <Calendar className="h-8 w-8" style={{ color: accent }} />
             </div>
           )}
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
             Portal del Paciente
           </h1>
           {orgInfo?.name && (
-            <p className="mt-1 text-sm text-zinc-400">{orgInfo.name}</p>
+            <p className="mt-1 text-sm text-zinc-500">{orgInfo.name}</p>
           )}
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-6 backdrop-blur-sm">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <AnimatePresence mode="wait">
             {sent ? (
               <motion.div
@@ -143,7 +149,7 @@ export default function PortalLoginPage() {
               >
                 <div
                   className="mx-auto flex h-14 w-14 items-center justify-center rounded-full"
-                  style={{ backgroundColor: accent + "20" }}
+                  style={{ backgroundColor: accent + "15" }}
                 >
                   <CheckCircle2
                     className="h-7 w-7"
@@ -151,10 +157,10 @@ export default function PortalLoginPage() {
                   />
                 </div>
                 <div>
-                  <h2 className="text-lg font-semibold">Revisa tu correo</h2>
-                  <p className="mt-2 text-sm text-zinc-400">
+                  <h2 className="text-lg font-semibold text-zinc-900">Revisa tu correo</h2>
+                  <p className="mt-2 text-sm text-zinc-500">
                     Enviamos un enlace de acceso a{" "}
-                    <span className="font-medium text-white">{email}</span>.
+                    <span className="font-medium text-zinc-900">{email}</span>.
                     <br />
                     El enlace expira en 15 minutos.
                   </p>
@@ -164,7 +170,7 @@ export default function PortalLoginPage() {
                     setSent(false);
                     setEmail("");
                   }}
-                  className="text-sm text-zinc-400 hover:text-white transition-colors"
+                  className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
                 >
                   ¿No recibiste el correo? Intentar de nuevo
                 </button>
@@ -179,7 +185,7 @@ export default function PortalLoginPage() {
                 className="space-y-5"
               >
                 <div className="space-y-1.5">
-                  <label className="flex items-center gap-1.5 text-sm font-medium text-zinc-300">
+                  <label className="flex items-center gap-1.5 text-sm font-medium text-zinc-700">
                     <Mail className="h-3.5 w-3.5" />
                     Correo electrónico
                   </label>
@@ -190,17 +196,17 @@ export default function PortalLoginPage() {
                     placeholder="tu@correo.com"
                     required
                     autoFocus
-                    className="w-full rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                    className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 transition-shadow"
                     style={
                       {
-                        "--tw-ring-color": accent,
+                        "--tw-ring-color": accent + "40",
                       } as React.CSSProperties
                     }
                   />
                 </div>
 
                 {error && (
-                  <p className="text-sm text-red-400 text-center">{error}</p>
+                  <p className="text-sm text-red-500 text-center">{error}</p>
                 )}
 
                 <button
@@ -219,7 +225,7 @@ export default function PortalLoginPage() {
                   )}
                 </button>
 
-                <div className="flex items-center justify-center gap-1.5 text-xs text-zinc-500">
+                <div className="flex items-center justify-center gap-1.5 text-xs text-zinc-400">
                   <ShieldCheck className="h-3 w-3" />
                   Te enviaremos un enlace seguro, sin contraseña
                 </div>
@@ -229,7 +235,7 @@ export default function PortalLoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="mt-6 text-center text-xs text-zinc-600">
+        <p className="mt-6 text-center text-xs text-zinc-400">
           Portal seguro · {orgInfo?.name || ""}
         </p>
       </motion.div>

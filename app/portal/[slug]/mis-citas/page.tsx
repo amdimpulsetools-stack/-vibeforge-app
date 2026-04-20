@@ -112,27 +112,27 @@ const statusConfig: Record<
 > = {
   scheduled: {
     label: "Programada",
-    color: "text-blue-400 bg-blue-500/10",
+    color: "text-blue-600 bg-blue-50",
     icon: Calendar,
   },
   confirmed: {
     label: "Confirmada",
-    color: "text-emerald-400 bg-emerald-500/10",
+    color: "text-emerald-600 bg-emerald-50",
     icon: CheckCircle2,
   },
   completed: {
     label: "Completada",
-    color: "text-zinc-400 bg-zinc-500/10",
+    color: "text-zinc-500 bg-zinc-100",
     icon: CheckCircle2,
   },
   cancelled: {
     label: "Cancelada",
-    color: "text-red-400 bg-red-500/10",
+    color: "text-red-500 bg-red-50",
     icon: XCircle,
   },
   no_show: {
     label: "No asistió",
-    color: "text-amber-400 bg-amber-500/10",
+    color: "text-amber-600 bg-amber-50",
     icon: AlertCircle,
   },
 };
@@ -227,8 +227,8 @@ export default function MisCitasPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50">
+        <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
       </div>
     );
   }
@@ -237,9 +237,9 @@ export default function MisCitasPage() {
   const restUpcoming = upcoming.slice(1);
 
   return (
-    <div className="min-h-screen pb-8">
+    <div className="min-h-screen bg-zinc-50 pb-8">
       {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-md">
+      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur-md">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
             {org?.logo_url ? (
@@ -251,13 +251,13 @@ export default function MisCitasPage() {
             ) : (
               <div
                 className="flex h-8 w-8 items-center justify-center rounded-lg"
-                style={{ backgroundColor: accent + "20" }}
+                style={{ backgroundColor: accent + "15" }}
               >
                 <Calendar className="h-4 w-4" style={{ color: accent }} />
               </div>
             )}
             <div>
-              <h1 className="text-sm font-semibold leading-tight">
+              <h1 className="text-sm font-semibold leading-tight text-zinc-900">
                 Mis Citas
               </h1>
               <p className="text-xs text-zinc-500">{org?.name}</p>
@@ -266,7 +266,7 @@ export default function MisCitasPage() {
           <button
             onClick={handleLogout}
             disabled={loggingOut}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
           >
             {loggingOut ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -285,11 +285,11 @@ export default function MisCitasPage() {
           animate={{ opacity: 1, y: 0 }}
           className="mb-6"
         >
-          <h2 className="text-xl font-bold">
-            Hola, {patient?.first_name || "paciente"} 👋
+          <h2 className="text-xl font-bold text-zinc-900">
+            Hola, {patient?.first_name || "paciente"}
           </h2>
           {settings?.portal_welcome_message && (
-            <p className="mt-1 text-sm text-zinc-400">
+            <p className="mt-1 text-sm text-zinc-500">
               {settings.portal_welcome_message}
             </p>
           )}
@@ -307,10 +307,9 @@ export default function MisCitasPage() {
               Próxima cita
             </p>
             <div
-              className="rounded-2xl border p-5"
+              className="rounded-2xl border bg-white p-5 shadow-sm"
               style={{
-                borderColor: accent + "40",
-                backgroundColor: accent + "08",
+                borderColor: accent + "30",
               }}
             >
               <div className="flex items-start justify-between">
@@ -320,7 +319,7 @@ export default function MisCitasPage() {
                       <span
                         className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
                         style={{
-                          backgroundColor: accent + "20",
+                          backgroundColor: accent + "15",
                           color: accent,
                         }}
                       >
@@ -330,25 +329,25 @@ export default function MisCitasPage() {
                     <StatusBadge status={nextAppointment.status} />
                   </div>
 
-                  <div className="flex items-center gap-2 text-sm">
-                    <Calendar className="h-4 w-4 text-zinc-500" />
+                  <div className="flex items-center gap-2 text-sm text-zinc-700">
+                    <Calendar className="h-4 w-4 text-zinc-400" />
                     <span className="capitalize">
                       {formatDate(nextAppointment.appointment_date)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Clock className="h-4 w-4 text-zinc-500" />
+                  <div className="flex items-center gap-2 text-sm text-zinc-700">
+                    <Clock className="h-4 w-4 text-zinc-400" />
                     <span>
                       {formatTime(nextAppointment.start_time)} —{" "}
                       {formatTime(nextAppointment.end_time)}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Stethoscope className="h-4 w-4 text-zinc-500" />
+                  <div className="flex items-center gap-2 text-sm text-zinc-700">
+                    <Stethoscope className="h-4 w-4 text-zinc-400" />
                     <span>
                       {nextAppointment.doctors?.full_name}
                       {nextAppointment.doctors?.specialty && (
-                        <span className="text-zinc-500">
+                        <span className="text-zinc-400">
                           {" "}
                           · {nextAppointment.doctors.specialty}
                         </span>
@@ -356,14 +355,14 @@ export default function MisCitasPage() {
                     </span>
                   </div>
                   {nextAppointment.services && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <FileText className="h-4 w-4 text-zinc-500" />
+                    <div className="flex items-center gap-2 text-sm text-zinc-700">
+                      <FileText className="h-4 w-4 text-zinc-400" />
                       <span>{nextAppointment.services.name}</span>
                     </div>
                   )}
                   {nextAppointment.offices && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <MapPin className="h-4 w-4 text-zinc-500" />
+                    <div className="flex items-center gap-2 text-sm text-zinc-700">
+                      <MapPin className="h-4 w-4 text-zinc-400" />
                       <span>{nextAppointment.offices.name}</span>
                     </div>
                   )}
@@ -375,7 +374,7 @@ export default function MisCitasPage() {
                 ["scheduled", "confirmed"].includes(
                   nextAppointment.status
                 ) && (
-                  <div className="mt-4 border-t pt-3" style={{ borderColor: accent + "20" }}>
+                  <div className="mt-4 border-t border-zinc-100 pt-3">
                     <AnimatePresence mode="wait">
                       {confirmCancel === nextAppointment.id ? (
                         <motion.div
@@ -385,7 +384,7 @@ export default function MisCitasPage() {
                           exit={{ opacity: 0, height: 0 }}
                           className="space-y-2"
                         >
-                          <p className="text-xs text-zinc-400">
+                          <p className="text-xs text-zinc-500">
                             ¿Seguro que deseas cancelar esta cita?
                           </p>
                           <div className="flex gap-2">
@@ -394,7 +393,7 @@ export default function MisCitasPage() {
                                 handleCancel(nextAppointment.id)
                               }
                               disabled={cancellingId === nextAppointment.id}
-                              className="flex items-center gap-1.5 rounded-lg bg-red-500/20 px-3 py-1.5 text-xs font-medium text-red-400 hover:bg-red-500/30 transition-colors"
+                              className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
                             >
                               {cancellingId === nextAppointment.id ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -405,7 +404,7 @@ export default function MisCitasPage() {
                             </button>
                             <button
                               onClick={() => setConfirmCancel(null)}
-                              className="rounded-lg px-3 py-1.5 text-xs text-zinc-400 hover:text-white transition-colors"
+                              className="rounded-lg px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-900 transition-colors"
                             >
                               No, mantener
                             </button>
@@ -419,7 +418,7 @@ export default function MisCitasPage() {
                           onClick={() =>
                             setConfirmCancel(nextAppointment.id)
                           }
-                          className="text-xs text-zinc-400 hover:text-red-400 transition-colors"
+                          className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
                         >
                           Cancelar esta cita
                         </motion.button>
@@ -465,13 +464,13 @@ export default function MisCitasPage() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-8 text-center"
+            className="mb-6 rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm"
           >
-            <Calendar className="mx-auto mb-3 h-10 w-10 text-zinc-600" />
-            <h3 className="font-medium text-zinc-300">
+            <Calendar className="mx-auto mb-3 h-10 w-10 text-zinc-300" />
+            <h3 className="font-medium text-zinc-700">
               No tienes citas próximas
             </h3>
-            <p className="mt-1 text-sm text-zinc-500">
+            <p className="mt-1 text-sm text-zinc-400">
               Comunícate con tu clínica para agendar una cita
             </p>
           </motion.div>
@@ -486,7 +485,7 @@ export default function MisCitasPage() {
           >
             <button
               onClick={() => setShowPast(!showPast)}
-              className="flex w-full items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3 text-sm text-zinc-400 hover:text-white transition-colors"
+              className="flex w-full items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-500 hover:text-zinc-900 transition-colors shadow-sm"
             >
               <span>Historial de citas ({past.length})</span>
               {showPast ? (
@@ -561,8 +560,8 @@ function AppointmentCard({
 }) {
   return (
     <div
-      className={`rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 ${
-        isPast ? "opacity-70" : ""
+      className={`rounded-xl border border-zinc-200 bg-white p-4 shadow-sm ${
+        isPast ? "opacity-60" : ""
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -572,22 +571,22 @@ function AppointmentCard({
             {!isPast && getDateLabel(appointment.appointment_date) && (
               <span
                 className="rounded-full px-2 py-0.5 text-xs font-medium"
-                style={{ backgroundColor: accent + "20", color: accent }}
+                style={{ backgroundColor: accent + "15", color: accent }}
               >
                 {getDateLabel(appointment.appointment_date)}
               </span>
             )}
           </div>
 
-          <p className="text-sm capitalize">
+          <p className="text-sm capitalize text-zinc-700">
             {formatDate(appointment.appointment_date)}
           </p>
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-zinc-500">
             {formatTime(appointment.start_time)} —{" "}
             {formatTime(appointment.end_time)}
           </p>
 
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-500">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
             <span className="flex items-center gap-1">
               <Stethoscope className="h-3 w-3" />
               {appointment.doctors?.full_name}
@@ -612,7 +611,7 @@ function AppointmentCard({
       {allowCancel &&
         !isPast &&
         ["scheduled", "confirmed"].includes(appointment.status) && (
-          <div className="mt-3 border-t border-zinc-800 pt-2">
+          <div className="mt-3 border-t border-zinc-100 pt-2">
             <AnimatePresence mode="wait">
               {confirmCancel === appointment.id ? (
                 <motion.div
@@ -625,7 +624,7 @@ function AppointmentCard({
                   <button
                     onClick={() => onCancel(appointment.id)}
                     disabled={cancellingId === appointment.id}
-                    className="flex items-center gap-1 rounded-lg bg-red-500/20 px-2.5 py-1 text-xs font-medium text-red-400 hover:bg-red-500/30 transition-colors"
+                    className="flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
                   >
                     {cancellingId === appointment.id ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -636,7 +635,7 @@ function AppointmentCard({
                   </button>
                   <button
                     onClick={() => onConfirmCancel(null)}
-                    className="text-xs text-zinc-500 hover:text-white transition-colors"
+                    className="text-xs text-zinc-400 hover:text-zinc-900 transition-colors"
                   >
                     No
                   </button>
@@ -647,7 +646,7 @@ function AppointmentCard({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   onClick={() => onConfirmCancel(appointment.id)}
-                  className="text-xs text-zinc-500 hover:text-red-400 transition-colors"
+                  className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
                 >
                   Cancelar cita
                 </motion.button>

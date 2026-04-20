@@ -106,8 +106,8 @@ export default function PortalRegistroPage() {
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-zinc-500" />
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50">
+        <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
       </div>
     );
   }
@@ -126,30 +126,30 @@ export default function PortalRegistroPage() {
             <img
               src={orgInfo.logo_url}
               alt={orgInfo.name}
-              className="mx-auto mb-4 h-16 w-16 rounded-2xl object-cover"
+              className="mx-auto mb-4 h-16 w-16 rounded-2xl object-cover shadow-sm"
             />
           ) : (
             <div
               className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
-              style={{ backgroundColor: accent + "20" }}
+              style={{ backgroundColor: accent + "15" }}
             >
               <Calendar className="h-8 w-8" style={{ color: accent }} />
             </div>
           )}
-          <h1 className="text-2xl font-bold tracking-tight">
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900">
             Completa tu registro
           </h1>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="mt-1 text-sm text-zinc-500">
             Es la primera vez que accedes. Ingresa tus datos para continuar.
           </p>
         </div>
 
         {/* Form card */}
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-6 backdrop-blur-sm">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-sm font-medium text-zinc-300">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-zinc-700">
                   <User className="h-3.5 w-3.5" />
                   Nombres *
                 </label>
@@ -160,11 +160,12 @@ export default function PortalRegistroPage() {
                   placeholder="Juan"
                   required
                   autoFocus
-                  className="w-full rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 transition-shadow"
+                  style={{ "--tw-ring-color": accent + "40" } as React.CSSProperties}
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="flex items-center gap-1.5 text-sm font-medium text-zinc-300">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-zinc-700">
                   <User className="h-3.5 w-3.5" />
                   Apellidos *
                 </label>
@@ -174,13 +175,14 @@ export default function PortalRegistroPage() {
                   onChange={(e) => setLastName(e.target.value)}
                   placeholder="Pérez"
                   required
-                  className="w-full rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                  className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 transition-shadow"
+                  style={{ "--tw-ring-color": accent + "40" } as React.CSSProperties}
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <label className="flex items-center gap-1.5 text-sm font-medium text-zinc-300">
+              <label className="flex items-center gap-1.5 text-sm font-medium text-zinc-700">
                 <IdCard className="h-3.5 w-3.5" />
                 Documento de identidad (DNI) *
               </label>
@@ -190,15 +192,16 @@ export default function PortalRegistroPage() {
                 onChange={(e) => setDni(e.target.value)}
                 placeholder="12345678"
                 required
-                className="w-full rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 transition-shadow"
+                style={{ "--tw-ring-color": accent + "40" } as React.CSSProperties}
               />
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-zinc-400">
                 Usamos tu DNI para vincular tu historial de citas
               </p>
             </div>
 
             <div className="space-y-1.5">
-              <label className="flex items-center gap-1.5 text-sm font-medium text-zinc-300">
+              <label className="flex items-center gap-1.5 text-sm font-medium text-zinc-700">
                 <Phone className="h-3.5 w-3.5" />
                 Teléfono *
               </label>
@@ -208,12 +211,13 @@ export default function PortalRegistroPage() {
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+51 999 999 999"
                 required
-                className="w-full rounded-xl border border-zinc-700 bg-zinc-800/50 px-4 py-3 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 transition-colors"
+                className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 transition-shadow"
+                style={{ "--tw-ring-color": accent + "40" } as React.CSSProperties}
               />
             </div>
 
             {error && (
-              <p className="text-sm text-red-400 text-center">{error}</p>
+              <p className="text-sm text-red-500 text-center">{error}</p>
             )}
 
             <button
@@ -234,7 +238,7 @@ export default function PortalRegistroPage() {
           </form>
         </div>
 
-        <p className="mt-6 text-center text-xs text-zinc-600">
+        <p className="mt-6 text-center text-xs text-zinc-400">
           Tus datos están protegidos y solo se comparten con tu clínica
         </p>
       </motion.div>
