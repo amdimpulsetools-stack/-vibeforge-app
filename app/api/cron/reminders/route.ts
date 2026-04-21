@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildEmailHtml } from "@/lib/email-template";
-import nodemailer from "nodemailer";
+import { sendEmail, isEmailConfigured } from "@/lib/resend";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
 import { sendWhatsAppMessage, resolveVariableValues } from "@/lib/whatsapp/send";
 import { decrypt } from "@/lib/encryption";
@@ -27,13 +27,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2. Check SMTP config
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    return NextResponse.json({ skipped: true, reason: "smtp_not_configured" });
+  // 2. Check email config
+  if (!isEmailConfigured()) {
+    return NextResponse.json({ skipped: true, reason: "email_not_configured" });
   }
 
   const supabase = createAdminClient();
@@ -196,24 +192,10 @@ export async function GET(req: NextRequest) {
         .eq("key", "clinic_phone")
         .single();
 
-      // Create SMTP transporter (reuse for all emails in this org)
-      const port = Number(process.env.SMTP_PORT) || 587;
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port,
-        secure: port === 465,
-        auth: { user: smtpUser, pass: smtpPass },
-        tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-      });
-
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.vibeforge.com";
       const portalEnabled = portalSettings?.portal_enabled && org?.slug;
       const portalBaseUrl = portalEnabled ? `${appUrl}/portal/${org.slug}` : "";
 
-      const fromAddress = process.env.SMTP_FROM || smtpUser;
       const fromName = emailSettings?.sender_name || org?.name || "VibeForge";
       const replyTo = emailSettings?.reply_to_email || undefined;
       const brandColor = emailSettings?.brand_color || "#10b981";
@@ -345,15 +327,15 @@ export async function GET(req: NextRequest) {
           clinicName,
         });
 
-        try {
-          await transporter.sendMail({
-            from: `${fromName} <${fromAddress}>`,
-            replyTo,
-            to: patientEmail,
-            subject,
-            html,
-          });
+        const emailResult = await sendEmail({
+          to: patientEmail,
+          subject,
+          html,
+          fromName,
+          replyTo,
+        });
 
+        if (emailResult.ok) {
           await supabase.from("reminder_logs").upsert(
             {
               appointment_id: appt.id,
@@ -364,11 +346,9 @@ export async function GET(req: NextRequest) {
             },
             { onConflict: "appointment_id,template_slug,channel" }
           );
-
           sent++;
-        } catch (emailErr) {
-          const errorMsg =
-            emailErr instanceof Error ? emailErr.message : "Unknown error";
+        } else {
+          const errorMsg = emailResult.skipped ? "email_not_configured" : emailResult.error;
           console.error(
             `[Cron Reminders] Failed to send email to ${patientEmail}:`,
             errorMsg
@@ -459,7 +439,6 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      transporter.close();
     }
 
     results.push({ slug: window.slug, sent, skipped, failed });

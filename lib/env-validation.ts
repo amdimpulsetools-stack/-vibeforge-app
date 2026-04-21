@@ -12,7 +12,8 @@ const REQUIRED_SERVER_VARS = [
 
 const REQUIRED_FOR_FEATURES: { key: string; feature: string }[] = [
   { key: "ANTHROPIC_API_KEY", feature: "AI Assistant" },
-  { key: "SMTP_HOST", feature: "Email notifications" },
+  { key: "RESEND_API_KEY", feature: "Email notifications" },
+  { key: "EMAIL_FROM", feature: "Email notifications (sender address)" },
   { key: "MP_ACCESS_TOKEN", feature: "MercadoPago payments" },
 ];
 

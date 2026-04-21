@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildEmailHtml } from "@/lib/email-template";
-import nodemailer from "nodemailer";
+import { sendEmail, isEmailConfigured } from "@/lib/resend";
 
 /**
  * Sends the trial_welcome email to the owner who just started a 14-day trial.
@@ -28,11 +28,8 @@ export async function sendTrialWelcomeEmail(params: {
       return { success: false, reason: "no_owner_email" };
     }
 
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
-    if (!smtpHost || !smtpUser || !smtpPass) {
-      return { success: false, reason: "smtp_not_configured" };
+    if (!isEmailConfigured()) {
+      return { success: false, reason: "email_not_configured" };
     }
 
     // Fetch enabled trial_welcome template
@@ -108,29 +105,19 @@ export async function sendTrialWelcomeEmail(params: {
       clinicName,
     });
 
-    const port = Number(process.env.SMTP_PORT) || 587;
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port,
-      secure: port === 465,
-      auth: { user: smtpUser, pass: smtpPass },
-      tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-
-    const fromAddress = process.env.SMTP_FROM || smtpUser;
-    const fromName = emailSettings?.sender_name || clinicName;
-    const replyTo = emailSettings?.reply_to_email || undefined;
-
-    await transporter.sendMail({
-      from: `${fromName} <${fromAddress}>`,
-      replyTo,
+    const result = await sendEmail({
       to: ownerEmail,
       subject,
       html,
+      fromName: emailSettings?.sender_name || clinicName,
+      replyTo: emailSettings?.reply_to_email || undefined,
     });
+
+    if (!result.ok) {
+      const msg = result.skipped ? "email_not_configured" : result.error;
+      console.warn("[sendTrialWelcomeEmail] failed:", msg);
+      return { success: false, error: msg };
+    }
 
     return { success: true };
   } catch (err: unknown) {

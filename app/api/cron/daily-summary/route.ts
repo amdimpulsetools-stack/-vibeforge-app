@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildEmailHtml } from "@/lib/email-template";
-import nodemailer from "nodemailer";
+import { sendEmail, isEmailConfigured } from "@/lib/resend";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -24,13 +24,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // 2. Check SMTP config
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    return NextResponse.json({ skipped: true, reason: "smtp_not_configured" });
+  // 2. Check email config
+  if (!isEmailConfigured()) {
+    return NextResponse.json({ skipped: true, reason: "email_not_configured" });
   }
 
   const supabase = createAdminClient();
@@ -177,34 +173,18 @@ export async function GET(req: NextRequest) {
     const logoUrl = emailSettings?.email_logo_url || null;
     const html = buildEmailHtml({ body: emailBody, brandColor, logoUrl, clinicName });
 
-    // Send email to all recipients
-    const port = Number(process.env.SMTP_PORT) || 587;
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port,
-      secure: port === 465,
-      auth: { user: smtpUser, pass: smtpPass },
-      tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
+    const result = await sendEmail({
+      to: recipients,
+      subject,
+      html,
+      fromName: emailSettings?.sender_name || clinicName,
+      replyTo: emailSettings?.reply_to_email || undefined,
     });
 
-    const fromAddress = process.env.SMTP_FROM || smtpUser;
-    const fromName = emailSettings?.sender_name || clinicName;
-    const replyTo = emailSettings?.reply_to_email || undefined;
-
-    try {
-      await transporter.sendMail({
-        from: `${fromName} <${fromAddress}>`,
-        replyTo,
-        to: recipients.join(", "),
-        subject,
-        html,
-      });
+    if (result.ok) {
       results.push({ org_id: orgId, sent: recipients.length });
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
+    } else {
+      const msg = result.skipped ? "email_not_configured" : result.error;
       console.error(`[Cron Daily Summary] Error sending to org ${orgId}:`, msg);
       results.push({ org_id: orgId, sent: 0, error: msg });
     }
@@ -243,20 +223,6 @@ export async function GET(req: NextRequest) {
         body: tpl.body,
       });
     }
-
-    // Shared SMTP transporter
-    const port = Number(process.env.SMTP_PORT) || 587;
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port,
-      secure: port === 465,
-      auth: { user: smtpUser, pass: smtpPass },
-      tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
-    const fromAddress = process.env.SMTP_FROM || smtpUser;
 
     for (const [orgId, orgTemplates] of templatesByOrg) {
       // Fetch org settings
@@ -323,23 +289,22 @@ export async function GET(req: NextRequest) {
           const { subject, body } = renderTemplate(birthdayTpl, patientName);
           const html = buildEmailHtml({ body, brandColor, logoUrl, clinicName });
 
-          try {
-            await transporter.sendMail({
-              from: `${fromName} <${fromAddress}>`,
-              replyTo,
-              to: patient.email!,
-              subject,
-              html,
-            });
+          const result = await sendEmail({
+            to: patient.email!,
+            subject,
+            html,
+            fromName,
+            replyTo,
+          });
+          if (result.ok) {
             marketingResults.birthday_sent++;
-            // Log to avoid sending twice (safety)
             await supabase.from("marketing_email_logs").insert({
               organization_id: orgId,
               patient_id: patient.id,
               template_slug: "marketing_birthday",
             });
-          } catch (err) {
-            console.error(`[Birthday] Error ${patient.email}:`, err);
+          } else if (!result.skipped) {
+            console.error(`[Birthday] Error ${patient.email}:`, result.error);
           }
         }
       }
@@ -407,22 +372,22 @@ export async function GET(req: NextRequest) {
             const { subject, body } = renderTemplate(followupTpl, patientName);
             const html = buildEmailHtml({ body, brandColor, logoUrl, clinicName });
 
-            try {
-              await transporter.sendMail({
-                from: `${fromName} <${fromAddress}>`,
-                replyTo,
-                to: (patient as { email: string }).email,
-                subject,
-                html,
-              });
+            const result = await sendEmail({
+              to: (patient as { email: string }).email,
+              subject,
+              html,
+              fromName,
+              replyTo,
+            });
+            if (result.ok) {
               marketingResults.followup_sent++;
               await supabase.from("marketing_email_logs").insert({
                 organization_id: orgId,
                 patient_id: patient.id,
                 template_slug: "marketing_followup",
               });
-            } catch (err) {
-              console.error(`[Followup] Error:`, err);
+            } else if (!result.skipped) {
+              console.error(`[Followup] Error:`, result.error);
             }
           }
         }
