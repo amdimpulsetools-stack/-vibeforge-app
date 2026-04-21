@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
 
     if (isEmailConfigured()) {
       const origin =
+        process.env.NEXT_PUBLIC_APP_URL ||
         req.headers.get("origin") ||
         `${req.headers.get("x-forwarded-proto") || "https"}://${req.headers.get("host")}`;
       const verifyUrl = `${origin}/portal/${slug}/verify?token=${token}`;
