@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/rate-limit";
 import { buildEmailHtml } from "@/lib/email-template";
-import nodemailer from "nodemailer";
+import { sendEmail, isEmailConfigured } from "@/lib/resend";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -366,10 +366,7 @@ async function sendBookingConfirmationEmail(
   date: string,
   time: string
 ) {
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  if (!smtpHost || !smtpUser || !smtpPass) return;
+  if (!isEmailConfigured()) return;
 
   // Fetch email template
   const { data: template } = await supabase
@@ -471,29 +468,15 @@ async function sendBookingConfirmationEmail(
     clinicName,
   });
 
-  const port = Number(process.env.SMTP_PORT) || 587;
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port,
-    secure: port === 465,
-    auth: { user: smtpUser, pass: smtpPass },
-    tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-  });
-
-  const fromAddress = process.env.SMTP_FROM || smtpUser;
-  const fromName = emailSettings?.sender_name || clinicName;
-  const replyTo = emailSettings?.reply_to_email || undefined;
-
-  await transporter.sendMail({
-    from: `${fromName} <${fromAddress}>`,
-    replyTo,
+  const result = await sendEmail({
     to: patientEmail,
     subject,
     html,
+    fromName: emailSettings?.sender_name || clinicName,
+    replyTo: emailSettings?.reply_to_email || undefined,
   });
 
-  transporter.close();
+  if (!result.ok && !result.skipped) {
+    console.error("[Booking] confirmation email error:", result.error);
+  }
 }

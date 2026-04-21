@@ -4,7 +4,7 @@ import { buildEmailHtml } from "@/lib/email-template";
 import { emailLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
 import { sendTestEmailSchema } from "@/lib/validations/api";
-import nodemailer from "nodemailer";
+import { sendEmail, isEmailConfigured } from "@/lib/resend";
 
 export const runtime = "nodejs";
 
@@ -46,17 +46,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Check SMTP configuration
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpPort = process.env.SMTP_PORT;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-
-  if (!smtpHost || !smtpUser || !smtpPass) {
+  if (!isEmailConfigured()) {
     return NextResponse.json(
       {
         error:
-          "SMTP no configurado. Agrega SMTP_HOST, SMTP_USER y SMTP_PASS en las variables de entorno.",
+          "Email no configurado. Agrega RESEND_API_KEY y EMAIL_FROM en las variables de entorno.",
       },
       { status: 503 }
     );
@@ -74,50 +68,26 @@ export async function POST(req: NextRequest) {
     clinic_name,
   } = parsed.data;
 
-  try {
-    const html = buildEmailHtml({
-      body: emailBody,
-      bodyHtml: body_html || null,
-      brandColor: brand_color || "#10b981",
-      logoUrl: logo_url,
-      clinicName: clinic_name,
-    });
+  const html = buildEmailHtml({
+    body: emailBody,
+    bodyHtml: body_html || null,
+    brandColor: brand_color || "#10b981",
+    logoUrl: logo_url,
+    clinicName: clinic_name,
+  });
 
-    const port = Number(smtpPort) || 587;
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port,
-      secure: port === 465,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-      tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
-    });
+  const result = await sendEmail({
+    to,
+    subject,
+    html,
+    fromName: clinic_name || "VibeForge",
+  });
 
-    const fromAddress = process.env.SMTP_FROM || smtpUser;
-    const fromName = clinic_name || "VibeForge";
-
-    const info = await transporter.sendMail({
-      from: `${fromName} <${fromAddress}>`,
-      to,
-      subject,
-      html,
-    });
-
-    return NextResponse.json({
-      success: true,
-      messageId: info.messageId,
-    });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Error desconocido";
-    console.error("[SMTP Error]", message);
-    return NextResponse.json(
-      { error: `Error SMTP: ${message}` },
-      { status: 500 }
-    );
+  if (!result.ok) {
+    const error = result.skipped ? "Email no configurado" : result.error;
+    console.error("[send-test] error:", error);
+    return NextResponse.json({ error: `Error enviando email: ${error}` }, { status: 500 });
   }
+
+  return NextResponse.json({ success: true, messageId: result.id });
 }

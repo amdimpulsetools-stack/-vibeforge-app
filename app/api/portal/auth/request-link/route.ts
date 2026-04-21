@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { generateToken } from "@/lib/portal-auth";
 import { buildEmailHtml } from "@/lib/email-template";
 import { rateLimit } from "@/lib/rate-limit";
-import nodemailer from "nodemailer";
+import { sendEmail, isEmailConfigured } from "@/lib/resend";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -100,11 +100,7 @@ export async function POST(req: NextRequest) {
       expires_at: expiresAt.toISOString(),
     });
 
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
-
-    if (smtpHost && smtpUser && smtpPass) {
+    if (isEmailConfigured()) {
       const origin =
         req.headers.get("origin") ||
         `${req.headers.get("x-forwarded-proto") || "https"}://${req.headers.get("host")}`;
@@ -112,7 +108,7 @@ export async function POST(req: NextRequest) {
 
       const { data: emailSettings } = await supabase
         .from("email_settings")
-        .select("sender_name, brand_color, email_logo_url")
+        .select("sender_name, brand_color, email_logo_url, reply_to_email")
         .eq("organization_id", org.id)
         .single();
 
@@ -124,24 +120,17 @@ export async function POST(req: NextRequest) {
         footerText: `${org.name} · Portal del Paciente`,
       });
 
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port: Number(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === "true",
-        auth: { user: smtpUser, pass: smtpPass },
-        socketTimeout: 15000,
+      const result = await sendEmail({
+        to: email,
+        subject: `Tu acceso al portal — ${org.name}`,
+        html,
+        fromName: emailSettings?.sender_name || org.name,
+        replyTo: emailSettings?.reply_to_email || undefined,
       });
 
-      transporter
-        .sendMail({
-          from: `"${emailSettings?.sender_name || org.name}" <${smtpUser}>`,
-          to: email,
-          subject: `Tu acceso al portal — ${org.name}`,
-          html,
-        })
-        .catch((err) =>
-          console.error("[Portal] Magic link email error:", err)
-        );
+      if (!result.ok && !result.skipped) {
+        console.error("[Portal] Magic link email error:", result.error);
+      }
     }
 
     return NextResponse.json({ success: true });

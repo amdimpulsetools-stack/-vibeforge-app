@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildEmailHtml } from "@/lib/email-template";
 import { parseBody } from "@/lib/api-utils";
 import { sendNotificationSchema } from "@/lib/validations/api";
-import nodemailer from "nodemailer";
+import { sendEmail, isEmailConfigured } from "@/lib/resend";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
 import { sendWhatsAppMessage, resolveVariableValues } from "@/lib/whatsapp/send";
 import { decrypt } from "@/lib/encryption";
@@ -43,15 +43,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No organization" }, { status: 403 });
   }
 
-  // Check SMTP configuration
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    // Silently skip — SMTP not configured yet
-    return NextResponse.json({ skipped: true, reason: "smtp_not_configured" });
-  }
+  const emailConfigured = isEmailConfigured();
 
   const parsed = await parseBody(req, sendNotificationSchema);
   if (parsed.error) return parsed.error;
@@ -214,42 +206,26 @@ export async function POST(req: NextRequest) {
   });
 
   // 9. Determine which channels to send on
-  const sendEmail = true; // Email always sent if template is enabled
   const sendWhatsApp = !!template.wa_enabled;
 
   const results: { email?: { success: boolean; messageId?: string }; whatsapp?: { success: boolean; wamid?: string } } = {};
 
   // 9a. Send email
-  if (sendEmail && patientEmail && smtpHost && smtpUser && smtpPass) {
-    try {
-      const port = Number(process.env.SMTP_PORT) || 587;
-      const transporter = nodemailer.createTransport({
-        host: smtpHost,
-        port,
-        secure: port === 465,
-        auth: { user: smtpUser, pass: smtpPass },
-        tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
-        connectionTimeout: 10000,
-        greetingTimeout: 10000,
-        socketTimeout: 15000,
-      });
+  if (patientEmail && emailConfigured) {
+    const result = await sendEmail({
+      to: patientEmail,
+      subject,
+      html,
+      fromName: emailSettings?.sender_name || clinicName,
+      replyTo: emailSettings?.reply_to_email || undefined,
+    });
 
-      const fromAddress = process.env.SMTP_FROM || smtpUser;
-      const fromName = emailSettings?.sender_name || clinicName;
-      const replyTo = emailSettings?.reply_to_email || undefined;
-
-      const info = await transporter.sendMail({
-        from: `${fromName} <${fromAddress}>`,
-        replyTo,
-        to: patientEmail,
-        subject,
-        html,
-      });
-
-      results.email = { success: true, messageId: info.messageId };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Error desconocido";
-      console.error("[Notification SMTP Error]", message);
+    if (result.ok) {
+      results.email = { success: true, messageId: result.id };
+    } else {
+      if (!result.skipped) {
+        console.error("[Notification] email error:", result.error);
+      }
       results.email = { success: false };
     }
   }
@@ -332,7 +308,13 @@ export async function POST(req: NextRequest) {
   }
 
   // If no channel succeeded, return error
-  if (!results.email?.success && !results.whatsapp?.success && (sendEmail || sendWhatsApp)) {
+  const emailAttempted = results.email !== undefined;
+  const waAttempted = results.whatsapp !== undefined;
+  if (
+    !results.email?.success &&
+    !results.whatsapp?.success &&
+    (emailAttempted || waAttempted)
+  ) {
     return NextResponse.json(
       { error: "No se pudo enviar por ningún canal" },
       { status: 500 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { buildEmailHtml } from "@/lib/email-template";
-import nodemailer from "nodemailer";
+import { sendEmail, isEmailConfigured } from "@/lib/resend";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -33,11 +33,8 @@ export async function POST(req: NextRequest) {
     .single();
   if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
 
-  const smtpHost = process.env.SMTP_HOST;
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  if (!smtpHost || !smtpUser || !smtpPass) {
-    return NextResponse.json({ skipped: true, reason: "smtp_not_configured" });
+  if (!isEmailConfigured()) {
+    return NextResponse.json({ skipped: true, reason: "email_not_configured" });
   }
 
   let body: unknown;
@@ -135,34 +132,19 @@ export async function POST(req: NextRequest) {
     clinicName,
   });
 
-  const port = Number(process.env.SMTP_PORT) || 587;
-  const transporter = nodemailer.createTransport({
-    host: smtpHost,
-    port,
-    secure: port === 465,
-    auth: { user: smtpUser, pass: smtpPass },
-    tls: { rejectUnauthorized: process.env.SMTP_ALLOW_SELFSIGNED !== "true" },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
+  const result = await sendEmail({
+    to: patient.email,
+    subject,
+    html,
+    fromName: emailSettings?.sender_name || clinicName,
+    replyTo: emailSettings?.reply_to_email || undefined,
   });
 
-  const fromAddress = process.env.SMTP_FROM || smtpUser;
-  const fromName = emailSettings?.sender_name || clinicName;
-  const replyTo = emailSettings?.reply_to_email || undefined;
-
-  try {
-    await transporter.sendMail({
-      from: `${fromName} <${fromAddress}>`,
-      replyTo,
-      to: patient.email,
-      subject,
-      html,
-    });
-    return NextResponse.json({ success: true });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[send-patient] error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+  if (!result.ok) {
+    const error = result.skipped ? "email_not_configured" : result.error;
+    console.error("[send-patient] error:", error);
+    return NextResponse.json({ error }, { status: 500 });
   }
+
+  return NextResponse.json({ success: true });
 }
