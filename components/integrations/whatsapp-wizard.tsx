@@ -66,8 +66,10 @@ export function WhatsAppWizard({ open, onClose, onConnected }: WhatsAppWizardPro
   } | null>(null);
 
   const webhookUrl = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    return `${window.location.origin}/api/whatsapp/webhook`;
+    const appOrigin =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      (typeof window !== "undefined" ? window.location.origin : "");
+    return appOrigin ? `${appOrigin}/api/whatsapp/webhook` : "";
   }, []);
 
   const fetchConfig = useCallback(async () => {

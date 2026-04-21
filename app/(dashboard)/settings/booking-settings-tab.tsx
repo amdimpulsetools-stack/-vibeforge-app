@@ -42,14 +42,11 @@ export default function BookingSettingsTab() {
   const [portalCopied, setPortalCopied] = useState(false);
 
   const slug = organization?.slug;
-  const bookingUrl =
-    typeof window !== "undefined" && slug
-      ? `${window.location.origin}/book/${slug}`
-      : "";
-  const portalUrl =
-    typeof window !== "undefined" && slug
-      ? `${window.location.origin}/portal/${slug}`
-      : "";
+  const appOrigin =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    (typeof window !== "undefined" ? window.location.origin : "");
+  const bookingUrl = slug ? `${appOrigin}/book/${slug}` : "";
+  const portalUrl = slug ? `${appOrigin}/portal/${slug}` : "";
 
   useEffect(() => {
     if (!organizationId) return;
