@@ -61,6 +61,18 @@
 - [ ] **Portal Phase 2 — Reservar cita desde el portal** — Flujo de 3 pasos (servicio → doctor → fecha/hora) reutilizando lógica de `/book/[slug]` con datos del paciente pre-cargados. Preview + confirmación automática.
 - [ ] **Portal Phase 3 — Reprogramar cita** — Botón reagendar en Mis Citas → flujo de selección de nueva fecha/hora sin cancelar la anterior hasta confirmar.
 - [ ] **Portal Phase 4 — Mis documentos** — Recetas, órdenes de exámenes y resultados descargables (PDF). Cada tipo activable/desactivable por org.
+- [ ] **Portal — Panel de Resultados médicos (lab/imágenes)** — Sección "Mis resultados" en el portal con descarga de PDFs/imágenes subidos por el staff desde la ficha del paciente. Requiere:
+  - Nueva tabla `patient_files (id, organization_id, patient_id, type, title, file_url, uploaded_by, uploaded_at, visible_to_patient)` con RLS estricta.
+  - Bucket de Supabase Storage con policy por `organization_id` + `patient_id`.
+  - UI de upload desde panel admin (ficha del paciente → tab "Archivos") con toggle de visibilidad.
+  - Listado en portal agrupado por tipo (laboratorio, imagen, receta, orden) y fecha.
+  - Logs de acceso para auditoría médica.
+  - Decisiones de producto pendientes: ¿firmas digitales?, ¿expiración de enlaces?, ¿retención?
+- [ ] **Portal — Indicaciones / pre-consulta** — El doctor o servicio puede definir instrucciones que ve el paciente antes de su cita (ayuno, llevar documentos, medicación a suspender). Implementación:
+  - Campo `pre_appointment_instructions TEXT` en `services` (instrucciones por tipo de servicio).
+  - Campo opcional `custom_instructions TEXT` en `appointments` (override específico de la cita).
+  - Visible en el detalle de cita del portal y enviado en email de recordatorio 24h antes.
+  - Editable por el staff al crear/editar la cita.
 - [ ] **Portal — WhatsApp OTP auth** — Login alternativo por OTP via WhatsApp (cuando el volumen lo justifique).
 - [ ] **Portal — Dominio personalizado** — `portal.miclinica.pe` con configuración DNS.
 
