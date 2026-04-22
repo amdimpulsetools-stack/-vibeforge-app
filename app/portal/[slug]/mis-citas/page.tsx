@@ -31,6 +31,7 @@ import {
   CalendarPlus,
   StickyNote,
   MessageSquare,
+  PhoneCall,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -85,6 +86,12 @@ interface PortalSettings {
   portal_min_cancel_hours: number;
   portal_welcome_message: string | null;
   accent_color: string | null;
+  allow_online_booking?: boolean;
+}
+
+interface ClinicContact {
+  phone: string | null;
+  email: string | null;
 }
 
 function formatFullDate(dateStr: string): string {
@@ -188,6 +195,7 @@ export default function MisCitasPage() {
   const [patient, setPatient] = useState<PatientInfo | null>(null);
   const [org, setOrg] = useState<OrgInfo | null>(null);
   const [settings, setSettings] = useState<PortalSettings | null>(null);
+  const [contact, setContact] = useState<ClinicContact>({ phone: null, email: null });
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -196,6 +204,7 @@ export default function MisCitasPage() {
   const [detailAppt, setDetailAppt] = useState<Appointment | null>(null);
   const [showSpecialists, setShowSpecialists] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [showContact, setShowContact] = useState(false);
 
   const accent = settings?.accent_color || "#10b981";
 
@@ -219,6 +228,7 @@ export default function MisCitasPage() {
       setPatient(sessionData.patient);
       setOrg(sessionData.organization);
       setSettings(sessionData.portal_settings);
+      if (sessionData.clinic_contact) setContact(sessionData.clinic_contact);
 
       if (appointmentsRes.ok) {
         const apptData = await appointmentsRes.json();
@@ -335,34 +345,63 @@ export default function MisCitasPage() {
   }, [past]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F2F2F7]">
-        <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
-      </div>
-    );
+    return <PortalSkeleton />;
   }
 
   const nextAppointment = upcoming[0] || null;
   const restUpcoming = upcoming.slice(1);
+  const allowOnlineBooking = settings?.allow_online_booking !== false;
+  const handleBookingClick = () => {
+    if (allowOnlineBooking) return; // let <Link> navigate
+    setShowContact(true);
+  };
 
   return (
-    <div className="min-h-screen bg-[#F2F2F7] pb-16">
+    <div className="min-h-screen bg-[#F2F2F7] pb-16 lg:pb-8">
       {/* Sticky header */}
       <header className="sticky top-0 z-20 border-b border-black/5 bg-[#F2F2F7]/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-md items-center justify-between gap-2 px-5 pt-6 pb-3">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-5 pt-6 pb-3 lg:px-8 lg:pt-8">
           <div className="min-w-0">
-            <p className="truncate text-xs font-medium text-zinc-500">
+            <p className="truncate text-xs font-medium text-zinc-500 lg:text-sm">
               {org?.name}
             </p>
-            <h1 className="text-[28px] font-bold leading-tight tracking-tight text-zinc-900">
+            <h1 className="text-[28px] font-bold leading-tight tracking-tight text-zinc-900 lg:text-4xl">
               Resumen
             </h1>
           </div>
           <div className="flex flex-shrink-0 items-center gap-2">
+            {/* Agendar cita — conditional */}
+            {allowOnlineBooking ? (
+              <Link
+                href={`/book/${slug}`}
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                style={{
+                  backgroundColor: accent,
+                  ["--tw-ring-color" as string]: accent,
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Agendar cita
+              </Link>
+            ) : (
+              <button
+                onClick={handleBookingClick}
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[13px] font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                style={{
+                  backgroundColor: accent,
+                  ["--tw-ring-color" as string]: accent,
+                }}
+              >
+                <PhoneCall className="h-4 w-4" />
+                Agendar cita
+              </button>
+            )}
+
+            {/* Profile */}
             <button
               onClick={() => setShowProfile(true)}
               aria-label="Mi perfil"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-600 shadow-sm ring-1 ring-black/5 transition active:scale-95"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-600 shadow-sm ring-1 ring-black/5 transition hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-zinc-400"
             >
               {patient?.first_name ? (
                 <span
@@ -385,11 +424,13 @@ export default function MisCitasPage() {
                 <UserIcon className="h-4 w-4" />
               )}
             </button>
+
+            {/* Logout */}
             <button
               onClick={handleLogout}
               disabled={loggingOut}
               aria-label="Salir"
-              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-600 shadow-sm ring-1 ring-black/5 transition active:scale-95"
+              className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-600 shadow-sm ring-1 ring-black/5 transition hover:shadow-md active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-zinc-400"
             >
               {loggingOut ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -401,29 +442,32 @@ export default function MisCitasPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-md px-5 pt-5">
+      <main className="mx-auto max-w-5xl px-5 pt-5 lg:px-8 lg:pt-6">
         {/* Greeting */}
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-5"
+          className="mb-5 lg:mb-8"
         >
-          <h2 className="text-[22px] font-semibold tracking-tight text-zinc-900">
+          <h2 className="text-[22px] font-semibold tracking-tight text-zinc-900 lg:text-3xl">
             Hola, {patient?.first_name || "paciente"}
           </h2>
           {settings?.portal_welcome_message && (
-            <p className="mt-1 text-[15px] leading-snug text-zinc-500">
+            <p className="mt-1 max-w-prose text-[15px] leading-snug text-zinc-500 lg:text-base">
               {settings.portal_welcome_message}
             </p>
           )}
         </motion.div>
 
-        {/* Summary tiles */}
+        <div className="lg:grid lg:grid-cols-[1fr_320px] lg:gap-8">
+          {/* ── MAIN COLUMN ── */}
+          <div className="min-w-0">
+        {/* Summary tiles (mobile only — on desktop they live in the sidebar) */}
         <motion.section
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 }}
-          className="mb-6"
+          className="mb-6 lg:hidden"
         >
           <div className="mb-2 flex items-center justify-between px-1">
             <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
@@ -492,8 +536,8 @@ export default function MisCitasPage() {
           </div>
         </motion.section>
 
-        {/* Tabs */}
-        <div className="mb-4">
+        {/* Tabs — mobile only */}
+        <div className="mb-4 lg:hidden">
           <div className="flex rounded-2xl bg-black/5 p-1">
             <TabButton
               active={tab === "proximas"}
@@ -510,6 +554,8 @@ export default function MisCitasPage() {
           </div>
         </div>
 
+        {/* Mobile: tab-driven. Desktop: show both sections stacked. */}
+        <div className="lg:hidden">
         <AnimatePresence mode="wait">
           {tab === "proximas" ? (
             <motion.div
@@ -652,21 +698,263 @@ export default function MisCitasPage() {
             </motion.div>
           )}
         </AnimatePresence>
+        </div>
+
+        {/* ── DESKTOP: both sections stacked (no tabs) ── */}
+        <div className="hidden lg:block space-y-8">
+          {/* Próxima cita hero */}
+          {nextAppointment ? (
+            <section>
+              <h3 className="mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Próxima cita
+              </h3>
+              <HeroCard
+                appointment={nextAppointment}
+                accent={accent}
+                allowCancel={settings?.portal_allow_cancel || false}
+                cancellingId={cancellingId}
+                confirmCancel={confirmCancel}
+                onConfirmCancel={setConfirmCancel}
+                onCancel={handleCancel}
+                onOpen={() => setDetailAppt(nextAppointment)}
+              />
+            </section>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-black/5"
+            >
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FF3B30]/10">
+                <Calendar className="h-6 w-6 text-[#FF3B30]" />
+              </div>
+              <h3 className="text-[17px] font-semibold text-zinc-900">
+                Sin citas próximas
+              </h3>
+              <p className="mt-1 text-[14px] text-zinc-500">
+                {allowOnlineBooking
+                  ? "Agenda una nueva cita en segundos"
+                  : "Contacta a la clínica para agendar"}
+              </p>
+              {allowOnlineBooking ? (
+                <Link
+                  href={`/book/${slug}`}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[14px] font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-95"
+                  style={{ backgroundColor: accent }}
+                >
+                  <CalendarPlus className="h-4 w-4" />
+                  Agendar cita
+                </Link>
+              ) : (
+                <button
+                  onClick={() => setShowContact(true)}
+                  className="mt-4 inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-[14px] font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-95"
+                  style={{ backgroundColor: accent }}
+                >
+                  <PhoneCall className="h-4 w-4" />
+                  Contactar clínica
+                </button>
+              )}
+            </motion.div>
+          )}
+
+          {/* Programadas */}
+          {restUpcoming.length > 0 && (
+            <section>
+              <h3 className="mb-3 px-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                Programadas
+              </h3>
+              <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                {restUpcoming.map((appt, i) => (
+                  <AppointmentRow
+                    key={appt.id}
+                    appointment={appt}
+                    allowCancel={settings?.portal_allow_cancel || false}
+                    confirmCancel={confirmCancel}
+                    cancellingId={cancellingId}
+                    onConfirmCancel={setConfirmCancel}
+                    onCancel={handleCancel}
+                    onOpen={() => setDetailAppt(appt)}
+                    divider={i < restUpcoming.length - 1}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Historial */}
+          {past.length > 0 && (
+            <section>
+              <div className="mb-3 flex items-center justify-between px-1">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Historial
+                </h3>
+              </div>
+              <HistoryFilterChips
+                value={historyFilter}
+                onChange={setHistoryFilter}
+                counts={historyCounts}
+              />
+              {pastByMonth.length === 0 ? (
+                <div className="rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-black/5">
+                  <p className="text-[14px] text-zinc-500">
+                    No hay citas con ese filtro
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-5">
+                  {pastByMonth.map((group) => (
+                    <div key={group.key}>
+                      <h4 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">
+                        {group.label}
+                      </h4>
+                      <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                        {group.items.map((appt, i) => (
+                          <AppointmentRow
+                            key={appt.id}
+                            appointment={appt}
+                            allowCancel={false}
+                            confirmCancel={null}
+                            cancellingId={null}
+                            onConfirmCancel={() => {}}
+                            onCancel={() => {}}
+                            onOpen={() => setDetailAppt(appt)}
+                            divider={i < group.items.length - 1}
+                            isPast
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+          </div>
+
+          {/* ── DESKTOP SIDEBAR ── */}
+          <aside className="hidden lg:block">
+            <div className="lg:sticky lg:top-28 space-y-4">
+              {/* Summary tiles */}
+              <div>
+                <h3 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                  Resumen
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <SummaryTile
+                    icon={CalendarCheck}
+                    iconColor="#FF3B30"
+                    label="Próxima"
+                    value={
+                      nextAppointment
+                        ? getDateLabel(nextAppointment.appointment_date) ||
+                          formatShortDate(nextAppointment.appointment_date)
+                        : "—"
+                    }
+                    sub={
+                      nextAppointment
+                        ? formatTime(nextAppointment.start_time)
+                        : "Sin programar"
+                    }
+                    onClick={
+                      nextAppointment
+                        ? () => setDetailAppt(nextAppointment)
+                        : undefined
+                    }
+                  />
+                  <SummaryTile
+                    icon={Activity}
+                    iconColor="#FF9500"
+                    label="Completadas"
+                    value={String(stats.completed)}
+                    sub={stats.completed === 1 ? "visita" : "visitas"}
+                  />
+                  <SummaryTile
+                    icon={History}
+                    iconColor="#AF52DE"
+                    label="Última"
+                    value={
+                      stats.lastVisit ? formatShortDate(stats.lastVisit) : "—"
+                    }
+                    sub={stats.lastVisit ? "completada" : "Primera vez"}
+                    onClick={
+                      past[0] ? () => setDetailAppt(past[0]) : undefined
+                    }
+                  />
+                  <SummaryTile
+                    icon={HeartPulse}
+                    iconColor="#34C759"
+                    label="Doctores"
+                    value={String(stats.doctorCount)}
+                    sub={stats.doctorCount === 1 ? "doctor" : "doctores"}
+                    onClick={
+                      specialists.length > 0
+                        ? () => setShowSpecialists(true)
+                        : undefined
+                    }
+                  />
+                </div>
+              </div>
+
+              {/* Mi perfil card */}
+              {patient && (
+                <button
+                  onClick={() => setShowProfile(true)}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-white p-4 text-left shadow-sm ring-1 ring-black/5 transition hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-zinc-400"
+                >
+                  <div
+                    className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-[14px] font-bold text-white"
+                    style={{ backgroundColor: accent }}
+                  >
+                    {initials(
+                      `${patient.first_name} ${patient.last_name || ""}`.trim()
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-semibold text-zinc-900">
+                      {patient.first_name} {patient.last_name}
+                    </p>
+                    <p className="truncate text-[12px] text-zinc-500">
+                      Ver y editar mi perfil
+                    </p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 flex-shrink-0 text-zinc-300" />
+                </button>
+              )}
+            </div>
+          </aside>
+        </div>
       </main>
 
-      {/* Floating Agendar button */}
-      <Link
-        href={`/book/${slug}`}
-        aria-label="Agendar nueva cita"
-        className="fixed bottom-5 left-1/2 z-30 inline-flex -translate-x-1/2 items-center gap-2 rounded-full px-5 py-3 text-[14px] font-semibold text-white shadow-lg transition active:scale-95"
-        style={{
-          backgroundColor: accent,
-          boxShadow: `0 10px 30px -8px ${accent}80`,
-        }}
-      >
-        <Plus className="h-4 w-4" />
-        Agendar cita
-      </Link>
+      {/* Mobile FAB — shown only when header button is hidden (< sm) */}
+      {allowOnlineBooking ? (
+        <Link
+          href={`/book/${slug}`}
+          aria-label="Agendar nueva cita"
+          className="fixed bottom-5 left-1/2 z-30 inline-flex -translate-x-1/2 items-center gap-2 rounded-full px-5 py-3 text-[14px] font-semibold text-white shadow-lg transition active:scale-95 sm:hidden"
+          style={{
+            backgroundColor: accent,
+            boxShadow: `0 10px 30px -8px ${accent}80`,
+          }}
+        >
+          <Plus className="h-4 w-4" />
+          Agendar cita
+        </Link>
+      ) : (
+        <button
+          onClick={() => setShowContact(true)}
+          aria-label="Contactar clínica para agendar"
+          className="fixed bottom-5 left-1/2 z-30 inline-flex -translate-x-1/2 items-center gap-2 rounded-full px-5 py-3 text-[14px] font-semibold text-white shadow-lg transition active:scale-95 sm:hidden"
+          style={{
+            backgroundColor: accent,
+            boxShadow: `0 10px 30px -8px ${accent}80`,
+          }}
+        >
+          <PhoneCall className="h-4 w-4" />
+          Agendar cita
+        </button>
+      )}
 
       {/* Sheets */}
       <AppointmentDetailSheet
@@ -699,6 +987,14 @@ export default function MisCitasPage() {
         onUpdate={(updated) =>
           setPatient((p) => (p ? { ...p, ...updated } : p))
         }
+      />
+
+      <ContactSheet
+        open={showContact}
+        onClose={() => setShowContact(false)}
+        contact={contact}
+        org={org}
+        accent={accent}
       />
     </div>
   );
@@ -1190,6 +1486,19 @@ function HistoryFilterChips({
   );
 }
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mq = window.matchMedia(query);
+    setMatches(mq.matches);
+    const on = (e: MediaQueryListEvent) => setMatches(e.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, [query]);
+  return matches;
+}
+
 function BottomSheet({
   open,
   onClose,
@@ -1199,6 +1508,8 @@ function BottomSheet({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
+
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => {
@@ -1212,6 +1523,22 @@ function BottomSheet({
     };
   }, [open, onClose]);
 
+  const panel = isDesktop
+    ? {
+        initial: { x: "100%" },
+        animate: { x: 0 },
+        exit: { x: "100%" },
+        className:
+          "fixed inset-y-0 right-0 z-50 w-full max-w-md overflow-y-auto rounded-l-3xl bg-[#F2F2F7] shadow-2xl",
+      }
+    : {
+        initial: { y: "100%" },
+        animate: { y: 0 },
+        exit: { y: "100%" },
+        className:
+          "fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[90vh] max-w-md overflow-y-auto rounded-t-3xl bg-[#F2F2F7] shadow-2xl",
+      };
+
   return (
     <AnimatePresence>
       {open && (
@@ -1224,13 +1551,16 @@ function BottomSheet({
             className="fixed inset-0 z-40 bg-black/40"
           />
           <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
+            initial={panel.initial}
+            animate={panel.animate}
+            exit={panel.exit}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[90vh] max-w-md overflow-y-auto rounded-t-3xl bg-[#F2F2F7] shadow-2xl"
+            className={panel.className}
+            role="dialog"
+            aria-modal="true"
           >
-            <div className="sticky top-0 z-10 flex justify-center bg-gradient-to-b from-[#F2F2F7] to-transparent pt-3 pb-2">
+            {/* Drag handle — hidden on desktop */}
+            <div className="sticky top-0 z-10 flex justify-center bg-gradient-to-b from-[#F2F2F7] to-transparent pt-3 pb-2 lg:hidden">
               <div className="h-1 w-10 rounded-full bg-zinc-300" />
             </div>
             {children}
@@ -1839,6 +2169,174 @@ function ProfileField({
         <p className="truncate text-[14px] text-zinc-900">{value}</p>
         {hint && <p className="text-[11px] text-zinc-400">{hint}</p>}
       </div>
+    </div>
+  );
+}
+
+function ContactSheet({
+  open,
+  onClose,
+  contact,
+  org,
+  accent,
+}: {
+  open: boolean;
+  onClose: () => void;
+  contact: ClinicContact;
+  org: OrgInfo | null;
+  accent: string;
+}) {
+  const digits = (contact.phone || "").replace(/[^\d]/g, "");
+  const waHref = digits ? `https://wa.me/${digits}` : null;
+  const telHref = contact.phone ? `tel:${contact.phone}` : null;
+  const mailHref = contact.email ? `mailto:${contact.email}` : null;
+
+  return (
+    <BottomSheet open={open} onClose={onClose}>
+      <div className="pb-8">
+        <div className="flex items-center justify-between px-5 pb-3">
+          <h2 className="text-[20px] font-bold tracking-tight text-zinc-900">
+            Agendar una cita
+          </h2>
+          <button
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-200/70 text-zinc-600 transition hover:bg-zinc-300 active:scale-95"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mx-5 mb-4 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-black/5">
+          <p className="text-[14px] leading-relaxed text-zinc-700">
+            Para agendar una nueva cita en{" "}
+            <span className="font-semibold text-zinc-900">{org?.name}</span>,
+            comunícate con la clínica por cualquiera de estos canales.
+          </p>
+        </div>
+
+        <div className="mx-5 space-y-2">
+          {waHref && (
+            <a
+              href={waHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-black/5 transition hover:shadow-md active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366]/15">
+                  <MessageSquare className="h-4 w-4 text-[#25D366]" />
+                </div>
+                <div>
+                  <p className="text-[14px] font-semibold text-zinc-900">
+                    WhatsApp
+                  </p>
+                  <p className="text-[12px] text-zinc-500">{contact.phone}</p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-zinc-300" />
+            </a>
+          )}
+
+          {telHref && (
+            <a
+              href={telHref}
+              className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-black/5 transition hover:shadow-md active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#007AFF]/15">
+                  <PhoneCall className="h-4 w-4 text-[#007AFF]" />
+                </div>
+                <div>
+                  <p className="text-[14px] font-semibold text-zinc-900">
+                    Llamar
+                  </p>
+                  <p className="text-[12px] text-zinc-500">{contact.phone}</p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-zinc-300" />
+            </a>
+          )}
+
+          {mailHref && (
+            <a
+              href={mailHref}
+              className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-black/5 transition hover:shadow-md active:scale-[0.99]"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#AF52DE]/15">
+                  <Mail className="h-4 w-4 text-[#AF52DE]" />
+                </div>
+                <div>
+                  <p className="text-[14px] font-semibold text-zinc-900">
+                    Email
+                  </p>
+                  <p className="text-[12px] text-zinc-500">{contact.email}</p>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-zinc-300" />
+            </a>
+          )}
+
+          {!waHref && !telHref && !mailHref && (
+            <div className="rounded-3xl bg-white p-6 text-center shadow-sm ring-1 ring-black/5">
+              <p className="text-[14px] text-zinc-500">
+                La clínica aún no ha configurado sus datos de contacto.
+              </p>
+            </div>
+          )}
+        </div>
+
+        <p
+          className="mt-4 px-6 text-center text-[11px]"
+          style={{ color: accent }}
+        >
+          Las reservas se gestionan directamente con la clínica.
+        </p>
+      </div>
+    </BottomSheet>
+  );
+}
+
+function PortalSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#F2F2F7] pb-16">
+      {/* Header skeleton */}
+      <header className="sticky top-0 z-20 border-b border-black/5 bg-[#F2F2F7]/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-5xl items-center justify-between gap-2 px-5 pt-6 pb-3 lg:px-8 lg:pt-8">
+          <div>
+            <div className="mb-2 h-3 w-24 animate-pulse rounded bg-zinc-200" />
+            <div className="h-7 w-36 animate-pulse rounded bg-zinc-200 lg:h-9 lg:w-44" />
+          </div>
+          <div className="flex gap-2">
+            <div className="h-10 w-10 animate-pulse rounded-full bg-zinc-200" />
+            <div className="h-10 w-10 animate-pulse rounded-full bg-zinc-200" />
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto max-w-5xl px-5 pt-5 lg:px-8">
+        <div className="mb-5 h-7 w-44 animate-pulse rounded bg-zinc-200" />
+        <div className="lg:grid lg:grid-cols-[1fr_320px] lg:gap-8">
+          <div>
+            <div className="mb-6 grid grid-cols-2 gap-3 lg:hidden">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-[92px] animate-pulse rounded-2xl bg-white" />
+              ))}
+            </div>
+            <div className="mb-4 h-10 w-full animate-pulse rounded-2xl bg-zinc-200 lg:hidden" />
+            <div className="h-48 animate-pulse rounded-3xl bg-white" />
+            <div className="mt-4 h-32 animate-pulse rounded-2xl bg-white" />
+          </div>
+          <aside className="hidden lg:block">
+            <div className="grid grid-cols-2 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-[92px] animate-pulse rounded-2xl bg-white" />
+              ))}
+            </div>
+            <div className="mt-4 h-16 animate-pulse rounded-2xl bg-white" />
+          </aside>
+        </div>
+      </main>
     </div>
   );
 }

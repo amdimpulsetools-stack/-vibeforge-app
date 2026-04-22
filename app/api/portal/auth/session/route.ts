@@ -56,9 +56,22 @@ export async function GET(req: NextRequest) {
 
   const { data: settings } = await supabase
     .from("booking_settings")
-    .select("portal_enabled, portal_allow_cancel, portal_allow_reschedule, portal_min_cancel_hours, portal_welcome_message, accent_color")
+    .select("portal_enabled, portal_allow_cancel, portal_allow_reschedule, portal_min_cancel_hours, portal_welcome_message, accent_color, allow_online_booking")
     .eq("organization_id", session.organization_id)
     .single();
+
+  // Clinic contact info (from global_variables) — used by the contact modal
+  // when online booking is disabled. Scoped to this organization.
+  const { data: vars } = await supabase
+    .from("global_variables")
+    .select("key, value")
+    .eq("organization_id", session.organization_id)
+    .in("key", ["clinic_phone", "clinic_email"]);
+
+  const contact = {
+    phone: vars?.find((v) => v.key === "clinic_phone")?.value || null,
+    email: vars?.find((v) => v.key === "clinic_email")?.value || null,
+  };
 
   return NextResponse.json({
     authenticated: true,
@@ -71,5 +84,6 @@ export async function GET(req: NextRequest) {
     patient,
     organization: org,
     portal_settings: settings,
+    clinic_contact: contact,
   });
 }
