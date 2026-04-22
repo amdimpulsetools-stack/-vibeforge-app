@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Calendar,
-  Clock,
   MapPin,
   Stethoscope,
   Loader2,
@@ -13,9 +12,12 @@ import {
   CheckCircle2,
   AlertCircle,
   FileText,
-  ChevronDown,
-  ChevronUp,
+  ChevronRight,
   Ban,
+  Activity,
+  HeartPulse,
+  CalendarCheck,
+  History,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -72,7 +74,7 @@ interface PortalSettings {
   accent_color: string | null;
 }
 
-function formatDate(dateStr: string): string {
+function formatFullDate(dateStr: string): string {
   const date = new Date(dateStr + "T12:00:00");
   return date.toLocaleDateString("es-PE", {
     weekday: "long",
@@ -80,6 +82,21 @@ function formatDate(dateStr: string): string {
     month: "long",
     year: "numeric",
   });
+}
+
+function formatShortDate(dateStr: string): string {
+  const date = new Date(dateStr + "T12:00:00");
+  return date.toLocaleDateString("es-PE", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function formatMonthYear(dateStr: string): string {
+  const date = new Date(dateStr + "T12:00:00");
+  return date
+    .toLocaleDateString("es-PE", { month: "long", year: "numeric" })
+    .toLowerCase();
 }
 
 function formatTime(time: string): string {
@@ -106,35 +123,45 @@ function getDateLabel(dateStr: string): string | null {
   return null;
 }
 
+function getDayOfWeek(dateStr: string): string {
+  const date = new Date(dateStr + "T12:00:00");
+  return date
+    .toLocaleDateString("es-PE", { weekday: "short" })
+    .replace(".", "")
+    .toUpperCase();
+}
+
+function getDayNumber(dateStr: string): string {
+  const date = new Date(dateStr + "T12:00:00");
+  return String(date.getDate());
+}
+
+function initials(name: string): string {
+  return name
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((s) => s[0])
+    .join("")
+    .toUpperCase();
+}
+
+type StatusKey =
+  | "scheduled"
+  | "confirmed"
+  | "completed"
+  | "cancelled"
+  | "no_show";
+
 const statusConfig: Record<
   string,
   { label: string; color: string; icon: typeof CheckCircle2 }
 > = {
-  scheduled: {
-    label: "Programada",
-    color: "text-blue-600 bg-blue-50",
-    icon: Calendar,
-  },
-  confirmed: {
-    label: "Confirmada",
-    color: "text-emerald-600 bg-emerald-50",
-    icon: CheckCircle2,
-  },
-  completed: {
-    label: "Completada",
-    color: "text-zinc-500 bg-zinc-100",
-    icon: CheckCircle2,
-  },
-  cancelled: {
-    label: "Cancelada",
-    color: "text-red-500 bg-red-50",
-    icon: XCircle,
-  },
-  no_show: {
-    label: "No asistió",
-    color: "text-amber-600 bg-amber-50",
-    icon: AlertCircle,
-  },
+  scheduled: { label: "Programada", color: "#007AFF", icon: Calendar },
+  confirmed: { label: "Confirmada", color: "#34C759", icon: CheckCircle2 },
+  completed: { label: "Completada", color: "#8E8E93", icon: CheckCircle2 },
+  cancelled: { label: "Cancelada", color: "#FF3B30", icon: XCircle },
+  no_show: { label: "No asistió", color: "#FF9500", icon: AlertCircle },
 };
 
 export default function MisCitasPage() {
@@ -148,10 +175,10 @@ export default function MisCitasPage() {
   const [patient, setPatient] = useState<PatientInfo | null>(null);
   const [org, setOrg] = useState<OrgInfo | null>(null);
   const [settings, setSettings] = useState<PortalSettings | null>(null);
-  const [showPast, setShowPast] = useState(false);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [tab, setTab] = useState<"proximas" | "historial">("proximas");
 
   const accent = settings?.accent_color || "#10b981";
 
@@ -225,9 +252,38 @@ export default function MisCitasPage() {
     }
   };
 
+  const stats = useMemo(() => {
+    const lastVisit = past[0]?.appointment_date || null;
+    const completed = past.filter((a) => a.status === "completed").length;
+    const doctorCount = new Set(
+      [...upcoming, ...past]
+        .map((a) => a.doctors?.full_name)
+        .filter(Boolean)
+    ).size;
+    return { lastVisit, completed, doctorCount };
+  }, [upcoming, past]);
+
+  const pastByMonth = useMemo(() => {
+    const groups: { key: string; label: string; items: Appointment[] }[] = [];
+    const map = new Map<string, Appointment[]>();
+    for (const a of past) {
+      const key = a.appointment_date.slice(0, 7);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    }
+    for (const [key, items] of map) {
+      groups.push({
+        key,
+        label: formatMonthYear(items[0].appointment_date),
+        items,
+      });
+    }
+    return groups;
+  }, [past]);
+
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50">
+      <div className="flex min-h-screen items-center justify-center bg-[#F2F2F7]">
         <Loader2 className="h-8 w-8 animate-spin text-zinc-400" />
       </div>
     );
@@ -237,301 +293,319 @@ export default function MisCitasPage() {
   const restUpcoming = upcoming.slice(1);
 
   return (
-    <div className="min-h-screen bg-zinc-50 pb-8">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/90 backdrop-blur-md">
-        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-3">
-            {org?.logo_url ? (
-              <img
-                src={org.logo_url}
-                alt={org.name}
-                className="h-8 w-8 rounded-lg object-cover"
-              />
-            ) : (
-              <div
-                className="flex h-8 w-8 items-center justify-center rounded-lg"
-                style={{ backgroundColor: accent + "15" }}
-              >
-                <Calendar className="h-4 w-4" style={{ color: accent }} />
-              </div>
-            )}
-            <div>
-              <h1 className="text-sm font-semibold leading-tight text-zinc-900">
-                Mis Citas
-              </h1>
-              <p className="text-xs text-zinc-500">{org?.name}</p>
-            </div>
+    <div className="min-h-screen bg-[#F2F2F7] pb-16">
+      {/* Sticky header */}
+      <header className="sticky top-0 z-20 border-b border-black/5 bg-[#F2F2F7]/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-md items-center justify-between px-5 pt-6 pb-3">
+          <div>
+            <p className="text-xs font-medium text-zinc-500">
+              {org?.name}
+            </p>
+            <h1 className="text-[28px] font-bold leading-tight tracking-tight text-zinc-900">
+              Resumen
+            </h1>
           </div>
           <button
             onClick={handleLogout}
             disabled={loggingOut}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+            aria-label="Salir"
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-zinc-600 shadow-sm ring-1 ring-black/5 transition active:scale-95"
           >
             {loggingOut ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              <LogOut className="h-3.5 w-3.5" />
+              <LogOut className="h-4 w-4" />
             )}
-            Salir
           </button>
         </div>
       </header>
 
-      <div className="mx-auto max-w-2xl px-4 pt-6">
-        {/* Welcome */}
+      <main className="mx-auto max-w-md px-5 pt-5">
+        {/* Greeting */}
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-6"
+          className="mb-5"
         >
-          <h2 className="text-xl font-bold text-zinc-900">
+          <h2 className="text-[22px] font-semibold tracking-tight text-zinc-900">
             Hola, {patient?.first_name || "paciente"}
           </h2>
           {settings?.portal_welcome_message && (
-            <p className="mt-1 text-sm text-zinc-500">
+            <p className="mt-1 text-[15px] leading-snug text-zinc-500">
               {settings.portal_welcome_message}
             </p>
           )}
         </motion.div>
 
-        {/* Next appointment — hero card */}
-        {nextAppointment && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-6"
-          >
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">
-              Próxima cita
-            </p>
-            <div
-              className="rounded-2xl border bg-white p-5 shadow-sm"
-              style={{
-                borderColor: accent + "30",
-              }}
-            >
-              <div className="flex items-start justify-between">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    {getDateLabel(nextAppointment.appointment_date) && (
-                      <span
-                        className="rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                        style={{
-                          backgroundColor: accent + "15",
-                          color: accent,
-                        }}
-                      >
-                        {getDateLabel(nextAppointment.appointment_date)}
-                      </span>
-                    )}
-                    <StatusBadge status={nextAppointment.status} />
-                  </div>
-
-                  <div className="flex items-center gap-2 text-sm text-zinc-700">
-                    <Calendar className="h-4 w-4 text-zinc-400" />
-                    <span className="capitalize">
-                      {formatDate(nextAppointment.appointment_date)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-700">
-                    <Clock className="h-4 w-4 text-zinc-400" />
-                    <span>
-                      {formatTime(nextAppointment.start_time)} —{" "}
-                      {formatTime(nextAppointment.end_time)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-zinc-700">
-                    <Stethoscope className="h-4 w-4 text-zinc-400" />
-                    <span>
-                      {nextAppointment.doctors?.full_name}
-                      {nextAppointment.doctors?.specialty && (
-                        <span className="text-zinc-400">
-                          {" "}
-                          · {nextAppointment.doctors.specialty}
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                  {nextAppointment.services && (
-                    <div className="flex items-center gap-2 text-sm text-zinc-700">
-                      <FileText className="h-4 w-4 text-zinc-400" />
-                      <span>{nextAppointment.services.name}</span>
-                    </div>
-                  )}
-                  {nextAppointment.offices && (
-                    <div className="flex items-center gap-2 text-sm text-zinc-700">
-                      <MapPin className="h-4 w-4 text-zinc-400" />
-                      <span>{nextAppointment.offices.name}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Cancel button */}
-              {settings?.portal_allow_cancel &&
-                ["scheduled", "confirmed"].includes(
-                  nextAppointment.status
-                ) && (
-                  <div className="mt-4 border-t border-zinc-100 pt-3">
-                    <AnimatePresence mode="wait">
-                      {confirmCancel === nextAppointment.id ? (
-                        <motion.div
-                          key="confirm"
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="space-y-2"
-                        >
-                          <p className="text-xs text-zinc-500">
-                            ¿Seguro que deseas cancelar esta cita?
-                          </p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() =>
-                                handleCancel(nextAppointment.id)
-                              }
-                              disabled={cancellingId === nextAppointment.id}
-                              className="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
-                            >
-                              {cancellingId === nextAppointment.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Ban className="h-3 w-3" />
-                              )}
-                              Sí, cancelar
-                            </button>
-                            <button
-                              onClick={() => setConfirmCancel(null)}
-                              className="rounded-lg px-3 py-1.5 text-xs text-zinc-500 hover:text-zinc-900 transition-colors"
-                            >
-                              No, mantener
-                            </button>
-                          </div>
-                        </motion.div>
-                      ) : (
-                        <motion.button
-                          key="cancel-btn"
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          onClick={() =>
-                            setConfirmCancel(nextAppointment.id)
-                          }
-                          className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
-                        >
-                          Cancelar esta cita
-                        </motion.button>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                )}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Rest upcoming */}
-        {restUpcoming.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="mb-6"
-          >
-            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">
-              Próximas citas
-            </p>
-            <div className="space-y-2">
-              {restUpcoming.map((appt) => (
-                <AppointmentCard
-                  key={appt.id}
-                  appointment={appt}
-                  accent={accent}
-                  allowCancel={settings?.portal_allow_cancel || false}
-                  confirmCancel={confirmCancel}
-                  cancellingId={cancellingId}
-                  onConfirmCancel={setConfirmCancel}
-                  onCancel={handleCancel}
-                />
-              ))}
-            </div>
-          </motion.div>
-        )}
-
-        {/* Empty state */}
-        {upcoming.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-6 rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-sm"
-          >
-            <Calendar className="mx-auto mb-3 h-10 w-10 text-zinc-300" />
-            <h3 className="font-medium text-zinc-700">
-              No tienes citas próximas
+        {/* Summary tiles */}
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="mb-6"
+        >
+          <div className="mb-2 flex items-center justify-between px-1">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+              Resumen
             </h3>
-            <p className="mt-1 text-sm text-zinc-400">
-              Comunícate con tu clínica para agendar una cita
-            </p>
-          </motion.div>
-        )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <SummaryTile
+              icon={CalendarCheck}
+              iconColor="#FF3B30"
+              label="Próxima cita"
+              value={
+                nextAppointment
+                  ? getDateLabel(nextAppointment.appointment_date) ||
+                    formatShortDate(nextAppointment.appointment_date)
+                  : "—"
+              }
+              sub={
+                nextAppointment
+                  ? formatTime(nextAppointment.start_time)
+                  : "Sin programar"
+              }
+            />
+            <SummaryTile
+              icon={Activity}
+              iconColor="#FF9500"
+              label="Citas completadas"
+              value={String(stats.completed)}
+              sub={stats.completed === 1 ? "visita" : "visitas"}
+            />
+            <SummaryTile
+              icon={History}
+              iconColor="#AF52DE"
+              label="Última visita"
+              value={stats.lastVisit ? formatShortDate(stats.lastVisit) : "—"}
+              sub={stats.lastVisit ? "completada" : "Primera vez"}
+            />
+            <SummaryTile
+              icon={HeartPulse}
+              iconColor="#34C759"
+              label="Especialistas"
+              value={String(stats.doctorCount)}
+              sub={stats.doctorCount === 1 ? "doctor" : "doctores"}
+            />
+          </div>
+        </motion.section>
 
-        {/* Past appointments */}
-        {past.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-          >
-            <button
-              onClick={() => setShowPast(!showPast)}
-              className="flex w-full items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-500 hover:text-zinc-900 transition-colors shadow-sm"
+        {/* Tabs */}
+        <div className="mb-4">
+          <div className="flex rounded-2xl bg-black/5 p-1">
+            <TabButton
+              active={tab === "proximas"}
+              onClick={() => setTab("proximas")}
+              label="Próximas"
+              count={upcoming.length}
+            />
+            <TabButton
+              active={tab === "historial"}
+              onClick={() => setTab("historial")}
+              label="Historial"
+              count={past.length}
+            />
+          </div>
+        </div>
+
+        <AnimatePresence mode="wait">
+          {tab === "proximas" ? (
+            <motion.div
+              key="proximas"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15 }}
             >
-              <span>Historial de citas ({past.length})</span>
-              {showPast ? (
-                <ChevronUp className="h-4 w-4" />
-              ) : (
-                <ChevronDown className="h-4 w-4" />
+              {/* Next appointment hero */}
+              {nextAppointment && (
+                <section className="mb-6">
+                  <h3 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                    Próxima cita
+                  </h3>
+                  <HeroCard
+                    appointment={nextAppointment}
+                    accent={accent}
+                    allowCancel={settings?.portal_allow_cancel || false}
+                    cancellingId={cancellingId}
+                    confirmCancel={confirmCancel}
+                    onConfirmCancel={setConfirmCancel}
+                    onCancel={handleCancel}
+                  />
+                </section>
               )}
-            </button>
 
-            <AnimatePresence>
-              {showPast && (
+              {/* Rest upcoming */}
+              {restUpcoming.length > 0 && (
+                <section className="mb-6">
+                  <h3 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                    Programadas
+                  </h3>
+                  <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                    {restUpcoming.map((appt, i) => (
+                      <AppointmentRow
+                        key={appt.id}
+                        appointment={appt}
+                        allowCancel={settings?.portal_allow_cancel || false}
+                        confirmCancel={confirmCancel}
+                        cancellingId={cancellingId}
+                        onConfirmCancel={setConfirmCancel}
+                        onCancel={handleCancel}
+                        divider={i < restUpcoming.length - 1}
+                      />
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              {/* Empty */}
+              {upcoming.length === 0 && (
                 <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
-                  exit={{ opacity: 0, height: 0 }}
-                  className="mt-2 space-y-2 overflow-hidden"
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-black/5"
                 >
-                  {past.map((appt) => (
-                    <AppointmentCard
-                      key={appt.id}
-                      appointment={appt}
-                      accent={accent}
-                      allowCancel={false}
-                      confirmCancel={null}
-                      cancellingId={null}
-                      onConfirmCancel={() => {}}
-                      onCancel={() => {}}
-                      isPast
-                    />
-                  ))}
+                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#FF3B30]/10">
+                    <Calendar className="h-6 w-6 text-[#FF3B30]" />
+                  </div>
+                  <h3 className="text-[17px] font-semibold text-zinc-900">
+                    Sin citas próximas
+                  </h3>
+                  <p className="mt-1 text-[14px] text-zinc-500">
+                    Comunícate con tu clínica para agendar
+                  </p>
                 </motion.div>
               )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-      </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="historial"
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15 }}
+            >
+              {past.length === 0 ? (
+                <div className="rounded-3xl bg-white p-10 text-center shadow-sm ring-1 ring-black/5">
+                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-200/60">
+                    <History className="h-6 w-6 text-zinc-500" />
+                  </div>
+                  <h3 className="text-[17px] font-semibold text-zinc-900">
+                    Sin historial todavía
+                  </h3>
+                  <p className="mt-1 text-[14px] text-zinc-500">
+                    Tus citas anteriores aparecerán aquí
+                  </p>
+                </div>
+              ) : (
+                pastByMonth.map((group) => (
+                  <section key={group.key} className="mb-6">
+                    <h3 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                      {group.label}
+                    </h3>
+                    <div className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                      {group.items.map((appt, i) => (
+                        <AppointmentRow
+                          key={appt.id}
+                          appointment={appt}
+                          allowCancel={false}
+                          confirmCancel={null}
+                          cancellingId={null}
+                          onConfirmCancel={() => {}}
+                          onCancel={() => {}}
+                          divider={i < group.items.length - 1}
+                          isPast
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ))
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </main>
     </div>
   );
 }
 
-function StatusBadge({ status }: { status: string }) {
+function TabButton({
+  active,
+  onClick,
+  label,
+  count,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  count: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`relative flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-semibold transition ${
+        active ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500"
+      }`}
+    >
+      {label}
+      <span
+        className={`rounded-full px-1.5 py-0.5 text-[11px] font-semibold ${
+          active ? "bg-zinc-100 text-zinc-600" : "bg-zinc-200/60 text-zinc-500"
+        }`}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function SummaryTile({
+  icon: Icon,
+  iconColor,
+  label,
+  value,
+  sub,
+}: {
+  icon: typeof Calendar;
+  iconColor: string;
+  label: string;
+  value: string;
+  sub: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5">
+      <div className="mb-2 flex items-center justify-between">
+        <div
+          className="flex h-7 w-7 items-center justify-center rounded-lg"
+          style={{ backgroundColor: iconColor + "1F" }}
+        >
+          <Icon className="h-4 w-4" style={{ color: iconColor }} />
+        </div>
+        <span
+          className="text-[11px] font-semibold"
+          style={{ color: iconColor }}
+        >
+          {label}
+        </span>
+      </div>
+      <div className="text-[20px] font-bold capitalize leading-tight tracking-tight text-zinc-900">
+        {value}
+      </div>
+      <div className="text-[12px] text-zinc-500">{sub}</div>
+    </div>
+  );
+}
+
+function StatusPill({ status }: { status: string }) {
   const config = statusConfig[status] || statusConfig.scheduled;
   const Icon = config.icon;
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${config.color}`}
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
+      style={{
+        backgroundColor: config.color + "1A",
+        color: config.color,
+      }}
     >
       <Icon className="h-3 w-3" />
       {config.label}
@@ -539,105 +613,312 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
-function AppointmentCard({
+function HeroCard({
   appointment,
   accent,
   allowCancel,
-  confirmCancel,
   cancellingId,
+  confirmCancel,
   onConfirmCancel,
   onCancel,
-  isPast = false,
 }: {
   appointment: Appointment;
   accent: string;
   allowCancel: boolean;
-  confirmCancel: string | null;
   cancellingId: string | null;
+  confirmCancel: string | null;
   onConfirmCancel: (id: string | null) => void;
   onCancel: (id: string) => void;
-  isPast?: boolean;
 }) {
+  const label = getDateLabel(appointment.appointment_date);
   return (
-    <div
-      className={`rounded-xl border border-zinc-200 bg-white p-4 shadow-sm ${
-        isPast ? "opacity-60" : ""
-      }`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex items-center gap-2">
-            <StatusBadge status={appointment.status} />
-            {!isPast && getDateLabel(appointment.appointment_date) && (
-              <span
-                className="rounded-full px-2 py-0.5 text-xs font-medium"
-                style={{ backgroundColor: accent + "15", color: accent }}
-              >
-                {getDateLabel(appointment.appointment_date)}
-              </span>
-            )}
+    <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-black/5">
+      {/* Gradient banner */}
+      <div
+        className="px-5 pt-5 pb-4"
+        style={{
+          background: `linear-gradient(135deg, ${accent}14 0%, ${accent}06 100%)`,
+        }}
+      >
+        <div className="flex items-start gap-4">
+          {/* Date block */}
+          <div className="flex flex-col items-center rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-black/5">
+            <span
+              className="text-[10px] font-bold uppercase tracking-wider"
+              style={{ color: accent }}
+            >
+              {getDayOfWeek(appointment.appointment_date)}
+            </span>
+            <span className="text-[26px] font-bold leading-none tracking-tight text-zinc-900">
+              {getDayNumber(appointment.appointment_date)}
+            </span>
           </div>
 
-          <p className="text-sm capitalize text-zinc-700">
-            {formatDate(appointment.appointment_date)}
-          </p>
-          <p className="text-sm text-zinc-500">
-            {formatTime(appointment.start_time)} —{" "}
-            {formatTime(appointment.end_time)}
-          </p>
-
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400">
-            <span className="flex items-center gap-1">
-              <Stethoscope className="h-3 w-3" />
-              {appointment.doctors?.full_name}
-            </span>
-            {appointment.services && (
-              <span className="flex items-center gap-1">
-                <FileText className="h-3 w-3" />
-                {appointment.services.name}
-              </span>
-            )}
-            {appointment.offices && (
-              <span className="flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
-                {appointment.offices.name}
-              </span>
-            )}
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {label && (
+                <span
+                  className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                  style={{
+                    backgroundColor: accent + "22",
+                    color: accent,
+                  }}
+                >
+                  {label}
+                </span>
+              )}
+              <StatusPill status={appointment.status} />
+            </div>
+            <p className="mt-2 text-[15px] font-semibold capitalize text-zinc-900">
+              {formatFullDate(appointment.appointment_date)}
+            </p>
+            <p className="text-[14px] text-zinc-500">
+              {formatTime(appointment.start_time)} —{" "}
+              {formatTime(appointment.end_time)}
+            </p>
           </div>
         </div>
       </div>
 
+      {/* Details */}
+      <div className="divide-y divide-black/5">
+        <DetailRow
+          icon={Stethoscope}
+          iconColor="#5856D6"
+          title={appointment.doctors?.full_name || "Doctor"}
+          subtitle={appointment.doctors?.specialty || "Especialista"}
+          avatar={appointment.doctors?.photo_url}
+          avatarFallback={
+            appointment.doctors?.full_name
+              ? initials(appointment.doctors.full_name)
+              : null
+          }
+        />
+        {appointment.services && (
+          <DetailRow
+            icon={FileText}
+            iconColor="#007AFF"
+            title={appointment.services.name}
+            subtitle={`${appointment.services.duration_minutes} min`}
+          />
+        )}
+        {appointment.offices && (
+          <DetailRow
+            icon={MapPin}
+            iconColor="#FF3B30"
+            title={appointment.offices.name}
+            subtitle="Consultorio"
+          />
+        )}
+      </div>
+
       {/* Cancel */}
       {allowCancel &&
-        !isPast &&
         ["scheduled", "confirmed"].includes(appointment.status) && (
-          <div className="mt-3 border-t border-zinc-100 pt-2">
-            <AnimatePresence mode="wait">
+          <div className="border-t border-black/5 bg-zinc-50/50 px-5 py-3">
+            <AnimatePresence mode="wait" initial={false}>
               {confirmCancel === appointment.id ? (
                 <motion.div
                   key="confirm"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className="flex items-center gap-2"
+                  className="flex items-center justify-between gap-2"
                 >
+                  <p className="text-[12px] text-zinc-600">
+                    ¿Cancelar esta cita?
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onConfirmCancel(null)}
+                      className="rounded-full px-3 py-1.5 text-[12px] font-semibold text-zinc-500 hover:bg-zinc-100"
+                    >
+                      No
+                    </button>
+                    <button
+                      onClick={() => onCancel(appointment.id)}
+                      disabled={cancellingId === appointment.id}
+                      className="inline-flex items-center gap-1 rounded-full bg-[#FF3B30] px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm active:scale-95"
+                    >
+                      {cancellingId === appointment.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Ban className="h-3 w-3" />
+                      )}
+                      Cancelar
+                    </button>
+                  </div>
+                </motion.div>
+              ) : (
+                <motion.button
+                  key="btn"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  onClick={() => onConfirmCancel(appointment.id)}
+                  className="text-[13px] font-medium text-[#FF3B30]"
+                >
+                  Cancelar cita
+                </motion.button>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+    </div>
+  );
+}
+
+function DetailRow({
+  icon: Icon,
+  iconColor,
+  title,
+  subtitle,
+  avatar,
+  avatarFallback,
+}: {
+  icon: typeof Calendar;
+  iconColor: string;
+  title: string;
+  subtitle?: string;
+  avatar?: string | null;
+  avatarFallback?: string | null;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-5 py-3">
+      {avatar ? (
+        <img
+          src={avatar}
+          alt={title}
+          className="h-9 w-9 rounded-full object-cover ring-1 ring-black/5"
+        />
+      ) : avatarFallback ? (
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold text-white"
+          style={{ backgroundColor: iconColor }}
+        >
+          {avatarFallback}
+        </div>
+      ) : (
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-full"
+          style={{ backgroundColor: iconColor + "1F" }}
+        >
+          <Icon className="h-4 w-4" style={{ color: iconColor }} />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[14px] font-semibold text-zinc-900">
+          {title}
+        </p>
+        {subtitle && (
+          <p className="truncate text-[12px] text-zinc-500">{subtitle}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AppointmentRow({
+  appointment,
+  allowCancel,
+  confirmCancel,
+  cancellingId,
+  onConfirmCancel,
+  onCancel,
+  divider,
+  isPast = false,
+}: {
+  appointment: Appointment;
+  allowCancel: boolean;
+  confirmCancel: string | null;
+  cancellingId: string | null;
+  onConfirmCancel: (id: string | null) => void;
+  onCancel: (id: string) => void;
+  divider: boolean;
+  isPast?: boolean;
+}) {
+  const label = getDateLabel(appointment.appointment_date);
+  const cfg = statusConfig[appointment.status] || statusConfig.scheduled;
+  return (
+    <div className={divider ? "border-b border-black/5" : ""}>
+      <div className="flex items-center gap-3 px-4 py-3">
+        {/* Date block */}
+        <div
+          className="flex h-12 w-12 flex-shrink-0 flex-col items-center justify-center rounded-xl"
+          style={{
+            backgroundColor: isPast ? "#E5E5EA80" : cfg.color + "1F",
+          }}
+        >
+          <span
+            className="text-[9px] font-bold uppercase"
+            style={{ color: isPast ? "#8E8E93" : cfg.color }}
+          >
+            {getDayOfWeek(appointment.appointment_date)}
+          </span>
+          <span
+            className={`text-[16px] font-bold leading-none ${
+              isPast ? "text-zinc-500" : "text-zinc-900"
+            }`}
+          >
+            {getDayNumber(appointment.appointment_date)}
+          </span>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            {label && !isPast && (
+              <span className="rounded-full bg-[#FF3B30]/10 px-1.5 py-0.5 text-[10px] font-bold text-[#FF3B30]">
+                {label}
+              </span>
+            )}
+            <StatusPill status={appointment.status} />
+          </div>
+          <p
+            className={`mt-0.5 truncate text-[14px] font-semibold ${
+              isPast ? "text-zinc-600" : "text-zinc-900"
+            }`}
+          >
+            {appointment.doctors?.full_name || "Doctor"}
+          </p>
+          <p className="truncate text-[12px] text-zinc-500">
+            {formatTime(appointment.start_time)}
+            {appointment.services && ` · ${appointment.services.name}`}
+          </p>
+        </div>
+
+        <ChevronRight className="h-4 w-4 flex-shrink-0 text-zinc-300" />
+      </div>
+
+      {/* Cancel */}
+      {allowCancel &&
+        !isPast &&
+        ["scheduled", "confirmed"].includes(appointment.status) && (
+          <div className="px-4 pb-3">
+            <AnimatePresence mode="wait" initial={false}>
+              {confirmCancel === appointment.id ? (
+                <motion.div
+                  key="confirm"
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="flex items-center justify-end gap-2 overflow-hidden pt-1"
+                >
+                  <button
+                    onClick={() => onConfirmCancel(null)}
+                    className="rounded-full px-3 py-1.5 text-[12px] font-semibold text-zinc-500 hover:bg-zinc-100"
+                  >
+                    No
+                  </button>
                   <button
                     onClick={() => onCancel(appointment.id)}
                     disabled={cancellingId === appointment.id}
-                    className="flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
+                    className="inline-flex items-center gap-1 rounded-full bg-[#FF3B30] px-3 py-1.5 text-[12px] font-semibold text-white shadow-sm active:scale-95"
                   >
                     {cancellingId === appointment.id ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
                       <Ban className="h-3 w-3" />
                     )}
-                    Confirmar
-                  </button>
-                  <button
-                    onClick={() => onConfirmCancel(null)}
-                    className="text-xs text-zinc-400 hover:text-zinc-900 transition-colors"
-                  >
-                    No
+                    Cancelar
                   </button>
                 </motion.div>
               ) : (
@@ -646,7 +927,7 @@ function AppointmentCard({
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   onClick={() => onConfirmCancel(appointment.id)}
-                  className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
+                  className="text-[12px] font-medium text-[#FF3B30]"
                 >
                   Cancelar cita
                 </motion.button>
