@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-04-17
-> **Versión:** 0.9.0
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico)
+> **Última actualización:** 2026-04-22
+> **Versión:** 0.10.1
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (rediseño Apple Health + detalle de cita + mi perfil) + Dashboard admin con timeline
 
 ---
 
@@ -1522,3 +1522,97 @@ Primer addon vertical completo, para endocrinología pediátrica y pediatría.
 
 - Fase 2 de Especialidades (Sección 22) pasa de "Pendiente" a "Parcialmente implementado": la infraestructura de addons + el primer vertical completo están entregados; quedan pendientes `doctor_specialties`, tabs condicionales en historia clínica, y módulos premium cobrables.
 - Pendientes movidos a Completado: sistema de módulos verticales, primer vertical (endocrinología pediátrica), marketplace de integraciones, tracking de owners del founder.
+
+---
+
+## 24. Changelog — Sesión 2026-04-22 (v0.10.1) — Portal rediseñado + Dashboard timeline
+
+### Fixes de schema drift (el portal no enviaba magic link ni mostraba citas)
+
+Dos columnas asumidas por el código y el PRD nunca existieron en producción porque los `CREATE TABLE IF NOT EXISTS` de migraciones posteriores saltaron las columnas nuevas:
+
+- **Migración 094** — `ALTER TABLE organizations ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`. Sin esta columna, `/api/portal/auth/request-link` hacía `.eq("is_active", true)` sobre una columna inexistente, PostgREST devolvía 400, `.single()` retornaba null, el `if (!org)` entraba al branch silencioso y nunca se creaba el token — el correo jamás salía.
+- **Migración 095** — `ALTER TABLE doctors ADD COLUMN IF NOT EXISTS specialty TEXT`. Sin esta columna, `/api/portal/appointments` fallaba al seleccionar `doctors(specialty, …)` y la vista "Mis Citas" del portal se mostraba vacía aunque hubiera citas.
+
+Ambas migraciones son no-destructivas y usan `IF NOT EXISTS`; los valores por defecto respetan el modelo de negocio (todas las orgs activas por defecto, `specialty` nullable editable por staff).
+
+### Canonicalización de URLs (yenda.app)
+
+Tres puntos del código construían URLs públicas desde `window.location.origin` o `req.headers.get("origin")`, generando links al dominio `saas-orcin-seven.vercel.app` en lugar del canónico `yenda.app`:
+
+- `app/api/portal/auth/request-link/route.ts` — origen del magic link
+- `app/(dashboard)/settings/booking-settings-tab.tsx` — panel admin con URL pública
+- `components/integrations/whatsapp-wizard.tsx` — webhook URL
+
+Todos ahora priorizan `process.env.NEXT_PUBLIC_APP_URL` con fallback al request. La Site URL de Supabase Auth se apunta a `https://yenda.app` para que OAuth (Google) aterrice correctamente.
+
+### Portal del Paciente — Rediseño Apple Health (Phase 1.1)
+
+`app/portal/[slug]/mis-citas/page.tsx` reescrita con lenguaje visual tipo Apple Health, mobile-first:
+
+- Fondo iOS `systemGray6` (`#F2F2F7`), tarjetas blancas `rounded-3xl` con `ring-1 ring-black/5`.
+- Sticky header con blur, título "Resumen" + nombre de la org, botones circulares (perfil con iniciales + salir).
+- Grid 2×2 de tiles de salud con icono tintado al 12%: Próxima cita (rojo), Citas completadas (naranja), Última visita (morado), Especialistas (verde). Todos tappable.
+- Tabs segmentadas **Próximas** / **Historial** con contadores en vivo.
+- Hero card de próxima cita: banner en gradiente del accent color, bloque de fecha blanco tipo iOS (día de semana + número), filas de detalle con avatar del doctor, servicio y consultorio.
+- Filas de programadas y historial agrupadas por mes (abril 2026, marzo 2026, …) en tarjetas con divisores.
+
+### Portal del Paciente — Enriquecimiento (Phase 1.2)
+
+Agregadas 5 interacciones nuevas y 1 API:
+
+- **Bottom sheet de detalle de cita** — tap en cualquier cita o tile → abre sheet con doctor+avatar, servicio, consultorio, precio, origen (portal/whatsapp/manual/booking), notas, y dos acciones: "Añadir al calendario" (genera .ics client-side) y "Cancelar cita" (respeta `portal_allow_cancel`).
+- **FAB "Agendar cita"** flotante persistente que lleva a `/book/[slug]` reutilizando el flujo público existente. También aparece inline en el empty state cuando no hay próximas citas.
+- **Bottom sheet de perfil** — botón con iniciales del paciente en el header. Muestra DNI + email bloqueados (con nota "Usado para iniciar sesión") y teléfono editable inline con validación.
+- **Filter chips en Historial** — Todas / Completadas / Canceladas / No asistió con conteos en vivo. Chips con 0 se ocultan.
+- **Bottom sheet de especialistas** — tap en el tile "Especialistas" → lista de doctores con # de citas visitadas ordenado por frecuencia.
+- **API `PATCH /api/portal/profile`** — única ruta editable del perfil. Valida formato de teléfono (`^[+\\d\\s()-]{6,30}$`), escribe solo `portal_phone` para evitar tampering de identidad. Nombre, email y DNI requieren contacto con la clínica (decisión de producto).
+
+### Dashboard admin — Lenguaje visual consistente con el portal
+
+`app/(dashboard)/dashboard/admin-dashboard.tsx` recibe el mismo patrón de icono tintado + label de color que el portal, adaptado a dark mode con utilidades Tailwind (`bg-<color>-500/10`):
+
+| Card | Icono | Color |
+|---|---|---|
+| Ingresos del mes | `Wallet` blanco sobre emerald | emerald hero |
+| Cobranza pendiente | `CircleDollarSign` | orange |
+| Citas | `CalendarDays` | violet |
+| Pacientes nuevos vs recurrentes | `UserPlus` | emerald |
+| Rendimiento por recepcionista | `Headset` | sky |
+| % de Ocupación | `Gauge` (dinámico) | rose/amber/emerald |
+| Meta del mes | `Target` | emerald |
+| Timeline últimos 30 días | `Activity` | emerald |
+
+### Dashboard admin — Timeline + KPI polish
+
+- **Timeline de 30 días** (reemplaza Top 5 Tratamientos; estos viven en `/reports` desde v0.7.0). Área chart de recharts con gradiente emerald, grid horizontal sutil, tooltip con día de la semana + fecha + conteo. Header del card muestra total + promedio/día y link "Ver agenda →" al scheduler. La query se hace en `dashboard/page.tsx`: `appointments` de los últimos 30 días excluyendo `cancelled`, rellenando con 0 los días sin citas.
+- **Citas card normalizada** — ya no mezcla absoluto y porcentaje. Ahora muestra los tres valores en absoluto (Completadas N · No shows N · Canceladas N) para claridad con volumen bajo.
+- **Ocupación tri-color**:
+  - `>= 60%` → emerald + "Óptima"
+  - `20-60%` → amber + "Media"
+  - `< 20%` → rose + "Baja"
+  - Barra de progreso con ancho mínimo 2% para que 0-1% sea visible.
+  - Hint `"Meta saludable: 60%+"` para dar contexto al número.
+- **Rendimiento por recepcionista condicional** — se oculta cuando hay menos de 2 recepcionistas (la mayoría de clínicas al inicio). La fila 2 colapsa automáticamente de `md:grid-cols-3` a `md:grid-cols-2`, sin hueco visual.
+
+### Archivos Nuevos / Modificados Clave
+
+- `supabase/migrations/094_restore_organizations_is_active.sql` (nuevo)
+- `supabase/migrations/095_restore_doctors_specialty.sql` (nuevo)
+- `app/api/portal/profile/route.ts` (nuevo — PATCH de teléfono)
+- `app/portal/[slug]/mis-citas/page.tsx` (rewrite completo)
+- `app/(dashboard)/dashboard/admin-dashboard.tsx` (iconos + timeline + KPI fixes)
+- `app/(dashboard)/dashboard/page.tsx` (nueva query `dailySeries`, prop `topTreatments` removida)
+- `app/api/portal/auth/request-link/route.ts` (URL canónica)
+- `app/(dashboard)/settings/booking-settings-tab.tsx` (URL canónica)
+- `components/integrations/whatsapp-wizard.tsx` (URL canónica)
+
+### COMING-UPDATES.md — Añadidos al roadmap del portal
+
+- **Portal — Panel de Resultados médicos (lab/imágenes)** — nueva tabla `patient_files`, bucket de Supabase Storage con policy por `org_id`+`patient_id`, UI de upload desde admin, listado agrupado por tipo en el portal.
+- **Portal — Indicaciones / pre-consulta** — campo `pre_appointment_instructions` en `services`, override opcional `custom_instructions` en `appointments`, visible en detalle de cita y email de recordatorio 24h antes.
+
+### Cambios de Alcance
+
+- Portal del Paciente avanza de "Phase 1 (auth + mis citas)" a "Phase 1 consolidada con detalle de cita, perfil editable, filtros y CTA de agendar". Las fases 2 (reservar desde portal), 3 (reprogramar), 4 (documentos) siguen en roadmap.
+- Dashboard admin: el foco cambió de "mix estratégico de servicios" (Top 5) a "pulso operativo" (timeline diario). La visión estratégica sigue disponible en `/reports`.
