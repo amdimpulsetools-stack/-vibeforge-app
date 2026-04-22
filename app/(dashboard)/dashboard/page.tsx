@@ -196,15 +196,34 @@ export default async function DashboardPage() {
     debtorCount: stats.debtor_count_today ?? 0,
   };
 
-  // ── Top treatments (expanded to 5) ──
-  const topTreatments = (stats.top_treatments ?? []) as Array<{ name: string; count: number; revenue: number }>;
-
   // ── Receptionist performance ──
   const receptionistPerformance = (stats.receptionist_performance ?? []) as Array<{
     name: string;
     completed: number;
     total: number;
   }>;
+
+  // ── Daily appointment series (last 30 days, excluding cancelled) ──
+  const seriesStart = format(subDays(now, 29), "yyyy-MM-dd");
+  const { data: seriesRows } = await supabase
+    .from("appointments")
+    .select("appointment_date")
+    .eq("organization_id", membership.organization_id)
+    .gte("appointment_date", seriesStart)
+    .lte("appointment_date", today)
+    .neq("status", "cancelled");
+
+  const seriesCounts = new Map<string, number>();
+  for (const row of seriesRows ?? []) {
+    const d = row.appointment_date as string;
+    seriesCounts.set(d, (seriesCounts.get(d) ?? 0) + 1);
+  }
+  const dailySeries = eachDayOfInterval({ start: subDays(now, 29), end: now }).map(
+    (d) => {
+      const date = format(d, "yyyy-MM-dd");
+      return { date, count: seriesCounts.get(date) ?? 0 };
+    }
+  );
 
   // Check if the owner/admin also has a linked doctor record
   const { data: linkedDoctor } = await supabase
@@ -226,7 +245,7 @@ export default async function DashboardPage() {
           today: todayData,
         }}
         receptionistPerformance={receptionistPerformance}
-        topTreatments={topTreatments}
+        dailySeries={dailySeries}
         monthlyRevenueGoal={Number(stats.monthly_revenue_goal ?? 0)}
       />
       {linkedDoctor && (

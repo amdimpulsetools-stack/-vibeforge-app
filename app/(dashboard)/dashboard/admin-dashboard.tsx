@@ -9,10 +9,9 @@ import {
   CheckCircle2,
   XCircle,
   UserPlus,
-  Users,
   FileText,
   UserX,
-  Stethoscope,
+  Activity,
   Wallet,
   CircleDollarSign,
   CalendarDays,
@@ -22,13 +21,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Cell,
+  CartesianGrid,
 } from "recharts";
 
 // ── Types ──────────────────────────────────────────────────────
@@ -57,17 +56,16 @@ interface ReceptionistPerf {
   total: number;
 }
 
-interface TopTreatment {
-  name: string;
+interface DailyPoint {
+  date: string;
   count: number;
-  revenue: number;
 }
 
 interface AdminDashboardProps {
   userName: string;
   periodData: Record<"month" | "week" | "today", PeriodData>;
   receptionistPerformance: ReceptionistPerf[];
-  topTreatments: TopTreatment[];
+  dailySeries: DailyPoint[];
   monthlyRevenueGoal: number;
 }
 
@@ -91,7 +89,6 @@ function GrowthBadge({ value, suffix, light }: { value: number; suffix?: string;
   );
 }
 
-const BAR_COLORS = ["#10b981", "#34d399", "#6ee7b7", "#a7f3d0", "#d1fae5"];
 const RECEPTIONIST_COLORS = [
   "#f97316", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6",
 ];
@@ -102,7 +99,7 @@ export function AdminDashboard({
   userName,
   periodData,
   receptionistPerformance,
-  topTreatments,
+  dailySeries,
   monthlyRevenueGoal,
 }: AdminDashboardProps) {
   const { language } = useLanguage();
@@ -121,6 +118,35 @@ export function AdminDashboard({
     week: isEs ? "vs 7 días ant." : "vs prev 7 days",
     today: isEs ? "vs ayer" : "vs yesterday",
   };
+
+  // Timeline stats
+  const seriesTotal = dailySeries.reduce((sum, p) => sum + p.count, 0);
+  const seriesAvg = dailySeries.length > 0 ? seriesTotal / dailySeries.length : 0;
+
+  // Occupancy thresholds
+  const occupancyTone =
+    data.occupancyRate >= 60
+      ? {
+          text: "text-emerald-500",
+          bar: "bg-emerald-500",
+          iconBg: "bg-emerald-500/10",
+          label: isEs ? "Óptima" : "Healthy",
+        }
+      : data.occupancyRate >= 20
+        ? {
+            text: "text-amber-500",
+            bar: "bg-amber-500",
+            iconBg: "bg-amber-500/10",
+            label: isEs ? "Media" : "Moderate",
+          }
+        : {
+            text: "text-rose-500",
+            bar: "bg-rose-500",
+            iconBg: "bg-rose-500/10",
+            label: isEs ? "Baja" : "Low",
+          };
+
+  const showReceptionist = receptionistPerformance.length >= 2;
 
   // Revenue goal progress
   const goalProgress = monthlyRevenueGoal > 0
@@ -250,8 +276,10 @@ export function AdminDashboard({
               <div className="flex justify-center mb-1">
                 <UserX className="h-4 w-4 text-amber-500" />
               </div>
-              <p className="text-xs text-muted-foreground">%No Shows</p>
-              <p className="text-2xl font-extrabold">{data.noShowRate}%</p>
+              <p className="text-xs text-muted-foreground">
+                {isEs ? "No shows" : "No shows"}
+              </p>
+              <p className="text-2xl font-extrabold">{data.noShowCount}</p>
             </div>
             <div className="text-center">
               <div className="flex justify-center mb-1">
@@ -260,14 +288,18 @@ export function AdminDashboard({
               <p className="text-xs text-muted-foreground">
                 {isEs ? "Canceladas" : "Cancelled"}
               </p>
-              <p className="text-2xl font-extrabold">{data.cancelledRate}%</p>
+              <p className="text-2xl font-extrabold">{data.cancelledCount}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* ── ROW 2: New vs Recurring | Receptionist Performance | Occupancy ── */}
-      <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+      <div
+        className={`grid gap-4 grid-cols-1 ${
+          showReceptionist ? "md:grid-cols-3" : "md:grid-cols-2"
+        }`}
+      >
         {/* New vs Recurring patients */}
         <div className="rounded-2xl border border-border/60 bg-card p-6">
           <div className="mb-4 flex items-center justify-between">
@@ -301,20 +333,16 @@ export function AdminDashboard({
         </div>
 
         {/* Receptionist Performance */}
-        <div className="rounded-2xl border border-border/60 bg-card p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10">
-              <Headset className="h-4 w-4 text-sky-500" />
+        {showReceptionist && (
+          <div className="rounded-2xl border border-border/60 bg-card p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10">
+                <Headset className="h-4 w-4 text-sky-500" />
+              </div>
+              <span className="text-xs font-semibold text-sky-500">
+                {isEs ? "Rendimiento por recepcionista" : "Receptionist performance"}
+              </span>
             </div>
-            <span className="text-xs font-semibold text-sky-500">
-              {isEs ? "Rendimiento por recepcionista" : "Receptionist performance"}
-            </span>
-          </div>
-          {receptionistPerformance.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              {isEs ? "Sin datos" : "No data"}
-            </p>
-          ) : (
             <div className="space-y-2.5">
               {receptionistPerformance.slice(0, 5).map((r, i) => (
                 <div key={r.name} className="flex items-center gap-2">
@@ -329,32 +357,42 @@ export function AdminDashboard({
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Occupancy Rate */}
         <div className="rounded-2xl border border-border/60 bg-card p-6">
           <div className="mb-3 flex items-center justify-between">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
-              <Gauge className="h-4 w-4 text-amber-500" />
+            <div
+              className={`flex h-8 w-8 items-center justify-center rounded-lg ${occupancyTone.iconBg}`}
+            >
+              <Gauge className={`h-4 w-4 ${occupancyTone.text}`} />
             </div>
-            <span className="text-xs font-semibold text-amber-500">
+            <span className={`text-xs font-semibold ${occupancyTone.text}`}>
               {isEs ? "% de Ocupación" : "Occupancy %"}
             </span>
           </div>
-          <p className="text-5xl font-extrabold tracking-tight">
-            {data.occupancyRate}%
-          </p>
+          <div className="flex items-baseline gap-2">
+            <p className="text-5xl font-extrabold tracking-tight">
+              {data.occupancyRate}%
+            </p>
+            <span className={`text-xs font-semibold ${occupancyTone.text}`}>
+              {occupancyTone.label}
+            </span>
+          </div>
           <div className="mt-2">
             <GrowthBadge value={data.occupancyGrowth} suffix={periodSuffix[period]} />
           </div>
           {/* Progress bar */}
           <div className="mt-4 h-2 w-full rounded-full bg-muted overflow-hidden">
             <div
-              className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-              style={{ width: `${data.occupancyRate}%` }}
+              className={`h-full rounded-full ${occupancyTone.bar} transition-all duration-500`}
+              style={{ width: `${Math.max(2, data.occupancyRate)}%` }}
             />
           </div>
+          <p className="mt-2 text-[11px] text-muted-foreground">
+            {isEs ? "Meta saludable: 60%+" : "Healthy target: 60%+"}
+          </p>
         </div>
       </div>
 
@@ -423,65 +461,107 @@ export function AdminDashboard({
           )}
         </div>
 
-        {/* Top 5 Treatments */}
+        {/* Appointments Timeline (last 30 days) */}
         <div className="md:col-span-2 rounded-2xl border border-border/60 bg-card">
-          <div className="flex items-center gap-2.5 px-6 py-4 border-b border-border/40">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
-              <Stethoscope className="h-4 w-4 text-emerald-500" />
+          <div className="flex items-center justify-between gap-2.5 px-6 py-4 border-b border-border/40">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+                <Activity className="h-4 w-4 text-emerald-500" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold">
+                  {isEs ? "Citas últimos 30 días" : "Appointments last 30 days"}
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  {seriesTotal} {isEs ? "citas · promedio" : "appointments · avg"}{" "}
+                  {seriesAvg.toFixed(1)}/{isEs ? "día" : "day"}
+                </p>
+              </div>
             </div>
-            <h3 className="text-sm font-bold">
-              {isEs ? "Top 5 Tratamientos" : "Top 5 Treatments"}
-            </h3>
+            <Link
+              href="/scheduler"
+              className="hidden sm:block text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {isEs ? "Ver agenda →" : "View schedule →"}
+            </Link>
           </div>
-          {topTreatments.length === 0 ? (
+          {seriesTotal === 0 ? (
             <div className="p-8 text-center">
               <p className="text-sm text-muted-foreground">
-                {isEs ? "Sin datos" : "No data"}
+                {isEs ? "Sin citas en los últimos 30 días" : "No appointments in the last 30 days"}
               </p>
             </div>
           ) : (
             <div className="px-4 py-4">
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart
-                  data={topTreatments.map((t) => ({ ...t, value: t.count }))}
-                  layout="vertical"
-                  barCategoryGap="25%"
+                <AreaChart
+                  data={dailySeries}
+                  margin={{ top: 10, right: 12, left: -20, bottom: 0 }}
                 >
-                  <XAxis type="number" hide />
-                  <YAxis
-                    type="category"
-                    dataKey="name"
-                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                  <defs>
+                    <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="hsl(var(--border))"
+                    vertical={false}
+                    opacity={0.4}
+                  />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
                     tickLine={false}
                     axisLine={false}
-                    width={150}
+                    interval="preserveStartEnd"
+                    minTickGap={28}
+                    tickFormatter={(d: string) => {
+                      const [, m, day] = d.split("-");
+                      return `${parseInt(day, 10)}/${parseInt(m, 10)}`;
+                    }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                    tickLine={false}
+                    axisLine={false}
+                    allowDecimals={false}
+                    width={30}
                   />
                   <Tooltip
                     content={({ active, payload }) => {
                       if (!active || !payload?.length) return null;
-                      const d = payload[0].payload as TopTreatment;
+                      const d = payload[0].payload as DailyPoint;
+                      const date = new Date(d.date + "T12:00:00");
+                      const label = date.toLocaleDateString(isEs ? "es-PE" : "en-US", {
+                        weekday: "short",
+                        day: "numeric",
+                        month: "short",
+                      });
                       return (
                         <div className="rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
-                          <p className="text-xs font-semibold">{d.name}</p>
-                          <p className="text-xs">{d.count} {isEs ? "citas" : "appts"}</p>
-                          <p className="text-xs text-emerald-400 font-medium">{formatCurrency(d.revenue)}</p>
+                          <p className="text-xs font-semibold capitalize">{label}</p>
+                          <p className="text-xs text-emerald-500 font-medium">
+                            {d.count} {isEs ? (d.count === 1 ? "cita" : "citas") : (d.count === 1 ? "appt" : "appts")}
+                          </p>
                         </div>
                       );
                     }}
-                    cursor={false}
+                    cursor={{ stroke: "hsl(var(--border))", strokeWidth: 1 }}
                   />
-                  <Bar
-                    dataKey="value"
-                    radius={999}
-                    background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }}
+                  <Area
+                    type="monotone"
+                    dataKey="count"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    fill="url(#areaGrad)"
                     animationDuration={800}
                     animationEasing="ease-out"
-                  >
-                    {topTreatments.map((_, i) => (
-                      <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
+                    dot={false}
+                    activeDot={{ r: 4, fill: "#10b981", stroke: "white", strokeWidth: 2 }}
+                  />
+                </AreaChart>
               </ResponsiveContainer>
             </div>
           )}
