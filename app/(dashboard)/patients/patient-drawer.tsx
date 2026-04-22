@@ -56,6 +56,7 @@ import { ExamOrdersPanel } from "./exam-orders-panel";
 import { VitalsTrendsChart } from "./vitals-trends-chart";
 import { DiagnosisHistoryPanel } from "./diagnosis-history-panel";
 import { ClinicalHistoryModal } from "./clinical-history-modal";
+import { RecurringBadge } from "@/components/patients/recurring-badge";
 import { GrowthCurvesPanel } from "./growth-curves-panel";
 import type { Sex } from "@/lib/growth-curves";
 import { TrendingUp, Maximize2 } from "lucide-react";
@@ -342,9 +343,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               {patient.first_name[0]}{patient.last_name[0]}
             </div>
             <div>
-              <h3 className="text-base font-bold">
-                {patient.first_name} {patient.last_name}
-              </h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold">
+                  {patient.first_name} {patient.last_name}
+                </h3>
+                {patient.is_recurring && <RecurringBadge size="xs" />}
+              </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 {patient.dni && <span>{patient.document_type ?? "DNI"}: {patient.dni}</span>}
                 {patient.birth_date && (() => {
@@ -1167,9 +1171,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     {patient.first_name?.[0]}{patient.last_name?.[0]}
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold">
-                      {patient.first_name} {patient.last_name}
-                    </h2>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-xl font-bold">
+                        {patient.first_name} {patient.last_name}
+                      </h2>
+                      {patient.is_recurring && <RecurringBadge size="sm" />}
+                    </div>
                     <div className="flex flex-wrap items-center gap-3 mt-1 text-sm text-muted-foreground">
                       {patient.dni && <span>DNI: {patient.dni}</span>}
                       {patient.phone && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{patient.phone}</span>}

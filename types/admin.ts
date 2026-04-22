@@ -34,7 +34,11 @@ export type Appointment = Database["public"]["Tables"]["appointments"]["Row"];
 export type AppointmentInsert = Database["public"]["Tables"]["appointments"]["Insert"];
 export type AppointmentUpdate = Database["public"]["Tables"]["appointments"]["Update"];
 
-export type Patient = Database["public"]["Tables"]["patients"]["Row"];
+// Patient types augmented with is_recurring (added in migration 096,
+// pending Supabase type regeneration).
+export type Patient = Database["public"]["Tables"]["patients"]["Row"] & {
+  is_recurring?: boolean | null;
+};
 export type PatientInsert = Database["public"]["Tables"]["patients"]["Insert"];
 export type PatientUpdate = Database["public"]["Tables"]["patients"]["Update"];
 

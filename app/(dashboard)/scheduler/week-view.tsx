@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign, Video } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
+import { RecurringDot } from "@/components/patients/recurring-badge";
 
 interface WeekViewProps {
   currentDate: Date;
@@ -287,6 +288,9 @@ export function WeekView({
                         }}
                       >
                         <div className="flex items-center gap-0.5">
+                          {startAppt.patients?.is_recurring && (
+                            <RecurringDot className="shrink-0" />
+                          )}
                           <p className="text-[10px] font-semibold truncate flex-1" style={{ color: hexToDark(doctorColor) }}>
                             {startAppt.start_time.slice(0, 5)} {startAppt.patient_name}
                           </p>
