@@ -31,9 +31,11 @@ import { usePlan } from "@/hooks/use-plan";
 import { PatientDrawer } from "./patient-drawer";
 import { PatientFormModal } from "./patient-form-modal";
 import { BulkImportModal } from "./bulk-import-modal";
+import { RecurringBadge } from "@/components/patients/recurring-badge";
 import { exportToCSV, calculateAge } from "@/lib/export";
 
 type StatusFilter = "all" | "active" | "inactive";
+type RecurrenceFilter = "all" | "new" | "recurring";
 
 const PAGE_SIZE = 25;
 
@@ -58,6 +60,7 @@ export default function PatientsPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [recurrenceFilter, setRecurrenceFilter] = useState<RecurrenceFilter>("all");
   const [selectedPatient, setSelectedPatient] = useState<PatientWithTags | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
@@ -128,7 +131,7 @@ export default function PatientsPage() {
     let query = supabase
       .from("patients")
       .select(
-        "id, first_name, last_name, dni, document_type, phone, email, birth_date, status, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag)",
+        "id, first_name, last_name, dni, document_type, phone, email, birth_date, status, is_recurring, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag)",
         { count: "exact" }
       )
       .order("last_name")
@@ -136,6 +139,11 @@ export default function PatientsPage() {
 
     if (statusFilter !== "all") {
       query = query.eq("status", statusFilter);
+    }
+    if (recurrenceFilter === "recurring") {
+      query = query.eq("is_recurring", true);
+    } else if (recurrenceFilter === "new") {
+      query = query.eq("is_recurring", false);
     }
     if (debouncedSearch.trim()) {
       const q = `%${debouncedSearch.trim()}%`;
@@ -156,7 +164,7 @@ export default function PatientsPage() {
     setTotalCount(count ?? 0);
     setLoading(false);
     setChangingPage(false);
-  }, [statusFilter, debouncedSearch, dateFrom, dateTo, origenFilter]);
+  }, [statusFilter, recurrenceFilter, debouncedSearch, dateFrom, dateTo, origenFilter]);
 
   // Reset to page 0 when filters change
   useEffect(() => {
@@ -294,7 +302,7 @@ export default function PatientsPage() {
       const supabase = createClient();
       supabase
         .from("patients")
-        .select("id, first_name, last_name, dni, document_type, phone, email, birth_date, status, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag)")
+        .select("id, first_name, last_name, dni, document_type, phone, email, birth_date, status, is_recurring, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag)")
         .eq("id", selectedPatient.id)
         .single()
         .then(({ data }) => {
@@ -406,7 +414,7 @@ export default function PatientsPage() {
                 </button>
               )}
             </div>
-            <div className="flex gap-1.5">
+            <div className="flex flex-wrap gap-1.5">
               {(["all", "active", "inactive"] as StatusFilter[]).map((f) => (
                 <button
                   key={f}
@@ -421,6 +429,30 @@ export default function PatientsPage() {
                   {t(`patients.filter_${f}`)}
                 </button>
               ))}
+              {/* Recurrence filter */}
+              <div className="mx-1 h-7 w-px self-center bg-border" />
+              {(["new", "recurring"] as RecurrenceFilter[]).map((f) => {
+                const active = recurrenceFilter === f;
+                const label = f === "new" ? "Nuevos" : "Recurrentes";
+                return (
+                  <button
+                    key={f}
+                    onClick={() =>
+                      setRecurrenceFilter(active ? "all" : f)
+                    }
+                    className={cn(
+                      "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                      active
+                        ? f === "recurring"
+                          ? "bg-emerald-500 text-white"
+                          : "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-accent"
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
               {/* Filter toggle */}
               <button
                 onClick={() => setShowFilters(!showFilters)}
@@ -663,9 +695,12 @@ export default function PatientsPage() {
 
                     {/* Info */}
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold truncate">
-                        {patient.last_name}, {patient.first_name}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold truncate">
+                          {patient.last_name}, {patient.first_name}
+                        </p>
+                        {patient.is_recurring && <RecurringBadge size="xs" />}
+                      </div>
                       <div className="flex items-center gap-3 text-xs text-muted-foreground">
                         {patient.dni && <span>DNI: {patient.dni}</span>}
                         {patient.phone && <span>{patient.phone}</span>}

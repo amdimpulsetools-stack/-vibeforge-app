@@ -34,6 +34,7 @@ import { cn } from "@/lib/utils";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST } from "@/lib/peru-locations";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
+import { RecurringBadge } from "@/components/patients/recurring-badge";
 import { loadWaClipboardConfig, type AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
 import { WhatsAppClipboardModal } from "./whatsapp-clipboard-modal";
 
@@ -272,7 +273,7 @@ export function AppointmentFormModal({
     const supabase = createClient();
     const { data } = await supabase
       .from("patients")
-      .select("id, first_name, last_name, phone, email, birth_date, document_type, departamento, distrito, dni, organization_id")
+      .select("id, first_name, last_name, phone, email, birth_date, document_type, departamento, distrito, dni, is_recurring, organization_id")
       .eq("dni", dni.trim())
       .single();
 
@@ -626,6 +627,9 @@ export function AppointmentFormModal({
                   <>
                     <UserCheck className="h-3.5 w-3.5" />
                     {t("patients.patient_found")}: {foundPatient.first_name} {foundPatient.last_name}
+                    {(foundPatient as { is_recurring?: boolean }).is_recurring && (
+                      <RecurringBadge size="xs" />
+                    )}
                   </>
                 ) : (
                   <>

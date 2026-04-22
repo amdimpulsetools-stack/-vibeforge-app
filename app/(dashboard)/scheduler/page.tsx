@@ -182,7 +182,7 @@ export default function SchedulerPage() {
     // 1. Fetch appointments for the visible date range
     const apptRes = await supabase
       .from("appointments")
-      .select("*, doctors(id,full_name,color,default_meeting_url), offices(id,name), services(id,name,duration_minutes,base_price)")
+      .select("*, doctors(id,full_name,color,default_meeting_url), offices(id,name), services(id,name,duration_minutes,base_price), patients(is_recurring)")
       .gte("appointment_date", startDate)
       .lte("appointment_date", endDate)
       .neq("status", "cancelled")

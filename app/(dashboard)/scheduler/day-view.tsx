@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Plus, Lock, LockOpen, Coffee, CircleDollarSign, CheckCircle2, Video, AlertTriangle } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
+import { RecurringDot } from "@/components/patients/recurring-badge";
 
 interface DayViewProps {
   date: Date;
@@ -300,6 +301,9 @@ export function DayView({
                         }}
                       >
                         <div className="flex items-center gap-1">
+                          {startAppt.patients?.is_recurring && (
+                            <RecurringDot className="shrink-0" />
+                          )}
                           <p className="text-xs font-bold truncate leading-tight flex-1" style={{ color: hexToDark(doctorColor) }}>
                             {startAppt.patient_name}
                           </p>
