@@ -13,6 +13,12 @@ import {
   FileText,
   UserX,
   Stethoscope,
+  Wallet,
+  CircleDollarSign,
+  CalendarDays,
+  Headset,
+  Gauge,
+  Target,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -171,12 +177,17 @@ export function AdminDashboard({
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
         {/* Revenue */}
         <div className="w-full rounded-2xl bg-emerald-600 p-5 shadow-lg shadow-emerald-600/20 flex flex-col justify-center">
-          <p className="text-sm font-medium text-white/70 mb-1">
-            {isEs
-              ? { month: "Ingresos del mes", week: "Ingresos (7 días)", today: "Ingresos de hoy" }[period]
-              : { month: "Monthly revenue", week: "Revenue (7 days)", today: "Today's revenue" }[period]
-            }
-          </p>
+          <div className="mb-2 flex items-center justify-between">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
+              <Wallet className="h-4 w-4 text-white" />
+            </div>
+            <span className="text-xs font-semibold text-white/80">
+              {isEs
+                ? { month: "Ingresos del mes", week: "Ingresos (7 días)", today: "Ingresos de hoy" }[period]
+                : { month: "Monthly revenue", week: "Revenue (7 days)", today: "Today's revenue" }[period]
+              }
+            </span>
+          </div>
           <p className="text-3xl font-extrabold tracking-tight text-white">
             {formatCurrency(data.revenue)}
           </p>
@@ -187,9 +198,14 @@ export function AdminDashboard({
 
         {/* Pending Debt */}
         <div className="rounded-2xl border border-border/60 bg-card p-5 flex flex-col justify-center">
-          <p className="text-sm font-medium text-muted-foreground mb-1">
-            {isEs ? "Cobranza pendiente" : "Pending debt"}
-          </p>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-orange-500/10">
+              <CircleDollarSign className="h-4 w-4 text-orange-500" />
+            </div>
+            <span className="text-xs font-semibold text-orange-500">
+              {isEs ? "Cobranza pendiente" : "Pending debt"}
+            </span>
+          </div>
           <div className="flex items-baseline gap-4">
             <div>
               <p className="text-3xl font-extrabold tracking-tight text-orange-600 dark:text-orange-400">
@@ -212,9 +228,14 @@ export function AdminDashboard({
 
         {/* Appointments summary */}
         <div className="rounded-2xl border border-border/60 bg-card p-5">
-          <p className="text-sm font-medium text-muted-foreground mb-3">
-            {isEs ? "Citas" : "Appointments"}
-          </p>
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+              <CalendarDays className="h-4 w-4 text-violet-500" />
+            </div>
+            <span className="text-xs font-semibold text-violet-500">
+              {isEs ? "Citas" : "Appointments"}
+            </span>
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <div className="flex justify-center mb-1">
@@ -249,9 +270,14 @@ export function AdminDashboard({
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
         {/* New vs Recurring patients */}
         <div className="rounded-2xl border border-border/60 bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground mb-4">
-            {isEs ? "Pacientes nuevos vs recurrentes" : "New vs recurring patients"}
-          </p>
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+              <UserPlus className="h-4 w-4 text-emerald-500" />
+            </div>
+            <span className="text-xs font-semibold text-emerald-500">
+              {isEs ? "Pacientes nuevos vs recurrentes" : "New vs recurring patients"}
+            </span>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -276,11 +302,13 @@ export function AdminDashboard({
 
         {/* Receptionist Performance */}
         <div className="rounded-2xl border border-border/60 bg-card p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <div className="h-3 w-3 rounded-sm bg-emerald-500/20" />
-            <p className="text-sm font-medium text-muted-foreground">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-500/10">
+              <Headset className="h-4 w-4 text-sky-500" />
+            </div>
+            <span className="text-xs font-semibold text-sky-500">
               {isEs ? "Rendimiento por recepcionista" : "Receptionist performance"}
-            </p>
+            </span>
           </div>
           {receptionistPerformance.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -306,10 +334,15 @@ export function AdminDashboard({
 
         {/* Occupancy Rate */}
         <div className="rounded-2xl border border-border/60 bg-card p-6">
-          <p className="text-sm font-medium text-muted-foreground mb-1">
-            {isEs ? "% de Ocupación" : "Occupancy %"}
-          </p>
-          <p className="text-5xl font-extrabold tracking-tight mt-2">
+          <div className="mb-3 flex items-center justify-between">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
+              <Gauge className="h-4 w-4 text-amber-500" />
+            </div>
+            <span className="text-xs font-semibold text-amber-500">
+              {isEs ? "% de Ocupación" : "Occupancy %"}
+            </span>
+          </div>
+          <p className="text-5xl font-extrabold tracking-tight">
             {data.occupancyRate}%
           </p>
           <div className="mt-2">
@@ -329,9 +362,14 @@ export function AdminDashboard({
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
         {/* Revenue Goal Gauge */}
         <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col items-center justify-center">
-          <p className="text-sm font-medium text-muted-foreground mb-2">
-            {isEs ? "Meta del mes" : "Monthly goal"}
-          </p>
+          <div className="mb-3 flex w-full items-center justify-between">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+              <Target className="h-4 w-4 text-emerald-500" />
+            </div>
+            <span className="text-xs font-semibold text-emerald-500">
+              {isEs ? "Meta del mes" : "Monthly goal"}
+            </span>
+          </div>
           {monthlyRevenueGoal > 0 ? (
             <>
               <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 mb-3">
@@ -388,8 +426,8 @@ export function AdminDashboard({
         {/* Top 5 Treatments */}
         <div className="md:col-span-2 rounded-2xl border border-border/60 bg-card">
           <div className="flex items-center gap-2.5 px-6 py-4 border-b border-border/40">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10">
-              <Stethoscope className="h-4 w-4 text-emerald-400" />
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+              <Stethoscope className="h-4 w-4 text-emerald-500" />
             </div>
             <h3 className="text-sm font-bold">
               {isEs ? "Top 5 Tratamientos" : "Top 5 Treatments"}
