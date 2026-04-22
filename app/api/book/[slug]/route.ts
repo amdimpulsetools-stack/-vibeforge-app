@@ -64,7 +64,7 @@ export async function GET(
   // 3. Fetch active doctors with their schedules
   const { data: doctors } = await supabase
     .from("doctors")
-    .select("id, full_name, specialty, photo_url")
+    .select("id, full_name, specialty, photo_url, default_office_id")
     .eq("organization_id", org.id)
     .eq("is_active", true)
     .order("full_name");

@@ -136,7 +136,7 @@ export default function EditDoctorPage() {
 
       {/* Profile Tab */}
       {activeTab === "profile" && (
-        <ProfileTab doctor={doctor} onSave={fetchAll} />
+        <ProfileTab doctor={doctor} offices={offices} onSave={fetchAll} />
       )}
 
       {/* Services Tab */}
@@ -163,7 +163,15 @@ export default function EditDoctorPage() {
 }
 
 // ==================== Profile Tab ====================
-function ProfileTab({ doctor, onSave }: { doctor: Doctor; onSave: () => void }) {
+function ProfileTab({
+  doctor,
+  offices,
+  onSave,
+}: {
+  doctor: Doctor;
+  offices: Office[];
+  onSave: () => void;
+}) {
   const { t } = useLanguage();
   const [saving, setSaving] = useState(false);
 
@@ -178,8 +186,10 @@ function ProfileTab({ doctor, onSave }: { doctor: Doctor; onSave: () => void }) 
     defaultValues: {
       full_name: doctor.full_name,
       cmp: doctor.cmp,
+      specialty: (doctor as { specialty?: string | null }).specialty ?? "",
       color: doctor.color,
-      default_meeting_url: (doctor as any).default_meeting_url ?? "",
+      default_meeting_url: (doctor as { default_meeting_url?: string | null }).default_meeting_url ?? "",
+      default_office_id: (doctor as { default_office_id?: string | null }).default_office_id ?? "",
       is_active: doctor.is_active,
     },
   });
@@ -194,8 +204,10 @@ function ProfileTab({ doctor, onSave }: { doctor: Doctor; onSave: () => void }) 
       .update({
         full_name: values.full_name,
         cmp: values.cmp,
+        specialty: values.specialty || null,
         color: values.color,
         default_meeting_url: values.default_meeting_url || null,
+        default_office_id: values.default_office_id || null,
         is_active: values.is_active,
       })
       .eq("id", doctor.id);
@@ -242,6 +254,40 @@ function ProfileTab({ doctor, onSave }: { doctor: Doctor; onSave: () => void }) 
             {errors.cmp && (
               <p className="text-xs text-destructive">{errors.cmp.message}</p>
             )}
+          </div>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Especialidad</label>
+            <input
+              {...register("specialty")}
+              placeholder="Ginecología, Pediatría, Cardiología..."
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            />
+            {errors.specialty && (
+              <p className="text-xs text-destructive">{errors.specialty.message}</p>
+            )}
+            <p className="text-xs text-muted-foreground">
+              Visible en el portal del paciente y en la reserva pública.
+            </p>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Consultorio por defecto</label>
+            <select
+              {...register("default_office_id")}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+            >
+              <option value="">— Sin preferencia —</option>
+              {offices.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.name}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted-foreground">
+              Se usa automáticamente en las reservas desde /book. Si no eliges uno, se usa el primero disponible.
+            </p>
           </div>
         </div>
 
