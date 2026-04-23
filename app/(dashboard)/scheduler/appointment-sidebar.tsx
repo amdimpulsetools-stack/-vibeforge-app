@@ -112,6 +112,19 @@ export function AppointmentSidebar({
   // ── Patient-level debt ──────────────────────────────────────────────────
   const [patientDebt, setPatientDebt] = useState<number>(0);
 
+  // ── Treatment plan context (only when cita is linked to a session) ──
+  const [planContext, setPlanContext] = useState<{
+    plan_id: string;
+    plan_title: string;
+    session_number: number;
+    total_sessions: number;
+    total_budget: number;
+    paid: number;
+    consumed: number;
+    saldo: number;
+    session_price: number;
+  } | null>(null);
+
   const fetchPayments = useCallback(async () => {
     setLoadingPayments(true);
     const supabase = createClient();
@@ -150,6 +163,85 @@ export function AppointmentSidebar({
     fetchPayments();
   }, [fetchPayments]);
 
+  // Fetch plan context + saldo when this appointment is linked to a session.
+  useEffect(() => {
+    const linkedSessionId = (appointment as { treatment_session_id?: string | null })
+      .treatment_session_id;
+    if (!linkedSessionId) {
+      setPlanContext(null);
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      // Session + plan header
+      const { data: session } = await supabase
+        .from("treatment_sessions")
+        .select("id, session_number, session_price, treatment_plan_id")
+        .eq("id", linkedSessionId)
+        .single();
+      if (!session || cancelled) return;
+
+      const { data: plan } = await supabase
+        .from("treatment_plans")
+        .select("id, title, total_sessions")
+        .eq("id", session.treatment_plan_id)
+        .single();
+      if (!plan || cancelled) return;
+
+      // Paid: sum of payments applied to the plan
+      const { data: planPayments } = await supabase
+        .from("patient_payments")
+        .select("amount")
+        .eq("treatment_plan_id", plan.id);
+
+      // Consumed: sum of session_price for sessions already completed
+      const { data: completedSessions } = await supabase
+        .from("treatment_sessions")
+        .select("session_price")
+        .eq("treatment_plan_id", plan.id)
+        .eq("status", "completed");
+
+      // Total budget: sum of items
+      const { data: planItems } = await supabase
+        .from("treatment_plan_items")
+        .select("quantity, unit_price")
+        .eq("treatment_plan_id", plan.id);
+
+      if (cancelled) return;
+
+      const paid = (planPayments ?? []).reduce(
+        (s, p) => s + Number(p.amount),
+        0
+      );
+      const consumed = (completedSessions ?? []).reduce(
+        (s, c) => s + Number(c.session_price ?? 0),
+        0
+      );
+      const total = (planItems ?? []).reduce(
+        (s, it) => s + Number(it.unit_price) * Number(it.quantity),
+        0
+      );
+
+      setPlanContext({
+        plan_id: plan.id,
+        plan_title: plan.title,
+        session_number: session.session_number,
+        total_sessions: plan.total_sessions ?? 0,
+        total_budget: total,
+        paid,
+        consumed,
+        saldo: paid - consumed,
+        session_price: Number(session.session_price ?? 0),
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [appointment]);
+
   const handleAddPayment = async () => {
     if (!payAmount || Number(payAmount) <= 0) return;
     setSavingPayment(true);
@@ -161,6 +253,7 @@ export function AppointmentSidebar({
       .insert({
         patient_id: appointment.patient_id || null,
         appointment_id: appointment.id,
+        treatment_plan_id: planContext?.plan_id || null,
         amount: Number(payAmount),
         payment_method: payMethod || null,
         notes: payRef || null,
@@ -249,6 +342,29 @@ export function AppointmentSidebar({
       .from("appointments")
       .update(updatePayload)
       .eq("id", appointment.id);
+
+    // Mirror to linked treatment_session if the appointment is part of a plan.
+    const linkedSessionId = (appointment as { treatment_session_id?: string | null })
+      .treatment_session_id;
+    if (!error && linkedSessionId) {
+      if (newStatus === "completed") {
+        await supabase
+          .from("treatment_sessions")
+          .update({ status: "completed", completed_at: new Date().toISOString() })
+          .eq("id", linkedSessionId);
+      } else if (newStatus === "cancelled") {
+        // Free the session so it can be rescheduled
+        await supabase
+          .from("treatment_sessions")
+          .update({ status: "pending", appointment_id: null })
+          .eq("id", linkedSessionId);
+      } else if (newStatus === "no_show") {
+        await supabase
+          .from("treatment_sessions")
+          .update({ status: "missed" })
+          .eq("id", linkedSessionId);
+      }
+    }
 
     setUpdating(false);
     if (error) {
@@ -759,6 +875,73 @@ export function AppointmentSidebar({
                   </button>
                 ) : null}
               </>
+            )}
+          </div>
+        )}
+
+        {/* ── Treatment plan context (only if cita linked to plan) ───────── */}
+        {!editing && planContext && (
+          <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 truncate">
+                  📋 Sesión {planContext.session_number}
+                  {planContext.total_sessions > 0
+                    ? ` de ${planContext.total_sessions}`
+                    : ""}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {planContext.plan_title}
+                </p>
+              </div>
+              <ClipboardList className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+            </div>
+            <div className="grid grid-cols-3 gap-1 text-[10px]">
+              <div className="rounded bg-background/70 px-2 py-1">
+                <p className="text-muted-foreground">Pagado</p>
+                <p className="font-semibold text-foreground">
+                  S/ {planContext.paid.toFixed(2)}
+                </p>
+              </div>
+              <div className="rounded bg-background/70 px-2 py-1">
+                <p className="text-muted-foreground">Consumido</p>
+                <p className="font-semibold text-foreground">
+                  S/ {planContext.consumed.toFixed(2)}
+                </p>
+              </div>
+              <div
+                className={cn(
+                  "rounded px-2 py-1",
+                  planContext.saldo >= 0
+                    ? "bg-emerald-500/10"
+                    : "bg-red-500/10"
+                )}
+              >
+                <p className="text-muted-foreground">Saldo</p>
+                <p
+                  className={cn(
+                    "font-semibold",
+                    planContext.saldo >= 0
+                      ? "text-emerald-700 dark:text-emerald-400"
+                      : "text-red-600 dark:text-red-400"
+                  )}
+                >
+                  S/ {planContext.saldo.toFixed(2)}
+                </p>
+              </div>
+            </div>
+            {planContext.saldo >= planContext.session_price &&
+            planContext.session_price > 0 ? (
+              <p className="flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-3 w-3" />
+                Esta sesión se cubre con el crédito del plan — al marcarla
+                completada, el saldo se consume automáticamente.
+              </p>
+            ) : (
+              <p className="rounded bg-amber-500/10 px-2 py-1 text-[10px] text-amber-700 dark:text-amber-500">
+                Cobra el faltante abajo o registra un pago antes de completar
+                la sesión.
+              </p>
             )}
           </div>
         )}

@@ -28,6 +28,7 @@ import {
   Plus,
   Tag,
   DollarSign,
+  Wallet,
   Calendar,
   AlertCircle,
   CheckCircle2,
@@ -49,6 +50,7 @@ import { calculateAge } from "@/lib/export";
 import type { ClinicalNote } from "@/types/clinical-notes";
 import { SOAP_LABELS, VITALS_FIELDS, type SOAPSection, type Vitals } from "@/types/clinical-notes";
 import { TreatmentPlansPanel } from "./treatment-plans-panel";
+import { BudgetsPanel } from "./budgets-panel";
 import { PrescriptionsPanel } from "./prescriptions-panel";
 import { ClinicalAttachmentsPanel } from "./clinical-attachments-panel";
 import { ClinicalFollowupsPanel } from "./clinical-followups-panel";
@@ -67,7 +69,7 @@ interface PatientDrawerProps {
   onUpdate: () => void;
 }
 
-type DrawerTab = "info" | "history" | "clinical" | "growth" | "finances" | "marketing";
+type DrawerTab = "info" | "history" | "clinical" | "growth" | "budgets" | "finances" | "marketing";
 
 type PatientWithSex = PatientWithTags & { sex?: Sex | null };
 
@@ -324,6 +326,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     // Clinical tab only visible for doctors and admins, not receptionists
     ...(isAdmin || currentDoctorId ? [{ key: "clinical" as DrawerTab, label: "Clínico", icon: Stethoscope }] : []),
     ...(showGrowthTab ? [{ key: "growth" as DrawerTab, label: "Crecimiento", icon: TrendingUp }] : []),
+    { key: "budgets", label: "Presupuestos", icon: Wallet },
     { key: "finances", label: t("patients.tab_finances"), icon: DollarSign },
     { key: "marketing", label: t("patients.tab_marketing"), icon: Megaphone },
   ];
@@ -954,6 +957,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           />
         )}
 
+        {/* ===== BUDGETS TAB ===== */}
+        {activeTab === "budgets" && (
+          <BudgetsPanel patientId={patient.id} canEdit={isAdmin || !!currentDoctorId} />
+        )}
+
         {/* ===== FINANCES TAB ===== */}
         {activeTab === "finances" && (
           <div className="space-y-4">
@@ -1363,6 +1371,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   sex={patientSex}
                   onRequestSexUpdate={() => setActiveTab("info")}
                 />
+              )}
+
+              {/* ===== BUDGETS TAB ===== */}
+              {activeTab === "budgets" && (
+                <BudgetsPanel patientId={patient.id} canEdit={isAdmin || !!currentDoctorId} />
               )}
 
               {/* ===== FINANCES TAB ===== */}
