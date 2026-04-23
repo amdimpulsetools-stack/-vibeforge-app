@@ -134,6 +134,7 @@ export function AppointmentFormModal({
     service_id: string | null;
     session_price: number | null;
     service_name?: string | null;
+    treatment_plan_item_id: string | null;
   }>>([]);
   const [selectedPlanSessionId, setSelectedPlanSessionId] = useState<string | null>(null);
 
@@ -370,6 +371,7 @@ export function AppointmentFormModal({
             service_id: s.service_id,
             session_price: s.session_price != null ? Number(s.session_price) : null,
             service_name: s.treatment_plan_items?.services?.name ?? null,
+            treatment_plan_item_id: s.treatment_plan_item_id,
           });
         }
       }
@@ -767,62 +769,97 @@ export function AppointmentFormModal({
                 </div>
 
                 {(() => {
-                  // Group by plan and pick the next pending session per plan for the quick action
-                  const plans = new Map<string, { title: string; total: number; next: typeof activePlanSessions[number] }>();
-                  for (const s of activePlanSessions) {
-                    if (!plans.has(s.plan_id)) {
-                      plans.set(s.plan_id, { title: s.plan_title, total: s.total_sessions, next: s });
+                  // For multi-service plans, show ONE row per (plan, item) with
+                  // the next pending session of that service. This lets the
+                  // receptionist pick which service to schedule when a plan
+                  // contains multiple services (e.g. "10 laser + 2 mapeo").
+                  // For single-service plans this collapses to exactly one row.
+                  const groupSeen = new Set<string>();
+                  const rowsByPlan = new Map<
+                    string,
+                    {
+                      plan_title: string;
+                      total: number;
+                      rows: typeof activePlanSessions;
                     }
+                  >();
+                  for (const s of activePlanSessions) {
+                    const key = `${s.plan_id}:${s.treatment_plan_item_id ?? s.service_id ?? ""}`;
+                    if (groupSeen.has(key)) continue;
+                    groupSeen.add(key);
+                    if (!rowsByPlan.has(s.plan_id)) {
+                      rowsByPlan.set(s.plan_id, {
+                        plan_title: s.plan_title,
+                        total: s.total_sessions,
+                        rows: [],
+                      });
+                    }
+                    rowsByPlan.get(s.plan_id)!.rows.push(s);
                   }
-                  const planList = Array.from(plans.values());
+                  const planGroups = Array.from(rowsByPlan.values());
                   const selected = activePlanSessions.find((s) => s.session_id === selectedPlanSessionId);
 
                   return (
                     <>
-                      {planList.map((p) => (
-                        <div
-                          key={p.next.plan_id}
-                          className="flex items-center justify-between gap-2 rounded-md bg-background/60 px-2 py-1.5"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="text-xs font-medium truncate">
-                              {p.title}
+                      {planGroups.map((group) => (
+                        <div key={group.plan_title} className="space-y-1">
+                          {/* Plan header — only visible label if >1 row or >1 plan */}
+                          {(planGroups.length > 1 || group.rows.length > 1) && (
+                            <p className="px-1 text-[11px] font-semibold text-blue-700 dark:text-blue-400">
+                              {group.plan_title}
                             </p>
-                            <p className="text-[10px] text-muted-foreground">
-                              Sesión {p.next.session_number}
-                              {p.total > 0 ? ` de ${p.total}` : ""}
-                              {p.next.service_name ? ` · ${p.next.service_name}` : ""}
-                              {p.next.session_price != null
-                                ? ` · S/ ${Number(p.next.session_price).toFixed(2)}`
-                                : ""}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedPlanSessionId(p.next.session_id);
-                              if (p.next.service_id) {
-                                setValue("service_id", p.next.service_id);
-                              }
-                            }}
-                            className={cn(
-                              "shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors",
-                              selectedPlanSessionId === p.next.session_id
-                                ? "bg-blue-600 text-white"
-                                : "bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:text-blue-400"
-                            )}
-                          >
-                            {selectedPlanSessionId === p.next.session_id
-                              ? "✓ Vinculada"
-                              : "Agendar sesión"}
-                          </button>
+                          )}
+                          {group.rows.map((row) => (
+                            <div
+                              key={row.session_id}
+                              className="flex items-center justify-between gap-2 rounded-md bg-background/60 px-2 py-1.5"
+                            >
+                              <div className="min-w-0 flex-1">
+                                {/* If only 1 row in total show the plan title here (compact single-service case) */}
+                                {planGroups.length === 1 && group.rows.length === 1 && (
+                                  <p className="text-xs font-medium truncate">
+                                    {group.plan_title}
+                                  </p>
+                                )}
+                                <p className="text-[10px] text-muted-foreground">
+                                  Sesión {row.session_number}
+                                  {group.total > 0 ? ` de ${group.total}` : ""}
+                                  {row.service_name ? ` · ${row.service_name}` : ""}
+                                  {row.session_price != null
+                                    ? ` · S/ ${Number(row.session_price).toFixed(2)}`
+                                    : ""}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedPlanSessionId(row.session_id);
+                                  if (row.service_id) {
+                                    setValue("service_id", row.service_id);
+                                  }
+                                }}
+                                className={cn(
+                                  "shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors",
+                                  selectedPlanSessionId === row.session_id
+                                    ? "bg-blue-600 text-white"
+                                    : "bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:text-blue-400"
+                                )}
+                              >
+                                {selectedPlanSessionId === row.session_id
+                                  ? "✓ Vinculada"
+                                  : "Agendar sesión"}
+                              </button>
+                            </div>
+                          ))}
                         </div>
                       ))}
 
                       {selected && (
                         <p className="text-[10px] text-blue-700 dark:text-blue-400">
-                          Esta cita se vinculará a la sesión {selected.session_number} del plan “{selected.plan_title}”.
-                          El servicio y precio se tomarán automáticamente.
+                          Esta cita se vinculará a la sesión {selected.session_number}
+                          {selected.service_name ? ` de ${selected.service_name}` : ""}
+                          {" del plan "}
+                          “{selected.plan_title}”. El servicio y precio se tomarán automáticamente.
                         </p>
                       )}
                     </>
