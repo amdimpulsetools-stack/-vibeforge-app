@@ -94,6 +94,18 @@ interface ClinicContact {
   email: string | null;
 }
 
+interface PortalPlan {
+  id: string;
+  title: string;
+  status: "active" | "paused";
+  total_sessions: number;
+  completed_sessions: number;
+  total_budget: number;
+  paid: number;
+  consumed: number;
+  pending: number;
+}
+
 function formatFullDate(dateStr: string): string {
   const date = new Date(dateStr + "T12:00:00");
   return date.toLocaleDateString("es-PE", {
@@ -196,6 +208,7 @@ export default function MisCitasPage() {
   const [org, setOrg] = useState<OrgInfo | null>(null);
   const [settings, setSettings] = useState<PortalSettings | null>(null);
   const [contact, setContact] = useState<ClinicContact>({ phone: null, email: null });
+  const [plans, setPlans] = useState<PortalPlan[]>([]);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -210,9 +223,10 @@ export default function MisCitasPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [sessionRes, appointmentsRes] = await Promise.all([
+      const [sessionRes, appointmentsRes, plansRes] = await Promise.all([
         fetch(`/api/portal/auth/session?slug=${slug}`),
         fetch(`/api/portal/appointments?slug=${slug}`),
+        fetch(`/api/portal/plans?slug=${slug}`),
       ]);
 
       const sessionData = await sessionRes.json();
@@ -234,6 +248,11 @@ export default function MisCitasPage() {
         const apptData = await appointmentsRes.json();
         setUpcoming(apptData.upcoming || []);
         setPast(apptData.past || []);
+      }
+
+      if (plansRes.ok) {
+        const planData = await plansRes.json();
+        setPlans(planData.plans || []);
       }
     } catch {
       router.replace(`/portal/${slug}`);
@@ -462,6 +481,20 @@ export default function MisCitasPage() {
         <div className="lg:grid lg:grid-cols-[1fr_320px] lg:gap-8">
           {/* ── MAIN COLUMN ── */}
           <div className="min-w-0">
+        {/* Mi plan (mobile only — desktop version lives in the sidebar) */}
+        {plans.length > 0 && (
+          <section className="mb-6 lg:hidden">
+            <h3 className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+              Mi plan
+            </h3>
+            <div className="space-y-2">
+              {plans.map((p) => (
+                <PortalPlanCard key={p.id} plan={p} accent={accent} />
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Summary tiles (mobile only — on desktop they live in the sidebar) */}
         <motion.section
           initial={{ opacity: 0, y: 8 }}
@@ -896,6 +929,18 @@ export default function MisCitasPage() {
                   />
                 </div>
               </div>
+
+              {/* Mi plan card(s) */}
+              {plans.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-500">
+                    Mi plan
+                  </h3>
+                  {plans.map((p) => (
+                    <PortalPlanCard key={p.id} plan={p} accent={accent} />
+                  ))}
+                </div>
+              )}
 
               {/* Mi perfil card */}
               {patient && (
@@ -2295,6 +2340,67 @@ function ContactSheet({
         </p>
       </div>
     </BottomSheet>
+  );
+}
+
+function PortalPlanCard({
+  plan,
+  accent,
+}: {
+  plan: PortalPlan;
+  accent: string;
+}) {
+  const pct =
+    plan.total_sessions > 0
+      ? (plan.completed_sessions / plan.total_sessions) * 100
+      : 0;
+  return (
+    <div
+      className="overflow-hidden rounded-2xl bg-white p-4 shadow-sm ring-1 ring-black/5"
+      style={{ borderLeft: `3px solid ${accent}` }}
+    >
+      <div className="mb-1 flex items-center justify-between">
+        <p className="min-w-0 truncate text-[13px] font-semibold text-zinc-900">
+          {plan.title}
+        </p>
+        {plan.status === "paused" && (
+          <span className="flex-shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
+            Pausado
+          </span>
+        )}
+      </div>
+      <p className="text-[11px] text-zinc-500">
+        {plan.completed_sessions} de {plan.total_sessions} sesiones completadas
+      </p>
+      <div className="mt-2 h-1.5 w-full rounded-full bg-zinc-100">
+        <div
+          className="h-full rounded-full transition-all"
+          style={{
+            width: `${Math.min(100, Math.max(0, pct))}%`,
+            backgroundColor: accent,
+          }}
+        />
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-1 text-[11px]">
+        <div>
+          <p className="text-zinc-500">Pagado</p>
+          <p className="font-semibold text-zinc-900">
+            S/ {plan.paid.toFixed(2)}
+          </p>
+        </div>
+        <div>
+          <p className="text-zinc-500">Total</p>
+          <p className="font-semibold text-zinc-900">
+            S/ {plan.total_budget.toFixed(2)}
+          </p>
+        </div>
+      </div>
+      {plan.pending > 0 && (
+        <p className="mt-1 text-[11px]" style={{ color: accent }}>
+          S/ {plan.pending.toFixed(2)} pendiente por cobrar
+        </p>
+      )}
+    </div>
   );
 }
 
