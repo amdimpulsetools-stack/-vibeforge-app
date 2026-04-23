@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-22
-> **Versión:** 0.12.0
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + **Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado** + **Descuentos: inline (todos los planes) y códigos reutilizables (Pro)**
+> **Versión:** 0.12.1
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + **Parches de integridad y UX post-release**
 
 ---
 
@@ -1931,3 +1931,97 @@ Añadido a COMING-UPDATES.md sección Reportes. No se implementa ahora porque si
 - **Descuentos** sale con arquitectura clean two-tier: inline desbloquea casos cotidianos sin gating, códigos como feature de marketing que justifica el upgrade a Pro.
 - **Feature toggle** — nueva convención: features que impactan flujos operativos (como los descuentos) deben poder ser desactivadas por el owner. La mayoría de clínicas lo tendrá activo, pero algunas pueden preferir no permitir descuentos (clínicas de alta gama, o cuando se está construyendo disciplina de precios).
 - **Zero breaking change**: todo `discount_amount` default 0 + `treatment_session_id` null + `treatment_plan_id` null en payments. Flujos existentes no se tocan hasta que explícitamente se usen las nuevas features.
+
+---
+
+## 27. Changelog — Sesión 2026-04-22 cierre (v0.12.1) — Parches post-release
+
+Cuatro bugs encontrados probando los features de v0.12.0 en producción, más un incidente de integridad de datos que originó un bug preventivo en el form del scheduler.
+
+### Parche 1 — `discount_amount` no se descontaba en múltiples vistas
+
+El feature de descuentos actualizó la matemática del sidebar de cita, pero 4 lugares adicionales seguían comparando `price_snapshot` gross contra `total_paid`, haciendo que una cita pagada en su totalidad tras un descuento apareciera como deudora por el monto del descuento.
+
+**Síntoma reproducible**: cita de S/ 150 con 10% de descuento (= S/ 135), pagada por completo. La card del scheduler day-view mostraba badge rojo `⚠ S/15` en vez del check verde.
+
+**Lugares corregidos**:
+- `scheduler/day-view.tsx` — indicator de Payment/Debt en cada card.
+- `scheduler/week-view.tsx` — indicator compacto en cards de la vista semanal.
+- `scheduler/appointment-sidebar.tsx` — cálculo de "deuda del paciente" (suma de pendientes de todas sus citas).
+- `patients/page.tsx` — filtro "Deudores" y columna Deuda del CSV export.
+
+Todos ahora usan `effective_price = max(0, price_snapshot - discount_amount)` antes de comparar contra pagos. `PatientExtraData.appointments[].discount_amount` añadido al tipo y al `SELECT`. Default zero para filas previas a migración 100.
+
+### Parche 2 — Integridad del link paciente↔cita al editar en el scheduler
+
+**Bug real descubierto en producción**: una cita mostraba `patient_name = "Anahir Lopez"` pero `patient_id` apuntaba a Oscar Duran (otro paciente real distinto de la misma org). Los pagos de la cita se atribuyeron a Oscar. La "Anahir Lopez" no aparecía en `/patients` porque nunca existió como fila en `patients`.
+
+**Causa**: flow UX permisivo en `appointment-form-modal.tsx`. Recepción tipea un DNI → el sistema encuentra un paciente → auto-llena `patient_id`, `patient_name`, `patient_last_name`, `patient_phone`. Si recepción luego **edita manualmente** los campos de nombre/teléfono para crear "otra persona", el `patient_id` quedaba pegado al match original. Al guardar: la cita saveaba con el `patient_id` equivocado.
+
+**Fix**: nuevo `useEffect` en `appointment-form-modal.tsx` que observa `patient_name`, `patient_last_name` y `patient_phone`. Si cualquiera diverge del `foundPatient` ligado, limpia `patient_id` (`setValue("patient_id", "")`) y hace `setFoundPatient(null)`. El banner "paciente encontrado" se transforma automáticamente en "paciente nuevo", dando feedback visual claro al usuario.
+
+Solo actúa en el create-flow. No afecta edición de citas existentes (ahí `foundPatient` nunca se inicializa).
+
+### Parche 3 — Toast de error genérico escondía causas reales
+
+**Síntoma**: "Error al guardar el paciente" sin más contexto, dejaba al usuario sin saber qué hacer. Debugear requería abrir DevTools y leer el error de Supabase.
+
+**Fix** en `patient-drawer.tsx → handleSaveInfo`. El toast ahora decodifica los códigos más comunes de Postgres:
+- `23505` → "Este DNI ya está registrado en otro paciente"
+- `42703` → "Columna faltante en la base de datos: {detalle}. Aplica las migraciones pendientes." (detecta cuando una migración crítica como `sex` en 092 no se aplicó)
+- `23514` → "Valor no permitido: {detalle}. Revisa los campos del formulario." (violaciones de CHECK constraint)
+- Default → mensaje genérico + el `error.message` de Supabase appended
+
+También loggea el error completo a `console.error` para power users.
+
+**Caso que motivó el fix**: un owner intentaba guardar datos de una paciente y fallaba siempre con el mensaje genérico. El diagnóstico expuso que la migración 092 (que añade `patients.sex`) nunca había sido aplicada en esa instancia — un tipo de error silencioso que este toast ahora previene.
+
+### Parche 4 — Scheduler solo mostraba una sesión en planes multi-servicio
+
+**Síntoma**: un paciente tiene plan con 2 items (ej: "10 sesiones de Tratamiento Laser S/ 1200" + "2 sesiones de Mapeo de Endometriosis S/ 350"). Al crear cita con su DNI, el banner solo mostraba ONE sesión (la que tuviera menor `session_number` globalmente), sin dar opción a elegir cuál servicio agendar.
+
+**Fix** en el banner del scheduler (`appointment-form-modal.tsx`): la lógica de agrupación pasó de `(plan_id)` a `(plan_id, treatment_plan_item_id)`. Cada item del plan ahora surfaea su propia fila con la siguiente sesión pending de ese servicio y su botón "Agendar sesión" independiente.
+
+Para planes con un solo servicio, el render se colapsa a exactamente 1 fila y la UX es idéntica a antes (sin regresión). Para planes con 2+ servicios aparece un encabezado de nombre de plan seguido de una fila por servicio. El mensaje de confirmación al vincular ahora menciona el servicio específico: "Esta cita se vinculará a la sesión 11 de Mapeo de endometriosis del plan …".
+
+`activePlanSessions` state type extendido con `treatment_plan_item_id: string | null`, propagado en el fetch.
+
+### Data repair ejecutado manualmente
+
+El paciente Anahir Lopez (caso de Parche 2) fue reparado en producción con SQL directo:
+1. Crear paciente `Anahir Lopez` con teléfono `987589854`, DNI provisional NULL — asigna UUID nuevo `9f5a6ada-…`.
+2. Re-vincular 2 citas (`58556211-…` del 30-mar y `d71f8c7c-…` del 22-abr) al UUID correcto.
+3. Re-atribuir 2 pagos (`5827adb0-…` y `d39963aa-…` por S/ 79.50 y S/ 55.50 respectivamente) a Anahir. Antes estaban sumando deuda ficticia a Oscar Duran.
+
+Procedimiento documentado para casos similares: buscar con queries heurísticas citas donde `appointments.patient_name` no coincide con `patients.first_name + last_name` del `patient_id` ligado, o donde `patient_phone` no matchea `patients.phone`.
+
+### Diagnóstico de schema drift + catchup de migraciones 091 + 092
+
+Auditoría durante el debug del Parche 3 reveló que este ambiente de producción nunca había corrido las migraciones 091 (sistema de addons) ni 092 (curvas de crecimiento). Estaba funcionando gracias a que:
+- `useOrgAddons()` hacía `SELECT FROM organization_addons` sobre tabla inexistente, fallaba silencioso, devolvía `[]`.
+- `patients.sex` no existía, pero se usaba solo cuando el form del drawer intentaba hacer `UPDATE` — de ahí el error opaco.
+
+Documentado para referencia futura un SQL catchup seguro con:
+- `addons` + `organization_addons` + RLS policies
+- Seed de 15 addons (dermatology, odontology, pediatrics, cardiology, aesthetic, growth_curves, telehealth, lab_integration, etc.) con sus metadatos (category, specialties, is_premium, min_plan)
+- `patient_anthropometry` table con RLS
+- Sin los `INSERT FROM organization_specialties` de auto-activación (para no depender de tablas que podrían no existir todavía en ambientes similares)
+
+Decisión de producto: como alternativa al copy-paste manual en Supabase SQL Editor, agregar Supabase CLI al flujo de desarrollo queda recomendado. El setup (5 min, una sola vez) permite `npm run db:push` para aplicar todas las migraciones pendientes en orden sin posibilidad de saltarse una. Task no crítico, a hacer cuando el owner tenga tiempo.
+
+### Archivos modificados
+
+- `app/(dashboard)/scheduler/day-view.tsx`
+- `app/(dashboard)/scheduler/week-view.tsx`
+- `app/(dashboard)/scheduler/appointment-sidebar.tsx`
+- `app/(dashboard)/scheduler/appointment-form-modal.tsx`
+- `app/(dashboard)/patients/page.tsx`
+- `app/(dashboard)/patients/patient-drawer.tsx`
+
+Cero migraciones nuevas en v0.12.1. Todo el trabajo es TypeScript + lógica. La migración 101 ya fue ejecutada en v0.12.0; las migraciones 091 + 092 quedan pendientes de aplicación manual con SQL catchup documentado.
+
+### Cambios de Alcance
+
+- **Disciplina de observabilidad**: el Parche 3 establece el patrón de decodificar códigos Postgres en toasts al usuario. Los próximos formularios de edición de entidades (organization, doctor, service, etc.) deben adoptar el mismo patrón para no reintroducir UX ciega.
+- **Integridad de datos en forms multi-modo**: el Parche 2 expone una categoría de bugs donde un form que hace prefetch+prefill por un identificador (DNI, email, phone) debe mantener la invariante "mientras los campos coincidan con el registro encontrado, la relación sigue; si divergen, se rompe". Aplicar misma guarda a cualquier form que siga este patrón (búsqueda de proveedores, pacientes familiares, etc.).
+- **Schema drift es un problema operativo real**, no teórico: esta sesión se toparon 5 columnas y 3 tablas faltantes en un proyecto productivo. Justifica la inversión en automatizar el push de migraciones (CLI / CI) antes de llegar a más clientes.
