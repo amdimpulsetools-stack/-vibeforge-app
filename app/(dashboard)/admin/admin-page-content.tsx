@@ -10,6 +10,7 @@ import {
   UsersRound,
   FlaskConical,
   BookOpen,
+  Tag,
   ArrowRight,
 } from "lucide-react";
 
@@ -84,6 +85,12 @@ export function AdminPageContent({
       icon: BookOpen,
       count: diagnosisCodesCount,
     },
+    {
+      title: "Códigos de descuento",
+      desc: "Crea cupones reutilizables para aplicar en recepción (Pro)",
+      href: "/admin/discount-codes",
+      icon: Tag,
+    },
   ];
 
   return (
@@ -111,7 +118,11 @@ export function AdminPageContent({
               <p className="mt-1 text-sm text-muted-foreground">{card.desc}</p>
             </div>
             <div className="mt-4">
-              <span className="text-2xl font-bold text-primary">{card.count}</span>
+              {card.count != null ? (
+                <span className="text-2xl font-bold text-primary">{card.count}</span>
+              ) : (
+                <span className="text-2xl font-bold text-primary/60">—</span>
+              )}
               <span className="ml-2 text-sm text-muted-foreground">registros</span>
             </div>
           </Link>

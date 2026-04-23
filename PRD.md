@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-22
-> **Versión:** 0.10.1
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (rediseño Apple Health + detalle de cita + mi perfil) + Dashboard admin con timeline
+> **Versión:** 0.11.0
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 consolidado (Apple Health redesign, detalle de cita, mi perfil, desktop 2-col layout, botón condicional) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente automática + /book redesign (light theme, especialidad, default office)
 
 ---
 
@@ -1616,3 +1616,131 @@ Agregadas 5 interacciones nuevas y 1 API:
 
 - Portal del Paciente avanza de "Phase 1 (auth + mis citas)" a "Phase 1 consolidada con detalle de cita, perfil editable, filtros y CTA de agendar". Las fases 2 (reservar desde portal), 3 (reprogramar), 4 (documentos) siguen en roadmap.
 - Dashboard admin: el foco cambió de "mix estratégico de servicios" (Top 5) a "pulso operativo" (timeline diario). La visión estratégica sigue disponible en `/reports`.
+
+---
+
+## 25. Changelog — Sesión 2026-04-22 tarde (v0.11.0) — Paciente Recurrente + Portal desktop + /book redesign
+
+### Etiqueta "Paciente Recurrente" automática (migración 096)
+
+Nueva columna `patients.is_recurring boolean NOT NULL DEFAULT false` con índice parcial `(organization_id, is_recurring) WHERE is_recurring`. El flag es **lifetime-persistent**: se activa cuando el paciente acumula ≥ 2 citas `status='completed'` en la org, y se apaga si las citas se eliminan o cambian de estado.
+
+Mantenimiento 100% automático:
+
+- Función `refresh_patient_recurring(p_patient_id uuid)` con `SECURITY DEFINER`.
+- 3 triggers en `appointments`:
+  - `AFTER INSERT` cuando `NEW.status='completed'`.
+  - `AFTER UPDATE OF status, patient_id`.
+  - `AFTER DELETE` cuando `OLD.status='completed'`.
+- Backfill one-shot al correr la migración.
+
+**Conceptualmente distinto** del métric `recurring_patients_month` del dashboard (v0.9.0), que mide multi-visitas **en el mes actual** (operativo). El nuevo flag mide **relación de toda la vida** (segmentación). Ambos coexisten.
+
+**Zonas UX** donde aparece (`components/patients/recurring-badge.tsx` con 2 variantes: `RecurringBadge` tintado emerald + `RecurringDot` 1.5px):
+
+| Zona | Archivo | Componente |
+|---|---|---|
+| Lista `/patients` — fila | `patients/page.tsx:683` | Chip `xs` junto al nombre |
+| Drawer del paciente — header | `patients/patient-drawer.tsx:345` | Chip `xs` |
+| Modal expandido — header | `patients/patient-drawer.tsx:1172` | Chip `sm` |
+| Scheduler — "paciente encontrado" | `scheduler/appointment-form-modal.tsx:628` | Chip `xs` inline |
+| Scheduler day view — cards | `scheduler/day-view.tsx:303` | Punto verde |
+| Scheduler week view — cards | `scheduler/week-view.tsx:289` | Punto verde |
+
+**Filtro en `/patients`** — nuevas pills "Nuevos / Recurrentes" separadas por divider del filtro de status, con auto-toggle al hacer click en el activo.
+
+**Scheduler**: la query de `scheduler/page.tsx` ahora hace join `patients(is_recurring)` para que day/week views lean el flag sin round-trips extra.
+
+**Tipado**: `types/admin.ts` augmenta `Patient` con `is_recurring?: boolean | null` hasta que Supabase regenere los tipos (`npm run types` después del deploy).
+
+### Portal del Paciente — Rediseño Desktop (v1.1)
+
+Hasta ahora el portal vivía con `max-w-md` centrado — en desktop se veía como "un teléfono flotando". Rediseño completo respetando el lenguaje Apple Health mobile:
+
+- **Container**: `max-w-md` → `max-w-5xl`, `lg:px-8`.
+- **Grid principal `lg+`**: `grid-cols-[1fr_320px] gap-8`
+  - **Columna principal**: greeting, hero de próxima cita, sección "Programadas", sección "Historial" con grupos por mes. Los tabs mobile "Próximas/Historial" **desaparecen en desktop** — ambas secciones stack verticalmente con headers propios.
+  - **Sidebar sticky** (`lg:sticky top-28`): tiles 2×2 de resumen + card clickeable "Mi Perfil" con avatar + iniciales.
+- **Tipografía escalada**: título `28px` → `lg:text-4xl`, greeting `22px` → `lg:text-3xl`.
+- **Bottom sheets → drawer responsive**: el componente `BottomSheet` ahora usa `useMediaQuery("(min-width: 1024px)")`. En mobile: slide desde abajo (como antes). En desktop: slide desde la derecha con `max-w-md`, `inset-y-0 right-0 rounded-l-3xl`. Drag handle solo en mobile. `role="dialog" aria-modal="true"`.
+- **Polish UX**: `focus-visible:ring-2` en botones circulares del header, hover shadows en sidebar cards, `max-w-prose` en welcome message. `PortalSkeleton` reemplaza el spinner centrado — renderiza la estructura del layout para reducir jank percibido.
+- Mobile intacto.
+
+### Botón "Agendar cita" condicional (migración 097)
+
+Nueva columna `booking_settings.allow_online_booking boolean NOT NULL DEFAULT true`. Cuando el owner la desactiva desde el admin, el portal deja de linkear a `/book` y en su lugar abre un sheet de contacto.
+
+- `allow_online_booking = true` → botón en el header → `<Link href="/book/[slug]">`.
+- `allow_online_booking = false` → mismo botón → abre `<ContactSheet>`.
+
+**ContactSheet** (nuevo componente en `app/portal/[slug]/mis-citas/page.tsx`):
+
+- Reusa el `BottomSheet` responsive (bottom en mobile, right drawer en desktop).
+- Lista WhatsApp (`wa.me/<digits>`), Llamar (`tel:`), Email (`mailto:`), cada uno como row con icono tintado. Filas que no aplican (canal no configurado) se ocultan.
+- Empty state si la clínica no tiene ningún canal.
+- Datos vienen de `global_variables` (`clinic_phone`, `clinic_email`) scoped por org, surfaced por `/api/portal/auth/session` como `clinic_contact`.
+
+**Mobile FAB** se mantiene solo en `< 640px` con el mismo comportamiento condicional (icono `Plus` vs `PhoneCall`).
+
+### `/book/[slug]` — Rediseño Light + Filtros
+
+**Conversión a tema claro** (era el único flujo del producto aún en dark):
+
+- Paleta: `bg-zinc-950/900/800` → `bg-zinc-50/white`, borders `zinc-800/700` → `zinc-200/300`, body text `zinc-400/300` → `zinc-500/700`.
+- `text-white` preservado solo en superficies con accent color (logo badge, opción seleccionada, submit buttons).
+- El `accent_color` de la clínica sigue manejando selected state, submit button y filter chips.
+
+**Office picker eliminado del UX del paciente**. El paciente nunca debería elegir consultorio:
+
+- Nueva columna `doctors.default_office_id uuid REFERENCES offices(id) ON DELETE SET NULL` (migración 098) con índice parcial.
+- Al cambiar el doctor, un `useEffect` auto-resuelve el office:
+  1. `doctor.default_office_id` si está set y el office sigue activo.
+  2. Primer office alfabético (fallback).
+- El bloque "Consultorio" en el paso de servicio se eliminó.
+
+**Doctor step — búsqueda + filtro por especialidad**:
+
+- Input de búsqueda por nombre/especialidad — solo visible cuando hay ≥ 4 doctores. Botón `X` para limpiar.
+- Chips de especialidad con conteo — solo visibles cuando hay ≥ 2 especialidades distintas. Chip activo usa el accent color, chip "Todas" es el default.
+- `displayedDoctors` = memo que cruza search + specialty. Empty state amigable si no matchea nada.
+
+### Admin doctor form — Especialidad + Consultorio por defecto
+
+`/admin/doctors/[id]` (ProfileTab) tenía un hueco histórico: no había dónde setear la especialidad del doctor (la columna `specialty` existía desde migración 095 pero sin UI).
+
+- Nuevo campo **Especialidad** — input de texto libre, max 100, optional. Hint: "Visible en el portal del paciente y en la reserva pública".
+- Nuevo campo **Consultorio por defecto** — dropdown con los offices de la org (o "Sin preferencia"). Alimenta `doctors.default_office_id`.
+- `lib/validations/doctor.ts` extendido con `specialty` y `default_office_id` (ambos nullable).
+- El payload del `UPDATE` escribe ambos, convirtiendo string vacío a `null`.
+
+### API changes
+
+- `GET /api/portal/auth/session` retorna ahora `portal_settings.allow_online_booking` + nuevo campo `clinic_contact: { phone, email }` (de `global_variables`).
+- `GET /api/book/[slug]` retorna `doctors.default_office_id` para permitir resolución client-side.
+
+### Archivos Nuevos / Modificados Clave
+
+- `supabase/migrations/096_patients_is_recurring.sql` (nuevo)
+- `supabase/migrations/097_booking_settings_allow_online_booking.sql` (nuevo)
+- `supabase/migrations/098_doctors_default_office.sql` (nuevo)
+- `components/patients/recurring-badge.tsx` (nuevo)
+- `app/portal/[slug]/mis-citas/page.tsx` (desktop grid, ContactSheet, skeleton, responsive sheet)
+- `app/api/portal/auth/session/route.ts` (allow_online_booking + clinic_contact)
+- `app/book/[slug]/page.tsx` (rewrite de tema + search + specialty chips + office auto-resolve)
+- `app/api/book/[slug]/route.ts` (añade default_office_id al select)
+- `app/(dashboard)/admin/doctors/[id]/page.tsx` (specialty + default_office_id en ProfileTab)
+- `app/(dashboard)/patients/page.tsx` (badge + filter Recurrentes)
+- `app/(dashboard)/patients/patient-drawer.tsx` (badge en drawer + modal)
+- `app/(dashboard)/scheduler/page.tsx` (join `patients(is_recurring)`)
+- `app/(dashboard)/scheduler/day-view.tsx` + `week-view.tsx` (RecurringDot)
+- `app/(dashboard)/scheduler/appointment-form-modal.tsx` (badge en patient found)
+- `lib/validations/doctor.ts` (specialty + default_office_id)
+- `types/admin.ts` (augment Patient con `is_recurring`)
+
+### Cambios de Alcance
+
+- Nuevo pilar: **segmentación de pacientes por engagement**. La bandera `is_recurring` habilita filtros en `/patients`, y futuras campañas de marketing diferenciadas (variable `{{paciente_recurrente}}` en plantillas, próxima iteración).
+- **Portal desktop** sale de estado "mobile-only" a experiencia multi-resolución sin duplicar componentes — misma API, un único `BottomSheet` que se adapta.
+- **Owner control sobre la reserva online**: clínicas que prefieren gestionar el canal vía recepción pueden desactivar `/book` del portal sin cerrarlo globalmente. Flag separado de `booking_settings.is_enabled` (que sigue controlando el acceso público a `/book` para quien no está logueado).
+- Consultorios dejan de ser exposed al paciente — decisión de producto basada en que 99% de clínicas pequeñas asigna consultorio por doctor, no por cita.
+- Especialidad por doctor queda configurada en un único lugar: `/admin/doctors/[id]`. Se muestra en el portal y en `/book`.

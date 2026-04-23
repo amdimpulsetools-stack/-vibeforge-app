@@ -123,6 +123,20 @@ export function AppointmentFormModal({
   const [depositMethod, setDepositMethod] = useState("");
   const [depositRef, setDepositRef] = useState("");
 
+  // Treatment plan linking — populated after a patient is found.
+  // Each entry represents a session pending to be scheduled (no appointment yet).
+  const [activePlanSessions, setActivePlanSessions] = useState<Array<{
+    session_id: string;
+    plan_id: string;
+    plan_title: string;
+    session_number: number;
+    total_sessions: number;
+    service_id: string | null;
+    session_price: number | null;
+    service_name?: string | null;
+  }>>([]);
+  const [selectedPlanSessionId, setSelectedPlanSessionId] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -291,9 +305,52 @@ export function AppointmentFormModal({
       if (data.document_type) setDocType(data.document_type as "DNI" | "CE" | "Pasaporte");
       setPatientDepartamento(data.departamento ?? "");
       setPatientDistrito(data.distrito ?? "");
+
+      // Look up active treatment plans with pending unscheduled sessions
+      const { data: planRows } = await supabase
+        .from("treatment_plans")
+        .select("id, title, total_sessions, treatment_sessions(id, session_number, status, appointment_id, service_id, session_price, treatment_plan_item_id, treatment_plan_items(services(id, name)))")
+        .eq("patient_id", data.id)
+        .eq("status", "active");
+      const availableSessions: typeof activePlanSessions = [];
+      for (const plan of (planRows as unknown as Array<{
+        id: string;
+        title: string;
+        total_sessions: number | null;
+        treatment_sessions: Array<{
+          id: string;
+          session_number: number;
+          status: string;
+          appointment_id: string | null;
+          service_id: string | null;
+          session_price: number | null;
+          treatment_plan_item_id: string | null;
+          treatment_plan_items?: { services?: { id: string; name: string } | null } | null;
+        }>;
+      }> | null) ?? []) {
+        const pending = (plan.treatment_sessions || [])
+          .filter((s) => s.status === "pending" && !s.appointment_id)
+          .sort((a, b) => a.session_number - b.session_number);
+        for (const s of pending) {
+          availableSessions.push({
+            session_id: s.id,
+            plan_id: plan.id,
+            plan_title: plan.title,
+            session_number: s.session_number,
+            total_sessions: plan.total_sessions ?? 0,
+            service_id: s.service_id,
+            session_price: s.session_price != null ? Number(s.session_price) : null,
+            service_name: s.treatment_plan_items?.services?.name ?? null,
+          });
+        }
+      }
+      setActivePlanSessions(availableSessions);
+      setSelectedPlanSessionId(null);
     } else {
       setFoundPatient(null);
       setValue("patient_id", "");
+      setActivePlanSessions([]);
+      setSelectedPlanSessionId(null);
     }
   }, [setValue]);
 
@@ -441,9 +498,19 @@ export function AppointmentFormModal({
       }
     }
 
-    // Capture service price at appointment creation time
+    // Capture service price at appointment creation time. If the cita is
+    // linked to a treatment plan session, use that session's snapshot price
+    // so the budget math stays consistent even if service.base_price moves.
+    const planSession = activePlanSessions.find(
+      (s) => s.session_id === selectedPlanSessionId
+    );
     const serviceForPrice = services.find((s) => s.id === values.service_id);
-    const priceSnapshot = serviceForPrice ? Number(serviceForPrice.base_price) : null;
+    const priceSnapshot =
+      planSession?.session_price != null
+        ? Number(planSession.session_price)
+        : serviceForPrice
+          ? Number(serviceForPrice.base_price)
+          : null;
 
     const { data: newAppt, error } = await supabase
       .from("appointments")
@@ -465,10 +532,20 @@ export function AppointmentFormModal({
         notes: values.notes || null,
         meeting_url: values.meeting_url || null,
         price_snapshot: priceSnapshot,
+        treatment_session_id: planSession?.session_id ?? null,
         organization_id: organizationId,
-      })
+      } as Record<string, unknown>)
       .select("id")
       .single();
+
+    // If we linked to a plan session, mirror the link on the session row too
+    // (1:1 bidirectional). Done after the appointment insert succeeds.
+    if (!error && newAppt && planSession) {
+      await supabase
+        .from("treatment_sessions")
+        .update({ appointment_id: newAppt.id })
+        .eq("id", planSession.session_id);
+    }
 
     // Register advance deposit if configured
     if (!error && newAppt && depositEnabled && Number(depositAmount) > 0) {
@@ -637,6 +714,91 @@ export function AppointmentFormModal({
                     {t("patients.patient_new")}
                   </>
                 )}
+              </div>
+            )}
+
+            {/* Treatment plan linking banner — only when patient has pending sessions */}
+            {foundPatient && activePlanSessions.length > 0 && (
+              <div className="rounded-lg border border-blue-500/30 bg-blue-500/5 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 dark:text-blue-400">
+                    🔗 Este paciente tiene un plan activo
+                  </div>
+                  {selectedPlanSessionId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPlanSessionId(null);
+                      }}
+                      className="text-[10px] text-muted-foreground hover:text-foreground"
+                    >
+                      Desvincular
+                    </button>
+                  )}
+                </div>
+
+                {(() => {
+                  // Group by plan and pick the next pending session per plan for the quick action
+                  const plans = new Map<string, { title: string; total: number; next: typeof activePlanSessions[number] }>();
+                  for (const s of activePlanSessions) {
+                    if (!plans.has(s.plan_id)) {
+                      plans.set(s.plan_id, { title: s.plan_title, total: s.total_sessions, next: s });
+                    }
+                  }
+                  const planList = Array.from(plans.values());
+                  const selected = activePlanSessions.find((s) => s.session_id === selectedPlanSessionId);
+
+                  return (
+                    <>
+                      {planList.map((p) => (
+                        <div
+                          key={p.next.plan_id}
+                          className="flex items-center justify-between gap-2 rounded-md bg-background/60 px-2 py-1.5"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium truncate">
+                              {p.title}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              Sesión {p.next.session_number}
+                              {p.total > 0 ? ` de ${p.total}` : ""}
+                              {p.next.service_name ? ` · ${p.next.service_name}` : ""}
+                              {p.next.session_price != null
+                                ? ` · S/ ${Number(p.next.session_price).toFixed(2)}`
+                                : ""}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedPlanSessionId(p.next.session_id);
+                              if (p.next.service_id) {
+                                setValue("service_id", p.next.service_id);
+                              }
+                            }}
+                            className={cn(
+                              "shrink-0 rounded-md px-2 py-1 text-[11px] font-semibold transition-colors",
+                              selectedPlanSessionId === p.next.session_id
+                                ? "bg-blue-600 text-white"
+                                : "bg-blue-500/10 text-blue-700 hover:bg-blue-500/20 dark:text-blue-400"
+                            )}
+                          >
+                            {selectedPlanSessionId === p.next.session_id
+                              ? "✓ Vinculada"
+                              : "Agendar sesión"}
+                          </button>
+                        </div>
+                      ))}
+
+                      {selected && (
+                        <p className="text-[10px] text-blue-700 dark:text-blue-400">
+                          Esta cita se vinculará a la sesión {selected.session_number} del plan “{selected.plan_title}”.
+                          El servicio y precio se tomarán automáticamente.
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>

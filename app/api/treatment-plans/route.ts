@@ -3,6 +3,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 
+const planItemSchema = z.object({
+  service_id: z.string().uuid(),
+  quantity: z.number().int().min(1).max(100),
+  unit_price: z.number().min(0).max(1000000),
+});
+
 const treatmentPlanSchema = z.object({
   patient_id: z.string().uuid(),
   doctor_id: z.string().uuid(),
@@ -15,6 +21,11 @@ const treatmentPlanSchema = z.object({
   start_date: z.string().nullable().optional(),
   estimated_end_date: z.string().nullable().optional(),
   notes: z.string().max(2000).nullable().optional(),
+  // New in v0.12: multi-service line items. If items provided, they drive
+  // session creation (one session per unit in each item) and total_sessions
+  // is ignored. If items is empty/missing, legacy behavior kicks in and
+  // total_sessions creates N blank sessions (no service, no price).
+  items: z.array(planItemSchema).max(20).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -29,7 +40,7 @@ export async function GET(request: NextRequest) {
 
   let query = supabase
     .from("treatment_plans")
-    .select("*, doctors(full_name, color), treatment_sessions(*)")
+    .select("*, doctors(full_name, color), treatment_sessions(*), treatment_plan_items(*, services(id, name, duration_minutes))")
     .order("created_at", { ascending: false });
 
   if (patientId) query = query.eq("patient_id", patientId);
@@ -63,17 +74,97 @@ export async function POST(request: NextRequest) {
 
   if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
 
+  const { items, ...planFields } = parsed.data;
+
+  // If items are provided, derive total_sessions from them so legacy readers
+  // still see a sensible number.
+  const derivedTotalSessions =
+    items && items.length > 0
+      ? items.reduce((sum, it) => sum + it.quantity, 0)
+      : planFields.total_sessions ?? null;
+
   const { data, error } = await supabase
     .from("treatment_plans")
-    .insert({ ...parsed.data, organization_id: membership.organization_id })
+    .insert({
+      ...planFields,
+      total_sessions: derivedTotalSessions,
+      organization_id: membership.organization_id,
+    })
     .select("*, doctors(full_name, color)")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Auto-create sessions if total_sessions specified
-  if (parsed.data.total_sessions) {
-    const sessions = Array.from({ length: parsed.data.total_sessions }, (_, i) => ({
+  if (items && items.length > 0) {
+    // Validate services belong to this org (defense in depth — RLS also enforces).
+    const serviceIds = Array.from(new Set(items.map((it) => it.service_id)));
+    const { data: servicesCheck } = await supabase
+      .from("services")
+      .select("id")
+      .in("id", serviceIds)
+      .eq("organization_id", membership.organization_id);
+    const validIds = new Set((servicesCheck ?? []).map((s) => s.id));
+    if (serviceIds.some((id) => !validIds.has(id))) {
+      // Roll back the plan we just created
+      await supabase.from("treatment_plans").delete().eq("id", data.id);
+      return NextResponse.json(
+        { error: "Algún servicio no pertenece a tu organización" },
+        { status: 400 }
+      );
+    }
+
+    // Insert items
+    const itemRows = items.map((it, i) => ({
+      treatment_plan_id: data.id,
+      organization_id: membership.organization_id,
+      service_id: it.service_id,
+      quantity: it.quantity,
+      unit_price: it.unit_price,
+      display_order: i,
+    }));
+    const { data: insertedItems, error: itemsErr } = await supabase
+      .from("treatment_plan_items")
+      .insert(itemRows)
+      .select("id, service_id, quantity, unit_price");
+
+    if (itemsErr || !insertedItems) {
+      await supabase.from("treatment_plans").delete().eq("id", data.id);
+      return NextResponse.json(
+        { error: itemsErr?.message || "Error al crear items" },
+        { status: 500 }
+      );
+    }
+
+    // Expand items into individual sessions (qty per item).
+    const sessions: Array<{
+      treatment_plan_id: string;
+      organization_id: string;
+      session_number: number;
+      status: "pending";
+      service_id: string;
+      session_price: number;
+      treatment_plan_item_id: string;
+    }> = [];
+    let n = 1;
+    for (const it of insertedItems) {
+      for (let i = 0; i < it.quantity; i++) {
+        sessions.push({
+          treatment_plan_id: data.id,
+          organization_id: membership.organization_id,
+          session_number: n++,
+          status: "pending",
+          service_id: it.service_id,
+          session_price: Number(it.unit_price),
+          treatment_plan_item_id: it.id,
+        });
+      }
+    }
+    if (sessions.length > 0) {
+      await supabase.from("treatment_sessions").insert(sessions);
+    }
+  } else if (derivedTotalSessions) {
+    // Legacy path: no items, create blank sessions (no service, no price).
+    const sessions = Array.from({ length: derivedTotalSessions }, (_, i) => ({
       treatment_plan_id: data.id,
       organization_id: membership.organization_id,
       session_number: i + 1,
