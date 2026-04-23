@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Check,
   UserCircle,
+  Tag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +31,7 @@ interface BookingSettings {
   portal_allow_reschedule: boolean;
   portal_min_cancel_hours: number;
   portal_welcome_message: string | null;
+  discounts_enabled: boolean;
 }
 
 export default function BookingSettingsTab() {
@@ -55,7 +57,7 @@ export default function BookingSettingsTab() {
       const supabase = createClient();
       const { data } = await supabase
         .from("booking_settings")
-        .select("id, is_enabled, max_advance_days, min_lead_hours, welcome_message, require_email, require_phone, require_dni, accent_color, portal_enabled, portal_allow_cancel, portal_allow_reschedule, portal_min_cancel_hours, portal_welcome_message")
+        .select("id, is_enabled, max_advance_days, min_lead_hours, welcome_message, require_email, require_phone, require_dni, accent_color, portal_enabled, portal_allow_cancel, portal_allow_reschedule, portal_min_cancel_hours, portal_welcome_message, discounts_enabled")
         .eq("organization_id", organizationId)
         .single();
 
@@ -98,6 +100,7 @@ export default function BookingSettingsTab() {
         portal_allow_reschedule: settings.portal_allow_reschedule,
         portal_min_cancel_hours: settings.portal_min_cancel_hours,
         portal_welcome_message: settings.portal_welcome_message || null,
+        discounts_enabled: settings.discounts_enabled,
       })
       .eq("organization_id", organizationId);
 
@@ -374,6 +377,61 @@ export default function BookingSettingsTab() {
           </div>
         </div>
       )}
+
+      {/* Descuentos en citas */}
+      <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <Tag className="h-5 w-5 text-primary" />
+            <div>
+              <h2 className="text-lg font-semibold">
+                {language === "es" ? "Descuentos en citas" : "Appointment discounts"}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {language === "es"
+                  ? "Permite a la recepción aplicar descuentos manuales al precio de la cita, o usar códigos de descuento reutilizables (plan Pro)."
+                  : "Let reception apply manual discounts to the appointment price, or use reusable coupon codes (Pro plan)."}
+              </p>
+            </div>
+          </div>
+          <div className="relative shrink-0">
+            <div
+              onClick={() =>
+                setSettings({
+                  ...settings,
+                  discounts_enabled: !settings.discounts_enabled,
+                })
+              }
+              className={cn(
+                "h-6 w-11 rounded-full transition-colors cursor-pointer",
+                settings.discounts_enabled ? "bg-primary" : "bg-muted"
+              )}
+            >
+              <div
+                className={cn(
+                  "absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                  settings.discounts_enabled && "translate-x-5"
+                )}
+              />
+            </div>
+          </div>
+        </div>
+
+        {settings.discounts_enabled && (
+          <div className="rounded-lg bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
+            <p>
+              {language === "es"
+                ? "• En el sidebar de cada cita aparece el botón \"Aplicar descuento\" (porcentaje o monto fijo)."
+                : "• A \"Apply discount\" button appears in the sidebar of each appointment (percent or fixed amount)."}
+            </p>
+            <p>
+              {language === "es"
+                ? "• Los códigos de descuento reutilizables se gestionan en Admin → Códigos de descuento (plan Professional o superior)."
+                : "• Reusable coupon codes are managed in Admin → Discount codes (Professional plan or higher)."}
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Portal del Paciente */}
       <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">

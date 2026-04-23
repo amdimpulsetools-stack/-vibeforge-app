@@ -87,6 +87,28 @@ export function AppointmentSidebar({
     !!plan && plan.slug !== "starter";
   const { doctorId: currentDoctorId } = useCurrentDoctor();
   const [updating, setUpdating] = useState(false);
+
+  // Org-level discount feature toggle (booking_settings.discounts_enabled).
+  // Defaults to true so existing orgs continue to see the UI. The button is
+  // hidden entirely when false — admins can turn it on/off from Settings →
+  // Agenda.
+  const [discountsEnabled, setDiscountsEnabled] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!appointment.organization_id) return;
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("booking_settings")
+        .select("discounts_enabled")
+        .eq("organization_id", appointment.organization_id)
+        .single();
+      if (!cancelled && data) {
+        setDiscountsEnabled((data as { discounts_enabled?: boolean }).discounts_enabled !== false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [appointment.organization_id]);
   const [editing, setEditing] = useState(false);
   const [showClinicalNote, setShowClinicalNote] = useState(false);
   const [showCancelReason, setShowCancelReason] = useState(false);
@@ -1038,8 +1060,8 @@ export function AppointmentSidebar({
               </div>
             )}
 
-            {/* Discount controls */}
-            {grossPrice > 0 && !editing && (
+            {/* Discount controls — hidden entirely when org disabled the feature */}
+            {grossPrice > 0 && !editing && discountsEnabled && (
               <DiscountControls
                 appointmentId={appointment.id}
                 grossPrice={grossPrice}
