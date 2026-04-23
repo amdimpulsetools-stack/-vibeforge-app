@@ -29,8 +29,10 @@ CREATE INDEX IF NOT EXISTS idx_patients_phone_trgm
   ON patients USING gin (phone gin_trgm_ops);
 
 -- ── Lookup values: joined with filters in multiple places ──
+-- NOTE: real column is `category_id` (not `lookup_category_id` as the
+-- audit draft suggested).
 CREATE INDEX IF NOT EXISTS idx_lookup_values_cat_org_active
-  ON lookup_values (lookup_category_id, organization_id, is_active);
+  ON lookup_values (category_id, organization_id, is_active);
 
 -- ── Payment totals fan-out in scheduler (covering index) ──
 CREATE INDEX IF NOT EXISTS idx_patient_payments_appt_amt
