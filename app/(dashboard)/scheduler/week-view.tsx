@@ -302,13 +302,21 @@ export function WeekView({
                           {!isOtherDoctorAppt && (startAppt as any).meeting_url && (
                             <Video className="h-2.5 w-2.5 shrink-0 text-blue-500" />
                           )}
-                          {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (
-                            (paymentTotals[startAppt.id] ?? 0) >= Number(startAppt.price_snapshot) ? (
-                              <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-600" />
-                            ) : (paymentTotals[startAppt.id] ?? 0) > 0 ? (
-                              <CircleDollarSign className="h-2.5 w-2.5 shrink-0 text-amber-600" />
-                            ) : null
-                          )}
+                          {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (() => {
+                            const gross = Number(startAppt.price_snapshot);
+                            const discount = Number(
+                              (startAppt as { discount_amount?: number | null }).discount_amount ?? 0
+                            );
+                            const effective = Math.max(0, gross - discount);
+                            const paid = paymentTotals[startAppt.id] ?? 0;
+                            if (effective === 0 || paid >= effective) {
+                              return <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-600" />;
+                            }
+                            if (paid > 0) {
+                              return <CircleDollarSign className="h-2.5 w-2.5 shrink-0 text-amber-600" />;
+                            }
+                            return null;
+                          })()}
                         </div>
                         {durationSlots > 1 && (
                           <p className="text-[10px] truncate font-medium" style={{ color: hexToDark(doctorColor, 0.6) }}>

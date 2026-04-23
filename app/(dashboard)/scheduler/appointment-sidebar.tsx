@@ -177,7 +177,7 @@ export function AppointmentSidebar({
       const [apptRes, payRes] = await Promise.all([
         supabase
           .from("appointments")
-          .select("price_snapshot, status")
+          .select("price_snapshot, discount_amount, status")
           .eq("patient_id", appointment.patient_id)
           .neq("status", "cancelled"),
         supabase
@@ -186,7 +186,12 @@ export function AppointmentSidebar({
           .eq("patient_id", appointment.patient_id),
       ]);
       const totalBilled = (apptRes.data ?? []).reduce(
-        (sum, a) => sum + (Number(a.price_snapshot) || 0), 0
+        (sum, a) => {
+          const gross = Number(a.price_snapshot) || 0;
+          const discount = Number((a as { discount_amount?: number | null }).discount_amount) || 0;
+          return sum + Math.max(0, gross - discount);
+        },
+        0
       );
       const totalPaid = (payRes.data ?? []).reduce(
         (sum, p) => sum + Number(p.amount), 0
