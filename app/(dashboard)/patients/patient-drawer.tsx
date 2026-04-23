@@ -236,10 +236,21 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
     setSavingInfo(false);
     if (error) {
+      console.error("[patient-drawer] update error:", error);
       if (error.code === "23505") {
         toast.error("Este DNI ya está registrado en otro paciente");
+      } else if (error.code === "42703") {
+        toast.error(
+          `Columna faltante en la base de datos: ${error.message}. Aplica las migraciones pendientes.`
+        );
+      } else if (error.code === "23514") {
+        toast.error(
+          `Valor no permitido: ${error.message}. Revisa los campos del formulario.`
+        );
       } else {
-        toast.error(t("patients.save_error"));
+        toast.error(
+          `${t("patients.save_error")}: ${error.message || error.code || "desconocido"}`
+        );
       }
       return;
     }
