@@ -192,6 +192,35 @@ export function AppointmentFormModal({
   const watchedDate = watch("appointment_date");
   const watchedOffice = watch("office_id");
   const watchedDoctor = watch("doctor_id");
+  const watchedPatientName = watch("patient_name");
+  const watchedPatientLastName = watch("patient_last_name");
+  const watchedPatientPhone = watch("patient_phone");
+
+  // Integrity guard: if the user edits name/last-name/phone AFTER a patient
+  // was auto-linked by DNI, break the link so the appointment doesn't end
+  // up with a mismatched `patient_id`. The form then behaves as if the
+  // patient were new (banner flips to "paciente nuevo").
+  useEffect(() => {
+    if (!foundPatient) return;
+    const trimmed = (s?: string | null) => (s ?? "").trim();
+    const fpFirst = trimmed(foundPatient.first_name);
+    const fpLast = trimmed(foundPatient.last_name);
+    const fpPhone = trimmed(foundPatient.phone);
+    if (
+      trimmed(watchedPatientName) !== fpFirst ||
+      trimmed(watchedPatientLastName) !== fpLast ||
+      trimmed(watchedPatientPhone) !== fpPhone
+    ) {
+      setFoundPatient(null);
+      setValue("patient_id", "");
+    }
+  }, [
+    watchedPatientName,
+    watchedPatientLastName,
+    watchedPatientPhone,
+    foundPatient,
+    setValue,
+  ]);
 
   // Auto-fill meeting URL from doctor's default when virtual service is selected
   useEffect(() => {
