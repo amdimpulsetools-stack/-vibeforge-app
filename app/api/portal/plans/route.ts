@@ -34,9 +34,14 @@ export async function GET(req: NextRequest) {
   }
 
   const planIds = plans.map((p) => p.id);
+  // SECURITY (F-01): even though planIds were already filtered by org via the
+  // plans query above, the admin client bypasses RLS so we MUST constrain this
+  // query by organization_id explicitly. Without this filter, a crafted
+  // treatment_plan_id collision could expose cross-tenant payments.
   const { data: payments } = await supabase
     .from("patient_payments")
     .select("treatment_plan_id, amount")
+    .eq("organization_id", session.organization_id)
     .in("treatment_plan_id", planIds);
 
   const paidByPlan = new Map<string, number>();

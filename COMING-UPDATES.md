@@ -107,6 +107,45 @@
 
 ---
 
+## 🛠️ Technical Debt — Post-audit (v0.12.3)
+
+Items identificados en la auditoría multi-agente del 2026-04-22 que quedaron pendientes tras atacar los top-5 del plan de acción. Cada uno tiene su análisis completo en `docs/{security,performance,ux}-review-2026-04-22.md`.
+
+- [ ] **Security follow-ups (P1 tier)**:
+  - F-03: magic-link token en URL query-param + plaintext en DB — considerar hashear el token y entregar solo por email body
+  - F-04: in-memory 2FA Map en `lib/founder-auth.ts` — migrar a DB o Redis (broken en Vercel serverless)
+  - F-05: `lib/rate-limit.ts` in-memory — migrar a Upstash Redis o Supabase KV
+  - F-06: `/api/clinical-attachments/[id]` signed URL sin ownership check — añadir verificación
+  - F-10: founder routes validan solo `is_founder` flag, la 2FA cookie nunca se verifica — implementar verificación real
+  - F-11: LLM assistant con PHI fluyendo a Anthropic API sin allowlist de columnas — agregar filtro server-side
+  - F-19: MP webhook — prefijo `APP_USR-` tratado como test mode, `MP_WEBHOOK_SECRET` missing silencia verificación en prod
+
+- [ ] **A11y: convertir los ~6 modales hand-rolled restantes a Radix Dialog**:
+  - `app/(dashboard)/patients/patient-drawer.tsx` (el expanded modal — ~1400 líneas, cuidado)
+  - `app/(dashboard)/patients/clinical-history-modal.tsx`
+  - `app/(dashboard)/patients/bulk-import-modal.tsx`
+  - `app/(dashboard)/patients/patient-form-modal.tsx`
+  - `app/(dashboard)/account/page.tsx` (modal de password)
+  - `app/(dashboard)/admin/members/page.tsx` (invite modal)
+  - Patrón ya definido en `appointment-form-modal.tsx` + `budgets-panel.tsx` — copiar y pegar.
+
+- [ ] **A11y: 13 `confirm()` nativos restantes en admin CRUD** → `useConfirm()`
+  - `admin/discount-codes/page.tsx:158` (delete), `admin/treatment-plan-templates/page.tsx:140`, `admin/clinical-templates/page.tsx:144`, `admin/diagnosis-codes/page.tsx:117`, `admin/lookups/page.tsx:151`, `admin/members/page.tsx:247,264`, `admin/offices/page.tsx:69`, `admin/services/page.tsx:73,85`, `patients/growth-curves-panel.tsx:172`, `settings/whatsapp-templates-tab.tsx:231`. 3 `alert()` en `founder/integrations/page.tsx`.
+  - Patrón trivial: `const confirm = useConfirm(); if (!(await confirm({ title, description, variant: "destructive" }))) return;`.
+
+- [ ] **UX: dual design system cleanup** — portal iOS-flavored con hex hardcoded vs dashboard shadcn-tokens vs /book variante light. Propuesta: unificar radius scale (lg/xl/2xl/3xl), consolidar color tokens semánticos, un solo Button component source-of-truth. UX review tiene propuesta detallada.
+
+- [ ] **UX: public /book safety net** — agregar sessionStorage del form progress, validación per-field con feedback inmediato, mensajes de error específicos (no "Error al crear la cita" genérico), success screen con próximos pasos y link a `/portal`.
+
+- [ ] **UX: copy polish (~24 ediciones específicas)** — listados en `docs/ux-review-2026-04-22.md` sección "Copy polish".
+
+- [ ] **Perf: migración 103 apply** — tras el PR merge.
+- [ ] **Perf: `select("*, ...)` → columnas explícitas** en scheduler hot path (F-01 del perf audit).
+- [ ] **Perf: `recharts` dynamic import** en dashboard y reports (F-12 del perf audit).
+- [ ] **Perf: AppointmentSidebar 4 awaits secuenciales** → `Promise.all` (F-05 del perf audit).
+
+---
+
 ## 🏥 Historia Clínica
 
 - [ ] **Importación masiva de códigos CIE-10** — La base ya permite agregar códigos personalizados uno a uno. Falta importar lotes (CSV/Excel) por especialidad para ahorrar tiempo a clínicas con muchos diagnósticos específicos.

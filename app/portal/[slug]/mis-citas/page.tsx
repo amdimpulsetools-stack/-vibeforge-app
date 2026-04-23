@@ -34,6 +34,7 @@ import {
   PhoneCall,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 interface Doctor {
   full_name: string;
@@ -277,12 +278,13 @@ export default function MisCitasPage() {
       if (res.ok) {
         setConfirmCancel(null);
         await fetchData();
+        toast.success("Cita cancelada");
       } else {
         const data = await res.json();
-        alert(data.error || "Error al cancelar");
+        toast.error(data.error || "Error al cancelar");
       }
     } catch {
-      alert("Error de conexión");
+      toast.error("Error de conexión");
     } finally {
       setCancellingId(null);
     }

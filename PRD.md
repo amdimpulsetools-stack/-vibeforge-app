@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-22
-> **Versión:** 0.12.2
+> **Versión:** 0.12.3
 > **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + **Parches de integridad y UX post-release**
 
 ---
@@ -2110,3 +2110,99 @@ Cero breaking change. Servicios existentes siguen con `requires_consent = false`
 - **Cumplimiento legal como feature foundational, no premium**: el Tier 1 queda disponible en TODOS los planes (incluyendo Starter). Razón: el cumplimiento de Ley 29414 no debe ser un paywall — es una obligación del negocio médico. La diferenciación comercial vendrá del Tier 2 (templates + generación de PDF) que es productivity.
 - **Reuso de infrastructure existente antes de construir nueva**: la decisión de usar `clinical_attachments.category='consent'` + el input file HTML estándar (que ofrece "Tomar foto" en móvil) evitó construir un uploader especializado. Patrón a repetir para otras features.
 - **Detección contextual automática**: el bloque de consentimiento cambia su prominencia visual según el servicio de la cita, sin que el doctor tenga que recordar cuáles son "riesgosos". La configuración vive donde debe (admin), la aplicación se hace donde importa (nota clínica).
+
+---
+
+## 29. Changelog — Sesión 2026-04-22 cierre-3 (v0.12.3) — Primera ronda de fixes post-auditoría
+
+Primeros 5 items atacados del plan de acción derivado de la auditoría multi-agente (security + performance + UX). Los reportes completos quedan en `docs/*-review-2026-04-22.md`.
+
+### 🔴 Security — 2 P0 corregidos
+
+**F-01 (P0) — cross-tenant PHI risk in `/api/portal/plans`**
+
+`app/api/portal/plans/route.ts` usa `createAdminClient()` (bypass RLS) para consultar `patient_payments` por `treatment_plan_id`. Aunque los `planIds` venían pre-filtrados por org en la query anterior, el admin client **no respeta RLS**, así que un ataque teórico con colisión de UUID podría haber expuesto pagos de otra clínica.
+
+Fix: añadir `.eq("organization_id", session.organization_id)` explícito al query de `patient_payments`. Defense-in-depth contra el admin client.
+
+**F-02 (P0) — TOCTOU en cancel de cita del portal**
+
+`app/api/portal/appointments/cancel/route.ts` hacía el `UPDATE` sin re-asertar `patient_id` + `organization_id` en el WHERE, dependiendo solo del `SELECT` previo para validar ownership. Con admin client y race condition, un atacante con session_token válido podría haber cancelado citas ajenas.
+
+Fix: el UPDATE ahora incluye `.eq("patient_id", ...).eq("organization_id", ...).in("status", ["scheduled", "confirmed"])` como guarda atómica.
+
+### ⚡ Performance — Migración 103
+
+Nueva migración `103_perf_indexes_2026_04_22.sql` con 10 índices identificados por el performance audit:
+
+- `schedule_blocks(organization_id, block_date)` — F-32
+- `clinical_notes(patient_id, created_at DESC)` — F-14
+- `pg_trgm` extension + GIN indexes on `patients(first_name, last_name, dni, phone)` — F-11 (patient search ILIKE)
+- `lookup_values(lookup_category_id, organization_id, is_active)` — F-29
+- `patient_payments(appointment_id) INCLUDE (amount)` — covering index, F-18
+- `reminder_logs(appointment_id, template_slug, channel, status)` — cron cadence
+- `notifications(organization_id, created_at DESC)` — dashboard topbar
+- `patient_portal_sessions(patient_id, expires_at DESC)`
+- `clinical_attachments(patient_id, created_at DESC)`
+
+`ANALYZE` sobre todas las tablas afectadas al final de la migración para que el planner adopte los índices de inmediato.
+
+### 📦 Bundle — paquete `motion` eliminado
+
+`npm uninstall motion` — removido del `package.json`. Duplicado de `framer-motion` (ambos instalados), nunca importado (`grep "from 'motion'"` → 0 matches). Ahorra ~8.5 MB de node_modules y ~300 KB gzip en el bundle de producción (Next no lo tree-shakeaba porque aparecía como import inválido al momento del análisis).
+
+### 🎨 UX — AlertDialog + dialogs accesibles
+
+**Nuevo sistema de confirmación imperativo**:
+- `components/ui/alert-dialog.tsx` — wrapper de `@radix-ui/react-alert-dialog` con variantes `default` y `destructive`.
+- `components/ui/confirm-dialog.tsx` — `<ConfirmDialogProvider>` al root layout + hook `useConfirm()` para uso imperativo tipo `await confirm({ title, description, variant: "destructive" })`.
+
+**3 `confirm()` nativos críticos reemplazados** (los más irreversibles del repo):
+- `clinical-note-panel.tsx:350` — firmar nota clínica (bloquea ediciones futuras).
+- `appointment-sidebar.tsx:549` — eliminar cita.
+- `portal/mis-citas/page.tsx:282,285` — `alert()` → `toast.error()` (tiene sentido un toast, no un dialog, en el portal).
+
+Los otros ~13 `confirm()` restantes (admin CRUD: discount-codes delete, treatment-plan-templates, clinical-templates, diagnosis-codes, lookups, members, offices, services, growth-curves, whatsapp-templates) usan el mismo patrón `if (!confirm(...)) return;` — su migración al `useConfirm()` es ~10 min de trabajo lineal, documentada en COMING-UPDATES como follow-up.
+
+**3 modales hand-rolled convertidos a Radix Dialog** (role="dialog" + aria-modal + ESC + focus trap + focus return + portal):
+- `scheduler/appointment-form-modal.tsx` — el más usado del app, crear/editar cita.
+- `patients/budgets-panel.tsx` — modal de registrar pago al plan.
+- `admin/discount-codes/page.tsx` — CodeFormModal crear/editar código.
+
+Los ~6 modales restantes (patient-drawer expanded, clinical-history-modal, bulk-import, patient-form, account, members) siguen hand-rolled. Documentado en COMING-UPDATES como deuda de a11y a pagar en el siguiente sprint.
+
+### Archivos modificados
+
+- `app/api/portal/plans/route.ts` (+3 líneas, explicit org filter)
+- `app/api/portal/appointments/cancel/route.ts` (+3 líneas, UPDATE re-asserts ownership)
+- `supabase/migrations/103_perf_indexes_2026_04_22.sql` (nuevo)
+- `package.json` (− `motion` dependency)
+- `components/ui/alert-dialog.tsx` (nuevo)
+- `components/ui/confirm-dialog.tsx` (nuevo — Provider + useConfirm)
+- `app/layout.tsx` (wire ConfirmDialogProvider)
+- `app/(dashboard)/scheduler/clinical-note-panel.tsx` (useConfirm para firma)
+- `app/(dashboard)/scheduler/appointment-sidebar.tsx` (useConfirm para delete)
+- `app/(dashboard)/scheduler/appointment-form-modal.tsx` (Radix Dialog)
+- `app/(dashboard)/patients/budgets-panel.tsx` (Radix Dialog para payment)
+- `app/(dashboard)/admin/discount-codes/page.tsx` (Radix Dialog para form)
+- `app/portal/[slug]/mis-citas/page.tsx` (alert → toast)
+
+### Cambios de Alcance
+
+- **Defense-in-depth cuando se usa `createAdminClient`**: establecido el patrón de re-asertar filtros de ownership en cada query/UPDATE bajo admin client, aún cuando un SELECT previo ya validó. No confiar en el estado de 2 queries atrás — los admin writes bypass RLS y las RLS son nuestra red de seguridad real.
+- **A11y de modales** pasa de "bienintencionada pero ausente" a "sistema Radix con 3 patrones adoptados". La deuda restante (~6 modales) está documentada y tiene el pattern definido — el siguiente sprint es puramente copiar el patrón.
+- **Confirmaciones imperativas** reemplazan `confirm()` nativo sin cambiar la forma del código (`if (!(await confirm({...}))) return;` vs `if (!confirm("...")) return;` — prácticamente el mismo diff en cada sitio), incentivando adopción.
+- **Performance**: migración 103 entrega los índices sin tocar código. Una sola aplicación mejora latencia de 8+ queries en hot paths (scheduler, dashboard, portal, cron).
+
+### Migración pendiente de aplicar
+
+```sql
+-- Aplicar en Supabase SQL Editor (o npm run db:push cuando esté configurado)
+-- Ver: supabase/migrations/103_perf_indexes_2026_04_22.sql
+```
+
+Post-apply, ejecutar:
+```sql
+SELECT indexname FROM pg_indexes WHERE indexname LIKE 'idx_%_trgm' OR indexname LIKE 'idx_schedule_blocks_%' OR indexname LIKE 'idx_clinical_notes_%';
+-- Debe listar los 10 nuevos.
+```

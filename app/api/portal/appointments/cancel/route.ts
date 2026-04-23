@@ -77,10 +77,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // SECURITY (F-02): even though we already verified above that this cita
+  // belongs to the patient+org, a concurrent mutation could change that
+  // between the SELECT and this UPDATE (TOCTOU). The admin client bypasses
+  // RLS, so the UPDATE MUST re-assert ownership in its WHERE clause.
   const { error } = await supabase
     .from("appointments")
     .update({ status: "cancelled" })
-    .eq("id", appointment_id);
+    .eq("id", appointment_id)
+    .eq("patient_id", session.patient_id)
+    .eq("organization_id", session.organization_id)
+    .in("status", ["scheduled", "confirmed"]);
 
   if (error) {
     return NextResponse.json(

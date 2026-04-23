@@ -6,6 +6,7 @@ import { RoleGate } from "@/components/role-gate";
 import { createClient } from "@/lib/supabase/client";
 import { usePlan } from "@/hooks/use-plan";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   Tag,
   Plus,
@@ -387,25 +388,11 @@ function CodeFormModal({
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl border border-border bg-card p-5 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-bold">
-            {isEdit ? "Editar código" : "Nuevo código"}
-          </h3>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-accent"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-full max-w-lg p-5 space-y-4 max-h-[90vh] overflow-y-auto [&>button]:top-4 [&>button]:right-4">
+        <DialogTitle className="text-lg font-bold">
+          {isEdit ? "Editar código" : "Nuevo código"}
+        </DialogTitle>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
@@ -595,7 +582,7 @@ function CodeFormModal({
             Cancelar
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

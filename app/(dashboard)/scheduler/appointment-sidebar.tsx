@@ -37,6 +37,7 @@ import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { usePlan } from "@/hooks/use-plan";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import dynamic from "next/dynamic";
 
@@ -83,6 +84,7 @@ export function AppointmentSidebar({
   const { profile } = useUserProfile();
   const { isAdmin, isDoctor: isDoctorRole } = useOrgRole();
   const { plan } = usePlan();
+  const confirm = useConfirm();
   const allowDiscountCodes =
     !!plan && plan.slug !== "starter";
   const { doctorId: currentDoctorId } = useCurrentDoctor();
@@ -546,7 +548,13 @@ export function AppointmentSidebar({
   };
 
   const handleDelete = async () => {
-    if (!confirm(t("scheduler.delete_confirm"))) return;
+    const ok = await confirm({
+      title: t("scheduler.delete_confirm"),
+      description: "Esta acción no se puede deshacer.",
+      confirmText: "Sí, eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     setUpdating(true);
     const supabase = createClient();
     const { error } = await supabase

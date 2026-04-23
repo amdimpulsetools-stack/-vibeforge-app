@@ -23,6 +23,7 @@ import {
   Cloud,
 } from "lucide-react";
 import { searchCIE10WithCustom, type CIE10Entry } from "@/lib/cie10-catalog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ClinicalNotePrintButton } from "./clinical-note-print";
 import { PatientContextCard } from "./patient-context-card";
 
@@ -61,6 +62,7 @@ export function ClinicalNotePanel({
   clinicName,
   wideLayout = false,
 }: ClinicalNotePanelProps) {
+  const confirm = useConfirm();
   const [note, setNote] = useState<ClinicalNote | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -347,7 +349,14 @@ export function ClinicalNotePanel({
 
   const handleSign = async () => {
     if (!note) return;
-    if (!confirm("¿Firmar esta nota clínica? Una vez firmada no podrá ser editada.")) return;
+    const ok = await confirm({
+      title: "¿Firmar esta nota clínica?",
+      description:
+        "Una vez firmada, la nota queda bloqueada y no podrá ser editada. Asegúrate de haber revisado todos los campos.",
+      confirmText: "Sí, firmar",
+      cancelText: "Volver",
+    });
+    if (!ok) return;
 
     setSigning(true);
     try {
