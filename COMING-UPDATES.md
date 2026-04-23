@@ -107,9 +107,85 @@
 
 ---
 
+## 🛠️ Technical Debt — Post-audit (v0.12.3)
+
+Items identificados en la auditoría multi-agente del 2026-04-22 que quedaron pendientes tras atacar los top-5 del plan de acción. Cada uno tiene su análisis completo en `docs/{security,performance,ux}-review-2026-04-22.md`.
+
+- [ ] **Security follow-ups (P1 tier)**:
+  - F-03: magic-link token en URL query-param + plaintext en DB — considerar hashear el token y entregar solo por email body
+  - F-04: in-memory 2FA Map en `lib/founder-auth.ts` — migrar a DB o Redis (broken en Vercel serverless)
+  - F-05: `lib/rate-limit.ts` in-memory — migrar a Upstash Redis o Supabase KV
+  - F-06: `/api/clinical-attachments/[id]` signed URL sin ownership check — añadir verificación
+  - F-10: founder routes validan solo `is_founder` flag, la 2FA cookie nunca se verifica — implementar verificación real
+  - F-11: LLM assistant con PHI fluyendo a Anthropic API sin allowlist de columnas — agregar filtro server-side
+  - F-19: MP webhook — prefijo `APP_USR-` tratado como test mode, `MP_WEBHOOK_SECRET` missing silencia verificación en prod
+
+- [ ] **A11y: convertir los ~6 modales hand-rolled restantes a Radix Dialog**:
+  - `app/(dashboard)/patients/patient-drawer.tsx` (el expanded modal — ~1400 líneas, cuidado)
+  - `app/(dashboard)/patients/clinical-history-modal.tsx`
+  - `app/(dashboard)/patients/bulk-import-modal.tsx`
+  - `app/(dashboard)/patients/patient-form-modal.tsx`
+  - `app/(dashboard)/account/page.tsx` (modal de password)
+  - `app/(dashboard)/admin/members/page.tsx` (invite modal)
+  - Patrón ya definido en `appointment-form-modal.tsx` + `budgets-panel.tsx` — copiar y pegar.
+
+- [ ] **A11y: 13 `confirm()` nativos restantes en admin CRUD** → `useConfirm()`
+  - `admin/discount-codes/page.tsx:158` (delete), `admin/treatment-plan-templates/page.tsx:140`, `admin/clinical-templates/page.tsx:144`, `admin/diagnosis-codes/page.tsx:117`, `admin/lookups/page.tsx:151`, `admin/members/page.tsx:247,264`, `admin/offices/page.tsx:69`, `admin/services/page.tsx:73,85`, `patients/growth-curves-panel.tsx:172`, `settings/whatsapp-templates-tab.tsx:231`. 3 `alert()` en `founder/integrations/page.tsx`.
+  - Patrón trivial: `const confirm = useConfirm(); if (!(await confirm({ title, description, variant: "destructive" }))) return;`.
+
+- [ ] **UX: dual design system cleanup** — portal iOS-flavored con hex hardcoded vs dashboard shadcn-tokens vs /book variante light. Propuesta: unificar radius scale (lg/xl/2xl/3xl), consolidar color tokens semánticos, un solo Button component source-of-truth. UX review tiene propuesta detallada.
+
+- [ ] **UX: public /book safety net** — agregar sessionStorage del form progress, validación per-field con feedback inmediato, mensajes de error específicos (no "Error al crear la cita" genérico), success screen con próximos pasos y link a `/portal`.
+
+- [ ] **UX: copy polish (~24 ediciones específicas)** — listados en `docs/ux-review-2026-04-22.md` sección "Copy polish".
+
+- [ ] **Perf: migración 103 apply** — tras el PR merge.
+- [ ] **Perf: `select("*, ...)` → columnas explícitas** en scheduler hot path (F-01 del perf audit).
+- [ ] **Perf: `recharts` dynamic import** en dashboard y reports (F-12 del perf audit).
+- [ ] **Perf: AppointmentSidebar 4 awaits secuenciales** → `Promise.all` (F-05 del perf audit).
+
+---
+
 ## 🏥 Historia Clínica
 
 - [ ] **Importación masiva de códigos CIE-10** — La base ya permite agregar códigos personalizados uno a uno. Falta importar lotes (CSV/Excel) por especialidad para ahorrar tiempo a clínicas con muchos diagnósticos específicos.
+
+- [ ] **Consentimiento informado — Tier 2: Templates configurables + PDF pre-llenado** — Extiende el MVP (Tier 1, v0.12.2) con la generación automática del documento de consentimiento a partir de plantillas de la clínica. Hoy el doctor escribe el consentimiento en Word/fuera del sistema; esto lo trae dentro y reduce 10 min por procedimiento.
+
+  **Requiere**:
+  - Nueva tabla `consent_templates`: `(id, organization_id, name, title, body_template, applies_to_service_ids uuid[], applies_to_specialty text, default_risks text, default_alternatives text, revocation_clause text, is_active, created_by)`.
+  - `body_template` en Markdown/HTML con variables: `{{paciente_nombre}}`, `{{paciente_dni}}`, `{{paciente_edad}}`, `{{fecha}}`, `{{doctor_nombre}}`, `{{doctor_cmp}}`, `{{clinica_nombre}}`, `{{procedimiento}}`, `{{riesgos}}`, `{{alternativas}}`, `{{revocacion}}`.
+  - Nueva tabla `consent_records` para auditoría formal: `(id, clinical_note_id, template_id, attachment_id, signed_at, revoked_at, signed_by_relationship)` — distingue cuando firmó el paciente vs. un tutor/representante.
+  - Admin UI en `/admin/consent-templates` (CRUD similar a `discount-codes` y `treatment-plan-templates`): editor Markdown con preview en vivo, chip-toggle de servicios aplicables, plantillas seed por especialidad (cirugía menor, odontología invasiva, dermatología estética, anestesia local, procedimientos con radiación, uso de fotos clínicas para marketing).
+  - Desde la nota clínica, botón **"Generar consentimiento PDF"** que:
+    - Abre modal con los templates que matchean el servicio de la cita
+    - Preview del PDF con variables ya interpoladas (datos del paciente + del doctor + de la clínica + del procedimiento)
+    - Descarga `.pdf` listo para imprimir
+    - Después de subir el escaneado firmado como adjunto, se crea automáticamente la fila en `consent_records` vinculando template + attachment + fecha firma
+  - Seed de 5-8 plantillas base traducidas/adaptadas para Perú (basadas en modelos MINSA publicados).
+
+  **Tiering comercial propuesto**: Professional y Enterprise. Justifica upgrade desde Starter porque ahorra tiempo operativo real (escribir consentimiento en Word → usar plantilla).
+
+  **Dependencia**: `clinical_attachments` con `category='consent'` (ya existe), Tier 1 aplicado (v0.12.2).
+
+- [ ] **Consentimiento informado — Tier 3: Firma digital en el portal** — Permite que el paciente firme el consentimiento desde su celular sin papel ni escáner.
+
+  **Opciones técnicas** (a evaluar antes de implementar):
+  - **Opción A — Canvas de firma manuscrita**: el paciente firma con el dedo/mouse en un `<canvas>`, se exporta como PNG, se embebe en el PDF generado. Legalmente válido bajo "firma electrónica simple" de la Ley 27269.
+  - **Opción B — Aceptación electrónica con hash**: el paciente lee el documento en el portal, click "Acepto" → se guarda `{ document_hash, accepted_at, ip, user_agent, patient_user_id }`. El documento debe incluir cláusula explícita "la aceptación electrónica equivale a firma". Más ligero legalmente.
+  - **Opción C — E-signature provider** (DocuSign, Adobe Sign, Firmador Perú): requiere contrato comercial con proveedor, costo por firma, pero tiene respaldo notarial.
+
+  **Requiere**:
+  - Nueva ruta `/portal/[slug]/consentimientos/[id]` con el documento renderizado y el flujo de firma
+  - Endpoint `POST /api/portal/consentimientos/[id]/sign` que marca el `consent_records` como firmado
+  - Notificación al doctor cuando el paciente firma
+  - Decisiones de producto pendientes: ¿qué opción (A/B/C)?, ¿obligar revisión del doctor antes de activar firma digital?, ¿permitir revocación post-firma?
+
+  **Prioridad**: baja. La mayoría de clínicas peruanas del segmento target siguen usando papel + foto de móvil (cubierto por Tier 1). Reevaluar cuando haya 3+ solicitudes específicas de clientes.
+
+  **Dependencia**: Tier 2 aplicado (templates + PDF generador).
+
+- [ ] **Consentimiento — Badge en ficha del paciente** — Pequeña mejora UX para cierre de bucle de auditoría. En el drawer del paciente, mostrar badge "⚠ N citas con procedimiento riesgoso sin consentimiento registrado" cuando haya citas `completed` con `services.requires_consent = true` y `clinical_notes.consent_registered = false`. Facilita que owner/admin identifique casos de incumplimiento antes de auditorías externas. Implementación: query simple + componente badge en `patient-drawer.tsx` header. ~1h de trabajo.
 
 ---
 

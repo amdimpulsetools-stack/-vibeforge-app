@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useUserProfile } from "@/hooks/use-user-profile";
@@ -37,6 +37,7 @@ import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { usePlan } from "@/hooks/use-plan";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import dynamic from "next/dynamic";
 
@@ -83,6 +84,7 @@ export function AppointmentSidebar({
   const { profile } = useUserProfile();
   const { isAdmin, isDoctor: isDoctorRole } = useOrgRole();
   const { plan } = usePlan();
+  const confirm = useConfirm();
   const allowDiscountCodes =
     !!plan && plan.slug !== "starter";
   const { doctorId: currentDoctorId } = useCurrentDoctor();
@@ -147,6 +149,108 @@ export function AppointmentSidebar({
 
   // ── Patient-level debt ──────────────────────────────────────────────────
   const [patientDebt, setPatientDebt] = useState<number>(0);
+
+  // ── Informed consent quick-access ─────────────────────────────────────
+  // Shows a compact upload card when the cita's service requires consent.
+  // Visible to any org member (reception included) — RLS on
+  // clinical_attachments allows inserts from any org member, so this card
+  // lets reception upload the signed form without navigating to the
+  // clinical-history modal (2 clicks instead of 5).
+  const [consentRequired, setConsentRequired] = useState(false);
+  const [consentFiles, setConsentFiles] = useState<Array<{
+    id: string;
+    file_name: string;
+    file_type: string;
+    file_size: number;
+    storage_path: string;
+    created_at: string;
+  }>>([]);
+  const [consentUploading, setConsentUploading] = useState(false);
+  const consentInputRef = useRef<HTMLInputElement>(null);
+
+  const fetchConsentContext = useCallback(async () => {
+    const supabase = createClient();
+    // Service's requires_consent flag
+    if (appointment.service_id) {
+      const { data: svc } = await supabase
+        .from("services")
+        .select("requires_consent")
+        .eq("id", appointment.service_id)
+        .maybeSingle();
+      setConsentRequired(
+        (svc as { requires_consent?: boolean } | null)?.requires_consent === true
+      );
+    } else {
+      setConsentRequired(false);
+    }
+    // Existing consent-type attachments for this appointment
+    if (appointment.patient_id) {
+      const { data } = await supabase
+        .from("clinical_attachments")
+        .select("id, file_name, file_type, file_size, storage_path, created_at")
+        .eq("appointment_id", appointment.id)
+        .eq("category", "consent")
+        .order("created_at", { ascending: false });
+      setConsentFiles(data ?? []);
+    }
+  }, [appointment.id, appointment.service_id, appointment.patient_id]);
+
+  useEffect(() => {
+    fetchConsentContext();
+  }, [fetchConsentContext]);
+
+  const handleConsentUpload = async (file: File) => {
+    if (!appointment.patient_id) {
+      toast.error("La cita no tiene paciente vinculado");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("El archivo no puede superar 10 MB");
+      return;
+    }
+    setConsentUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("patient_id", appointment.patient_id);
+      form.append("appointment_id", appointment.id);
+      form.append("category", "consent");
+      form.append("description", "Consentimiento firmado");
+
+      const res = await fetch("/api/clinical-attachments", {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        toast.error(json.error || "Error al subir el documento");
+        return;
+      }
+      toast.success("Consentimiento subido");
+      fetchConsentContext();
+    } catch {
+      toast.error("Error de red al subir");
+    } finally {
+      setConsentUploading(false);
+      if (consentInputRef.current) consentInputRef.current.value = "";
+    }
+  };
+
+  const handleConsentDownload = async (storagePath: string, fileName: string) => {
+    const supabase = createClient();
+    const { data, error } = await supabase.storage
+      .from("clinical-attachments")
+      .createSignedUrl(storagePath, 60);
+    if (error || !data?.signedUrl) {
+      toast.error("No se pudo descargar");
+      return;
+    }
+    const a = document.createElement("a");
+    a.href = data.signedUrl;
+    a.download = fileName;
+    a.target = "_blank";
+    a.click();
+  };
 
   // ── Treatment plan context (only when cita is linked to a session) ──
   const [planContext, setPlanContext] = useState<{
@@ -444,7 +548,13 @@ export function AppointmentSidebar({
   };
 
   const handleDelete = async () => {
-    if (!confirm(t("scheduler.delete_confirm"))) return;
+    const ok = await confirm({
+      title: t("scheduler.delete_confirm"),
+      description: "Esta acción no se puede deshacer.",
+      confirmText: "Sí, eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     setUpdating(true);
     const supabase = createClient();
     const { error } = await supabase
@@ -984,6 +1094,98 @@ export function AppointmentSidebar({
                 la sesión.
               </p>
             )}
+          </div>
+        )}
+
+        {/* ── Consentimiento informado (quick access) ────────────────────── */}
+        {!editing && (consentRequired || consentFiles.length > 0) && (
+          <div
+            className={cn(
+              "rounded-lg border p-3 space-y-2",
+              consentRequired && consentFiles.length === 0
+                ? "border-amber-500/50 bg-amber-500/5"
+                : "border-border/60 bg-muted/20"
+            )}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-xs font-semibold">
+                  <FileText className="h-3.5 w-3.5" />
+                  Consentimiento informado
+                  {consentRequired && (
+                    <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-400">
+                      Requerido
+                    </span>
+                  )}
+                </p>
+                <p className="text-[10px] text-muted-foreground">
+                  {consentRequired
+                    ? "Este servicio requiere documento firmado (Ley 29414)."
+                    : "Documentos de consentimiento de esta cita."}
+                </p>
+              </div>
+            </div>
+
+            {/* File list */}
+            {consentFiles.length > 0 && (
+              <div className="space-y-1">
+                {consentFiles.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => handleConsentDownload(f.storage_path, f.file_name)}
+                    className="flex w-full items-center gap-2 rounded-md bg-background/80 px-2 py-1.5 text-left text-[11px] hover:bg-background transition-colors"
+                  >
+                    <FileText className="h-3 w-3 text-emerald-600 shrink-0" />
+                    <span className="min-w-0 flex-1 truncate">{f.file_name}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {new Date(f.created_at).toLocaleDateString("es-PE", {
+                        day: "2-digit",
+                        month: "short",
+                      })}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Upload button */}
+            <div>
+              <input
+                ref={consentInputRef}
+                type="file"
+                accept="image/*,application/pdf"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleConsentUpload(file);
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => consentInputRef.current?.click()}
+                disabled={consentUploading || !appointment.patient_id}
+                className={cn(
+                  "flex w-full items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-semibold transition-colors",
+                  consentRequired && consentFiles.length === 0
+                    ? "bg-amber-500 text-white hover:bg-amber-600"
+                    : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
+              >
+                {consentUploading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <Plus className="h-3 w-3" />
+                )}
+                {consentFiles.length === 0
+                  ? "Subir consentimiento firmado"
+                  : "Añadir otro documento"}
+              </button>
+              <p className="mt-1 text-[9px] text-muted-foreground text-center">
+                Foto (celular) o PDF · máx 10 MB
+              </p>
+            </div>
           </div>
         )}
 

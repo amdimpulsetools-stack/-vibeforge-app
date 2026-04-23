@@ -24,6 +24,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 
 type PaymentMethod = "cash" | "yape" | "transfer" | "card" | "other";
 
@@ -249,21 +250,15 @@ export function BudgetsPanel({
       )}
 
       {/* Payment modal */}
-      {openFor && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-          onClick={closePayment}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-2xl border border-border bg-card p-5 shadow-2xl space-y-4"
-          >
+      <Dialog open={!!openFor} onOpenChange={(v) => { if (!v) closePayment(); }}>
+        {openFor && (
+          <DialogContent className="w-full max-w-md p-5 space-y-4 [&>button]:top-4 [&>button]:right-4">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold">Registrar pago al plan</h3>
-                <p className="text-xs text-muted-foreground truncate">
+                <DialogTitle className="text-base font-bold">Registrar pago al plan</DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground truncate">
                   {openFor.plan_title}
-                </p>
+                </DialogDescription>
               </div>
               <button
                 onClick={closePayment}
@@ -387,9 +382,9 @@ export function BudgetsPanel({
                 Cancelar
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 }

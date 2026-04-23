@@ -33,6 +33,10 @@ export interface ClinicalNote {
   vitals: Vitals;
   internal_notes: string | null;
 
+  // Informed consent — migration 102 (Tier 1 MVP)
+  consent_registered: boolean;
+  consent_notes: string | null;
+
   created_at: string;
   updated_at: string;
 }

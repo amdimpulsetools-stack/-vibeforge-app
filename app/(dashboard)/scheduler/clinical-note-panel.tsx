@@ -23,6 +23,7 @@ import {
   Cloud,
 } from "lucide-react";
 import { searchCIE10WithCustom, type CIE10Entry } from "@/lib/cie10-catalog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ClinicalNotePrintButton } from "./clinical-note-print";
 import { PatientContextCard } from "./patient-context-card";
 
@@ -61,6 +62,7 @@ export function ClinicalNotePanel({
   clinicName,
   wideLayout = false,
 }: ClinicalNotePanelProps) {
+  const confirm = useConfirm();
   const [note, setNote] = useState<ClinicalNote | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -76,6 +78,12 @@ export function ClinicalNotePanel({
   const [diagnosisLabel, setDiagnosisLabel] = useState("");
   const [internalNotes, setInternalNotes] = useState("");
   const [vitals, setVitals] = useState<Vitals>({});
+
+  // Informed consent — Tier 1 MVP (migration 102)
+  const [consentRegistered, setConsentRegistered] = useState(false);
+  const [consentNotes, setConsentNotes] = useState("");
+  const [serviceRequiresConsent, setServiceRequiresConsent] = useState(false);
+  const [consentAttachmentCount, setConsentAttachmentCount] = useState(0);
   const [cie10Query, setCie10Query] = useState("");
   const [cie10Results, setCie10Results] = useState<CIE10Entry[]>([]);
   const [showCie10, setShowCie10] = useState(false);
@@ -107,6 +115,8 @@ export function ClinicalNotePanel({
           diagnosis_label: diagnosisLabel || null,
           internal_notes: internalNotes || null,
           vitals,
+          consent_registered: consentRegistered,
+          consent_notes: consentNotes || null,
           patient_id: patientId,
           doctor_id: doctorId,
         };
@@ -144,7 +154,7 @@ export function ClinicalNotePanel({
         setAutoSaveStatus("error");
       }
     }, 30000); // 30 seconds
-  }, [note, subjective, objective, assessment, plan, diagnosisCode, diagnosisLabel, internalNotes, vitals, patientId, doctorId, canEdit, appointmentId]);
+  }, [note, subjective, objective, assessment, plan, diagnosisCode, diagnosisLabel, internalNotes, vitals, consentRegistered, consentNotes, patientId, doctorId, canEdit, appointmentId]);
 
   // Track dirty state on any field change
   const markDirty = useCallback(() => {
@@ -183,6 +193,8 @@ export function ClinicalNotePanel({
         setDiagnosisLabel(n.diagnosis_label ?? "");
         setInternalNotes(n.internal_notes ?? "");
         setVitals(n.vitals ?? {});
+        setConsentRegistered(n.consent_registered ?? false);
+        setConsentNotes(n.consent_notes ?? "");
         // Auto-expand vitals if any value exists
         const hasVitals = Object.values(n.vitals ?? {}).some((v) => v != null);
         if (hasVitals) setShowVitals(true);
@@ -196,6 +208,40 @@ export function ClinicalNotePanel({
   useEffect(() => {
     fetchNote();
   }, [fetchNote]);
+
+  // Load the service's requires_consent flag and count the consent-type
+  // attachments already linked to this appointment. This lets the consent
+  // block highlight itself when legally required + confirm a signed doc is
+  // on file.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data: appt } = await supabase
+        .from("appointments")
+        .select("service_id, patient_id, services(requires_consent)")
+        .eq("id", appointmentId)
+        .maybeSingle();
+      if (cancelled) return;
+      const requires =
+        (appt as { services?: { requires_consent?: boolean } | null } | null)
+          ?.services?.requires_consent ?? false;
+      setServiceRequiresConsent(!!requires);
+
+      if (appt?.patient_id) {
+        const { count } = await supabase
+          .from("clinical_attachments")
+          .select("id", { count: "exact", head: true })
+          .eq("patient_id", appt.patient_id)
+          .eq("appointment_id", appointmentId)
+          .eq("category", "consent");
+        if (!cancelled) setConsentAttachmentCount(count ?? 0);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [appointmentId]);
 
   // Load org's custom CIE-10 codes so they appear in the search
   useEffect(() => {
@@ -256,6 +302,8 @@ export function ClinicalNotePanel({
         diagnosis_label: diagnosisLabel || null,
         internal_notes: internalNotes || null,
         vitals,
+        consent_registered: consentRegistered,
+        consent_notes: consentNotes || null,
         patient_id: patientId,
         doctor_id: doctorId,
       };
@@ -301,7 +349,14 @@ export function ClinicalNotePanel({
 
   const handleSign = async () => {
     if (!note) return;
-    if (!confirm("¿Firmar esta nota clínica? Una vez firmada no podrá ser editada.")) return;
+    const ok = await confirm({
+      title: "¿Firmar esta nota clínica?",
+      description:
+        "Una vez firmada, la nota queda bloqueada y no podrá ser editada. Asegúrate de haber revisado todos los campos.",
+      confirmText: "Sí, firmar",
+      cancelText: "Volver",
+    });
+    if (!ok) return;
 
     setSigning(true);
     try {
@@ -640,6 +695,82 @@ export function ClinicalNotePanel({
           </div>
         )}
       </div>
+
+      {/* Informed consent (Tier 1 MVP) */}
+      {(editable || consentRegistered || serviceRequiresConsent) && (
+        <div
+          className={`space-y-2 rounded-lg border p-3 ${
+            serviceRequiresConsent && !consentRegistered
+              ? "border-amber-500/50 bg-amber-500/5"
+              : "border-border/60 bg-muted/20"
+          }`}
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold flex items-center gap-1.5">
+                📝 Consentimiento informado
+                {serviceRequiresConsent && (
+                  <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-400">
+                    Requerido
+                  </span>
+                )}
+              </p>
+              <p className="text-[10px] text-muted-foreground">
+                {serviceRequiresConsent
+                  ? "Este servicio requiere consentimiento firmado por el paciente (Ley 29414)."
+                  : "Opcional — marca solo si se obtuvo consentimiento específico para un procedimiento."}
+              </p>
+            </div>
+            {consentAttachmentCount > 0 && (
+              <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+                ✓ {consentAttachmentCount} archivo{consentAttachmentCount === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
+
+          <label className="flex items-start gap-2 text-xs cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={consentRegistered}
+              disabled={!editable}
+              onChange={(e) => { setConsentRegistered(e.target.checked); markDirty(); }}
+              className="mt-0.5 rounded"
+            />
+            <span>
+              <span className="font-medium">Consentimiento registrado</span>
+              <span className="ml-1 text-muted-foreground">
+                (confirmo que el paciente otorgó su consentimiento informado)
+              </span>
+            </span>
+          </label>
+
+          {(editable || consentNotes) && (
+            <div className="space-y-1">
+              <label className="text-[10px] font-semibold text-muted-foreground">
+                Notas (opcional)
+              </label>
+              {editable ? (
+                <textarea
+                  value={consentNotes}
+                  onChange={(e) => { setConsentNotes(e.target.value); markDirty(); }}
+                  placeholder="Ej: firmado por la madre · paciente difiere el procedimiento · testigo presente..."
+                  rows={2}
+                  className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-xs placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                />
+              ) : (
+                <p className="text-xs text-muted-foreground italic">{consentNotes}</p>
+              )}
+            </div>
+          )}
+
+          {serviceRequiresConsent && consentAttachmentCount === 0 && (
+            <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+              ⚠ Falta subir el documento firmado. Tómale foto con el móvil al papel firmado y súbelo en Adjuntos → categoría{" "}
+              <span className="font-semibold">Consentimiento</span>.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Internal notes */}
       {(editable || internalNotes) && (

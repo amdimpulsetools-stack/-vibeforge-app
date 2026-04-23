@@ -27,6 +27,10 @@ export const clinicalNoteSchema = z.object({
   vitals: vitalsSchema,
 
   internal_notes: z.string().max(2000).nullish(),
+
+  // Informed consent (Tier 1 MVP — migration 102)
+  consent_registered: z.boolean().default(false),
+  consent_notes: z.string().max(2000).nullish(),
 });
 
 export const clinicalNoteUpdateSchema = clinicalNoteSchema

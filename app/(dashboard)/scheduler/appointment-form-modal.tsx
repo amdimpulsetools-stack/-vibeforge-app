@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/send-notification";
 import { appointmentSchema, type AppointmentFormData } from "@/lib/validations/appointment";
@@ -665,11 +666,17 @@ export function AppointmentFormModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-2xl max-h-[95vh] overflow-y-auto rounded-xl border border-border bg-card shadow-xl">
+    <>
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent
+        className="w-full max-w-2xl max-h-[95vh] overflow-y-auto p-0 gap-0 [&>button]:hidden"
+      >
+        <DialogDescription className="sr-only">
+          {t("scheduler.new_appointment")}
+        </DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 md:px-6 py-3 md:py-4">
-          <h3 className="text-lg font-semibold">{t("scheduler.new_appointment")}</h3>
+          <DialogTitle className="text-lg font-semibold">{t("scheduler.new_appointment")}</DialogTitle>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
@@ -1327,19 +1334,20 @@ export function AppointmentFormModal({
             {t("common.save")}
           </button>
         </div>
-      </div>
+      </DialogContent>
+    </Dialog>
 
-      {/* WhatsApp clipboard modal */}
-      {waVariables && (
-        <WhatsAppClipboardModal
-          open={showWaModal}
-          variables={waVariables}
-          onClose={() => {
-            setShowWaModal(false);
-            onSaved();
-          }}
-        />
-      )}
-    </div>
+    {/* WhatsApp clipboard modal */}
+    {waVariables && (
+      <WhatsAppClipboardModal
+        open={showWaModal}
+        variables={waVariables}
+        onClose={() => {
+          setShowWaModal(false);
+          onSaved();
+        }}
+      />
+    )}
+    </>
   );
 }

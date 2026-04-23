@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/components/language-provider";
 import { QueryProvider } from "@/components/query-provider";
 import { InviteTokenHandler } from "@/components/invite-token-handler";
+import { ConfirmDialogProvider } from "@/components/ui/confirm-dialog";
 import { APP_NAME } from "@/lib/constants";
 import "./globals.css";
 
@@ -80,8 +81,10 @@ export default function RootLayout({
         <QueryProvider>
           <ThemeProvider>
             <LanguageProvider>
-              <InviteTokenHandler />
-              {children}
+              <ConfirmDialogProvider>
+                <InviteTokenHandler />
+                {children}
+              </ConfirmDialogProvider>
             </LanguageProvider>
           </ThemeProvider>
         </QueryProvider>
