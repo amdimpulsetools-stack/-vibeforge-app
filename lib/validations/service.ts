@@ -25,6 +25,7 @@ export const serviceSchema = z.object({
   ),
   modality: z.enum(["in_person", "virtual", "both"]).default("in_person"),
   pre_appointment_instructions: z.string().max(500, "Máximo 500 caracteres").optional().or(z.literal("")),
+  requires_consent: z.boolean().default(false),
   is_active: z.boolean().default(true),
 });
 

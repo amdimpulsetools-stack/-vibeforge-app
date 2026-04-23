@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-22
-> **Versión:** 0.12.1
+> **Versión:** 0.12.2
 > **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + **Parches de integridad y UX post-release**
 
 ---
@@ -2025,3 +2025,88 @@ Cero migraciones nuevas en v0.12.1. Todo el trabajo es TypeScript + lógica. La 
 - **Disciplina de observabilidad**: el Parche 3 establece el patrón de decodificar códigos Postgres en toasts al usuario. Los próximos formularios de edición de entidades (organization, doctor, service, etc.) deben adoptar el mismo patrón para no reintroducir UX ciega.
 - **Integridad de datos en forms multi-modo**: el Parche 2 expone una categoría de bugs donde un form que hace prefetch+prefill por un identificador (DNI, email, phone) debe mantener la invariante "mientras los campos coincidan con el registro encontrado, la relación sigue; si divergen, se rompe". Aplicar misma guarda a cualquier form que siga este patrón (búsqueda de proveedores, pacientes familiares, etc.).
 - **Schema drift es un problema operativo real**, no teórico: esta sesión se toparon 5 columnas y 3 tablas faltantes en un proyecto productivo. Justifica la inversión en automatizar el push de migraciones (CLI / CI) antes de llegar a más clientes.
+
+---
+
+## 28. Changelog — Sesión 2026-04-22 cierre-2 (v0.12.2) — Consentimiento informado Tier 1
+
+Feature legal obligatoria en Perú (Ley 29414 + DS 027-2015-SA) — consentimiento informado para procedimientos con riesgo. Implementado en su versión MVP; Tiers 2 y 3 documentados en COMING-UPDATES.
+
+### Migración 102
+
+Tres columnas nuevas, todas aditivas y con defaults seguros:
+
+- `services.requires_consent BOOLEAN NOT NULL DEFAULT false` — el clinic admin marca qué servicios son procedimientos riesgosos (cirugía, anestesia, estética, radiación, etc.).
+- `clinical_notes.consent_registered BOOLEAN NOT NULL DEFAULT false` — marca de auditoría que el doctor obtuvo consentimiento.
+- `clinical_notes.consent_notes TEXT` — notas contextuales (ej: "firmado por la madre en caso pediátrico", "paciente difiere el procedimiento", "testigo presente").
+
+Zero impacto en datos existentes. Decisión de diseño: el **archivo firmado en sí** (foto del papel / escaneo) sigue viviendo en `clinical_attachments` con `category='consent'` — ese valor de categoría ya existía pero nunca se había usado operativamente. Reusamos el flujo de upload existente (que en móvil ofrece "Tomar foto" automáticamente desde el browser) en lugar de construir un uploader nuevo.
+
+### Admin — Toggle por servicio
+
+En `/admin/services` al editar cada servicio, nuevo toggle **"Requiere consentimiento informado"** con hint explicativo. Al marcar un servicio como `requires_consent = true`, todas las citas futuras de ese servicio activarán el bloque prominente en la nota clínica.
+
+Zod schema extendido en `lib/validations/service.ts`. Default false para no romper servicios existentes.
+
+### Editor de nota clínica — Bloque "Consentimiento informado"
+
+Nuevo panel integrado en `ClinicalNotePanel`:
+
+- **Auto-adaptativo al servicio**: si el servicio de la cita tiene `requires_consent = true`, el bloque aparece en **ámbar prominente** con badge "Requerido" y texto legal de contexto. Si no, aparece como bloque gris discreto (por si el doctor quiere registrar consentimiento optativo igual).
+- **Checkbox "Consentimiento registrado"** — firma operativa del doctor.
+- **Textarea de notas** opcional.
+- **Contador de adjuntos** tipo `consent` ya subidos a la cita (pill verde "✓ N archivos").
+- **Warning amarillo** cuando el servicio lo requiere pero no hay adjuntos: instruye al doctor a tomar foto del papel firmado y subirlo en Adjuntos → categoría Consentimiento.
+
+Los nuevos campos se propagan por el autosave existente (30s debounce) + save manual sin cambios en la arquitectura del panel.
+
+### API
+
+- `clinicalNoteSchema` + `clinicalNoteUpdateSchema` extendidos con `consent_registered` y `consent_notes`.
+- `/api/clinical-notes` POST y PATCH ya hacían spread de `parsed.data`, por lo que los nuevos campos se persisten sin cambios adicionales de código.
+- Types `ClinicalNote` en `types/clinical-notes.ts` actualizados.
+
+### Fetch del flag + contador
+
+Nuevo `useEffect` en `ClinicalNotePanel` que al abrir la nota consulta:
+- `appointments.services.requires_consent` para saber si activar modo ámbar.
+- `COUNT` de `clinical_attachments` con `category='consent'` ligados a la cita/paciente — alimenta el badge verde.
+
+Queries simples, una sola vez por apertura del modal. Sin impacto en perf.
+
+### UX flow completo (cómo usarlo)
+
+1. **Clinic admin** va a `/admin/services`, edita el servicio "Aplicación de Botox" (por ejemplo), activa el toggle "Requiere consentimiento informado" → guarda.
+2. **Recepción** agenda una cita con ese servicio para una paciente.
+3. **Doctor** el día de la cita abre la nota clínica desde el scheduler. El bloque de consentimiento aparece en ámbar con badge "Requerido".
+4. **Doctor imprime** el formato de consentimiento (por ahora desde un Word/PDF propio — Tier 2 lo hará automático). Paciente firma a mano.
+5. **Doctor toma foto** con su celular al papel firmado, lo sube en Adjuntos → categoría Consentimiento. El contador del bloque pasa a "✓ 1 archivo".
+6. **Doctor marca** el checkbox "Consentimiento registrado" en la nota. Autosave en 30s.
+
+Flujo legal cumplido end-to-end. El documento firmado queda en Supabase Storage con RLS por org, y el registro de "consent_registered = true" queda en la nota clínica auditable.
+
+### Tier 2 y Tier 3 — Roadmap
+
+Documentados con detalle en COMING-UPDATES.md sección 🏥 Historia Clínica:
+
+- **Tier 2** — `consent_templates` + `consent_records` + generador de PDF pre-llenado con datos del paciente/doctor/clínica. Gated a Professional+. Ahorra ~10 min por procedimiento.
+- **Tier 3** — Firma digital desde el portal del paciente (canvas manuscrito o aceptación electrónica con hash). Diferible hasta que haya demanda explícita de clientes.
+- **Badge de incumplimiento** — nice-to-have en drawer del paciente para auditorías internas. ~1h de trabajo cuando se priorice.
+
+### Archivos modificados
+
+- `supabase/migrations/102_informed_consent_tier1.sql` (nuevo)
+- `lib/validations/service.ts` (`requires_consent` en zod schema)
+- `lib/validations/clinical-note.ts` (`consent_registered` + `consent_notes` en zod schema)
+- `types/clinical-notes.ts` (ClinicalNote extendido)
+- `app/(dashboard)/admin/services/page.tsx` (toggle en form)
+- `app/(dashboard)/scheduler/clinical-note-panel.tsx` (bloque UI + fetch de flag + autosave extendido)
+- `COMING-UPDATES.md` (tier 2, tier 3, badge documentados)
+
+Cero breaking change. Servicios existentes siguen con `requires_consent = false` y notas existentes con `consent_registered = false` — comportamiento idéntico al pre-v0.12.2 hasta que el owner marque explícitamente los servicios.
+
+### Cambios de Alcance
+
+- **Cumplimiento legal como feature foundational, no premium**: el Tier 1 queda disponible en TODOS los planes (incluyendo Starter). Razón: el cumplimiento de Ley 29414 no debe ser un paywall — es una obligación del negocio médico. La diferenciación comercial vendrá del Tier 2 (templates + generación de PDF) que es productivity.
+- **Reuso de infrastructure existente antes de construir nueva**: la decisión de usar `clinical_attachments.category='consent'` + el input file HTML estándar (que ofrece "Tomar foto" en móvil) evitó construir un uploader especializado. Patrón a repetir para otras features.
+- **Detección contextual automática**: el bloque de consentimiento cambia su prominencia visual según el servicio de la cita, sin que el doctor tenga que recordar cuáles son "riesgosos". La configuración vive donde debe (admin), la aplicación se hace donde importa (nota clínica).

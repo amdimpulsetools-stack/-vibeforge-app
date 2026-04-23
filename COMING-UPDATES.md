@@ -111,6 +111,43 @@
 
 - [ ] **Importación masiva de códigos CIE-10** — La base ya permite agregar códigos personalizados uno a uno. Falta importar lotes (CSV/Excel) por especialidad para ahorrar tiempo a clínicas con muchos diagnósticos específicos.
 
+- [ ] **Consentimiento informado — Tier 2: Templates configurables + PDF pre-llenado** — Extiende el MVP (Tier 1, v0.12.2) con la generación automática del documento de consentimiento a partir de plantillas de la clínica. Hoy el doctor escribe el consentimiento en Word/fuera del sistema; esto lo trae dentro y reduce 10 min por procedimiento.
+
+  **Requiere**:
+  - Nueva tabla `consent_templates`: `(id, organization_id, name, title, body_template, applies_to_service_ids uuid[], applies_to_specialty text, default_risks text, default_alternatives text, revocation_clause text, is_active, created_by)`.
+  - `body_template` en Markdown/HTML con variables: `{{paciente_nombre}}`, `{{paciente_dni}}`, `{{paciente_edad}}`, `{{fecha}}`, `{{doctor_nombre}}`, `{{doctor_cmp}}`, `{{clinica_nombre}}`, `{{procedimiento}}`, `{{riesgos}}`, `{{alternativas}}`, `{{revocacion}}`.
+  - Nueva tabla `consent_records` para auditoría formal: `(id, clinical_note_id, template_id, attachment_id, signed_at, revoked_at, signed_by_relationship)` — distingue cuando firmó el paciente vs. un tutor/representante.
+  - Admin UI en `/admin/consent-templates` (CRUD similar a `discount-codes` y `treatment-plan-templates`): editor Markdown con preview en vivo, chip-toggle de servicios aplicables, plantillas seed por especialidad (cirugía menor, odontología invasiva, dermatología estética, anestesia local, procedimientos con radiación, uso de fotos clínicas para marketing).
+  - Desde la nota clínica, botón **"Generar consentimiento PDF"** que:
+    - Abre modal con los templates que matchean el servicio de la cita
+    - Preview del PDF con variables ya interpoladas (datos del paciente + del doctor + de la clínica + del procedimiento)
+    - Descarga `.pdf` listo para imprimir
+    - Después de subir el escaneado firmado como adjunto, se crea automáticamente la fila en `consent_records` vinculando template + attachment + fecha firma
+  - Seed de 5-8 plantillas base traducidas/adaptadas para Perú (basadas en modelos MINSA publicados).
+
+  **Tiering comercial propuesto**: Professional y Enterprise. Justifica upgrade desde Starter porque ahorra tiempo operativo real (escribir consentimiento en Word → usar plantilla).
+
+  **Dependencia**: `clinical_attachments` con `category='consent'` (ya existe), Tier 1 aplicado (v0.12.2).
+
+- [ ] **Consentimiento informado — Tier 3: Firma digital en el portal** — Permite que el paciente firme el consentimiento desde su celular sin papel ni escáner.
+
+  **Opciones técnicas** (a evaluar antes de implementar):
+  - **Opción A — Canvas de firma manuscrita**: el paciente firma con el dedo/mouse en un `<canvas>`, se exporta como PNG, se embebe en el PDF generado. Legalmente válido bajo "firma electrónica simple" de la Ley 27269.
+  - **Opción B — Aceptación electrónica con hash**: el paciente lee el documento en el portal, click "Acepto" → se guarda `{ document_hash, accepted_at, ip, user_agent, patient_user_id }`. El documento debe incluir cláusula explícita "la aceptación electrónica equivale a firma". Más ligero legalmente.
+  - **Opción C — E-signature provider** (DocuSign, Adobe Sign, Firmador Perú): requiere contrato comercial con proveedor, costo por firma, pero tiene respaldo notarial.
+
+  **Requiere**:
+  - Nueva ruta `/portal/[slug]/consentimientos/[id]` con el documento renderizado y el flujo de firma
+  - Endpoint `POST /api/portal/consentimientos/[id]/sign` que marca el `consent_records` como firmado
+  - Notificación al doctor cuando el paciente firma
+  - Decisiones de producto pendientes: ¿qué opción (A/B/C)?, ¿obligar revisión del doctor antes de activar firma digital?, ¿permitir revocación post-firma?
+
+  **Prioridad**: baja. La mayoría de clínicas peruanas del segmento target siguen usando papel + foto de móvil (cubierto por Tier 1). Reevaluar cuando haya 3+ solicitudes específicas de clientes.
+
+  **Dependencia**: Tier 2 aplicado (templates + PDF generador).
+
+- [ ] **Consentimiento — Badge en ficha del paciente** — Pequeña mejora UX para cierre de bucle de auditoría. En el drawer del paciente, mostrar badge "⚠ N citas con procedimiento riesgoso sin consentimiento registrado" cuando haya citas `completed` con `services.requires_consent = true` y `clinical_notes.consent_registered = false`. Facilita que owner/admin identifique casos de incumplimiento antes de auditorías externas. Implementación: query simple + componente badge en `patient-drawer.tsx` header. ~1h de trabajo.
+
 ---
 
 ## 📅 Citas / Calendario

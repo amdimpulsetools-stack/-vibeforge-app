@@ -397,6 +397,7 @@ function ServiceForm({
       duration_minutes: service?.duration_minutes ?? 30,
       modality: (service as any)?.modality ?? "in_person",
       pre_appointment_instructions: (service as any)?.pre_appointment_instructions ?? "",
+      requires_consent: (service as { requires_consent?: boolean })?.requires_consent ?? false,
       is_active: service?.is_active ?? true,
     },
   });
@@ -416,6 +417,7 @@ function ServiceForm({
       duration_minutes: values.duration_minutes,
       modality: values.modality,
       pre_appointment_instructions: values.pre_appointment_instructions || null,
+      requires_consent: values.requires_consent,
       is_active: values.is_active,
     };
 
@@ -552,6 +554,22 @@ function ServiceForm({
           <p className="text-xs text-destructive">{errors.pre_appointment_instructions.message}</p>
         )}
       </div>
+
+      <label className="flex items-start gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm">
+        <input
+          type="checkbox"
+          {...register("requires_consent")}
+          className="mt-0.5 rounded"
+        />
+        <div className="flex-1">
+          <div className="font-medium">Requiere consentimiento informado</div>
+          <div className="text-xs text-muted-foreground">
+            Marca los procedimientos con riesgo (cirugía, anestesia, estética,
+            radiación, etc.). El doctor verá un recordatorio en la nota
+            clínica y la ficha del paciente alertará si falta el documento firmado.
+          </div>
+        </div>
+      </label>
 
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" {...register("is_active")} className="rounded" />
