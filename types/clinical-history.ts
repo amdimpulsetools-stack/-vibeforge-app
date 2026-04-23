@@ -24,6 +24,7 @@ export interface TreatmentPlanWithDoctor extends TreatmentPlan {
 
 export interface TreatmentPlanWithSessions extends TreatmentPlanWithDoctor {
   treatment_sessions: TreatmentSession[];
+  treatment_plan_items?: TreatmentPlanItemWithService[];
 }
 
 export interface TreatmentSession {
@@ -36,6 +37,35 @@ export interface TreatmentSession {
   notes: string | null;
   completed_at: string | null;
   created_at: string;
+  // Added in migration 099 — nullable for legacy plans without items
+  service_id?: string | null;
+  session_price?: number | null;
+  treatment_plan_item_id?: string | null;
+}
+
+// Added in migration 099 — multi-service budget line items
+export interface TreatmentPlanItem {
+  id: string;
+  treatment_plan_id: string;
+  organization_id: string;
+  service_id: string;
+  quantity: number;
+  unit_price: number;
+  display_order: number;
+  created_at: string;
+}
+
+// Helper shape returned when joining services
+export interface TreatmentPlanItemWithService extends TreatmentPlanItem {
+  services?: { id: string; name: string; duration_minutes: number } | null;
+}
+
+// Balance summary computed client-side
+export interface TreatmentPlanBalance {
+  total: number;
+  paid: number;
+  consumed: number;
+  saldo: number; // paid - consumed (positive = credit, negative = debt)
 }
 
 export const TREATMENT_STATUS_CONFIG = {
