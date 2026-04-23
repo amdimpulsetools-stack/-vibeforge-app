@@ -313,10 +313,14 @@ export function DayView({
                           )}
                           {/* Payment / Debt indicator */}
                           {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (() => {
-                            const price = Number(startAppt.price_snapshot);
+                            const gross = Number(startAppt.price_snapshot);
+                            const discount = Number(
+                              (startAppt as { discount_amount?: number | null }).discount_amount ?? 0
+                            );
+                            const price = Math.max(0, gross - discount);
                             const paid = paymentTotals[startAppt.id] ?? 0;
                             const pending = price - paid;
-                            if (paid >= price) {
+                            if (price === 0 || paid >= price) {
                               return <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />;
                             }
                             if (pending > 0) {

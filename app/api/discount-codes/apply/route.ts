@@ -41,6 +41,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Cita no encontrada" }, { status: 404 });
   }
 
+  // Org-level feature toggle — admins can disable discounts entirely.
+  const { data: bookingSettings } = await supabase
+    .from("booking_settings")
+    .select("discounts_enabled")
+    .eq("organization_id", appt.organization_id)
+    .single();
+  const discountsEnabled =
+    !bookingSettings ||
+    (bookingSettings as { discounts_enabled?: boolean }).discounts_enabled !== false;
+  if (!discountsEnabled) {
+    return NextResponse.json(
+      { error: "Los descuentos están desactivados para esta organización" },
+      { status: 403 }
+    );
+  }
+
   // Plan check — match the main CRUD endpoint's gate
   const { data: sub } = await supabase
     .from("organization_subscriptions")

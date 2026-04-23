@@ -87,6 +87,28 @@ export function AppointmentSidebar({
     !!plan && plan.slug !== "starter";
   const { doctorId: currentDoctorId } = useCurrentDoctor();
   const [updating, setUpdating] = useState(false);
+
+  // Org-level discount feature toggle (booking_settings.discounts_enabled).
+  // Defaults to true so existing orgs continue to see the UI. The button is
+  // hidden entirely when false — admins can turn it on/off from Settings →
+  // Agenda.
+  const [discountsEnabled, setDiscountsEnabled] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!appointment.organization_id) return;
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("booking_settings")
+        .select("discounts_enabled")
+        .eq("organization_id", appointment.organization_id)
+        .single();
+      if (!cancelled && data) {
+        setDiscountsEnabled((data as { discounts_enabled?: boolean }).discounts_enabled !== false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [appointment.organization_id]);
   const [editing, setEditing] = useState(false);
   const [showClinicalNote, setShowClinicalNote] = useState(false);
   const [showCancelReason, setShowCancelReason] = useState(false);
@@ -155,7 +177,7 @@ export function AppointmentSidebar({
       const [apptRes, payRes] = await Promise.all([
         supabase
           .from("appointments")
-          .select("price_snapshot, status")
+          .select("price_snapshot, discount_amount, status")
           .eq("patient_id", appointment.patient_id)
           .neq("status", "cancelled"),
         supabase
@@ -164,7 +186,12 @@ export function AppointmentSidebar({
           .eq("patient_id", appointment.patient_id),
       ]);
       const totalBilled = (apptRes.data ?? []).reduce(
-        (sum, a) => sum + (Number(a.price_snapshot) || 0), 0
+        (sum, a) => {
+          const gross = Number(a.price_snapshot) || 0;
+          const discount = Number((a as { discount_amount?: number | null }).discount_amount) || 0;
+          return sum + Math.max(0, gross - discount);
+        },
+        0
       );
       const totalPaid = (payRes.data ?? []).reduce(
         (sum, p) => sum + Number(p.amount), 0
@@ -1038,8 +1065,8 @@ export function AppointmentSidebar({
               </div>
             )}
 
-            {/* Discount controls */}
-            {grossPrice > 0 && !editing && (
+            {/* Discount controls — hidden entirely when org disabled the feature */}
+            {grossPrice > 0 && !editing && discountsEnabled && (
               <DiscountControls
                 appointmentId={appointment.id}
                 grossPrice={grossPrice}

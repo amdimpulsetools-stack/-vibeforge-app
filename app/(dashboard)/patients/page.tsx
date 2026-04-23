@@ -41,7 +41,7 @@ const PAGE_SIZE = 25;
 
 // Extra data per patient — loaded on-demand only when debt/service filter or CSV export is used
 type PatientExtraData = {
-  appointments: { service_id: string; status: string; price_snapshot: number | null; origin: string | null; services: { id: string; name: string } }[];
+  appointments: { service_id: string; status: string; price_snapshot: number | null; discount_amount: number | null; origin: string | null; services: { id: string; name: string } }[];
   patient_payments: { amount: number }[];
 };
 
@@ -191,7 +191,7 @@ export default function PatientsPage() {
     const [apptRes, payRes] = await Promise.all([
       supabase
         .from("appointments")
-        .select("patient_id, service_id, status, price_snapshot, origin, services(id, name)")
+        .select("patient_id, service_id, status, price_snapshot, discount_amount, origin, services(id, name)")
         .in("patient_id", missing),
       supabase
         .from("patient_payments")
@@ -274,7 +274,15 @@ export default function PatientsPage() {
         const totalBilled =
           extra.appointments
             ?.filter((a) => a.status !== "cancelled")
-            .reduce((sum, a) => sum + (Number(a.price_snapshot) || 0), 0) ?? 0;
+            .reduce(
+              (sum, a) =>
+                sum +
+                Math.max(
+                  0,
+                  (Number(a.price_snapshot) || 0) - (Number(a.discount_amount) || 0)
+                ),
+              0
+            ) ?? 0;
         const totalPaid =
           extra.patient_payments?.reduce((sum, pay) => sum + Number(pay.amount), 0) ?? 0;
         if (totalBilled - totalPaid <= 0) return false;
@@ -334,7 +342,15 @@ export default function PatientsPage() {
       const extra = allExtra[p.id];
       const totalBilled = extra?.appointments
         ?.filter((a) => a.status !== "cancelled")
-        .reduce((sum, a) => sum + (Number(a.price_snapshot) || 0), 0) ?? 0;
+        .reduce(
+          (sum, a) =>
+            sum +
+            Math.max(
+              0,
+              (Number(a.price_snapshot) || 0) - (Number(a.discount_amount) || 0)
+            ),
+          0
+        ) ?? 0;
       const totalPaid = extra?.patient_payments?.reduce((sum, pay) => sum + Number(pay.amount), 0) ?? 0;
       const age = calculateAge(p.birth_date);
       return [

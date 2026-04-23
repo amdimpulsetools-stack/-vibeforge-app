@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-22
-> **Versión:** 0.11.0
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 consolidado (Apple Health redesign, detalle de cita, mi perfil, desktop 2-col layout, botón condicional) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente automática + /book redesign (light theme, especialidad, default office)
+> **Versión:** 0.12.0
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + **Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado** + **Descuentos: inline (todos los planes) y códigos reutilizables (Pro)**
 
 ---
 
@@ -1744,3 +1744,190 @@ Nueva columna `booking_settings.allow_online_booking boolean NOT NULL DEFAULT tr
 - **Owner control sobre la reserva online**: clínicas que prefieren gestionar el canal vía recepción pueden desactivar `/book` del portal sin cerrarlo globalmente. Flag separado de `booking_settings.is_enabled` (que sigue controlando el acceso público a `/book` para quien no está logueado).
 - Consultorios dejan de ser exposed al paciente — decisión de producto basada en que 99% de clínicas pequeñas asigna consultorio por doctor, no por cita.
 - Especialidad por doctor queda configurada en un único lugar: `/admin/doctors/[id]`. Se muestra en el portal y en `/book`.
+
+---
+
+## 26. Changelog — Sesión 2026-04-22 noche (v0.12.0) — Presupuestos de tratamiento + Descuentos
+
+### Presupuestos de tratamiento multi-servicio (migración 099)
+
+Extensión al sistema de treatment plans (existente desde v0.7.0) para que cada plan represente un presupuesto facturable con sesiones expandidas y contabilidad unificada.
+
+**Modelo de datos — todo aditivo**:
+
+```
+NEW TABLE treatment_plan_items (
+  id, treatment_plan_id, organization_id, service_id,
+  quantity, unit_price, display_order, created_at
+)
+
+ALTER treatment_sessions:
+  + service_id              -- qué servicio es esta sesión
+  + session_price           -- precio snapshot al crear
+  + treatment_plan_item_id  -- de qué item del plan viene
+
+ALTER appointments:
+  + treatment_session_id    -- link 1:1 con la sesión cuando aplica
+
+ALTER patient_payments:
+  + treatment_plan_id       -- permite anticipos al plan sin cita
+```
+
+**Modelo contable unificado**:
+
+```
+Total del plan    = SUM(items.quantity * items.unit_price)
+Pagado            = SUM(patient_payments WHERE treatment_plan_id = X)
+Consumido         = SUM(session_price WHERE status='completed' AND plan = X)
+Saldo             = Pagado - Consumido
+```
+
+Un solo modelo cubre los 3 escenarios de pago que el producto necesita soportar:
+1. **Sesión por sesión**: `payment(appointment_id, treatment_plan_id)` en cada cita.
+2. **Anticipo parcial**: `payment(null, treatment_plan_id)` antes de las sesiones.
+3. **Pago total upfront**: mismo payment con el monto completo.
+
+El saldo se recalcula a demanda. No hay estados especiales de "anticipo" vs "pago normal".
+
+**Doctor — TreatmentPlansPanel (multi-item)**:
+- Form rebuilt como "ticket": lista de líneas editables con servicio (dropdown), cantidad, precio unitario (snapshot de `services.base_price` editable).
+- Añadir/quitar líneas dinámicamente. Preview del total en pill emerald ("S/ 800 · 10 sesiones").
+- Al guardar: crea N sesiones expandidas automáticamente (una por unidad de cada item), con `session_price` snapshot.
+- Template selector existente preservado para nombre/diagnóstico.
+
+**Recepción — Scheduler banner**:
+- Al crear cita con DNI, si el paciente tiene planes activos con sesiones pending → banner azul "Este paciente tiene un plan activo — Sesión N / M · Servicio · S/ X".
+- Click "Agendar sesión" → pre-llena service_id, doctor, y fija `price_snapshot` al `session_price` de la sesión (no al `services.base_price`, para que el presupuesto matemático se mantenga consistente).
+- Al guardar: setea `appointments.treatment_session_id` + mirror `treatment_sessions.appointment_id`.
+
+**Recepción — Appointment sidebar**:
+- Banner de contexto cuando la cita está vinculada: "Sesión N / M · Plan Title" + tres pills (Pagado / Consumido / Saldo).
+- Mensaje verde si `saldo >= session_price` ("Esta sesión se cubre con el crédito del plan"); ámbar si falta cobrar.
+- Payments desde el sidebar ahora se registran con `treatment_plan_id` cuando la cita está vinculada → la contabilidad del plan se actualiza automáticamente.
+- `updateStatus` mirror: completed → session completed + completed_at, cancelled → session unlinked (status pending), no_show → session missed.
+
+**Staff — Nueva tab "Presupuestos" en el drawer del paciente**:
+- Componente `BudgetsPanel` nuevo (`app/(dashboard)/patients/budgets-panel.tsx`): lista de planes con cards total/pagado/saldo, barra de progreso de consumo, badge de estado.
+- Botón "Registrar pago" → modal con monto editable, presets (25/50/100% del pendiente), chips de método (efectivo/yape/transferencia/tarjeta/otro), referencia.
+- Insert en `patient_payments` con `treatment_plan_id` set y `appointment_id` null → anticipo al plan.
+
+**Paciente — Card "Mi plan" en el portal**:
+- Nuevo endpoint `GET /api/portal/plans` devuelve balance computado server-side para los planes activos/pausados del paciente.
+- Card con título, barra de progreso, pagado vs total, pendiente por cobrar.
+- Respeta `accent_color` del clinic.
+- Ubicación: mobile antes de los tiles, desktop en la sidebar arriba de Mi Perfil.
+
+### Descuentos — inline + códigos reutilizables (migración 100)
+
+Sistema two-tier. Inline para todos, códigos reutilizables como Pro feature.
+
+**Modelo de datos**:
+
+```
+NEW TABLE discount_codes (
+  id, organization_id, code, type ('percent'|'fixed'), value,
+  max_uses, uses_count, valid_from, valid_until,
+  applies_to_service_ids uuid[], is_active, notes,
+  created_by, created_at, updated_at,
+  UNIQUE (organization_id, code)
+)
+
+ALTER appointments:
+  + discount_amount    -- default 0
+  + discount_reason    -- texto libre o "Código X"
+  + discount_applied_by (FK auth.users)
+  + discount_code_id   (FK discount_codes, nullable)
+```
+
+**Effective price computation**:
+
+```
+effective_price = GREATEST(0, price_snapshot - discount_amount)
+```
+
+Computado en render — no hay columna generada. Callers que no conocen el discount (reportes existentes, portal) siguen leyendo `price_snapshot` sin cambios.
+
+**Inline discount (plan Starter y superiores)**:
+- Botón "Aplicar descuento" en el Cobros section del sidebar.
+- Form expandible con 2-3 tabs: `%` / `S/.` / `Código` (el tercero solo en Pro).
+- Live preview mientras se escribe: "Descuento S/ X · Nuevo total S/ Y".
+- Writes directo a `appointments.discount_amount + discount_reason + discount_applied_by` vía RLS.
+- Cuando hay descuento activo: summary muestra el gross price tachado, el delta, y la razón. "Editar" / "Quitar" accesibles.
+- El math del sidebar (totalPrice / pending / paymentStatus / progress bar) usa `effective_price`, así pagar el discounted amount marca la cita como `paid`.
+
+**Códigos reutilizables (Professional, Enterprise)**:
+- Nueva admin page `/admin/discount-codes` gated por `RoleGate minRole=admin` + plan check.
+- Starter ve un prompt de upgrade con link a `/select-plan`.
+- Tabla de códigos: code (copy-to-clipboard), valor, usos/límite, vigencia, estado auto-computado (Activo / Inactivo / Expirado / Agotado), edit/delete.
+- Create/edit modal: code, type, value, max_uses (optional), date window, applies_to services (chips — sin selección = todos), notes.
+- Card nuevo en `/admin` grid (icono Tag, link a la página).
+
+**API**:
+- `GET /api/discount-codes` — list (plan-gated).
+- `POST /api/discount-codes` — create (plan-gated, valida percent ≤ 100).
+- `PATCH /api/discount-codes/[id]` — update.
+- `DELETE /api/discount-codes/[id]` — delete.
+- `POST /api/discount-codes/apply` — atomic apply. Valida status / dates / usage-limit / service-scope, escribe discount en appointment, incrementa `uses_count` via admin client.
+- Todos devuelven `402` cuando `plan.slug === 'starter'`.
+
+### Feature toggle — Descuentos activables (migración 101)
+
+Owner puede desactivar todo el feature desde Settings:
+
+- Nueva columna `booking_settings.discounts_enabled boolean default true`.
+- Nueva sección "Descuentos en citas" en **Settings → Agenda** con toggle y hint-text inline que enumera qué controla.
+- Cuando `false`:
+  - El botón "Aplicar descuento" desaparece del sidebar (hidden).
+  - `POST /api/discount-codes/apply` devuelve `403` con mensaje claro.
+  - No afecta descuentos ya aplicados — solo bloquea nuevos.
+- Independiente del plan gating: `discounts_enabled=true` en Starter sigue exponiendo solo el inline (codes siguen siendo Pro).
+
+### Decisión de producto — Descuentos al crear cita en el scheduler
+
+Evaluado y descartado por ahora. El form de creación de cita ya es largo (patient fields, servicio, doctor, office, status, anticipo). Añadir descuento duplica UI que ya existe en el sidebar (1 click después de guardar) y aumenta el cognitive load del form principal.
+
+Si la recepción reporta fricción, se puede añadir más adelante como toggle compacto. La decisión queda documentada aquí para evitar re-debatirla.
+
+### Ingresos reconocidos vs Caja — roadmap
+
+Añadido a COMING-UPDATES.md sección Reportes. No se implementa ahora porque sin volumen de anticipos post-release, las tres vistas devuelven el mismo número. Reevaluar 2-3 meses después del rollout de Presupuestos.
+
+### Archivos Nuevos / Modificados Clave
+
+**Migraciones**:
+- `supabase/migrations/099_treatment_plan_items_and_links.sql` (nuevo)
+- `supabase/migrations/100_discounts.sql` (nuevo)
+- `supabase/migrations/101_booking_settings_discounts_enabled.sql` (nuevo)
+
+**Treatment plans**:
+- `app/api/treatment-plans/route.ts` (multi-item + items expand)
+- `app/(dashboard)/patients/treatment-plans-panel.tsx` (rewrite a form multi-item)
+- `app/(dashboard)/patients/budgets-panel.tsx` (nuevo — tab Presupuestos)
+- `app/(dashboard)/patients/patient-drawer.tsx` (nueva tab)
+- `app/(dashboard)/scheduler/appointment-form-modal.tsx` (banner plan + link session)
+- `app/(dashboard)/scheduler/appointment-sidebar.tsx` (plan context + saldo + mirror on status change)
+- `app/api/portal/plans/route.ts` (nuevo)
+- `app/portal/[slug]/mis-citas/page.tsx` (PortalPlanCard)
+- `types/clinical-history.ts` (TreatmentPlanItem, TreatmentPlanBalance)
+
+**Descuentos**:
+- `app/api/discount-codes/route.ts` (nuevo)
+- `app/api/discount-codes/[id]/route.ts` (nuevo)
+- `app/api/discount-codes/apply/route.ts` (nuevo — atomic)
+- `app/(dashboard)/admin/discount-codes/page.tsx` (nuevo)
+- `app/(dashboard)/admin/admin-page-content.tsx` (card nuevo + count guard)
+- `app/(dashboard)/scheduler/appointment-sidebar.tsx` (DiscountControls, effective_price math)
+
+**Settings**:
+- `app/(dashboard)/settings/booking-settings-tab.tsx` (toggle discounts_enabled)
+
+**Docs**:
+- `docs/treatment-plans-design.md` (nuevo — 10 diagramas Mermaid)
+- `COMING-UPDATES.md` (add Ingresos vs Caja report, add Panel de resultados + Indicaciones de pre-consulta al Portal)
+
+### Cambios de Alcance
+
+- **Presupuestos** sale como fundacional para cualquier clínica que venda paquetes (dermatología, fertilidad, estética). Antes no era viable hacerlo bien porque `treatment_plans` no tenía precio y `patient_payments` no ligaba a plan.
+- **Descuentos** sale con arquitectura clean two-tier: inline desbloquea casos cotidianos sin gating, códigos como feature de marketing que justifica el upgrade a Pro.
+- **Feature toggle** — nueva convención: features que impactan flujos operativos (como los descuentos) deben poder ser desactivadas por el owner. La mayoría de clínicas lo tendrá activo, pero algunas pueden preferir no permitir descuentos (clínicas de alta gama, o cuando se está construyendo disciplina de precios).
+- **Zero breaking change**: todo `discount_amount` default 0 + `treatment_session_id` null + `treatment_plan_id` null en payments. Flujos existentes no se tocan hasta que explícitamente se usen las nuevas features.
