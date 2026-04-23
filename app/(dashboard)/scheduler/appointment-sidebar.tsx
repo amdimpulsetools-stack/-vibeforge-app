@@ -28,6 +28,7 @@ import {
   Save,
   Wallet,
   Plus,
+  Check,
   UserX,
   ExternalLink,
   AlertTriangle,
@@ -35,6 +36,7 @@ import {
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { useOrgRole } from "@/hooks/use-org-role";
+import { usePlan } from "@/hooks/use-plan";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import dynamic from "next/dynamic";
 
@@ -80,6 +82,9 @@ export function AppointmentSidebar({
   const { t } = useLanguage();
   const { profile } = useUserProfile();
   const { isAdmin, isDoctor: isDoctorRole } = useOrgRole();
+  const { plan } = usePlan();
+  const allowDiscountCodes =
+    !!plan && plan.slug !== "starter";
   const { doctorId: currentDoctorId } = useCurrentDoctor();
   const [updating, setUpdating] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -91,6 +96,7 @@ export function AppointmentSidebar({
   const [payments, setPayments] = useState<PatientPayment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(true);
   const [showAddPayment, setShowAddPayment] = useState(false);
+  const [showDiscount, setShowDiscount] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payMethod, setPayMethod] = useState("");
   const [payRef, setPayRef] = useState("");
@@ -98,7 +104,15 @@ export function AppointmentSidebar({
   const [savingPayment, setSavingPayment] = useState(false);
 
   const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const totalPrice = appointment.price_snapshot ? Number(appointment.price_snapshot) : 0;
+  const grossPrice = appointment.price_snapshot ? Number(appointment.price_snapshot) : 0;
+  const discountAmount = Number(
+    (appointment as { discount_amount?: number | null }).discount_amount ?? 0
+  );
+  const discountReason =
+    (appointment as { discount_reason?: string | null }).discount_reason ?? null;
+  const discountCodeId =
+    (appointment as { discount_code_id?: string | null }).discount_code_id ?? null;
+  const totalPrice = Math.max(0, grossPrice - discountAmount);
   const pending = Math.max(0, totalPrice - totalPaid);
   const paymentStatus =
     totalPrice === 0
@@ -974,27 +988,69 @@ export function AppointmentSidebar({
             </div>
 
             {/* Price / paid / pending summary */}
-            {totalPrice > 0 && (
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="rounded-lg bg-muted/40 py-2 px-1">
-                  <p className="text-[10px] text-muted-foreground leading-tight">Total</p>
-                  <p className="text-sm font-bold">S/. {totalPrice.toFixed(2)}</p>
-                </div>
-                <div className="rounded-lg bg-emerald-500/10 py-2 px-1">
-                  <p className="text-[10px] text-emerald-700 dark:text-emerald-400 leading-tight">Pagado</p>
-                  <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                    S/. {totalPaid.toFixed(2)}
-                  </p>
-                </div>
-                <div className={cn("rounded-lg py-2 px-1", pending > 0 ? "bg-amber-500/10" : "bg-muted/40")}>
-                  <p className={cn("text-[10px] leading-tight", pending > 0 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
-                    Pendiente
-                  </p>
-                  <p className={cn("text-sm font-bold", pending > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
-                    S/. {pending.toFixed(2)}
-                  </p>
+            {grossPrice > 0 && (
+              <div className="space-y-1">
+                {discountAmount > 0 && (
+                  <div className="flex items-center justify-between rounded-lg bg-violet-500/10 px-3 py-1.5 text-[11px]">
+                    <span className="text-violet-700 dark:text-violet-400">
+                      <span className="line-through text-muted-foreground">
+                        S/. {grossPrice.toFixed(2)}
+                      </span>
+                      {" · "}
+                      <span className="font-semibold">
+                        − S/. {discountAmount.toFixed(2)}
+                      </span>
+                      {discountReason ? (
+                        <span className="ml-1 text-muted-foreground">
+                          ({discountReason})
+                        </span>
+                      ) : null}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowDiscount((v) => !v)}
+                      className="text-[10px] font-medium text-violet-700 hover:underline"
+                    >
+                      Editar
+                    </button>
+                  </div>
+                )}
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-lg bg-muted/40 py-2 px-1">
+                    <p className="text-[10px] text-muted-foreground leading-tight">Total</p>
+                    <p className="text-sm font-bold">S/. {totalPrice.toFixed(2)}</p>
+                  </div>
+                  <div className="rounded-lg bg-emerald-500/10 py-2 px-1">
+                    <p className="text-[10px] text-emerald-700 dark:text-emerald-400 leading-tight">Pagado</p>
+                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                      S/. {totalPaid.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className={cn("rounded-lg py-2 px-1", pending > 0 ? "bg-amber-500/10" : "bg-muted/40")}>
+                    <p className={cn("text-[10px] leading-tight", pending > 0 ? "text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+                      Pendiente
+                    </p>
+                    <p className={cn("text-sm font-bold", pending > 0 ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
+                      S/. {pending.toFixed(2)}
+                    </p>
+                  </div>
                 </div>
               </div>
+            )}
+
+            {/* Discount controls */}
+            {grossPrice > 0 && !editing && (
+              <DiscountControls
+                appointmentId={appointment.id}
+                grossPrice={grossPrice}
+                discountAmount={discountAmount}
+                discountReason={discountReason}
+                hasCode={!!discountCodeId}
+                open={showDiscount}
+                onOpenChange={setShowDiscount}
+                onChange={onUpdate}
+                allowCodes={allowDiscountCodes}
+              />
             )}
 
             {/* Progress bar */}
@@ -1215,5 +1271,278 @@ export function AppointmentSidebar({
       </div>
     </div>
     </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Discount controls: inline amount/% (all plans) + code apply (Pro only).
+// Keeps RLS-writable updates client-side for the inline case; code apply
+// goes through /api/discount-codes/apply for atomic validation + counter.
+// ─────────────────────────────────────────────────────────────────────────
+type DiscountMode = "none" | "percent" | "fixed" | "code";
+
+function DiscountControls({
+  appointmentId,
+  grossPrice,
+  discountAmount,
+  discountReason,
+  hasCode,
+  open,
+  onOpenChange,
+  onChange,
+  allowCodes,
+}: {
+  appointmentId: string;
+  grossPrice: number;
+  discountAmount: number;
+  discountReason: string | null;
+  hasCode: boolean;
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onChange: () => void;
+  allowCodes: boolean;
+}) {
+  const [mode, setMode] = useState<DiscountMode>(
+    hasCode ? "code" : discountAmount > 0 ? "fixed" : "none"
+  );
+  const [value, setValue] = useState(
+    discountAmount > 0 ? String(discountAmount) : ""
+  );
+  const [reason, setReason] = useState(discountReason ?? "");
+  const [code, setCode] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const effectiveAmount =
+    mode === "percent"
+      ? Math.min(grossPrice, Math.max(0, (grossPrice * Number(value || 0)) / 100))
+      : mode === "fixed"
+        ? Math.min(grossPrice, Math.max(0, Number(value || 0)))
+        : 0;
+
+  const saveInline = async () => {
+    setSaving(true);
+    setError(null);
+    const supabase = createClient();
+    const { data: auth } = await supabase.auth.getUser();
+    const userId = auth.user?.id ?? null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error: err } = await supabase
+      .from("appointments")
+      .update({
+        discount_amount: Number(effectiveAmount.toFixed(2)),
+        discount_reason: reason.trim() || null,
+        discount_applied_by: userId,
+        discount_code_id: null,
+      } as any)
+      .eq("id", appointmentId);
+    setSaving(false);
+    if (err) {
+      setError("Error al aplicar descuento");
+      return;
+    }
+    toast.success("Descuento aplicado");
+    onOpenChange(false);
+    onChange();
+  };
+
+  const applyCode = async () => {
+    if (!code.trim()) return;
+    setSaving(true);
+    setError(null);
+    const res = await fetch("/api/discount-codes/apply", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        appointment_id: appointmentId,
+        code: code.trim().toUpperCase(),
+      }),
+    });
+    setSaving(false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setError(body.error || "Código inválido");
+      return;
+    }
+    toast.success("Código aplicado");
+    onOpenChange(false);
+    onChange();
+  };
+
+  const removeDiscount = async () => {
+    setSaving(true);
+    const supabase = createClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabase
+      .from("appointments")
+      .update({
+        discount_amount: 0,
+        discount_reason: null,
+        discount_applied_by: null,
+        discount_code_id: null,
+      } as any)
+      .eq("id", appointmentId);
+    setSaving(false);
+    toast.success("Descuento removido");
+    onOpenChange(false);
+    onChange();
+  };
+
+  if (!open && discountAmount === 0) {
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenChange(true)}
+        className="flex items-center gap-1 rounded-md border border-dashed border-border px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-accent/30"
+      >
+        <Plus className="h-3 w-3" />
+        Aplicar descuento
+      </button>
+    );
+  }
+
+  if (!open) return null;
+
+  return (
+    <div className="rounded-lg border border-violet-500/30 bg-violet-500/5 p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold text-violet-700 dark:text-violet-400">
+          Aplicar descuento
+        </p>
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          className="rounded p-0.5 text-muted-foreground hover:bg-accent"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+
+      {/* Mode tabs */}
+      <div className="flex gap-1">
+        <button
+          type="button"
+          onClick={() => setMode("percent")}
+          className={cn(
+            "flex-1 rounded px-2 py-1 text-[10px] font-medium transition-colors",
+            mode === "percent"
+              ? "bg-violet-500 text-white"
+              : "bg-background text-muted-foreground hover:bg-accent"
+          )}
+        >
+          %
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("fixed")}
+          className={cn(
+            "flex-1 rounded px-2 py-1 text-[10px] font-medium transition-colors",
+            mode === "fixed"
+              ? "bg-violet-500 text-white"
+              : "bg-background text-muted-foreground hover:bg-accent"
+          )}
+        >
+          S/.
+        </button>
+        {allowCodes && (
+          <button
+            type="button"
+            onClick={() => setMode("code")}
+            className={cn(
+              "flex-1 rounded px-2 py-1 text-[10px] font-medium transition-colors",
+              mode === "code"
+                ? "bg-violet-500 text-white"
+                : "bg-background text-muted-foreground hover:bg-accent"
+            )}
+            title="Aplicar código reutilizable (plan Pro)"
+          >
+            Código
+          </button>
+        )}
+      </div>
+
+      {(mode === "percent" || mode === "fixed") && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              type="number"
+              min="0"
+              step={mode === "percent" ? "1" : "0.01"}
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder={mode === "percent" ? "10" : "50.00"}
+              className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+            />
+            <input
+              type="text"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              placeholder="Razón (opcional)"
+              className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+            />
+          </div>
+          {effectiveAmount > 0 && (
+            <p className="text-[10px] text-muted-foreground">
+              Descuento: S/. {effectiveAmount.toFixed(2)} · Nuevo total:
+              {" "}
+              <span className="font-semibold text-foreground">
+                S/. {Math.max(0, grossPrice - effectiveAmount).toFixed(2)}
+              </span>
+            </p>
+          )}
+        </>
+      )}
+
+      {mode === "code" && allowCodes && (
+        <>
+          <input
+            type="text"
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase())}
+            placeholder="Ej: FAMILIA2026"
+            className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs uppercase focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+          />
+          <p className="text-[10px] text-muted-foreground">
+            El código se valida contra los códigos activos de tu clínica.
+          </p>
+        </>
+      )}
+
+      {error && <p className="text-[10px] text-red-600">{error}</p>}
+
+      <div className="flex gap-1">
+        {mode === "code" ? (
+          <button
+            type="button"
+            onClick={applyCode}
+            disabled={saving || !code.trim()}
+            className="flex flex-1 items-center justify-center gap-1 rounded-md bg-violet-500 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            Aplicar código
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={saveInline}
+            disabled={saving || effectiveAmount <= 0}
+            className="flex flex-1 items-center justify-center gap-1 rounded-md bg-violet-500 px-2 py-1 text-[11px] font-semibold text-white disabled:opacity-50"
+          >
+            {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+            Guardar
+          </button>
+        )}
+        {discountAmount > 0 && (
+          <button
+            type="button"
+            onClick={removeDiscount}
+            disabled={saving}
+            className="rounded-md bg-red-500/10 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-500/20"
+          >
+            Quitar
+          </button>
+        )}
+      </div>
+    </div>
   );
 }
