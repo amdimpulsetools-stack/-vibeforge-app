@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-24
-> **Versión:** 0.12.5
+> **Versión:** 0.12.6
 > **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + Consentimiento informado Tier 1 (Ley 29414) + Auditoría multi-agente + 2 rondas de fixes (v0.12.3 + v0.12.4) + **Preparación de pilot con primer cliente real (Vitra, fertilidad)**
 
 ---
@@ -2498,3 +2498,88 @@ Sin esta migración, `/api/portal/auth/request-link` fallará al insertar (colum
 - **Magic-link security**: establece el patrón de `raw en email + hash en DB` para cualquier token futuro (session tokens del portal siguen siendo plaintext en DB pero están en cookie httpOnly/secure — distinto vector; revisable post-pilot si hace falta).
 - **`confirm()` nativos erradicados del dashboard**: queda como regla de contribución. Cualquier PR que introduzca `confirm()` nativo debe convertirse a `useConfirm()`.
 - **Modales Radix Dialog**: 2 modales grandes (`patient-drawer` + `bulk-import`) quedan hand-rolled intencionalmente, documentados en COMING-UPDATES con criterios claros para retomar el refactor.
+
+
+---
+
+## 33. Changelog — Sesión 2026-04-24 tarde (v0.12.6) — Landing auditada + RevenueImpact
+
+Auditoría multi-agente (senior web design + neurocopywriting + UI/UX) de la home page. Foco: qué queda anticuado, qué no persuade, qué sección falta para cerrar la conversación de venta.
+
+### 🎯 Nueva sección `RevenueImpact` — "Cómo Yenda aumenta tus ingresos"
+
+Insertada entre `ExpectedResults` y `Pricing`. Tono: en LATAM se dice "ingresos" / "facturación", NO "ventas" — suena a vendedor de autos. Objetivo: que el owner entienda que Yenda no es gasto operativo, es inversión en revenue.
+
+**Componente:** `components/landing/revenue-impact.tsx` (nuevo, ~320 líneas).
+
+**3 bloques narrativos:**
+
+1. **Grid 4-col de pérdidas** — Cada card muestra dónde se pierde plata HOY vs. qué recupera Yenda, con tachado rose sobre el valor perdido:
+   - No-shows (15–25% agenda → hasta 38% menos)
+   - Cobranza pendiente (S/ 500–1,200/mes → 60–80% recuperado)
+   - Pacientes que no vuelven (40% sin seguimiento → +15% retención)
+   - Captación frenada (solo por llamada → +8–12% nuevos)
+
+2. **Calculadora ROI interactiva** — 3 sliders (doctores, citas/doctor/mes, tarifa promedio). Modelo conservador: no-show 20% → 5% + 8% captación extra. Resultado animado con easing cúbico en S/ por mes y por año. Card verde con dos bullets explicando de dónde sale el número.
+
+3. **Headline de apertura:** "Tu clínica pierde dinero todos los meses. Yenda te muestra dónde." Subheadline ataca la objeción peruana típica: "No se trata de presionar a tus pacientes. Se trata de dejar de perder cobros por olvido…".
+
+**Decisión de producto:** el modelo de cálculo es deliberadamente conservador. Con `doctors=3, apptPerDoctor=60, price=150` da ~S/5.4k/mes. No se usan claims agresivos tipo "multiplica por 3x".
+
+### 🧠 Copy del Hero reescrito
+
+Antes:
+- H1: "La primera agenda clínica con IA."
+- CTAs: "Empezar ahora" / "Ver cómo funciona"
+- Trust line: "Sin contratos. Cancela cuando quieras."
+
+Después:
+- H1: "Menos tiempo administrando. **Más tiempo con tus pacientes.**"
+- CTAs: "Probar gratis 14 días" / "Calcula tu impacto" → `#revenue-impact`
+- Trust line: "**Sin tarjeta para probar.** Sin contratos. Configura tu clínica en minutos."
+
+**Razón:** "La primera con IA" es vago (¿primera en qué? ¿por qué importa?). El headline nuevo ataca el dolor concreto (administración come tiempo clínico). El CTA secundario ahora lleva a la calculadora ROI en vez de a un ancla genérica de features — deep-link a la sección más persuasiva de la home.
+
+### 🏥 `SocialProof` rediseñado
+
+Antes: 4 trust badges + 1 pill "Sé de los primeros 100". Sin testimonios ni validación real.
+
+Después: layout 5-col:
+- **3 columnas** — testimonial card de Vitra (primer cliente real, pilot Abril 2026): nombre, tipo, ubicación, quote de por qué eligieron Yenda, status pill "Pilot activo". Placeholder verificable — el quote se reemplaza con testimonio real post-pilot.
+- **2 columnas** — card verde "Acceso anticipado" con CTA a Pricing.
+- **Debajo** — los 4 trust badges originales en fila.
+
+Convierte una sección débil (la más flaggeada por los 3 agentes) en el cierre emocional previo a Pricing. El testimonial de Vitra es real y verificable; el framing "construido con los primeros 100" ancla por qué el feedback del early adopter importa.
+
+### 🔀 Reorden narrativo: `TrustBadges` después de `PainPoints`
+
+Orden antes: Hero → **TrustBadges** → GrowthPath → PainPoints → RoleSuperpowers → Features → LiveNotifications → AIAssistant → ExpectedResults → Pricing → SocialProof → ComingUpdates → FAQ → FinalCTA.
+
+Orden después: Hero → **PainPoints** → **TrustBadges** → GrowthPath → RoleSuperpowers → Features → LiveNotifications → AIAssistant → ExpectedResults → **RevenueImpact** → Pricing → SocialProof → ComingUpdates → FAQ → FinalCTA.
+
+**Razón (neurocopy agent):** TrustBadges después del Hero interrumpe. Mejor fluye así: hook → "¿te suena?" (dolor) → validación institucional → ROI → solución detallada → precio.
+
+### Archivos modificados / nuevos
+
+- `components/landing/revenue-impact.tsx` (nuevo)
+- `components/landing/hero.tsx` — headline + CTAs + trust line
+- `components/landing/social-proof.tsx` — reescrita completa con testimonial Vitra
+- `app/page.tsx` — import + reorden
+
+### Cambios de Alcance
+
+- **"Ingresos" > "Ventas"** queda como regla de copy: todo copy de vender-a-clínica usa "ingresos", "facturación", "cobranza" — nunca "ventas". Aplica a toda landing futura, emails de activación, copy de trial.
+- **Deep-links desde Hero**: el CTA secundario de Hero apunta a `#revenue-impact`. Patrón reusable — el CTA secundario puede llevar a la sección con mayor densidad persuasiva, no a un genérico `#features`.
+- **Testimonial-placeholder con cliente real**: `SocialProof` muestra a Vitra antes del testimonio verificado final. Políticamente honesto porque el pilot ES real y público — no inventa quote, lo enmarca como "pilot activo". Actualizar quote al cierre del pilot.
+
+### Deuda registrada (ver `COMING-UPDATES.md`)
+
+Items que los agentes detectaron y decidimos NO hacer pre-pilot (riesgo de regresión, foco en estabilidad):
+
+- Modernización del Hero mockup (asymmetric + device secundario flotante)
+- Consolidar `GrowthPath` + `Pricing` (duplican los 3 tiers)
+- Mobile breaks en `RoleSuperpowers`, `LiveNotifications`, `PatientCardsCarousel`
+- CTA differentiation en Pricing (3× "Empezar ahora" idénticos) y RoleSuperpowers (sin CTA)
+- Features con screenshots reales (hoy placeholders vacíos)
+- Micro-interactions: Pricing toggle, Feature hover, LiveNotifications swipe
+- Muletas copy a eliminar: "Todo lo que necesitas. Nada que no.", "Potencia administradores", "Y no para."
