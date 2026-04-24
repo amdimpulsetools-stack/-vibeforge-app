@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { format, addDays, startOfWeek } from "date-fns";
@@ -361,6 +362,9 @@ export default function SchedulerPage() {
       toast.error("No pudimos mover la cita. " + error.message);
       return;
     }
+
+    // Mirror move to Google Calendar (best-effort).
+    syncAppointmentToGoogle(appointmentId, "upsert");
 
     toast.success(`Cita movida a ${newDateStr} ${targetTime}`);
     fetchAppointments();

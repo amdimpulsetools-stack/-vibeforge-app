@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/send-notification";
+import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import type { AppointmentWithRelations, Office, Doctor, ScheduleBlock } from "@/types/admin";
 import { X, Loader2, CalendarDays, Clock, RefreshCw } from "lucide-react";
 import { loadBreakTimeConfig } from "./break-time-dialog";
@@ -136,6 +137,9 @@ export function RescheduleModal({
       return;
     }
     toast.success("Cita reprogramada correctamente");
+
+    // Mirror reschedule to Google Calendar (best-effort).
+    syncAppointmentToGoogle(appointment.id, "upsert");
 
     // Send reschedule notification email
     sendNotification({

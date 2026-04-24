@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  CalendarDays,
   CreditCard,
-  Mail,
   FileText,
   Video,
   Loader2,
@@ -12,10 +10,13 @@ import {
   Plug,
   Settings,
   ArrowRight,
+  AlertTriangle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { WhatsAppWizard } from "@/components/integrations/whatsapp-wizard";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type IntegrationStatus = "connected" | "available" | "coming-soon";
 
@@ -100,29 +101,97 @@ const INTEGRATION_CATEGORIES = {
   email: { es: "Email", en: "Email" },
 } as const;
 
+interface GCalStatus {
+  connected: boolean;
+  email?: string;
+  connected_at?: string;
+  last_sync_at?: string | null;
+  last_sync_error?: string | null;
+  is_active?: boolean;
+}
+
 export default function IntegracionesTab() {
   const { language } = useLanguage();
   const { organizationId } = useOrganization();
+  const confirm = useConfirm();
   const es = language === "es";
 
   const [whatsappWizardOpen, setWhatsappWizardOpen] = useState(false);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const [gcal, setGcal] = useState<GCalStatus>({ connected: false });
   const [loadingStatus, setLoadingStatus] = useState(true);
 
   const fetchWhatsappStatus = useCallback(async () => {
     if (!organizationId) return;
-    setLoadingStatus(true);
     const res = await fetch("/api/whatsapp/config");
     if (res.ok) {
       const data = await res.json();
       setWhatsappConnected(!!data?.is_active);
     }
-    setLoadingStatus(false);
   }, [organizationId]);
 
+  const fetchGCalStatus = useCallback(async () => {
+    if (!organizationId) return;
+    const res = await fetch("/api/integrations/google/status");
+    if (res.ok) {
+      setGcal((await res.json()) as GCalStatus);
+    }
+  }, [organizationId]);
+
+  const refreshAll = useCallback(async () => {
+    setLoadingStatus(true);
+    await Promise.all([fetchWhatsappStatus(), fetchGCalStatus()]);
+    setLoadingStatus(false);
+  }, [fetchWhatsappStatus, fetchGCalStatus]);
+
   useEffect(() => {
-    fetchWhatsappStatus();
-  }, [fetchWhatsappStatus]);
+    refreshAll();
+  }, [refreshAll]);
+
+  // Surface OAuth callback result via toast (?gcal=ok|error)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    const result = url.searchParams.get("gcal");
+    if (!result) return;
+    if (result === "ok") {
+      toast.success(es ? "Google Calendar conectado." : "Google Calendar connected.");
+    } else {
+      const reason = url.searchParams.get("gcal_reason") || "";
+      toast.error(
+        (es ? "No pudimos conectar Google Calendar." : "Could not connect Google Calendar.") +
+          (reason ? ` (${reason})` : "")
+      );
+    }
+    url.searchParams.delete("gcal");
+    url.searchParams.delete("gcal_reason");
+    window.history.replaceState({}, "", url.toString());
+    refreshAll();
+  }, [es, refreshAll]);
+
+  const handleConnectGCal = () => {
+    // Full-page redirect — Google's OAuth flow doesn't work in popups reliably.
+    window.location.href = "/api/integrations/google/connect";
+  };
+
+  const handleDisconnectGCal = async () => {
+    const ok = await confirm({
+      title: es ? "Desconectar Google Calendar" : "Disconnect Google Calendar",
+      description: es
+        ? "Las citas existentes en Google Calendar se quedarán como están. Las nuevas dejarán de sincronizarse."
+        : "Existing events stay in Google Calendar. New appointments will stop syncing.",
+      confirmText: es ? "Desconectar" : "Disconnect",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    const res = await fetch("/api/integrations/google/disconnect", { method: "POST" });
+    if (res.ok) {
+      toast.success(es ? "Desconectado." : "Disconnected.");
+      fetchGCalStatus();
+    } else {
+      toast.error(es ? "Error al desconectar." : "Disconnect failed.");
+    }
+  };
 
   const integrations: Integration[] = [
     {
@@ -142,11 +211,12 @@ export default function IntegracionesTab() {
       name: "Google Calendar",
       category: INTEGRATION_CATEGORIES.calendar[language as "es" | "en"] || INTEGRATION_CATEGORIES.calendar.es,
       description: {
-        es: "Sincroniza la agenda de cada doctor con su Google Calendar personal en tiempo real.",
-        en: "Sync each doctor's schedule with their personal Google Calendar in real time.",
+        es: "Cada cita que crees, edites o canceles se refleja en el Google Calendar de tu clínica. Respaldo de un solo sentido.",
+        en: "Every appointment you create, edit or cancel mirrors to your clinic's Google Calendar. One-way backup.",
       },
       iconNode: <GoogleCalendarIcon />,
-      status: "coming-soon",
+      status: gcal.connected ? "connected" : "available",
+      onConnect: gcal.connected ? handleDisconnectGCal : handleConnectGCal,
     },
     {
       id: "gmail",
@@ -294,13 +364,41 @@ export default function IntegracionesTab() {
                     {it.description[es ? "es" : "en"]}
                   </p>
 
+                  {/* Google Calendar — extra status detail when connected */}
+                  {it.id === "google-calendar" && gcal.connected && (
+                    <div className="mb-3 space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{es ? "Cuenta" : "Account"}:</span>
+                        <span className="font-medium truncate">{gcal.email}</span>
+                      </div>
+                      {gcal.last_sync_at && (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-muted-foreground">{es ? "Última sync" : "Last sync"}:</span>
+                          <span className="font-medium">
+                            {new Date(gcal.last_sync_at).toLocaleString(es ? "es-PE" : "en-US")}
+                          </span>
+                        </div>
+                      )}
+                      {gcal.last_sync_error && (
+                        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">
+                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <span className="text-[11px] leading-relaxed">
+                            {es ? "Última sync falló:" : "Last sync failed:"} {gcal.last_sync_error.slice(0, 120)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {it.status === "connected" && it.onConnect && (
                     <button
                       onClick={it.onConnect}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors w-full justify-center"
                     >
                       <Settings className="h-3.5 w-3.5" />
-                      {es ? "Gestionar" : "Manage"}
+                      {it.id === "google-calendar"
+                        ? (es ? "Desconectar" : "Disconnect")
+                        : (es ? "Gestionar" : "Manage")}
                     </button>
                   )}
 
