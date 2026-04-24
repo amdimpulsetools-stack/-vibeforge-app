@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { lookupValueSchema, type LookupValueFormData } from "@/lib/validations/lookup";
 import { LOOKUP_SLUGS } from "@/types/admin";
@@ -144,11 +145,17 @@ function LookupValueList({
   isAdmin: boolean;
 }) {
   const { t } = useLanguage();
+  const confirm = useConfirm();
   const [showForm, setShowForm] = useState(false);
   const [editingValue, setEditingValue] = useState<LookupValue | null>(null);
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t("lookups.delete_confirm"))) return;
+    const ok = await confirm({
+      title: t("lookups.delete_confirm"),
+      confirmText: "Eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const supabase = createClient();
     const { error } = await supabase.from("lookup_values").delete().eq("id", id);
     if (error) {

@@ -9,6 +9,13 @@ export function generateToken(): string {
   return crypto.randomBytes(32).toString("hex");
 }
 
+// SHA-256 hex of the raw token. Used for magic-link tokens so the DB row
+// alone cannot be used to impersonate a patient if leaked. The raw token
+// still travels by email + URL, which is standard for magic-link flows.
+export function hashToken(raw: string): string {
+  return crypto.createHash("sha256").update(raw).digest("hex");
+}
+
 export async function createPortalSession(
   organizationId: string,
   email: string,

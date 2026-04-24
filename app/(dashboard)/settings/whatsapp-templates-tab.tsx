@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -96,6 +97,7 @@ function StatusBadge({ status, language }: { status: WhatsAppTemplateStatus; lan
 export default function WhatsAppTemplatesTab() {
   const { language } = useLanguage();
   const { organizationId, isOrgAdmin } = useOrganization();
+  const confirm = useConfirm();
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
@@ -228,7 +230,12 @@ export default function WhatsAppTemplatesTab() {
                 isAdmin={isOrgAdmin}
                 onEdit={() => setEditingTemplate(template)}
                 onDelete={async () => {
-                  if (!confirm(es ? "¿Eliminar esta plantilla?" : "Delete this template?")) return;
+                  const ok = await confirm({
+                    title: es ? "¿Eliminar esta plantilla?" : "Delete this template?",
+                    confirmText: es ? "Eliminar" : "Delete",
+                    variant: "destructive",
+                  });
+                  if (!ok) return;
                   const res = await fetch(`/api/whatsapp/templates/${template.id}`, { method: "DELETE" });
                   if (res.ok) {
                     toast.success(es ? "Plantilla eliminada" : "Template deleted");

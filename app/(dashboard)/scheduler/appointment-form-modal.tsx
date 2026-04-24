@@ -595,7 +595,7 @@ export function AppointmentFormModal({
         } as any);
 
       if (payError) {
-        toast.error("Cita creada, pero error al registrar anticipo: " + (payError.message || JSON.stringify(payError)));
+        toast.error("Cita creada. No se pudo registrar el anticipo — regístralo manualmente en el panel.");
       } else {
         // Notification: payment registered at appointment creation
         supabase.from("notifications").insert({

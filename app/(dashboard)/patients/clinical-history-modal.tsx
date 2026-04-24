@@ -11,6 +11,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { PatientWithTags } from "@/types/admin";
 import type { ClinicalNote, SOAPSection, Vitals } from "@/types/clinical-notes";
 import { SOAP_LABELS, VITALS_FIELDS } from "@/types/clinical-notes";
@@ -59,13 +60,12 @@ export function ClinicalHistoryModal({
     if (open) fetchNotes();
   }, [open, fetchNotes]);
 
-  if (!open) return null;
-
   const patientAge = patient.birth_date ? calculateAge(patient.birth_date) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="relative w-full max-w-[95vw] md:max-w-5xl mx-2 md:mx-4 max-h-[95vh] md:max-h-[90vh] rounded-xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-full max-w-[95vw] md:max-w-5xl max-h-[95vh] md:max-h-[90vh] p-0 gap-0 flex flex-col overflow-hidden [&>button]:hidden">
+        <DialogDescription className="sr-only">Historia clínica del paciente</DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0">
           <div className="flex items-center gap-3">
@@ -73,7 +73,7 @@ export function ClinicalHistoryModal({
               <Stethoscope className="h-5 w-5 text-emerald-500" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">Historia Clínica</h2>
+              <DialogTitle className="text-lg font-semibold">Historia Clínica</DialogTitle>
               <div className="flex items-center gap-3 text-sm text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <User className="h-3.5 w-3.5" />
@@ -348,7 +348,7 @@ export function ClinicalHistoryModal({
             </div>
           </section>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

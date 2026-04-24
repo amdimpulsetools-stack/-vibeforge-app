@@ -14,6 +14,7 @@ import {
   Legend,
 } from "recharts";
 import { toast } from "sonner";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Loader2, Plus, TrendingUp, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -65,6 +66,7 @@ export function GrowthCurvesPanel({
   sex,
   onRequestSexUpdate,
 }: GrowthCurvesPanelProps) {
+  const confirm = useConfirm();
   const [entries, setEntries] = useState<AnthropometryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<GrowthMetric>("weight_for_age");
@@ -169,7 +171,13 @@ export function GrowthCurvesPanel({
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar esta medición?")) return;
+    const ok = await confirm({
+      title: "Eliminar esta medición",
+      description: "Esta acción no se puede deshacer.",
+      confirmText: "Eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const res = await fetch(
       `/api/patients/${patientId}/anthropometry?entryId=${id}`,
       { method: "DELETE" }

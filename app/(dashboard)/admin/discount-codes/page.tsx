@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { usePlan } from "@/hooks/use-plan";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Tag,
   Plus,
@@ -101,6 +102,7 @@ function UpgradePrompt() {
 }
 
 function CodesManager() {
+  const confirm = useConfirm();
   const [loading, setLoading] = useState(true);
   const [codes, setCodes] = useState<DiscountCode[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -156,7 +158,13 @@ function CodesManager() {
   };
 
   const del = async (c: DiscountCode) => {
-    if (!confirm(`¿Eliminar el código ${c.code}? Esta acción no se puede deshacer.`)) return;
+    const ok = await confirm({
+      title: `Eliminar código ${c.code}`,
+      description: "Esta acción no se puede deshacer.",
+      confirmText: "Eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const res = await fetch(`/api/discount-codes/${c.id}`, { method: "DELETE" });
     if (res.ok) {
       toast.success("Código eliminado");

@@ -8,6 +8,7 @@ import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
 import { patientSchema, type PatientFormData } from "@/lib/validations/patient";
 import { X, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useOrganization } from "@/components/organization-provider";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
 
@@ -128,11 +129,12 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-2 md:mx-4 w-full max-w-lg max-h-[95vh] overflow-hidden flex flex-col rounded-xl border border-border bg-card shadow-xl">
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-full max-w-lg max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden [&>button]:hidden">
+        <DialogDescription className="sr-only">{t("patients.add")}</DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 md:px-6 py-3 md:py-4">
-          <h3 className="text-lg font-semibold">{t("patients.add")}</h3>
+          <DialogTitle className="text-lg font-semibold">{t("patients.add")}</DialogTitle>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
@@ -323,7 +325,7 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
             {t("common.save")}
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

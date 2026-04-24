@@ -358,7 +358,7 @@ export default function SchedulerPage() {
       .eq("id", appointmentId);
 
     if (error) {
-      toast.error("Error al mover la cita: " + error.message);
+      toast.error("No pudimos mover la cita. " + error.message);
       return;
     }
 

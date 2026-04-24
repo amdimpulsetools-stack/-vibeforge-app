@@ -760,7 +760,7 @@ export default function PublicBookingPage() {
         {/* ── Step: Date & Time ────────────────────────────────────────── */}
         {step === "datetime" && (
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Elige fecha y hora</h2>
+            <h2 className="text-lg font-semibold">Selecciona fecha y hora</h2>
 
             {/* Date selection */}
             <div className="space-y-2">
@@ -878,7 +878,7 @@ export default function PublicBookingPage() {
                   onChange={(e) => setFirstName(e.target.value)}
                   className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
                   style={{ "--tw-ring-color": accentColor } as React.CSSProperties}
-                  placeholder="Juan"
+                  placeholder="Ej. María"
                 />
               </div>
               <div className="space-y-1.5">
@@ -891,7 +891,7 @@ export default function PublicBookingPage() {
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
                   className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-emerald-500"
-                  placeholder="Pérez"
+                  placeholder="Ej. Rodríguez"
                 />
               </div>
             </div>
@@ -1051,7 +1051,7 @@ export default function PublicBookingPage() {
             className="inline-flex items-center gap-1.5 text-sm hover:underline transition-colors"
             style={{ color: accentColor }}
           >
-            ¿Ya eres paciente? Entra a tu portal
+            ¿Ya eres paciente? Accede a tu portal
           </a>
         )}
         <p className="text-xs text-zinc-600">
