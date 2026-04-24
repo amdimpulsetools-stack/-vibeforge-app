@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { RoleGate } from "@/components/role-gate";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { CIE10_CATALOG } from "@/lib/cie10-catalog";
 import { createClient } from "@/lib/supabase/client";
 import type { CustomDiagnosisCode } from "@/app/api/custom-diagnosis-codes/route";
@@ -14,6 +15,7 @@ interface Specialty {
 }
 
 export default function DiagnosisCodesPage() {
+  const confirm = useConfirm();
   const [codes, setCodes] = useState<CustomDiagnosisCode[]>([]);
   const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,7 +116,13 @@ export default function DiagnosisCodesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este código? Las notas existentes no se verán afectadas.")) return;
+    const ok = await confirm({
+      title: "Eliminar código CIE-10",
+      description: "Las notas existentes no se verán afectadas.",
+      confirmText: "Eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/custom-diagnosis-codes?id=${id}`, {
         method: "DELETE",

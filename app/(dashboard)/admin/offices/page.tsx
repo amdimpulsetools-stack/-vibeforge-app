@@ -8,6 +8,7 @@ import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { RoleGate } from "@/components/role-gate";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { officeSchema, type OfficeFormData } from "@/lib/validations/office";
 import type { Office } from "@/types/admin";
@@ -27,6 +28,7 @@ import { usePlan } from "@/hooks/use-plan";
 export default function OfficesPage() {
   const { t, language } = useLanguage();
   const { isAdmin } = useOrgRole();
+  const confirm = useConfirm();
   const { plan, usage, isAtLimit, getLimit } = usePlan();
   const [offices, setOffices] = useState<Office[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +68,12 @@ export default function OfficesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t("offices.delete_confirm"))) return;
+    const ok = await confirm({
+      title: t("offices.delete_confirm"),
+      confirmText: "Eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     const supabase = createClient();
     const { error } = await supabase.from("offices").delete().eq("id", id);

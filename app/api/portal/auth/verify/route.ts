@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createPortalSession } from "@/lib/portal-auth";
+import { createPortalSession, hashToken } from "@/lib/portal-auth";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -27,10 +27,12 @@ export async function POST(req: NextRequest) {
     const { token, slug } = parsed.data;
     const supabase = createAdminClient();
 
+    // The raw token comes from the email link; we look up by its SHA-256 hash.
+    const tokenHash = hashToken(token);
     const { data: tokenRow } = await supabase
       .from("patient_portal_tokens")
       .select("id, organization_id, email, expires_at, used_at")
-      .eq("token", token)
+      .eq("token_hash", tokenHash)
       .single();
 
     if (!tokenRow) {

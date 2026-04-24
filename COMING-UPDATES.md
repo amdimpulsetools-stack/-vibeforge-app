@@ -1,6 +1,6 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-24
+> **Última actualización:** 2026-04-24 (v0.12.5)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -107,12 +107,13 @@
 
 ---
 
-## 🛠️ Technical Debt — Post-audit (estado al 2026-04-24, v0.12.4)
+## 🛠️ Technical Debt — Post-audit (estado al 2026-04-24, v0.12.5)
 
 Items identificados en la auditoría multi-agente del 2026-04-22. Análisis completo en `docs/{security,performance,ux}-review-2026-04-22.md`. Estado verificado en código.
 
-### ✅ Cerrados en v0.12.3 + v0.12.4
+### ✅ Cerrados en v0.12.3 + v0.12.4 + v0.12.5
 
+**v0.12.3 + v0.12.4:**
 - [x] **F-04** — 2FA Map in-memory migrado a tabla `founder_2fa_sessions` (migración 104).
 - [x] **F-06** — `/api/clinical-attachments/[id]` con ownership check explícito (defense-in-depth).
 - [x] **F-10** — founder routes verifican cookie 2FA real via `requireFounder()`.
@@ -124,38 +125,41 @@ Items identificados en la auditoría multi-agente del 2026-04-22. Análisis comp
 - [x] **UX AlertDialog system** — patrón `useConfirm()` disponible + aplicado en scheduler + clinical notes.
 - [x] **Deps** — package `motion` duplicado removido (-8.5MB).
 
-### 🎯 Plan pre-pilot Vitra (atacar antes del Lunes)
+**v0.12.5 (pre-pilot tier seguro):**
+- [x] **F-03 — magic-link token hash** (migración 105). SHA-256 antes de persistir; raw sigue viajando por email/URL. Tokens vivos purgados.
+- [x] **11 `confirm()` nativos → `useConfirm()`** en admin CRUD. Cero `confirm()` nativos restantes en `app/(dashboard)/**`.
+- [x] **Copy edits ronda 2** — 11 cadenas reescritas: errores de guardar/firmar/subir/mover cita/registrar pago, "Firmar esta nota" → "Al firmar se bloquea…", "Entra a tu portal" → "Accede…", placeholders `book/` a "Ej. María" / "Ej. Rodríguez", 3× "Error de conexión" del portal.
+- [x] **6 modales hand-rolled → Radix Dialog**: `block-dialog`, `available-slots-modal`, `admin/members` (invite), `account` (addons), `patients/clinical-history-modal`, `patients/patient-form-modal`.
 
-Selección minimalista para evitar regresiones con cliente real mirando:
+### 🎯 Plan pre-pilot Vitra (quedan por atacar)
 
 - [ ] **F-19 — MP webhook prefix check** (~15 min). Validar que `data.id` empiece con `payment`/`preapproval` antes de procesar. Quick fix en `app/api/mercadopago/webhook/route.ts:55`.
-- [ ] **F-03 — magic-link token hash** (~1h). Hashear (sha256) antes de persistir en `patient_portal_tokens`; comparar hash en request-link verification. Vitra usará portal con pacientes reales.
-- [ ] **`confirm()` → `useConfirm()` en 3 rutas de alta frecuencia** (~30 min):
-  - `scheduler/appointment-sidebar.tsx` (delete cita)
-  - `admin/services/page.tsx` (2× delete)
-  - `admin/offices/page.tsx` (delete)
 
-### ⏸️ Diferidos post-pilot
+### ⏸️ Diferidos post-pilot (rastreables)
 
-Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vitra para priorizar mejor.
+Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vitra.
 
 - [ ] **F-05 — rate limiter Upstash/Redis**. In-memory actual (`lib/rate-limit.ts`) basta para 1 clínica single-instance. Migrar cuando escalemos a 2-3 clientes o autoscale activo.
-- [ ] **Modales hand-rolled restantes → Radix Dialog** (9 componentes):
-  - `patients/patient-drawer.tsx` (~1400 líneas — refactor delicado)
-  - `patients/clinical-history-modal.tsx`
-  - `patients/bulk-import-modal.tsx`
-  - `patients/patient-form-modal.tsx`
-  - `account/page.tsx` (modal de password)
-  - `admin/members/page.tsx` (invite modal)
-  - `scheduler/block-dialog.tsx`
-  - `scheduler/available-slots-modal.tsx`
-  - Patrón ya definido en `appointment-form-modal.tsx` + `budgets-panel.tsx`.
-- [ ] **10 `confirm()` nativos restantes** en admin CRUD de baja frecuencia (discount-codes, treatment-plan-templates, clinical-templates, diagnosis-codes, lookups, members, growth-curves-panel, whatsapp-templates-tab). + 3 `alert()` en `founder/integrations/page.tsx`.
-- [ ] **~10 copy edits restantes** — principalmente "Error al guardar" genéricos. Ver `docs/ux-review-2026-04-22.md` sección "Copy polish".
-- [ ] **Dual design system cleanup** — portal iOS-flavored vs dashboard shadcn-tokens vs /book variante light. Unificar radius scale, color tokens semánticos, Button source-of-truth. Refactor grande — post-feedback de Vitra.
-- [ ] **Public /book safety net** — sessionStorage del form progress, validación per-field, mensajes específicos, success screen con link a `/portal`.
+- [ ] **2 modales hand-rolled grandes restantes → Radix Dialog** (diferidos intencionalmente por riesgo de regresión):
+  - `patients/patient-drawer.tsx` — **~1400 líneas**, es el drawer principal del paciente que recepción usa a diario. Refactor delicado: múltiples tabs anidados, estado complejo de edición inline, keyboard shortcuts. Requiere sesión dedicada con tests manuales exhaustivos post-refactor.
+  - `patients/bulk-import-modal.tsx` — parsing de CSV con edge cases numerosos (duplicados, DNIs inválidos, encoding). Pasar a Radix sin probar con 4-5 archivos reales es riesgoso.
+  - **Plan sugerido:** abordar uno por commit, cada uno con una sesión de QA manual (crear paciente, editar, ver historia, importar 50 pacientes de prueba). No hacer en la misma sesión que otras cosas.
+- [ ] **~13 copy edits restantes** (menores):
+  - Status label `"Programada"` → `"Agendada"` en `scheduler/status enum` (requiere tocar i18n + `dashboard/doctor-dashboard.tsx:112` + `portal/mis-citas/page.tsx:193`). Riesgo: strings de display que aparecen en muchos reports y emails — validar antes de cambiar.
+  - `"No asistió"` → decisión de producto (quedó como está; "Inasistencia" sonó más stiff en preview).
+  - Resto: `"visitas"/"visita"` en tiles del portal, copy del footer "Reserva en línea", microcopy de ayuda. Listados en `docs/ux-review-2026-04-22.md`.
+- [ ] **Dual design system cleanup** — portal iOS-flavored vs dashboard shadcn-tokens vs /book variante light. Unificar radius scale, color tokens semánticos, Button source-of-truth. Refactor grande — post-feedback de Vitra para priorizar qué unificar primero.
+- [ ] **Public /book safety net** — sessionStorage del form progress, validación per-field, success screen con link a `/portal`.
 - [ ] **Perf F-12** — `recharts` dynamic import en dashboard y reports.
 - [ ] **Perf F-05** — AppointmentSidebar 4 awaits secuenciales → `Promise.all`.
+- [ ] **3 `alert()` nativos** en `founder/integrations/page.tsx` (uso interno — menor prioridad).
+
+### Criterios para retomar deuda diferida
+
+- **Modales grandes** (`patient-drawer`, `bulk-import`): cuando haya una ventana sin pilot activo de 1 semana sin features nuevas. QA posterior: crear/editar/ver 5 pacientes + importar CSV de 50.
+- **Design system**: cuando Vitra haya reportado 2-3 pantallas donde "no entendieron el botón" o "no encontraron el link" — eso dice qué unificar primero.
+- **Perf F-12**: cuando `/dashboard` o `/reports` tarden >1s en carga inicial reportado por usuario real.
+- **F-05 Redis**: cuando se active autoscale en Vercel o se suba a >1 clínica activa con tráfico simultáneo.
 
 ---
 

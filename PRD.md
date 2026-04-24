@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-24
-> **Versión:** 0.12.4
+> **Versión:** 0.12.5
 > **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + Consentimiento informado Tier 1 (Ley 29414) + Auditoría multi-agente + 2 rondas de fixes (v0.12.3 + v0.12.4) + **Preparación de pilot con primer cliente real (Vitra, fertilidad)**
 
 ---
@@ -2372,3 +2372,129 @@ Verificación de código al 2026-04-24:
 - Testimonial para marketing (si fue bien)
 - Plantilla de onboarding reusable para próximas clínicas
 - Decisión comercial: renovación anual (Professional vs Enterprise) + features pagables extra
+
+---
+
+## 32. Changelog — Sesión 2026-04-24 (v0.12.5) — Tier seguro pre-pilot
+
+Última ronda de fixes **antes** del arranque del pilot de Vitra. Selección deliberadamente minimalista: solo cosas con bajo riesgo de regresión, altas en valor para el flujo que Vitra va a tocar.
+
+### 🛡️ F-03 — Magic-link tokens hasheados (migración 105)
+
+Antes: `patient_portal_tokens.token` guardaba el token raw (64 chars hex) idéntico al que viajaba en el email del paciente. Un backup de DB fugado, una réplica mal configurada, o un RLS momentáneamente débil bastaba para impersonar cualquier paciente cuyo token estuviera vivo (ventana 15 min).
+
+**Fix:**
+- Migración 105: purga los tokens pending, drop columna `token`, añade `token_hash TEXT UNIQUE NOT NULL` + índice. Las filas históricas (used_at NOT NULL) se backfillan con `'legacy-<id>'` para no romper la PK.
+- `lib/portal-auth.ts`: nueva helper `hashToken(raw) = sha256(raw)` hex.
+- `app/api/portal/auth/request-link/route.ts`: genera token raw, lo hashea, persiste solo el hash. Raw sigue yendo al email (estándar para magic-link flows).
+- `app/api/portal/auth/verify/route.ts`: recibe raw del URL query, hashea, busca por hash.
+
+Ahora un leak de DB no es suficiente para usarse — el atacante necesitaría también acceso al correo del paciente (que es exactamente el modelo de seguridad de cualquier magic-link).
+
+### 🧹 11 `confirm()` nativos → `useConfirm()`
+
+Cerrado el último frente del patrón `useConfirm()` introducido en v0.12.3. Migrados:
+
+- `admin/clinical-templates` (delete plantilla)
+- `admin/diagnosis-codes` (delete código)
+- `admin/lookups` (delete valor)
+- `admin/members` (2×: remove + deactivate)
+- `admin/offices` (delete)
+- `admin/services` (2×: delete servicio + delete categoría)
+- `admin/treatment-plan-templates` (delete plantilla)
+- `admin/discount-codes` (delete código)
+- `patients/growth-curves-panel` (delete medición)
+- `settings/whatsapp-templates-tab` (delete plantilla)
+
+Cero `confirm()` nativos restantes en `app/(dashboard)/**`. Solo quedan 3 `alert()` en `founder/integrations/page.tsx` (uso interno, menor prioridad).
+
+### 🎨 Copy edits — ronda 2 (11 cadenas)
+
+Aplicadas de la lista del UX review sección "Copy polish":
+
+- `clinical-note-panel`: `"Error al guardar"` → `"No se pudo guardar la nota. Tus cambios siguen en pantalla — reintenta."` | `"Error al firmar"` → `"No se pudo firmar la nota. Revisa que todos los campos estén completos."` | dialog de firma: `"¿Firmar esta nota clínica? Una vez firmada no podrá ser editada."` → `"Firmar nota clínica. Al firmar se bloquea la edición permanentemente."`.
+- `appointment-sidebar`: `"Error al subir el documento"` → `"No pudimos subir el archivo. ¿Excede los 10 MB?"` | `"Error al registrar pago: " + msg` → `"No pudimos registrar el pago. " + msg`.
+- `scheduler/page`: `"Error al mover la cita: " + msg` → `"No pudimos mover la cita. " + msg`.
+- `appointment-form-modal`: `"Cita creada, pero error al registrar anticipo: " + msg` → `"Cita creada. No se pudo registrar el anticipo — regístralo manualmente en el panel."`.
+- `book/[slug]/page`: `"Elige fecha y hora"` → `"Selecciona fecha y hora"` | `"Entra a tu portal"` → `"Accede a tu portal"` | placeholders `"Juan"`/`"Pérez"` → `"Ej. María"`/`"Ej. Rodríguez"`.
+- Portal: 3× `"Error de conexión"` → `"Sin conexión. Revisa tu internet e intenta otra vez."` en `mis-citas`, `registro`, `verify`.
+
+### 🧱 6 modales hand-rolled → Radix Dialog
+
+Modales convertidos al patrón Radix Dialog (focus trap, ESC, overlay click-outside, `role="dialog"` + aria-labelledby, SSR-friendly portal):
+
+- `scheduler/block-dialog.tsx`
+- `scheduler/available-slots-modal.tsx` (además removido dead `motion`/`AnimatePresence` imports)
+- `admin/members/page.tsx` — invite modal
+- `account/page.tsx` — modal "Añadir cupos extra" (addons)
+- `patients/clinical-history-modal.tsx`
+- `patients/patient-form-modal.tsx`
+
+Patrón copiado de `scheduler/appointment-form-modal.tsx` (referencia dorada). Shell idéntica: `<Dialog open onOpenChange={v => !v && onClose()}> <DialogContent className="[&>button]:hidden"> <DialogTitle/> <DialogDescription className="sr-only"/> ...contenido... </DialogContent> </Dialog>`.
+
+### ⏸️ Explícitamente diferidos (rastreables en `COMING-UPDATES.md`)
+
+- **`patients/patient-drawer.tsx`** — ~1400 líneas, drawer del paciente que recepción usa a diario. Refactor delicado (tabs anidados, estado de edición inline, keyboard shortcuts). Riesgo alto de regresión con pilot arrancando. Requiere sesión dedicada + QA manual.
+- **`patients/bulk-import-modal.tsx`** — parsing de CSV con edge cases numerosos. Mismo argumento.
+- **F-19** (MP webhook prefix check) — fix trivial (~15 min) pero requiere test con sandbox de MP para no romper el flujo de cobros. Se hará en commit separado antes del deploy.
+
+### Archivos modificados / nuevos
+
+**Security:**
+- `supabase/migrations/105_portal_magic_link_hash.sql` (nuevo)
+- `lib/portal-auth.ts` — añadida `hashToken()`
+- `app/api/portal/auth/request-link/route.ts` — persiste hash
+- `app/api/portal/auth/verify/route.ts` — busca por hash
+
+**UX (`useConfirm`):**
+- `app/(dashboard)/admin/clinical-templates/page.tsx`
+- `app/(dashboard)/admin/diagnosis-codes/page.tsx`
+- `app/(dashboard)/admin/lookups/page.tsx`
+- `app/(dashboard)/admin/members/page.tsx`
+- `app/(dashboard)/admin/offices/page.tsx`
+- `app/(dashboard)/admin/services/page.tsx`
+- `app/(dashboard)/admin/treatment-plan-templates/page.tsx`
+- `app/(dashboard)/admin/discount-codes/page.tsx`
+- `app/(dashboard)/patients/growth-curves-panel.tsx`
+- `app/(dashboard)/settings/whatsapp-templates-tab.tsx`
+
+**UX (copy):**
+- `app/(dashboard)/scheduler/clinical-note-panel.tsx`
+- `app/(dashboard)/scheduler/appointment-sidebar.tsx`
+- `app/(dashboard)/scheduler/page.tsx`
+- `app/(dashboard)/scheduler/appointment-form-modal.tsx`
+- `app/book/[slug]/page.tsx`
+- `app/portal/[slug]/mis-citas/page.tsx`
+- `app/portal/[slug]/registro/page.tsx`
+- `app/portal/[slug]/verify/page.tsx`
+
+**UX (modales Radix):**
+- `app/(dashboard)/scheduler/block-dialog.tsx`
+- `app/(dashboard)/scheduler/available-slots-modal.tsx`
+- `app/(dashboard)/admin/members/page.tsx`
+- `app/(dashboard)/account/page.tsx`
+- `app/(dashboard)/patients/clinical-history-modal.tsx`
+- `app/(dashboard)/patients/patient-form-modal.tsx`
+
+### Migración a aplicar antes del deploy
+
+```sql
+-- supabase/migrations/105_portal_magic_link_hash.sql
+DELETE FROM patient_portal_tokens WHERE used_at IS NULL;
+DROP INDEX IF EXISTS idx_portal_tokens_lookup;
+ALTER TABLE patient_portal_tokens DROP CONSTRAINT IF EXISTS patient_portal_tokens_token_key;
+ALTER TABLE patient_portal_tokens DROP COLUMN IF EXISTS token;
+ALTER TABLE patient_portal_tokens ADD COLUMN token_hash TEXT;
+UPDATE patient_portal_tokens SET token_hash = 'legacy-' || id::text WHERE token_hash IS NULL;
+ALTER TABLE patient_portal_tokens ALTER COLUMN token_hash SET NOT NULL;
+ALTER TABLE patient_portal_tokens ADD CONSTRAINT patient_portal_tokens_token_hash_key UNIQUE (token_hash);
+CREATE INDEX idx_portal_tokens_hash_lookup ON patient_portal_tokens (token_hash, expires_at);
+```
+
+Sin esta migración, `/api/portal/auth/request-link` fallará al insertar (columna `token_hash` no existe) y `/api/portal/auth/verify` no encontrará tokens (busca por `token_hash`). Aplicar **antes** de deployear.
+
+### Cambios de Alcance
+
+- **Magic-link security**: establece el patrón de `raw en email + hash en DB` para cualquier token futuro (session tokens del portal siguen siendo plaintext en DB pero están en cookie httpOnly/secure — distinto vector; revisable post-pilot si hace falta).
+- **`confirm()` nativos erradicados del dashboard**: queda como regla de contribución. Cualquier PR que introduzca `confirm()` nativo debe convertirse a `useConfirm()`.
+- **Modales Radix Dialog**: 2 modales grandes (`patient-drawer` + `bulk-import`) quedan hand-rolled intencionalmente, documentados en COMING-UPDATES con criterios claros para retomar el refactor.

@@ -23,6 +23,7 @@ import { useBilling } from "@/hooks/use-billing";
 import { useAiQuota } from "@/hooks/use-ai-quota";
 import { BorderAvatar } from "@/components/ui/avatar-border";
 import { AvatarSilhouette, AVATAR_OPTIONS } from "@/components/ui/avatar-silhouettes";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { AvatarOption as AvatarOptionType } from "@/hooks/use-user-avatar";
 import {
   Loader2,
@@ -773,17 +774,18 @@ function AddonPurchaseModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="mx-4 w-full max-w-sm rounded-xl border border-border bg-card shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-full max-w-sm p-0 gap-0 [&>button]:hidden">
+        <DialogDescription className="sr-only">Comprar cupo extra</DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <div className="flex items-center gap-2.5">
             <div className={cn("rounded-lg bg-primary/10 p-1.5")}>
               <ShoppingCart className="h-4 w-4 text-primary" />
             </div>
-            <h3 className="text-sm font-semibold">
+            <DialogTitle className="text-sm font-semibold">
               {step === "select" ? "Añadir cupos extra" : "Confirmar cargo"}
-            </h3>
+            </DialogTitle>
           </div>
           <button
             onClick={onClose}
@@ -952,8 +954,8 @@ function AddonPurchaseModal({
             </div>
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

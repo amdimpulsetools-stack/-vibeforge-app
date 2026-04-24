@@ -61,7 +61,7 @@ export default function PortalVerifyPage() {
         }, 1200);
       } catch {
         setStatus("error");
-        setErrorMsg("Error de conexión");
+        setErrorMsg("Sin conexión. Revisa tu internet e intenta otra vez.");
       }
     }
 

@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { RoleGate } from "@/components/role-gate";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import {
   clinicalTemplateSchema,
@@ -28,6 +29,7 @@ import {
 
 export default function ClinicalTemplatesPage() {
   const { isAdmin } = useOrgRole();
+  const confirm = useConfirm();
   const [templates, setTemplates] = useState<ClinicalTemplateWithDoctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -141,7 +143,13 @@ export default function ClinicalTemplatesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar esta plantilla? Esta acción no se puede deshacer.")) return;
+    const ok = await confirm({
+      title: "Eliminar plantilla",
+      description: "Esta acción no se puede deshacer.",
+      confirmText: "Eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/clinical-templates/${id}`, { method: "DELETE" });
       if (!res.ok) {

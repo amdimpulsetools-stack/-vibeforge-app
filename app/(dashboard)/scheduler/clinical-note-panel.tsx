@@ -317,7 +317,7 @@ export function ClinicalNotePanel({
         });
         const json = await res.json();
         if (!res.ok) {
-          toast.error(json.error || "Error al guardar");
+          toast.error(json.error || "No se pudo guardar la nota. Tus cambios siguen en pantalla — reintenta.");
           return;
         }
         setNote(json.data);
@@ -350,9 +350,9 @@ export function ClinicalNotePanel({
   const handleSign = async () => {
     if (!note) return;
     const ok = await confirm({
-      title: "¿Firmar esta nota clínica?",
+      title: "Firmar nota clínica",
       description:
-        "Una vez firmada, la nota queda bloqueada y no podrá ser editada. Asegúrate de haber revisado todos los campos.",
+        "Al firmar se bloquea la edición permanentemente. Revisa que todos los campos estén completos antes de continuar.",
       confirmText: "Sí, firmar",
       cancelText: "Volver",
     });
@@ -367,7 +367,7 @@ export function ClinicalNotePanel({
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error || "Error al firmar");
+        toast.error(json.error || "No se pudo firmar la nota. Revisa que todos los campos estén completos.");
         return;
       }
       setNote(json.data);

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { getInitials } from "@/lib/utils";
 import {
@@ -141,6 +143,7 @@ const ICON_MAP = {
 export default function MembersPage() {
   const { t, language } = useLanguage();
   const { orgRole } = useOrganization();
+  const confirm = useConfirm();
   const { plan, isAtLimit } = usePlan();
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
@@ -244,7 +247,12 @@ export default function MembersPage() {
   };
 
   const handleRemove = async (member: Member) => {
-    if (!confirm(t("members.remove_confirm"))) return;
+    const ok = await confirm({
+      title: t("members.remove_confirm"),
+      confirmText: t("members.remove") ?? "Eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
 
     const res = await fetch(`/api/members/${member.id}`, {
       method: "DELETE",
@@ -261,7 +269,14 @@ export default function MembersPage() {
 
   const handleToggleActive = async (member: Member) => {
     const newActive = !member.is_active;
-    if (!newActive && !confirm(t("members.deactivate_confirm"))) return;
+    if (!newActive) {
+      const ok = await confirm({
+        title: t("members.deactivate_confirm"),
+        confirmText: t("members.deactivate") ?? "Desactivar",
+        variant: "destructive",
+      });
+      if (!ok) return;
+    }
 
     const res = await fetch(`/api/members/${member.id}`, {
       method: "PATCH",
@@ -520,20 +535,20 @@ export default function MembersPage() {
       </div>
 
       {/* Invite dialog (modal) */}
-      {showInvite && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-lg rounded-xl border border-border bg-card p-6 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold">
-                {t("members.invite_title")}
-              </h2>
-              <button
-                onClick={() => setShowInvite(false)}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-accent transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      <Dialog open={showInvite} onOpenChange={(v) => { if (!v) setShowInvite(false); }}>
+        <DialogContent className="w-full max-w-lg p-6 [&>button]:hidden">
+          <DialogDescription className="sr-only">{t("members.invite_description")}</DialogDescription>
+          <div className="flex items-center justify-between mb-4">
+            <DialogTitle className="text-lg font-semibold">
+              {t("members.invite_title")}
+            </DialogTitle>
+            <button
+              onClick={() => setShowInvite(false)}
+              className="rounded-lg p-1 text-muted-foreground hover:bg-accent transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
 
             <p className="text-sm text-muted-foreground mb-4">
               {t("members.invite_description")}
@@ -653,9 +668,8 @@ export default function MembersPage() {
                 {inviting ? t("members.inviting") : t("members.invite")}
               </button>
             </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

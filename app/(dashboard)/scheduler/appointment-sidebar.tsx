@@ -223,7 +223,7 @@ export function AppointmentSidebar({
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
-        toast.error(json.error || "Error al subir el documento");
+        toast.error(json.error || "No pudimos subir el archivo. ¿Excede los 10 MB?");
         return;
       }
       toast.success("Consentimiento subido");
@@ -408,7 +408,7 @@ export function AppointmentSidebar({
 
     setSavingPayment(false);
     if (error) {
-      toast.error("Error al registrar pago: " + (error.message || JSON.stringify(error)));
+      toast.error("No pudimos registrar el pago. " + (error.message || "Revisa el monto e intenta otra vez."));
       return;
     }
     toast.success("Pago registrado");

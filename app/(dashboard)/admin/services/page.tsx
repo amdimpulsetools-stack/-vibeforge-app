@@ -8,6 +8,7 @@ import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { RoleGate } from "@/components/role-gate";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import {
   serviceSchema,
@@ -39,6 +40,7 @@ import {
 export default function ServicesPage() {
   const { t } = useLanguage();
   const { isAdmin } = useOrgRole();
+  const confirm = useConfirm();
   const [services, setServices] = useState<(Service & { service_categories: ServiceCategory })[]>([]);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,7 +72,12 @@ export default function ServicesPage() {
   }, []);
 
   const handleDeleteService = async (id: string) => {
-    if (!confirm(t("services.delete_confirm"))) return;
+    const ok = await confirm({
+      title: t("services.delete_confirm"),
+      confirmText: "Eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const supabase = createClient();
     const { error } = await supabase.from("services").delete().eq("id", id);
     if (error) {
@@ -82,7 +89,12 @@ export default function ServicesPage() {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (!confirm(t("services.category_delete_confirm"))) return;
+    const ok = await confirm({
+      title: t("services.category_delete_confirm"),
+      confirmText: "Eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     const supabase = createClient();
     const { error } = await supabase.from("service_categories").delete().eq("id", id);
     if (error) {

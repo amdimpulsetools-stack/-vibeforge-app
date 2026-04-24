@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import type { Office } from "@/types/admin";
 import { SCHEDULER_START_HOUR, SCHEDULER_END_HOUR, SCHEDULER_INTERVAL } from "@/types/admin";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { X, Loader2, Lock } from "lucide-react";
 
 interface BlockDialogProps {
@@ -65,13 +66,14 @@ export function BlockDialog({ defaultDate, offices, organizationId, onClose, onS
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-md rounded-xl border border-border bg-card shadow-xl">
+    <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-full max-w-md p-0 gap-0 [&>button]:hidden">
+        <DialogDescription className="sr-only">Bloquear horario</DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2">
             <Lock className="h-5 w-5 text-amber-500" />
-            <h3 className="text-lg font-semibold">Bloquear Horario</h3>
+            <DialogTitle className="text-lg font-semibold">Bloquear Horario</DialogTitle>
           </div>
           <button
             onClick={onClose}
@@ -201,7 +203,7 @@ export function BlockDialog({ defaultDate, offices, organizationId, onClose, onS
             Bloquear
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { RoleGate } from "@/components/role-gate";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import {
   treatmentPlanTemplateSchema,
@@ -28,6 +29,7 @@ import {
 
 export default function TreatmentPlanTemplatesPage() {
   const { isAdmin } = useOrgRole();
+  const confirm = useConfirm();
   const [templates, setTemplates] = useState<TreatmentPlanTemplateWithDoctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -137,7 +139,13 @@ export default function TreatmentPlanTemplatesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar esta plantilla? Esta acción no se puede deshacer.")) return;
+    const ok = await confirm({
+      title: "Eliminar plantilla",
+      description: "Esta acción no se puede deshacer.",
+      confirmText: "Eliminar",
+      variant: "destructive",
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/treatment-plan-templates/${id}`, { method: "DELETE" });
       if (!res.ok) {

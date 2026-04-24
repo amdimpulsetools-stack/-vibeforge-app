@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { generateToken } from "@/lib/portal-auth";
+import { generateToken, hashToken } from "@/lib/portal-auth";
 import { buildEmailHtml } from "@/lib/email-template";
 import { rateLimit } from "@/lib/rate-limit";
 import { sendEmail, isEmailConfigured } from "@/lib/resend";
@@ -89,14 +89,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true });
     }
 
+    // Raw token travels to the patient by email; only its SHA-256 hash is
+    // persisted. A leak of the DB row cannot be used to impersonate.
     const token = generateToken();
+    const tokenHash = hashToken(token);
     const expiresAt = new Date();
     expiresAt.setMinutes(expiresAt.getMinutes() + 15);
 
     await supabase.from("patient_portal_tokens").insert({
       organization_id: org.id,
       email: normalizedEmail,
-      token,
+      token_hash: tokenHash,
       expires_at: expiresAt.toISOString(),
     });
 

@@ -2049,7 +2049,7 @@ function ProfileSheet({
       onUpdate({ portal_phone: data.portal_phone });
       setEditingPhone(false);
     } catch {
-      setError("Error de conexión");
+      setError("Sin conexión. Revisa tu internet e intenta otra vez.");
     } finally {
       setSaving(false);
     }

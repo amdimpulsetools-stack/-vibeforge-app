@@ -98,7 +98,7 @@ export default function PortalRegistroPage() {
 
       router.replace(`/portal/${slug}/mis-citas`);
     } catch {
-      setError("Error de conexión");
+      setError("Sin conexión. Revisa tu internet e intenta otra vez.");
     } finally {
       setLoading(false);
     }

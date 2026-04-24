@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Check, X, Loader2, Share2 } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
@@ -179,45 +179,29 @@ export function AvailableSlotsModal({
   const totalAvailable = data?.days.reduce((acc, d) => acc + d.slots.length, 0) ?? 0;
 
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.15 }}
-          onClick={(e) => {
-            if (e.target === e.currentTarget) onClose();
-          }}
-        >
-          <motion.div
-            className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-2xl border border-border bg-card shadow-2xl overflow-hidden"
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ type: "spring", damping: 25, stiffness: 400 }}
-          >
-            {/* Header */}
-            <div className="flex items-start justify-between border-b border-border p-5">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
-                  <Share2 className="h-5 w-5 text-emerald-500" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold">Compartir horarios disponibles</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Selecciona los horarios y cópialos para enviar por WhatsApp
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-full max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden [&>button]:hidden">
+        <DialogDescription className="sr-only">Horarios disponibles</DialogDescription>
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-border p-5">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
+              <Share2 className="h-5 w-5 text-emerald-500" />
             </div>
+            <div>
+              <DialogTitle className="text-lg font-bold">Compartir horarios disponibles</DialogTitle>
+              <p className="text-xs text-muted-foreground">
+                Selecciona los horarios y cópialos para enviar por WhatsApp
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
 
             {/* Filters */}
             <div className="flex flex-wrap gap-3 border-b border-border px-5 py-3 bg-muted/30">
@@ -378,15 +362,13 @@ export function AvailableSlotsModal({
                   ) : (
                     <>
                       <Copy className="h-4 w-4" />
-                      Copiar mensaje ({selected.size} horario{selected.size !== 1 ? "s" : ""})
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+                  Copiar mensaje ({selected.size} horario{selected.size !== 1 ? "s" : ""})
+                </>
+              )}
+            </button>
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
