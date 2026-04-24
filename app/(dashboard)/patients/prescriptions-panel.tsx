@@ -92,7 +92,7 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
         const json = await res.json();
         toast.error(json.error || "Error al crear prescripción");
       }
-    } catch { toast.error("Error de conexión"); }
+    } catch { toast.error("Sin conexión. Revisa tu internet e intenta otra vez."); }
     setSaving(false);
   };
 

@@ -26,33 +26,70 @@ interface DayViewProps {
 }
 
 
-function getAppointmentForSlot(
+// PERF: indices pre-built per render turn the per-cell lookup from O(N)
+// to O(1). At 200 appointments × 50 slots × 5 offices the previous
+// linear scans ran 50,000+ comparisons per render; now it's ~250 Map
+// lookups. See buildAppointmentIndices below.
+interface AppointmentIndices {
+  /** Exact-start lookup by `${officeId}|${slotTime}`. */
+  byExactStart: Map<string, AppointmentWithRelations>;
+  /** "Is this slot occupied by ANY appointment (including continuation)" — keyed `${officeId}|${slotTime}`. */
+  occupiedSlots: Set<string>;
+  /** Appointments sorted by start_time, for range-fallback lookups. */
+  sorted: AppointmentWithRelations[];
+}
+
+function buildAppointmentIndices(
   appointments: AppointmentWithRelations[],
   dateStr: string,
+  slotMinutes: number
+): AppointmentIndices {
+  const byExactStart = new Map<string, AppointmentWithRelations>();
+  const occupiedSlots = new Set<string>();
+  const sorted: AppointmentWithRelations[] = [];
+
+  for (const a of appointments) {
+    if (a.appointment_date !== dateStr) continue;
+    sorted.push(a);
+
+    const start = a.start_time.slice(0, 5);
+    byExactStart.set(`${a.office_id}|${start}`, a);
+
+    // Mark every grid slot covered by this appointment as occupied.
+    const [sh, sm] = a.start_time.slice(0, 5).split(":").map(Number);
+    const [eh, em] = a.end_time.slice(0, 5).split(":").map(Number);
+    const startMin = sh * 60 + sm;
+    const endMin = eh * 60 + em;
+    for (let m = startMin; m < endMin; m += slotMinutes) {
+      const hh = Math.floor(m / 60).toString().padStart(2, "0");
+      const mm = (m % 60).toString().padStart(2, "0");
+      occupiedSlots.add(`${a.office_id}|${hh}:${mm}`);
+    }
+  }
+
+  sorted.sort((a, b) => a.start_time.localeCompare(b.start_time));
+  return { byExactStart, occupiedSlots, sorted };
+}
+
+function getAppointmentForSlot(
+  indices: AppointmentIndices,
   officeId: string,
   slotTime: string,
   intervalMinutes: number
 ): AppointmentWithRelations | null {
-  // First try exact match (fast path)
-  const exact = appointments.find(
-    (a) =>
-      a.appointment_date === dateStr &&
-      a.office_id === officeId &&
-      a.start_time.slice(0, 5) === slotTime
-  );
+  const exact = indices.byExactStart.get(`${officeId}|${slotTime}`);
   if (exact) return exact;
 
-  // Fallback: find appointment starting within this slot's range [slotTime, nextSlotTime)
-  // This handles appointments rescheduled to times that don't align with grid slots
+  // Fallback for appointments whose start_time doesn't align with grid slots.
+  // Rare; O(N) scan of pre-filtered sorted list is acceptable.
   const [sh, sm] = slotTime.split(":").map(Number);
   const slotStartMin = sh * 60 + sm;
   const slotEndMin = slotStartMin + intervalMinutes;
   const nextSlot = `${Math.floor(slotEndMin / 60).toString().padStart(2, "0")}:${(slotEndMin % 60).toString().padStart(2, "0")}`;
 
   return (
-    appointments.find(
+    indices.sorted.find(
       (a) =>
-        a.appointment_date === dateStr &&
         a.office_id === officeId &&
         a.start_time.slice(0, 5) > slotTime &&
         a.start_time.slice(0, 5) < nextSlot
@@ -61,17 +98,11 @@ function getAppointmentForSlot(
 }
 
 function isSlotOccupied(
-  appointments: AppointmentWithRelations[],
-  dateStr: string,
+  indices: AppointmentIndices,
   officeId: string,
   slotTime: string
 ): boolean {
-  return appointments.some((a) => {
-    if (a.appointment_date !== dateStr || a.office_id !== officeId) return false;
-    const start = a.start_time.slice(0, 5);
-    const end = a.end_time.slice(0, 5);
-    return slotTime >= start && slotTime < end;
-  });
+  return indices.occupiedSlots.has(`${officeId}|${slotTime}`);
 }
 
 function getBlockForSlot(
@@ -139,6 +170,14 @@ export function DayView({
   const TIME_SLOTS = useMemo(
     () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, getActiveInterval(schedulerConfig)),
     [schedulerConfig]
+  );
+
+  // PERF: pre-built indices for O(1) per-cell appointment/occupied lookups.
+  // Rebuilds only when appointments array, dateStr, or slot interval change.
+  const activeInterval = getActiveInterval(schedulerConfig);
+  const apptIndices = useMemo(
+    () => buildAppointmentIndices(appointments, dateStr, activeInterval),
+    [appointments, dateStr, activeInterval]
   );
 
   // Current time indicator
@@ -232,8 +271,8 @@ export function DayView({
 
               {/* Office columns */}
               {offices.map((office) => {
-                const startAppt = getAppointmentForSlot(appointments, dateStr, office.id, time, getActiveInterval(schedulerConfig));
-                const occupied = isSlotOccupied(appointments, dateStr, office.id, time);
+                const startAppt = getAppointmentForSlot(apptIndices, office.id, time, activeInterval);
+                const occupied = isSlotOccupied(apptIndices, office.id, time);
                 const block = getBlockForSlot(blocks, dateStr, office.id, time);
 
                 // ---- APPOINTMENT starting here ----
@@ -394,7 +433,7 @@ export function DayView({
                             ) : (
                               <Lock className="h-3 w-3" />
                             )}
-                            {isBreakTime ? "Break Time" : (block.reason ?? "Bloqueado")}
+                            {isBreakTime ? "Descanso" : (block.reason ?? "Bloqueado")}
                           </span>
                         ) : (
                           <span />
@@ -407,7 +446,7 @@ export function DayView({
                               e.stopPropagation();
                               onUnblock(block.id);
                             }}
-                            title={isBreakTime ? "Configurar Break Time" : "Desbloquear horario"}
+                            title={isBreakTime ? "Configurar descanso" : "Desbloquear horario"}
                             className={`rounded p-0.5 transition-colors ${
                               isBreakTime
                                 ? "text-blue-400/50 hover:bg-blue-500/20 hover:text-blue-500"
@@ -487,7 +526,7 @@ export function DayView({
         >
           {contextMenu.reason && (
             <div className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border">
-              {contextMenu.reason === "__break_time__" ? "Break Time" : contextMenu.reason}
+              {contextMenu.reason === "__break_time__" ? "Descanso" : contextMenu.reason}
             </div>
           )}
           <button

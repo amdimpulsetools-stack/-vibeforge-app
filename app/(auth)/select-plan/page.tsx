@@ -222,7 +222,7 @@ function SelectPlanPage() {
       toast.success("¡Prueba de 14 días activada!");
       router.push("/dashboard");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Error de conexión";
+      const msg = err instanceof Error ? err.message : "Sin conexión. Revisa tu internet e intenta otra vez.";
       toast.error(msg);
       setSelecting(null);
     }
@@ -261,7 +261,7 @@ function SelectPlanPage() {
         router.push("/dashboard");
       }
     } catch {
-      toast.error("Error de conexión al procesar el pago");
+      toast.error("Sin conexión. Revisa tu internet e intenta otra vez. al procesar el pago");
       setSelecting(null);
     }
   };

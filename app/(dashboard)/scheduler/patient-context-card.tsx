@@ -336,7 +336,7 @@ function InlineAddForm({
       toast.success("Guardado");
       onSaved();
     } catch {
-      toast.error("Error de conexión");
+      toast.error("Sin conexión. Revisa tu internet e intenta otra vez.");
       setSaving(false);
     }
   };

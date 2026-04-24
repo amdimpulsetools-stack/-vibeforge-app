@@ -99,7 +99,7 @@ export function ClinicalAttachmentsPanel({
         toast.error(json.error || "Error al subir archivo");
       }
     } catch {
-      toast.error("Error de conexión");
+      toast.error("Sin conexión. Revisa tu internet e intenta otra vez.");
     }
     setUploading(false);
   };

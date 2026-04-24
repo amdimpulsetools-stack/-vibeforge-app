@@ -281,10 +281,10 @@ export default function MisCitasPage() {
         toast.success("Cita cancelada");
       } else {
         const data = await res.json();
-        toast.error(data.error || "Error al cancelar");
+        toast.error(data.error || "No pudimos cancelar tu cita. Intenta de nuevo o contacta a la clínica.");
       }
     } catch {
-      toast.error("Error de conexión");
+      toast.error("Sin conexión. Revisa tu internet e intenta otra vez.");
     } finally {
       setCancellingId(null);
     }
@@ -551,7 +551,7 @@ export default function MisCitasPage() {
               iconColor="#AF52DE"
               label="Última visita"
               value={stats.lastVisit ? formatShortDate(stats.lastVisit) : "—"}
-              sub={stats.lastVisit ? "completada" : "Primera vez"}
+              sub={stats.lastVisit ? "completada" : "Sin visitas previas"}
               onClick={
                 past[0] ? () => setDetailAppt(past[0]) : undefined
               }
@@ -769,7 +769,7 @@ export default function MisCitasPage() {
               <p className="mt-1 text-[14px] text-zinc-500">
                 {allowOnlineBooking
                   ? "Agenda una nueva cita en segundos"
-                  : "Contacta a la clínica para agendar"}
+                  : "Contáctanos para agendar tu cita"}
               </p>
               {allowOnlineBooking ? (
                 <Link
@@ -912,7 +912,7 @@ export default function MisCitasPage() {
                     value={
                       stats.lastVisit ? formatShortDate(stats.lastVisit) : "—"
                     }
-                    sub={stats.lastVisit ? "completada" : "Primera vez"}
+                    sub={stats.lastVisit ? "completada" : "Sin visitas previas"}
                     onClick={
                       past[0] ? () => setDetailAppt(past[0]) : undefined
                     }

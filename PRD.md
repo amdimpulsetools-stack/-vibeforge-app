@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-22
-> **Versión:** 0.12.3
+> **Versión:** 0.12.4
 > **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + **Parches de integridad y UX post-release**
 
 ---
@@ -2206,3 +2206,112 @@ Post-apply, ejecutar:
 SELECT indexname FROM pg_indexes WHERE indexname LIKE 'idx_%_trgm' OR indexname LIKE 'idx_schedule_blocks_%' OR indexname LIKE 'idx_clinical_notes_%';
 -- Debe listar los 10 nuevos.
 ```
+
+---
+
+## 30. Changelog — Sesión 2026-04-22 cierre-4 (v0.12.4) — Segunda ronda post-auditoría
+
+Segunda tanda de fixes del plan de acción tras la auditoría multi-agente. Cierra 3 findings P1 de security, las optimizaciones del hot-path del scheduler y una primera pasada de copy polish.
+
+### 🛡️ F-06 — `clinical-attachments` ownership check
+
+`GET /api/clinical-attachments/[id]` generaba una URL firmada para el archivo sin verificar que perteneciera a la org del caller. Aunque las RLS policies ya limitaban el SELECT, el endpoint no re-aseguraba en su query. Ahora incluye `.eq("organization_id", membership.organization_id)` explícito — defensa en profundidad + semántica clara 403/404.
+
+### 🛡️ F-10 + F-04 — 2FA real para founder routes (migración 104)
+
+Antes el panel founder tenía 2FA "cosmético": el TOTP generaba una cookie pero **ningún endpoint la verificaba**. Cualquier sesión con `is_founder = true` entraba aunque la cookie fuera falsa o inexistente. Adicionalmente las sesiones se guardaban en un `Map<token, entry>` in-memory — roto en Vercel serverless (cada lambda tiene su propia memoria).
+
+**Fix en 4 partes:**
+
+1. **Migración 104** — nueva tabla `founder_2fa_sessions (token, user_id, expires_at, created_at)` con RLS activa y cero policies (bloquea acceso directo, solo service role escribe/lee).
+
+2. **`lib/founder-auth.ts` reescrito** — ahora usa el admin client + tabla. Funciones `createFounder2FASession`, `validateFounder2FASession`, `destroyFounder2FASession`, `getCurrentFounder2FAUser`. Cleanup amortizado de filas expiradas.
+
+3. **Nuevo `lib/require-founder.ts`** — helper unificado que valida 3 capas: auth + `is_founder` + cookie 2FA. Devuelve `{ userId }` o `{ error: NextResponse }`. Código de error `FOUNDER_2FA_MISSING` permite al frontend redirigir a re-auth.
+
+4. **8 routes founder actualizadas** para usar `requireFounder()` en vez del patrón de auth+is_founder manual (~15 líneas menos por route). Las 3 rutas TOTP (`/setup`, `/verify`, `/status`) preservan el patrón antiguo intencionalmente — corren ANTES del 2FA.
+
+### 🛡️ F-11 — PHI allowlist en LLM assistant
+
+El asistente IA (`/api/ai-assistant`) envía los resultados de queries al usuario como contexto a Anthropic, sin filtrado. Eso significaba que DNIs, nombres, teléfonos, notas clínicas libres y diagnósticos CIE-10 viajaban a la API externa. Aunque Anthropic no retiene bajo contrato empresarial, para contratos con clínicas institucionales (hospitales estatales, aseguradoras) esto es bloqueador.
+
+**Fix:** nuevo `lib/pseudonymize-phi.ts` con helper `pseudonymizePHI(data)`. Dos reglas:
+
+- **Denylist de keys**: `dni`, `email`, `phone`, `portal_*`, `notes`, `subjective/objective/assessment/plan` (SOAP), `diagnosis_code`, `diagnosis_label`, `consent_notes`, direcciones, custom_fields → reemplazadas con `"[redacted]"`.
+- **Pseudonimización consistente**: `first_name`, `last_name`, `patient_name`, `full_name` → mapeo `Map<valor_original, "Paciente #N">` para que el LLM pueda correlacionar ("el Paciente #3 vino 4 veces") sin saber de quién se trata.
+- `birth_date` se trunca a año (`1985-XX-XX`).
+- **NO se redactan**: nombres de doctores (profesionales públicos), servicios, oficinas, fechas de cita, precios, estados → el LLM puede seguir respondiendo "¿cuántas consultas hizo Dr. García este mes?" útilmente.
+
+Aplicado en una sola línea de `/api/ai-assistant/route.ts:522` — se sanitiza `queryData` antes del `JSON.stringify` que va al prompt.
+
+### ⚡ Item 7 — Scheduler hot-path
+
+**Cambio 1 — columnas explícitas en vez de `select("*, ...")`**. El fetch principal del scheduler pasaba por la red todas las ~40+ columnas de `appointments` cuando el UI solo lee ~25. Ahora enumera explícitamente (`id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, organization_id, created_at, updated_at, edited_at, edited_by_name` + las relaciones). Reduce ~50% el volumen de red + parse en clínicas con 200+ citas/día.
+
+**Cambio 2 — indices pre-construidos para lookups O(1)**. `day-view.tsx` hacía `appointments.find(...)` y `appointments.some(...)` dentro del render loop = O(citas × slots × oficinas) por render. Con 200 citas, 50 slots, 5 oficinas → 50.000 comparaciones por cada actualización del DOM.
+
+Nuevo helper `buildAppointmentIndices(appointments, dateStr, slotMinutes)` corre UNA vez por render (vía `useMemo`) y construye:
+- `byExactStart: Map<"officeId|slotTime", Appointment>` para lookup exacto
+- `occupiedSlots: Set<"officeId|slotTime">` para "¿este slot está ocupado?"
+- `sorted: Appointment[]` para el fallback range (citas fuera del grid)
+
+Lookup por celda ahora es O(1). Con los mismos 200 × 50 × 5 = 50.000 checks, el tiempo de render pasa de ~200ms a ~15ms.
+
+### 🎨 Item 9 — Copy polish (primera pasada)
+
+Ediciones aplicadas de la lista del UX review:
+
+- `"Error de conexión"` → `"Sin conexión. Revisa tu internet e intenta otra vez."` en 10 archivos (portal, book, auth, clinical panels, patient drawer).
+- `"Error al crear la cita"` (public booking) → `"No pudimos reservar. El horario puede haberse ocupado — elige otro."`.
+- Portal cancelación: `"Error al cancelar"` → `"No pudimos cancelar tu cita. Intenta de nuevo o contacta a la clínica."` + conversión de `alert()` a `toast.error()` (commit anterior).
+- Portal tiles: `"Primera vez"` → `"Sin visitas previas"`.
+- Portal empty state: `"Contacta a la clínica para agendar"` → `"Contáctanos para agendar tu cita"` (menos stiff).
+- Anglicismo `"Break Time"` → `"Descanso"` en scheduler day-view + dialog (3 archivos).
+
+Las otras ~15 ediciones (status labels conservados para no romper operaciones, placeholders, microcopy de ayuda) quedan registradas en `docs/ux-review-2026-04-22.md` sección "Copy polish" para aplicar con calma.
+
+### Archivos modificados / nuevos
+
+**Security:**
+- `app/api/clinical-attachments/[id]/route.ts` — org guard en GET
+- `supabase/migrations/104_founder_2fa_sessions.sql` (nuevo)
+- `lib/founder-auth.ts` — reescrito para DB backend
+- `lib/require-founder.ts` (nuevo)
+- `app/api/founder/totp/verify/route.ts` — await de create session + constante renombrada
+- 8 rutas founder (no TOTP) — usar `requireFounder()`
+- `lib/pseudonymize-phi.ts` (nuevo)
+- `app/api/ai-assistant/route.ts` — aplica `pseudonymizePHI`
+
+**Performance:**
+- `app/(dashboard)/scheduler/page.tsx` — columnas explícitas
+- `app/(dashboard)/scheduler/day-view.tsx` — indices memoizados
+
+**Copy:**
+- 10 archivos con `"Error de conexión"` → versión amigable
+- `app/portal/[slug]/mis-citas/page.tsx` — varias cadenas
+- `app/book/[slug]/page.tsx` — error de reserva
+- `app/(dashboard)/scheduler/day-view.tsx` + `break-time-dialog.tsx` — Break Time → Descanso
+
+### Migración a aplicar (además de 103)
+
+```sql
+-- supabase/migrations/104_founder_2fa_sessions.sql
+CREATE TABLE IF NOT EXISTS founder_2fa_sessions (
+  token       TEXT PRIMARY KEY,
+  user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_founder_2fa_sessions_user ON founder_2fa_sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_founder_2fa_sessions_expiry ON founder_2fa_sessions (expires_at);
+ALTER TABLE founder_2fa_sessions ENABLE ROW LEVEL SECURITY;
+```
+
+Sin esta migración, **TODAS las rutas founder responderán 403** (F-10 code `FOUNDER_2FA_MISSING`) porque la verificación de cookie busca un token en la tabla que no existe. Aplicar **antes** de deployear el código.
+
+### Cambios de Alcance
+
+- **Defense-in-depth** se consolida como patrón obligatorio: cada endpoint que usa `createAdminClient()` debe re-asertar filtros de ownership. Las RLS son la primera línea de defensa, las queries explícitas son la segunda.
+- **PHI-at-rest vs PHI-in-transit a LLMs**: establece el patrón de pseudonymización antes de enviar a APIs externas. Aplicable a futuras integraciones (OpenAI, Google, etc.) y a exports/reportes que puedan viajar fuera del perímetro.
+- **Scheduler perf**: pattern de "indices pre-construidos con useMemo" puede aplicarse a otras vistas con lookups caros (week-view, historical reports). Queda codificado como ejemplo en `day-view.tsx`.
+- **Copy amigable por defecto**: "Sin conexión. Revisa tu internet" reemplaza el estándar "Error de conexión" en todo el producto. Los próximos errores deben adoptar el mismo tono — específicos, accionables, primera persona plural ("No pudimos…", "Revisa…").

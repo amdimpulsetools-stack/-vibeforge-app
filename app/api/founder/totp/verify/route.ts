@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   createFounder2FASession,
   FOUNDER_SESSION_COOKIE,
-  FOUNDER_SESSION_TTL,
+  FOUNDER_SESSION_TTL_MS,
 } from "@/lib/founder-auth";
 
 export async function POST(request: Request) {
@@ -64,8 +64,8 @@ export async function POST(request: Request) {
         .eq("id", user.id);
     }
 
-    // Create session
-    const sessionToken = createFounder2FASession(user.id);
+    // Create session (persisted in DB — see migration 104 + lib/founder-auth.ts)
+    const sessionToken = await createFounder2FASession(user.id);
 
     const response = NextResponse.json({ success: true });
     response.cookies.set(FOUNDER_SESSION_COOKIE, sessionToken, {
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
       path: "/",
-      maxAge: FOUNDER_SESSION_TTL / 1000,
+      maxAge: FOUNDER_SESSION_TTL_MS / 1000,
     });
 
     return response;
