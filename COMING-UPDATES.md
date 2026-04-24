@@ -1,7 +1,21 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-24 (v0.12.5)
+> **Última actualización:** 2026-04-24 (v0.12.6)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
+
+---
+
+## 🏠 Landing page — pendientes post-auditoría (v0.12.6)
+
+Auditoría multi-agente (diseño visual + neurocopy + UX) del 2026-04-24. Lo aplicado va en el changelog del PRD v0.12.6. Lo diferido:
+
+- [ ] **Hero mockup asymmetric + device secundario flotante** — el dashboard del Hero se ve chico y centrado ("demo", no "herramienta"). Propuesta: laptop flotante a la derecha con shadow, tablet secundaria atrás rotada 15°, whitespace 1.5x. Refactor de `hero.tsx:100-231`. Riesgo visual, mejor post-pilot con feedback real sobre qué impacta.
+- [ ] **Consolidar GrowthPath + Pricing** — ambos muestran los mismos 3 tiers (Independiente/Centro/Clínica) con narrativa duplicada. Propuesta: dejar Pricing como fuente única; simplificar GrowthPath a "escalas posibles" sin precios.
+- [ ] **Mobile breaks** en `role-superpowers.tsx` (sticky mockup tapa contenido <768px), `live-notifications.tsx` (hover stack no funciona en touch), `patient-cards-carousel.tsx` (width fijo `22rem` desborda en <400px).
+- [ ] **CTA differentiation** — quedan varios "Empezar ahora" idénticos a `/register`. Proponer CTA secundario de "Ver demo en vivo" (sin registro) vs "Probar gratis 14 días". Actual: Hero + FinalCTA ya diferenciados, falta aplicar a Pricing (3× idénticos) y RoleSuperpowers (sin CTA).
+- [ ] **Features con screenshots reales** — `features.tsx` usa placeholders vacíos en las cards. Capturar 4 screenshots del dashboard real (scheduler, historia clínica, cobros, portal).
+- [ ] **Micro-interactions**: Pricing toggle sin transición de precios, Feature cards sin hover accent, LiveNotifications sin swipe mobile, ExpectedResults count-up sin highlight final.
+- [ ] **Eliminar muletas copy**: "Todo lo que necesitas. Nada que no.", "Potencia administradores", "Y no para." — detectadas por neurocopy agent. Rewrites propuestos en changelog v0.12.6.
 
 ---
 

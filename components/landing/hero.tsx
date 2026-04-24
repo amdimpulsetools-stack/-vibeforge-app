@@ -61,17 +61,17 @@ export function Hero() {
 
           {/* Title */}
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl text-slate-900 opacity-0 animate-[fadeUp_0.6s_0.2s_ease-out_forwards]">
-            La primera agenda clínica{" "}
+            Menos tiempo administrando.{" "}
             <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-              con IA.
+              Más tiempo con tus pacientes.
             </span>
           </h1>
 
           {/* Subtitle */}
           <p className="mt-6 text-lg text-slate-600 sm:text-xl max-w-2xl mx-auto leading-relaxed opacity-0 animate-[fadeUp_0.6s_0.35s_ease-out_forwards]">
-            Aumenta tus pacientes y tu productividad. Agenda inteligente,
-            historia clínica, recordatorios WhatsApp, reportes y asistente con IA.
-            Desde el doctor independiente hasta la clínica con 10 consultorios.
+            Agenda, historia clínica, cobros, portal del paciente y asistente
+            con IA — en un solo lugar. Desde el doctor independiente hasta la
+            clínica con 10 consultorios.
           </p>
 
           {/* CTA buttons */}
@@ -80,21 +80,21 @@ export function Hero() {
               href="/register"
               className="inline-flex h-12 items-center justify-center gap-2.5 rounded-xl gradient-primary px-8 text-sm font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
             >
-              Empezar ahora
+              Probar gratis 14 días
               <ArrowRight className="h-4 w-4" />
             </Link>
             <a
-              href="#features"
+              href="#revenue-impact"
               className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-8 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
             >
               <Play className="h-4 w-4 mr-2 text-emerald-600" />
-              Ver cómo funciona
+              Calcula tu impacto
             </a>
           </div>
 
           {/* Trust line */}
           <p className="mt-5 text-sm text-slate-400 opacity-0 animate-[fadeUp_0.5s_0.65s_ease-out_forwards]">
-            Sin contratos. Cancela cuando quieras. Configura tu clínica en minutos.
+            Sin tarjeta para probar. Sin contratos. Configura tu clínica en minutos.
           </p>
         </div>
 
