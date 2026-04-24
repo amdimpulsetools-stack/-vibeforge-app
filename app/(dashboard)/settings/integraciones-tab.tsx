@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { WhatsAppWizard } from "@/components/integrations/whatsapp-wizard";
+import { GCalDescriptionDialog } from "@/components/integrations/gcal-description-dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type IntegrationStatus = "connected" | "available" | "coming-soon";
@@ -120,6 +121,7 @@ export default function IntegracionesTab() {
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const [gcal, setGcal] = useState<GCalStatus>({ connected: false });
   const [loadingStatus, setLoadingStatus] = useState(true);
+  const [gcalDescriptionOpen, setGcalDescriptionOpen] = useState(false);
 
   const fetchWhatsappStatus = useCallback(async () => {
     if (!organizationId) return;
@@ -366,27 +368,37 @@ export default function IntegracionesTab() {
 
                   {/* Google Calendar — extra status detail when connected */}
                   {it.id === "google-calendar" && gcal.connected && (
-                    <div className="mb-3 space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-muted-foreground">{es ? "Cuenta" : "Account"}:</span>
-                        <span className="font-medium truncate">{gcal.email}</span>
-                      </div>
-                      {gcal.last_sync_at && (
+                    <div className="mb-3 space-y-2">
+                      <div className="space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-muted-foreground">{es ? "Última sync" : "Last sync"}:</span>
-                          <span className="font-medium">
-                            {new Date(gcal.last_sync_at).toLocaleString(es ? "es-PE" : "en-US")}
-                          </span>
+                          <span className="text-muted-foreground">{es ? "Cuenta" : "Account"}:</span>
+                          <span className="font-medium truncate">{gcal.email}</span>
                         </div>
-                      )}
-                      {gcal.last_sync_error && (
-                        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">
-                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                          <span className="text-[11px] leading-relaxed">
-                            {es ? "Última sync falló:" : "Last sync failed:"} {gcal.last_sync_error.slice(0, 120)}
-                          </span>
-                        </div>
-                      )}
+                        {gcal.last_sync_at && (
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">{es ? "Última sync" : "Last sync"}:</span>
+                            <span className="font-medium">
+                              {new Date(gcal.last_sync_at).toLocaleString(es ? "es-PE" : "en-US")}
+                            </span>
+                          </div>
+                        )}
+                        {gcal.last_sync_error && (
+                          <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">
+                            <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                            <span className="text-[11px] leading-relaxed">
+                              {es ? "Última sync falló:" : "Last sync failed:"} {gcal.last_sync_error.slice(0, 120)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={() => setGcalDescriptionOpen(true)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent transition-colors w-full justify-center"
+                      >
+                        <Settings className="h-3.5 w-3.5" />
+                        {es ? "Personalizar descripción" : "Customize description"}
+                      </button>
                     </div>
                   )}
 
@@ -446,6 +458,11 @@ export default function IntegracionesTab() {
           fetchWhatsappStatus();
         }}
         onConnected={() => setWhatsappConnected(true)}
+      />
+
+      <GCalDescriptionDialog
+        open={gcalDescriptionOpen}
+        onOpenChange={setGcalDescriptionOpen}
       />
     </>
   );
