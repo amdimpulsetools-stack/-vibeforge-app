@@ -9,6 +9,7 @@ import type { AppointmentWithRelations, Doctor, Service, LookupValue, PatientPay
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { sendNotification } from "@/lib/send-notification";
+import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import {
   X,
   User,
@@ -517,6 +518,15 @@ export function AppointmentSidebar({
       return;
     }
     toast.success(t("scheduler.save_success"));
+
+    // Mirror to Google Calendar (best-effort, no-op if not connected).
+    // Cancel → mark event as cancelled. Other status changes don't change
+    // the event title/time but we re-upsert so the description / status
+    // reflects the new state (e.g. "completed" comment in description).
+    syncAppointmentToGoogle(
+      appointment.id,
+      newStatus === "cancelled" ? "cancel" : "upsert"
+    );
 
     // Fire email notifications for relevant status changes
     const notificationMap: Record<string, string> = {

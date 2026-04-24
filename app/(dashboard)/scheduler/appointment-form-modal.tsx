@@ -37,6 +37,7 @@ import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { RecurringBadge } from "@/components/patients/recurring-badge";
 import { loadWaClipboardConfig, type AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
+import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import { WhatsAppClipboardModal } from "./whatsapp-clipboard-modal";
 
 interface DoctorServiceEntry {
@@ -625,6 +626,9 @@ export function AppointmentFormModal({
         body: `${fullName} — ${values.appointment_date} ${values.start_time?.slice(0, 5)}${doctor ? ` · ${doctor.full_name}` : ""}`,
         action_url: `/scheduler`,
       }).then(({ error: nErr }) => { if (nErr) console.error("[Notification] insert error:", nErr); });
+
+      // Best-effort push to Google Calendar (no-op if integration not connected).
+      syncAppointmentToGoogle(newAppt.id, "upsert");
     }
 
     // Send appointment confirmation email to patient

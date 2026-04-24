@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-24
-> **Versión:** 0.12.6
+> **Versión:** 0.12.7
 > **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + Consentimiento informado Tier 1 (Ley 29414) + Auditoría multi-agente + 2 rondas de fixes (v0.12.3 + v0.12.4) + **Preparación de pilot con primer cliente real (Vitra, fertilidad)**
 
 ---
@@ -2583,3 +2583,111 @@ Items que los agentes detectaron y decidimos NO hacer pre-pilot (riesgo de regre
 - Features con screenshots reales (hoy placeholders vacíos)
 - Micro-interactions: Pricing toggle, Feature hover, LiveNotifications swipe
 - Muletas copy a eliminar: "Todo lo que necesitas. Nada que no.", "Potencia administradores", "Y no para."
+
+---
+
+## 34. Changelog — Sesión 2026-04-24 (v0.12.7) — Google Calendar (org-level, one-way)
+
+Primera integración real con Google Calendar. Modelo deliberadamente simple para empezar: **una sola cuenta por organización** (no por doctor), **one-way Yenda → Google** (Yenda es source of truth, Google es respaldo / vista para el front desk).
+
+### Diseño
+
+- **1 calendar por org**: matchea workflows de recepción donde toda la clínica mira un solo calendar. Un solo OAuth por org. El owner/admin conecta una vez su cuenta Google (puede ser una cuenta dedicada de la clínica) y todas las citas se reflejan ahí.
+- **One-way**: Yenda nunca lee de Google. Si alguien edita un evento en Google directamente, Yenda no se entera (y queda fuera de sync hasta la próxima edición desde Yenda). Esto evita conflictos y mantiene Yenda como source of truth.
+- **Best-effort async**: si Google falla (token expirado, rate limit, calendar borrado), la cita en Yenda se crea/edita/cancela igual. El sync nunca bloquea la UX.
+- **Cancelación = PATCH status='cancelled'**, no DELETE — preserva auditoría en Google también.
+
+### Esquema (migración 106)
+
+Tabla nueva `google_calendar_integrations`:
+- `organization_id UNIQUE` (1 por org)
+- `connected_by_user_id` (auditoría)
+- `google_account_email` (display en UI)
+- `google_calendar_id` (default `'primary'`)
+- `access_token_encrypted` + `refresh_token_encrypted` — **AES-256-GCM** vía `lib/encryption.ts` con `ENCRYPTION_KEY` env. Nunca plaintext en DB.
+- `expires_at`, `scope`, `is_active`
+- `last_sync_at`, `last_sync_error`, `last_sync_error_at` — el UI los lee para alertar al owner si el sync rompe.
+
+Columna nueva en `appointments`:
+- `google_event_id TEXT` (nullable). Guarda el ID del evento creado en Google para PATCH/cancel posteriores.
+
+RLS:
+- SELECT: cualquier miembro de la org (vía `get_user_org_ids()`).
+- ALL: solo `owner` o `admin` (vía `is_org_admin(org_id)`).
+
+### Componentes nuevos
+
+- `lib/google-calendar.ts` — todo el wrapping de Google Calendar API (sin `googleapis` SDK; raw fetch para mantener bundle chico):
+  - `buildAuthorizationUrl(state, redirectUri)` — URL del consent screen
+  - `exchangeCodeForTokens({ code, redirectUri })` — code → tokens (fuerza `prompt=consent` + `access_type=offline` para garantizar refresh_token)
+  - `fetchUserInfo(accessToken)` — pide el email del owner (display)
+  - `getValidAccessToken(integration)` — refresca transparente si expiró (margen de 60s)
+  - `createEvent(orgId, event)` / `updateEvent(orgId, eventId, event)` / `cancelEvent(orgId, eventId)`
+  - `revokeToken(token)` — para disconnect
+  - `toLimaISO(date, time)` — convierte fecha+hora local de la DB a ISO con offset Lima `-05:00` (Perú no tiene DST)
+
+- `lib/google-calendar-client.ts` — helper de cliente fire-and-forget:
+  ```ts
+  syncAppointmentToGoogle(appointmentId, "upsert" | "cancel");
+  ```
+  Llama a `/api/integrations/google/sync-appointment` sin `await`. La ruta devuelve siempre 200 (best-effort) y el cliente nunca falla.
+
+### Routes
+
+- `GET /api/integrations/google/connect` — verifica auth + admin role, firma `state` con HMAC-SHA256(payload, SUPABASE_SERVICE_ROLE_KEY), redirige a Google consent.
+- `GET /api/integrations/google/callback` — verifica state, intercambia code, encripta tokens, upsert `google_calendar_integrations`, redirige a `/settings?tab=integraciones&gcal=ok`.
+- `POST /api/integrations/google/disconnect` — best-effort revoke en Google + delete row.
+- `GET /api/integrations/google/status` — lee estado para la UI (email, last_sync_at, last_sync_error, is_active).
+- `POST /api/integrations/google/sync-appointment` — `{ appointmentId, action: "upsert" | "cancel" }`. Carga la cita con relaciones (doctor/office/service), construye el evento, hace POST/PATCH a Google, persiste el `google_event_id` en el primer create. Siempre devuelve 200.
+
+### Wired en 4 puntos de mutación de citas
+
+1. **Crear** — `scheduler/appointment-form-modal.tsx:629` (después de notificación in-app)
+2. **Drag & drop move** — `scheduler/page.tsx:367` (después del update)
+3. **Reschedule modal** — `scheduler/reschedule-modal.tsx:140` (después del update)
+4. **Status change (incluido cancel)** — `scheduler/appointment-sidebar.tsx:520` — distingue `cancel` vs `upsert` según `newStatus`.
+
+### UI Settings → Integraciones
+
+- Card de Google Calendar pasó de `coming-soon` → `available`/`connected`.
+- Cuando `connected`: muestra cuenta Google, última sync, y banner ámbar con el último error si lo hubo.
+- Botón cambia a "Desconectar" con `useConfirm` destructive.
+- Lectura del query param `?gcal=ok|error` post-callback dispara toast y limpia URL.
+
+### Datos del evento en Google
+
+- **Título**: `{patient_name} — {service.name}`
+- **Descripción**: doctor, consultorio, teléfono del paciente, notas internas
+- **Ubicación**: nombre del consultorio
+- **Fechas**: con timezone `America/Lima`
+- **Status**: `confirmed` por default, `cancelled` cuando se cancela en Yenda
+
+### Setup necesario (operativo)
+
+1. **Google Cloud Console**:
+   - Habilitar Google Calendar API
+   - Agregar scope `https://www.googleapis.com/auth/calendar.events` al consent screen (mínimo privilegio — no `calendar` completo)
+   - Agregar redirect URIs:
+     - Prod: `https://yenda.app/api/integrations/google/callback`
+     - Local: `http://localhost:3000/api/integrations/google/callback`
+
+2. **Env vars** (`.env.local` + Vercel):
+   - `GOOGLE_CLIENT_ID` — reusa el de login si ya existe
+   - `GOOGLE_CLIENT_SECRET` — idem
+   - `ENCRYPTION_KEY` — 32 bytes hex. Genera con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. **Crítico: si se pierde/rota, todos los tokens guardados quedan inservibles y los doctores tienen que reconectar.**
+   - `GOOGLE_REDIRECT_URI` (opcional) — override del redirect por defecto si el origin del request no coincide con prod.
+
+3. **Aplicar migración 106** antes de que cualquiera intente conectar.
+
+### Decisiones diferidas
+
+- **Two-way sync**: requiere webhooks de Google (push notifications) o polling + resolución de conflictos. Si Vitra lo pide, evaluar.
+- **Multi-doctor calendars** (un calendar por doctor en vez de uno por org): cuando 2-3 clientes pidan separar, agregar columna `doctor_id` nullable a la tabla y selector en el UI.
+- **Selector de calendar específico** (no `'primary'`): si un cliente quiere usar un calendar dedicado distinto al principal, listar los calendars del usuario en el callback y dejarle elegir.
+- **Bundle del Calendar v3 SDK** (`googleapis`): evitado por peso (~5MB). El wrapping con fetch cubre nuestros 4 endpoints. Si algún día necesitamos features avanzadas, reevaluar.
+
+### Cambios de Alcance
+
+- **Token-at-rest cipher pattern**: cualquier integración futura con OAuth de terceros (MP, Zoom, Meta) debe encriptar tokens con AES-256-GCM via `lib/encryption.ts`. Es la regla.
+- **Sync hooks como helpers de cliente**: el patrón `lib/<integration>-client.ts` con función fire-and-forget evita repetir lógica de fetch en N puntos del cliente. Reusable para Zoom (link de reunión), Meet, etc.
+- **State firmado en OAuth**: HMAC-SHA256(payload, SUPABASE_SERVICE_ROLE_KEY) bloquea CSRF y replay. Patrón obligatorio para cualquier OAuth flow nuevo.
