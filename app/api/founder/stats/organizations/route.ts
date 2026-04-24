@@ -1,29 +1,11 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireFounder } from "@/lib/require-founder";
 
 // GET /api/founder/stats/organizations — all orgs (bypasses RLS)
 export async function GET() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  // Verify founder
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("is_founder")
-    .eq("id", user.id)
-    .single();
-
-  if (!profile?.is_founder) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const ctx = await requireFounder();
+  if ("error" in ctx) return ctx.error;
 
   // Use admin client to bypass RLS
   const admin = createAdminClient();

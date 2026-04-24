@@ -201,7 +201,7 @@ export function ExamOrdersPanel({
         toast.error(json.error || "Error al crear orden");
       }
     } catch {
-      toast.error("Error de conexión");
+      toast.error("Sin conexión. Revisa tu internet e intenta otra vez.");
     }
     setSaving(false);
   };

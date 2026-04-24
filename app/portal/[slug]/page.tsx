@@ -90,7 +90,7 @@ export default function PortalLoginPage() {
 
       setSent(true);
     } catch {
-      setError("Error de conexión. Verifica tu internet e intenta de nuevo.");
+      setError("Sin conexión. Revisa tu internet e intenta otra vez.. Verifica tu internet e intenta de nuevo.");
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { aiLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
 import { aiAssistantSchema } from "@/lib/validations/api";
+import { pseudonymizePHI } from "@/lib/pseudonymize-phi";
 
 const SCHEMA_CONTEXT = `
 Eres un generador de SQL para una clínica médica multi-tenant. Tu ÚNICA tarea es generar la consulta SQL que responde la pregunta del usuario.
@@ -518,9 +519,16 @@ export async function POST(req: NextRequest) {
     }
 
     // ── PASO 3: Generar respuesta en lenguaje natural con los datos ──────────
+    // SECURITY (F-11): before sending query results to Anthropic, strip PHI.
+    // Patient names become "Paciente #N" (consistently mapped), DNIs/phones/
+    // emails/clinical notes become "[redacted]", birth dates are truncated
+    // to year. Aggregate dimensions (service names, dates, prices, doctor
+    // names, statuses) are kept so the LLM can still produce useful
+    // narrative answers. See lib/pseudonymize-phi.ts for the denylist.
+    const sanitizedData = pseudonymizePHI(queryData);
     const dataContext =
       queryData.length > 0
-        ? `Datos obtenidos:\n${JSON.stringify(queryData, null, 2)}`
+        ? `Datos obtenidos:\n${JSON.stringify(sanitizedData, null, 2)}`
         : "La consulta no retornó resultados.";
 
     const answerResult = await callAnthropic(

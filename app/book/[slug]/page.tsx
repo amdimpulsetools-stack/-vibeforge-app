@@ -196,7 +196,7 @@ export default function PublicBookingPage() {
           setSelectedOffice(json.offices[0].id);
         }
       } catch {
-        setError("Error de conexión");
+        setError("Sin conexión. Revisa tu internet e intenta otra vez.");
       } finally {
         setLoading(false);
       }
@@ -373,14 +373,14 @@ export default function PublicBookingPage() {
       const body = await res.json();
 
       if (!res.ok) {
-        setError(body.error || "Error al crear la cita");
+        setError(body.error || "No pudimos reservar. El horario puede haberse ocupado — elige otro.");
         setSubmitting(false);
         return;
       }
 
       setStep("success");
     } catch {
-      setError("Error de conexión");
+      setError("Sin conexión. Revisa tu internet e intenta otra vez.");
     } finally {
       setSubmitting(false);
     }

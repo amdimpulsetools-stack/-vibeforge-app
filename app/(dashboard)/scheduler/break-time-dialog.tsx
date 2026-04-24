@@ -104,7 +104,7 @@ export function BreakTimeDialog({ onClose, onSaved }: BreakTimeDialogProps) {
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div className="flex items-center gap-2">
             <Coffee className="h-5 w-5 text-blue-500" />
-            <h3 className="text-lg font-semibold">Break Time</h3>
+            <h3 className="text-lg font-semibold">Descanso</h3>
           </div>
           <button
             onClick={onClose}
@@ -118,7 +118,7 @@ export function BreakTimeDialog({ onClose, onSaved }: BreakTimeDialogProps) {
           {/* Enable toggle */}
           <label className="flex items-center justify-between cursor-pointer select-none">
             <div>
-              <p className="text-sm font-medium">Activar Break Time</p>
+              <p className="text-sm font-medium">Activar descanso</p>
               <p className="text-xs text-muted-foreground">
                 Bloquea automáticamente el horario de descanso
               </p>
@@ -209,7 +209,7 @@ export function BreakTimeDialog({ onClose, onSaved }: BreakTimeDialogProps) {
               )}
               {config.startTime < config.endTime && durationMinutes < 30 && (
                 <p className="text-xs text-destructive">
-                  El tiempo mínimo de Break Time es 30 minutos
+                  El tiempo mínimo del descanso es 30 minutos
                 </p>
               )}
 

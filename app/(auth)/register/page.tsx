@@ -130,7 +130,7 @@ function RegisterPage() {
         toast.success("Bienvenido/a! Tu cuenta ha sido creada.");
         router.push("/dashboard");
       } catch {
-        toast.error("Error de conexión. Intenta de nuevo.");
+        toast.error("Sin conexión. Revisa tu internet e intenta otra vez.. Intenta de nuevo.");
         setLoading(false);
       }
       return;

@@ -91,7 +91,7 @@ export function ClinicalFollowupsPanel({
         toast.error(json.error || "Error al crear seguimiento");
       }
     } catch {
-      toast.error("Error de conexión");
+      toast.error("Sin conexión. Revisa tu internet e intenta otra vez.");
     }
     setSaving(false);
   };

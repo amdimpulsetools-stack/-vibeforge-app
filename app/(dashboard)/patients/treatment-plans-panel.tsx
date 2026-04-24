@@ -218,7 +218,7 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
         toast.error(json.error || "Error al crear plan");
       }
     } catch {
-      toast.error("Error de conexión");
+      toast.error("Sin conexión. Revisa tu internet e intenta otra vez.");
     }
     setSaving(false);
   };

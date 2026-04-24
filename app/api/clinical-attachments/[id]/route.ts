@@ -50,10 +50,25 @@ export async function GET(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
+  // SECURITY (F-06): without this org check, any authenticated user with a
+  // valid attachment UUID could mint a signed URL for an attachment outside
+  // their organization. The RLS policies on `clinical_attachments` do scope
+  // by org, so a user of org B reading an attachment of org A should fail
+  // the SELECT anyway — but we add the explicit filter for defense-in-depth
+  // and clearer 403 vs 404 semantics.
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
+
   const { data: attachment } = await supabase
     .from("clinical_attachments")
-    .select("storage_path, file_name, file_type")
+    .select("storage_path, file_name, file_type, organization_id")
     .eq("id", id)
+    .eq("organization_id", membership.organization_id)
     .single();
 
   if (!attachment) return NextResponse.json({ error: "Not found" }, { status: 404 });
