@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import { Toaster } from "sonner";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Analytics } from "@vercel/analytics/next";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/components/language-provider";
 import { QueryProvider } from "@/components/query-provider";
@@ -99,6 +100,7 @@ export default function RootLayout({
           }}
         />
         <SpeedInsights />
+        <Analytics />
       </body>
     </html>
   );
