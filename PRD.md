@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-04-22
+> **Última actualización:** 2026-04-24
 > **Versión:** 0.12.4
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + **Parches de integridad y UX post-release**
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + Consentimiento informado Tier 1 (Ley 29414) + Auditoría multi-agente + 2 rondas de fixes (v0.12.3 + v0.12.4) + **Preparación de pilot con primer cliente real (Vitra, fertilidad)**
 
 ---
 
@@ -2315,3 +2315,60 @@ Sin esta migración, **TODAS las rutas founder responderán 403** (F-10 code `FO
 - **PHI-at-rest vs PHI-in-transit a LLMs**: establece el patrón de pseudonymización antes de enviar a APIs externas. Aplicable a futuras integraciones (OpenAI, Google, etc.) y a exports/reportes que puedan viajar fuera del perímetro.
 - **Scheduler perf**: pattern de "indices pre-construidos con useMemo" puede aplicarse a otras vistas con lookups caros (week-view, historical reports). Queda codificado como ejemplo en `day-view.tsx`.
 - **Copy amigable por defecto**: "Sin conexión. Revisa tu internet" reemplaza el estándar "Error de conexión" en todo el producto. Los próximos errores deben adoptar el mismo tono — específicos, accionables, primera persona plural ("No pudimos…", "Revisa…").
+
+---
+
+## 31. Hito — Pilot de Vitra (2026-04-24)
+
+**Primer cliente real.** Centro de fertilidad en Lima, contrato de 1 mes de evaluación antes de renovación anual. Arranque: semana del Lunes siguiente.
+
+### Docs de soporte creados
+
+Toda la guía operativa del pilot vive en `docs/`:
+
+- `docs/vitra-pilot-checklist.md` — Fases 0→4 (pre-launch, onboarding, semana 1, semanas 2-3, evaluación mes 4)
+- `docs/vitra-seed-data.sql` — Template SQL con placeholders `<<<...>>>` para catálogo de fertilidad (servicios + `requires_consent` + precios), doctores, consultorios, horarios, booking settings
+- `docs/vitra-training-script.md` — 45 min divididos en Recepción (15) · Doctor (15) · Admin (10) · Portal (5)
+- `docs/vitra-feedback-log.md` — Tabla de bugs + métricas semanales + notas de reuniones Viernes + rúbrica de evaluación final
+- `docs/system-tour.md` — Guía mental del sistema (capas, flujos end-to-end, mapa de archivos, gotchas operativos, checklist de mantenimiento)
+
+### Estado de deuda técnica al momento del pilot
+
+Verificación de código al 2026-04-24:
+
+**✅ Cerrados** (v0.12.3 + v0.12.4):
+- F-04 — 2FA sessions DB-backed (migración 104)
+- F-06 — clinical-attachments ownership check
+- F-10 — founder routes validan cookie 2FA real (`requireFounder()`)
+- F-11 — PHI allowlist en LLM assistant (`pseudonymizePHI()`)
+- F-01 perf — columnas explícitas en scheduler
+- Item 6 perf — indices O(1) en day-view (200ms → 15ms)
+- ~14/24 copy edits aplicados
+- `motion` package duplicado removido (-8.5MB)
+- AlertDialog system para confirms críticos
+- Migraciones 103 (performance indexes) + 104 (founder 2fa sessions) aplicadas
+
+**🟡 Parcial**:
+- F-05 rate limiter — funciona in-memory (`lib/rate-limit.ts`), aplicado a webhook MP (60/min) y portal magic-link (3/min). Migración a Upstash/Redis diferida post-pilot (single-instance suficiente para 1 clínica).
+
+**⏸️ Diferidos post-pilot** (no bloquean operación, riesgo de regresión con cliente mirando):
+- F-03 magic-link hash — tokens plaintext en `patient_portal_tokens`. Mitigación actual: RLS estricto + rate limit + TTL corto. Fix programado para v0.12.5.
+- F-19 MP webhook prefix — HMAC sí valida, pero falta prefix check de `data.id`. Fix programado para v0.12.5.
+- ~10 copy edits restantes — principalmente "Error al guardar" genéricos en admin CRUD.
+- 9 modales hand-rolled → Radix Dialog (incluye drawer del paciente, 1400 líneas — refactor delicado).
+- 13 `confirm()` nativos → `useConfirm()` en admin CRUD + 1 en scheduler sidebar.
+- Design system dual (portal iOS-flavored vs dashboard shadcn-tokens vs /book light) — refactor grande, post-feedback de Vitra para priorizar qué unificar.
+- `recharts` dynamic import (F-12 perf).
+- AppointmentSidebar 4 awaits secuenciales → `Promise.all` (F-05 perf).
+
+### Principio operativo del pilot
+
+**El pilot NO es momento de construir features nuevas.** Es momento de pulir lo existente con uso real. Cualquier request de Vitra que no sea bug se captura en `docs/vitra-feedback-log.md` y se prioriza en reunión de evaluación del mes 4.
+
+### Artefactos esperados al cierre del pilot
+
+- Caso de estudio con números reales (citas, pacientes, ingresos, tiempo promedio de consulta)
+- Lista priorizada de bugs/features basada en uso real
+- Testimonial para marketing (si fue bien)
+- Plantilla de onboarding reusable para próximas clínicas
+- Decisión comercial: renovación anual (Professional vs Enterprise) + features pagables extra

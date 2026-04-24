@@ -1,6 +1,6 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-18
+> **Última actualización:** 2026-04-24
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -107,42 +107,55 @@
 
 ---
 
-## 🛠️ Technical Debt — Post-audit (v0.12.3)
+## 🛠️ Technical Debt — Post-audit (estado al 2026-04-24, v0.12.4)
 
-Items identificados en la auditoría multi-agente del 2026-04-22 que quedaron pendientes tras atacar los top-5 del plan de acción. Cada uno tiene su análisis completo en `docs/{security,performance,ux}-review-2026-04-22.md`.
+Items identificados en la auditoría multi-agente del 2026-04-22. Análisis completo en `docs/{security,performance,ux}-review-2026-04-22.md`. Estado verificado en código.
 
-- [ ] **Security follow-ups (P1 tier)**:
-  - F-03: magic-link token en URL query-param + plaintext en DB — considerar hashear el token y entregar solo por email body
-  - F-04: in-memory 2FA Map en `lib/founder-auth.ts` — migrar a DB o Redis (broken en Vercel serverless)
-  - F-05: `lib/rate-limit.ts` in-memory — migrar a Upstash Redis o Supabase KV
-  - F-06: `/api/clinical-attachments/[id]` signed URL sin ownership check — añadir verificación
-  - F-10: founder routes validan solo `is_founder` flag, la 2FA cookie nunca se verifica — implementar verificación real
-  - F-11: LLM assistant con PHI fluyendo a Anthropic API sin allowlist de columnas — agregar filtro server-side
-  - F-19: MP webhook — prefijo `APP_USR-` tratado como test mode, `MP_WEBHOOK_SECRET` missing silencia verificación en prod
+### ✅ Cerrados en v0.12.3 + v0.12.4
 
-- [ ] **A11y: convertir los ~6 modales hand-rolled restantes a Radix Dialog**:
-  - `app/(dashboard)/patients/patient-drawer.tsx` (el expanded modal — ~1400 líneas, cuidado)
-  - `app/(dashboard)/patients/clinical-history-modal.tsx`
-  - `app/(dashboard)/patients/bulk-import-modal.tsx`
-  - `app/(dashboard)/patients/patient-form-modal.tsx`
-  - `app/(dashboard)/account/page.tsx` (modal de password)
-  - `app/(dashboard)/admin/members/page.tsx` (invite modal)
-  - Patrón ya definido en `appointment-form-modal.tsx` + `budgets-panel.tsx` — copiar y pegar.
+- [x] **F-04** — 2FA Map in-memory migrado a tabla `founder_2fa_sessions` (migración 104).
+- [x] **F-06** — `/api/clinical-attachments/[id]` con ownership check explícito (defense-in-depth).
+- [x] **F-10** — founder routes verifican cookie 2FA real via `requireFounder()`.
+- [x] **F-11** — PHI allowlist en LLM assistant (`lib/pseudonymize-phi.ts`).
+- [x] **Perf F-01** — `select("*, ...)` → columnas explícitas en scheduler hot path.
+- [x] **Perf item 6** — indices O(1) pre-construidos en `day-view.tsx` (200ms → 15ms).
+- [x] **Perf migración 103** — aplicada en prod.
+- [x] **UX ~14/24 copy edits** — "Error de conexión", "Break Time", errores de reserva.
+- [x] **UX AlertDialog system** — patrón `useConfirm()` disponible + aplicado en scheduler + clinical notes.
+- [x] **Deps** — package `motion` duplicado removido (-8.5MB).
 
-- [ ] **A11y: 13 `confirm()` nativos restantes en admin CRUD** → `useConfirm()`
-  - `admin/discount-codes/page.tsx:158` (delete), `admin/treatment-plan-templates/page.tsx:140`, `admin/clinical-templates/page.tsx:144`, `admin/diagnosis-codes/page.tsx:117`, `admin/lookups/page.tsx:151`, `admin/members/page.tsx:247,264`, `admin/offices/page.tsx:69`, `admin/services/page.tsx:73,85`, `patients/growth-curves-panel.tsx:172`, `settings/whatsapp-templates-tab.tsx:231`. 3 `alert()` en `founder/integrations/page.tsx`.
-  - Patrón trivial: `const confirm = useConfirm(); if (!(await confirm({ title, description, variant: "destructive" }))) return;`.
+### 🎯 Plan pre-pilot Vitra (atacar antes del Lunes)
 
-- [ ] **UX: dual design system cleanup** — portal iOS-flavored con hex hardcoded vs dashboard shadcn-tokens vs /book variante light. Propuesta: unificar radius scale (lg/xl/2xl/3xl), consolidar color tokens semánticos, un solo Button component source-of-truth. UX review tiene propuesta detallada.
+Selección minimalista para evitar regresiones con cliente real mirando:
 
-- [ ] **UX: public /book safety net** — agregar sessionStorage del form progress, validación per-field con feedback inmediato, mensajes de error específicos (no "Error al crear la cita" genérico), success screen con próximos pasos y link a `/portal`.
+- [ ] **F-19 — MP webhook prefix check** (~15 min). Validar que `data.id` empiece con `payment`/`preapproval` antes de procesar. Quick fix en `app/api/mercadopago/webhook/route.ts:55`.
+- [ ] **F-03 — magic-link token hash** (~1h). Hashear (sha256) antes de persistir en `patient_portal_tokens`; comparar hash en request-link verification. Vitra usará portal con pacientes reales.
+- [ ] **`confirm()` → `useConfirm()` en 3 rutas de alta frecuencia** (~30 min):
+  - `scheduler/appointment-sidebar.tsx` (delete cita)
+  - `admin/services/page.tsx` (2× delete)
+  - `admin/offices/page.tsx` (delete)
 
-- [ ] **UX: copy polish (~24 ediciones específicas)** — listados en `docs/ux-review-2026-04-22.md` sección "Copy polish".
+### ⏸️ Diferidos post-pilot
 
-- [ ] **Perf: migración 103 apply** — tras el PR merge.
-- [ ] **Perf: `select("*, ...)` → columnas explícitas** en scheduler hot path (F-01 del perf audit).
-- [ ] **Perf: `recharts` dynamic import** en dashboard y reports (F-12 del perf audit).
-- [ ] **Perf: AppointmentSidebar 4 awaits secuenciales** → `Promise.all` (F-05 del perf audit).
+Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vitra para priorizar mejor.
+
+- [ ] **F-05 — rate limiter Upstash/Redis**. In-memory actual (`lib/rate-limit.ts`) basta para 1 clínica single-instance. Migrar cuando escalemos a 2-3 clientes o autoscale activo.
+- [ ] **Modales hand-rolled restantes → Radix Dialog** (9 componentes):
+  - `patients/patient-drawer.tsx` (~1400 líneas — refactor delicado)
+  - `patients/clinical-history-modal.tsx`
+  - `patients/bulk-import-modal.tsx`
+  - `patients/patient-form-modal.tsx`
+  - `account/page.tsx` (modal de password)
+  - `admin/members/page.tsx` (invite modal)
+  - `scheduler/block-dialog.tsx`
+  - `scheduler/available-slots-modal.tsx`
+  - Patrón ya definido en `appointment-form-modal.tsx` + `budgets-panel.tsx`.
+- [ ] **10 `confirm()` nativos restantes** en admin CRUD de baja frecuencia (discount-codes, treatment-plan-templates, clinical-templates, diagnosis-codes, lookups, members, growth-curves-panel, whatsapp-templates-tab). + 3 `alert()` en `founder/integrations/page.tsx`.
+- [ ] **~10 copy edits restantes** — principalmente "Error al guardar" genéricos. Ver `docs/ux-review-2026-04-22.md` sección "Copy polish".
+- [ ] **Dual design system cleanup** — portal iOS-flavored vs dashboard shadcn-tokens vs /book variante light. Unificar radius scale, color tokens semánticos, Button source-of-truth. Refactor grande — post-feedback de Vitra.
+- [ ] **Public /book safety net** — sessionStorage del form progress, validación per-field, mensajes específicos, success screen con link a `/portal`.
+- [ ] **Perf F-12** — `recharts` dynamic import en dashboard y reports.
+- [ ] **Perf F-05** — AppointmentSidebar 4 awaits secuenciales → `Promise.all`.
 
 ---
 
