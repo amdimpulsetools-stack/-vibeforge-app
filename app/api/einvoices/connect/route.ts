@@ -107,6 +107,10 @@ export async function POST(req: NextRequest) {
         auto_send_email: data.auto_send_email,
         last_error: null,
         last_error_at: null,
+        // Bump on every connect — semantically "this is when this org most
+        // recently completed the connect/reconnect wizard" (vs created_at
+        // which is the very first connect).
+        connected_at: new Date().toISOString(),
       },
       { onConflict: "organization_id" }
     );
