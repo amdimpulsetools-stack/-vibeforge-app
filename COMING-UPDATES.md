@@ -253,11 +253,18 @@ Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vit
   - ✅ Card del comprobante emitido en sidebar de cita (estado SUNAT, número, link al PDF)
   - ✅ **Pago parcial / anticipos**: si la cita tiene `amount_paid < total_price`, el modal ofrece radio "Pagado / Total" con reescalado proporcional automático y sufijo `(pago parcial)` en la descripción del item — la boleta refleja exactamente el monto cobrado
   - ✅ Confirmación post-emisión: línea explícita en SuccessPanel mostrando a qué email se envió el PDF
-  - ⏳ **Deuda menor** (post-pilot Vitra):
+  - ✅ **Forma + medio de pago SUNAT (Catálogo 59)**: heurística pura en `lib/einvoice/payment-mapper.ts` que mapea cualquier label de `lookup_values` (Yape/Plin/Tunki/BIM/Visa/Mastercard/Efectivo/Transferencia/Cheque/etc.) al código SUNAT correcto. Multi-tenant friendly — labels custom caen al fallback `099 Otros`, siempre válido. Pre-lleno desde el último `patient_payments.payment_method` de la cita, editable por el user.
+  - ✅ **Warning Bancarización (Ley 28194)**: si `total ≥ S/2,000` (o USD 500) y el método es Efectivo, el modal muestra warning ámbar antes de emitir — el cliente perdería derecho a deducir IGV/costo. No bloquea, advierte. Es value-add real para clínicas con tickets grandes (FIV, paquetes de fertilidad).
+  - ⏳ **Deuda menor** (post-pilot Vitra, target v0.13.1):
     - Rollback automático del correlativo local en errores no-retryables del provider (hoy solo se hace en error 23 = duplicado; bug detectado emitiendo con serie no autorizada que dejó número fantasma en B001 antes de corregir a BBB1). Fix: extender el bloque de `if (errorCode === "23")` en `app/api/einvoices/emit/route.ts` para cubrir códigos no-retryables.
-    - Dashboard de comprobantes emitidos por periodo / tipo / estado SUNAT (hoy solo se ven embebidos en cada cita)
-    - Notas de crédito (doc_type 3) — anular comprobantes emitidos por error
-    - Tipo "Anticipo" SUNAT (catálogo 12) con referencia al comprobante final por el saldo — alternativa contablemente más fina al reescalado proporcional actual (válido pero menos formal). Levantar solo si una clínica grande lo pide.
+    - **Notas de crédito (doc_type 3)** — anular comprobantes emitidos por error. Modal con selección del comprobante original + motivo + reescalado de items.
+    - **Validación backend de `customer_address` requerido en facturas** (defense-in-depth: el frontend ya bloquea, falta espejarlo en Zod del emit route).
+    - **Atomic UPDATE+RETURNING en correlativo** — hoy SELECT+UPDATE separados, race condition teórica de baja probabilidad pero existente.
+    - **Dashboard de comprobantes emitidos** por periodo / tipo / estado SUNAT (hoy solo se ven embebidos en cada cita).
+  - ⏳ **Deuda mayor** (post-v0.14):
+    - Mapeo SUNAT explícito de métodos de pago en `Settings → Catálogos` (`sunat_payment_code` per-org). Hoy heurístico cubre 95%; el override manual es para clínicas con contador estricto.
+    - Tipo "Anticipo" SUNAT (catálogo 12) con referencia al comprobante final por el saldo — alternativa contablemente más fina al reescalado proporcional actual. Levantar solo si una clínica grande lo pide.
+    - Webhook / cron de polling SUNAT para refrescar estados PENDIENTE → ACEPTADO automáticamente.
 
 - [ ] **Descuentos condicionales a tratamientos** — Aplicar descuentos por condiciones configurables:
   - Por cantidad de sesiones (ej: 10% si compra 10+ sesiones)

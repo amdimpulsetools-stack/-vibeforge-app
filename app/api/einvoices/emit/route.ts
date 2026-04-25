@@ -20,6 +20,7 @@ import {
   getProvider,
   computeInvoiceTotals,
   todayInLima,
+  mapPaymentMethodToSunat,
   DocType,
   Currency,
   type DocTypeCode,
@@ -68,6 +69,13 @@ const bodySchema = z.object({
   invoice_discount: z.coerce.number().min(0).default(0),
   observations: z.string().max(500).optional().nullable(),
   send_to_customer_email: z.boolean().optional(),
+  /**
+   * Free-text label of the payment method (matches the org's
+   * `lookup_values` for `payment_method`). Optional: if missing, the
+   * route falls back to the latest `patient_payments` row for the
+   * appointment. Mapped to SUNAT Catálogo 59 internally.
+   */
+  payment_method_label: z.string().max(100).optional().nullable(),
 });
 
 type SeriesRow = {
@@ -254,7 +262,27 @@ export async function POST(req: NextRequest) {
     }))
   );
 
-  // ── 4) Call provider ───────────────────────────────────────────────────
+  // ── 4) Resolve payment method (SUNAT Catálogo 59) ─────────────────────
+  // Caller can pass `payment_method_label` directly (manual emit from the
+  // modal — usually the patient_payments row the receptionist just
+  // recorded). If absent, we read the latest patient_payments for this
+  // appointment as best-effort. If still nothing, the mapper falls back
+  // to "099 - Otros medios de pago" — always SUNAT-valid.
+  let paymentLabel: string | null = data.payment_method_label?.trim() || null;
+  if (!paymentLabel && data.appointment_id) {
+    const { data: lastPay } = await admin
+      .from("patient_payments")
+      .select("payment_method")
+      .eq("appointment_id", data.appointment_id)
+      .not("payment_method", "is", null)
+      .order("payment_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    paymentLabel = (lastPay?.payment_method as string | null) ?? null;
+  }
+  const sunatPayment = mapPaymentMethodToSunat(paymentLabel);
+
+  // ── 5) Call provider ───────────────────────────────────────────────────
   const provider = getProvider(config.providerName);
 
   const payload: InvoicePayload = {
@@ -284,6 +312,10 @@ export async function POST(req: NextRequest) {
     sendToCustomerEmail:
       data.send_to_customer_email ?? config.autoSendEmail,
     observations: data.observations ?? undefined,
+    paymentMethod: {
+      condition: "Contado",
+      medio: `${sunatPayment.code} - ${sunatPayment.description}`,
+    },
   };
 
   const result = await provider.emit(config.credentials, payload);

@@ -103,6 +103,13 @@ export async function loadConfig(
 // ── Public re-exports ──────────────────────────────────────────────────────
 
 export { computeInvoiceTotals, todayInLima } from "./mapper";
+export {
+  mapPaymentMethodToSunat,
+  violatesBancarizacion,
+  BANCARIZACION_THRESHOLD_PEN,
+  BANCARIZACION_THRESHOLD_USD,
+} from "./payment-mapper";
+export type { SunatPaymentMethod } from "./payment-mapper";
 export type { EInvoiceProvider } from "./provider";
 export type {
   InvoicePayload,

@@ -105,8 +105,8 @@ export function toNubefactGenerate(p: InvoicePayload): Record<string, unknown> {
     enviar_automaticamente_al_cliente: p.sendToCustomerEmail,
 
     codigo_unico: "",
-    condiciones_de_pago: "",
-    medio_de_pago: "",
+    condiciones_de_pago: p.paymentMethod?.condition ?? "",
+    medio_de_pago: p.paymentMethod?.medio ?? "",
     placa_vehiculo: "",
     orden_compra_servicio: "",
     tabla_personalizada_codigo: "",

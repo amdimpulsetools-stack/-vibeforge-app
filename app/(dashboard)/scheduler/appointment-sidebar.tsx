@@ -1555,6 +1555,15 @@ export function AppointmentSidebar({
           einvoice_id: (appointment as { einvoice_id?: string | null }).einvoice_id ?? null,
           total_price: totalPrice,
           amount_paid: totalPaid,
+          last_payment_method:
+            payments
+              .slice()
+              .sort((a, b) => {
+                const ad = new Date(a.payment_date ?? a.created_at ?? 0).getTime();
+                const bd = new Date(b.payment_date ?? b.created_at ?? 0).getTime();
+                return bd - ad;
+              })
+              .find((p) => p.payment_method)?.payment_method ?? null,
         }}
         config={einvoiceConfig.config}
         series={einvoiceConfig.series}
