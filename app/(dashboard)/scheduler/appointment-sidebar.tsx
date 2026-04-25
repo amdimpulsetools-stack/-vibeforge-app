@@ -124,6 +124,19 @@ export function AppointmentSidebar({
   const [showCancelReason, setShowCancelReason] = useState(false);
   const [cancelReason, setCancelReason] = useState("");
 
+  // ── Einvoices de la cita ────────────────────────────────────────────────
+  // Una cita puede tener N comprobantes (modelo de pago parcial: anticipo
+  // + saldo emiten boletas separadas). Cargamos via FK reverso
+  // einvoices.appointment_id, no via appointments.einvoice_id (que solo
+  // apunta al último por compatibilidad histórica). Sumamos los totales
+  // de los aceptados/sending para calcular `alreadyInvoiced` — eso
+  // determina cuánto queda por facturar.
+  const [appointmentEinvoices, setAppointmentEinvoices] = useState<Array<{
+    id: string;
+    total: number;
+    status: string;
+  }>>([]);
+
   // ── Payments / cobros ────────────────────────────────────────────────────
   const [payments, setPayments] = useState<PatientPayment[]>([]);
   const [loadingPayments, setLoadingPayments] = useState(true);
@@ -154,6 +167,21 @@ export function AppointmentSidebar({
         : totalPaid >= totalPrice
           ? "paid"
           : "partial";
+
+  // Sum of comprobantes already issued for this appointment (excluding
+  // rejected, error and cancelled — those are dead). NCs (doc_type=3)
+  // are also excluded from "facturado" because they're refunds, not
+  // emissions. We rely on `cancelled` status being set on the original
+  // when an annulment NC is emitted (logic in /api/einvoices/emit).
+  const alreadyInvoiced = appointmentEinvoices
+    .filter((e) => e.status === "accepted" || e.status === "sending")
+    .reduce((sum, e) => sum + e.total, 0);
+  // What's left to invoice. Drives the "Emitir" button label and the
+  // values fed into the emit dialog (see usage further down).
+  const remainingToInvoice = Math.max(0, totalPrice - alreadyInvoiced);
+  // Cobrado pero aún no facturado — pre-selecciona el modo "Pagado" en
+  // el modal cuando hay anticipo recién cobrado pendiente de boleta.
+  const effectivePaidToInvoice = Math.max(0, totalPaid - alreadyInvoiced);
 
   // ── Patient-level debt ──────────────────────────────────────────────────
   const [patientDebt, setPatientDebt] = useState<number>(0);
@@ -273,6 +301,22 @@ export function AppointmentSidebar({
     session_price: number;
   } | null>(null);
 
+  const fetchAppointmentEinvoices = useCallback(async () => {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("einvoices")
+      .select("id, total, status")
+      .eq("appointment_id", appointment.id)
+      .order("issued_at", { ascending: true });
+    setAppointmentEinvoices(
+      ((data as Array<{ id: string; total: number; status: string }>) ?? []).map((e) => ({
+        id: e.id,
+        total: Number(e.total),
+        status: e.status,
+      }))
+    );
+  }, [appointment.id]);
+
   const fetchPayments = useCallback(async () => {
     setLoadingPayments(true);
     const supabase = createClient();
@@ -314,7 +358,8 @@ export function AppointmentSidebar({
 
   useEffect(() => {
     fetchPayments();
-  }, [fetchPayments]);
+    void fetchAppointmentEinvoices();
+  }, [fetchPayments, fetchAppointmentEinvoices]);
 
   // Fetch plan context + saldo when this appointment is linked to a session.
   useEffect(() => {
@@ -954,26 +999,29 @@ export function AppointmentSidebar({
               </button>
             )}
 
-            {/* Issued invoice card OR emit button — gated by einvoice connection */}
-            {einvoiceConfig.connected && (() => {
-              const einvoiceId = (appointment as { einvoice_id?: string | null }).einvoice_id;
-              if (einvoiceId) {
-                return <InvoiceCard einvoiceId={einvoiceId} />;
-              }
-              if (appointment.status !== "cancelled") {
-                return (
+            {/* Issued invoices + emit button — gated by einvoice connection.
+                Una cita puede tener N comprobantes (modelo de pago parcial).
+                Render de cards para cada uno + botón "Emitir" si queda
+                saldo por facturar. Label dinámico cuando ya hay previos. */}
+            {einvoiceConfig.connected && (
+              <>
+                {appointmentEinvoices.map((e) => (
+                  <InvoiceCard key={e.id} einvoiceId={e.id} />
+                ))}
+                {appointment.status !== "cancelled" && remainingToInvoice > 0 && (
                   <button
                     onClick={() => setEmitDialogOpen(true)}
                     disabled={updating}
                     className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
                   >
                     <Receipt className="h-4 w-4" />
-                    Emitir comprobante
+                    {alreadyInvoiced > 0
+                      ? `Emitir por saldo (S/ ${remainingToInvoice.toFixed(2)})`
+                      : "Emitir comprobante"}
                   </button>
-                );
-              }
-              return null;
-            })()}
+                )}
+              </>
+            )}
 
             {appointment.status !== "cancelled" && (
               <>
@@ -1565,10 +1613,12 @@ export function AppointmentSidebar({
         onOpenChange={(open) => {
           setEmitDialogOpen(open);
           // Also refetch when the dialog closes, in case the user
-          // emitted and clicked Cerrar before onUpdate finished
-          // resolving (race window between emit success → onUpdate fires
-          // → dialog manually closed). Cheap, idempotent.
-          if (!open) onUpdate();
+          // emitted and clicked Cerrar before onUpdate / einvoices
+          // refetch finished resolving (race window). Cheap, idempotent.
+          if (!open) {
+            onUpdate();
+            void fetchAppointmentEinvoices();
+          }
         }}
         appointment={{
           id: appointment.id,
@@ -1577,12 +1627,19 @@ export function AppointmentSidebar({
           patient_phone: appointment.patient_phone ?? null,
           service_id: appointment.service_id,
           service_name: (appointment as { services?: { name?: string } }).services?.name ?? "",
-          price_snapshot: (appointment as { price_snapshot?: number | null }).price_snapshot ?? null,
+          // El "precio sugerido" para el item del comprobante es lo que
+          // queda por facturar, no el bruto original. Si ya emitiste
+          // BBB1-2 por S/75 sobre una cita de S/150, el modal debería
+          // venir prellenado con S/75 (saldo) y no S/150.
+          price_snapshot: remainingToInvoice,
           appointment_date: appointment.appointment_date,
           start_time: appointment.start_time,
           einvoice_id: (appointment as { einvoice_id?: string | null }).einvoice_id ?? null,
-          total_price: totalPrice,
-          amount_paid: totalPaid,
+          // total_price y amount_paid se restan por lo ya facturado para
+          // que el radio "Pagado / Total" del modal funcione sobre el
+          // saldo restante, no sobre los números brutos de la cita.
+          total_price: remainingToInvoice,
+          amount_paid: effectivePaidToInvoice,
           last_payment_method:
             payments
               .slice()
@@ -1597,11 +1654,12 @@ export function AppointmentSidebar({
         series={einvoiceConfig.series}
         onEmitted={() => {
           // Don't close the dialog here — the user needs to see the
-          // SuccessPanel (number, PDF link, email confirmation). Just
-          // refetch the appointment so when they close manually, the
-          // sidebar already shows the issued-invoice card instead of
-          // the "Emitir" button.
+          // SuccessPanel (number, PDF link, email confirmation). Refetch
+          // both the appointment (para sincronizar einvoice_id como
+          // pointer histórico) y la lista de einvoices de la cita (que
+          // alimenta el stack de cards y el cómputo de saldo restante).
           onUpdate();
+          void fetchAppointmentEinvoices();
         }}
       />
     )}
