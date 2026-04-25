@@ -255,12 +255,12 @@ Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vit
   - ✅ Confirmación post-emisión: línea explícita en SuccessPanel mostrando a qué email se envió el PDF
   - ✅ **Forma + medio de pago SUNAT (Catálogo 59)**: heurística pura en `lib/einvoice/payment-mapper.ts` que mapea cualquier label de `lookup_values` (Yape/Plin/Tunki/BIM/Visa/Mastercard/Efectivo/Transferencia/Cheque/etc.) al código SUNAT correcto. Multi-tenant friendly — labels custom caen al fallback `099 Otros`, siempre válido. Pre-lleno desde el último `patient_payments.payment_method` de la cita, editable por el user.
   - ✅ **Warning Bancarización (Ley 28194)**: si `total ≥ S/2,000` (o USD 500) y el método es Efectivo, el modal muestra warning ámbar antes de emitir — el cliente perdería derecho a deducir IGV/costo. No bloquea, advierte. Es value-add real para clínicas con tickets grandes (FIV, paquetes de fertilidad).
-  - ⏳ **Deuda menor** (post-pilot Vitra, target v0.13.1):
-    - Rollback automático del correlativo local en errores no-retryables del provider (hoy solo se hace en error 23 = duplicado; bug detectado emitiendo con serie no autorizada que dejó número fantasma en B001 antes de corregir a BBB1). Fix: extender el bloque de `if (errorCode === "23")` en `app/api/einvoices/emit/route.ts` para cubrir códigos no-retryables.
-    - **Notas de crédito (doc_type 3)** — anular comprobantes emitidos por error. Modal con selección del comprobante original + motivo + reescalado de items.
-    - **Validación backend de `customer_address` requerido en facturas** (defense-in-depth: el frontend ya bloquea, falta espejarlo en Zod del emit route).
-    - **Atomic UPDATE+RETURNING en correlativo** — hoy SELECT+UPDATE separados, race condition teórica de baja probabilidad pero existente.
-    - **Dashboard de comprobantes emitidos** por periodo / tipo / estado SUNAT (hoy solo se ven embebidos en cada cita).
+  - ✅ **Hardening v0.13.1** (entregado):
+    - Rollback automático del correlativo en errores no-retryables (no solo error 23). Cubre el caso "serie no autorizada" que vimos pasando de B001 a BBB1.
+    - **Notas de crédito (doc_type 3)** — botón "Anular / Nota de crédito" en card de comprobante y en drawer del dashboard. Modal hereda cliente + items + totales del original; user elige motivo SUNAT (Catálogo 9: anulación, devolución total, disminución valor, corrección, etc.) con hint clínico para cada uno. Auto-marca el original como `status=cancelled` si el motivo es anulación o devolución total.
+    - **Validación backend de `customer_address` para facturas / RUC** (Zod superRefine, defense-in-depth).
+    - **Atomic UPDATE+RETURNING en correlativo** vía RPC `reserve_einvoice_correlative` (migración 110). Postgres lockea la row hasta commit, dos emisiones concurrentes serializan limpio.
+    - **Dashboard `/facturacion`** admin-only con KPIs (monto emitido, pendientes SUNAT, rechazados/anulados), filtros (período, tipo, estado, serie, búsqueda libre), tabla con drawer de detalle y links a PDF / XML / CDR / Nubefact.
   - ⏳ **Deuda mayor** (post-v0.14):
     - Mapeo SUNAT explícito de métodos de pago en `Settings → Catálogos` (`sunat_payment_code` per-org). Hoy heurístico cubre 95%; el override manual es para clínicas con contador estricto.
     - Tipo "Anticipo" SUNAT (catálogo 12) con referencia al comprobante final por el saldo — alternativa contablemente más fina al reescalado proporcional actual. Levantar solo si una clínica grande lo pide.
