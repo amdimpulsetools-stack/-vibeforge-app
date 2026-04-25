@@ -243,14 +243,21 @@ Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vit
 
 ## 🧾 Facturación
 
-- [ ] **Boletas y facturas electrónicas vinculadas a SUNAT** — Generar comprobantes de pago directamente desde el sistema:
-  - Al registrar un pago, opción de generar boleta (persona natural) o factura (empresa con RUC)
-  - Integración con SUNAT vía API (Nubefact, Efact, o similar como proveedor de facturación electrónica)
-  - Datos del comprobante: RUC/DNI del paciente, monto, tipo de servicio, IGV, serie y correlativo
-  - PDF del comprobante generado automáticamente y enviado por email al paciente
-  - Dashboard de comprobantes emitidos (por periodo, tipo, estado)
-  - Requisitos: cuenta con proveedor de facturación electrónica autorizado por SUNAT, certificado digital
-  - Ideal para clínicas que actualmente emiten comprobantes manuales o en sistemas separados
+- [x] **Boletas y facturas electrónicas vinculadas a SUNAT (MVP)** — Generar comprobantes de pago directamente desde el sistema. **Entregado en v0.13.0 (2026-04-25)** vía integración Nubefact:
+  - ✅ Wizard de conexión en `Settings → Integraciones` (RUC, razón social, ubigeo, route + token, series autorizadas)
+  - ✅ Modo sandbox y producción, con prueba de conexión live
+  - ✅ Boleta + Factura (doc_type 1 y 2) — auto-sugerido por tipo de doc del cliente
+  - ✅ Botón "Emitir comprobante" en sidebar de cita, con datos fiscales pre-llenados desde el paciente y servicio
+  - ✅ Cálculo IGV correcto: precio del catálogo se trata como **incluido** (back-out a subtotal + IGV)
+  - ✅ PDF, XML y CDR descargables; envío automático del PDF al email del paciente vía Nubefact
+  - ✅ Card del comprobante emitido en sidebar de cita (estado SUNAT, número, link al PDF)
+  - ✅ **Pago parcial / anticipos**: si la cita tiene `amount_paid < total_price`, el modal ofrece radio "Pagado / Total" con reescalado proporcional automático y sufijo `(pago parcial)` en la descripción del item — la boleta refleja exactamente el monto cobrado
+  - ✅ Confirmación post-emisión: línea explícita en SuccessPanel mostrando a qué email se envió el PDF
+  - ⏳ **Deuda menor** (post-pilot Vitra):
+    - Rollback automático del correlativo local en errores no-retryables del provider (hoy solo se hace en error 23 = duplicado; bug detectado emitiendo con serie no autorizada que dejó número fantasma en B001 antes de corregir a BBB1). Fix: extender el bloque de `if (errorCode === "23")` en `app/api/einvoices/emit/route.ts` para cubrir códigos no-retryables.
+    - Dashboard de comprobantes emitidos por periodo / tipo / estado SUNAT (hoy solo se ven embebidos en cada cita)
+    - Notas de crédito (doc_type 3) — anular comprobantes emitidos por error
+    - Tipo "Anticipo" SUNAT (catálogo 12) con referencia al comprobante final por el saldo — alternativa contablemente más fina al reescalado proporcional actual (válido pero menos formal). Levantar solo si una clínica grande lo pide.
 
 - [ ] **Descuentos condicionales a tratamientos** — Aplicar descuentos por condiciones configurables:
   - Por cantidad de sesiones (ej: 10% si compra 10+ sesiones)
@@ -326,7 +333,7 @@ Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vit
 | 7 | Reporte IA por paciente | Alto | Alto (diferenciador) | 🟡 Media |
 | 8 | Google Calendar sync | Alto | Alto (integración clave) | 🟠 Media-baja |
 | 9 | Links Zoom/Meet automáticos | Alto | Medio (teleconsulta) | 🟠 Media-baja |
-| 10 | Facturación SUNAT (boletas/facturas) | Alto | Alto (requisito legal Perú) | 🟡 Media |
+| ~~10~~ | ~~Facturación SUNAT (boletas/facturas)~~ | ~~Alto~~ | ~~Alto (requisito legal Perú)~~ | ✅ Entregado (v0.13.0, MVP con Nubefact) |
 | 11 | CRM multi-canal (WhatsApp + IG + FB) | Muy alto | Muy alto (diferenciador) | 🟡 Media |
 | ~~12~~ | ~~Catálogo CIE-10 personalizable~~ | ~~Medio~~ | ~~Alto~~ | ✅ Entregado |
 | 13 | Descuentos condicionales | Medio | Medio (billing) | 🟠 Media-baja |

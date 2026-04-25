@@ -1553,6 +1553,8 @@ export function AppointmentSidebar({
           appointment_date: appointment.appointment_date,
           start_time: appointment.start_time,
           einvoice_id: (appointment as { einvoice_id?: string | null }).einvoice_id ?? null,
+          total_price: totalPrice,
+          amount_paid: totalPaid,
         }}
         config={einvoiceConfig.config}
         series={einvoiceConfig.series}
