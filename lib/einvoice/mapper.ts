@@ -172,3 +172,24 @@ export function computeInvoiceTotals(
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+// Today's date in Lima timezone (UTC-5, no DST), as YYYY-MM-DD.
+//
+// Use this whenever you set `issueDate` on an InvoicePayload — Nubefact
+// validates that the date is today in Peru time and rejects (error code 21)
+// otherwise. Vercel servers run in UTC, so a naive `new Date().toISOString()`
+// is wrong any time after 19:00 Peru time.
+//
+// Implementation note: we use Intl.DateTimeFormat with explicit timeZone so
+// it works correctly regardless of where the code runs (local dev, CI,
+// Vercel edge, Vercel serverless). No external date library needed.
+export function todayInLima(): string {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  // en-CA produces "YYYY-MM-DD" out of the box.
+  return fmt.format(new Date());
+}

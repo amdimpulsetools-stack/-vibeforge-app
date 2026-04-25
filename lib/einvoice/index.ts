@@ -102,7 +102,7 @@ export async function loadConfig(
 
 // ── Public re-exports ──────────────────────────────────────────────────────
 
-export { computeInvoiceTotals } from "./mapper";
+export { computeInvoiceTotals, todayInLima } from "./mapper";
 export type { EInvoiceProvider } from "./provider";
 export type {
   InvoicePayload,

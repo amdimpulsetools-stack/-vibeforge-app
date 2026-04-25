@@ -21,7 +21,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { NubefactProvider } from "../lib/einvoice/nubefact-provider";
-import { toNubefactGenerate, computeInvoiceTotals } from "../lib/einvoice/mapper";
+import { toNubefactGenerate, computeInvoiceTotals, todayInLima } from "../lib/einvoice/mapper";
 import {
   DocType,
   CustomerDocType,
@@ -92,7 +92,9 @@ function buildScenario(): InvoicePayload {
 
     items,
 
-    issueDate: new Date().toISOString().split("T")[0],
+    // Always Lima time — Nubefact rejects with code 21 ("la fecha del
+    // documento debe ser la fecha de HOY") if we send anything else.
+    issueDate: todayInLima(),
     sendToSunat: true,
     sendToCustomerEmail: false,
     observations: "Smoke test — Yenda e-invoice module",
