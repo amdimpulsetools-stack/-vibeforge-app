@@ -362,6 +362,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Reports (module 4)
     "nav.reports": "Reportes",
+    "nav.facturacion": "Facturación",
     "reports.title": "Reportes",
     "reports.subtitle": "Inteligencia de negocio y KPIs",
     "reports.tab_financial": "Financiero",
@@ -971,6 +972,7 @@ const translations: Record<Language, Record<string, string>> = {
 
     // Reports (module 4)
     "nav.reports": "Reports",
+    "nav.facturacion": "Invoicing",
     "reports.title": "Reports",
     "reports.subtitle": "Business intelligence & KPIs",
     "reports.tab_financial": "Financial",

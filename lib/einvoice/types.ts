@@ -138,6 +138,22 @@ export interface InvoicePayload {
     noteType: string;         // see Nubefact `tipo_de_nota_de_credito/_debito`
   };
 
+  /**
+   * Payment method declared on the comprobante (SUNAT Catálogo 59).
+   * Optional but recommended — required-ish for facturas to support
+   * Bancarización (Ley 28194) downstream. When omitted, Nubefact assumes
+   * "Contado" with no medio. We always send Contado (the partial-payment
+   * model already ensures each comprobante is for an actual cobro);
+   * `medio` carries the SUNAT 59 code + description like "003 -
+   * Transferencia de fondos".
+   */
+  paymentMethod?: {
+    /** Hardcoded "Contado" for now — credit-terms support is post-pilot. */
+    condition: "Contado" | "Crédito";
+    /** SUNAT Catálogo 59 line, e.g. "003 - Transferencia de fondos". */
+    medio: string;
+  };
+
   // Emission flags
   issueDate: string;          // ISO YYYY-MM-DD (we convert to DD-MM-YYYY for Nubefact)
   sendToSunat: boolean;       // default true

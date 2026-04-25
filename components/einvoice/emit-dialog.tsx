@@ -29,6 +29,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
+import {
+  mapPaymentMethodToSunat,
+  violatesBancarizacion,
+  BANCARIZACION_THRESHOLD_PEN,
+  BANCARIZACION_THRESHOLD_USD,
+} from "@/lib/einvoice";
 import type {
   EInvoiceConfigData,
   EInvoiceSeries,
@@ -59,6 +65,13 @@ interface AppointmentForEmit {
    * what the patient has paid — see TICKET in COMING-UPDATES).
    */
   amount_paid?: number | null;
+  /**
+   * Free-text label of the most recent payment_method registered for
+   * this appointment (e.g. "Yape", "Visa", "Efectivo"). Pre-fills the
+   * SUNAT 59 mapping in the modal and powers the Bancarización warning.
+   * Falls back to the latest patient_payments row server-side if absent.
+   */
+  last_payment_method?: string | null;
 }
 
 interface PatientFiscal {
@@ -157,6 +170,11 @@ export function EInvoiceEmitDialog({
   const [discount, setDiscount] = useState(0);
   const [observations, setObservations] = useState("");
   const [sendEmail, setSendEmail] = useState(config.auto_send_email);
+
+  // Payment method (free-text label from `lookup_values`). Pre-filled
+  // from the latest patient_payments row of the appointment. Mapped to
+  // SUNAT Catálogo 59 for the comprobante.
+  const [paymentMethodLabel, setPaymentMethodLabel] = useState<string>("");
 
   // Submission
   const [emitting, setEmitting] = useState(false);
@@ -305,6 +323,7 @@ export function EInvoiceEmitDialog({
       setDiscount(0);
       setObservations("");
       setSendEmail(config.auto_send_email);
+      setPaymentMethodLabel(appointment.last_payment_method ?? "");
       setLoadingPatient(false);
     };
 
@@ -352,6 +371,26 @@ export function EInvoiceEmitDialog({
       total: round2(Math.max(total - discount, 0)),
     };
   }, [items, discount, config.default_igv_percent]);
+
+  // ── SUNAT payment method + Bancarización warning ──────────────────────
+  // We auto-map the free-text label to SUNAT Catálogo 59 just for the UI
+  // preview and the Ley 28194 check. The same mapping happens server-side
+  // (it's the source of truth) — this is informational only.
+  const sunatPayment = useMemo(
+    () => mapPaymentMethodToSunat(paymentMethodLabel),
+    [paymentMethodLabel]
+  );
+  const bancarizacionWarning = useMemo(() => {
+    return violatesBancarizacion(
+      totals.total,
+      config.default_currency,
+      sunatPayment
+    );
+  }, [totals.total, config.default_currency, sunatPayment]);
+  const bancarizacionThreshold =
+    config.default_currency === "USD"
+      ? BANCARIZACION_THRESHOLD_USD
+      : BANCARIZACION_THRESHOLD_PEN;
 
   // ── Validation ─────────────────────────────────────────────────────────
   const customerValid = (() => {
@@ -425,6 +464,7 @@ export function EInvoiceEmitDialog({
           invoice_discount: discount,
           observations: observations.trim() || null,
           send_to_customer_email: sendEmail,
+          payment_method_label: paymentMethodLabel.trim() || null,
           // Send unit_price (with IGV) — the route does the breakdown.
           items: items.map((it) => ({
             service_id: it.service_id,
@@ -783,6 +823,39 @@ export function EInvoiceEmitDialog({
                   />
                 </div>
               </div>
+
+              {/* Payment method (SUNAT 59) */}
+              <div>
+                <div className="flex items-baseline justify-between mb-1">
+                  <span className="text-xs font-medium">Método de pago</span>
+                  <span className="text-[11px] text-muted-foreground font-mono">
+                    SUNAT {sunatPayment.code} · {sunatPayment.description}
+                  </span>
+                </div>
+                <input
+                  value={paymentMethodLabel}
+                  onChange={(e) => setPaymentMethodLabel(e.target.value)}
+                  placeholder="Ej. Yape, Visa, Efectivo, Transferencia"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                />
+              </div>
+
+              {/* Bancarización warning (Ley 28194) — total ≥ S/2,000 + Efectivo */}
+              {bancarizacionWarning && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                  <div className="flex-1 text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                    <div className="font-semibold mb-0.5">
+                      Bancarización (Ley 28194)
+                    </div>
+                    Estás emitiendo por <b>{config.default_currency} {fmt(totals.total)}</b>{" "}
+                    en <b>efectivo</b> (≥ {config.default_currency}{" "}
+                    {fmt(bancarizacionThreshold)}). El cliente <b>perderá</b>{" "}
+                    derecho a deducir IGV y costo / gasto. Sugerimos cobrar con
+                    Yape, transferencia o tarjeta y luego emitir el comprobante.
+                  </div>
+                </div>
+              )}
 
               {/* Send email toggle */}
               <label className="flex items-center gap-2 text-sm cursor-pointer">
