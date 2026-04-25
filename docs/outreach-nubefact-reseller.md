@@ -16,7 +16,59 @@
 
 ---
 
-## Email principal
+## ⚠️ Antes de mandar — decisiones a tomar
+
+### 1. Entidad jurídica que firma
+
+Nubefact te va a pedir **razón social + RUC** para emitir el contrato y
+las facturas mensuales. Definí cuál de estas opciones aplica:
+
+- **Opción A — Yenda S.A.C. (o como se llame)** ya constituida con RUC.
+  - El contrato sale a nombre de Yenda.
+  - El email sale firmado por Oscar Duran como fundador de Yenda.
+  - Marca y entidad jurídica coinciden — la opción más limpia comercialmente.
+
+- **Opción B — Corpcomdigital S.A.C.** (entidad jurídica del socio).
+  - El contrato sale a nombre de Corpcomdigital, Yenda es la marca de
+    producto que opera bajo ese paraguas legal.
+  - El email sale firmado por Oscar Duran como fundador de Yenda
+    (marca), aclarando que la entidad firmante es Corpcomdigital.
+  - Es lo común cuando una marca de producto vive bajo una empresa de
+    servicios más grande. Nubefact no objeta esto si los datos legales
+    cierran.
+
+**Importante:** la firma del email comercial puede decir *"fundador de
+Yenda"* en ambos casos — eso es marketing. Lo que importa para Nubefact
+en el legal es la razón social + RUC que pongas en el formulario y en
+el contrato eventual.
+
+### 2. Mención del cliente piloto (Vitra)
+
+El email muestra tracción mencionando que Vitra ya emite en producción.
+Eso es prueba social fuerte para Nubefact, pero **mencionar a un cliente
+por nombre sin su permiso** es delicado:
+
+- **Pedile permiso explícito a Vitra antes de enviar** — un mensaje
+  corto: *"¿Te parece si los menciono a Nubefact como caso piloto
+  cuando arme el deal de reseller? Sin compartir números, solo el
+  hecho de que están emitiendo con BBB1/FFF1."*
+- **Alternativa sin permiso:** referirte a *"primera clínica piloto
+  (fertilidad, en Lima)"* — sin nombre. Pierde algo de fuerza pero es
+  legalmente seguro.
+
+### 3. Datos numéricos a incluir
+
+Solo poné números reales o rangos. **No inventes**. Si todavía no tenés
+2 semanas de uso, decílo así:
+
+> *"Vitra arrancó la semana del 28 de abril; tendré primeros datos de
+> volumen en 2 semanas. Quería arrancar la conversación ahora porque
+> migrar al modelo Reseller destrabaría que las próximas 3 clínicas en
+> pipeline arranquen ya bajo ese esquema."*
+
+---
+
+## Email principal — Versión A (Yenda S.A.C. ya constituida)
 
 **Asunto:** Yenda — Activar programa Revendedor (ya integrados, escalando con clínicas)
 
@@ -25,14 +77,15 @@ Hola equipo de Nubefact,
 
 Soy Oscar Duran, fundador de Yenda (yenda.app), un SaaS de gestión clínica
 para Perú: agenda, historia clínica, pacientes, cobros y facturación
-electrónica integrados.
+electrónica integrados. La razón social que firmaría el contrato con
+ustedes sería [YENDA S.A.C.] — RUC [20XXXXXXXXX].
 
 Les escribo porque ya integramos Nubefact vía su API REST y estamos
-emitiendo en producción con nuestra primera clínica piloto (Vitra,
-fertilidad, RUC 20XXXXXXXXX). El flujo funciona: emisión desde la cita,
-boletas con BBB1, facturas con FFF1, pagos parciales, notas de crédito,
-todo conectado nativamente. Vamos a expandir a 5-10 clínicas más en los
-próximos 60 días.
+emitiendo en producción con nuestra primera clínica piloto (clínica de
+fertilidad en Lima). El flujo funciona: emisión desde la cita, boletas
+con BBB1, facturas con FFF1, pagos parciales, notas de crédito, todo
+conectado nativamente. Plan: sumar 5-10 clínicas más en los próximos
+60 días.
 
 Queremos pasar al programa Revendedor que veo publicado en su sitio.
 La idea es ofrecer la facturación electrónica como parte integral de
@@ -60,15 +113,68 @@ Fundador, Yenda
 oscar@yenda.app · +51 9XXXXXXXX
 ```
 
-### Notas para personalizar antes de enviar
+---
 
-- Reemplazá `RUC 20XXXXXXXXX` con el RUC real de Vitra (no lo expongo acá
-  por privacidad — chequealo en `einvoice_configs` o pediselo a Vitra).
-- Reemplazá `[tu-link-de-calendario]` con tu Cal.com / Calendly / Google
-  Calendar booking.
+## Email principal — Versión B (Corpcomdigital firma, Yenda es marca)
+
+**Asunto:** Yenda — Activar programa Revendedor (ya integrados, escalando con clínicas)
+
+```
+Hola equipo de Nubefact,
+
+Soy Oscar Duran, fundador de Yenda (yenda.app), un SaaS de gestión clínica
+para Perú: agenda, historia clínica, pacientes, cobros y facturación
+electrónica integrados. Yenda opera bajo nuestra empresa
+[CORPCOMDIGITAL S.A.C.] — RUC [20XXXXXXXXX] —, que es la entidad que
+firmaría el contrato del programa Revendedor.
+
+Les escribo porque ya integramos Nubefact vía su API REST y estamos
+emitiendo en producción con nuestra primera clínica piloto (clínica de
+fertilidad en Lima). El flujo funciona: emisión desde la cita, boletas
+con BBB1, facturas con FFF1, pagos parciales, notas de crédito, todo
+conectado nativamente. Plan: sumar 5-10 clínicas más en los próximos
+60 días.
+
+Queremos pasar al programa Revendedor que veo publicado en su sitio.
+La idea es ofrecer la facturación electrónica como parte integral de
+Yenda ("YendaFact"), con cada clínica funcionando bajo nuestra cuenta
+master en lugar de tener su propia cuenta Nubefact directa.
+
+Tres preguntas concretas para arrancar la conversación:
+
+  1. Pricing volumétrico del programa Revendedor — ¿qué condiciones manejan
+     para 10, 50, 100 sub-cuentas activas? ¿Hay setup fee?
+
+  2. Subdominio propio — ¿podemos usar facturacion.yenda.app como dominio
+     del panel para nuestras clínicas, en lugar de un subdominio .pse.pe?
+
+  3. Soporte de primera línea — ¿el cliente final (clínica) nos contacta
+     a nosotros y nosotros escalamos a ustedes para issues técnicos? ¿O
+     ustedes atienden directo?
+
+Si tiene sentido, podemos coordinar una llamada de 20 min esta semana o
+la próxima. Mi calendar: [tu-link-de-calendario].
+
+Saludos,
+Oscar Duran
+Fundador, Yenda · Corpcomdigital S.A.C.
+oscar@yenda.app · +51 9XXXXXXXX
+```
+
+### Notas para personalizar antes de enviar (cualquier versión)
+
+- Reemplazá `[YENDA S.A.C.]` o `[CORPCOMDIGITAL S.A.C.]` con la razón
+  social exacta de la entidad firmante.
+- Reemplazá `[20XXXXXXXXX]` con el RUC real de la entidad firmante.
+- Reemplazá `[tu-link-de-calendario]` con tu Cal.com / Calendly /
+  Google Calendar booking.
 - Reemplazá teléfono con el real.
+- Si Vitra te dio permiso para mencionarlos por nombre, cambiá *"clínica
+  de fertilidad en Lima"* a *"Vitra, clínica de fertilidad en Lima
+  (RUC 20XXXXXXXXX)"* — el RUC de Vitra solo si Vitra lo autoriza
+  explícitamente, no es info pública sin contexto.
 - Si tenés más data dura (MRR, tickets emitidos al mes, % retención),
-  agregalos en un párrafo extra. Pero **no inventes números**.
+  agregalos en un párrafo extra — pero **no inventes números**.
 
 ---
 
