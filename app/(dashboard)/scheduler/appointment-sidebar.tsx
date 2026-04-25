@@ -1562,7 +1562,14 @@ export function AppointmentSidebar({
     {einvoiceConfig.connected && einvoiceConfig.config && (
       <EInvoiceEmitDialog
         open={emitDialogOpen}
-        onOpenChange={setEmitDialogOpen}
+        onOpenChange={(open) => {
+          setEmitDialogOpen(open);
+          // Also refetch when the dialog closes, in case the user
+          // emitted and clicked Cerrar before onUpdate finished
+          // resolving (race window between emit success → onUpdate fires
+          // → dialog manually closed). Cheap, idempotent.
+          if (!open) onUpdate();
+        }}
         appointment={{
           id: appointment.id,
           patient_id: appointment.patient_id ?? null,
@@ -1589,9 +1596,11 @@ export function AppointmentSidebar({
         config={einvoiceConfig.config}
         series={einvoiceConfig.series}
         onEmitted={() => {
-          setEmitDialogOpen(false);
-          // Trigger parent to refresh appointment data so the just-issued
-          // einvoice_id shows up and the "Emitir" button hides.
+          // Don't close the dialog here — the user needs to see the
+          // SuccessPanel (number, PDF link, email confirmation). Just
+          // refetch the appointment so when they close manually, the
+          // sidebar already shows the issued-invoice card instead of
+          // the "Emitir" button.
           onUpdate();
         }}
       />
