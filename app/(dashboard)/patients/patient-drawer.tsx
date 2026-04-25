@@ -38,6 +38,7 @@ import {
   Edit2,
   Stethoscope,
   Lock,
+  Receipt,
   Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,8 @@ import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
+import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
+import { PatientFiscalSection } from "./patient-fiscal-section";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
 import { calculateAge } from "@/lib/export";
 import type { ClinicalNote } from "@/types/clinical-notes";
@@ -69,7 +72,7 @@ interface PatientDrawerProps {
   onUpdate: () => void;
 }
 
-type DrawerTab = "info" | "history" | "clinical" | "growth" | "budgets" | "finances" | "marketing";
+type DrawerTab = "info" | "history" | "clinical" | "growth" | "budgets" | "finances" | "marketing" | "fiscal";
 
 type PatientWithSex = PatientWithTags & { sex?: Sex | null };
 
@@ -84,6 +87,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const { organizationId } = useOrganization();
   const { isAdmin } = useOrgRole();
   const { hasAddon } = useOrgAddons();
+  const einvoiceConfig = useEInvoiceConfig();
   const { doctorId: currentDoctorId } = useCurrentDoctor();
   const [activeTab, setActiveTab] = useState<DrawerTab>("info");
   const patientSex = (patient as PatientWithSex).sex ?? null;
@@ -340,6 +344,10 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     { key: "budgets", label: "Presupuestos", icon: Wallet },
     { key: "finances", label: t("patients.tab_finances"), icon: DollarSign },
     { key: "marketing", label: t("patients.tab_marketing"), icon: Megaphone },
+    // Tab fiscal solo aparece si la org activó facturación electrónica.
+    ...(einvoiceConfig.connected
+      ? [{ key: "fiscal" as DrawerTab, label: "Fiscal", icon: Receipt }]
+      : []),
   ];
 
   return (
@@ -1164,6 +1172,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
             </button>
           </div>
         )}
+
+        {/* ===== FISCAL TAB (gated by einvoice connection) ===== */}
+        {activeTab === "fiscal" && einvoiceConfig.connected && (
+          <PatientFiscalSection patient={patient} onUpdate={onUpdate} />
+        )}
       </div>
 
       {/* Clinical History Expanded Modal */}
@@ -1466,6 +1479,10 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     </div>
                   </div>
                 </div>
+              )}
+
+              {activeTab === "fiscal" && einvoiceConfig.connected && (
+                <PatientFiscalSection patient={patient} onUpdate={onUpdate} />
               )}
             </div>
           </div>

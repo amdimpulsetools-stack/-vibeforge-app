@@ -17,6 +17,8 @@ import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { WhatsAppWizard } from "@/components/integrations/whatsapp-wizard";
 import { GCalDescriptionDialog } from "@/components/integrations/gcal-description-dialog";
+import { EInvoiceSetupDialog } from "@/components/integrations/einvoice-setup-dialog";
+import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type IntegrationStatus = "connected" | "available" | "coming-soon";
@@ -119,6 +121,8 @@ export default function IntegracionesTab() {
 
   const [whatsappWizardOpen, setWhatsappWizardOpen] = useState(false);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const einvoiceConfig = useEInvoiceConfig();
+  const [einvoiceSetupOpen, setEinvoiceSetupOpen] = useState(false);
   const [gcal, setGcal] = useState<GCalStatus>({ connected: false });
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [gcalDescriptionOpen, setGcalDescriptionOpen] = useState(false);
@@ -195,6 +199,25 @@ export default function IntegracionesTab() {
     }
   };
 
+  const handleDisconnectEinvoice = async () => {
+    const ok = await confirm({
+      title: es ? "Desconectar facturación electrónica" : "Disconnect e-invoicing",
+      description: es
+        ? "Los comprobantes ya emitidos se conservan para auditoría. Las nuevas citas dejarán de poder emitir comprobantes hasta que reconectes."
+        : "Already-issued invoices are kept for audit. New appointments won't be able to issue invoices until you reconnect.",
+      confirmText: es ? "Desconectar" : "Disconnect",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    const res = await fetch("/api/einvoices/disconnect", { method: "POST" });
+    if (res.ok) {
+      toast.success(es ? "Desconectado." : "Disconnected.");
+      einvoiceConfig.refetch();
+    } else {
+      toast.error(es ? "Error al desconectar." : "Disconnect failed.");
+    }
+  };
+
   const integrations: Integration[] = [
     {
       id: "whatsapp",
@@ -255,14 +278,15 @@ export default function IntegracionesTab() {
     },
     {
       id: "nubefact",
-      name: "Nubefact (SUNAT)",
+      name: "Nubefact",
       category: INTEGRATION_CATEGORIES.billing[language as "es" | "en"] || INTEGRATION_CATEGORIES.billing.es,
       description: {
-        es: "Emite boletas y facturas electrónicas válidas ante SUNAT directamente desde la app.",
-        en: "Issue electronic receipts and invoices valid before SUNAT directly from the app.",
+        es: "Emite boletas y facturas electrónicas válidas ante SUNAT directamente desde Yenda. Cero doble entrada de datos.",
+        en: "Issue SUNAT-valid receipts and invoices directly from Yenda. No double data entry.",
       },
       iconNode: <FileText className="h-6 w-6 text-orange-500" />,
-      status: "coming-soon",
+      status: einvoiceConfig.connected ? "connected" : "available",
+      onConnect: () => setEinvoiceSetupOpen(true),
     },
     {
       id: "zoom",
@@ -402,7 +426,61 @@ export default function IntegracionesTab() {
                     </div>
                   )}
 
-                  {it.status === "connected" && it.onConnect && (
+                  {/* Nubefact — extra status detail when connected */}
+                  {it.id === "nubefact" && einvoiceConfig.connected && einvoiceConfig.config && (
+                    <div className="mb-3 space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">RUC:</span>
+                        <span className="font-medium font-mono">{einvoiceConfig.config.ruc}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{es ? "Razón social" : "Legal name"}:</span>
+                        <span className="font-medium truncate text-right">{einvoiceConfig.config.legal_name}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{es ? "Modo" : "Mode"}:</span>
+                        <span className={`font-medium ${einvoiceConfig.config.mode === "production" ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
+                          {einvoiceConfig.config.mode === "production"
+                            ? (es ? "Producción (envía a SUNAT)" : "Production (sends to SUNAT)")
+                            : (es ? "Pruebas (sandbox)" : "Sandbox")}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{es ? "Series activas" : "Active series"}:</span>
+                        <span className="font-medium font-mono">
+                          {einvoiceConfig.series.filter((s) => s.is_active).length}
+                        </span>
+                      </div>
+                      {einvoiceConfig.config.last_error && (
+                        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">
+                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <span className="text-[11px] leading-relaxed">
+                            {einvoiceConfig.config.last_error.slice(0, 140)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {it.status === "connected" && it.onConnect && it.id === "nubefact" && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={it.onConnect}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors justify-center"
+                      >
+                        <Settings className="h-3.5 w-3.5" />
+                        {es ? "Editar" : "Edit"}
+                      </button>
+                      <button
+                        onClick={handleDisconnectEinvoice}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/40 bg-background px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 transition-colors justify-center"
+                      >
+                        {es ? "Desconectar" : "Disconnect"}
+                      </button>
+                    </div>
+                  )}
+
+                  {it.status === "connected" && it.onConnect && it.id !== "nubefact" && (
                     <button
                       onClick={it.onConnect}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors w-full justify-center"
@@ -463,6 +541,14 @@ export default function IntegracionesTab() {
       <GCalDescriptionDialog
         open={gcalDescriptionOpen}
         onOpenChange={setGcalDescriptionOpen}
+      />
+
+      <EInvoiceSetupDialog
+        open={einvoiceSetupOpen}
+        onOpenChange={setEinvoiceSetupOpen}
+        onSaved={() => einvoiceConfig.refetch()}
+        initialConfig={einvoiceConfig.connected ? einvoiceConfig.config : null}
+        initialSeries={einvoiceConfig.connected ? einvoiceConfig.series : []}
       />
     </>
   );

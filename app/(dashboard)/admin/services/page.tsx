@@ -14,11 +14,14 @@ import {
   serviceSchema,
   serviceCategorySchema,
   SERVICE_MODALITY_OPTIONS,
+  IGV_AFFECTATION_OPTIONS,
+  UNIT_OF_MEASURE_OPTIONS,
   type ServiceFormData,
   type ServiceCategoryFormData,
 } from "@/lib/validations/service";
 import { DURATION_OPTIONS, SERVICE_MODALITY_LABELS } from "@/types/admin";
 import type { Service, ServiceCategory } from "@/types/admin";
+import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import Link from "next/link";
 import {
@@ -411,8 +414,13 @@ function ServiceForm({
       pre_appointment_instructions: (service as any)?.pre_appointment_instructions ?? "",
       requires_consent: (service as { requires_consent?: boolean })?.requires_consent ?? false,
       is_active: service?.is_active ?? true,
+      sunat_product_code: (service as { sunat_product_code?: string })?.sunat_product_code ?? "",
+      unit_of_measure: (service as { unit_of_measure?: string })?.unit_of_measure ?? "ZZ",
+      igv_affectation: (service as { igv_affectation?: number })?.igv_affectation ?? 1,
     },
   });
+
+  const einvoiceConfig = useEInvoiceConfig();
 
   const onSubmit = async (values: ServiceFormData) => {
     if (!service && !organizationId) {
@@ -422,7 +430,7 @@ function ServiceForm({
     setSaving(true);
     const supabase = createClient();
 
-    const payload = {
+    const payload: Record<string, unknown> = {
       name: values.name,
       category_id: values.category_id,
       base_price: values.base_price,
@@ -432,6 +440,15 @@ function ServiceForm({
       requires_consent: values.requires_consent,
       is_active: values.is_active,
     };
+
+    // Only persist fiscal fields if e-invoicing is connected — otherwise we
+    // leave whatever was there (or NULL for new services). This keeps the
+    // module truly invisible when off.
+    if (einvoiceConfig.connected) {
+      payload.sunat_product_code = values.sunat_product_code || null;
+      payload.unit_of_measure = values.unit_of_measure || "ZZ";
+      payload.igv_affectation = values.igv_affectation ?? 1;
+    }
 
     if (service) {
       const { error } = await supabase
@@ -587,6 +604,65 @@ function ServiceForm({
         <input type="checkbox" {...register("is_active")} className="rounded" />
         {t("services.active")}
       </label>
+
+      {/* Bloque fiscal — solo visible si Nubefact está conectado */}
+      {einvoiceConfig.connected && (
+        <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-3">
+          <div className="text-sm font-semibold text-foreground">
+            Datos fiscales (SUNAT)
+          </div>
+          <p className="text-xs text-muted-foreground -mt-1">
+            Estos campos se usan al emitir comprobantes electrónicos para este servicio.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="block">
+              <div className="text-xs font-medium mb-1">Afectación IGV</div>
+              <select
+                {...register("igv_affectation", { valueAsNumber: true })}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                {IGV_AFFECTATION_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <div className="text-xs font-medium mb-1">Unidad de medida</div>
+              <select
+                {...register("unit_of_measure")}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+              >
+                {UNIT_OF_MEASURE_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <label className="block">
+            <div className="text-xs font-medium mb-1">
+              Código de producto SUNAT{" "}
+              <span className="text-muted-foreground font-normal">(opcional)</span>
+            </div>
+            <input
+              type="text"
+              {...register("sunat_product_code")}
+              placeholder="Ej: 85121800 — Servicios de obstetricia"
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
+            />
+            <div className="text-[11px] text-muted-foreground mt-1">
+              Si no estás seguro, déjalo vacío. Tu contador puede asesorarte después.
+            </div>
+          </label>
+        </div>
+      )}
+
       <div className="flex gap-2">
         <button
           type="submit"

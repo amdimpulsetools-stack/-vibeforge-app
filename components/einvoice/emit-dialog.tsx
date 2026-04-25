@@ -1,0 +1,820 @@
+"use client";
+
+// Dialog to emit an electronic invoice (boleta or factura) for a given
+// appointment. Pre-fills patient + service + price from the appointment.
+//
+// User can:
+//   - Toggle factura vs boleta (auto-suggested based on customer doc type)
+//   - Pick a series (defaults to active default per doc_type)
+//   - Edit customer fiscal data inline
+//   - Edit/add/remove items (default = single item from the appointment service)
+//   - See live totals
+//   - Emit
+//
+// On success: shows the result (number, PDF link), notifies parent.
+
+import { useEffect, useMemo, useState } from "react";
+import {
+  Loader2,
+  Receipt,
+  ExternalLink,
+  CheckCircle2,
+  AlertCircle,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { createClient } from "@/lib/supabase/client";
+import type {
+  EInvoiceConfigData,
+  EInvoiceSeries,
+} from "@/hooks/use-einvoice-config";
+
+interface AppointmentForEmit {
+  id: string;
+  patient_id: string | null;
+  patient_name: string;
+  patient_phone: string | null;
+  service_id: string;
+  service_name: string;
+  price_snapshot: number | null;
+  appointment_date: string;
+  start_time: string;
+  einvoice_id?: string | null;
+}
+
+interface PatientFiscal {
+  fiscal_doc_type: string | null;
+  fiscal_doc_number: string | null;
+  legal_name: string | null;
+  fiscal_address: string | null;
+  fiscal_email: string | null;
+  email: string | null;
+  dni: string | null;
+}
+
+interface ServiceFiscal {
+  igv_affectation: number | null;
+  unit_of_measure: string | null;
+  sunat_product_code: string | null;
+}
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  appointment: AppointmentForEmit;
+  config: EInvoiceConfigData;
+  series: EInvoiceSeries[];
+  /** Called after a successful emit. */
+  onEmitted: (info: {
+    invoiceId: string;
+    docType: number;
+    series: string;
+    number: number;
+    pdfUrl?: string;
+  }) => void;
+}
+
+interface EditableItem {
+  description: string;
+  quantity: number;
+  unit_value: number;
+  igv_affectation: number;
+  service_id: string | null;
+  unit_of_measure: string;
+  sunat_product_code?: string;
+}
+
+const IGV_OPTIONS = [
+  { value: 1, label: "Gravado" },
+  { value: 8, label: "Exonerado" },
+  { value: 9, label: "Inafecto" },
+];
+
+const DOC_TYPE_OPTIONS = [
+  { value: "1", label: "DNI" },
+  { value: "6", label: "RUC" },
+  { value: "4", label: "CE" },
+  { value: "7", label: "Pasaporte" },
+  { value: "-", label: "Varios (consumidor final)" },
+];
+
+export function EInvoiceEmitDialog({
+  open,
+  onOpenChange,
+  appointment,
+  config,
+  series,
+  onEmitted,
+}: Props) {
+  // Customer fiscal data (loaded from patient row when dialog opens)
+  const [customerDocType, setCustomerDocType] = useState("1");
+  const [customerDocNumber, setCustomerDocNumber] = useState("");
+  const [customerName, setCustomerName] = useState("");
+  const [customerAddress, setCustomerAddress] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [loadingPatient, setLoadingPatient] = useState(false);
+
+  // Doc type for the invoice (1=factura, 2=boleta) — auto-suggested
+  const [docType, setDocType] = useState<1 | 2>(2);
+  const [selectedSeries, setSelectedSeries] = useState("");
+
+  // Items
+  const [items, setItems] = useState<EditableItem[]>([]);
+
+  // Discount + observations
+  const [discount, setDiscount] = useState(0);
+  const [observations, setObservations] = useState("");
+  const [sendEmail, setSendEmail] = useState(config.auto_send_email);
+
+  // Submission
+  const [emitting, setEmitting] = useState(false);
+  const [result, setResult] = useState<
+    | null
+    | {
+        ok: true;
+        invoiceId: string;
+        docType: number;
+        series: string;
+        number: number;
+        pdfUrl?: string;
+        sunatAccepted?: boolean;
+      }
+    | { ok: false; error: string; retryable: boolean }
+  >(null);
+
+  // Auto-suggest doc type based on customer doc
+  useEffect(() => {
+    setDocType(customerDocType === "6" ? 1 : 2);
+  }, [customerDocType]);
+
+  // Pick the default series for the chosen doc type
+  useEffect(() => {
+    const candidates = series.filter(
+      (s) => s.doc_type === docType && s.is_active
+    );
+    if (candidates.length === 0) {
+      setSelectedSeries("");
+      return;
+    }
+    const def = candidates.find((s) => s.is_default) ?? candidates[0];
+    setSelectedSeries(def.series);
+  }, [docType, series]);
+
+  // Load patient + service fiscal data when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    setResult(null);
+    setLoadingPatient(true);
+
+    const fetchAll = async () => {
+      const supabase = createClient();
+      let patientFiscal: PatientFiscal | null = null;
+      let serviceFiscal: ServiceFiscal | null = null;
+
+      if (appointment.patient_id) {
+        const { data } = await supabase
+          .from("patients")
+          .select(
+            "fiscal_doc_type, fiscal_doc_number, legal_name, fiscal_address, fiscal_email, email, dni"
+          )
+          .eq("id", appointment.patient_id)
+          .maybeSingle();
+        patientFiscal = (data as unknown as PatientFiscal) ?? null;
+      }
+
+      const { data: svcData } = await supabase
+        .from("services")
+        .select("igv_affectation, unit_of_measure, sunat_product_code")
+        .eq("id", appointment.service_id)
+        .maybeSingle();
+      serviceFiscal = (svcData as unknown as ServiceFiscal) ?? null;
+
+      // Customer
+      if (patientFiscal) {
+        setCustomerDocType(patientFiscal.fiscal_doc_type ?? "1");
+        setCustomerDocNumber(
+          patientFiscal.fiscal_doc_number ?? patientFiscal.dni ?? ""
+        );
+        setCustomerName(
+          patientFiscal.legal_name ?? appointment.patient_name ?? ""
+        );
+        setCustomerAddress(patientFiscal.fiscal_address ?? "");
+        setCustomerEmail(
+          patientFiscal.fiscal_email ?? patientFiscal.email ?? ""
+        );
+      } else {
+        // Boleta a consumidor final por default
+        setCustomerDocType("1");
+        setCustomerDocNumber("");
+        setCustomerName(appointment.patient_name ?? "");
+        setCustomerAddress("");
+        setCustomerEmail("");
+      }
+
+      // Default item from appointment service
+      const price = appointment.price_snapshot ?? 0;
+      setItems([
+        {
+          description: appointment.service_name ?? "Servicio",
+          quantity: 1,
+          unit_value: price,
+          igv_affectation: serviceFiscal?.igv_affectation ?? 1,
+          service_id: appointment.service_id,
+          unit_of_measure: serviceFiscal?.unit_of_measure ?? "ZZ",
+          sunat_product_code: serviceFiscal?.sunat_product_code ?? undefined,
+        },
+      ]);
+
+      setDiscount(0);
+      setObservations("");
+      setSendEmail(config.auto_send_email);
+      setLoadingPatient(false);
+    };
+
+    void fetchAll();
+  }, [open, appointment, config]);
+
+  // ── Live totals ────────────────────────────────────────────────────────
+  const totals = useMemo(() => {
+    const igvFactor = Number(config.default_igv_percent) / 100;
+    let subtotalTaxed = 0;
+    let subtotalExempt = 0;
+    let subtotalUnaffected = 0;
+    let igvAmount = 0;
+    let total = 0;
+    for (const it of items) {
+      const sub = round2(it.quantity * it.unit_value);
+      const isTaxed = it.igv_affectation === 1;
+      const itemIgv = isTaxed ? round2(sub * igvFactor) : 0;
+      const itemTotal = round2(sub + itemIgv);
+      if (isTaxed) subtotalTaxed += sub;
+      else if (it.igv_affectation === 8) subtotalExempt += sub;
+      else if (it.igv_affectation === 9 || it.igv_affectation === 12)
+        subtotalUnaffected += sub;
+      igvAmount += itemIgv;
+      total += itemTotal;
+    }
+    return {
+      subtotalTaxed: round2(subtotalTaxed),
+      subtotalExempt: round2(subtotalExempt),
+      subtotalUnaffected: round2(subtotalUnaffected),
+      igvAmount: round2(igvAmount),
+      total: round2(Math.max(total - discount, 0)),
+    };
+  }, [items, discount, config.default_igv_percent]);
+
+  // ── Validation ─────────────────────────────────────────────────────────
+  const customerValid = (() => {
+    if (!customerName.trim()) return false;
+    if (customerDocType === "-") return true;
+    if (customerDocType === "1") return /^\d{8}$/.test(customerDocNumber);
+    if (customerDocType === "6") {
+      return (
+        /^\d{11}$/.test(customerDocNumber) &&
+        customerName.trim().length > 0 &&
+        customerAddress.trim().length > 0
+      );
+    }
+    return customerDocNumber.trim().length > 0;
+  })();
+  const itemsValid =
+    items.length > 0 &&
+    items.every(
+      (it) =>
+        it.description.trim().length > 0 &&
+        it.quantity > 0 &&
+        it.unit_value >= 0
+    );
+  const seriesValid = selectedSeries.length === 4;
+
+  const formValid = customerValid && itemsValid && seriesValid;
+
+  // ── Item ops ───────────────────────────────────────────────────────────
+  const addItem = () =>
+    setItems((prev) => [
+      ...prev,
+      {
+        description: "",
+        quantity: 1,
+        unit_value: 0,
+        igv_affectation: 1,
+        service_id: null,
+        unit_of_measure: "ZZ",
+      },
+    ]);
+  const removeItem = (i: number) =>
+    setItems((prev) => prev.filter((_, idx) => idx !== i));
+  const updateItem = <K extends keyof EditableItem>(
+    i: number,
+    key: K,
+    value: EditableItem[K]
+  ) =>
+    setItems((prev) =>
+      prev.map((it, idx) => (idx === i ? { ...it, [key]: value } : it))
+    );
+
+  // ── Emit ───────────────────────────────────────────────────────────────
+  const handleEmit = async () => {
+    setEmitting(true);
+    setResult(null);
+    try {
+      const res = await fetch("/api/einvoices/emit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appointment_id: appointment.id,
+          doc_type: docType,
+          series: selectedSeries,
+          customer_doc_type: customerDocType,
+          customer_doc_number: customerDocNumber,
+          customer_name: customerName.trim(),
+          customer_address: customerAddress.trim() || null,
+          customer_email: customerEmail.trim() || null,
+          currency: config.default_currency,
+          igv_percent: Number(config.default_igv_percent),
+          invoice_discount: discount,
+          observations: observations.trim() || null,
+          send_to_customer_email: sendEmail,
+          items: items.map((it) => ({
+            service_id: it.service_id,
+            description: it.description,
+            quantity: it.quantity,
+            unit_value: it.unit_value,
+            igv_affectation: it.igv_affectation,
+            unit_of_measure: it.unit_of_measure,
+            sunat_product_code: it.sunat_product_code,
+          })),
+        }),
+      });
+      const json = (await res.json()) as
+        | {
+            ok: true;
+            invoice_id: string;
+            doc_type: number;
+            series: string;
+            number: number;
+            pdf_url?: string;
+            sunat_accepted?: boolean;
+          }
+        | { ok: false; error: string; retryable: boolean; invoice_id?: string };
+
+      if (json.ok) {
+        setResult({
+          ok: true,
+          invoiceId: json.invoice_id,
+          docType: json.doc_type,
+          series: json.series,
+          number: json.number,
+          pdfUrl: json.pdf_url,
+          sunatAccepted: json.sunat_accepted,
+        });
+        onEmitted({
+          invoiceId: json.invoice_id,
+          docType: json.doc_type,
+          series: json.series,
+          number: json.number,
+          pdfUrl: json.pdf_url,
+        });
+      } else {
+        setResult({ ok: false, error: json.error, retryable: json.retryable });
+      }
+    } catch (err) {
+      setResult({
+        ok: false,
+        error: err instanceof Error ? err.message : "Error de red",
+        retryable: true,
+      });
+    } finally {
+      setEmitting(false);
+    }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────
+  const isFactura = docType === 1;
+  const seriesForType = series.filter((s) => s.doc_type === docType);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-full max-w-2xl max-h-[92vh] overflow-hidden p-0 gap-0 flex flex-col [&>button]:hidden">
+        {/* Header */}
+        <div className="border-b border-border px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+              <Receipt className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <DialogTitle className="text-base font-semibold">
+                {result?.ok ? "Comprobante emitido" : "Emitir comprobante"}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                {result?.ok
+                  ? `${isFactura ? "Factura" : "Boleta"} ${result.series}-${result.number}`
+                  : "Revisa los datos y emite. Una vez emitido, no se puede editar."}
+              </DialogDescription>
+            </div>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+          {result?.ok ? (
+            <SuccessPanel result={result} sandbox={config.mode === "sandbox"} />
+          ) : (
+            <>
+              {/* Doc type + series */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs font-medium mb-1">Tipo</div>
+                  <div className="flex gap-2">
+                    <DocTypeChip
+                      active={docType === 2}
+                      onClick={() => setDocType(2)}
+                    >
+                      Boleta
+                    </DocTypeChip>
+                    <DocTypeChip
+                      active={docType === 1}
+                      onClick={() => setDocType(1)}
+                    >
+                      Factura
+                    </DocTypeChip>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-xs font-medium mb-1">Serie</div>
+                  <select
+                    value={selectedSeries}
+                    onChange={(e) => setSelectedSeries(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono"
+                  >
+                    {seriesForType.length === 0 ? (
+                      <option value="">— Sin series —</option>
+                    ) : (
+                      seriesForType.map((s) => (
+                        <option key={s.series} value={s.series}>
+                          {s.series}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                </div>
+              </div>
+
+              {/* Customer */}
+              <fieldset className="rounded-xl border border-border/60 p-4 space-y-3">
+                <legend className="text-xs font-semibold px-2 text-muted-foreground uppercase">
+                  Cliente
+                </legend>
+
+                {loadingPatient && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    Cargando datos fiscales del paciente…
+                  </div>
+                )}
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <div className="text-[11px] font-medium mb-1">Tipo doc</div>
+                    <select
+                      value={customerDocType}
+                      onChange={(e) => setCustomerDocType(e.target.value)}
+                      className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
+                    >
+                      {DOC_TYPE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-[11px] font-medium mb-1">Número</div>
+                    <input
+                      value={customerDocNumber}
+                      onChange={(e) =>
+                        setCustomerDocNumber(e.target.value.replace(/\s/g, ""))
+                      }
+                      disabled={customerDocType === "-"}
+                      className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-mono disabled:opacity-50"
+                      placeholder={
+                        customerDocType === "1"
+                          ? "12345678"
+                          : customerDocType === "6"
+                            ? "20600695771"
+                            : ""
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[11px] font-medium mb-1">
+                    {customerDocType === "6" ? "Razón social" : "Nombre completo"}
+                  </div>
+                  <input
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                  />
+                </div>
+
+                {customerDocType === "6" && (
+                  <div>
+                    <div className="text-[11px] font-medium mb-1">
+                      Dirección fiscal *
+                    </div>
+                    <input
+                      value={customerAddress}
+                      onChange={(e) => setCustomerAddress(e.target.value)}
+                      className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <div className="text-[11px] font-medium mb-1">Email (opcional)</div>
+                  <input
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => setCustomerEmail(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                  />
+                </div>
+              </fieldset>
+
+              {/* Items */}
+              <fieldset className="rounded-xl border border-border/60 p-4 space-y-2">
+                <legend className="text-xs font-semibold px-2 text-muted-foreground uppercase">
+                  Ítems
+                </legend>
+
+                {items.map((it, i) => (
+                  <div
+                    key={i}
+                    className="rounded-lg border border-border/60 p-3 grid grid-cols-12 gap-2"
+                  >
+                    <input
+                      value={it.description}
+                      onChange={(e) =>
+                        updateItem(i, "description", e.target.value)
+                      }
+                      placeholder="Descripción"
+                      className="col-span-12 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={it.quantity}
+                      onChange={(e) =>
+                        updateItem(i, "quantity", Number(e.target.value))
+                      }
+                      placeholder="Cant"
+                      className="col-span-3 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={it.unit_value}
+                      onChange={(e) =>
+                        updateItem(i, "unit_value", Number(e.target.value))
+                      }
+                      placeholder="V. unit (sin IGV)"
+                      className="col-span-4 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
+                    />
+                    <select
+                      value={it.igv_affectation}
+                      onChange={(e) =>
+                        updateItem(
+                          i,
+                          "igv_affectation",
+                          Number(e.target.value)
+                        )
+                      }
+                      className="col-span-4 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
+                    >
+                      {IGV_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    {items.length > 1 && (
+                      <button
+                        onClick={() => removeItem(i)}
+                        className="col-span-1 rounded-lg text-muted-foreground hover:text-destructive transition-colors"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+                ))}
+
+                <button
+                  onClick={addItem}
+                  className="w-full rounded-lg border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground hover:border-primary hover:text-foreground transition-colors"
+                >
+                  + Agregar ítem
+                </button>
+              </fieldset>
+
+              {/* Discount + observations */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <div className="text-xs font-medium mb-1">Descuento global</div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    value={discount}
+                    onChange={(e) => setDiscount(Number(e.target.value))}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <div className="text-xs font-medium mb-1">Observaciones</div>
+                  <input
+                    value={observations}
+                    onChange={(e) => setObservations(e.target.value)}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Send email toggle */}
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={sendEmail}
+                  onChange={(e) => setSendEmail(e.target.checked)}
+                  className="rounded accent-primary cursor-pointer"
+                />
+                Enviar PDF al paciente por email
+              </label>
+
+              {/* Totals */}
+              <div className="rounded-xl bg-muted/30 border border-border p-4 space-y-1.5 text-sm">
+                <Row label="Subtotal gravado" value={`${config.default_currency} ${fmt(totals.subtotalTaxed)}`} />
+                {totals.subtotalExempt > 0 && (
+                  <Row label="Exonerado" value={`${config.default_currency} ${fmt(totals.subtotalExempt)}`} />
+                )}
+                {totals.subtotalUnaffected > 0 && (
+                  <Row label="Inafecto" value={`${config.default_currency} ${fmt(totals.subtotalUnaffected)}`} />
+                )}
+                <Row
+                  label={`IGV (${config.default_igv_percent}%)`}
+                  value={`${config.default_currency} ${fmt(totals.igvAmount)}`}
+                />
+                {discount > 0 && (
+                  <Row label="Descuento" value={`− ${config.default_currency} ${fmt(discount)}`} />
+                )}
+                <div className="pt-2 border-t border-border flex items-baseline justify-between">
+                  <span className="font-semibold">Total</span>
+                  <span className="text-xl font-bold tabular-nums">
+                    {config.default_currency} {fmt(totals.total)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Error */}
+              {result && !result.ok && (
+                <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-rose-600 dark:text-rose-400 mt-0.5 shrink-0" />
+                  <div className="flex-1 text-sm text-rose-700 dark:text-rose-300">
+                    <div className="font-medium">No se pudo emitir</div>
+                    <div className="text-xs mt-1">{result.error}</div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-border px-6 py-3 flex items-center justify-end gap-2">
+          {result?.ok ? (
+            <button
+              onClick={() => onOpenChange(false)}
+              className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+            >
+              Cerrar
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => onOpenChange(false)}
+                disabled={emitting}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleEmit}
+                disabled={emitting || !formValid}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
+              >
+                {emitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                Emitir{isFactura ? " factura" : " boleta"}
+              </button>
+            </>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────
+
+function SuccessPanel({
+  result,
+  sandbox,
+}: {
+  result: {
+    ok: true;
+    invoiceId: string;
+    docType: number;
+    series: string;
+    number: number;
+    pdfUrl?: string;
+    sunatAccepted?: boolean;
+  };
+  sandbox: boolean;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-4 flex items-start gap-3">
+        <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+        <div>
+          <div className="font-semibold text-emerald-700 dark:text-emerald-300">
+            {result.series}-{String(result.number).padStart(8, "0")}
+          </div>
+          <div className="text-xs text-emerald-700/80 dark:text-emerald-300/80 mt-0.5">
+            {sandbox
+              ? "Modo PRUEBAS — el comprobante NO se envía a SUNAT (activa producción cuando estés listo)."
+              : result.sunatAccepted
+                ? "Aceptado por SUNAT."
+                : "Enviado a SUNAT (esperando confirmación)."}
+          </div>
+        </div>
+      </div>
+
+      {result.pdfUrl && (
+        <a
+          href={result.pdfUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium hover:bg-accent transition-colors w-full justify-center"
+        >
+          <ExternalLink className="h-4 w-4" />
+          Abrir PDF del comprobante
+        </a>
+      )}
+    </div>
+  );
+}
+
+function DocTypeChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+        active
+          ? "border-primary bg-primary/10 text-primary"
+          : "border-border bg-background hover:bg-accent text-muted-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between text-xs">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-medium tabular-nums">{value}</span>
+    </div>
+  );
+}
+
+function fmt(n: number): string {
+  return n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
