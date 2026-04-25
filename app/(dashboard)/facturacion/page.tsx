@@ -12,8 +12,10 @@
 // aquí solo se observa.
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import { format, startOfMonth } from "date-fns";
 import {
   Receipt,
@@ -118,6 +120,7 @@ const PAGE_SIZE = 50;
 
 export default function FacturacionPage() {
   useLanguage(); // ensures provider mounted; copy is in-page
+  const einvoice = useEInvoiceConfig();
   const [rows, setRows] = useState<EInvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -134,6 +137,14 @@ export default function FacturacionPage() {
   const [searchText, setSearchText] = useState("");
 
   const fetchInvoices = useCallback(async () => {
+    // Skip the query when the org hasn't connected Nubefact yet — the
+    // empty-state below covers the UI; running the query would just
+    // return an empty list and cost a roundtrip.
+    if (!einvoice.connected) {
+      setLoading(false);
+      setRows([]);
+      return;
+    }
     setLoading(true);
     setError(null);
     const supabase = createClient();
@@ -160,7 +171,7 @@ export default function FacturacionPage() {
       setRows((data as unknown as EInvoiceRow[]) ?? []);
     }
     setLoading(false);
-  }, [dateFrom, dateTo, filterType, filterStatus, filterSeries]);
+  }, [dateFrom, dateTo, filterType, filterStatus, filterSeries, einvoice.connected]);
 
   useEffect(() => {
     void fetchInvoices();
@@ -205,6 +216,43 @@ export default function FacturacionPage() {
     ).length;
     return { totalAmount, totalCount, pendingCount, rejectedCount };
   }, [rows]);
+
+  // Empty state — module not connected yet. Render this and bail.
+  if (!einvoice.loading && !einvoice.connected) {
+    return (
+      <div className="flex flex-col gap-6 p-6">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Receipt className="h-6 w-6 text-primary" />
+            Facturación electrónica
+          </h1>
+        </div>
+        <div className="rounded-2xl border border-dashed border-border bg-card p-10 flex flex-col items-center text-center max-w-2xl mx-auto">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 mb-4">
+            <Receipt className="h-7 w-7 text-primary" />
+          </div>
+          <h2 className="text-lg font-semibold">
+            Conecta facturación electrónica para ver el dashboard
+          </h2>
+          <p className="text-sm text-muted-foreground mt-2 max-w-md">
+            Aún no has conectado Nubefact. Una vez conectado, todos los
+            comprobantes que emitas (boletas, facturas, notas de crédito)
+            aparecerán acá con KPIs, filtros y descargas de PDF / XML / CDR.
+          </p>
+          <Link
+            href="/settings?tab=integraciones"
+            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            Conectar Nubefact
+            <ExternalLink className="h-4 w-4" />
+          </Link>
+          <p className="text-[11px] text-muted-foreground mt-4">
+            Solo el owner o admin puede conectar el proveedor.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6 p-6">

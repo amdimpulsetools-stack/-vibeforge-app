@@ -126,6 +126,7 @@ const navSections: NavSection[] = [
 ];
 
 import { useMobileNav } from "./mobile-nav-context";
+import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -134,6 +135,7 @@ export function Sidebar() {
   const { organization } = useOrganization();
   const { isAdmin } = useOrgRole();
   const { isOpen: mobileOpen, setOpen: setMobileOpen } = useMobileNav();
+  const einvoice = useEInvoiceConfig();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isFounder, setIsFounder] = useState(false);
@@ -179,6 +181,10 @@ export function Sidebar() {
 
   const renderNavItem = (item: NavItem) => {
     if (item.adminOnly && !isAdmin) return null;
+    // Gate the /facturacion entry behind an active e-invoice config —
+    // shows up only after the org has finished the Nubefact wizard.
+    // The hook caches per-org so this doesn't add extra requests.
+    if (item.href === "/facturacion" && !einvoice.connected) return null;
     const isActive = isPathActive(item.href);
     return (
       <Link key={item.href} href={item.href}>
