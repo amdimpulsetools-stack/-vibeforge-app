@@ -31,6 +31,7 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { EInvoiceCreditNoteDialog } from "@/components/einvoice/credit-note-dialog";
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -461,7 +462,14 @@ export default function FacturacionPage() {
 
       {/* Detail drawer */}
       {selected && (
-        <DetailDrawer row={selected} onClose={() => setSelected(null)} />
+        <DetailDrawer
+          row={selected}
+          onClose={() => setSelected(null)}
+          onCreditNoteEmitted={() => {
+            setSelected(null);
+            void fetchInvoices();
+          }}
+        />
       )}
     </div>
   );
@@ -603,12 +611,17 @@ function IconLink({
 function DetailDrawer({
   row,
   onClose,
+  onCreditNoteEmitted,
 }: {
   row: EInvoiceRow;
   onClose: () => void;
+  onCreditNoteEmitted?: () => void;
 }) {
+  const [creditNoteOpen, setCreditNoteOpen] = useState(false);
   const status = STATUS_META[row.status] ?? STATUS_META.draft;
   const StatusIcon = status.icon;
+  const canIssueCreditNote =
+    (row.doc_type === 1 || row.doc_type === 2) && row.status === "accepted";
   return (
     <>
       {/* Backdrop */}
@@ -718,12 +731,33 @@ function DetailDrawer({
             </div>
           </Section>
 
+          {/* Credit-note CTA — only on boleta/factura aceptadas */}
+          {canIssueCreditNote && (
+            <button
+              onClick={() => setCreditNoteOpen(true)}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400 px-3 py-2 text-sm font-medium hover:bg-amber-500/15 transition-colors"
+            >
+              <Ban className="h-4 w-4" />
+              Anular / Nota de crédito
+            </button>
+          )}
+
           <div className="text-xs text-muted-foreground">
             Emitido el{" "}
             {format(new Date(row.issued_at), "dd/MM/yyyy 'a las' HH:mm")}
           </div>
         </div>
       </aside>
+
+      <EInvoiceCreditNoteDialog
+        open={creditNoteOpen}
+        onOpenChange={setCreditNoteOpen}
+        einvoiceId={row.id}
+        onEmitted={() => {
+          setCreditNoteOpen(false);
+          onCreditNoteEmitted?.();
+        }}
+      />
     </>
   );
 }

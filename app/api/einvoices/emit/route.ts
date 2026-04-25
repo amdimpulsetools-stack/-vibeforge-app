@@ -76,6 +76,20 @@ const bodySchema = z.object({
    * appointment. Mapped to SUNAT Catálogo 59 internally.
    */
   payment_method_label: z.string().max(100).optional().nullable(),
+
+  // ── Credit note fields (only when doc_type = 3) ─────────────────────
+  /** UUID of the einvoice being credited. Required when doc_type=3. */
+  referenced_einvoice_id: z.string().uuid().optional().nullable(),
+  /**
+   * SUNAT Catálogo 9 code for the credit-note reason. Required when
+   * doc_type=3. We accept the 2-digit code (e.g. "01", "06") as a string
+   * since SUNAT uses leading zeros.
+   */
+  credit_note_reason_code: z
+    .string()
+    .regex(/^\d{2}$/, "Motivo SUNAT debe ser 2 dígitos")
+    .optional()
+    .nullable(),
 }).superRefine((data, ctx) => {
   // SUNAT requires fiscal address on facturas (doc_type=1) and credit/
   // debit notes that reference a factura. Boletas to consumidor final
@@ -90,6 +104,24 @@ const bodySchema = z.object({
       message:
         "La dirección fiscal es obligatoria para facturas y clientes con RUC.",
     });
+  }
+
+  // Credit notes need both the referenced einvoice and the SUNAT reason.
+  if (data.doc_type === 3) {
+    if (!data.referenced_einvoice_id) {
+      ctx.addIssue({
+        path: ["referenced_einvoice_id"],
+        code: z.ZodIssueCode.custom,
+        message: "Falta el comprobante a anular para emitir la nota de crédito.",
+      });
+    }
+    if (!data.credit_note_reason_code) {
+      ctx.addIssue({
+        path: ["credit_note_reason_code"],
+        code: z.ZodIssueCode.custom,
+        message: "Falta el motivo SUNAT (Catálogo 9) de la nota de crédito.",
+      });
+    }
   }
 });
 
@@ -147,6 +179,81 @@ export async function POST(req: NextRequest) {
   }
 
   const admin = createAdminClient();
+
+  // ── 0) Resolve credit-note reference (only when doc_type=3) ───────────
+  // Load the original einvoice so we can: (a) verify same-org,
+  // (b) inherit its series/number for the `referenced` block in the
+  // payload, (c) auto-create a doc_type=3 series entry if the org has
+  // never emitted a credit note for this series prefix yet (Nubefact
+  // demo accounts use the same prefix BBB1 for boleta and NC; the
+  // wizard only seeds tipo 1 + 2 by default).
+  let referencedEinvoice: {
+    id: string;
+    doc_type: number;
+    series: string;
+    number: number;
+  } | null = null;
+  if (data.doc_type === 3 && data.referenced_einvoice_id) {
+    const { data: refRow, error: refErr } = await admin
+      .from("einvoices")
+      .select("id, organization_id, doc_type, series, number, status")
+      .eq("id", data.referenced_einvoice_id)
+      .maybeSingle();
+    if (refErr || !refRow) {
+      return NextResponse.json(
+        { error: "No se encontró el comprobante a anular." },
+        { status: 404 }
+      );
+    }
+    const ref = refRow as unknown as {
+      id: string;
+      organization_id: string;
+      doc_type: number;
+      series: string;
+      number: number;
+      status: string;
+    };
+    if (ref.organization_id !== orgId) {
+      return NextResponse.json({ error: "forbidden" }, { status: 403 });
+    }
+    if (ref.status !== "accepted" && ref.status !== "sending") {
+      return NextResponse.json(
+        {
+          error:
+            "Solo se pueden anular comprobantes aceptados o en proceso de envío a SUNAT.",
+        },
+        { status: 400 }
+      );
+    }
+    referencedEinvoice = {
+      id: ref.id,
+      doc_type: ref.doc_type,
+      series: ref.series,
+      number: ref.number,
+    };
+
+    // Auto-create the doc_type=3 series row for this series name if
+    // missing. Nubefact uses the same prefix for boleta/factura and
+    // their notes — but our einvoice_series table tracks correlatives
+    // per (org, doc_type, series) so we need a row.
+    const { data: ncSeries } = await admin
+      .from("einvoice_series")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("doc_type", 3)
+      .eq("series", data.series)
+      .maybeSingle();
+    if (!ncSeries) {
+      await admin.from("einvoice_series").insert({
+        organization_id: orgId,
+        doc_type: 3,
+        series: data.series,
+        current_number: 0,
+        is_default: true,
+        is_active: true,
+      });
+    }
+  }
 
   // ── 1) Reserve next correlative atomically (RPC, see migration 110) ───
   // Postgres function `reserve_einvoice_correlative` does
@@ -240,6 +347,11 @@ export async function POST(req: NextRequest) {
       provider: config.providerName,
       issued_at: new Date().toISOString(),
       issued_by_user_id: user.id,
+      // Reference to the original (only for NC / ND)
+      referenced_doc_type: referencedEinvoice?.doc_type ?? null,
+      referenced_series: referencedEinvoice?.series ?? null,
+      referenced_number: referencedEinvoice?.number ?? null,
+      note_type: data.credit_note_reason_code ?? null,
     })
     .select("id")
     .single();
@@ -332,6 +444,15 @@ export async function POST(req: NextRequest) {
       condition: "Contado",
       medio: `${sunatPayment.code} - ${sunatPayment.description}`,
     },
+    referenced: referencedEinvoice
+      ? {
+          docType: referencedEinvoice.doc_type as DocTypeCode,
+          series: referencedEinvoice.series,
+          number: referencedEinvoice.number,
+          // SUNAT Catálogo 9 — already validated as 2-digit string
+          noteType: data.credit_note_reason_code as string,
+        }
+      : undefined,
   };
 
   const result = await provider.emit(config.credentials, payload);
@@ -356,12 +477,31 @@ export async function POST(req: NextRequest) {
       })
       .eq("id", invoiceId);
 
-    // Link from appointment
-    if (data.appointment_id) {
+    // Link from appointment (skip for credit/debit notes — we don't want
+    // to overwrite the link to the original boleta/factura; the dashboard
+    // and card resolve the NC chain through `referenced_einvoice_id` on
+    // the einvoices row itself).
+    if (data.appointment_id && data.doc_type !== 3 && data.doc_type !== 4) {
       await admin
         .from("appointments")
         .update({ einvoice_id: invoiceId })
         .eq("id", data.appointment_id);
+    }
+
+    // Mark the original as cancelled when this is a credit note that
+    // anula the operation (Catálogo 9 reasons 01 = anulación, 06 =
+    // devolución total). Other reasons (03 corrección, 09 disminución
+    // valor, etc.) keep the original valid.
+    if (
+      data.doc_type === 3 &&
+      referencedEinvoice &&
+      (data.credit_note_reason_code === "01" ||
+        data.credit_note_reason_code === "06")
+    ) {
+      await admin
+        .from("einvoices")
+        .update({ status: "cancelled" })
+        .eq("id", referencedEinvoice.id);
     }
 
     return NextResponse.json({
