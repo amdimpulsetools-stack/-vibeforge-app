@@ -632,6 +632,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Addon de Curvas de Crecimiento OMS (primer vertical pediátrico)** — Addon `growth_curves` específico para endocrinología pediátrica y pediatría. Tabla `patient_anthropometry` para mediciones longitudinales (peso, talla, perímetro cefálico). Campo `patients.sex` (requerido por WHO). Componente `GrowthCurvesPanel` con Recharts ComposedChart: banda sombreada P3–P97, 5 líneas de percentiles (P3/P15/P50/P85/P97), scatter conectado con trayectoria del paciente, tooltip con Z-score y percentil. 4 métricas: Peso/Edad, Talla/Edad, IMC/Edad, Perímetro Cefálico/Edad. Tablas LMS OMS en `lib/growth-curves/who-data.ts` (WHO Child Growth Standards 0–5a + Growth Reference 5–19a). Cálculo de Z-score/percentil vía fórmula LMS. Pestaña "Crecimiento" en el drawer de paciente gated por `hasAddon('growth_curves')`. Selector de sexo biológico en tab Datos. API `/api/patients/[id]/anthropometry`. Migración 092
 
 ### Pendiente / Por Mejorar
+- [x] **Facturación electrónica SUNAT vía Nubefact (MVP)** — v0.13.0. Wizard de conexión en Settings → Integraciones (sandbox + producción), emisión de Boletas y Facturas desde el sidebar de cita con datos pre-llenados, IGV calculado correctamente (precio del catálogo tratado como incluido), envío automático del PDF por email, card del comprobante emitido vinculado a la cita. Soporta **pagos parciales / anticipos**: si la cita tiene pago < total, el modal ofrece radio "Pagado / Total" y reescala los items proporcionalmente. Tablas: `einvoice_configs`, `einvoice_series`, `einvoices`, `einvoice_line_items`. Migraciones 108 + 109. Provider abstracto en `lib/einvoice/` (Nubefact implementado, abierto a más). Pendientes post-pilot: notas de crédito, dashboard de comprobantes emitidos, rollback automático del correlativo en errores no-retryables.
 - [ ] Impresión de recibo/comprobante (F3) — Requiere evaluar formato legal Perú (SUNAT)
 - [ ] Confirmación de cita desde email 1-click (F4) — Token seguro temporal
 - [ ] WhatsApp Business API (F6 Fase 2) — Envío automático vía Twilio/360dialog
@@ -640,7 +641,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [ ] Portal del paciente (F14)
 - [ ] Reportes con IA generativa (F15)
 - [ ] App móvil o PWA
-- [ ] Facturación electrónica SUNAT
+- [x] Facturación electrónica SUNAT — entregado MVP en v0.13.0 con Nubefact (boleta/factura desde la cita, pagos parciales con reescalado proporcional). Ver detalle más arriba en "Completado".
 - [ ] Add-ons de plan (UI frontend para comprar extras desde el panel)
 - [ ] Bloqueo de usuario desactivado (modal "Su usuario ha sido desactivado")
 - [ ] Tests automatizados (unit, integration, e2e)
@@ -1288,7 +1289,7 @@ MP_TEST_PAYER_EMAIL=      # Email del comprador de prueba MP (solo test mode)
 - **V1.1:** WhatsApp CRM (chat directo, tipo Leadsales)
 - **V1.2:** UTM Attribution (tracking automático de fuente de citas desde campañas Meta)
 - **V1.3:** Mensajes masivos WhatsApp API (marketing automation)
-- **V1.4:** Boletas/Facturas SUNAT (Nubefact o similar)
+- ~~**V1.4:** Boletas/Facturas SUNAT (Nubefact o similar)~~ → Adelantado a v0.13.0 (entregado, MVP funcional con Nubefact)
 - **V2.0:** IA avanzada (resúmenes automáticos, sugerencias diagnóstico, analytics predictivo)
 
 ---

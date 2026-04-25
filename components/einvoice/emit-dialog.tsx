@@ -20,6 +20,7 @@ import {
   ExternalLink,
   CheckCircle2,
   AlertCircle,
+  Mail,
 } from "lucide-react";
 import {
   Dialog,
@@ -44,6 +45,20 @@ interface AppointmentForEmit {
   appointment_date: string;
   start_time: string;
   einvoice_id?: string | null;
+  /**
+   * Total amount the patient owes for this appointment after discounts.
+   * Used to detect partial payments and offer the "billing mode" radio.
+   * Falls back to price_snapshot if not provided.
+   */
+  total_price?: number | null;
+  /**
+   * Sum of payments registered against this appointment so far.
+   * If `amount_paid > 0 && amount_paid < total_price`, the dialog
+   * pre-selects "billing mode = paid" and rescales item prices
+   * proportionally to that amount (so the boleta reflects exactly
+   * what the patient has paid — see TICKET in COMING-UPDATES).
+   */
+  amount_paid?: number | null;
 }
 
 interface PatientFiscal {
@@ -130,6 +145,13 @@ export function EInvoiceEmitDialog({
 
   // Items
   const [items, setItems] = useState<EditableItem[]>([]);
+  // Snapshot of the items as loaded from the appointment — used as the
+  // baseline when toggling billingMode between "total" and "paid".
+  const [originalItems, setOriginalItems] = useState<EditableItem[]>([]);
+
+  // Billing mode: emit for the total of the appointment, or only for the
+  // amount actually paid so far (partial payment / advance).
+  const [billingMode, setBillingMode] = useState<"total" | "paid">("total");
 
   // Discount + observations
   const [discount, setDiscount] = useState(0);
@@ -169,6 +191,40 @@ export function EInvoiceEmitDialog({
     const def = candidates.find((s) => s.is_default) ?? candidates[0];
     setSelectedSeries(def.series);
   }, [docType, series]);
+
+  // Apply / revert the proportional rescale when billingMode toggles.
+  // We rescale from the baseline (originalItems) on every transition so
+  // toggling paid → total → paid doesn't accumulate the suffix or drift.
+  // Note: this fires only when billingMode/originalItems/amount_paid change,
+  // NOT on each item edit, so manual price edits made AFTER selecting a
+  // mode are preserved.
+  useEffect(() => {
+    if (originalItems.length === 0) return;
+    if (billingMode === "total") {
+      setItems(originalItems);
+      return;
+    }
+    const amountPaid = appointment.amount_paid ?? 0;
+    const sumBaseline = originalItems.reduce(
+      (sum, it) => sum + it.quantity * it.unit_price,
+      0
+    );
+    if (sumBaseline <= 0 || amountPaid <= 0) {
+      setItems(originalItems);
+      return;
+    }
+    const factor = amountPaid / sumBaseline;
+    const PARTIAL_TAG = " (pago parcial)";
+    setItems(
+      originalItems.map((it) => ({
+        ...it,
+        unit_price: round2(it.unit_price * factor),
+        description: it.description.endsWith(PARTIAL_TAG)
+          ? it.description
+          : `${it.description}${PARTIAL_TAG}`,
+      }))
+    );
+  }, [billingMode, originalItems, appointment.amount_paid]);
 
   // Load patient + service fiscal data when dialog opens
   useEffect(() => {
@@ -224,7 +280,7 @@ export function EInvoiceEmitDialog({
       // Default item from appointment service. price_snapshot is treated
       // as the FINAL price (with IGV included) — clinic catalog convention.
       const price = appointment.price_snapshot ?? 0;
-      setItems([
+      const baseline: EditableItem[] = [
         {
           description: appointment.service_name ?? "Servicio",
           quantity: 1,
@@ -234,7 +290,17 @@ export function EInvoiceEmitDialog({
           unit_of_measure: serviceFiscal?.unit_of_measure ?? "ZZ",
           sunat_product_code: serviceFiscal?.sunat_product_code ?? undefined,
         },
-      ]);
+      ];
+      setOriginalItems(baseline);
+      setItems(baseline);
+
+      // Pre-select billingMode based on the appointment's payment state.
+      // Partial = paid > 0 AND paid < total. The toggle effect below will
+      // rescale the items down to amount_paid when "paid" is active.
+      const totalPrice = appointment.total_price ?? price;
+      const amountPaid = appointment.amount_paid ?? 0;
+      const isPartial = amountPaid > 0 && amountPaid < totalPrice;
+      setBillingMode(isPartial ? "paid" : "total");
 
       setDiscount(0);
       setObservations("");
@@ -443,7 +509,15 @@ export function EInvoiceEmitDialog({
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {result?.ok ? (
-            <SuccessPanel result={result} sandbox={config.mode === "sandbox"} />
+            <SuccessPanel
+              result={result}
+              sandbox={config.mode === "sandbox"}
+              sentToEmail={
+                sendEmail && customerEmail.trim()
+                  ? customerEmail.trim()
+                  : null
+              }
+            />
           ) : (
             <>
               {/* Doc type + series */}
@@ -485,6 +559,48 @@ export function EInvoiceEmitDialog({
                   </select>
                 </div>
               </div>
+
+              {/* Billing mode (only when there's a partial payment) */}
+              {(() => {
+                const totalPrice =
+                  appointment.total_price ?? appointment.price_snapshot ?? 0;
+                const amountPaid = appointment.amount_paid ?? 0;
+                if (amountPaid <= 0 || amountPaid >= totalPrice) return null;
+                const pending = round2(totalPrice - amountPaid);
+                return (
+                  <fieldset className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
+                    <legend className="text-xs font-semibold px-2 text-amber-700 dark:text-amber-300 uppercase">
+                      Pago parcial detectado
+                    </legend>
+                    <div className="text-xs text-muted-foreground">
+                      El paciente pagó{" "}
+                      <b className="text-foreground">
+                        {config.default_currency} {fmt(amountPaid)}
+                      </b>{" "}
+                      de{" "}
+                      <b className="text-foreground">
+                        {config.default_currency} {fmt(totalPrice)}
+                      </b>
+                      . Quedan pendientes {config.default_currency}{" "}
+                      {fmt(pending)}. Elegí por qué monto emitir esta boleta:
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <BillingModeChip
+                        active={billingMode === "paid"}
+                        onClick={() => setBillingMode("paid")}
+                        title={`Por monto pagado (${config.default_currency} ${fmt(amountPaid)})`}
+                        subtitle="Recomendado — emite otra boleta cuando complete el saldo"
+                      />
+                      <BillingModeChip
+                        active={billingMode === "total"}
+                        onClick={() => setBillingMode("total")}
+                        title={`Por total (${config.default_currency} ${fmt(totalPrice)})`}
+                        subtitle="Solo si vas a cobrar el saldo en efectivo sin boleta"
+                      />
+                    </div>
+                  </fieldset>
+                );
+              })()}
 
               {/* Customer */}
               <fieldset className="rounded-xl border border-border/60 p-4 space-y-3">
@@ -756,6 +872,7 @@ export function EInvoiceEmitDialog({
 function SuccessPanel({
   result,
   sandbox,
+  sentToEmail,
 }: {
   result: {
     ok: true;
@@ -767,6 +884,7 @@ function SuccessPanel({
     sunatAccepted?: boolean;
   };
   sandbox: boolean;
+  sentToEmail: string | null;
 }) {
   return (
     <div className="space-y-4">
@@ -786,6 +904,22 @@ function SuccessPanel({
         </div>
       </div>
 
+      {sentToEmail && (
+        <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 flex items-start gap-2 text-xs">
+          <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+          <div className="flex-1">
+            <span className="text-muted-foreground">Comprobante enviado a </span>
+            <span className="font-medium text-foreground break-all">
+              {sentToEmail}
+            </span>
+            <span className="text-muted-foreground">
+              {" "}
+              — Nubefact entrega el PDF en minutos.
+            </span>
+          </div>
+        </div>
+      )}
+
       {result.pdfUrl && (
         <a
           href={result.pdfUrl}
@@ -798,6 +932,36 @@ function SuccessPanel({
         </a>
       )}
     </div>
+  );
+}
+
+function BillingModeChip({
+  active,
+  onClick,
+  title,
+  subtitle,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`text-left rounded-lg border px-3 py-2 transition-colors ${
+        active
+          ? "border-primary bg-primary/10"
+          : "border-border bg-background hover:bg-accent"
+      }`}
+    >
+      <div className={`text-sm font-medium ${active ? "text-primary" : ""}`}>
+        {title}
+      </div>
+      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">
+        {subtitle}
+      </div>
+    </button>
   );
 }
 
