@@ -204,9 +204,12 @@ export function InvoiceCard({ einvoiceId }: Props) {
           </LinkButton>
         )}
 
-        {/* Credit note (only on boleta/factura, accepted, not already cancelled) */}
+        {/* Credit note — visible on boletas/facturas in any "live" state
+            (accepted by SUNAT or still in flight as 'sending'). Hidden on
+            already-cancelled comprobantes and on rejected/error ones (no
+            sense in NC'ing something SUNAT never accepted). */}
         {(invoice.doc_type === 1 || invoice.doc_type === 2) &&
-          invoice.status === "accepted" &&
+          (invoice.status === "accepted" || invoice.status === "sending") &&
           !invoice.cancelled_at && (
             <button
               onClick={() => setCreditNoteOpen(true)}

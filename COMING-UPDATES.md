@@ -261,6 +261,12 @@ Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vit
     - **Validación backend de `customer_address` para facturas / RUC** (Zod superRefine, defense-in-depth).
     - **Atomic UPDATE+RETURNING en correlativo** vía RPC `reserve_einvoice_correlative` (migración 110). Postgres lockea la row hasta commit, dos emisiones concurrentes serializan limpio.
     - **Dashboard `/facturacion`** admin-only con KPIs (monto emitido, pendientes SUNAT, rechazados/anulados), filtros (período, tipo, estado, serie, búsqueda libre), tabla con drawer de detalle y links a PDF / XML / CDR / Nubefact.
+  - 🧭 **Estrategia plataforma — YendaFact** (decisión pendiente, ver `docs/yendafact-strategy.md`):
+    - **Camino D recomendado para corto plazo (3-6 meses):** white-label de Nubefact bajo marca "YendaFact". Negociar pricing volumétrico + branding propio. ~1-2 semanas de dev, riesgo ~0.
+    - **Camino A opcional (1 día):** spike técnico de motor SUNAT propio en sandbox `e-beta.sunat.gob.pe`. R&D, no producción. Sirve para arsenal de negociación y conocimiento.
+    - **Camino B (12-18 meses):** motor propio + homologación SUNAT en paralelo (3-6 meses calendario humano). Cuando Yenda tenga 100+ clientes facturando.
+    - **Camino C (24+ meses):** adquisición de PSE existente para saltar homologación. ~USD 50-150K + cartera incluida.
+    - Pricing referencia Nubefact al 2026-04-25: S/70/mes con 500 docs incluidos. Punto de equilibrio para construir propio: ~300-500 clientes activos.
   - ⏳ **Deuda mayor** (post-v0.14):
     - Mapeo SUNAT explícito de métodos de pago en `Settings → Catálogos` (`sunat_payment_code` per-org). Hoy heurístico cubre 95%; el override manual es para clínicas con contador estricto.
     - Tipo "Anticipo" SUNAT (catálogo 12) con referencia al comprobante final por el saldo — alternativa contablemente más fina al reescalado proporcional actual. Levantar solo si una clínica grande lo pide.
