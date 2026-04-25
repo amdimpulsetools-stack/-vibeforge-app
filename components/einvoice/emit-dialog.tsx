@@ -81,7 +81,13 @@ interface Props {
 interface EditableItem {
   description: string;
   quantity: number;
-  unit_value: number;
+  /**
+   * Unit price WITH IGV included — what the patient actually pays per unit.
+   * For Peruvian clinics this is the catalog price (services.base_price).
+   * Internal calculations split this into subtotal (without IGV) + IGV
+   * before sending to Nubefact, since SUNAT requires the breakdown.
+   */
+  unit_price: number;
   igv_affectation: number;
   service_id: string | null;
   unit_of_measure: string;
@@ -215,13 +221,14 @@ export function EInvoiceEmitDialog({
         setCustomerEmail("");
       }
 
-      // Default item from appointment service
+      // Default item from appointment service. price_snapshot is treated
+      // as the FINAL price (with IGV included) — clinic catalog convention.
       const price = appointment.price_snapshot ?? 0;
       setItems([
         {
           description: appointment.service_name ?? "Servicio",
           quantity: 1,
-          unit_value: price,
+          unit_price: price,
           igv_affectation: serviceFiscal?.igv_affectation ?? 1,
           service_id: appointment.service_id,
           unit_of_measure: serviceFiscal?.unit_of_measure ?? "ZZ",
@@ -239,6 +246,13 @@ export function EInvoiceEmitDialog({
   }, [open, appointment, config]);
 
   // ── Live totals ────────────────────────────────────────────────────────
+  // The user enters `unit_price` WITH IGV included (the price the patient
+  // actually pays). We back out the SUNAT-required breakdown:
+  //   - For taxed items: subtotal = unit_price / (1 + IGV%)
+  //                      igv = unit_price - subtotal
+  //   - For exempt/unaffected: subtotal = unit_price; igv = 0
+  // The total stays equal to sum(quantity * unit_price) − discount, which
+  // is the figure the patient sees and pays.
   const totals = useMemo(() => {
     const igvFactor = Number(config.default_igv_percent) / 100;
     let subtotalTaxed = 0;
@@ -247,16 +261,22 @@ export function EInvoiceEmitDialog({
     let igvAmount = 0;
     let total = 0;
     for (const it of items) {
-      const sub = round2(it.quantity * it.unit_value);
       const isTaxed = it.igv_affectation === 1;
-      const itemIgv = isTaxed ? round2(sub * igvFactor) : 0;
-      const itemTotal = round2(sub + itemIgv);
-      if (isTaxed) subtotalTaxed += sub;
-      else if (it.igv_affectation === 8) subtotalExempt += sub;
+      // Per-unit breakdown
+      const unitSubtotal = isTaxed
+        ? round2(it.unit_price / (1 + igvFactor))
+        : round2(it.unit_price);
+      const unitIgv = isTaxed ? round2(it.unit_price - unitSubtotal) : 0;
+      // Line totals
+      const lineSubtotal = round2(unitSubtotal * it.quantity);
+      const lineIgv = round2(unitIgv * it.quantity);
+      const lineTotal = round2(lineSubtotal + lineIgv);
+      if (isTaxed) subtotalTaxed += lineSubtotal;
+      else if (it.igv_affectation === 8) subtotalExempt += lineSubtotal;
       else if (it.igv_affectation === 9 || it.igv_affectation === 12)
-        subtotalUnaffected += sub;
-      igvAmount += itemIgv;
-      total += itemTotal;
+        subtotalUnaffected += lineSubtotal;
+      igvAmount += lineIgv;
+      total += lineTotal;
     }
     return {
       subtotalTaxed: round2(subtotalTaxed),
@@ -287,7 +307,7 @@ export function EInvoiceEmitDialog({
       (it) =>
         it.description.trim().length > 0 &&
         it.quantity > 0 &&
-        it.unit_value >= 0
+        it.unit_price >= 0
     );
   const seriesValid = selectedSeries.length === 4;
 
@@ -300,7 +320,7 @@ export function EInvoiceEmitDialog({
       {
         description: "",
         quantity: 1,
-        unit_value: 0,
+        unit_price: 0,
         igv_affectation: 1,
         service_id: null,
         unit_of_measure: "ZZ",
@@ -339,11 +359,12 @@ export function EInvoiceEmitDialog({
           invoice_discount: discount,
           observations: observations.trim() || null,
           send_to_customer_email: sendEmail,
+          // Send unit_price (with IGV) — the route does the breakdown.
           items: items.map((it) => ({
             service_id: it.service_id,
             description: it.description,
             quantity: it.quantity,
-            unit_value: it.unit_value,
+            unit_price: it.unit_price,
             igv_affectation: it.igv_affectation,
             unit_of_measure: it.unit_of_measure,
             sunat_product_code: it.sunat_product_code,
@@ -580,11 +601,12 @@ export function EInvoiceEmitDialog({
                     <input
                       type="number"
                       step="0.01"
-                      value={it.unit_value}
+                      value={it.unit_price}
                       onChange={(e) =>
-                        updateItem(i, "unit_value", Number(e.target.value))
+                        updateItem(i, "unit_price", Number(e.target.value))
                       }
-                      placeholder="V. unit (sin IGV)"
+                      placeholder="Precio (con IGV)"
+                      title="Precio unitario con IGV incluido — lo que paga el paciente"
                       className="col-span-4 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
                     />
                     <select

@@ -37,7 +37,10 @@ const itemSchema = z.object({
   service_id: z.string().uuid().optional().nullable(),
   description: z.string().min(1).max(250),
   quantity: z.coerce.number().positive(),
-  unit_value: z.coerce.number().min(0),  // sin IGV
+  // Per-unit price WITH IGV included — what the patient pays per unit.
+  // Convention for clinics: catalog prices are final prices. The route
+  // splits this into subtotal (sin IGV) + IGV before sending to Nubefact.
+  unit_price: z.coerce.number().min(0),
   igv_affectation: z.coerce.number().int().min(1),
   internal_code: z.string().max(15).optional(),
   sunat_product_code: z.string().max(15).optional(),
@@ -154,18 +157,26 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 2) Compute totals from items ──────────────────────────────────────
+  // unit_price comes WITH IGV included (catalog convention). We split it:
+  //   - Taxed:  unitValue = unit_price / (1 + IGV%); igv = unit_price - unitValue
+  //   - Else:   unitValue = unit_price; igv = 0
+  // Nubefact's API requires both `valor_unitario` (sin IGV) and
+  // `precio_unitario` (con IGV) — so we send both.
   const igvFactor = data.igv_percent / 100;
   const lineItems: InvoiceLineItem[] = data.items.map((it) => {
-    const subtotal = round2(it.quantity * it.unit_value);
-    const isTaxed = it.igv_affectation === 1;  // gravado
-    const igvAmount = isTaxed ? round2(subtotal * igvFactor) : 0;
+    const isTaxed = it.igv_affectation === 1; // gravado
+    const unitValue = isTaxed
+      ? round2(it.unit_price / (1 + igvFactor))
+      : round2(it.unit_price);
+    const unitIgv = isTaxed ? round2(it.unit_price - unitValue) : 0;
+    const subtotal = round2(unitValue * it.quantity);
+    const igvAmount = round2(unitIgv * it.quantity);
     const total = round2(subtotal + igvAmount);
-    const unitPrice = it.quantity > 0 ? round2(total / it.quantity) : 0;
     return {
       description: it.description,
       quantity: it.quantity,
-      unitValue: it.unit_value,
-      unitPrice,
+      unitValue,
+      unitPrice: round2(it.unit_price),
       subtotal,
       igvAffectation: it.igv_affectation as IgvAffectationCode,
       igvAmount,
