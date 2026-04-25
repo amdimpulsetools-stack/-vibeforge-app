@@ -34,6 +34,7 @@ import {
   Headphones,
   FlaskConical,
   BookOpen,
+  Receipt,
   type LucideIcon,
 } from "lucide-react";
 
@@ -90,6 +91,7 @@ const navSections: NavSection[] = [
     adminOnly: true,
     entries: [
       { titleKey: "nav.reports", href: "/reports", icon: BarChart3, adminOnly: true },
+      { titleKey: "nav.facturacion", href: "/facturacion", icon: Receipt, adminOnly: true },
     ],
   },
   {
