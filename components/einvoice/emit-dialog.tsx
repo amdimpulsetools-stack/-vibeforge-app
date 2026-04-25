@@ -393,19 +393,42 @@ export function EInvoiceEmitDialog({
       : BANCARIZACION_THRESHOLD_PEN;
 
   // ── Validation ─────────────────────────────────────────────────────────
-  const customerValid = (() => {
-    if (!customerName.trim()) return false;
-    if (customerDocType === "-") return true;
-    if (customerDocType === "1") return /^\d{8}$/.test(customerDocNumber);
-    if (customerDocType === "6") {
-      return (
-        /^\d{11}$/.test(customerDocNumber) &&
-        customerName.trim().length > 0 &&
-        customerAddress.trim().length > 0
-      );
+  // Produce per-field error messages so the UI can show inline why the
+  // emit button is disabled, instead of leaving the user guessing.
+  // Each rule maps to a specific message; a null entry means "ok".
+  const customerDocError: string | null = (() => {
+    if (customerDocType === "-") return null;
+    const num = customerDocNumber.trim();
+    if (!num) return "Ingresa el número de documento.";
+    if (customerDocType === "1") {
+      if (!/^\d+$/.test(num)) return "El DNI debe contener solo dígitos.";
+      if (num.length !== 8)
+        return `El DNI debe tener 8 dígitos. Recibido: ${num.length} (${num}).`;
+      return null;
     }
-    return customerDocNumber.trim().length > 0;
+    if (customerDocType === "6") {
+      if (!/^\d+$/.test(num)) return "El RUC debe contener solo dígitos.";
+      if (num.length !== 11)
+        return `El RUC debe tener 11 dígitos. Recibido: ${num.length}.`;
+      return null;
+    }
+    if (customerDocType === "4" || customerDocType === "7") {
+      if (num.length < 4 || num.length > 15)
+        return "El documento debe tener entre 4 y 15 caracteres.";
+      return null;
+    }
+    return null;
   })();
+  const customerNameError: string | null = !customerName.trim()
+    ? "Ingresa el nombre o razón social del cliente."
+    : null;
+  const customerAddressError: string | null =
+    customerDocType === "6" && !customerAddress.trim()
+      ? "La dirección fiscal es obligatoria para clientes con RUC."
+      : null;
+  const customerValid =
+    !customerDocError && !customerNameError && !customerAddressError;
+
   const itemsValid =
     items.length > 0 &&
     items.every(
@@ -414,9 +437,24 @@ export function EInvoiceEmitDialog({
         it.quantity > 0 &&
         it.unit_price >= 0
     );
+  const itemsError: string | null = !itemsValid
+    ? "Cada ítem necesita descripción, cantidad > 0 y precio ≥ 0."
+    : null;
+
   const seriesValid = selectedSeries.length === 4;
+  const seriesError: string | null = !seriesValid
+    ? "Selecciona una serie válida (4 caracteres)."
+    : null;
 
   const formValid = customerValid && itemsValid && seriesValid;
+  // Compose the disabled-button reason for the tooltip / hint.
+  const blockingReason =
+    customerDocError ||
+    customerNameError ||
+    customerAddressError ||
+    itemsError ||
+    seriesError ||
+    null;
 
   // ── Item ops ───────────────────────────────────────────────────────────
   const addItem = () =>
@@ -678,7 +716,11 @@ export function EInvoiceEmitDialog({
                         setCustomerDocNumber(e.target.value.replace(/\s/g, ""))
                       }
                       disabled={customerDocType === "-"}
-                      className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm font-mono disabled:opacity-50"
+                      className={`w-full rounded-lg border bg-background px-3 py-1.5 text-sm font-mono disabled:opacity-50 ${
+                        customerDocError
+                          ? "border-rose-500/60 focus:ring-rose-500/40"
+                          : "border-input"
+                      }`}
                       placeholder={
                         customerDocType === "1"
                           ? "12345678"
@@ -687,6 +729,11 @@ export function EInvoiceEmitDialog({
                             : ""
                       }
                     />
+                    {customerDocError && (
+                      <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">
+                        {customerDocError}
+                      </p>
+                    )}
                   </div>
                 </div>
 
@@ -697,8 +744,17 @@ export function EInvoiceEmitDialog({
                   <input
                     value={customerName}
                     onChange={(e) => setCustomerName(e.target.value)}
-                    className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                    className={`w-full rounded-lg border bg-background px-3 py-1.5 text-sm ${
+                      customerNameError
+                        ? "border-rose-500/60 focus:ring-rose-500/40"
+                        : "border-input"
+                    }`}
                   />
+                  {customerNameError && (
+                    <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">
+                      {customerNameError}
+                    </p>
+                  )}
                 </div>
 
                 {customerDocType === "6" && (
@@ -709,8 +765,17 @@ export function EInvoiceEmitDialog({
                     <input
                       value={customerAddress}
                       onChange={(e) => setCustomerAddress(e.target.value)}
-                      className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm"
+                      className={`w-full rounded-lg border bg-background px-3 py-1.5 text-sm ${
+                        customerAddressError
+                          ? "border-rose-500/60 focus:ring-rose-500/40"
+                          : "border-input"
+                      }`}
                     />
+                    {customerAddressError && (
+                      <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1">
+                        {customerAddressError}
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -924,14 +989,22 @@ export function EInvoiceEmitDialog({
               >
                 Cancelar
               </button>
-              <button
-                onClick={handleEmit}
-                disabled={emitting || !formValid}
-                className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
-              >
-                {emitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                Emitir{isFactura ? " factura" : " boleta"}
-              </button>
+              <div className="flex flex-col items-end gap-1">
+                {!formValid && blockingReason && (
+                  <p className="text-[11px] text-rose-600 dark:text-rose-400 max-w-xs text-right leading-tight">
+                    {blockingReason}
+                  </p>
+                )}
+                <button
+                  onClick={handleEmit}
+                  disabled={emitting || !formValid}
+                  title={!formValid ? blockingReason ?? "Completa los campos requeridos" : undefined}
+                  className="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity"
+                >
+                  {emitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Emitir{isFactura ? " factura" : " boleta"}
+                </button>
+              </div>
             </>
           )}
         </div>
