@@ -20,10 +20,8 @@ import {
   FileText,
   FileCode,
   FileCheck,
-  Ban,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { EInvoiceCreditNoteDialog } from "./credit-note-dialog";
 
 interface Props {
   einvoiceId: string;
@@ -61,23 +59,6 @@ const DOC_LABEL: Record<number, string> = {
 export function InvoiceCard({ einvoiceId }: Props) {
   const [invoice, setInvoice] = useState<InvoiceRow | null>(null);
   const [loading, setLoading] = useState(true);
-  const [creditNoteOpen, setCreditNoteOpen] = useState(false);
-
-  const load = async () => {
-    setLoading(true);
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("einvoices")
-      .select(
-        "id, doc_type, series, number, status, customer_name, customer_doc_number, " +
-          "total, currency, pdf_url, xml_url, cdr_url, provider_link, " +
-          "sunat_accepted, sunat_description, cancelled_at, cancellation_reason, last_error, issued_at"
-      )
-      .eq("id", einvoiceId)
-      .maybeSingle();
-    setInvoice((data as unknown as InvoiceRow) ?? null);
-    setLoading(false);
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -203,34 +184,13 @@ export function InvoiceCard({ einvoiceId }: Props) {
             Abrir
           </LinkButton>
         )}
-
-        {/* Credit note — visible on boletas/facturas in any "live" state
-            (accepted by SUNAT or still in flight as 'sending'). Hidden on
-            already-cancelled comprobantes and on rejected/error ones (no
-            sense in NC'ing something SUNAT never accepted). */}
-        {(invoice.doc_type === 1 || invoice.doc_type === 2) &&
-          (invoice.status === "accepted" || invoice.status === "sending") &&
-          !invoice.cancelled_at && (
-            <button
-              onClick={() => setCreditNoteOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/5 text-amber-700 dark:text-amber-400 px-3 py-1.5 text-xs font-medium hover:bg-amber-500/15 transition-colors"
-            >
-              <Ban className="h-3.5 w-3.5" />
-              Anular / Nota de crédito
-            </button>
-          )}
       </div>
 
-      <EInvoiceCreditNoteDialog
-        open={creditNoteOpen}
-        onOpenChange={setCreditNoteOpen}
-        einvoiceId={invoice.id}
-        onEmitted={() => {
-          // Refresh invoice state — if reason was anulación/devolución
-          // total, the original is now status=cancelled.
-          void load();
-        }}
-      />
+      {/* Anular / Nota de crédito vive solo en /facturacion (drawer del
+          dashboard). Razones para no duplicarlo aquí: (1) menos clutter
+          en el sidebar de cita — anular es operación administrativa, no
+          flujo principal; (2) el dashboard tiene contexto completo
+          (todos los comprobantes filtrables) para decidir qué anular. */}
     </div>
   );
 }
