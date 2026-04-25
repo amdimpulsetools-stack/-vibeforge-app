@@ -37,6 +37,7 @@ import {
   ExternalLink,
   AlertTriangle,
   Receipt,
+  Info,
 } from "lucide-react";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
@@ -1304,8 +1305,14 @@ export function AppointmentSidebar({
               </div>
             )}
 
-            {/* Discount controls — hidden entirely when org disabled the feature */}
-            {grossPrice > 0 && !editing && discountsEnabled && (
+            {/* Discount controls — hidden entirely when org disabled the feature.
+                Locked to read-only once payments exist: applying a discount
+                AFTER a cobro/comprobante distorts the contable trail (the
+                emitted boleta would no longer match the agreed price).
+                For post-cobro adjustments the correct path is a credit
+                note (motivo SUNAT 09 — disminución de valor), accessible
+                from the einvoice card. */}
+            {grossPrice > 0 && !editing && discountsEnabled && totalPaid === 0 && (
               <DiscountControls
                 appointmentId={appointment.id}
                 grossPrice={grossPrice}
@@ -1317,6 +1324,20 @@ export function AppointmentSidebar({
                 onChange={onUpdate}
                 allowCodes={allowDiscountCodes}
               />
+            )}
+            {grossPrice > 0 && !editing && discountsEnabled && totalPaid > 0 && (
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-[11px] text-muted-foreground leading-relaxed flex items-start gap-2">
+                <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                <span>
+                  El descuento ya no es editable porque la cita tiene pagos
+                  registrados. Para ajustar el monto, emite una{" "}
+                  <span className="font-medium text-foreground">
+                    nota de crédito
+                  </span>
+                  {" "}desde la card del comprobante (motivo SUNAT 09 —
+                  disminución de valor).
+                </span>
+              </div>
             )}
 
             {/* Progress bar */}

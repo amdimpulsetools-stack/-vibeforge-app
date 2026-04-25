@@ -29,6 +29,7 @@ import {
   CheckCircle2,
   Wallet,
   Banknote,
+  Percent,
   Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -125,6 +126,18 @@ export function AppointmentFormModal({
   const [depositMethod, setDepositMethod] = useState("");
   const [depositRef, setDepositRef] = useState("");
 
+  // Descuento aplicado al momento de crear la cita.
+  // Convención: lo aplicamos ACÁ y no en el sidebar cuando ya hay pagos
+  // registrados, porque el orden contable correcto es descuento → cobro
+  // → comprobante. Si se aplica después de un anticipo, el cliente
+  // recibe un comprobante por un monto que ya cambió → te toca emitir
+  // nota de crédito o pelearte con el saldo. El sidebar bloquea la
+  // edición si hay payments y orienta hacia NC en su lugar.
+  const [discountEnabled, setDiscountEnabled] = useState(false);
+  const [discountMode, setDiscountMode] = useState<"percent" | "fixed">("percent");
+  const [discountValue, setDiscountValue] = useState("");
+  const [discountReason, setDiscountReason] = useState("");
+
   // Treatment plan linking — populated after a patient is found.
   // Each entry represents a session pending to be scheduled (no appointment yet).
   const [activePlanSessions, setActivePlanSessions] = useState<Array<{
@@ -175,12 +188,24 @@ export function AppointmentFormModal({
   const serviceModality = (selectedService as any)?.modality as string | undefined;
   const isVirtualService = serviceModality === "virtual" || serviceModality === "both";
 
-  // Auto-set deposit to 50% when service changes
+  // Discount math — kept here so the deposit max stays in sync with the
+  // post-discount total. We round to 2 decimals on the way in to avoid
+  // float-tail noise (e.g. 10% of 33.33 = 3.333000... → 3.33).
+  const discountInputNum = Number(discountValue) || 0;
+  const discountAmountComputed = discountEnabled
+    ? discountMode === "percent"
+      ? Math.round(((servicePrice * Math.min(discountInputNum, 100)) / 100) * 100) / 100
+      : Math.min(Math.max(discountInputNum, 0), servicePrice)
+    : 0;
+  const totalAfterDiscount = Math.max(0, servicePrice - discountAmountComputed);
+
+  // Auto-set deposit to 50% when service changes (or when discount changes,
+  // so the suggested amount stays coherent with the post-discount total).
   useEffect(() => {
-    if (servicePrice > 0) {
-      setDepositAmount((servicePrice * 0.5).toFixed(2));
+    if (totalAfterDiscount > 0) {
+      setDepositAmount((totalAfterDiscount * 0.5).toFixed(2));
     }
-  }, [selectedServiceId, servicePrice]);
+  }, [selectedServiceId, totalAfterDiscount]);
 
   const watchedStartTime = watch("start_time");
   const endTime = useMemo(() => {
@@ -565,6 +590,14 @@ export function AppointmentFormModal({
         notes: values.notes || null,
         meeting_url: values.meeting_url || null,
         price_snapshot: priceSnapshot,
+        // Discount captured at creation time — the contable-correct
+        // moment to apply it (before any cobro/comprobante).
+        discount_amount: discountEnabled && discountAmountComputed > 0
+          ? discountAmountComputed
+          : 0,
+        discount_reason: discountEnabled && discountReason.trim()
+          ? discountReason.trim()
+          : null,
         treatment_session_id: planSession?.session_id ?? null,
         organization_id: organizationId,
       } as Record<string, unknown>)
@@ -1141,9 +1174,131 @@ export function AppointmentFormModal({
                   <span className="text-sm font-medium">Total servicio</span>
                 </div>
                 <span className="text-base font-bold text-primary">
-                  S/. {servicePrice.toFixed(2)}
+                  {discountEnabled && discountAmountComputed > 0 ? (
+                    <span className="flex items-baseline gap-2">
+                      <span className="text-xs line-through text-muted-foreground font-normal">
+                        S/. {servicePrice.toFixed(2)}
+                      </span>
+                      <span>S/. {totalAfterDiscount.toFixed(2)}</span>
+                    </span>
+                  ) : (
+                    <>S/. {servicePrice.toFixed(2)}</>
+                  )}
                 </span>
               </div>
+
+              {/* Discount toggle */}
+              <button
+                type="button"
+                onClick={() => setDiscountEnabled((v) => !v)}
+                className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2 text-sm transition-colors hover:bg-accent"
+              >
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Percent className="h-4 w-4" />
+                  Aplicar descuento
+                </span>
+                <div
+                  className={cn(
+                    "relative h-5 w-9 rounded-full transition-colors",
+                    discountEnabled ? "bg-primary" : "bg-muted"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                      discountEnabled && "translate-x-4"
+                    )}
+                  />
+                </div>
+              </button>
+
+              {discountEnabled && (
+                <div className="space-y-3">
+                  {/* Mode toggle: percent / fixed */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setDiscountMode("percent")}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                        discountMode === "percent"
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/60 bg-background text-muted-foreground hover:bg-accent"
+                      )}
+                    >
+                      Porcentaje (%)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscountMode("fixed")}
+                      className={cn(
+                        "rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors",
+                        discountMode === "fixed"
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/60 bg-background text-muted-foreground hover:bg-accent"
+                      )}
+                    >
+                      Monto fijo (S/.)
+                    </button>
+                  </div>
+
+                  {/* Value */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      {discountMode === "percent"
+                        ? "Porcentaje a descontar"
+                        : "Monto a descontar"}
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {discountMode === "fixed" && (
+                        <span className="text-sm font-medium text-muted-foreground">
+                          S/.
+                        </span>
+                      )}
+                      <input
+                        type="number"
+                        value={discountValue}
+                        onChange={(e) => setDiscountValue(e.target.value)}
+                        min="0"
+                        max={discountMode === "percent" ? 100 : servicePrice}
+                        step={discountMode === "percent" ? "1" : "0.50"}
+                        placeholder={discountMode === "percent" ? "10" : "0.00"}
+                        className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                      />
+                      {discountMode === "percent" && (
+                        <span className="text-sm font-medium text-muted-foreground">
+                          %
+                        </span>
+                      )}
+                    </div>
+                    {discountAmountComputed > 0 && (
+                      <p className="text-[11px] text-muted-foreground">
+                        Equivale a{" "}
+                        <span className="font-medium text-foreground">
+                          − S/. {discountAmountComputed.toFixed(2)}
+                        </span>
+                        {" sobre "}
+                        S/. {servicePrice.toFixed(2)}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Reason */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">
+                      Motivo (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={discountReason}
+                      onChange={(e) => setDiscountReason(e.target.value)}
+                      placeholder="Ej. Convenio empresa, paciente recurrente"
+                      maxLength={100}
+                      className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Toggle */}
               <button
@@ -1184,13 +1339,13 @@ export function AppointmentFormModal({
                         value={depositAmount}
                         onChange={(e) => setDepositAmount(e.target.value)}
                         min="0"
-                        max={servicePrice}
+                        max={totalAfterDiscount}
                         step="0.50"
                         className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                       />
                       <button
                         type="button"
-                        onClick={() => setDepositAmount((servicePrice * 0.5).toFixed(2))}
+                        onClick={() => setDepositAmount((totalAfterDiscount * 0.5).toFixed(2))}
                         className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
                       >
                         50%

@@ -351,7 +351,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   ];
 
   return (
-    <div className="w-full border-l border-border bg-card md:w-[420px] lg:w-[480px] shrink-0 flex flex-col overflow-hidden">
+    <div className="w-full border-l border-border bg-card md:w-[480px] lg:w-[580px] shrink-0 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="border-b border-border px-5 py-4">
         <div className="flex items-start justify-between">
