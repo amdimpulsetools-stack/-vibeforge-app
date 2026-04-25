@@ -76,6 +76,21 @@ const bodySchema = z.object({
    * appointment. Mapped to SUNAT Catálogo 59 internally.
    */
   payment_method_label: z.string().max(100).optional().nullable(),
+}).superRefine((data, ctx) => {
+  // SUNAT requires fiscal address on facturas (doc_type=1) and credit/
+  // debit notes that reference a factura. Boletas to consumidor final
+  // can omit it. The wizard already enforces this client-side; this is
+  // defense-in-depth so a crafted request can't slip an empty address.
+  const isFactura = data.doc_type === 1;
+  const isRucCustomer = data.customer_doc_type === "6";
+  if ((isFactura || isRucCustomer) && !data.customer_address?.trim()) {
+    ctx.addIssue({
+      path: ["customer_address"],
+      code: z.ZodIssueCode.custom,
+      message:
+        "La dirección fiscal es obligatoria para facturas y clientes con RUC.",
+    });
+  }
 });
 
 type SeriesRow = {
@@ -133,36 +148,37 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // ── 1) Reserve next correlative ───────────────────────────────────────
-  // We do an UPDATE ... RETURNING that increments current_number atomically.
-  // If two emits race, both get distinct numbers (Postgres locks the row).
-  const { data: seriesData, error: seriesErr } = await admin
-    .from("einvoice_series")
-    .select("id, current_number")
-    .eq("organization_id", orgId)
-    .eq("doc_type", data.doc_type)
-    .eq("series", data.series)
-    .eq("is_active", true)
-    .maybeSingle();
+  // ── 1) Reserve next correlative atomically (RPC, see migration 110) ───
+  // Postgres function `reserve_einvoice_correlative` does
+  //   UPDATE einvoice_series SET current_number = current_number + 1
+  //   WHERE ... RETURNING id, current_number
+  // in a single statement. Row-level locks held by the UPDATE serialize
+  // concurrent emits cleanly: two parallel calls return distinct numbers
+  // (N+1 then N+2) instead of racing on a stale read.
+  const { data: rpcData, error: rpcErr } = await admin.rpc(
+    "reserve_einvoice_correlative",
+    {
+      p_organization_id: orgId,
+      p_doc_type: data.doc_type,
+      p_series: data.series,
+    }
+  );
 
-  if (seriesErr || !seriesData) {
+  if (rpcErr) {
+    return NextResponse.json({ error: rpcErr.message }, { status: 500 });
+  }
+  const rpcRows = rpcData as Array<{ series_id: string; reserved_number: number }> | null;
+  if (!rpcRows || rpcRows.length === 0) {
     return NextResponse.json(
       { error: `Serie ${data.series} no está registrada o no está activa.` },
       { status: 400 }
     );
   }
-
-  const series = seriesData as unknown as SeriesRow;
-  const nextNumber = (series.current_number ?? 0) + 1;
-
-  const { error: bumpErr } = await admin
-    .from("einvoice_series")
-    .update({ current_number: nextNumber })
-    .eq("id", series.id);
-
-  if (bumpErr) {
-    return NextResponse.json({ error: bumpErr.message }, { status: 500 });
-  }
+  const series: SeriesRow = {
+    id: rpcRows[0].series_id,
+    current_number: rpcRows[0].reserved_number,
+  };
+  const nextNumber = rpcRows[0].reserved_number;
 
   // ── 2) Compute totals from items ──────────────────────────────────────
   // unit_price comes WITH IGV included (catalog convention). We split it:
@@ -375,9 +391,26 @@ export async function POST(req: NextRequest) {
     })
     .eq("id", invoiceId);
 
-  // If error code 23 (duplicate) → our local correlative is desynced.
-  // Rollback so the next attempt picks the same number (the user retries).
-  if (errorCode === "23") {
+  // Rollback the reserved correlative when Nubefact rejects in a way
+  // that makes the number "wasted" — the comprobante will never be
+  // emitted with this number, so freeing it lets the next attempt
+  // reuse it.
+  //
+  // Cases that warrant rollback:
+  //   - 23 (duplicate at provider): the correlative is already used at
+  //     Nubefact's side, so our local one is desynced — roll back so
+  //     a retry skips the desynced range.
+  //   - Non-retryable errors (rejected): user has to fix data and emit
+  //     again; the original number is gone forever otherwise (left as a
+  //     phantom gap in the series — exactly the bug we hit going from
+  //     B001 to BBB1 with serie no autorizada).
+  //
+  // Caveat: rollback is best-effort. If between the failed emit and the
+  // retry another emit succeeds, that one will land on N+1 and the
+  // failed-then-retried one ends up as N+2 — totally fine, no gap and
+  // no duplicate.
+  const shouldRollback = errorCode === "23" || newStatus === "rejected";
+  if (shouldRollback) {
     await admin
       .from("einvoice_series")
       .update({ current_number: nextNumber - 1 })
