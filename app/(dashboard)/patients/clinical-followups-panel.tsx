@@ -15,6 +15,11 @@ import {
   Circle,
   Calendar,
 } from "lucide-react";
+import {
+  CLINICAL_PANEL_CTA,
+  CLINICAL_PANEL_CTA_ICON,
+  CLINICAL_PANEL_CTA_VARIANTS,
+} from "@/lib/clinical-ui-tokens";
 
 interface ClinicalFollowupsPanelProps {
   patientId: string;
@@ -147,10 +152,11 @@ export function ClinicalFollowupsPanel({
           {canEdit && doctorId && (
             <button
               onClick={() => setShowForm(!showForm)}
-              className="flex items-center gap-1 rounded-md bg-red-500/10 px-2 py-1 text-[10px] font-medium text-red-600 hover:bg-red-500/20 transition-colors"
+              className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.red)}
+              aria-label="Crear nuevo seguimiento"
             >
-              <Plus className="h-3 w-3" />
-              Nuevo
+              <Plus className={CLINICAL_PANEL_CTA_ICON} />
+              Seguimiento
             </button>
           )}
         </div>
@@ -231,9 +237,18 @@ export function ClinicalFollowupsPanel({
 
       {/* Followups list */}
       {followups.length === 0 && !showForm && (
-        <p className="text-center text-xs text-muted-foreground py-4">
-          Sin seguimientos pendientes
-        </p>
+        <div className="flex flex-col items-center gap-2 py-6 text-center">
+          <p className="text-xs text-muted-foreground">Sin seguimientos pendientes</p>
+          {canEdit && doctorId && (
+            <button
+              onClick={() => setShowForm(true)}
+              className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.red)}
+            >
+              <Plus className={CLINICAL_PANEL_CTA_ICON} />
+              Crear primer seguimiento
+            </button>
+          )}
+        </div>
       )}
 
       {followups.map((fu) => {

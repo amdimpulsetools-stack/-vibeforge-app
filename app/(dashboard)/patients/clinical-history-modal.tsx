@@ -64,7 +64,7 @@ export function ClinicalHistoryModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="w-full max-w-[95vw] md:max-w-5xl max-h-[95vh] md:max-h-[90vh] p-0 gap-0 flex flex-col overflow-hidden [&>button]:hidden">
+      <DialogContent className="w-full max-w-[95vw] md:max-w-5xl xl:max-w-[1480px] 2xl:max-w-[1680px] max-h-[95vh] md:max-h-[92vh] p-0 gap-0 flex flex-col overflow-hidden [&>button]:hidden">
         <DialogDescription className="sr-only">Historia clínica del paciente</DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0">
