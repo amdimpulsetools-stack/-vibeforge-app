@@ -45,18 +45,26 @@ export default function EditDoctorPage() {
   // Schedule data
   const [schedules, setSchedules] = useState<DoctorSchedule[]>([]);
   const [offices, setOffices] = useState<Office[]>([]);
+  const [authorizedOfficeIds, setAuthorizedOfficeIds] = useState<Set<string>>(new Set());
   const [savingSchedule, setSavingSchedule] = useState(false);
 
   const fetchAll = async () => {
     const supabase = createClient();
-    const [doctorRes, servicesRes, doctorServicesRes, schedulesRes, officesRes] =
-      await Promise.all([
-        supabase.from("doctors").select("*").eq("id", id).single(),
-        supabase.from("services").select("*, service_categories(id, name)").eq("is_active", true).order("display_order"),
-        supabase.from("doctor_services").select("service_id").eq("doctor_id", id),
-        supabase.from("doctor_schedules").select("*").eq("doctor_id", id).order("day_of_week").order("start_time"),
-        supabase.from("offices").select("*").eq("is_active", true).order("display_order"),
-      ]);
+    const [
+      doctorRes,
+      servicesRes,
+      doctorServicesRes,
+      schedulesRes,
+      officesRes,
+      doctorOfficesRes,
+    ] = await Promise.all([
+      supabase.from("doctors").select("*").eq("id", id).single(),
+      supabase.from("services").select("*, service_categories(id, name)").eq("is_active", true).order("display_order"),
+      supabase.from("doctor_services").select("service_id").eq("doctor_id", id),
+      supabase.from("doctor_schedules").select("*").eq("doctor_id", id).order("day_of_week").order("start_time"),
+      supabase.from("offices").select("*").eq("is_active", true).order("display_order"),
+      supabase.from("doctor_offices").select("office_id").eq("doctor_id", id),
+    ]);
 
     if (!doctorRes.data) {
       router.push("/admin/doctors");
@@ -70,6 +78,11 @@ export default function EditDoctorPage() {
     );
     setSchedules(schedulesRes.data ?? []);
     setOffices(officesRes.data ?? []);
+    setAuthorizedOfficeIds(
+      new Set(
+        ((doctorOfficesRes.data ?? []) as { office_id: string }[]).map((r) => r.office_id)
+      )
+    );
     setLoading(false);
   };
 
@@ -155,6 +168,7 @@ export default function EditDoctorPage() {
           doctorId={doctor.id}
           schedules={schedules}
           offices={offices}
+          authorizedOfficeIds={authorizedOfficeIds}
           onUpdate={fetchAll}
         />
       )}
@@ -483,11 +497,13 @@ function ScheduleTab({
   doctorId,
   schedules,
   offices,
+  authorizedOfficeIds,
   onUpdate,
 }: {
   doctorId: string;
   schedules: DoctorSchedule[];
   offices: Office[];
+  authorizedOfficeIds: Set<string>;
   onUpdate: () => void;
 }) {
   const { t } = useLanguage();
@@ -501,7 +517,24 @@ function ScheduleTab({
       office_id: s.office_id ?? "",
     }))
   );
+  // Local copy of the doctor's authorized offices. Empty set → "all offices".
+  const [authorized, setAuthorized] = useState<Set<string>>(new Set(authorizedOfficeIds));
   const [saving, setSaving] = useState(false);
+
+  const toggleAuthorized = (officeId: string) => {
+    setAuthorized((prev) => {
+      const next = new Set(prev);
+      if (next.has(officeId)) next.delete(officeId);
+      else next.add(officeId);
+      return next;
+    });
+  };
+  const clearAuthorized = () => setAuthorized(new Set());
+
+  // Offices the user can pick per-block. If the doctor has authorized offices,
+  // we restrict the per-block dropdown to that subset.
+  const officesAvailableForBlocks =
+    authorized.size > 0 ? offices.filter((o) => authorized.has(o.id)) : offices;
 
   const addBlock = () => {
     setBlocks((prev) => [
@@ -526,18 +559,131 @@ function ScheduleTab({
     );
   };
 
+  // Indices of blocks that share (day_of_week, start_time) with another block —
+  // visualized with a red ring and surfaced in the save error.
+  const duplicateIndices = (() => {
+    const seen = new Map<string, number>();
+    const dupes = new Set<number>();
+    blocks.forEach((b, i) => {
+      const key = `${b.day_of_week}|${b.start_time}`;
+      const prev = seen.get(key);
+      if (prev !== undefined) {
+        dupes.add(prev);
+        dupes.add(i);
+      } else {
+        seen.set(key, i);
+      }
+    });
+    return dupes;
+  })();
+
+  // Blocks where end_time <= start_time (would violate the DB CHECK constraint).
+  const invalidRangeIndices = (() => {
+    const bad = new Set<number>();
+    blocks.forEach((b, i) => {
+      if (b.start_time && b.end_time && b.end_time <= b.start_time) bad.add(i);
+    });
+    return bad;
+  })();
+
   const handleSave = async () => {
     if (!organizationId) {
       toast.error("No se encontró la organización. Recarga la página.");
       return;
     }
+
+    // Frontend guard: the DB has UNIQUE(doctor_id, day_of_week, start_time)
+    // and CHECK(end_time > start_time). Catch both before issuing a destructive
+    // delete + failed insert, which previously left the doctor with NO
+    // schedule rows on conflict.
+    if (duplicateIndices.size > 0) {
+      const samples = Array.from(duplicateIndices)
+        .slice(0, 3)
+        .map((i) => {
+          const b = blocks[i];
+          const day = DAYS_OF_WEEK.find((d) => d.value === b.day_of_week)?.label ?? "?";
+          return `${day} ${b.start_time}`;
+        });
+      toast.error(
+        `Hay bloques duplicados (mismo día y hora de inicio): ${samples.join(", ")}. Cambia la hora de inicio o elimina uno.`
+      );
+      return;
+    }
+    if (invalidRangeIndices.size > 0) {
+      toast.error("Hay bloques donde la hora de fin es menor o igual a la de inicio.");
+      return;
+    }
+
+    // Per-block office must be in the authorized set if the doctor has one.
+    if (authorized.size > 0) {
+      const offending = blocks.findIndex(
+        (b) => b.office_id && !authorized.has(b.office_id)
+      );
+      if (offending >= 0) {
+        const offName = offices.find((o) => o.id === blocks[offending].office_id)?.name ?? "?";
+        toast.error(
+          `El bloque #${offending + 1} usa "${offName}" que no está en los consultorios autorizados del doctor.`
+        );
+        return;
+      }
+    }
+
     setSaving(true);
     const supabase = createClient();
 
-    // Delete all existing schedules
-    await supabase.from("doctor_schedules").delete().eq("doctor_id", doctorId);
+    // Snapshot existing schedules and authorized offices so we can restore on
+    // partial failure. Without this, a failed insert after the delete leaves
+    // the doctor with zero rows — the bug the user reported.
+    const [{ data: previousSchedules }, { data: previousOffices }] = await Promise.all([
+      supabase
+        .from("doctor_schedules")
+        .select("doctor_id, day_of_week, start_time, end_time, office_id, organization_id")
+        .eq("doctor_id", doctorId),
+      supabase
+        .from("doctor_offices")
+        .select("doctor_id, office_id, organization_id")
+        .eq("doctor_id", doctorId),
+    ]);
 
-    // Insert new blocks
+    // 1. Replace doctor_offices (authorized list).
+    const { error: doDeleteError } = await supabase
+      .from("doctor_offices")
+      .delete()
+      .eq("doctor_id", doctorId);
+    if (doDeleteError) {
+      toast.error(t("doctors.save_error") + ": " + doDeleteError.message);
+      setSaving(false);
+      return;
+    }
+    if (authorized.size > 0) {
+      const offInserts = Array.from(authorized).map((office_id) => ({
+        doctor_id: doctorId,
+        office_id,
+        organization_id: organizationId,
+      }));
+      const { error: offError } = await supabase.from("doctor_offices").insert(offInserts);
+      if (offError) {
+        // Restore prior list best-effort.
+        if (previousOffices && previousOffices.length > 0) {
+          await supabase.from("doctor_offices").insert(previousOffices);
+        }
+        toast.error(t("doctors.save_error") + ": " + offError.message);
+        setSaving(false);
+        return;
+      }
+    }
+
+    // 2. Replace doctor_schedules.
+    const { error: deleteError } = await supabase
+      .from("doctor_schedules")
+      .delete()
+      .eq("doctor_id", doctorId);
+    if (deleteError) {
+      toast.error(t("doctors.save_error") + ": " + deleteError.message);
+      setSaving(false);
+      return;
+    }
+
     if (blocks.length > 0) {
       const inserts = blocks.map((b) => ({
         doctor_id: doctorId,
@@ -549,7 +695,16 @@ function ScheduleTab({
       }));
       const { error } = await supabase.from("doctor_schedules").insert(inserts);
       if (error) {
-        toast.error(t("doctors.save_error") + ": " + error.message);
+        let restoreNote = "";
+        if (previousSchedules && previousSchedules.length > 0) {
+          const { error: restoreError } = await supabase
+            .from("doctor_schedules")
+            .insert(previousSchedules);
+          restoreNote = restoreError
+            ? " (atención: no se pudo restaurar el horario anterior)"
+            : " (se restauró el horario anterior)";
+        }
+        toast.error(t("doctors.save_error") + ": " + error.message + restoreNote);
         setSaving(false);
         return;
       }
@@ -562,13 +717,70 @@ function ScheduleTab({
 
   return (
     <div className="space-y-6">
+      {/* Authorized offices — global per doctor. Empty = all offices. */}
+      <div className="rounded-xl border border-border bg-card p-6 space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-lg font-semibold">Consultorios autorizados</h3>
+            <p className="text-sm text-muted-foreground">
+              Marca los consultorios donde este doctor puede atender. Si no marcas ninguno, podrá usar cualquier consultorio.
+            </p>
+          </div>
+          {authorized.size > 0 && (
+            <button
+              type="button"
+              onClick={clearAuthorized}
+              className="text-xs font-medium text-muted-foreground hover:text-foreground underline-offset-4 hover:underline"
+            >
+              Permitir todos
+            </button>
+          )}
+        </div>
+
+        {offices.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-4">No hay consultorios activos en la organización.</p>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {offices.map((o) => {
+                const checked = authorized.has(o.id);
+                return (
+                  <label
+                    key={o.id}
+                    className={cn(
+                      "flex items-center gap-3 rounded-lg border bg-background px-3 py-2.5 cursor-pointer transition-colors",
+                      checked
+                        ? "border-primary/60 bg-primary/5"
+                        : "border-border hover:border-muted-foreground/40"
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleAuthorized(o.id)}
+                      className="h-4 w-4 rounded border-input accent-primary"
+                    />
+                    <span className="text-sm font-medium">{o.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {authorized.size === 0
+                ? `Acceso completo: el doctor puede atender en cualquiera de los ${offices.length} consultorios.`
+                : `Restringido a ${authorized.size} de ${offices.length} consultorios.`}
+            </p>
+          </>
+        )}
+      </div>
+
       <div className="rounded-xl border border-border bg-card p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold">{t("doctors.schedule_title")}</h3>
             <p className="text-sm text-muted-foreground">{t("doctors.schedule_desc")}</p>
             <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
-              Seleccione un consultorio específico por bloque para restringir al doctor, o deje &quot;Todos los consultorios&quot; para acceso completo.
+              Selecciona un consultorio específico por bloque para limitarlo a ese turno, o deja &quot;Todos los consultorios autorizados&quot; para usar cualquiera de los marcados arriba.
             </p>
           </div>
           <button
@@ -585,10 +797,19 @@ function ScheduleTab({
         )}
 
         <div className="space-y-3">
-          {blocks.map((block, index) => (
+          {blocks.map((block, index) => {
+            const isDuplicate = duplicateIndices.has(index);
+            const isInvalidRange = invalidRangeIndices.has(index);
+            const hasIssue = isDuplicate || isInvalidRange;
+            return (
             <div
               key={block.id}
-              className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-background p-3"
+              className={cn(
+                "flex flex-wrap items-end gap-3 rounded-lg border bg-background p-3",
+                hasIssue
+                  ? "border-red-500/60 ring-2 ring-red-500/20"
+                  : "border-border"
+              )}
             >
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">
@@ -642,12 +863,24 @@ function ScheduleTab({
                     block.office_id ? "text-foreground" : "text-muted-foreground"
                   )}
                 >
-                  <option value="">Todos los consultorios</option>
-                  {offices.map((o) => (
+                  <option value="">
+                    {authorized.size > 0
+                      ? `Todos los autorizados (${authorized.size})`
+                      : "Todos los consultorios"}
+                  </option>
+                  {officesAvailableForBlocks.map((o) => (
                     <option key={o.id} value={o.id}>
                       {o.name}
                     </option>
                   ))}
+                  {/* Surface a stale value (block points to an office not in
+                       the authorized list) so the user can see and fix it. */}
+                  {block.office_id &&
+                    !officesAvailableForBlocks.some((o) => o.id === block.office_id) && (
+                      <option value={block.office_id}>
+                        {offices.find((o) => o.id === block.office_id)?.name ?? "?"} (no autorizado)
+                      </option>
+                    )}
                 </select>
               </div>
               <button
@@ -656,8 +889,16 @@ function ScheduleTab({
               >
                 <Trash2 className="h-4 w-4" />
               </button>
+              {hasIssue && (
+                <p className="basis-full text-xs font-medium text-red-600 dark:text-red-400">
+                  {isDuplicate
+                    ? "⚠ Duplicado: ya existe otro bloque con el mismo día y hora de inicio."
+                    : "⚠ La hora de fin debe ser mayor que la hora de inicio."}
+                </p>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

@@ -17,6 +17,11 @@ import {
   File,
   Upload,
 } from "lucide-react";
+import {
+  CLINICAL_PANEL_CTA,
+  CLINICAL_PANEL_CTA_ICON,
+  CLINICAL_PANEL_CTA_VARIANTS,
+} from "@/lib/clinical-ui-tokens";
 
 interface ClinicalAttachmentsPanelProps {
   patientId: string;
@@ -50,7 +55,44 @@ export function ClinicalAttachmentsPanel({
   const [showForm, setShowForm] = useState(false);
   const [category, setCategory] = useState<string>("general");
   const [description, setDescription] = useState("");
+  const [dragActive, setDragActive] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const acceptFile = (file: File | null | undefined) => {
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("El archivo supera el límite de 10 MB");
+      return;
+    }
+    setSelectedFile(file);
+    if (fileRef.current) {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      fileRef.current.files = dt.files;
+    }
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(true);
+  };
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  };
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    acceptFile(e.dataTransfer.files?.[0]);
+  };
 
   const fetchAttachments = useCallback(async () => {
     const param = clinicalNoteId
@@ -71,7 +113,7 @@ export function ClinicalAttachmentsPanel({
   }, [fetchAttachments]);
 
   const handleUpload = async () => {
-    const file = fileRef.current?.files?.[0];
+    const file = selectedFile ?? fileRef.current?.files?.[0];
     if (!file) return;
     setUploading(true);
     try {
@@ -92,6 +134,7 @@ export function ClinicalAttachmentsPanel({
         setShowForm(false);
         setCategory("general");
         setDescription("");
+        setSelectedFile(null);
         if (fileRef.current) fileRef.current.value = "";
         fetchAttachments();
       } else {
@@ -152,88 +195,133 @@ export function ClinicalAttachmentsPanel({
             </span>
           )}
         </div>
-        {canEdit && (
+        {canEdit && attachments.length > 0 && (
           <button
             onClick={() => setShowForm(!showForm)}
-            className="flex items-center gap-1 rounded-md bg-orange-500/10 px-2 py-1 text-[10px] font-medium text-orange-600 hover:bg-orange-500/20 transition-colors"
+            className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.orange)}
+            aria-label="Subir nuevo adjunto"
           >
-            <Plus className="h-3 w-3" />
-            Subir
+            <Plus className={CLINICAL_PANEL_CTA_ICON} />
+            Subir archivo
           </button>
         )}
       </div>
 
-      {/* Upload form */}
-      {showForm && (
-        <div className="rounded-lg border border-border bg-card p-3 space-y-2">
+      {/* Upload form — auto-shown when there are no attachments and the user
+           can edit; otherwise toggled via the "Subir archivo" button. */}
+      {canEdit && (showForm || attachments.length === 0) && (
+        <div className="space-y-2">
           <div
             onClick={() => fileRef.current?.click()}
-            className="flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed border-muted-foreground/30 px-3 py-4 hover:border-primary/50 transition-colors"
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                fileRef.current?.click();
+              }
+            }}
+            aria-label="Arrastra un archivo aquí o haz clic para seleccionar"
+            className={cn(
+              "group flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-all",
+              dragActive
+                ? "border-orange-500 bg-orange-500/10"
+                : selectedFile
+                ? "border-emerald-500/50 bg-emerald-500/5"
+                : "border-muted-foreground/25 bg-muted/20 hover:border-orange-500/60 hover:bg-orange-500/5"
+            )}
           >
-            <Upload className="h-5 w-5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
-              {fileRef.current?.files?.[0]?.name || "Haga clic para seleccionar archivo"}
-            </span>
-            <span className="text-[10px] text-muted-foreground/60">Max 10MB</span>
+            <div
+              className={cn(
+                "flex h-12 w-12 items-center justify-center rounded-full transition-colors",
+                dragActive
+                  ? "bg-orange-500/20 text-orange-600 dark:text-orange-400"
+                  : selectedFile
+                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                  : "bg-muted text-muted-foreground group-hover:bg-orange-500/15 group-hover:text-orange-600"
+              )}
+            >
+              <Upload className="h-6 w-6" />
+            </div>
+            {selectedFile ? (
+              <>
+                <p className="text-sm font-semibold text-foreground">{selectedFile.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {formatFileSize(selectedFile.size)} · listo para subir
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-foreground">
+                  {dragActive ? "Suelta el archivo aquí" : "Arrastra un archivo o haz clic para seleccionar"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  PDF, imágenes (JPG/PNG/WebP), DOC, TXT · máx 10 MB
+                </p>
+              </>
+            )}
           </div>
           <input
             ref={fileRef}
             type="file"
             className="hidden"
             accept="image/*,.pdf,.doc,.docx,.txt"
-            onChange={() => {
-              // Force re-render to show selected file name
-              setCategory((c) => c);
-            }}
+            onChange={(e) => acceptFile(e.target.files?.[0])}
           />
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              className="rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              {Object.entries(ATTACHMENT_CATEGORIES).map(([key, cat]) => (
-                <option key={key} value={key}>
-                  {cat.label}
-                </option>
-              ))}
-            </select>
-            <input
-              type="text"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descripción (opcional)"
-              className="rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-          <div className="flex gap-1">
-            <button
-              onClick={handleUpload}
-              disabled={uploading || !fileRef.current?.files?.length}
-              className="flex-1 flex items-center justify-center gap-1 rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {uploading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Upload className="h-3 w-3" />
-              )}
-              Subir
-            </button>
-            <button
-              onClick={() => setShowForm(false)}
-              className="rounded-md border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          </div>
+          {selectedFile && (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="h-9 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
+                >
+                  {Object.entries(ATTACHMENT_CATEGORIES).map(([key, cat]) => (
+                    <option key={key} value={key}>
+                      {cat.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="text"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Descripción (opcional)"
+                  className="h-9 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleUpload}
+                  disabled={uploading}
+                  className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.orange, "flex-1")}
+                >
+                  {uploading ? (
+                    <Loader2 className={CLINICAL_PANEL_CTA_ICON + " animate-spin"} />
+                  ) : (
+                    <Upload className={CLINICAL_PANEL_CTA_ICON} />
+                  )}
+                  Subir archivo
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedFile(null);
+                    if (fileRef.current) fileRef.current.value = "";
+                    if (attachments.length > 0) setShowForm(false);
+                  }}
+                  className="inline-flex h-9 items-center justify-center rounded-md border border-border px-3 text-xs text-muted-foreground hover:bg-accent transition-colors"
+                  aria-label="Cancelar"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </>
+          )}
         </div>
-      )}
-
-      {/* Attachments list */}
-      {attachments.length === 0 && !showForm && (
-        <p className="text-center text-xs text-muted-foreground py-4">
-          Sin adjuntos
-        </p>
       )}
 
       {attachments.map((att) => {
