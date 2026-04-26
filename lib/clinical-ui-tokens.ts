@@ -23,6 +23,7 @@ export const CLINICAL_PANEL_CTA_VARIANTS = {
   cyan: "bg-cyan-500/10 text-cyan-600 hover:bg-cyan-500/20 dark:text-cyan-400",
   blue: "bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 dark:text-blue-400",
   red: "bg-red-500/10 text-red-600 hover:bg-red-500/20 dark:text-red-400",
+  orange: "bg-orange-500/10 text-orange-600 hover:bg-orange-500/20 dark:text-orange-400",
 } as const;
 
 /** Primary save action — used by SOAP form and side-panel forms. */
