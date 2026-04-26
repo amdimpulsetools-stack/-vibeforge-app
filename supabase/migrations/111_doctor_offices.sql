@@ -1,23 +1,23 @@
 -- ============================================================================
--- Migration 111: doctor_offices (consultorios autorizados por doctor)
+-- Migration 111: doctor_offices (authorized offices per doctor)
 -- ============================================================================
 --
--- Problema: hoy `doctor_schedules.office_id` mezcla dos preguntas distintas:
---   1. ¿En qué consultorios puede atender este doctor?  (atributo del doctor)
---   2. ¿En cuál consultorio específico es este turno?    (atributo del bloque)
+-- Problem: doctor_schedules.office_id was mixing two distinct questions:
+--   1) Which offices is this doctor allowed to use? (doctor attribute)
+--   2) Which specific office is this shift held in?  (block attribute)
 --
--- Como resultado, no se puede expresar "la Dra. Ángela atiende en 202 y 203
--- de lunes a viernes 9-13" sin chocar con UNIQUE(doctor_id, day_of_week,
--- start_time): habría dos bloques con la misma combinación.
+-- That made it impossible to express "Dr. Angela works in rooms 202 and 203
+-- Mon-Fri 9-13" without colliding with the UNIQUE(doctor_id, day_of_week,
+-- start_time) constraint, since two blocks would share the same key.
 --
--- Solución: separar la pregunta #1 en su propia tabla `doctor_offices`.
--- - doctor_offices = lista global de consultorios autorizados por doctor.
--- - doctor_schedules.office_id = restricción opcional por turno.
---   · Si NULL → el turno hereda los consultorios autorizados del doctor.
---   · Si NOT NULL → ese turno solo se da en ese consultorio específico.
+-- Fix: split question 1 into its own table doctor_offices.
+--   - doctor_offices = global list of allowed offices per doctor.
+--   - doctor_schedules.office_id stays optional, as a per-shift override.
+--     If NULL, the shift inherits the doctor's authorized offices.
+--     If NOT NULL, that shift is restricted to that specific office.
 --
--- Si un doctor no tiene filas en doctor_offices → "Todos los consultorios"
--- (default permisivo, conserva el comportamiento actual).
+-- A doctor with NO rows in doctor_offices means "all offices" (default
+-- permissive, preserves existing behavior).
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS doctor_offices (
@@ -35,18 +35,21 @@ CREATE INDEX IF NOT EXISTS idx_doctor_offices_org ON doctor_offices(organization
 
 ALTER TABLE doctor_offices ENABLE ROW LEVEL SECURITY;
 
--- RLS — same access pattern as doctor_schedules: members read, admins write.
+-- RLS: same access pattern as doctor_schedules. Members read, admins write.
+DROP POLICY IF EXISTS "org_select_doctor_offices" ON doctor_offices;
 CREATE POLICY "org_select_doctor_offices" ON doctor_offices FOR SELECT
   USING (organization_id IN (SELECT get_user_org_ids()));
 
+DROP POLICY IF EXISTS "org_insert_doctor_offices" ON doctor_offices;
 CREATE POLICY "org_insert_doctor_offices" ON doctor_offices FOR INSERT
   WITH CHECK (is_org_admin(organization_id));
 
+DROP POLICY IF EXISTS "org_delete_doctor_offices" ON doctor_offices;
 CREATE POLICY "org_delete_doctor_offices" ON doctor_offices FOR DELETE
   USING (is_org_admin(organization_id));
 
 -- No UPDATE policy: rows are immutable composites of (doctor_id, office_id).
--- To "edit" the list, delete and re-insert.
+-- To "edit" the list, delete the row and insert a new one.
 
 COMMENT ON TABLE doctor_offices IS
-  'Authorized offices (rooms) per doctor. Empty set → doctor can use any office.';
+  'Authorized offices (rooms) per doctor. Empty set means the doctor can use any office in the org.';
