@@ -526,18 +526,82 @@ function ScheduleTab({
     );
   };
 
+  // Indices of blocks that share (day_of_week, start_time) with another block —
+  // visualized with a red ring and surfaced in the save error.
+  const duplicateIndices = (() => {
+    const seen = new Map<string, number>();
+    const dupes = new Set<number>();
+    blocks.forEach((b, i) => {
+      const key = `${b.day_of_week}|${b.start_time}`;
+      const prev = seen.get(key);
+      if (prev !== undefined) {
+        dupes.add(prev);
+        dupes.add(i);
+      } else {
+        seen.set(key, i);
+      }
+    });
+    return dupes;
+  })();
+
+  // Blocks where end_time <= start_time (would violate the DB CHECK constraint).
+  const invalidRangeIndices = (() => {
+    const bad = new Set<number>();
+    blocks.forEach((b, i) => {
+      if (b.start_time && b.end_time && b.end_time <= b.start_time) bad.add(i);
+    });
+    return bad;
+  })();
+
   const handleSave = async () => {
     if (!organizationId) {
       toast.error("No se encontró la organización. Recarga la página.");
       return;
     }
+
+    // Frontend guard: the DB has UNIQUE(doctor_id, day_of_week, start_time)
+    // and CHECK(end_time > start_time). Catch both before issuing a destructive
+    // delete + failed insert, which previously left the doctor with NO
+    // schedule rows on conflict.
+    if (duplicateIndices.size > 0) {
+      const samples = Array.from(duplicateIndices)
+        .slice(0, 3)
+        .map((i) => {
+          const b = blocks[i];
+          const day = DAYS_OF_WEEK.find((d) => d.value === b.day_of_week)?.label ?? "?";
+          return `${day} ${b.start_time}`;
+        });
+      toast.error(
+        `Hay bloques duplicados (mismo día y hora de inicio): ${samples.join(", ")}. Cambia la hora de inicio o elimina uno.`
+      );
+      return;
+    }
+    if (invalidRangeIndices.size > 0) {
+      toast.error("Hay bloques donde la hora de fin es menor o igual a la de inicio.");
+      return;
+    }
+
     setSaving(true);
     const supabase = createClient();
 
-    // Delete all existing schedules
-    await supabase.from("doctor_schedules").delete().eq("doctor_id", doctorId);
+    // Snapshot existing schedules so we can restore them if the insert fails.
+    // Without this, a failed insert after the delete leaves the doctor with
+    // zero schedule rows — exactly the state the user reported on the bug.
+    const { data: previous } = await supabase
+      .from("doctor_schedules")
+      .select("doctor_id, day_of_week, start_time, end_time, office_id, organization_id")
+      .eq("doctor_id", doctorId);
 
-    // Insert new blocks
+    const { error: deleteError } = await supabase
+      .from("doctor_schedules")
+      .delete()
+      .eq("doctor_id", doctorId);
+    if (deleteError) {
+      toast.error(t("doctors.save_error") + ": " + deleteError.message);
+      setSaving(false);
+      return;
+    }
+
     if (blocks.length > 0) {
       const inserts = blocks.map((b) => ({
         doctor_id: doctorId,
@@ -549,7 +613,20 @@ function ScheduleTab({
       }));
       const { error } = await supabase.from("doctor_schedules").insert(inserts);
       if (error) {
-        toast.error(t("doctors.save_error") + ": " + error.message);
+        // Try to restore the previous schedules so we don't leave the doctor
+        // empty on a failed save. Best-effort — surface both errors if so.
+        let restoreNote = "";
+        if (previous && previous.length > 0) {
+          const { error: restoreError } = await supabase
+            .from("doctor_schedules")
+            .insert(previous);
+          if (restoreError) {
+            restoreNote = " (atención: no se pudo restaurar el horario anterior)";
+          } else {
+            restoreNote = " (se restauró el horario anterior)";
+          }
+        }
+        toast.error(t("doctors.save_error") + ": " + error.message + restoreNote);
         setSaving(false);
         return;
       }
@@ -585,10 +662,19 @@ function ScheduleTab({
         )}
 
         <div className="space-y-3">
-          {blocks.map((block, index) => (
+          {blocks.map((block, index) => {
+            const isDuplicate = duplicateIndices.has(index);
+            const isInvalidRange = invalidRangeIndices.has(index);
+            const hasIssue = isDuplicate || isInvalidRange;
+            return (
             <div
               key={block.id}
-              className="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-background p-3"
+              className={cn(
+                "flex flex-wrap items-end gap-3 rounded-lg border bg-background p-3",
+                hasIssue
+                  ? "border-red-500/60 ring-2 ring-red-500/20"
+                  : "border-border"
+              )}
             >
               <div className="space-y-1">
                 <label className="text-xs text-muted-foreground">
@@ -656,8 +742,16 @@ function ScheduleTab({
               >
                 <Trash2 className="h-4 w-4" />
               </button>
+              {hasIssue && (
+                <p className="basis-full text-xs font-medium text-red-600 dark:text-red-400">
+                  {isDuplicate
+                    ? "⚠ Duplicado: ya existe otro bloque con el mismo día y hora de inicio."
+                    : "⚠ La hora de fin debe ser mayor que la hora de inicio."}
+                </p>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
