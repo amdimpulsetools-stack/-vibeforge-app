@@ -30,6 +30,17 @@ export type DoctorService = Database["public"]["Tables"]["doctor_services"]["Row
 export type DoctorSchedule = Database["public"]["Tables"]["doctor_schedules"]["Row"];
 export type DoctorScheduleInsert = Database["public"]["Tables"]["doctor_schedules"]["Insert"];
 
+// doctor_offices is created in migration 111 — typed manually here until
+// `npm run types` regenerates database.ts. Authorized offices per doctor:
+// empty set means the doctor can use any office in the org.
+export type DoctorOffice = {
+  id: string;
+  doctor_id: string;
+  office_id: string;
+  organization_id: string;
+  created_at: string;
+};
+
 export type Appointment = Database["public"]["Tables"]["appointments"]["Row"];
 export type AppointmentInsert = Database["public"]["Tables"]["appointments"]["Insert"];
 export type AppointmentUpdate = Database["public"]["Tables"]["appointments"]["Update"];
