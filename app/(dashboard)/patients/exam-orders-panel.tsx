@@ -17,6 +17,11 @@ import {
   Circle,
 } from "lucide-react";
 import { ExamOrderPrintButton } from "@/app/(dashboard)/scheduler/exam-order-print";
+import {
+  CLINICAL_PANEL_CTA,
+  CLINICAL_PANEL_CTA_ICON,
+  CLINICAL_PANEL_CTA_VARIANTS,
+} from "@/lib/clinical-ui-tokens";
 
 interface ExamCatalogItem {
   id: string;
@@ -274,10 +279,11 @@ export function ExamOrdersPanel({
           {canEdit && doctorId && !isSigned && (
             <button
               onClick={() => setShowForm(!showForm)}
-              className="flex items-center gap-1 rounded-md bg-cyan-500/10 px-2 py-1 text-[10px] font-medium text-cyan-600 hover:bg-cyan-500/20 transition-colors"
+              className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.cyan)}
+              aria-label="Ordenar nuevo examen"
             >
-              <Plus className="h-3 w-3" />
-              Solicitar
+              <Plus className={CLINICAL_PANEL_CTA_ICON} />
+              Ordenar examen
             </button>
           )}
         </div>
@@ -414,7 +420,18 @@ export function ExamOrdersPanel({
 
       {/* Orders list */}
       {orders.length === 0 && !showForm && (
-        <p className="text-center text-xs text-muted-foreground py-4">Sin órdenes de exámenes</p>
+        <div className="flex flex-col items-center gap-2 py-6 text-center">
+          <p className="text-xs text-muted-foreground">Sin órdenes de exámenes</p>
+          {canEdit && doctorId && !isSigned && (
+            <button
+              onClick={() => setShowForm(true)}
+              className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.cyan)}
+            >
+              <Plus className={CLINICAL_PANEL_CTA_ICON} />
+              Ordenar primer examen
+            </button>
+          )}
+        </div>
       )}
 
       {orders.map((order) => (

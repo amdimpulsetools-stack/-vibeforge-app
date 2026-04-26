@@ -16,6 +16,11 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { PrescriptionPrintButton } from "@/app/(dashboard)/scheduler/prescription-print";
+import {
+  CLINICAL_PANEL_CTA,
+  CLINICAL_PANEL_CTA_ICON,
+  CLINICAL_PANEL_CTA_VARIANTS,
+} from "@/lib/clinical-ui-tokens";
 
 interface PrescriptionsPanelProps {
   patientId: string;
@@ -142,10 +147,11 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
           {canEdit && doctorId && !isSigned && (
             <button
               onClick={() => setShowForm(!showForm)}
-              className="flex items-center gap-1 rounded-md bg-violet-500/10 px-2 py-1 text-[10px] font-medium text-violet-600 hover:bg-violet-500/20 transition-colors"
+              className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.violet)}
+              aria-label="Crear nueva receta"
             >
-              <Plus className="h-3 w-3" />
-              Recetar
+              <Plus className={CLINICAL_PANEL_CTA_ICON} />
+              Nueva receta
             </button>
           )}
         </div>
@@ -229,7 +235,18 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
 
       {/* Prescriptions list */}
       {prescriptions.length === 0 && !showForm && (
-        <p className="text-center text-xs text-muted-foreground py-4">Sin prescripciones</p>
+        <div className="flex flex-col items-center gap-2 py-6 text-center">
+          <p className="text-xs text-muted-foreground">Aún no hay recetas para esta consulta</p>
+          {canEdit && doctorId && !isSigned && (
+            <button
+              onClick={() => setShowForm(true)}
+              className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.violet)}
+            >
+              <Plus className={CLINICAL_PANEL_CTA_ICON} />
+              Crear primera receta
+            </button>
+          )}
+        </div>
       )}
 
       {prescriptions.map((rx) => (

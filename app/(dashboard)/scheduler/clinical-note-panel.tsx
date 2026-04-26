@@ -1,6 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -27,6 +34,22 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ClinicalNotePrintButton } from "./clinical-note-print";
 import { PatientContextCard } from "./patient-context-card";
 
+export type AutoSaveStatus = "idle" | "saving" | "saved" | "error";
+
+export interface ClinicalNotePanelState {
+  note: ClinicalNote | null;
+  isLocked: boolean;
+  hasContent: boolean;
+  isSaving: boolean;
+  isSigning: boolean;
+  autoSaveStatus: AutoSaveStatus;
+}
+
+export interface ClinicalNotePanelHandle {
+  save: () => Promise<void>;
+  sign: () => Promise<void>;
+}
+
 interface ClinicalNotePanelProps {
   appointmentId: string;
   patientId: string | null;
@@ -45,9 +68,18 @@ interface ClinicalNotePanelProps {
   clinicName?: string;
   /** When rendered inside a wide modal, uses expanded layout */
   wideLayout?: boolean;
+  /** When true, hides the in-panel footer actions (save / sign / print) so the
+   *  hosting modal can render them in its own sticky header instead. */
+  hideFooterActions?: boolean;
+  /** Reports panel state to the host so it can render header CTAs that mirror
+   *  the panel's internal save/sign/print availability. */
+  onStateChange?: (state: ClinicalNotePanelState) => void;
 }
 
-export function ClinicalNotePanel({
+export const ClinicalNotePanel = forwardRef<
+  ClinicalNotePanelHandle,
+  ClinicalNotePanelProps
+>(function ClinicalNotePanel({
   appointmentId,
   patientId,
   doctorId,
@@ -61,7 +93,9 @@ export function ClinicalNotePanel({
   appointmentTime,
   clinicName,
   wideLayout = false,
-}: ClinicalNotePanelProps) {
+  hideFooterActions = false,
+  onStateChange,
+}, ref) {
   const confirm = useConfirm();
   const [note, setNote] = useState<ClinicalNote | null>(null);
   const [loading, setLoading] = useState(true);
@@ -389,7 +423,26 @@ export function ClinicalNotePanel({
 
   const isLocked = note?.is_signed === true;
   const editable = canEdit && !isLocked;
-  const hasContent = subjective || objective || assessment || plan;
+  const hasContent = Boolean(subjective || objective || assessment || plan);
+
+  // Expose imperative save/sign so the hosting modal can render its own
+  // header-level CTAs that drive this panel.
+  useImperativeHandle(ref, () => ({ save: handleSave, sign: handleSign }), [
+    handleSave,
+    handleSign,
+  ]);
+
+  // Report state up so the host can mirror availability in its sticky header.
+  useEffect(() => {
+    onStateChange?.({
+      note,
+      isLocked,
+      hasContent,
+      isSaving: saving,
+      isSigning: signing,
+      autoSaveStatus,
+    });
+  }, [note, isLocked, hasContent, saving, signing, autoSaveStatus, onStateChange]);
 
   if (loading) {
     return (
@@ -433,7 +486,7 @@ export function ClinicalNotePanel({
               {autoSaveStatus === "error" && <><CloudOff className="h-3 w-3" /> Error al guardar</>}
             </span>
           )}
-        {isLocked && (
+        {isLocked && !hideFooterActions && (
           <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
             <Lock className="h-3 w-3" />
             Firmada
@@ -671,11 +724,18 @@ export function ClinicalNotePanel({
           )}
         </button>
         {showVitals && (
-          <div className={cn("grid gap-2 px-3 pb-3", wideLayout ? "grid-cols-4" : "grid-cols-2")}>
+          <div
+            className={cn(
+              "grid gap-2 px-3 pb-3",
+              wideLayout
+                ? "grid-cols-2 sm:grid-cols-4 lg:grid-cols-8"
+                : "grid-cols-2"
+            )}
+          >
             {VITALS_FIELDS.map(({ key, label, unit, step }) => (
               <div key={key} className="space-y-0.5">
-                <label className="text-[10px] text-muted-foreground">
-                  {label} ({unit})
+                <label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {label} <span className="text-muted-foreground/60">({unit})</span>
                 </label>
                 {editable ? (
                   <input
@@ -683,10 +743,10 @@ export function ClinicalNotePanel({
                     value={vitals[key] ?? ""}
                     onChange={(e) => updateVital(key, e.target.value)}
                     step={step}
-                    className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                    className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                   />
                 ) : (
-                  <p className="text-xs font-medium">
+                  <p className="text-sm font-medium">
                     {vitals[key] != null ? `${vitals[key]} ${unit}` : "—"}
                   </p>
                 )}
@@ -793,7 +853,7 @@ export function ClinicalNotePanel({
       )}
 
       {/* Action buttons */}
-      {canEdit && (
+      {canEdit && !hideFooterActions && (
         <div className="flex gap-2 pt-2">
           <button
             onClick={handleSave}
@@ -825,7 +885,7 @@ export function ClinicalNotePanel({
       )}
 
       {/* Print button — only when note exists and has content */}
-      {note && hasContent && patientName && doctorName && serviceName && (
+      {!hideFooterActions && note && hasContent && patientName && doctorName && serviceName && (
         <div className="pt-1">
           <ClinicalNotePrintButton
             note={note}
@@ -841,4 +901,4 @@ export function ClinicalNotePanel({
       )}
     </div>
   );
-}
+});

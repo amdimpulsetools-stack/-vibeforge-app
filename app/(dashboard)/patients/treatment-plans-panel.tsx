@@ -24,6 +24,11 @@ import {
   LayoutTemplate,
   Trash2,
 } from "lucide-react";
+import {
+  CLINICAL_PANEL_CTA,
+  CLINICAL_PANEL_CTA_ICON,
+  CLINICAL_PANEL_CTA_VARIANTS,
+} from "@/lib/clinical-ui-tokens";
 
 interface ServiceOption {
   id: string;
@@ -277,9 +282,10 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
               }
               setShowForm(!showForm);
             }}
-            className="flex items-center gap-1 rounded-md bg-blue-500/10 px-2 py-1 text-[10px] font-medium text-blue-600 hover:bg-blue-500/20 transition-colors"
+            className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.blue)}
+            aria-label="Crear nuevo plan de tratamiento"
           >
-            <Plus className="h-3 w-3" />
+            <Plus className={CLINICAL_PANEL_CTA_ICON} />
             Nuevo plan
           </button>
         )}
@@ -463,7 +469,21 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
 
       {/* Plans list */}
       {plans.length === 0 && !showForm && (
-        <p className="text-center text-xs text-muted-foreground py-4">Sin planes de tratamiento</p>
+        <div className="flex flex-col items-center gap-2 py-6 text-center">
+          <p className="text-xs text-muted-foreground">Sin planes de tratamiento</p>
+          {canEdit && doctorId && (
+            <button
+              onClick={() => {
+                if (items.length === 0 && services.length > 0) addItem();
+                setShowForm(true);
+              }}
+              className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.blue)}
+            >
+              <Plus className={CLINICAL_PANEL_CTA_ICON} />
+              Crear primer plan
+            </button>
+          )}
+        </div>
       )}
 
       {plans.map((plan) => {
