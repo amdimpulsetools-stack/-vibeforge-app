@@ -356,7 +356,7 @@ Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vit
 | ~~12~~ | ~~Catálogo CIE-10 personalizable~~ | ~~Medio~~ | ~~Alto~~ | ✅ Entregado |
 | 13 | Descuentos condicionales | Medio | Medio (billing) | 🟠 Media-baja |
 | 14 | Importación masiva CIE-10 (CSV) | Bajo | Medio | 🟠 Media-baja |
-| 15 | Etiqueta "Paciente Recurrente" | Bajo | Alto (segmentación) | 🔴 Alta |
+| 15 | ~~Etiqueta "Paciente Recurrente"~~ | ~~Bajo~~ | ~~Alto (segmentación)~~ | ✅ Entregado (v0.11.0) |
 | 16 | Límites de plan: soft-wall UX | Medio | Alto (monetización) | 🔴 Alta |
 | 17 | Storage: límites y mensajes | Medio | Alto (monetización) | 🟡 Media |
 | 18 | Módulo Laboratorio (addon) | Alto | Alto (especialidades) | 🟡 Media |
