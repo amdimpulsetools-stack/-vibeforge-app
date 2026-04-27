@@ -72,6 +72,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "plan_not_found" }, { status: 404 });
   }
 
+  // Trial deactivated for Clinica (enterprise) per pricing decision 2026-04-26.
+  // Independiente (starter) and Centro Medico (professional) keep the 14-day
+  // trial. Enterprise must be contracted directly without a free window.
+  if (plan.slug === "enterprise") {
+    return NextResponse.json(
+      {
+        error: "trial_unavailable",
+        detail: "El plan Clínica no incluye trial. Contáctanos para contratarlo.",
+      },
+      { status: 403 }
+    );
+  }
+
   // Check for existing active/trialing subscription — those block a new trial
   const { data: existing } = await supabase
     .from("organization_subscriptions")

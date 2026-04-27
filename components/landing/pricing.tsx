@@ -7,11 +7,11 @@ import { Check, Sparkles, ArrowRight, Building2, Phone, Shield } from "lucide-re
 const plans = [
   {
     name: "Independiente",
-    priceMonthly: "69.90",
-    priceAnnual: "58.25",
-    savingsAnnual: "139.80",
-    anchor: "Menos de lo que cobras por una consulta",
-    anchorAnnual: "Ahorra S/139.80 al año — 2 meses gratis",
+    priceMonthly: "129",
+    priceAnnual: "107.50",
+    savingsAnnual: "258",
+    anchor: "Menos de S/5 al día por tener tu consultorio en orden",
+    anchorAnnual: "Ahorra S/258 al año — 2 meses gratis",
     features: [
       "1 doctor · 1 consultorio",
       "Historia clínica SOAP + recetas",
@@ -26,11 +26,11 @@ const plans = [
   },
   {
     name: "Centro Médico",
-    priceMonthly: "169.90",
-    priceAnnual: "141.58",
-    savingsAnnual: "339.80",
-    anchor: "Menos de S/6 al día por tener tu centro organizado",
-    anchorAnnual: "Ahorra S/339.80 al año — 2 meses gratis",
+    priceMonthly: "349",
+    priceAnnual: "290.83",
+    savingsAnnual: "698",
+    anchor: "Menos de 3 consultas al mes y la herramienta se paga sola",
+    anchorAnnual: "Ahorra S/698 al año — 2 meses gratis",
     features: [
       "3 doctores · 3 consultorios",
       "2 recepcionistas / asistentes",
@@ -45,11 +45,11 @@ const plans = [
   },
   {
     name: "Clínica",
-    priceMonthly: "569.90",
-    priceAnnual: "474.92",
-    savingsAnnual: "1,139.80",
-    anchor: "Con 10 doctores: S/57 por doctor al mes",
-    anchorAnnual: "Ahorra S/1,139.80 al año — 2 meses gratis",
+    priceMonthly: "649",
+    priceAnnual: "540.83",
+    savingsAnnual: "1,298",
+    anchor: "Con un tratamiento mediano al mes, ya pagaste tu suscripción",
+    anchorAnnual: "Ahorra S/1,298 al año — 2 meses gratis",
     features: [
       "10 doctores · 7 consultorios",
       "Recepcionistas ilimitadas",

@@ -1,6 +1,6 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-26 (v0.13.2)
+> **Última actualización:** 2026-04-26 (v0.13.3)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -21,6 +21,8 @@ Auditoría multi-agente (diseño visual + neurocopy + UX) del 2026-04-24. Lo apl
 
 ## ✅ Entregados
 
+- [x] **Pricing alineado: Independiente S/129, Centro Médico S/349, Clínica S/649** — Migración 112 actualiza catálogo `plans` (precios mensual + anual con 2 meses gratis). Trial 14 días: activo en Independiente y Centro Médico, **desactivado en Clínica** (contratación directa con `403 trial_unavailable` en backend + botón "Iniciar prueba" oculto en UI). Anchor copy actualizado en `pricing.tsx`, `select-plan/page.tsx`, `dashboard/plans/page.tsx`, `growth-path.tsx`, `final-cta.tsx`, `app/layout.tsx` (meta description), `admin/members` y `admin/offices` (botones upgrade). Política: orgs en plan gratuito existentes NO se migran automáticamente (decisión del owner). Frecuencia semestral (8.3% off) en evaluación. *(v0.13.3 — 2026-04-26)*
+- [x] **Reporte IA básico (todos los planes) en /reports** — Asistente conversacional con queries SQL pseudonimizadas. Propuesta de "Reporte IA avanzado" para Centro/Clínica (5 capas: brief ejecutivo automatizado, insights proactivos, forecast/predictivo, comparativo multi-doctor, benchmarking anónimo) discutida en sesión 2026-04-26 — recomendación: arrancar capas 1+2 cuando se reactive trial Clínica. *(v0.10.0 — 2026-04-20)*
 - [x] **Rediseño UX del Modal de Historia Clínica** — Tokens compartidos en `lib/clinical-ui-tokens.ts` (h-9 / h-11 CTAs por dominio), modal scheduler ampliado a 1480/1680px en xl/2xl, columna derecha con tabs (Recetas/Exámenes/Tratamientos/Seguimientos) y badges numéricos en lugar de stack vertical, header sticky con CTAs globales (Guardar/Firmar/Imprimir + atajo Ctrl+S + auto-save indicator), badge "Firmada" en ámbar (estado bloqueado/atención), vitales `lg:grid-cols-8` en wide layout, `ClinicalNotePanel` con `forwardRef` + `onStateChange` (eliminado polling de 2s), estados vacíos accionables en los 4 paneles laterales, `clinical-history-modal` hermano ampliado para coherencia. *(v0.13.2 — 2026-04-26)*
 - [x] **Adjuntos clínicos: dropzone real con drag-and-drop** — Botón "+ Subir archivo" del header migra a token compartido (h-9 / variante orange). Dropzone py-10 con border dashed, ícono Upload de 6×6 y 3 estados visuales (idle / drag-active naranja / file-selected esmeralda). Drag-and-drop nativo + click + Enter/Space (accesibilidad). Validación cliente de tamaño 10 MB. Estado vacío accionable: si no hay adjuntos, el dropzone se muestra automáticamente. Form de categoría/descripción aparece solo después de seleccionar archivo. *(v0.13.2 — 2026-04-26)*
 - [x] **Eje Y visible en gráfico "Citas últimos 30 días"** — `admin-dashboard.tsx`: el `<AreaChart>` tenía `margin={{ left: -20 }}` que empujaba el `<YAxis>` fuera del contenedor. Cambio a `left: 0` + `width: 32` para renderizar los valores numéricos del eje completos. *(v0.13.2 — 2026-04-26)*

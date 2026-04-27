@@ -30,7 +30,7 @@ export function FinalCTA() {
         </div>
 
         <p className="mt-4 text-sm text-slate-400">
-          Planes desde S/69.90/mes. Todos incluyen asistente IA y addons flexibles.
+          Planes desde S/129/mes. Todos incluyen asistente IA y addons flexibles.
         </p>
       </div>
     </section>

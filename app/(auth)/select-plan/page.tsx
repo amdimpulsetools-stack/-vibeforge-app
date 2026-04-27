@@ -40,9 +40,9 @@ interface Plan {
 }
 
 const PLAN_ANCHORS: Record<string, string> = {
-  starter: "Menos de lo que cobras por una consulta",
-  professional: "Menos de S/6 al día por tener tu centro organizado",
-  enterprise: "Divide entre tus doctores y sale menos de S/60 c/u",
+  starter: "Menos de S/5 al día por tener tu consultorio en orden",
+  professional: "Menos de 3 consultas al mes y la herramienta se paga sola",
+  enterprise: "Con un tratamiento mediano al mes, ya pagaste tu suscripción",
 };
 
 function formatLimit(val: number | null): string {
@@ -376,28 +376,39 @@ function SelectPlanPage() {
                 </ul>
 
                 {/* CTA buttons */}
+                {/* Trial deactivated for Clinica (enterprise). Other plans
+                     keep the 14-day trial as before. */}
                 <div className="mt-6 space-y-2">
-                  <button
-                    onClick={() => handleStartTrial(plan.id)}
-                    disabled={selecting !== null}
-                    className={cn(
-                      "flex w-full h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50",
-                      isPopular
-                        ? "gradient-primary text-white shadow-md hover:opacity-90 hover:shadow-lg"
-                        : "border border-border bg-card text-foreground hover:bg-accent/50 hover:border-emerald-300 dark:hover:border-emerald-500/40"
-                    )}
-                  >
-                    {selecting === plan.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : null}
-                    Iniciar prueba de 14 días
-                  </button>
+                  {plan.slug !== "enterprise" && (
+                    <button
+                      onClick={() => handleStartTrial(plan.id)}
+                      disabled={selecting !== null}
+                      className={cn(
+                        "flex w-full h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50",
+                        isPopular
+                          ? "gradient-primary text-white shadow-md hover:opacity-90 hover:shadow-lg"
+                          : "border border-border bg-card text-foreground hover:bg-accent/50 hover:border-emerald-300 dark:hover:border-emerald-500/40"
+                      )}
+                    >
+                      {selecting === plan.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : null}
+                      Iniciar prueba de 14 días
+                    </button>
+                  )}
                   <button
                     onClick={() => handleSelect(plan.id)}
                     disabled={selecting !== null}
-                    className="flex w-full h-10 items-center justify-center gap-2 rounded-xl border border-border bg-card/50 text-xs font-medium text-muted-foreground transition-all hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
+                    className={cn(
+                      "flex w-full items-center justify-center gap-2 rounded-xl transition-all disabled:opacity-50",
+                      plan.slug === "enterprise"
+                        ? "h-11 gradient-primary text-sm font-semibold text-white shadow-md hover:opacity-90 hover:shadow-lg"
+                        : "h-10 border border-border bg-card/50 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    )}
                   >
-                    Pagar suscripción — S/{plan.price_monthly}/mes
+                    {plan.slug === "enterprise"
+                      ? `Contratar Clínica — S/${plan.price_monthly}/mes`
+                      : `Pagar suscripción — S/${plan.price_monthly}/mes`}
                   </button>
                 </div>
               </div>

@@ -51,7 +51,7 @@ export const metadata: Metadata = {
     template: `%s | ${APP_NAME}`,
   },
   description:
-    "Agenda inteligente, gestión de pacientes, control de equipo y asistente con IA. Desde el doctor independiente hasta la clínica con 10 consultorios. Planes desde S/69.90/mes.",
+    "Agenda inteligente, gestión de pacientes, control de equipo y asistente con IA. Desde el doctor independiente hasta la clínica con 10 consultorios. Planes desde S/129/mes.",
   openGraph: {
     title: `${APP_NAME} — Tu clínica completa en una sola plataforma`,
     description:

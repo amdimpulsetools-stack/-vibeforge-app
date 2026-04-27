@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-26
-> **Versión:** 0.13.2
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + **Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor (v0.13.2)** + Preparación de pilot con primer cliente real (Vitra, fertilidad)
+> **Versión:** 0.13.3
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor + **Pricing alineado: S/129 / S/349 / S/649 con trial Clínica desactivado (v0.13.3)** + Preparación de pilot con primer cliente real (Vitra, fertilidad)
 
 ---
 
@@ -77,21 +77,23 @@
 
 ## 5. Planes y Suscripciones
 
-### Plan Independiente (Starter) — Gratis
+### Plan Independiente (Starter) — S/129/mes (S/1,290/año con 2 meses gratis)
 - 1 miembro, 1 doctor, 1 consultorio
 - 150 pacientes, 100 citas/mes, 100MB storage
 - Sin recepcionistas ni admins adicionales
 - Reportes básicos, AI Assistant (30 consultas/mes), sin exportación
 - Owner actúa simultáneamente como doctor (rol dual)
+- **Trial 14 días disponible**
 
-### Plan Centro Médico (Professional) — S/49/mes
+### Plan Centro Médico (Professional) — S/349/mes (S/3,490/año con 2 meses gratis)
 - 6 miembros totales, 3 doctores, 3 consultorios, 2 recepcionistas
 - 1,000 pacientes, 500 citas/mes, 2GB storage
 - 1 admin
 - Reportes + exportación + AI Assistant
 - Add-ons: S/15/consultorio extra, S/10/miembro extra
+- **Trial 14 días disponible**
 
-### Plan Clínica (Enterprise) — S/149/mes (precio provisional, pendiente de pruebas con Mercado Pago)
+### Plan Clínica (Enterprise) — S/649/mes (S/6,490/año con 2 meses gratis)
 - 15 miembros totales: 10 especialistas + 3 recepcionistas + 1 admin + 1 owner
 - 10 cupos para doctores/especialistas/licenciados (ej. psicólogos)
 - 10 consultorios
@@ -100,6 +102,12 @@
 - Pacientes y citas ilimitadas, 10GB storage
 - Todas las features (reportes, export, AI, API, soporte prioritario)
 - Add-ons: S/12/consultorio extra, S/8/miembro extra
+- **Trial desactivado** — contratación directa (decisión 2026-04-26 para reservar el plan a clientes calificados; reactivar cuando el feature de "Reporte IA avanzado" esté listo y justifique el upgrade)
+
+### Política de pricing (v0.13.3 — 2026-04-26)
+- Los precios anteriores (Gratis / S/49 / S/149) eran iniciales y no reflejaban realidad comercial. La landing mostraba paralelamente S/69.90 / S/169.90 / S/569.90; ambas fuentes quedaron alineadas en esta sesión a S/129 / S/349 / S/649.
+- **Organizaciones existentes en el plan gratuito no se migran automáticamente.** El owner decide cuándo convertirlas (típicamente al terminar el periodo de tests). Las suscripciones activas conservan el precio del momento de la contratación hasta su renovación.
+- **Anual con 2 meses gratis** se mantiene como compromiso preferente (16.7% de descuento). Frecuencias: mensual (sin descuento) y anual (con descuento). El semestral está en evaluación.
 
 ### Integración de Pagos
 - **Mercado Pago** como gateway de pago
@@ -2827,4 +2835,56 @@ Tabla nueva `doctor_offices`:
 
 - Respetar `doctor_offices` en el flujo de booking (`api/scheduler/available-slots`) para que el matching paciente↔doctor↔consultorio sea estricto.
 - Si Vitra reporta confusión con el flow de doctor multi-consultorio, considerar mover el panel "Consultorios autorizados" al perfil del doctor (tab Perfil) en vez de al tab Horario.
+
+---
+
+## 36. Changelog — Sesión 2026-04-26 tarde (v0.13.3) — Pricing alineado y trial diferenciado por tier
+
+Cambio comercial: los precios iniciales (Gratis / S/49 / S/149 en BD vs. S/69.90 / S/169.90 / S/569.90 en landing) eran placeholders sin alinear. Esta sesión cierra ambas fuentes con el pricing que va a producción.
+
+### Precios nuevos
+
+| Slug | Plan | Mensual | Anual (2 meses gratis) | Trial 14 días |
+|---|---|---|---|---|
+| `starter` | Independiente | **S/129** | S/1,290 | ✅ Activo |
+| `professional` | Centro Médico | **S/349** | S/3,490 | ✅ Activo |
+| `enterprise` | Clínica | **S/649** | S/6,490 | ❌ Desactivado |
+
+**Justificación del trial desactivado en Clínica:** se reserva el plan a clientes calificados que requieren contratación directa y onboarding asistido. Reactivable en cuanto el "Reporte IA avanzado" (capas 1+2 propuestas: brief ejecutivo + insights proactivos) esté listo y justifique el upgrade desde Centro Médico.
+
+### Cambios de código
+
+- **Migración `112_update_plan_prices.sql`** — `UPDATE plans` por slug actualizando `price_monthly` y `price_yearly`. Bloque `DO $$` con `RAISE NOTICE` para auditar el cambio en el log de Supabase. Rollback documentado en el header de la migración.
+- **`app/api/plans/start-trial/route.ts`** — bloqueo con `403 trial_unavailable` cuando `plan.slug === 'enterprise'`. Defense-in-depth aunque la UI ya esconda el botón.
+- **`app/(auth)/select-plan/page.tsx`** — botón "Iniciar prueba de 14 días" oculto para `enterprise`; el botón de pago pasa a destacado (gradient + h-11) con label "Contratar Clínica — S/649/mes".
+- **Anchors actualizados (3 archivos)** — `pricing.tsx`, `select-plan/page.tsx` y `dashboard/plans/page.tsx` comparten el mismo `PLAN_ANCHORS` con copys nuevos:
+  - Independiente: *"Menos de S/5 al día por tener tu consultorio en orden"*
+  - Centro Médico: *"Menos de 3 consultas al mes y la herramienta se paga sola"*
+  - Clínica: *"Con un tratamiento mediano al mes, ya pagaste tu suscripción"*
+- **`pricing.tsx` (landing)** — precios mensuales/anuales y `savingsAnnual` recalculados (S/258 / S/698 / S/1,298 ahorro al año).
+- **`growth-path.tsx` (landing)** — precios actualizados.
+- **`final-cta.tsx` (landing)** — "Planes desde S/69.90/mes" → "Planes desde S/129/mes".
+- **`app/layout.tsx`** — meta description actualizada para SEO.
+- **`admin/members/page.tsx` y `admin/offices/page.tsx`** — botones "Mejorar plan — S/169.90/mes" → "S/349/mes".
+
+### Política de migración para clientes existentes
+
+- **Organizaciones en plan gratuito (S/0) NO se migran automáticamente.** El owner del producto (Yenda) decide cuándo convertirlas, típicamente al cerrar la fase de tests internos.
+- **Suscripciones activas** conservan el precio del momento de la contratación hasta su renovación. La migración solo cambia el catálogo (`plans`), no las filas de `organization_subscriptions`.
+
+### Decisiones diferidas (no hechas en esta sesión)
+
+- **Frecuencia semestral** con descuento de medio mes gratis (8.3% off) — discutida y dimensionada en la conversación, requiere agregar columna `price_semiannual` a `plans`. Pendiente de confirmación.
+- **Reporte IA avanzado para Centro/Clínica** — propuesta en 5 capas (brief ejecutivo automatizado, insights proactivos, forecast, comparativo multi-doctor, benchmarking anónimo). Recomendación: arrancar con capas 1+2 (Centro+Clínica) cuando se vuelva a abrir trial Clínica.
+
+### Operaciones requeridas para activar v0.13.3
+
+1. Aplicar migración 112 contra producción:
+   ```
+   supabase db push
+   # o pegar supabase/migrations/112_update_plan_prices.sql en SQL Editor
+   ```
+2. Verificar en `select-plan` que el plan Clínica ya no muestra "Iniciar prueba" y muestra "Contratar Clínica — S/649/mes".
+3. Verificar en landing que las 3 cards muestran S/129 / S/349 / S/649 y los anchors nuevos.
+4. (Opcional) Probar `POST /api/plans/start-trial` con `plan_id` del enterprise — debe responder 403.
 

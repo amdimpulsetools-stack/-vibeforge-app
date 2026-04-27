@@ -9,7 +9,7 @@ const tiers = [
     title: "Consultorio independiente",
     capacity: "1 doctor, 1 consultorio",
     quote: "Empiezo solo con mi consultorio",
-    price: "S/69.90",
+    price: "S/129",
     highlight: false,
   },
   {
@@ -17,7 +17,7 @@ const tiers = [
     title: "Centro médico",
     capacity: "2 doctores, 4 consultorios",
     quote: "Ya somos un equipo pequeño",
-    price: "S/169.90",
+    price: "S/349",
     highlight: true,
   },
   {
@@ -25,7 +25,7 @@ const tiers = [
     title: "Clínica mediana",
     capacity: "10 doctores, 10 consultorios",
     quote: "Gestionamos una operación real",
-    price: "S/569.90",
+    price: "S/649",
     highlight: false,
   },
 ];

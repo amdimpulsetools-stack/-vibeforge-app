@@ -43,9 +43,9 @@ interface Plan {
 
 /* ───── Helpers ───── */
 const PLAN_ANCHORS: Record<string, string> = {
-  starter: "Menos de lo que cobras por una consulta",
-  professional: "Menos de S/6 al día por tener tu centro organizado",
-  enterprise: "Divide entre tus doctores y sale menos de S/60 c/u",
+  starter: "Menos de S/5 al día por tener tu consultorio en orden",
+  professional: "Menos de 3 consultas al mes y la herramienta se paga sola",
+  enterprise: "Con un tratamiento mediano al mes, ya pagaste tu suscripción",
 };
 
 function formatLimit(val: number | null): string {
