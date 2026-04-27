@@ -29,6 +29,7 @@ import {
   ResponsiveContainer,
   CartesianGrid,
 } from "recharts";
+import { ExecutiveBriefWidget } from "./executive-brief-widget";
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -198,6 +199,9 @@ export function AdminDashboard({
           </Link>
         </div>
       </div>
+
+      {/* Executive Brief IA — Capa 1 (Slice C) */}
+      <ExecutiveBriefWidget />
 
       {/* ── ROW 1: Revenue | Pending Debt | Appointments ── */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
