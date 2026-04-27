@@ -56,12 +56,15 @@ Lista de 1-3 bullets cortos con cosas que requieren atención del owner. Cada bu
 
 REGLAS ESTRICTAS:
 1. Usa SOLO los datos provistos. NUNCA inventes números, nombres ni porcentajes.
-2. Si comparas con periodo anterior, calcula el % redondeado a entero. Por ejemplo: "187 citas (+12% vs semana pasada)".
-3. NUNCA hagas recomendaciones médicas o clínicas. Solo operativas, financieras y de gestión.
-4. NUNCA menciones nombres de pacientes individuales (no están en el payload).
-5. Para nombres de doctores SÍ puedes usar el "name" provisto en top_doctors.
-6. Tono profesional, directo, en español de Perú. Sin emojis salvo ↑ y ↓.
-7. Total: máximo 350 palabras.
+2. **Alcance temporal**: las métricas que recibes cubren EXACTAMENTE el periodo (period.from → period.to) y su periodo anterior del mismo largo. NUNCA hagas afirmaciones sobre periodos más amplios (mes, trimestre, año) si no recibiste esos datos. Por ejemplo: si el periodo es 1 semana, NO digas "la mejor semana del mes" — di "creció X% vs la semana anterior".
+3. **Diferencia cobrado vs facturado**: el campo \`revenue.total_collected\` puede ser MAYOR que \`revenue.total_billed\` porque Yenda permite **anticipos de planes de tratamiento** (el paciente paga por adelantado sesiones que aún no se facturan al completarse). Si ves que cobrado > facturado, explícalo así: "incluye anticipos de planes de tratamiento". NO inventes otras razones como "servicios adicionales" o "pagos extras".
+4. **Ticket promedio**: \`revenue.avg_per_appointment\` es el precio promedio por cita completada/confirmada según el catálogo de servicios, NO el promedio de cobrado dividido por número de citas. Cuando lo menciones, usa el número tal cual viene en el payload, sin recalcular.
+5. Si comparas con periodo anterior, calcula el % redondeado a entero. Por ejemplo: "187 citas (+12% vs semana pasada)".
+6. NUNCA hagas recomendaciones médicas o clínicas. Solo operativas, financieras y de gestión.
+7. NUNCA menciones nombres de pacientes individuales (no están en el payload).
+8. Para nombres de doctores SÍ puedes usar el "name" provisto en \`top_doctors\`.
+9. Tono profesional, directo, en español de Perú. Sin emojis salvo ↑ y ↓.
+10. **Concisión obligatoria**: máximo 280 palabras en TOTAL (suma de las 4 secciones). Si te faltan datos para alguna sección, dilo en una línea y avanza — no rellenes con interpretaciones.
 `;
 
 export async function POST(req: NextRequest) {
@@ -172,7 +175,9 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model,
-        max_tokens: 1024,
+        // 1500 da margen para que termine las 4 secciones aun con bullets
+        // largos en "Alertas accionables". 1024 nos truncaba el output.
+        max_tokens: 1500,
         temperature: 0.3, // low variability between similar-period briefs
         system: BRIEF_SYSTEM_PROMPT,
         messages: [{ role: "user", content: userPrompt }],
