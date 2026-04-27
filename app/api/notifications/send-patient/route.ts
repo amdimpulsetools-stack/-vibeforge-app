@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
 
   const patientName = `${patient.first_name} ${patient.last_name}`.trim();
-  const clinicName = org?.name || emailSettings?.sender_name || "VibeForge";
+  const clinicName = org?.name || emailSettings?.sender_name || "Yenda";
 
   const variables: Record<string, string> = {
     "{{paciente_nombre}}": patientName,

@@ -56,7 +56,7 @@ export async function POST() {
 
     // Generate QR code URL using otplib keyuri equivalent
     const otpAuthUrl = generateURI({
-      issuer: "VibeForge",
+      issuer: "Yenda",
       label: user.email ?? user.id,
       secret,
     });

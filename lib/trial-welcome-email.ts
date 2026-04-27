@@ -63,7 +63,7 @@ export async function sendTrialWelcomeEmail(params: {
         .maybeSingle(),
     ]);
 
-    const clinicName = org?.name || emailSettings?.sender_name || "VibeForge";
+    const clinicName = org?.name || emailSettings?.sender_name || "Yenda";
     const displayName = ownerName || ownerEmail.split("@")[0] || "";
     const planName =
       (subscription as unknown as { plans?: { name?: string } | null })?.plans?.name || "Trial";
@@ -75,7 +75,7 @@ export async function sendTrialWelcomeEmail(params: {
         })
       : "";
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.vibeforge.com";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.yenda.app";
     const dashboardUrl = `${appUrl}/dashboard`;
     const guiaUrl = `${appUrl}/base-conocimientos`;
 

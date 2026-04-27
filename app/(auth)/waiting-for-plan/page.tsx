@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
-import { Clock, Loader2, LogOut, Zap } from "lucide-react";
+import { Clock, Loader2, LogOut } from "lucide-react";
+import { YendaLogo } from "@/components/icons/yenda-logo";
 
 export default function WaitingForPlanPage() {
   const router = useRouter();
@@ -90,11 +91,8 @@ export default function WaitingForPlanPage() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="w-full max-w-md text-center">
         {/* Logo */}
-        <div className="flex items-center justify-center gap-2 mb-8">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Zap className="h-5 w-5" />
-          </div>
-          <span className="text-xl font-bold">{APP_NAME}</span>
+        <div className="flex justify-center mb-8" aria-label={APP_NAME}>
+          <YendaLogo width={140} priority />
         </div>
 
         {/* Icon */}

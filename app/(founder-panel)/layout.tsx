@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Founder Panel — VibeForge Platform",
+  title: "Founder Panel — Yenda Platform",
 };
 
 export default function FounderPanelLayout({

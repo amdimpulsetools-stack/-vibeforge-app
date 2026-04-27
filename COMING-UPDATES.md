@@ -1,6 +1,6 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-26 (v0.13.4)
+> **Última actualización:** 2026-04-26 (v0.13.5)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -21,6 +21,8 @@ Auditoría multi-agente (diseño visual + neurocopy + UX) del 2026-04-24. Lo apl
 
 ## ✅ Entregados
 
+- [x] **Brief Ejecutivo IA — Slice C (Capa 1 mínima)** — Migración 114 (`ai_executive_briefs`), endpoint `POST /api/ai-briefs/generate` con Haiku 4.5 + comparativa periodo anterior, widget en dashboard del admin con modal (selector week/month/custom + Print/PDF). Sin cron, sin email, sin historial — eso queda para Capa 1 completa. Permite iterar el prompt con datos reales antes de automatizar. Reusa `get_report_metrics_for_ai` (migración 056) sin RPC nueva. *(v0.13.5 — 2026-04-26)*
+- [x] **Botón Imprimir/PDF en Reporte IA de /reports** — Patrón estándar del proyecto: ventana nueva con HTML A4 estilizado + auto-print del navegador (que ofrece "Guardar como PDF"). El header del PDF incluye tipo de reporte, rango de fechas y timestamp. *(v0.13.5 — 2026-04-26)*
 - [x] **Pricing alineado: Independiente S/129, Centro Médico S/349, Clínica S/649** — Migración 112 actualiza catálogo `plans` (precios mensual + anual con 2 meses gratis). Trial 14 días: activo en Independiente y Centro Médico, **desactivado en Clínica** (contratación directa con `403 trial_unavailable` en backend + botón "Iniciar prueba" oculto en UI). Anchor copy actualizado en `pricing.tsx`, `select-plan/page.tsx`, `dashboard/plans/page.tsx`, `growth-path.tsx`, `final-cta.tsx`, `app/layout.tsx` (meta description), `admin/members` y `admin/offices` (botones upgrade). Política: orgs en plan gratuito existentes NO se migran automáticamente (decisión del owner). Frecuencia semestral (8.3% off) en evaluación. *(v0.13.3 — 2026-04-26)*
 - [x] **Reporte IA básico (todos los planes) en /reports** — Asistente conversacional con queries SQL pseudonimizadas. Propuesta de "Reporte IA avanzado" para Centro/Clínica (5 capas: brief ejecutivo automatizado, insights proactivos, forecast/predictivo, comparativo multi-doctor, benchmarking anónimo) discutida en sesión 2026-04-26 — recomendación: arrancar capas 1+2 cuando se reactive trial Clínica. *(v0.10.0 — 2026-04-20)*
 - [x] **Rediseño UX del Modal de Historia Clínica** — Tokens compartidos en `lib/clinical-ui-tokens.ts` (h-9 / h-11 CTAs por dominio), modal scheduler ampliado a 1480/1680px en xl/2xl, columna derecha con tabs (Recetas/Exámenes/Tratamientos/Seguimientos) y badges numéricos en lugar de stack vertical, header sticky con CTAs globales (Guardar/Firmar/Imprimir + atajo Ctrl+S + auto-save indicator), badge "Firmada" en ámbar (estado bloqueado/atención), vitales `lg:grid-cols-8` en wide layout, `ClinicalNotePanel` con `forwardRef` + `onStateChange` (eliminado polling de 2s), estados vacíos accionables en los 4 paneles laterales, `clinical-history-modal` hermano ampliado para coherencia. *(v0.13.2 — 2026-04-26)*
@@ -65,91 +67,110 @@ Auditoría multi-agente (diseño visual + neurocopy + UX) del 2026-04-24. Lo apl
 
 ### Capa 1 — Brief Ejecutivo Automatizado por Email + Dashboard Widget
 
-**Estado:** 🔴 Pendiente · **Tier:** Centro Médico (mensual) + Clínica (semanal + mensual) · **Esfuerzo:** Bajo (1-2 sem)
+#### ✅ Slice C entregado (v0.13.5 — 2026-04-26)
 
-**Definición:** Email + widget en dashboard generado por LLM con narrativa ejecutiva (3-5 párrafos en lenguaje natural) sobre operación, finanzas, clínica y alertas del periodo.
+Trigger manual desde el dashboard del admin/owner. Sirve para iterar el prompt y validar calidad del LLM con datos reales antes de invertir en automatización.
 
-**Trigger:**
-- Centro Médico: cron mensual (1° de cada mes 7am hora local de la org).
-- Clínica: cron semanal (Lunes 7am) + mensual.
+**Lo que ya funciona:**
+- Migración 114 — tabla `ai_executive_briefs(organization_id, generated_by, period, period_start, period_end, content_markdown, metrics_snapshot JSONB, llm_model, llm_tokens_input/output, generated_at)` con RLS por org members + admin delete.
+- Endpoint `POST /api/ai-briefs/generate` (admin/owner only, feature-gated por `feature_ai_assistant`):
+  - Reusa `get_report_metrics_for_ai` (migración 056) que ya tiene `appointments_prev`, `revenue_prev`, `patients.new_prev_period` → comparativa periodo anterior built-in.
+  - Resuelve fechas server-side: `week`=últimos 7d, `month`=últimos 30d, `custom`={date_from, date_to}.
+  - Bloquea si `total_appointments < 3` (datos insuficientes).
+  - Llama Anthropic Haiku 4.5 con prompt narrativo en 4 secciones (Volumen y agenda · Finanzas · Doctores y servicios · Alertas accionables), `temperature 0.3`, `max_tokens 1024`, máx 350 palabras.
+  - Persiste el brief y retorna `{id, period, period_start, period_end, content_markdown, generated_at}`.
+- Componente `ExecutiveBriefWidget` en `app/(dashboard)/dashboard/executive-brief-widget.tsx`:
+  - Card con gradient emerald, badge "Beta", lock + badge PRO si plan no incluye IA.
+  - Modal con selector de periodo (week/month/custom + date pickers), AiLoader, error con CTA upgrade, resultado en markdown renderizado, botones regenerar + Print/PDF + cerrar.
+  - Renderer markdown ligero inline (h2/p/ul/strong/em) sin dependencias externas.
+- Mount en `admin-dashboard.tsx` justo después del header, antes del primer grid de KPI cards.
+- Schema Zod `aiBriefGenerateSchema` con refine para que `custom` requiera `date_from` y `date_to`.
 
-**Output esperado (ejemplo real):**
-```
-Resumen semanal — Clínica Vitra · 19-25 abril 2026
+#### 🔴 Resto de Capa 1 pendiente (~3-5 horas estimadas)
 
-Esta semana atendieron 187 pacientes (+12% vs semana pasada). El crecimiento
-vino principalmente del servicio de Ginecología (Dra. García sumó 23
-consultas, su mejor semana del trimestre). Sin embargo, el doctor Suárez
-tuvo 4 no-shows el lunes — vale la pena revisar ese slot. Los ingresos
-cerraron en S/14,200, con S/2,800 todavía pendientes de cobro de pacientes
-con plan de tratamiento activo.
+**Email automático:**
+- Templates nuevos en `lib/email-templates/`:
+  - `ai_executive_brief_weekly.html` — para Clínica, enviado los Lunes 7am hora local de la org.
+  - `ai_executive_brief_monthly.html` — para Centro Médico + Clínica, enviado el día 1 de cada mes 7am.
+- Variables del template: `{{org_name}}`, `{{period_label}}`, `{{period_dates}}`, `{{brief_html}}` (markdown convertido a HTML), `{{dashboard_url}}` (link al dashboard).
+- Renderizar markdown del brief a HTML con el mismo helper que ya está en `executive-brief-widget.tsx` pero extraído a `lib/markdown-to-html.ts` para reuso entre cliente y servidor.
+- Recipient: `email_settings.notification_emails` de la org (ya existe).
+- Dedupe: usar el `UNIQUE (organization_id, period, period_start)` que vamos a agregar a `ai_executive_briefs` como segunda migración (115). Hoy no está para permitir regeneraciones manuales libres.
 
-Detecté 3 pacientes con cita perdida sin seguimiento agendado que ya tienen
->30 días — te dejo la lista al final.
-```
+**Cron (Vercel Cron Jobs):**
+- Nuevo endpoint `POST /api/cron/ai-briefs` autenticado por header `Authorization: Bearer <CRON_SECRET>`.
+- En `vercel.json`:
+  ```json
+  {
+    "crons": [
+      { "path": "/api/cron/ai-briefs?cadence=weekly", "schedule": "0 12 * * 1" },
+      { "path": "/api/cron/ai-briefs?cadence=monthly", "schedule": "0 12 1 * *" }
+    ]
+  }
+  ```
+  (Vercel cron corre en UTC; 12 UTC = 7am Lima. Si en el futuro hay orgs en otras zonas horarias, el cron filtra por `org_settings.timezone` y solo procesa las que matchean la hora local.)
+- Lógica:
+  1. Listar todas las orgs activas con plan que incluye `feature_ai_assistant`.
+  2. Filtrar las que tienen tier correcto: `weekly` solo Clínica, `monthly` Centro Médico + Clínica.
+  3. Para cada org: llamar a la lógica del endpoint `/api/ai-briefs/generate` (extraída a `lib/ai-briefs/generate.ts`).
+  4. Después de generar y persistir, enviar el email vía `lib/email-sender.ts`.
+  5. Logging robusto: si la generación o el email falla para una org, no rompe las demás. Loggea a `system_logs` (o tabla similar).
+- Idempotencia: si la cron corre dos veces el mismo día, el `UNIQUE (org, period, period_start)` previene duplicados (devuelve 409 silenciosamente).
 
-**Datos que consume** (query desde Supabase, periodo último N días):
-- `appointments` — count, no-shows, completed, by service, by doctor
-- `patient_payments` — ingresos, métodos de pago, pendientes
-- `treatment_plans` + `treatment_sessions` — sesiones completadas vs pendientes
-- `clinical_notes` — firmadas vs sin firmar
-- `prescriptions` + `exam_orders` — count por doctor
-- `clinical_followups` — pendientes vs resueltos
-- Anomalías detectadas (delta vs periodo anterior > 20%)
+**Página de historial `/dashboard/briefs`:**
+- Nueva ruta `app/(dashboard)/dashboard/briefs/page.tsx`.
+- Lista paginada de los briefs históricos de la org (ya están en `ai_executive_briefs`).
+- Filtros: por cadencia (week/month/custom), por rango de fechas.
+- Cada brief en card colapsable con: dates, modelo usado, botón "Ver completo" (modal igual que el widget) + Print/PDF + Eliminar (admin only).
+- Endpoint `GET /api/ai-briefs?cadence=&from=&to=&page=&limit=` con paginación cursor-based.
+- Link al historial desde el widget del dashboard ("Ver historial →").
 
-**Prompt template (estructurado en secciones):**
-1. Sistema: rol "analista clínico-operativo de una clínica peruana", restricciones (no recomendaciones médicas, solo operativas/financieras, formato narrativo, no más de 4 párrafos).
-2. Datos: JSON con métricas pre-agregadas (no PHI).
-3. Salida: markdown con secciones implícitas (Volumen, Finanzas, Clínica, Alertas).
+**Widget en `/reports`:**
+- Card en el sidebar derecho de `/reports/page.tsx` con los **últimos 3 briefs**.
+- Cada uno colapsable, click expande inline (no modal).
+- Botón "Generar brief de este periodo" que toma el `dateFrom`/`dateTo` actual del filtro de `/reports` y dispara `POST /api/ai-briefs/generate` con `period: "custom"`.
+- Justifica que el brief vive *también* en `/reports` para conectarlo con el flujo "estoy mirando reportes y quiero un resumen rápido".
 
-**Costo estimado:** ~50k tokens/run. A precios actuales de Sonnet 4.6: ~S/0.50/run. Centro Médico (mensual) = S/0.50/mes; Clínica (semanal + mensual) = ~S/2.50/mes. Margen sano dentro de tier.
+**PHI Pseudonimization (importante por compliance):**
+- Hoy el LLM ve `top_doctors[].name` real (nombres completos de doctores). Para cumplir con buenas prácticas, antes de mandar el payload al LLM:
+  - Reemplazar nombres de doctores con tokens: `Dr. García` → `Doctor_001`, `Dra. López` → `Doctor_002`.
+  - Mantener el mapping en memoria solo durante la generación.
+  - Re-mapear los tokens en el output del LLM antes de persistirlo.
+- Reusar `lib/pseudonymize-phi.ts` (v0.12.4). Actualmente solo pseudonimiza pacientes; extender para doctores.
+- El `metrics_snapshot` que se persiste en BD también debe ir pseudonimizado (audit trail seguro).
+- El brief en BD (`content_markdown`) puede tener nombres reales o tokens, según lo que decidas. Recomendación: tokens en BD, re-mapeo on-the-fly al renderizar.
 
-**Tablas nuevas:**
+**Decisiones pendientes para esta fase:**
+- [ ] **Modelo LLM final**: ¿queda Haiku 4.5 o subimos a Sonnet 4.6? Decidir tras iterar 3-5 briefs reales con datos de Vitra y comparar.
+- [ ] **Frecuencia configurable por owner**: ¿el owner del Centro Médico puede pedir brief semanal aunque no esté en su tier? Decisión comercial.
+- [ ] **Almacenamiento del mapping pseudonimización**: ¿en BD cifrado (`mapping_encrypted JSONB`) o en memoria solo durante el render? La opción "en BD cifrado" permite auditar después; "memoria" es más privada pero pierde trazabilidad.
+- [ ] **Tracking de apertura de email**: pixel tracking (Resend lo soporta) para medir engagement. Definir si lo activamos o no por privacidad.
+
+**Migración 115 (a crear cuando arranquemos):**
 ```sql
--- migración futura ~115_ai_executive_briefs.sql
-CREATE TABLE ai_executive_briefs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  cadence TEXT NOT NULL CHECK (cadence IN ('weekly','monthly')),
-  period_start DATE NOT NULL,
-  period_end DATE NOT NULL,
-  content_markdown TEXT NOT NULL,
-  metrics_snapshot JSONB NOT NULL,
-  generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  sent_to_emails TEXT[] NOT NULL DEFAULT '{}',
-  llm_model TEXT NOT NULL,
-  llm_tokens_input INT,
-  llm_tokens_output INT,
-  llm_cost_usd NUMERIC(10,4),
-  UNIQUE (organization_id, cadence, period_start)
-);
--- RLS: org members read-only, system writes via service role
+-- Idempotencia para cron
+ALTER TABLE ai_executive_briefs
+  ADD CONSTRAINT ai_executive_briefs_org_period_start_unique
+  UNIQUE (organization_id, period, period_start);
+
+-- Tracking de envío de email
+ALTER TABLE ai_executive_briefs
+  ADD COLUMN sent_to_emails TEXT[] NOT NULL DEFAULT '{}',
+  ADD COLUMN email_sent_at TIMESTAMPTZ;
 ```
 
-**UI surface:**
-- **Email:** templates `ai_executive_brief_weekly` y `ai_executive_brief_monthly` enviados a `email_settings.notification_emails`. Reusa `lib/email-templates/`.
-- **Dashboard widget:** card "Resumen IA del periodo" en `/dashboard` (admin/owner) con últimos 3 briefs en acordeón. Click → ver completo + opción "Reenviar al equipo".
-- **Endpoint:** `GET /api/ai-briefs?period=week|month&limit=10`.
+**Archivos nuevos esperados (~7):**
+- `lib/markdown-to-html.ts`
+- `lib/ai-briefs/generate.ts` (lógica extraída del endpoint actual)
+- `lib/ai-briefs/send-email.ts`
+- `lib/email-templates/ai-executive-brief-weekly.html`
+- `lib/email-templates/ai-executive-brief-monthly.html`
+- `app/api/cron/ai-briefs/route.ts`
+- `app/api/ai-briefs/route.ts` (GET listing)
+- `app/(dashboard)/dashboard/briefs/page.tsx`
 
-**Privacidad / PHI:**
-- Reusa `lib/pseudonymize-phi.ts`. Nombres de pacientes en el prompt → `[Paciente_001]`, `[Paciente_002]`. El LLM nunca ve nombres reales.
-- Re-mapeo client-side cuando se renderiza el brief (la BD guarda el texto pseudonimizado + el mapping cifrado).
-- Documento legal: agregar cláusula de "procesamiento automatizado para reportes ejecutivos" en T&C.
-
-**Métricas de éxito:**
-- Apertura del email > 60% en owners/admins (medir vía tracking pixel).
-- CTAs accionables del brief (ver paciente, agendar follow-up) clickeados > 30% de las veces.
-- Cliente reporta en NPS que "el resumen IA es razón para seguir pagando".
-
-**Dependencies / pre-requisitos:**
-- Cron infrastructure ya existe (`vercel.json` + Supabase scheduled functions).
-- `lib/pseudonymize-phi.ts` ya está (v0.12.4).
-- Anthropic SDK ya integrado (`/api/ai-assistant`).
-
-**Riesgos:**
-- Hallucinations: el brief NO debe hacer recomendaciones médicas. Validar prompt con equipo médico de Vitra antes del release.
-- Variabilidad de tono: usar `temperature: 0.3` para consistencia entre semanas.
-- Falsos positivos en anomalías: definir thresholds conservadores (delta > 25% en métrica > 10 unidades absolutas).
+**Variables de entorno nuevas:**
+- `CRON_SECRET` — bearer token para autenticar las llamadas del cron de Vercel.
 
 ---
 
@@ -228,19 +249,196 @@ CREATE INDEX idx_ai_insights_org_active ON ai_insights(organization_id) WHERE di
 
 ---
 
-### Capas 3-5 (parking lot — evaluar después de capas 1+2 en producción)
+### Capa 3 — Forecast / Análisis Predictivo
 
-| Capa | Descripción corta | Tier | Cuándo evaluar |
-|---|---|---|---|
-| **3 — Forecast / predictivo** | Predicción de demanda 4-12 sem, no-show por cita, churn score por paciente. ML estadístico (no LLM). | Solo Clínica | Cuando capas 1+2 maduren + tengamos >500 citas históricas/org |
-| **4 — Comparativo multi-doctor** | Productividad, calidad clínica proxy, mix de servicios entre doctores de la misma org. | Solo Clínica (3+ doctores) | Después de Vitra; validar sensibilidad social antes |
-| **5 — Benchmarking anónimo entre clínicas** | "Tu no-show está 12% sobre promedio del segmento". | Solo Clínica | 12+ meses (necesita 10+ clínicas para significancia estadística) |
+**Estado:** 🔴 Pendiente · **Tier:** Solo Clínica · **Esfuerzo:** Alto (6-8 sem) · **Depende de:** Capas 1+2 estables · **Activación:** cuando una org tenga >500 citas históricas (sino el modelo no es confiable)
+
+**Definición:** ML estadístico (no LLM) que predice comportamiento futuro de la clínica. Usa Postgres + libs de ML simples (no necesita TensorFlow); tres modelos por separado.
+
+**Sub-features:**
+
+#### 3.1 — Predicción de demanda por servicio/doctor (4-12 semanas)
+- **Input:** historial de citas agrupadas por (week, service_id, doctor_id) últimas 52 semanas.
+- **Modelo:** ARIMA simple o regresión lineal con dummies estacionales (mes, día de semana). Implementable en SQL puro con `regr_slope`, `regr_intercept` o vía un job Python serverless.
+- **Output:** tabla `ai_forecasts(organization_id, target_type, target_id, week_start, predicted_count, confidence_low, confidence_high, model_version, generated_at)`.
+- **UI:** widget en `/dashboard/forecasts` con gráfico de línea histórica + zona sombreada de predicción + intervalo de confianza. Cada punto tiene tooltip "predicción para semana del X: Y citas (rango: A-B)".
+- **Acción accionable:** "Próximas 4 semanas se proyecta caída de 15% en Cardiología — considera ajustar horario del doctor X o lanzar campaña."
+
+#### 3.2 — No-show risk score por cita
+- **Input al modelo:** features por cita = {paciente_no_show_rate_historico, dias_desde_agendamiento, hora_del_dia, dia_de_semana, doctor_id, servicio_id, es_primera_visita, telefono_validado, email_validado}.
+- **Modelo:** regresión logística entrenada offline (Python/scikit-learn) sobre histórico, exportada como conjunto de coeficientes a una tabla `ai_no_show_model_weights`. La inferencia corre en SQL/JS.
+- **Output:** columna nueva `appointments.no_show_risk_score NUMERIC(3,2)` (0.00 a 1.00) actualizada por trigger cuando se crea/edita cita o cuando faltan <48h.
+- **UI:** flag visual en agenda y en `appointment-sidebar`: "🟡 Riesgo medio (45%)" o "🔴 Riesgo alto (78%)". Lista filtrable "Citas con alto riesgo en próximas 48h" en dashboard de recepción.
+- **Acción accionable:** sugerir confirmar manualmente las citas con score > 0.6 el día anterior. Posible auto-trigger de segunda llamada de WhatsApp si > 0.75.
+
+#### 3.3 — Churn risk score por paciente
+- **Input:** features por paciente = {dias_desde_ultima_cita, citas_ultimo_año, ticket_promedio, especialidad_principal, edad, distrito, sin_seguimientos_resueltos}.
+- **Modelo:** misma técnica que 3.2.
+- **Output:** columna `patients.churn_risk_score NUMERIC(3,2)` recalculada nightly.
+- **UI:** filtro en `/patients` "Pacientes en riesgo de churn", badge en drawer con score. Lista priorizada para campaña de reactivación.
+- **Acción accionable:** integración con feature de email de reactivación (90+ días) — el cron diario que ya existe puede priorizar a los de score alto primero.
+
+**Migraciones esperadas:**
+- 117 — `ai_forecasts` table
+- 118 — `appointments.no_show_risk_score` column + trigger
+- 119 — `patients.churn_risk_score` column + scheduled refresh
+- 120 — `ai_no_show_model_weights` y `ai_churn_model_weights` (coeficientes)
+
+**Decisiones pendientes:**
+- [ ] **Entrenamiento del modelo**: ¿corre en cloud externo (Modal, Replicate) o tenemos un Python service propio? Para 1-2 clínicas, un script offline bastaría (yo entreno y commiteo los coeficientes).
+- [ ] **Versionado de modelo**: cada org puede tener sus propios coeficientes (modelo per-org cuando hay >2000 citas) o usar coeficientes globales hasta que escalemos.
+- [ ] **Visualización**: ¿gráficos de Recharts con sombras de confianza o algo más simple tipo "número grande + flecha"? El primero comunica mejor la incertidumbre, el segundo es más fácil de leer.
+
+**Riesgos:**
+- **Predicción mala con poca data**: requiere mínimo 12 semanas de histórico. Mostrar "Datos insuficientes para predicción confiable" hasta llegar al threshold.
+- **Sesgo en el modelo de churn**: pacientes que vienen 1 vez al año (chequeos anuales) podrían marcarse como churn falsamente. Definir threshold por especialidad.
+- **Exposure de scoring a doctores**: el churn score puede sentirse invasivo si lo ven los doctores. UI restrictiva: solo owner/director.
+
+---
+
+### Capa 4 — Comparativo Multi-Doctor (Performance Internal)
+
+**Estado:** 🔴 Pendiente · **Tier:** Solo Clínica con 3+ doctores activos · **Esfuerzo:** Medio (2-3 sem) · **Depende de:** Capas 1+2 · **Activación:** después de Vitra; validar sensibilidad social con el cliente antes
+
+**Definición:** Reportes comparativos entre doctores de la misma clínica, accesibles **solo para owner/director médico**. Sirve para reuniones 1-on-1, evaluación de desempeño y detección temprana de problemas.
+
+**Métricas comparativas:**
+
+| Categoría | Métrica | Fuente |
+|---|---|---|
+| **Productividad** | Citas/semana, citas completadas, ingresos generados | `appointments` + `services.base_price` |
+| **Calidad clínica (proxy)** | % notas SOAP firmadas en <48h, planes de tratamiento creados, % follow-ups resueltos | `clinical_notes`, `treatment_plans`, `clinical_followups` |
+| **Continuidad** | % pacientes recurrentes, retención a 90 días | `appointments` agrupadas por `patient_id`, `doctor_id` |
+| **Eficiencia** | Tiempo promedio por consulta vs duración configurada del servicio | `appointments` + `services.duration_minutes` |
+| **No-shows** | % no-shows por doctor (con threshold contextual de su especialidad) | `appointments WHERE status IN ('scheduled','confirmed') AND date < CURRENT_DATE` |
+| **Tendencia (vs mes anterior)** | Delta de cada métrica MoM | comparativa con periodo anterior |
+
+**UI surface:**
+- Página nueva `/dashboard/team-performance` (admin only).
+- Sección "Vista trimestral" con tabla comparativa, doctores en filas, métricas en columnas. Cada celda con sparkline de las últimas 12 semanas.
+- Sección "Brief individual por doctor" con un narrativo IA del trimestre del doctor X (reusa el motor de Capa 1 pero pasando filtro `doctor_id`).
+- Modo "Anonimizado" con switch que reemplaza nombres por "Doctor 1, Doctor 2..." para presentaciones a juntas o cuando se quiere compartir un screenshot.
+- Botones Print/PDF para exportar y llevar a la 1-on-1.
+- Filtros por especialidad, tipo de doctor, periodo (último trimestre / semestre / año).
+
+**Endpoints:**
+- `GET /api/team-performance?from=&to=&specialty=` — devuelve agregado de todos los doctores con sus métricas.
+- `POST /api/ai-briefs/generate` extendido con `subject_type: "doctor", subject_id: <uuid>` para generar el brief por doctor.
+
+**Tabla nueva:**
+```sql
+-- migración 121 - cache de comparativos
+CREATE TABLE ai_team_performance_snapshots (
+  id UUID PRIMARY KEY,
+  organization_id UUID NOT NULL,
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  payload JSONB NOT NULL,  -- todas las métricas pre-calculadas
+  generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (organization_id, period_start, period_end)
+);
+```
+
+**Privacidad y permisos (CRÍTICO):**
+- **NUNCA visible para los doctores mismos** sobre sus pares. Solo `role IN ('owner','admin','director_medico')`.
+- Si el doctor entra a `/dashboard/team-performance`, redirect 403.
+- Documento legal: agregar cláusula de "evaluación interna del desempeño" en el contrato laboral del doctor (es estándar en clínicas serias).
+- Audit log: cada vez que alguien abre el comparativo, queda registro en `audit_logs(user_id, action='view_team_performance', timestamp)`.
+
+**Decisiones pendientes:**
+- [ ] **¿Métricas visibles vs ocultas en el comparativo?** Algunas pueden ser controvertidas (ej: ticket promedio por doctor → el doctor podría sentirse evaluado por dinero, no por calidad). Curar la lista con feedback de Vitra.
+- [ ] **¿Top performer reconocido públicamente?** Función "compartir como reconocimiento al equipo" — por ahora NO, evita comparaciones tóxicas. Reevaluar.
+- [ ] **¿Permitir que el doctor vea SUS propias métricas?** (no las de pares). Página separada `/dashboard/my-performance` con solo sus números. Esto sí es positivo, refuerza.
+- [ ] **Threshold de "alerta" en métricas**: definir baseline por especialidad. Un dermatólogo y un ginecólogo no son comparables 1-a-1.
+
+**Riesgos:**
+- **Sensibilidad social**: doctores molestos si descubren que son comparados sin saberlo. Mitigación: cláusula contractual + transparencia con el equipo.
+- **Métricas mal interpretadas**: "Doctor A genera más ingresos" puede ser por más tiempo en la clínica, no por mejor desempeño. El brief IA debe contextualizar (ej: "ajustado por horas trabajadas").
+- **Sesgo de servicios**: un doctor que solo ve consultas estándar siempre va a tener menor ticket que uno que hace procedimientos complejos. Normalizar por mix de servicios.
+
+---
+
+### Capa 5 — Benchmarking Anónimo entre Clínicas
+
+**Estado:** 🔴 Pendiente (12+ meses) · **Tier:** Solo Clínica · **Esfuerzo:** Muy Alto (8-12 sem) · **Depende de:** 10+ clínicas activas para significancia estadística + reglas legales claras
+
+**Definición:** "Tu tasa de no-shows está 12% sobre el promedio del segmento de ginecología en Lima." Comparativa anónima de la clínica del usuario contra el promedio del segmento (especialidad + región + tamaño).
+
+**Por qué no se puede empezar antes:** matemáticamente necesita un mínimo de 10 organizaciones similares para que el benchmark sea estadísticamente significativo y, simultáneamente, no permita identificar a una clínica individual (k-anonymity con k>=5 mínimo).
+
+**Métricas benchmark candidatas:**
+
+| Métrica | Por qué es útil | Sensibilidad |
+|---|---|---|
+| Tasa de no-shows | Punto de comparación universal | Baja |
+| Tasa de cancelación | Calidad de comunicación previa | Baja |
+| Tiempo promedio de espera | Eficiencia operacional | Media |
+| % pacientes recurrentes a 6 meses | Calidad clínica + retención | Media |
+| Ticket promedio (rangos) | Posicionamiento de pricing | **Alta** — competitiva |
+| Mix de servicios más frecuentes | Posicionamiento estratégico | **Alta** |
+| Días de la semana más demandados | Optimización de horarios | Baja |
+| % conversión de leads (de fuentes con tracking) | Eficiencia comercial | Media |
+
+**Segmentación del benchmark:**
+- **Por especialidad principal** (`organizations.primary_specialty`): ginecología, dermatología, pediatría, etc.
+- **Por región**: Lima Metropolitana, Lima Provincias, Norte, Sur, Centro, Selva. (Más granular tipo distrito sería identificable.)
+- **Por tamaño**: 1 doctor, 2-5 doctores, 6+ doctores.
+- **Por antigüedad**: <1 año, 1-3 años, 3+ años.
+
+**Tabla benchmark:**
+```sql
+-- migración 122 - benchmarks calculados nightly
+CREATE TABLE ai_benchmarks (
+  id UUID PRIMARY KEY,
+  segment_specialty TEXT NOT NULL,
+  segment_region TEXT NOT NULL,
+  segment_size_bucket TEXT NOT NULL,  -- 'solo','2-5','6+'
+  metric_key TEXT NOT NULL,
+  metric_value_p25 NUMERIC,
+  metric_value_p50 NUMERIC,
+  metric_value_p75 NUMERIC,
+  metric_value_p90 NUMERIC,
+  sample_size INT NOT NULL,
+  computed_at TIMESTAMPTZ NOT NULL,
+  UNIQUE (segment_specialty, segment_region, segment_size_bucket, metric_key, computed_at)
+);
+-- Solo se exponen segmentos con sample_size >= 5 (k-anonymity)
+```
+
+**UI surface:**
+- Card "Tu posición en el mercado" en `/dashboard` con 3-5 métricas principales y barra horizontal mostrando dónde está la clínica vs P25/P50/P75 del segmento.
+- Página completa `/dashboard/market-position` con análisis detallado por métrica.
+- Recomendaciones IA ("Estás en el P30 de no-shows — clínicas similares en P75 lo logran con confirmación 24h antes").
+
+**Privacidad y compliance (CRÍTICO):**
+- **NUNCA mostrar números absolutos del segmento** que permitan triangular qué clínica es. Solo percentiles agregados.
+- **k-anonymity ≥ 5**: no exponer benchmark si hay <5 clínicas en el segmento.
+- **Opt-in del cliente**: cada clínica debe aceptar explícitamente "compartir mis métricas anonimizadas para benchmarking" en T&C o setting separado. Sin opt-in, la org no aparece en el agregado pero tampoco accede al benchmark.
+- **Contractual**: el benchmark puede ser un addon Pro adicional (S/50/mes) o incluido en Clínica.
+- **GDPR/Ley 29733 compatible**: las métricas son agregados, no datos individuales. Sin embargo, el opt-in es buena práctica.
+
+**Decisiones pendientes:**
+- [ ] **¿Quién hace el opt-in?** El owner al firmar contrato, o un setting visible en `/settings/privacy` que el cliente puede activar/desactivar.
+- [ ] **¿Mostrar segmento o percentil?** "Estás en el top 25%" vs "Tu valor: X, segmento: Y" — el primero es más diplomático, el segundo más informativo.
+- [ ] **Frecuencia de cálculo**: nightly batch o weekly. Empezar weekly y subir a daily si hay demanda.
+- [ ] **Bench cross-país**: si llegamos a México/Colombia, ¿benchmark internacional o por país? Por país por homogeneidad de mercado.
+- [ ] **Modelo de monetización**: ¿addon separado (S/50/mes Pro) o incluido en Clínica? Argumento por ahora: incluir en Clínica como argumento de venta de "no estás solo, te comparamos con tus pares".
+
+**Riesgos:**
+- **Reverse engineering**: con suficiente data y curiosidad, una clínica grande podría intentar identificar a competidores. Mitigación: percentiles, no rankings; sample_size mínimo; segmentos amplios.
+- **Métricas competitivas sensibles**: el "ticket promedio" puede ser visto como precio de mercado, lo que afecta posicionamiento. Considerar omitir o dar solo rangos amplios (P25-P75).
+- **Engaño por gaming**: una clínica podría inflar métricas (ej: marcar como "completed" cosas que no lo son) para verse bien en el benchmark. Auditar las flags de calidad clínica antes de publicarlas.
+
+---
 
 ### Roadmap sugerido
 
-1. **Q2 2026** — Capa 1 (Brief Ejecutivo) en Centro Médico + Clínica.
-2. **Q3 2026** — Capa 2 (Insights Proactivos) — al menos 4 tipos de detector.
-3. **Q4 2026** — Reactivar trial Clínica con Capa 1+2 como argumento de venta.
+1. **Q2 2026 (in progress)** — Capa 1: Slice C entregado (v0.13.5). Resto de Capa 1 (cron + email + historial + widget en /reports + PHI pseudo) pendiente. Estimado: 3-5h.
+2. **Q2-Q3 2026** — Capa 2 (Insights Proactivos) — al menos 4 tipos de detector funcionando.
+3. **Q3 2026** — Reactivar trial Clínica con Capas 1+2 como argumento de venta.
+4. **Q4 2026** — Capa 3 (Forecast/Predictivo) si hay >500 citas históricas en alguna org.
+5. **2027 H1** — Capa 4 (Comparativo multi-doctor) si Vitra valida sensibilidad social.
+6. **2027 H2 / 2028** — Capa 5 (Benchmarking anónimo) si hay 10+ clínicas activas.
 4. **2027+** — Capas 3-5 según señal del mercado.
 
 ### Decisiones pendientes (cuando vayamos a implementar)

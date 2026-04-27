@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { APP_NAME } from "@/lib/constants";
-import { Zap, ArrowRight, Menu, X, ChevronDown, Sparkles, BookOpen, Calculator, HelpCircle, Handshake, Mail, FileText, Headphones } from "lucide-react";
+import { ArrowRight, Menu, X, ChevronDown, Sparkles, BookOpen, Calculator, HelpCircle, Handshake, Mail, FileText, Headphones } from "lucide-react";
+import { YendaLogo } from "@/components/icons/yenda-logo";
 import { PRODUCT_FEATURES } from "@/lib/product-features";
 
 const SIMPLE_LINKS = [
@@ -51,13 +52,8 @@ export function Navbar() {
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 md:px-6">
         {/* Logo */}
-        <Link href="/" className="flex items-center gap-2.5 group">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl gradient-primary shadow-md transition-transform group-hover:scale-105">
-            <Zap className="h-4.5 w-4.5 text-white" />
-          </div>
-          <span className="text-lg font-bold tracking-tight text-slate-900">
-            {APP_NAME}
-          </span>
+        <Link href="/" className="flex items-center group" aria-label={APP_NAME}>
+          <YendaLogo width={110} priority className="transition-transform group-hover:scale-[1.02]" />
         </Link>
 
         {/* Desktop nav links */}

@@ -635,7 +635,7 @@ function TemplateEditor({
                 value={form.footer_text}
                 onChange={(e) => setForm({ ...form, footer_text: e.target.value })}
                 disabled={!canEdit}
-                placeholder={es ? "VibeForge - No responder a este mensaje" : "VibeForge - Do not reply to this message"}
+                placeholder={es ? "Yenda - No responder a este mensaje" : "Yenda - Do not reply to this message"}
                 className={inputClass}
               />
             </div>

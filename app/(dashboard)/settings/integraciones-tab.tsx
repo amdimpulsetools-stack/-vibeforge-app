@@ -523,8 +523,8 @@ export default function IntegracionesTab() {
           </p>
           <p className="text-xs text-muted-foreground">
             {es
-              ? "Escríbenos a soporte@vibeforge.app y la consideraremos para el próximo release."
-              : "Write to soporte@vibeforge.app and we'll consider it for the next release."}
+              ? "Escríbenos a soporte@yenda.app y la consideraremos para el próximo release."
+              : "Write to soporte@yenda.app and we'll consider it for the next release."}
           </p>
         </div>
       </div>

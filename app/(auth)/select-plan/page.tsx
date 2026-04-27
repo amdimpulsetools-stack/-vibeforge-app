@@ -6,12 +6,12 @@ import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
 import {
-  Zap,
   Check,
   Loader2,
   Sparkles,
   AlertTriangle,
 } from "lucide-react";
+import { YendaLogo } from "@/components/icons/yenda-logo";
 import { cn } from "@/lib/utils";
 
 interface Plan {
@@ -113,7 +113,7 @@ function SelectPlanPage() {
         .limit(1);
 
       if (subs && subs.length > 0) {
-        toast.success("¡Pago confirmado! Bienvenido a VibeForge");
+        toast.success(`¡Pago confirmado! Bienvenido a ${APP_NAME}`);
         router.push("/dashboard");
         return;
       }
@@ -297,11 +297,8 @@ function SelectPlanPage() {
       <div className="mx-auto max-w-5xl">
         {/* Header */}
         <div className="text-center mb-14">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-              <Zap className="h-5 w-5" />
-            </div>
-            <span className="text-xl font-bold">{APP_NAME}</span>
+          <div className="flex justify-center mb-4" aria-label={APP_NAME}>
+            <YendaLogo width={140} priority />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
             Elige tu plan

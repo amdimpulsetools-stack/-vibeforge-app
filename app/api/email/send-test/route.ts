@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
     to,
     subject,
     html,
-    fromName: clinic_name || "VibeForge",
+    fromName: clinic_name || "Yenda",
   });
 
   if (!result.ok) {

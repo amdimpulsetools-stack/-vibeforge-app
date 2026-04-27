@@ -116,7 +116,7 @@ export async function exportContentPDF(
     // ── Footer ──
     pdf.setFontSize(7);
     pdf.setTextColor(160, 160, 160);
-    pdf.text(`VibeForge — ${title}`, margin, pageHeight - 6);
+    pdf.text(`Yenda — ${title}`, margin, pageHeight - 6);
     pdf.text(`Página ${page + 1} de ${totalPages}`, pageWidth - margin, pageHeight - 6, {
       align: "right",
     });

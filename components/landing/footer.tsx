@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { APP_NAME } from "@/lib/constants";
-import { Zap } from "lucide-react";
+import { YendaLogo } from "@/components/icons/yenda-logo";
 
 const links = [
   { label: "Características", href: "#features" },
@@ -19,12 +19,7 @@ export function Footer() {
       <div className="mx-auto max-w-7xl px-6 py-10">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
           {/* Logo */}
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg gradient-primary">
-              <Zap className="h-4 w-4 text-white" />
-            </div>
-            <span className="text-sm font-bold text-slate-800">{APP_NAME}</span>
-          </div>
+          <YendaLogo width={88} className="opacity-90" />
 
           {/* Nav links */}
           <nav className="flex items-center gap-6">
