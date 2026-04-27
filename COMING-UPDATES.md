@@ -1,6 +1,6 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-24 (v0.12.6)
+> **Última actualización:** 2026-04-26 (v0.13.2)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -21,6 +21,11 @@ Auditoría multi-agente (diseño visual + neurocopy + UX) del 2026-04-24. Lo apl
 
 ## ✅ Entregados
 
+- [x] **Rediseño UX del Modal de Historia Clínica** — Tokens compartidos en `lib/clinical-ui-tokens.ts` (h-9 / h-11 CTAs por dominio), modal scheduler ampliado a 1480/1680px en xl/2xl, columna derecha con tabs (Recetas/Exámenes/Tratamientos/Seguimientos) y badges numéricos en lugar de stack vertical, header sticky con CTAs globales (Guardar/Firmar/Imprimir + atajo Ctrl+S + auto-save indicator), badge "Firmada" en ámbar (estado bloqueado/atención), vitales `lg:grid-cols-8` en wide layout, `ClinicalNotePanel` con `forwardRef` + `onStateChange` (eliminado polling de 2s), estados vacíos accionables en los 4 paneles laterales, `clinical-history-modal` hermano ampliado para coherencia. *(v0.13.2 — 2026-04-26)*
+- [x] **Adjuntos clínicos: dropzone real con drag-and-drop** — Botón "+ Subir archivo" del header migra a token compartido (h-9 / variante orange). Dropzone py-10 con border dashed, ícono Upload de 6×6 y 3 estados visuales (idle / drag-active naranja / file-selected esmeralda). Drag-and-drop nativo + click + Enter/Space (accesibilidad). Validación cliente de tamaño 10 MB. Estado vacío accionable: si no hay adjuntos, el dropzone se muestra automáticamente. Form de categoría/descripción aparece solo después de seleccionar archivo. *(v0.13.2 — 2026-04-26)*
+- [x] **Eje Y visible en gráfico "Citas últimos 30 días"** — `admin-dashboard.tsx`: el `<AreaChart>` tenía `margin={{ left: -20 }}` que empujaba el `<YAxis>` fuera del contenedor. Cambio a `left: 0` + `width: 32` para renderizar los valores numéricos del eje completos. *(v0.13.2 — 2026-04-26)*
+- [x] **Fix: doctores quedaban con horario vacío al fallar el save** — `admin/doctors/[id]/page.tsx`: el flujo `DELETE all + INSERT new` dejaba al doctor con CERO horarios si el INSERT fallaba (típicamente por `UNIQUE(doctor_id, day_of_week, start_time)`). Validación frontend antes del save (detecta duplicados y rangos `end_time <= start_time`), resaltado visual con border + ring rojos y mensaje inline en cada bloque ofensivo, snapshot + restore del horario previo si el INSERT falla por otra causa. *(v0.13.2 — 2026-04-26)*
+- [x] **Consultorios autorizados por doctor (`doctor_offices`)** — Migración 111 con tabla nueva `doctor_offices(doctor_id, office_id, organization_id)`, UNIQUE composite, RLS por `is_org_admin`. Sección UI nueva "Consultorios autorizados" arriba del horario semanal con multi-select (1/2/3 columnas). El `<select>` de consultorio por bloque se filtra a los autorizados; valores antiguos no autorizados se exponen marcados para corrección. Validación al guardar: si un bloque usa un consultorio fuera del set autorizado, identifica el bloque ofensivo. Save atómico-cliente con snapshot+restore para ambas tablas. Resuelve el caso "Dra. Ángela atiende solo en 202 y 203" que antes chocaba con la constraint UNIQUE. *(v0.13.2 — 2026-04-26)*
 - [x] **Catálogo CIE-10 personalizable por organización** — Tabla `custom_diagnosis_codes` con RLS, API CRUD (`/api/custom-diagnosis-codes`), panel Admin → Diagnósticos CIE-10 y merge automático en el buscador de la nota clínica (códigos personalizados aparecen etiquetados). *(v0.8.2 — 2026-04-16)*
 - [x] **Antecedentes del paciente en la nota clínica** — Tarjeta colapsable en el panel de nota clínica con alergias, condiciones crónicas, medicación activa y últimos 5 diagnósticos. 3 tablas normalizadas con RLS (`patient_allergies`, `patient_conditions`, `patient_medications`). *(v0.8.2 — 2026-04-16)*
 - [x] **Email de activación de trial** — Plantilla `trial_welcome` con variables dinámicas. Enviado post-respuesta via `after()` de Next.js. *(v0.8.1 — 2026-04-15)*

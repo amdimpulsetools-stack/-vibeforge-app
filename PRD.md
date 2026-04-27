@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-04-24
-> **Versión:** 0.12.7
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + Consentimiento informado Tier 1 (Ley 29414) + Auditoría multi-agente + 2 rondas de fixes (v0.12.3 + v0.12.4) + **Preparación de pilot con primer cliente real (Vitra, fertilidad)**
+> **Última actualización:** 2026-04-26
+> **Versión:** 0.13.2
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + **Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor (v0.13.2)** + Preparación de pilot con primer cliente real (Vitra, fertilidad)
 
 ---
 
@@ -2704,3 +2704,127 @@ RLS:
 - **Token-at-rest cipher pattern**: cualquier integración futura con OAuth de terceros (MP, Zoom, Meta) debe encriptar tokens con AES-256-GCM via `lib/encryption.ts`. Es la regla.
 - **Sync hooks como helpers de cliente**: el patrón `lib/<integration>-client.ts` con función fire-and-forget evita repetir lógica de fetch en N puntos del cliente. Reusable para Zoom (link de reunión), Meet, etc.
 - **State firmado en OAuth**: HMAC-SHA256(payload, SUPABASE_SERVICE_ROLE_KEY) bloquea CSRF y replay. Patrón obligatorio para cualquier OAuth flow nuevo.
+
+---
+
+## 35. Changelog — Sesión 2026-04-26 (v0.13.2) — Rediseño Modal Historia Clínica + Consultorios autorizados por doctor
+
+Sesión enfocada en el flujo del doctor durante la consulta y en limpiar dos problemas de modelado en la administración de doctores. Driver original del usuario: "los botones de recetar y de prescripción son muy chiquitos, la ventana se siente apretada". Auditoría UX → propuesta priorizada (P0/P1/P2) → implementación.
+
+### Rediseño UX — Modal de Historia Clínica (scheduler)
+
+Tres niveles de cambios sobre `app/(dashboard)/scheduler/clinical-note-modal.tsx` y los 5 paneles que viven adentro.
+
+**P0 — Imprescindibles:**
+- **Tokens UI compartidos** en `lib/clinical-ui-tokens.ts`: `CLINICAL_PANEL_CTA` (h-9 / 36px / text-xs font-semibold), variantes por dominio (violet, cyan, blue, red, orange), `CLINICAL_PRIMARY_CTA` (h-10), `CLINICAL_SIGN_CTA` (h-11 con ring ámbar), `CLINICAL_SIGNED_BADGE`. Todos los CTAs de creación migran a estos tokens — antes eran `text-[10px] py-1` (~22px), por debajo de WCAG 2.5.5/2.5.8.
+- **Ancho del modal scheduler**: `xl:max-w-7xl (1280px)` → `xl:max-w-[1480px] 2xl:max-w-[1680px]`. Columna derecha 380 → 440/500px. En 1920px gana ~400px de área útil.
+- **Botón Firmar** prominente: `h-11` + `ring-2 ring-amber-500/30 ring-offset-2` cuando está listo. Comunica la irreversibilidad (heurística Nielsen #5).
+
+**P1 — Reorganización:**
+- **Tabs en columna derecha** vía `app/(dashboard)/scheduler/clinical-side-panels.tsx`: Recetas / Exámenes / Tratamientos / Seguimientos con badges numéricos en vivo (counts vía Supabase). Reemplaza el stack vertical de 4 paneles. Reduce scroll de ~2400px → ~800px por panel y aplica heurística "reconocer vs recordar" (Nielsen #6).
+- **Header sticky** con CTAs globales (Guardar / Firmar / Imprimir + auto-save indicator + badge "Firmada" en ámbar) siempre visibles. El badge cambia de emerald → ámbar para comunicar estado bloqueado (no éxito).
+- **Vitales 8-col en wide layout** (`lg:grid-cols-8`) — coherente con el modal hermano de pacientes.
+- **`ClinicalNotePanel` con `forwardRef` + `useImperativeHandle`**: expone `save()` / `sign()` y reporta estado vía `onStateChange(panelState)`. El modal lee estado y lanza acciones sin polling. Eliminado el polling de `is_signed` cada 2s (30 req/min) — reemplazado por callback.
+- **`patients/clinical-history-modal.tsx`** ampliado a `xl:max-w-[1480px] 2xl:max-w-[1680px]` para coherencia.
+
+**P2 — Pulido:**
+- **Atajo Ctrl+S / Cmd+S** para guardar mientras el modal está abierto y editable.
+- **Estados vacíos accionables** en los 4 paneles laterales: "Crear primera receta", "Ordenar primer examen", "Crear primer plan", "Crear primer seguimiento" — el CTA aparece inline en lugar del texto plano "Sin prescripciones".
+- **Microcopy**: "Recetar" → "Nueva receta", "Solicitar" → "Ordenar examen", "Subir" → "Subir archivo".
+- **Dark mode polish**: `backdrop-blur` en header sticky y tab bar.
+
+### Adjuntos clínicos — dropzone real con drag-and-drop
+
+`app/(dashboard)/patients/clinical-attachments-panel.tsx`:
+- Botón "+ Subir archivo" del header migra a token (`h-9` / variante `orange`) — antes era `~22px`, evidentemente más chico que sus hermanos.
+- **Dropzone py-10** con border dashed, ícono Upload de 6×6 dentro de un círculo. 3 estados visuales:
+  - **idle** — `bg-muted/20 border-muted-foreground/25`
+  - **drag-active** — `bg-orange-500/10 border-orange-500` + texto "Suelta el archivo aquí"
+  - **file-selected** — `bg-emerald-500/5 border-emerald-500/50` + nombre + tamaño del archivo
+- **Drag-and-drop nativo** (`onDragEnter/Over/Leave/Drop`) además del click. Accesibilidad: `role="button"`, `tabIndex={0}`, soporta Enter/Space.
+- **Validación cliente** de tamaño (10 MB) antes de subir.
+- **Estado vacío accionable**: si no hay adjuntos, el dropzone se muestra automáticamente (en vez del texto "Sin adjuntos").
+- Form de categoría/descripción aparece **solo después** de seleccionar el archivo (reduce ruido visual).
+
+### Fix — Eje Y del gráfico "Citas últimos 30 días" (admin dashboard)
+
+`app/(dashboard)/dashboard/admin-dashboard.tsx`. El `<AreaChart>` tenía `margin={{ left: -20, ... }}` (margen izquierdo negativo) que empujaba el `<YAxis>` fuera del contenedor visible — solo se asomaban trazos finitos de los labels. Cambio: `left: -20 → left: 0` y `width: 30 → 32` para que los valores numéricos del eje (1, 2, 3…) se rendericen completos junto al gráfico.
+
+### Fix — Doctores quedaban con horario vacío al fallar el guardado
+
+`app/(dashboard)/admin/doctors/[id]/page.tsx`. El flujo `handleSave` era `DELETE all + INSERT new`. Si el INSERT fallaba (típicamente por duplicate key en `UNIQUE(doctor_id, day_of_week, start_time)`), el delete ya se había aplicado y el doctor quedaba con CERO horarios. Causa raíz reportada por el usuario.
+
+Cambios:
+- **Validación frontend antes del save**: detecta bloques que comparten `(day_of_week, start_time)` y bloques con `end_time <= start_time`. Toast claro identificando los conflictos.
+- **Resaltado visual**: bloques con problema reciben `border-red-500/60 ring-2 ring-red-500/20` y un mensaje inline ("⚠ Duplicado…" / "⚠ La hora de fin debe ser mayor…").
+- **Snapshot + restore**: aún si el INSERT fallara por otra causa, ahora se intenta restaurar el snapshot previo del horario para que el doctor no quede con la agenda vacía.
+
+### Feature — Consultorios autorizados por doctor (`doctor_offices`)
+
+Resuelve el caso de uso que el usuario reportó: *"quiero que la Dra. Ángela solo pueda atender en los consultorios 202 y 203, pero el sistema no me deja"*.
+
+**Causa raíz:** `doctor_schedules.office_id` mezclaba dos preguntas distintas:
+1. ¿En qué consultorios puede atender este doctor? (atributo del **doctor**)
+2. ¿En cuál consultorio específico es este turno? (atributo del **bloque**)
+
+Como resultado, dos bloques con misma `(day_of_week, start_time)` y distinto `office_id` chocaban con la constraint UNIQUE. No había forma de expresar "lunes 9-13 puede ser en 202 o 203".
+
+**Esquema (migración 111):**
+
+Tabla nueva `doctor_offices`:
+- `(id, doctor_id FK, office_id FK, organization_id FK, created_at)` con `UNIQUE(doctor_id, office_id)` e índices por las 3 FKs.
+- RLS: `org_select` por `get_user_org_ids()`, `org_insert` / `org_delete` por `is_org_admin(organization_id)`. Sin policy de UPDATE — las filas son composites inmutables, "editar" = delete + insert.
+- **Default permisivo**: lista vacía → "Todos los consultorios". No rompe orgs existentes.
+
+`doctor_schedules.office_id` se mantiene opcional como **restricción adicional por turno**:
+- `NULL` → el turno hereda los consultorios autorizados del doctor.
+- `NOT NULL` → ese turno se da solo en ese consultorio específico.
+
+**UI** (en `/admin/doctors/[id]` → tab Horario):
+- **Sección nueva "Consultorios autorizados"** arriba del horario semanal: grid responsive (1/2/3 columnas) con checkboxes por consultorio activo. Resumen de estado: "Acceso completo: el doctor puede atender en cualquiera de los N consultorios" o "Restringido a 2 de 6 consultorios" + botón "Permitir todos" para limpiar.
+- **`<select>` de consultorio por bloque filtrado**: solo muestra los autorizados. El placeholder cambia: "Todos los autorizados (2)" o "Todos los consultorios" según haya o no restricción global.
+- **Valores antiguos protegidos**: si un bloque apunta a un consultorio que ya no está en la lista autorizada, aparece etiquetado como "(no autorizado)" en el dropdown para que el usuario lo corrija.
+- **Validación al guardar**: si algún bloque usa un consultorio fuera del set autorizado, identifica el bloque ofensivo y bloquea el save con toast.
+- **Save atómico-cliente con snapshot+restore** para `doctor_schedules` y `doctor_offices`. Si una mitad falla, se restaura la previa.
+
+**Tipos:** `DoctorOffice` declarado manualmente en `types/admin.ts`. El cliente Supabase del proyecto es untipado (`SupabaseClient`, no `SupabaseClient<Database>`), así que `from("doctor_offices")` funciona sin regenerar `database.ts`. Cuando se corra `npm run types` se podrá mover al tipo generado.
+
+### Operaciones requeridas para activar v0.13.2
+
+1. **Aplicar migración 111** (`supabase/migrations/111_doctor_offices.sql`):
+   - `supabase db push` (CLI), o
+   - copiar el SQL al editor de Supabase Studio, o
+   - `psql $DATABASE_URL -f supabase/migrations/111_doctor_offices.sql`.
+2. (Opcional pero recomendado) `npm run types` para regenerar `database.ts` con la nueva tabla.
+
+### Archivos tocados
+
+| Archivo | Líneas |
+|---|---|
+| `lib/clinical-ui-tokens.ts` *(nuevo)* | 47 |
+| `app/(dashboard)/scheduler/clinical-side-panels.tsx` *(nuevo)* | 211 |
+| `app/(dashboard)/scheduler/clinical-note-modal.tsx` | reescrito |
+| `app/(dashboard)/scheduler/clinical-note-panel.tsx` | refactor a `forwardRef` |
+| `app/(dashboard)/patients/prescriptions-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/exam-orders-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/treatment-plans-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/clinical-followups-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/clinical-attachments-panel.tsx` | dropzone real |
+| `app/(dashboard)/patients/clinical-history-modal.tsx` | ancho |
+| `app/(dashboard)/dashboard/admin-dashboard.tsx` | margin del AreaChart |
+| `app/(dashboard)/admin/doctors/[id]/page.tsx` | validación + autorizados |
+| `supabase/migrations/111_doctor_offices.sql` *(nuevo)* | 56 |
+| `types/admin.ts` | tipo `DoctorOffice` |
+
+### Decisiones de diseño con contexto
+
+- **Tabs vs stack** en la columna derecha: tabs ganan por reducción de scroll y "reconocer vs recordar". Doctor ya no tiene que hacer scroll para ver que existen Tratamientos y Seguimientos.
+- **`h-9` (36px) vs `h-11` (44px)** para CTAs de paneles: 36px es el sweet spot EHR (Epic, Athena) — táctil sin sacrificar densidad. 44px se reserva para "Firmar" (irreversible) donde la prominencia justifica el extra.
+- **Badge ámbar vs emerald** para "Firmada": ámbar comunica "estado bloqueado / atención" (consistente con el badge de "Requerido" del consentimiento). Emerald comunicaría "éxito" lo cual es correcto pero no advierte del bloqueo.
+- **`doctor_offices` separado vs constraint expandida**: separar la pregunta del doctor (autorizados) de la del turno (override) sigue el modelo de Epic/Athena ("facilities" del provider). Permite UI con un solo lugar para "cambiar dónde puede atender" en vez de editar 14 bloques.
+
+### Próximos pasos sugeridos (no hechos en esta sesión)
+
+- Respetar `doctor_offices` en el flujo de booking (`api/scheduler/available-slots`) para que el matching paciente↔doctor↔consultorio sea estricto.
+- Si Vitra reporta confusión con el flow de doctor multi-consultorio, considerar mover el panel "Consultorios autorizados" al perfil del doctor (tab Perfil) en vez de al tab Horario.
+
