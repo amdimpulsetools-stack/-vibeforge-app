@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
       .eq("id", orgId)
       .single();
 
-    const clinicName = org?.name || emailSettings?.sender_name || "VibeForge";
+    const clinicName = org?.name || emailSettings?.sender_name || "Yenda";
 
     // Fetch today's appointments for this org
     const { data: appointments } = await supabase
@@ -243,7 +243,7 @@ export async function GET(req: NextRequest) {
         .eq("key", "clinic_phone")
         .maybeSingle();
 
-      const clinicName = org?.name || emailSettings?.sender_name || "VibeForge";
+      const clinicName = org?.name || emailSettings?.sender_name || "Yenda";
       const brandColor = emailSettings?.brand_color || "#10b981";
       const logoUrl = emailSettings?.email_logo_url || null;
       const fromName = emailSettings?.sender_name || clinicName;

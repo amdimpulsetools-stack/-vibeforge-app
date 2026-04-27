@@ -4,9 +4,9 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
-import { AlertTriangle, Loader2, Mail, Zap } from "lucide-react";
+import { AlertTriangle, Loader2, Mail } from "lucide-react";
+import { YendaLogo } from "@/components/icons/yenda-logo";
 
 const REMEMBERED_EMAIL_KEY = "vibeforge_remembered_email";
 
@@ -152,10 +152,9 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-8">
         {/* Logo */}
         <div className="text-center">
-          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-2xl gradient-primary shadow-lg gradient-glow">
-            <Zap className="h-7 w-7 text-white" />
+          <div className="mx-auto mb-4 flex justify-center">
+            <YendaLogo width={160} priority />
           </div>
-          <h1 className="text-3xl font-extrabold tracking-tight">{APP_NAME}</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             Ingresa tus credenciales para continuar
           </p>

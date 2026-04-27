@@ -1,5 +1,5 @@
 /**
- * CSV export utility for VibeForge
+ * CSV export utility for Yenda
  * Handles BOM for Excel compatibility and proper escaping
  */
 

@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { Loader2, Zap, LogOut, ArrowLeft, ArrowRight, Check, X } from "lucide-react";
+import { Loader2, LogOut, ArrowLeft, ArrowRight, Check, X } from "lucide-react";
+import { YendaLogo } from "@/components/icons/yenda-logo";
 import {
   StepWelcome,
   StepPersonal,
@@ -343,9 +344,7 @@ export default function OnboardingPage() {
       <div className="w-full max-w-lg space-y-6">
         {/* Logo */}
         <div className="flex justify-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl gradient-primary shadow-lg gradient-glow">
-            <Zap className="h-6 w-6 text-white" />
-          </div>
+          <YendaLogo width={140} priority />
         </div>
 
         {/* Progress dots (hidden on welcome) */}

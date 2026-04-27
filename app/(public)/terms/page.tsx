@@ -271,10 +271,10 @@ export default function TermsPage() {
         <li>
           <strong>Correo electrónico:</strong>{" "}
           <a
-            href="mailto:legal@vibeforge.app"
+            href="mailto:legal@yenda.app"
             className="text-emerald-400 hover:text-emerald-300"
           >
-            legal@vibeforge.app
+            legal@yenda.app
           </a>
         </li>
         <li>

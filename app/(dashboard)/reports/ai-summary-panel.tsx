@@ -187,12 +187,12 @@ function openPrintWindow(args: {
     <h1>${escapeHtml(reportLabel)}</h1>
     <div class="meta">
       Periodo: <strong>${escapeHtml(periodLabel)}</strong><br />
-      Generado por VibeForge IA · ${escapeHtml(generatedAt)}
+      Generado por Yenda IA · ${escapeHtml(generatedAt)}
     </div>
   </div>
   ${htmlParts.join("\n")}
   <div class="footer">
-    VibeForge — Resumen ejecutivo generado automáticamente. Use los datos como referencia, valide cifras críticas con sus reportes detallados.
+    Yenda — Resumen ejecutivo generado automáticamente. Use los datos como referencia, valide cifras críticas con sus reportes detallados.
   </div>
   <script>window.onload=function(){setTimeout(function(){window.print();},200);}</script>
 </body>

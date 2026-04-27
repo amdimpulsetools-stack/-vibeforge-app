@@ -6,7 +6,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
-import { Loader2, Zap, Building2, Mail, CheckCircle2, MessageCircle, BarChart3, Shield, Clock } from "lucide-react";
+import { Loader2, Building2, Mail, CheckCircle2, MessageCircle, BarChart3, Shield, Clock } from "lucide-react";
+import { YendaLogo } from "@/components/icons/yenda-logo";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShimmerText } from "@/components/ui/shimmer-text";
 
@@ -230,11 +231,8 @@ function RegisterPage() {
         <div className="mx-auto w-full max-w-md space-y-8">
           {/* Logo */}
           <div>
-            <Link href="/" className="inline-flex items-center gap-2.5 group mb-8">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl gradient-primary shadow-md transition-transform group-hover:scale-105">
-                <Zap className="h-4.5 w-4.5 text-white" />
-              </div>
-              <span className="text-lg font-bold tracking-tight">{APP_NAME}</span>
+            <Link href="/" className="inline-flex items-center group mb-8" aria-label={APP_NAME}>
+              <YendaLogo width={120} priority className="transition-transform group-hover:scale-[1.02]" />
             </Link>
             <h1 className="text-3xl font-extrabold tracking-tight">
               {inviteInfo ? "Únete al equipo" : "Crea tu cuenta"}

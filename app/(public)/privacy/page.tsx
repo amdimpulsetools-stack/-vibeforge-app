@@ -268,10 +268,10 @@ export default function PrivacyPage() {
         <li>
           <strong>Correo electrónico:</strong>{" "}
           <a
-            href="mailto:privacidad@vibeforge.app"
+            href="mailto:privacidad@yenda.app"
             className="text-emerald-400 hover:text-emerald-300"
           >
-            privacidad@vibeforge.app
+            privacidad@yenda.app
           </a>
         </li>
         <li>

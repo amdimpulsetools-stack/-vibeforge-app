@@ -458,7 +458,7 @@ async function sendBookingConfirmationEmail(
 
   const brandColor = emailSettings?.brand_color || "#10b981";
   const logoUrl = emailSettings?.email_logo_url || null;
-  const clinicName = orgName || emailSettings?.sender_name || "VibeForge";
+  const clinicName = orgName || emailSettings?.sender_name || "Yenda";
 
   const html = buildEmailHtml({
     body: emailBody,

@@ -192,15 +192,15 @@ export async function GET(req: NextRequest) {
         .eq("key", "clinic_phone")
         .single();
 
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.vibeforge.com";
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.yenda.app";
       const portalEnabled = portalSettings?.portal_enabled && org?.slug;
       const portalBaseUrl = portalEnabled ? `${appUrl}/portal/${org.slug}` : "";
 
-      const fromName = emailSettings?.sender_name || org?.name || "VibeForge";
+      const fromName = emailSettings?.sender_name || org?.name || "Yenda";
       const replyTo = emailSettings?.reply_to_email || undefined;
       const brandColor = emailSettings?.brand_color || "#10b981";
       const logoUrl = emailSettings?.email_logo_url || null;
-      const clinicName = org?.name || emailSettings?.sender_name || "VibeForge";
+      const clinicName = org?.name || emailSettings?.sender_name || "Yenda";
 
       // Check if WhatsApp is configured for this org
       const { data: waConfig } = await supabase

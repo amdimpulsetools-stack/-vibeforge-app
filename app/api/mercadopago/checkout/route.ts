@@ -121,7 +121,7 @@ export async function POST(request: Request) {
     }
 
     const body: Record<string, unknown> = {
-      reason: `VibeForge - Plan ${plan.name} (${
+      reason: `Yenda - Plan ${plan.name} (${
         billing_cycle === "yearly"
           ? "Anual"
           : billing_cycle === "semiannual"

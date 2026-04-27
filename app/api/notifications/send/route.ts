@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
   // 8. Build HTML
   const brandColor = emailSettings?.brand_color || "#10b981";
   const logoUrl = emailSettings?.email_logo_url || null;
-  const clinicName = org?.name || emailSettings?.sender_name || "VibeForge";
+  const clinicName = org?.name || emailSettings?.sender_name || "Yenda";
 
   const html = buildEmailHtml({
     body: emailBody,

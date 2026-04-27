@@ -5,6 +5,6 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       { userAgent: "*", allow: "/", disallow: ["/dashboard", "/api", "/admin", "/scheduler", "/patients", "/reports", "/settings", "/account", "/founder", "/select-plan", "/waiting-for-plan", "/onboarding"] },
     ],
-    sitemap: `${process.env.NEXT_PUBLIC_APP_URL || "https://vibeforge.app"}/sitemap.xml`,
+    sitemap: `${process.env.NEXT_PUBLIC_APP_URL || "https://yenda.app"}/sitemap.xml`,
   };
 }
