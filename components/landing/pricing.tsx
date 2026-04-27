@@ -4,13 +4,18 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Sparkles, ArrowRight, Building2, Phone, Shield } from "lucide-react";
 
+type Cadence = "monthly" | "semiannual" | "annual";
+
 const plans = [
   {
     name: "Independiente",
     priceMonthly: "129",
-    priceAnnual: "107.50",
+    priceSemiannual: "118.25", // 5.5 mo / 6 mo = 8.3% off
+    priceAnnual: "107.50",     // 10 mo / 12 mo = 16.7% off
+    savingsSemiannual: "64.50",
     savingsAnnual: "258",
-    anchor: "Menos de S/5 al día por tener tu consultorio en orden",
+    anchor: "Menos de S/5 al día por tener tu consultorio inteligente",
+    anchorSemiannual: "Ahorra S/64.50 — medio mes gratis",
     anchorAnnual: "Ahorra S/258 al año — 2 meses gratis",
     features: [
       "1 doctor · 1 consultorio",
@@ -27,9 +32,12 @@ const plans = [
   {
     name: "Centro Médico",
     priceMonthly: "349",
+    priceSemiannual: "319.92",
     priceAnnual: "290.83",
+    savingsSemiannual: "174.50",
     savingsAnnual: "698",
     anchor: "Menos de 3 consultas al mes y la herramienta se paga sola",
+    anchorSemiannual: "Ahorra S/174.50 — medio mes gratis",
     anchorAnnual: "Ahorra S/698 al año — 2 meses gratis",
     features: [
       "3 doctores · 3 consultorios",
@@ -46,9 +54,12 @@ const plans = [
   {
     name: "Clínica",
     priceMonthly: "649",
+    priceSemiannual: "594.92",
     priceAnnual: "540.83",
+    savingsSemiannual: "324.50",
     savingsAnnual: "1,298",
     anchor: "Con un tratamiento mediano al mes, ya pagaste tu suscripción",
+    anchorSemiannual: "Ahorra S/324.50 — medio mes gratis",
     anchorAnnual: "Ahorra S/1,298 al año — 2 meses gratis",
     features: [
       "10 doctores · 7 consultorios",
@@ -64,9 +75,21 @@ const plans = [
   },
 ];
 
+function priceFor(plan: (typeof plans)[number], cadence: Cadence) {
+  if (cadence === "monthly") return plan.priceMonthly;
+  if (cadence === "semiannual") return plan.priceSemiannual;
+  return plan.priceAnnual;
+}
+
+function anchorFor(plan: (typeof plans)[number], cadence: Cadence) {
+  if (cadence === "monthly") return plan.anchor;
+  if (cadence === "semiannual") return plan.anchorSemiannual;
+  return plan.anchorAnnual;
+}
+
 export function Pricing() {
   const sectionRef = useRef<HTMLDivElement>(null);
-  const [isAnnual, setIsAnnual] = useState(false);
+  const [cadence, setCadence] = useState<Cadence>("monthly");
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -98,12 +121,12 @@ export function Pricing() {
             Tres planes para cada etapa. Sin contratos, sin sorpresas. IA incluida en todos.
           </p>
 
-          {/* Billing toggle */}
-          <div className="mt-8 inline-flex items-center gap-3 rounded-full bg-slate-100 p-1">
+          {/* Billing toggle — 3 cadences with progressive discount */}
+          <div className="mt-8 inline-flex items-center gap-1 rounded-full bg-slate-100 p-1">
             <button
-              onClick={() => setIsAnnual(false)}
-              className={`rounded-full px-5 py-2 text-sm font-semibold transition-all ${
-                !isAnnual
+              onClick={() => setCadence("monthly")}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+                cadence === "monthly"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-700"
               }`}
@@ -111,9 +134,22 @@ export function Pricing() {
               Mensual
             </button>
             <button
-              onClick={() => setIsAnnual(true)}
-              className={`rounded-full px-5 py-2 text-sm font-semibold transition-all ${
-                isAnnual
+              onClick={() => setCadence("semiannual")}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+                cadence === "semiannual"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              Semestral
+              <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                ½ mes gratis
+              </span>
+            </button>
+            <button
+              onClick={() => setCadence("annual")}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+                cadence === "annual"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-700"
               }`}
@@ -149,17 +185,17 @@ export function Pricing() {
                 <div className="flex items-baseline gap-1">
                   <span className="text-sm text-slate-400">S/</span>
                   <span className="text-4xl font-extrabold text-slate-900 tabular-nums transition-all">
-                    {isAnnual ? plan.priceAnnual : plan.priceMonthly}
+                    {priceFor(plan, cadence)}
                   </span>
                   <span className="text-sm text-slate-400">/mes</span>
                 </div>
-                {isAnnual && (
+                {cadence !== "monthly" && (
                   <p className="text-xs text-slate-400 mt-0.5 line-through">
                     S/{plan.priceMonthly}/mes
                   </p>
                 )}
                 <p className="text-xs text-slate-400 mt-1">
-                  {isAnnual ? plan.anchorAnnual : plan.anchor}
+                  {anchorFor(plan, cadence)}
                 </p>
               </div>
 

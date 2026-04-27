@@ -1,6 +1,6 @@
 # Coming Updates — REPLACE
 
-> **Última actualización:** 2026-04-26 (v0.13.3)
+> **Última actualización:** 2026-04-26 (v0.13.4)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -56,6 +56,200 @@ Auditoría multi-agente (diseño visual + neurocopy + UX) del 2026-04-24. Lo apl
   - Sidebar con historial: "Hoy", "Ayer", "Esta semana".
   - Permite retomar conversaciones, exportar reportes y auditar uso.
   - Ventaja: análisis posterior de qué preguntan los usuarios, mejora del prompt.
+
+---
+
+## 🧠 Reporte IA Avanzado — diferenciador para Centro Médico y Clínica (aprobado v0.13.4)
+
+> **Driver comercial:** el plan Independiente ya tiene Reporte IA básico (Asistente conversacional en `/reports`). Para justificar el upgrade Centro→Clínica (S/349 → S/649) necesitamos features que requieran *naturalmente* el volumen de datos del tier alto. Propuesta aprobada: **arrancar con Capas 1+2** (sesión 2026-04-26).
+
+### Capa 1 — Brief Ejecutivo Automatizado por Email + Dashboard Widget
+
+**Estado:** 🔴 Pendiente · **Tier:** Centro Médico (mensual) + Clínica (semanal + mensual) · **Esfuerzo:** Bajo (1-2 sem)
+
+**Definición:** Email + widget en dashboard generado por LLM con narrativa ejecutiva (3-5 párrafos en lenguaje natural) sobre operación, finanzas, clínica y alertas del periodo.
+
+**Trigger:**
+- Centro Médico: cron mensual (1° de cada mes 7am hora local de la org).
+- Clínica: cron semanal (Lunes 7am) + mensual.
+
+**Output esperado (ejemplo real):**
+```
+Resumen semanal — Clínica Vitra · 19-25 abril 2026
+
+Esta semana atendieron 187 pacientes (+12% vs semana pasada). El crecimiento
+vino principalmente del servicio de Ginecología (Dra. García sumó 23
+consultas, su mejor semana del trimestre). Sin embargo, el doctor Suárez
+tuvo 4 no-shows el lunes — vale la pena revisar ese slot. Los ingresos
+cerraron en S/14,200, con S/2,800 todavía pendientes de cobro de pacientes
+con plan de tratamiento activo.
+
+Detecté 3 pacientes con cita perdida sin seguimiento agendado que ya tienen
+>30 días — te dejo la lista al final.
+```
+
+**Datos que consume** (query desde Supabase, periodo último N días):
+- `appointments` — count, no-shows, completed, by service, by doctor
+- `patient_payments` — ingresos, métodos de pago, pendientes
+- `treatment_plans` + `treatment_sessions` — sesiones completadas vs pendientes
+- `clinical_notes` — firmadas vs sin firmar
+- `prescriptions` + `exam_orders` — count por doctor
+- `clinical_followups` — pendientes vs resueltos
+- Anomalías detectadas (delta vs periodo anterior > 20%)
+
+**Prompt template (estructurado en secciones):**
+1. Sistema: rol "analista clínico-operativo de una clínica peruana", restricciones (no recomendaciones médicas, solo operativas/financieras, formato narrativo, no más de 4 párrafos).
+2. Datos: JSON con métricas pre-agregadas (no PHI).
+3. Salida: markdown con secciones implícitas (Volumen, Finanzas, Clínica, Alertas).
+
+**Costo estimado:** ~50k tokens/run. A precios actuales de Sonnet 4.6: ~S/0.50/run. Centro Médico (mensual) = S/0.50/mes; Clínica (semanal + mensual) = ~S/2.50/mes. Margen sano dentro de tier.
+
+**Tablas nuevas:**
+```sql
+-- migración futura ~115_ai_executive_briefs.sql
+CREATE TABLE ai_executive_briefs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  cadence TEXT NOT NULL CHECK (cadence IN ('weekly','monthly')),
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL,
+  content_markdown TEXT NOT NULL,
+  metrics_snapshot JSONB NOT NULL,
+  generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  sent_to_emails TEXT[] NOT NULL DEFAULT '{}',
+  llm_model TEXT NOT NULL,
+  llm_tokens_input INT,
+  llm_tokens_output INT,
+  llm_cost_usd NUMERIC(10,4),
+  UNIQUE (organization_id, cadence, period_start)
+);
+-- RLS: org members read-only, system writes via service role
+```
+
+**UI surface:**
+- **Email:** templates `ai_executive_brief_weekly` y `ai_executive_brief_monthly` enviados a `email_settings.notification_emails`. Reusa `lib/email-templates/`.
+- **Dashboard widget:** card "Resumen IA del periodo" en `/dashboard` (admin/owner) con últimos 3 briefs en acordeón. Click → ver completo + opción "Reenviar al equipo".
+- **Endpoint:** `GET /api/ai-briefs?period=week|month&limit=10`.
+
+**Privacidad / PHI:**
+- Reusa `lib/pseudonymize-phi.ts`. Nombres de pacientes en el prompt → `[Paciente_001]`, `[Paciente_002]`. El LLM nunca ve nombres reales.
+- Re-mapeo client-side cuando se renderiza el brief (la BD guarda el texto pseudonimizado + el mapping cifrado).
+- Documento legal: agregar cláusula de "procesamiento automatizado para reportes ejecutivos" en T&C.
+
+**Métricas de éxito:**
+- Apertura del email > 60% en owners/admins (medir vía tracking pixel).
+- CTAs accionables del brief (ver paciente, agendar follow-up) clickeados > 30% de las veces.
+- Cliente reporta en NPS que "el resumen IA es razón para seguir pagando".
+
+**Dependencies / pre-requisitos:**
+- Cron infrastructure ya existe (`vercel.json` + Supabase scheduled functions).
+- `lib/pseudonymize-phi.ts` ya está (v0.12.4).
+- Anthropic SDK ya integrado (`/api/ai-assistant`).
+
+**Riesgos:**
+- Hallucinations: el brief NO debe hacer recomendaciones médicas. Validar prompt con equipo médico de Vitra antes del release.
+- Variabilidad de tono: usar `temperature: 0.3` para consistencia entre semanas.
+- Falsos positivos en anomalías: definir thresholds conservadores (delta > 25% en métrica > 10 unidades absolutas).
+
+---
+
+### Capa 2 — Insights Proactivos (anomalías + acciones)
+
+**Estado:** 🔴 Pendiente · **Tier:** Centro Médico + Clínica · **Esfuerzo:** Medio (3-4 sem) · **Depende de:** Capa 1 estable
+
+**Definición:** El sistema detecta automáticamente patrones operativos/clínicos accionables y notifica al admin/owner *sin* que pregunten. Convierte el SaaS de pasivo (consultas) a activo (te avisa).
+
+**Tipos de insights** (mínimo viable):
+
+| # | Insight | Detection logic | Severidad |
+|---|---|---|---|
+| 1 | **No-show pattern por slot** | Doctor X tiene >30% no-show en slot recurrente vs <10% promedio del doctor | media |
+| 2 | **Riesgo de churn de paciente** | Paciente con 3+ citas históricas + 60+ días sin volver + sin email reactivación enviado | alta |
+| 3 | **Follow-up gap** | Pacientes con `clinical_followups.is_resolved=false` y `follow_up_date < now()` | alta |
+| 4 | **Caída de ingresos por servicio** | Servicio X bajó >25% MoM | media |
+| 5 | **Doctor subutilizado** | Doctor con <40% de su capacidad teórica de slots ocupados | baja |
+| 6 | **Plan de tratamiento sin progreso** | Plan activo con 30+ días desde última sesión completada | media |
+| 7 | **Cobros pendientes >60 días** | Pacientes con saldo positivo > S/0 y última cita > 60 días | alta |
+| 8 | **Bloqueo de agenda inusual** | Bloqueo creado para horario en pico histórico de demanda | baja |
+
+**Trigger:**
+- Cron diario (4am hora local de la org) que corre detectores estadísticos simples (sin LLM).
+- LLM solo se invoca para generar la narrativa del insight (1-2 frases) cuando hay match.
+- Throttling: máximo 5 insights nuevos/día/org para no saturar.
+
+**Tabla nueva:**
+```sql
+-- migración futura ~116_ai_insights.sql
+CREATE TABLE ai_insights (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  insight_type TEXT NOT NULL,  -- 'no_show_pattern' | 'churn_risk' | etc.
+  severity TEXT NOT NULL CHECK (severity IN ('low','medium','high')),
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,   -- narrativa generada por LLM (1-2 frases)
+  action_label TEXT,           -- "Ver paciente", "Bloquear slot", etc.
+  action_url TEXT,             -- deep link a la página relevante
+  related_entity_type TEXT,    -- 'patient' | 'doctor' | 'service' | etc.
+  related_entity_id UUID,
+  detected_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  dismissed_at TIMESTAMPTZ,
+  dismissed_by UUID REFERENCES auth.users(id),
+  resolved_at TIMESTAMPTZ
+);
+CREATE INDEX idx_ai_insights_org_active ON ai_insights(organization_id) WHERE dismissed_at IS NULL;
+-- RLS: org members read, admins dismiss
+```
+
+**UI surface:**
+- **Widget en `/dashboard`** (admin/owner): card "Insights IA" con badge numérico de insights activos. Top 3 visibles, "Ver todos" lleva a `/dashboard/insights`.
+- **Notification dot en topbar**: badge rojo cuando hay insights `severity=high` no leídos.
+- **Página `/dashboard/insights`** completa con filtros por tipo, severidad, fecha. Cada insight tiene CTAs: "Resolver" (oculta y registra acción), "Recordarme luego" (snooze 7d), "Ver detalle".
+- **Email opcional**: si `notification_settings.ai_insights_email = true`, digest diario o instant para `severity=high`.
+
+**Costo estimado:** ~10k tokens/insight (solo narrativa). 5 insights/día/org × 30 días = 150 insights/mes × ~S/0.10 = S/15/mes/org. Alto pero justifica el tier Clínica.
+
+**Privacidad:**
+- IDs y métricas sí pueden ir al LLM. Los nombres se inyectan client-side al renderizar.
+- El detector estadístico corre 100% en Postgres (sin LLM) — no hay PHI saliendo del DB para esa parte.
+
+**Métricas de éxito:**
+- Tasa de "Resolver" (admin actuó sobre el insight) > 40%.
+- Tasa de "Dismiss" (no aplica / ruido) < 25%.
+- Reducción medible de no-shows o churn 3 meses post-release vs baseline.
+
+**Dependencies:**
+- Capa 1 funcional (mismo stack: cron + LLM wrapping).
+- Definir thresholds en `org_settings.ai_insights_config` (calibrable por org).
+
+**Riesgos:**
+- **Insight fatigue**: si saturamos al admin, dejan de mirarlos. Mitigación: throttle estricto, severidad bien calibrada, snooze fácil.
+- **Falsos positivos**: empezar con detectores conservadores y ampliar tras feedback.
+- **Sensibilidad social** (insight #5 doctor subutilizado): visible solo para owner/director, NUNCA expuesto al doctor mismo. UI con permission check estricto.
+
+---
+
+### Capas 3-5 (parking lot — evaluar después de capas 1+2 en producción)
+
+| Capa | Descripción corta | Tier | Cuándo evaluar |
+|---|---|---|---|
+| **3 — Forecast / predictivo** | Predicción de demanda 4-12 sem, no-show por cita, churn score por paciente. ML estadístico (no LLM). | Solo Clínica | Cuando capas 1+2 maduren + tengamos >500 citas históricas/org |
+| **4 — Comparativo multi-doctor** | Productividad, calidad clínica proxy, mix de servicios entre doctores de la misma org. | Solo Clínica (3+ doctores) | Después de Vitra; validar sensibilidad social antes |
+| **5 — Benchmarking anónimo entre clínicas** | "Tu no-show está 12% sobre promedio del segmento". | Solo Clínica | 12+ meses (necesita 10+ clínicas para significancia estadística) |
+
+### Roadmap sugerido
+
+1. **Q2 2026** — Capa 1 (Brief Ejecutivo) en Centro Médico + Clínica.
+2. **Q3 2026** — Capa 2 (Insights Proactivos) — al menos 4 tipos de detector.
+3. **Q4 2026** — Reactivar trial Clínica con Capa 1+2 como argumento de venta.
+4. **2027+** — Capas 3-5 según señal del mercado.
+
+### Decisiones pendientes (cuando vayamos a implementar)
+
+- [ ] **Idioma del brief**: ¿solo español o también inglés? (Vitra es Perú, default ES.)
+- [ ] **Frecuencia configurable**: ¿el owner puede elegir semanal vs mensual o es por tier?
+- [ ] **Modelo LLM**: Sonnet 4.6 (S/0.50/brief) vs Haiku 4.5 (S/0.10/brief). Probar ambos en pilot.
+- [ ] **Almacenamiento del mapping de pseudonimización**: ¿en BD cifrado o en memoria solo durante el render?
+- [ ] **A/B test del primer brief**: enviar a 50% de owners en periodo X y medir engagement vs grupo control.
 
 ---
 

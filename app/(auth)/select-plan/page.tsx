@@ -20,6 +20,7 @@ interface Plan {
   name: string;
   description: string | null;
   price_monthly: number;
+  price_semiannual: number | null;
   price_yearly: number | null;
   max_members: number | null;
   max_doctors: number | null;
@@ -40,7 +41,7 @@ interface Plan {
 }
 
 const PLAN_ANCHORS: Record<string, string> = {
-  starter: "Menos de S/5 al día por tener tu consultorio en orden",
+  starter: "Menos de S/5 al día por tener tu consultorio inteligente",
   professional: "Menos de 3 consultas al mes y la herramienta se paga sola",
   enterprise: "Con un tratamiento mediano al mes, ya pagaste tu suscripción",
 };
@@ -92,6 +93,9 @@ function SelectPlanPage() {
   const [selecting, setSelecting] = useState<string | null>(null);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [waitingForPayment, setWaitingForPayment] = useState(false);
+  // Billing cadence selected by the user. Defaults to monthly so a fresh
+  // visitor sees the lowest sticker price.
+  const [cadence, setCadence] = useState<"monthly" | "semiannual" | "annual">("monthly");
 
   const paymentStatus = searchParams.get("payment");
   const reason = searchParams.get("reason");
@@ -234,10 +238,16 @@ function SelectPlanPage() {
 
     // All plans go through Mercado Pago checkout
     try {
+      const apiCycle =
+        cadence === "annual"
+          ? "yearly"
+          : cadence === "semiannual"
+          ? "semiannual"
+          : "monthly";
       const res = await fetch("/api/mercadopago/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan_id: planId, billing_cycle: "monthly" }),
+        body: JSON.stringify({ plan_id: planId, billing_cycle: apiCycle }),
       });
 
       if (!res.ok) {
@@ -300,6 +310,52 @@ function SelectPlanPage() {
             Selecciona el plan que mejor se adapte a tu realidad.
             Sin contratos, sin sorpresas. IA incluida en todos.
           </p>
+
+          {/* Billing cadence toggle — 3 options with progressive discount */}
+          <div className="mt-6 inline-flex items-center gap-1 rounded-full bg-muted p-1">
+            <button
+              type="button"
+              onClick={() => setCadence("monthly")}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-xs font-semibold transition-all",
+                cadence === "monthly"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Mensual
+            </button>
+            <button
+              type="button"
+              onClick={() => setCadence("semiannual")}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-xs font-semibold transition-all",
+                cadence === "semiannual"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Semestral
+              <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                ½ mes gratis
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCadence("annual")}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-xs font-semibold transition-all",
+                cadence === "annual"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Anual
+              <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+                2 meses gratis
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Trial expired banner */}
@@ -343,19 +399,47 @@ function SelectPlanPage() {
 
                 <h3 className="text-lg font-bold">{plan.name}</h3>
 
-                {/* Price */}
-                <div className="mt-4">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-sm text-muted-foreground">S/</span>
-                    <span className="text-4xl font-extrabold tabular-nums">
-                      {plan.price_monthly}
-                    </span>
-                    <span className="text-sm text-muted-foreground">/mes</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {anchor}
-                  </p>
-                </div>
+                {/* Price — reflects the selected cadence. Per-month figure
+                     for semiannual/annual is computed from the upfront price
+                     so the user can compare cleanly against monthly. */}
+                {(() => {
+                  const monthly = Number(plan.price_monthly);
+                  const semi = plan.price_semiannual != null ? Number(plan.price_semiannual) : null;
+                  const annual = plan.price_yearly != null ? Number(plan.price_yearly) : null;
+                  const perMonth =
+                    cadence === "annual" && annual != null
+                      ? annual / 12
+                      : cadence === "semiannual" && semi != null
+                      ? semi / 6
+                      : monthly;
+                  const upfront =
+                    cadence === "annual" && annual != null
+                      ? annual
+                      : cadence === "semiannual" && semi != null
+                      ? semi
+                      : null;
+                  return (
+                    <div className="mt-4">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-sm text-muted-foreground">S/</span>
+                        <span className="text-4xl font-extrabold tabular-nums">
+                          {perMonth.toFixed(perMonth % 1 === 0 ? 0 : 2)}
+                        </span>
+                        <span className="text-sm text-muted-foreground">/mes</span>
+                      </div>
+                      {cadence !== "monthly" && upfront != null && (
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Cobro único de S/{upfront.toLocaleString("es-PE")} cada{" "}
+                          {cadence === "annual" ? "12 meses" : "6 meses"}
+                          <span className="text-muted-foreground/60 line-through ml-1.5">
+                            S/{monthly}/mes
+                          </span>
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-1">{anchor}</p>
+                    </div>
+                  );
+                })()}
 
                 {/* IA badge */}
                 {plan.feature_ai_assistant && (
@@ -406,9 +490,17 @@ function SelectPlanPage() {
                         : "h-10 border border-border bg-card/50 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                     )}
                   >
-                    {plan.slug === "enterprise"
-                      ? `Contratar Clínica — S/${plan.price_monthly}/mes`
-                      : `Pagar suscripción — S/${plan.price_monthly}/mes`}
+                    {(() => {
+                      const upfrontLabel =
+                        cadence === "annual" && plan.price_yearly != null
+                          ? `S/${Number(plan.price_yearly).toLocaleString("es-PE")}/año`
+                          : cadence === "semiannual" && plan.price_semiannual != null
+                          ? `S/${Number(plan.price_semiannual).toLocaleString("es-PE")}/semestre`
+                          : `S/${plan.price_monthly}/mes`;
+                      return plan.slug === "enterprise"
+                        ? `Contratar Clínica — ${upfrontLabel}`
+                        : `Pagar suscripción — ${upfrontLabel}`;
+                    })()}
                   </button>
                 </div>
               </div>

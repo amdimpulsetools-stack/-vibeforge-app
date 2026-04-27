@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   // Get plan details
   const { data: plan } = await supabase
     .from("plans")
-    .select("id, name, slug, price_monthly, price_yearly, is_active")
+    .select("id, name, slug, price_monthly, price_semiannual, price_yearly, is_active")
     .eq("id", plan_id)
     .eq("is_active", true)
     .single();
@@ -66,10 +66,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "plan_not_found" }, { status: 404 });
   }
 
-  const price =
-    billing_cycle === "yearly" && plan.price_yearly
-      ? plan.price_yearly
-      : plan.price_monthly;
+  // Resolve price + recurring frequency for the chosen cadence.
+  // Falls back to monthly if the requested cadence isn't priced yet.
+  let price: number;
+  if (billing_cycle === "yearly" && plan.price_yearly) {
+    price = plan.price_yearly;
+  } else if (billing_cycle === "semiannual" && plan.price_semiannual) {
+    price = plan.price_semiannual;
+  } else {
+    price = plan.price_monthly;
+  }
 
   // Detect test mode: ACCESS_TOKEN from test accounts use APP_USR- prefix
   const accessToken = process.env.MP_ACCESS_TOKEN || "";
@@ -85,7 +91,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const frequency = billing_cycle === "yearly" ? 12 : 1;
+  // Mercado Pago preapproval supports monthly cycles {1, 2, 3, 4, 6, 12}.
+  // We only use 1 (monthly), 6 (semiannual) and 12 (yearly).
+  const frequency =
+    billing_cycle === "yearly" ? 12 : billing_cycle === "semiannual" ? 6 : 1;
   const frequencyType = "months";
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -112,7 +121,13 @@ export async function POST(request: Request) {
     }
 
     const body: Record<string, unknown> = {
-      reason: `VibeForge - Plan ${plan.name} (${billing_cycle === "yearly" ? "Anual" : "Mensual"})`,
+      reason: `VibeForge - Plan ${plan.name} (${
+        billing_cycle === "yearly"
+          ? "Anual"
+          : billing_cycle === "semiannual"
+          ? "Semestral"
+          : "Mensual"
+      })`,
       payer_email: payerEmail,
       external_reference: JSON.stringify({
         organization_id: membership.organization_id,

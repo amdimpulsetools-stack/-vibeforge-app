@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-04-26
-> **Versión:** 0.13.3
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor + **Pricing alineado: S/129 / S/349 / S/649 con trial Clínica desactivado (v0.13.3)** + Preparación de pilot con primer cliente real (Vitra, fertilidad)
+> **Versión:** 0.13.4
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor + Pricing alineado: S/129 / S/349 / S/649 + **Frecuencia semestral (8.3% off) en checkout MP + Reporte IA Avanzado capas 1+2 documentado (v0.13.4)** + Preparación de pilot con primer cliente real (Vitra, fertilidad)
 
 ---
 
@@ -104,10 +104,26 @@
 - Add-ons: S/12/consultorio extra, S/8/miembro extra
 - **Trial desactivado** — contratación directa (decisión 2026-04-26 para reservar el plan a clientes calificados; reactivar cuando el feature de "Reporte IA avanzado" esté listo y justifique el upgrade)
 
-### Política de pricing (v0.13.3 — 2026-04-26)
-- Los precios anteriores (Gratis / S/49 / S/149) eran iniciales y no reflejaban realidad comercial. La landing mostraba paralelamente S/69.90 / S/169.90 / S/569.90; ambas fuentes quedaron alineadas en esta sesión a S/129 / S/349 / S/649.
-- **Organizaciones existentes en el plan gratuito no se migran automáticamente.** El owner decide cuándo convertirlas (típicamente al terminar el periodo de tests). Las suscripciones activas conservan el precio del momento de la contratación hasta su renovación.
-- **Anual con 2 meses gratis** se mantiene como compromiso preferente (16.7% de descuento). Frecuencias: mensual (sin descuento) y anual (con descuento). El semestral está en evaluación.
+### Política de pricing (v0.13.4 — 2026-04-26)
+- Los precios anteriores (Gratis / S/49 / S/149) eran iniciales y no reflejaban realidad comercial. La landing mostraba paralelamente S/69.90 / S/169.90 / S/569.90; ambas fuentes quedaron alineadas en v0.13.3 a S/129 / S/349 / S/649.
+- **Organizaciones existentes en el plan gratuito no se migran automáticamente.** El owner decide cuándo convertirlas. Las suscripciones activas conservan el precio del momento de la contratación hasta su renovación.
+
+### Frecuencias de cobro (v0.13.4)
+
+| Frecuencia | Descuento | Equivale a | Disponible en |
+|---|---|---|---|
+| **Mensual** | 0% | precio base | landing, /select-plan, /plans, MP checkout |
+| **Semestral** | **8.3%** ("medio mes gratis") | pagar 5.5 meses por 6 | landing, /select-plan, /plans, MP checkout |
+| **Anual** | **16.7%** ("2 meses gratis") | pagar 10 meses por 12 | landing, /select-plan, /plans, MP checkout |
+
+Curva progresiva 0% → 8% → 17% — cada compromiso adicional gana ~8 puntos. El semestral nunca empata con anual, así que sigue siendo coherente promover el upgrade.
+
+Cobros únicos por cadencia (con precios v0.13.4):
+- Independiente: S/129/mes · S/709.50/semestre · S/1,290/año
+- Centro Médico: S/349/mes · S/1,919.50/semestre · S/3,490/año
+- Clínica: S/649/mes · S/3,569.50/semestre · S/6,490/año
+
+Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthly" | "semiannual" | "yearly"`. `app/api/mercadopago/checkout/route.ts` mapea a frequency 1/6/12 meses (todos soportados por MP preapproval).
 
 ### Integración de Pagos
 - **Mercado Pago** como gateway de pago
@@ -2887,4 +2903,76 @@ Cambio comercial: los precios iniciales (Gratis / S/49 / S/149 en BD vs. S/69.90
 2. Verificar en `select-plan` que el plan Clínica ya no muestra "Iniciar prueba" y muestra "Contratar Clínica — S/649/mes".
 3. Verificar en landing que las 3 cards muestran S/129 / S/349 / S/649 y los anchors nuevos.
 4. (Opcional) Probar `POST /api/plans/start-trial` con `plan_id` del enterprise — debe responder 403.
+
+---
+
+## 37. Changelog — Sesión 2026-04-26 noche (v0.13.4) — Semestral 8.3% + anchor refinado + Reporte IA Avanzado documentado
+
+Cierre de loop sobre las decisiones diferidas en v0.13.3.
+
+### Anchor refinado (Independiente)
+
+- "Menos de S/5 al día por tener tu consultorio en orden" → **"Menos de S/5 al día por tener tu consultorio inteligente"**.
+- Aplicado en los 3 lugares que usan `PLAN_ANCHORS`: `components/landing/pricing.tsx`, `app/(auth)/select-plan/page.tsx`, `app/(dashboard)/plans/page.tsx`.
+
+### Frecuencia semestral (8.3% off)
+
+**Migración 113** (`supabase/migrations/113_plan_semiannual_price.sql`):
+- `ALTER TABLE plans ADD COLUMN price_semiannual NUMERIC(10,2)`.
+- UPDATE values: starter 709.50, professional 1919.50, enterprise 3569.50 (5.5 meses al precio mensual).
+- Comentario en columna + RAISE NOTICE para auditar.
+
+**Backend MP checkout:**
+- `lib/validations/api.ts` — `mpCheckoutSchema.billing_cycle` y `mpCreatePreferenceSchema.billing_cycle` ahora aceptan `"semiannual"`.
+- `app/api/mercadopago/checkout/route.ts`:
+  - SELECT trae `price_semiannual` además de los otros.
+  - Resolución de precio en cascada: yearly → semiannual → monthly (fallback al monthly si la cadencia pedida no está priceada).
+  - Mapeo de frequency a 1 / 6 / 12 meses (todos soportados por MP preapproval).
+  - Reason del preapproval con etiqueta legible "Anual" / "Semestral" / "Mensual".
+
+**Frontend:**
+- **`components/landing/pricing.tsx`** — toggle de 2 → 3 botones (Mensual / Semestral / Anual). State `cadence: "monthly" | "semiannual" | "annual"`. Helpers `priceFor()` y `anchorFor()` extraídos. Cada plan trae `priceSemiannual`, `savingsSemiannual`, `anchorSemiannual`. Badge "½ mes gratis" en semestral, "2 meses gratis" en anual.
+- **`app/(auth)/select-plan/page.tsx`** — mismo toggle, state local `cadence`. Type `Plan` extiende con `price_semiannual: number | null`. Cuando `cadence !== "monthly"`, el precio mostrado es per-month derivado del upfront, con sub-línea "Cobro único S/X cada N meses" + tachado del precio mensual original. CTA del botón cambia label según cadencia ("S/3,490/año", "S/1,919.50/semestre", etc.). El `handleSelect` mapea `cadence → billing_cycle` y lo manda al backend.
+- **`app/(dashboard)/plans/page.tsx`** — mismo refactor: toggle, type `Plan` con `price_semiannual`, render de precio per-month + upfront, CTA con label dinámico, `handleChangePlan` con cycle correcto.
+
+### Reporte IA Avanzado documentado en COMING-UPDATES (no implementado todavía)
+
+Sección nueva en `COMING-UPDATES.md` con tracking detallado de Capas 1+2 aprobadas en sesión 2026-04-26:
+
+- **Capa 1 — Brief Ejecutivo Automatizado**: cron weekly/monthly que envía email + widget en dashboard con narrativa LLM (3-5 párrafos) sobre operación, finanzas, clínica, alertas. Tabla `ai_executive_briefs` propuesta. Costo S/0.50-S/2.50/mes/org. Reusa `lib/pseudonymize-phi.ts`.
+- **Capa 2 — Insights Proactivos**: cron diario detecta 8 patrones (no-show, churn, follow-up gap, caída de ingresos, doctor subutilizado, plan estancado, cobros vencidos, bloqueo inusual) y los expone como widget + topbar dot + página `/dashboard/insights`. Tabla `ai_insights` propuesta. Costo ~S/15/mes/org.
+- **Capas 3-5 (parking lot)**: forecast predictivo, comparativo multi-doctor, benchmarking anónimo entre clínicas. Evaluar tras Vitra.
+
+Roadmap propuesto: Q2 2026 Capa 1 → Q3 2026 Capa 2 → Q4 2026 reactivar trial Clínica con Capas 1+2 como argumento de venta.
+
+### Archivos tocados (v0.13.4)
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/migrations/113_plan_semiannual_price.sql` *(nuevo)* | Columna + valores semestrales |
+| `lib/validations/api.ts` | Enums Zod aceptan `semiannual` |
+| `app/api/mercadopago/checkout/route.ts` | Resolver de precio + frequency 6 meses |
+| `components/landing/pricing.tsx` | Toggle 3 opciones + anchor refinado |
+| `app/(auth)/select-plan/page.tsx` | Toggle + render dinámico + handler con cycle + anchor |
+| `app/(dashboard)/plans/page.tsx` | Toggle + render dinámico + handler con cycle + anchor |
+| `COMING-UPDATES.md` | Sección nueva "Reporte IA Avanzado" con detalle |
+| `PRD.md` | Sección 5 actualizada con cuadro de cadencias + esta sección 37 |
+
+### Operaciones requeridas para activar v0.13.4
+
+1. Aplicar migración 113:
+   ```
+   supabase db push
+   ```
+   o pegar `supabase/migrations/113_plan_semiannual_price.sql` en SQL Editor.
+2. Verificar que `plans.price_semiannual` quedó poblado para los 3 planes.
+3. Probar el toggle en landing → cambiar a Semestral debe mostrar S/118.25/mes para Independiente con sub-línea "Cobro único S/709.50 cada 6 meses".
+4. Probar checkout completo en MP sandbox con `billing_cycle: "semiannual"` para confirmar que la subscription se crea con `auto_recurring.frequency = 6`.
+
+### Decisiones de diseño con contexto
+
+- **Curva 0% → 8% → 17%**: cada upgrade gana ~8 puntos. Si semestral diera 1 mes gratis (16.7%) empataría con anual y nadie elegiría anual, perdiendo cash adelantado.
+- **Per-month como número grande, upfront como sub-línea**: facilita comparar las 3 cadencias visualmente. El cliente ve "S/107.50/mes" en lugar de "S/1,290/año" como protagonista, lo que reduce la fricción de "S/1,290 es mucho dinero de un golpe".
+- **Frequency 6 en MP preapproval**: confirmado en docs de Mercado Pago que `frequency_type: "months"` acepta {1, 2, 3, 4, 6, 12}. No requirió contactar soporte de MP.
+- **Reporte IA Avanzado documentado pero NO implementado**: el usuario pidió tracking detallado para futura implementación. Las migraciones, prompts y tablas propuestas están listas para que cualquier dev (o yo en sesión futura) pueda arrancar sin re-investigar.
 
