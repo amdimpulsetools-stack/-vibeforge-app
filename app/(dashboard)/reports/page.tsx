@@ -173,7 +173,7 @@ export default function ReportsPage() {
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6">
           {/* AI Summary Panel (appears when active) */}
-          <AiSummaryPanel />
+          <AiSummaryPanel reportType={activeTab} dateFrom={dateFrom} dateTo={dateTo} />
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
