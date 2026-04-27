@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Lock,
   RotateCcw,
+  Printer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AiLoader } from "@/components/ui/ai-loader";
@@ -40,6 +41,180 @@ interface AiReportProviderProps {
   dateFrom: string;
   dateTo: string;
   children: React.ReactNode;
+}
+
+const REPORT_TYPE_LABELS: Record<string, string> = {
+  financial: "Reporte financiero",
+  marketing: "Reporte de marketing",
+  operational: "Reporte operativo",
+  retention: "Reporte de retención",
+  general: "Reporte general",
+};
+
+function formatDate(d: string): string {
+  const dt = new Date(d + "T12:00:00");
+  return dt.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+/**
+ * Renders the markdown summary into a print-friendly HTML window. The user
+ * gets the standard browser print dialog which lets them either print on
+ * paper or save as PDF — same pattern used by clinical-note-print and
+ * prescription-print across the project.
+ */
+function openPrintWindow(args: {
+  summary: string;
+  reportType: string;
+  dateFrom: string;
+  dateTo: string;
+}) {
+  const { summary, reportType, dateFrom, dateTo } = args;
+  const win = window.open("", "_blank", "width=900,height=1100");
+  if (!win) return;
+
+  // Reuse the same lightweight markdown -> HTML conversion as the panel,
+  // but inlined here to avoid coupling with React rendering.
+  const lines = summary.split("\n");
+  const htmlParts: string[] = [];
+  let inList = false;
+  const flushList = () => {
+    if (inList) {
+      htmlParts.push("</ul>");
+      inList = false;
+    }
+  };
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("## ")) {
+      flushList();
+      htmlParts.push(`<h2>${escapeHtml(trimmed.slice(3))}</h2>`);
+    } else if (trimmed.startsWith("- ")) {
+      if (!inList) {
+        htmlParts.push("<ul>");
+        inList = true;
+      }
+      htmlParts.push(`<li>${inlineMd(escapeHtml(trimmed.slice(2)))}</li>`);
+    } else if (trimmed === "") {
+      flushList();
+    } else {
+      flushList();
+      htmlParts.push(`<p>${inlineMd(escapeHtml(trimmed))}</p>`);
+    }
+  }
+  flushList();
+
+  const reportLabel = REPORT_TYPE_LABELS[reportType] ?? "Reporte";
+  const periodLabel = `${formatDate(dateFrom)} → ${formatDate(dateTo)}`;
+  const generatedAt = new Date().toLocaleString("es-PE", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>${reportLabel} — ${periodLabel}</title>
+  <style>
+    @media print {
+      @page { size: A4; margin: 18mm 16mm; }
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      color: #1a1a1a;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px;
+      line-height: 1.55;
+      font-size: 13px;
+    }
+    .header {
+      border-bottom: 2px solid #10b981;
+      padding-bottom: 12px;
+      margin-bottom: 20px;
+    }
+    .header h1 {
+      font-size: 20px;
+      margin: 0 0 4px;
+      color: #065f46;
+    }
+    .header .meta {
+      font-size: 11px;
+      color: #6b7280;
+    }
+    h2 {
+      font-size: 14px;
+      color: #065f46;
+      margin: 20px 0 8px;
+      border-bottom: 1px solid #d1fae5;
+      padding-bottom: 4px;
+    }
+    p { margin: 6px 0; }
+    ul { margin: 6px 0; padding-left: 22px; }
+    li { margin: 3px 0; }
+    strong { color: #111827; }
+    .footer {
+      margin-top: 32px;
+      padding-top: 12px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 10px;
+      color: #9ca3af;
+      text-align: center;
+    }
+    .print-hint {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      background: #10b981;
+      color: white;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+    }
+    @media print { .print-hint { display: none; } }
+  </style>
+</head>
+<body>
+  <button class="print-hint" onclick="window.print()">Imprimir / Guardar PDF</button>
+  <div class="header">
+    <h1>${escapeHtml(reportLabel)}</h1>
+    <div class="meta">
+      Periodo: <strong>${escapeHtml(periodLabel)}</strong><br />
+      Generado por VibeForge IA · ${escapeHtml(generatedAt)}
+    </div>
+  </div>
+  ${htmlParts.join("\n")}
+  <div class="footer">
+    VibeForge — Resumen ejecutivo generado automáticamente. Use los datos como referencia, valide cifras críticas con sus reportes detallados.
+  </div>
+  <script>window.onload=function(){setTimeout(function(){window.print();},200);}</script>
+</body>
+</html>`;
+
+  win.document.open();
+  win.document.write(html);
+  win.document.close();
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function inlineMd(s: string): string {
+  return s
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>");
 }
 
 export function AiReportProvider({ reportType, dateFrom, dateTo, children }: AiReportProviderProps) {
@@ -138,7 +313,15 @@ export function AiSummaryButton() {
 
 // ── Panel (goes in content area) ─────────────────────────────────
 
-export function AiSummaryPanel() {
+interface AiSummaryPanelProps {
+  /** Pass the same reportType / dateFrom / dateTo used by the provider so the
+   *  print window can include them in the document header. */
+  reportType: string;
+  dateFrom: string;
+  dateTo: string;
+}
+
+export function AiSummaryPanel({ reportType, dateFrom, dateTo }: AiSummaryPanelProps) {
   const { t } = useLanguage();
   const { open, setOpen, loading, summary, usage, error, needsUpgrade, generate } = useAiReport();
   const [copied, setCopied] = useState(false);
@@ -191,6 +374,16 @@ export function AiSummaryPanel() {
                 title={t("ai_reports.copy")}
               >
                 {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+              </button>
+              <button
+                onClick={() =>
+                  openPrintWindow({ summary, reportType, dateFrom, dateTo })
+                }
+                className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                title="Imprimir o guardar como PDF"
+                aria-label="Imprimir o guardar como PDF"
+              >
+                <Printer className="h-3.5 w-3.5" />
               </button>
             </>
           )}

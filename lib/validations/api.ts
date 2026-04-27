@@ -90,7 +90,7 @@ export const aiReportSchema = z.object({
 // ── Mercado Pago ─────────────────────────────────────────────────────
 export const mpCheckoutSchema = z.object({
   plan_id: z.string().uuid("plan_id debe ser un UUID válido"),
-  billing_cycle: z.enum(["monthly", "yearly"]).default("monthly"),
+  billing_cycle: z.enum(["monthly", "semiannual", "yearly"]).default("monthly"),
 });
 
 export const mpSubscriptionUpdateSchema = z.object({
@@ -102,7 +102,7 @@ export const mpSubscriptionUpdateSchema = z.object({
 
 export const mpCreatePreferenceSchema = z.object({
   plan_slug: z.string().min(1, "plan_slug requerido"),
-  billing_cycle: z.enum(["monthly", "yearly"]),
+  billing_cycle: z.enum(["monthly", "semiannual", "yearly"]),
 });
 
 export const mpWebhookBodySchema = z.object({

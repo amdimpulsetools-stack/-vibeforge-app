@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-04-24
-> **Versión:** 0.12.7
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 (Apple Health redesign mobile + desktop 2-col, detalle cita, mi perfil, botón condicional, Mi plan card) + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign (light, especialidad, default office) + Presupuestos de tratamiento multi-servicio con vinculación cita↔sesión + saldo unificado + Descuentos: inline (todos los planes) y códigos reutilizables (Pro) + Consentimiento informado Tier 1 (Ley 29414) + Auditoría multi-agente + 2 rondas de fixes (v0.12.3 + v0.12.4) + **Preparación de pilot con primer cliente real (Vitra, fertilidad)**
+> **Última actualización:** 2026-04-26
+> **Versión:** 0.13.4
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor + Pricing alineado: S/129 / S/349 / S/649 + **Frecuencia semestral (8.3% off) en checkout MP + Reporte IA Avanzado capas 1+2 documentado (v0.13.4)** + Preparación de pilot con primer cliente real (Vitra, fertilidad)
 
 ---
 
@@ -77,21 +77,23 @@
 
 ## 5. Planes y Suscripciones
 
-### Plan Independiente (Starter) — Gratis
+### Plan Independiente (Starter) — S/129/mes (S/1,290/año con 2 meses gratis)
 - 1 miembro, 1 doctor, 1 consultorio
 - 150 pacientes, 100 citas/mes, 100MB storage
 - Sin recepcionistas ni admins adicionales
 - Reportes básicos, AI Assistant (30 consultas/mes), sin exportación
 - Owner actúa simultáneamente como doctor (rol dual)
+- **Trial 14 días disponible**
 
-### Plan Centro Médico (Professional) — S/49/mes
+### Plan Centro Médico (Professional) — S/349/mes (S/3,490/año con 2 meses gratis)
 - 6 miembros totales, 3 doctores, 3 consultorios, 2 recepcionistas
 - 1,000 pacientes, 500 citas/mes, 2GB storage
 - 1 admin
 - Reportes + exportación + AI Assistant
 - Add-ons: S/15/consultorio extra, S/10/miembro extra
+- **Trial 14 días disponible**
 
-### Plan Clínica (Enterprise) — S/149/mes (precio provisional, pendiente de pruebas con Mercado Pago)
+### Plan Clínica (Enterprise) — S/649/mes (S/6,490/año con 2 meses gratis)
 - 15 miembros totales: 10 especialistas + 3 recepcionistas + 1 admin + 1 owner
 - 10 cupos para doctores/especialistas/licenciados (ej. psicólogos)
 - 10 consultorios
@@ -100,6 +102,28 @@
 - Pacientes y citas ilimitadas, 10GB storage
 - Todas las features (reportes, export, AI, API, soporte prioritario)
 - Add-ons: S/12/consultorio extra, S/8/miembro extra
+- **Trial desactivado** — contratación directa (decisión 2026-04-26 para reservar el plan a clientes calificados; reactivar cuando el feature de "Reporte IA avanzado" esté listo y justifique el upgrade)
+
+### Política de pricing (v0.13.4 — 2026-04-26)
+- Los precios anteriores (Gratis / S/49 / S/149) eran iniciales y no reflejaban realidad comercial. La landing mostraba paralelamente S/69.90 / S/169.90 / S/569.90; ambas fuentes quedaron alineadas en v0.13.3 a S/129 / S/349 / S/649.
+- **Organizaciones existentes en el plan gratuito no se migran automáticamente.** El owner decide cuándo convertirlas. Las suscripciones activas conservan el precio del momento de la contratación hasta su renovación.
+
+### Frecuencias de cobro (v0.13.4)
+
+| Frecuencia | Descuento | Equivale a | Disponible en |
+|---|---|---|---|
+| **Mensual** | 0% | precio base | landing, /select-plan, /plans, MP checkout |
+| **Semestral** | **8.3%** ("medio mes gratis") | pagar 5.5 meses por 6 | landing, /select-plan, /plans, MP checkout |
+| **Anual** | **16.7%** ("2 meses gratis") | pagar 10 meses por 12 | landing, /select-plan, /plans, MP checkout |
+
+Curva progresiva 0% → 8% → 17% — cada compromiso adicional gana ~8 puntos. El semestral nunca empata con anual, así que sigue siendo coherente promover el upgrade.
+
+Cobros únicos por cadencia (con precios v0.13.4):
+- Independiente: S/129/mes · S/709.50/semestre · S/1,290/año
+- Centro Médico: S/349/mes · S/1,919.50/semestre · S/3,490/año
+- Clínica: S/649/mes · S/3,569.50/semestre · S/6,490/año
+
+Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthly" | "semiannual" | "yearly"`. `app/api/mercadopago/checkout/route.ts` mapea a frequency 1/6/12 meses (todos soportados por MP preapproval).
 
 ### Integración de Pagos
 - **Mercado Pago** como gateway de pago
@@ -2704,3 +2728,251 @@ RLS:
 - **Token-at-rest cipher pattern**: cualquier integración futura con OAuth de terceros (MP, Zoom, Meta) debe encriptar tokens con AES-256-GCM via `lib/encryption.ts`. Es la regla.
 - **Sync hooks como helpers de cliente**: el patrón `lib/<integration>-client.ts` con función fire-and-forget evita repetir lógica de fetch en N puntos del cliente. Reusable para Zoom (link de reunión), Meet, etc.
 - **State firmado en OAuth**: HMAC-SHA256(payload, SUPABASE_SERVICE_ROLE_KEY) bloquea CSRF y replay. Patrón obligatorio para cualquier OAuth flow nuevo.
+
+---
+
+## 35. Changelog — Sesión 2026-04-26 (v0.13.2) — Rediseño Modal Historia Clínica + Consultorios autorizados por doctor
+
+Sesión enfocada en el flujo del doctor durante la consulta y en limpiar dos problemas de modelado en la administración de doctores. Driver original del usuario: "los botones de recetar y de prescripción son muy chiquitos, la ventana se siente apretada". Auditoría UX → propuesta priorizada (P0/P1/P2) → implementación.
+
+### Rediseño UX — Modal de Historia Clínica (scheduler)
+
+Tres niveles de cambios sobre `app/(dashboard)/scheduler/clinical-note-modal.tsx` y los 5 paneles que viven adentro.
+
+**P0 — Imprescindibles:**
+- **Tokens UI compartidos** en `lib/clinical-ui-tokens.ts`: `CLINICAL_PANEL_CTA` (h-9 / 36px / text-xs font-semibold), variantes por dominio (violet, cyan, blue, red, orange), `CLINICAL_PRIMARY_CTA` (h-10), `CLINICAL_SIGN_CTA` (h-11 con ring ámbar), `CLINICAL_SIGNED_BADGE`. Todos los CTAs de creación migran a estos tokens — antes eran `text-[10px] py-1` (~22px), por debajo de WCAG 2.5.5/2.5.8.
+- **Ancho del modal scheduler**: `xl:max-w-7xl (1280px)` → `xl:max-w-[1480px] 2xl:max-w-[1680px]`. Columna derecha 380 → 440/500px. En 1920px gana ~400px de área útil.
+- **Botón Firmar** prominente: `h-11` + `ring-2 ring-amber-500/30 ring-offset-2` cuando está listo. Comunica la irreversibilidad (heurística Nielsen #5).
+
+**P1 — Reorganización:**
+- **Tabs en columna derecha** vía `app/(dashboard)/scheduler/clinical-side-panels.tsx`: Recetas / Exámenes / Tratamientos / Seguimientos con badges numéricos en vivo (counts vía Supabase). Reemplaza el stack vertical de 4 paneles. Reduce scroll de ~2400px → ~800px por panel y aplica heurística "reconocer vs recordar" (Nielsen #6).
+- **Header sticky** con CTAs globales (Guardar / Firmar / Imprimir + auto-save indicator + badge "Firmada" en ámbar) siempre visibles. El badge cambia de emerald → ámbar para comunicar estado bloqueado (no éxito).
+- **Vitales 8-col en wide layout** (`lg:grid-cols-8`) — coherente con el modal hermano de pacientes.
+- **`ClinicalNotePanel` con `forwardRef` + `useImperativeHandle`**: expone `save()` / `sign()` y reporta estado vía `onStateChange(panelState)`. El modal lee estado y lanza acciones sin polling. Eliminado el polling de `is_signed` cada 2s (30 req/min) — reemplazado por callback.
+- **`patients/clinical-history-modal.tsx`** ampliado a `xl:max-w-[1480px] 2xl:max-w-[1680px]` para coherencia.
+
+**P2 — Pulido:**
+- **Atajo Ctrl+S / Cmd+S** para guardar mientras el modal está abierto y editable.
+- **Estados vacíos accionables** en los 4 paneles laterales: "Crear primera receta", "Ordenar primer examen", "Crear primer plan", "Crear primer seguimiento" — el CTA aparece inline en lugar del texto plano "Sin prescripciones".
+- **Microcopy**: "Recetar" → "Nueva receta", "Solicitar" → "Ordenar examen", "Subir" → "Subir archivo".
+- **Dark mode polish**: `backdrop-blur` en header sticky y tab bar.
+
+### Adjuntos clínicos — dropzone real con drag-and-drop
+
+`app/(dashboard)/patients/clinical-attachments-panel.tsx`:
+- Botón "+ Subir archivo" del header migra a token (`h-9` / variante `orange`) — antes era `~22px`, evidentemente más chico que sus hermanos.
+- **Dropzone py-10** con border dashed, ícono Upload de 6×6 dentro de un círculo. 3 estados visuales:
+  - **idle** — `bg-muted/20 border-muted-foreground/25`
+  - **drag-active** — `bg-orange-500/10 border-orange-500` + texto "Suelta el archivo aquí"
+  - **file-selected** — `bg-emerald-500/5 border-emerald-500/50` + nombre + tamaño del archivo
+- **Drag-and-drop nativo** (`onDragEnter/Over/Leave/Drop`) además del click. Accesibilidad: `role="button"`, `tabIndex={0}`, soporta Enter/Space.
+- **Validación cliente** de tamaño (10 MB) antes de subir.
+- **Estado vacío accionable**: si no hay adjuntos, el dropzone se muestra automáticamente (en vez del texto "Sin adjuntos").
+- Form de categoría/descripción aparece **solo después** de seleccionar el archivo (reduce ruido visual).
+
+### Fix — Eje Y del gráfico "Citas últimos 30 días" (admin dashboard)
+
+`app/(dashboard)/dashboard/admin-dashboard.tsx`. El `<AreaChart>` tenía `margin={{ left: -20, ... }}` (margen izquierdo negativo) que empujaba el `<YAxis>` fuera del contenedor visible — solo se asomaban trazos finitos de los labels. Cambio: `left: -20 → left: 0` y `width: 30 → 32` para que los valores numéricos del eje (1, 2, 3…) se rendericen completos junto al gráfico.
+
+### Fix — Doctores quedaban con horario vacío al fallar el guardado
+
+`app/(dashboard)/admin/doctors/[id]/page.tsx`. El flujo `handleSave` era `DELETE all + INSERT new`. Si el INSERT fallaba (típicamente por duplicate key en `UNIQUE(doctor_id, day_of_week, start_time)`), el delete ya se había aplicado y el doctor quedaba con CERO horarios. Causa raíz reportada por el usuario.
+
+Cambios:
+- **Validación frontend antes del save**: detecta bloques que comparten `(day_of_week, start_time)` y bloques con `end_time <= start_time`. Toast claro identificando los conflictos.
+- **Resaltado visual**: bloques con problema reciben `border-red-500/60 ring-2 ring-red-500/20` y un mensaje inline ("⚠ Duplicado…" / "⚠ La hora de fin debe ser mayor…").
+- **Snapshot + restore**: aún si el INSERT fallara por otra causa, ahora se intenta restaurar el snapshot previo del horario para que el doctor no quede con la agenda vacía.
+
+### Feature — Consultorios autorizados por doctor (`doctor_offices`)
+
+Resuelve el caso de uso que el usuario reportó: *"quiero que la Dra. Ángela solo pueda atender en los consultorios 202 y 203, pero el sistema no me deja"*.
+
+**Causa raíz:** `doctor_schedules.office_id` mezclaba dos preguntas distintas:
+1. ¿En qué consultorios puede atender este doctor? (atributo del **doctor**)
+2. ¿En cuál consultorio específico es este turno? (atributo del **bloque**)
+
+Como resultado, dos bloques con misma `(day_of_week, start_time)` y distinto `office_id` chocaban con la constraint UNIQUE. No había forma de expresar "lunes 9-13 puede ser en 202 o 203".
+
+**Esquema (migración 111):**
+
+Tabla nueva `doctor_offices`:
+- `(id, doctor_id FK, office_id FK, organization_id FK, created_at)` con `UNIQUE(doctor_id, office_id)` e índices por las 3 FKs.
+- RLS: `org_select` por `get_user_org_ids()`, `org_insert` / `org_delete` por `is_org_admin(organization_id)`. Sin policy de UPDATE — las filas son composites inmutables, "editar" = delete + insert.
+- **Default permisivo**: lista vacía → "Todos los consultorios". No rompe orgs existentes.
+
+`doctor_schedules.office_id` se mantiene opcional como **restricción adicional por turno**:
+- `NULL` → el turno hereda los consultorios autorizados del doctor.
+- `NOT NULL` → ese turno se da solo en ese consultorio específico.
+
+**UI** (en `/admin/doctors/[id]` → tab Horario):
+- **Sección nueva "Consultorios autorizados"** arriba del horario semanal: grid responsive (1/2/3 columnas) con checkboxes por consultorio activo. Resumen de estado: "Acceso completo: el doctor puede atender en cualquiera de los N consultorios" o "Restringido a 2 de 6 consultorios" + botón "Permitir todos" para limpiar.
+- **`<select>` de consultorio por bloque filtrado**: solo muestra los autorizados. El placeholder cambia: "Todos los autorizados (2)" o "Todos los consultorios" según haya o no restricción global.
+- **Valores antiguos protegidos**: si un bloque apunta a un consultorio que ya no está en la lista autorizada, aparece etiquetado como "(no autorizado)" en el dropdown para que el usuario lo corrija.
+- **Validación al guardar**: si algún bloque usa un consultorio fuera del set autorizado, identifica el bloque ofensivo y bloquea el save con toast.
+- **Save atómico-cliente con snapshot+restore** para `doctor_schedules` y `doctor_offices`. Si una mitad falla, se restaura la previa.
+
+**Tipos:** `DoctorOffice` declarado manualmente en `types/admin.ts`. El cliente Supabase del proyecto es untipado (`SupabaseClient`, no `SupabaseClient<Database>`), así que `from("doctor_offices")` funciona sin regenerar `database.ts`. Cuando se corra `npm run types` se podrá mover al tipo generado.
+
+### Operaciones requeridas para activar v0.13.2
+
+1. **Aplicar migración 111** (`supabase/migrations/111_doctor_offices.sql`):
+   - `supabase db push` (CLI), o
+   - copiar el SQL al editor de Supabase Studio, o
+   - `psql $DATABASE_URL -f supabase/migrations/111_doctor_offices.sql`.
+2. (Opcional pero recomendado) `npm run types` para regenerar `database.ts` con la nueva tabla.
+
+### Archivos tocados
+
+| Archivo | Líneas |
+|---|---|
+| `lib/clinical-ui-tokens.ts` *(nuevo)* | 47 |
+| `app/(dashboard)/scheduler/clinical-side-panels.tsx` *(nuevo)* | 211 |
+| `app/(dashboard)/scheduler/clinical-note-modal.tsx` | reescrito |
+| `app/(dashboard)/scheduler/clinical-note-panel.tsx` | refactor a `forwardRef` |
+| `app/(dashboard)/patients/prescriptions-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/exam-orders-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/treatment-plans-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/clinical-followups-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/clinical-attachments-panel.tsx` | dropzone real |
+| `app/(dashboard)/patients/clinical-history-modal.tsx` | ancho |
+| `app/(dashboard)/dashboard/admin-dashboard.tsx` | margin del AreaChart |
+| `app/(dashboard)/admin/doctors/[id]/page.tsx` | validación + autorizados |
+| `supabase/migrations/111_doctor_offices.sql` *(nuevo)* | 56 |
+| `types/admin.ts` | tipo `DoctorOffice` |
+
+### Decisiones de diseño con contexto
+
+- **Tabs vs stack** en la columna derecha: tabs ganan por reducción de scroll y "reconocer vs recordar". Doctor ya no tiene que hacer scroll para ver que existen Tratamientos y Seguimientos.
+- **`h-9` (36px) vs `h-11` (44px)** para CTAs de paneles: 36px es el sweet spot EHR (Epic, Athena) — táctil sin sacrificar densidad. 44px se reserva para "Firmar" (irreversible) donde la prominencia justifica el extra.
+- **Badge ámbar vs emerald** para "Firmada": ámbar comunica "estado bloqueado / atención" (consistente con el badge de "Requerido" del consentimiento). Emerald comunicaría "éxito" lo cual es correcto pero no advierte del bloqueo.
+- **`doctor_offices` separado vs constraint expandida**: separar la pregunta del doctor (autorizados) de la del turno (override) sigue el modelo de Epic/Athena ("facilities" del provider). Permite UI con un solo lugar para "cambiar dónde puede atender" en vez de editar 14 bloques.
+
+### Próximos pasos sugeridos (no hechos en esta sesión)
+
+- Respetar `doctor_offices` en el flujo de booking (`api/scheduler/available-slots`) para que el matching paciente↔doctor↔consultorio sea estricto.
+- Si Vitra reporta confusión con el flow de doctor multi-consultorio, considerar mover el panel "Consultorios autorizados" al perfil del doctor (tab Perfil) en vez de al tab Horario.
+
+---
+
+## 36. Changelog — Sesión 2026-04-26 tarde (v0.13.3) — Pricing alineado y trial diferenciado por tier
+
+Cambio comercial: los precios iniciales (Gratis / S/49 / S/149 en BD vs. S/69.90 / S/169.90 / S/569.90 en landing) eran placeholders sin alinear. Esta sesión cierra ambas fuentes con el pricing que va a producción.
+
+### Precios nuevos
+
+| Slug | Plan | Mensual | Anual (2 meses gratis) | Trial 14 días |
+|---|---|---|---|---|
+| `starter` | Independiente | **S/129** | S/1,290 | ✅ Activo |
+| `professional` | Centro Médico | **S/349** | S/3,490 | ✅ Activo |
+| `enterprise` | Clínica | **S/649** | S/6,490 | ❌ Desactivado |
+
+**Justificación del trial desactivado en Clínica:** se reserva el plan a clientes calificados que requieren contratación directa y onboarding asistido. Reactivable en cuanto el "Reporte IA avanzado" (capas 1+2 propuestas: brief ejecutivo + insights proactivos) esté listo y justifique el upgrade desde Centro Médico.
+
+### Cambios de código
+
+- **Migración `112_update_plan_prices.sql`** — `UPDATE plans` por slug actualizando `price_monthly` y `price_yearly`. Bloque `DO $$` con `RAISE NOTICE` para auditar el cambio en el log de Supabase. Rollback documentado en el header de la migración.
+- **`app/api/plans/start-trial/route.ts`** — bloqueo con `403 trial_unavailable` cuando `plan.slug === 'enterprise'`. Defense-in-depth aunque la UI ya esconda el botón.
+- **`app/(auth)/select-plan/page.tsx`** — botón "Iniciar prueba de 14 días" oculto para `enterprise`; el botón de pago pasa a destacado (gradient + h-11) con label "Contratar Clínica — S/649/mes".
+- **Anchors actualizados (3 archivos)** — `pricing.tsx`, `select-plan/page.tsx` y `dashboard/plans/page.tsx` comparten el mismo `PLAN_ANCHORS` con copys nuevos:
+  - Independiente: *"Menos de S/5 al día por tener tu consultorio en orden"*
+  - Centro Médico: *"Menos de 3 consultas al mes y la herramienta se paga sola"*
+  - Clínica: *"Con un tratamiento mediano al mes, ya pagaste tu suscripción"*
+- **`pricing.tsx` (landing)** — precios mensuales/anuales y `savingsAnnual` recalculados (S/258 / S/698 / S/1,298 ahorro al año).
+- **`growth-path.tsx` (landing)** — precios actualizados.
+- **`final-cta.tsx` (landing)** — "Planes desde S/69.90/mes" → "Planes desde S/129/mes".
+- **`app/layout.tsx`** — meta description actualizada para SEO.
+- **`admin/members/page.tsx` y `admin/offices/page.tsx`** — botones "Mejorar plan — S/169.90/mes" → "S/349/mes".
+
+### Política de migración para clientes existentes
+
+- **Organizaciones en plan gratuito (S/0) NO se migran automáticamente.** El owner del producto (Yenda) decide cuándo convertirlas, típicamente al cerrar la fase de tests internos.
+- **Suscripciones activas** conservan el precio del momento de la contratación hasta su renovación. La migración solo cambia el catálogo (`plans`), no las filas de `organization_subscriptions`.
+
+### Decisiones diferidas (no hechas en esta sesión)
+
+- **Frecuencia semestral** con descuento de medio mes gratis (8.3% off) — discutida y dimensionada en la conversación, requiere agregar columna `price_semiannual` a `plans`. Pendiente de confirmación.
+- **Reporte IA avanzado para Centro/Clínica** — propuesta en 5 capas (brief ejecutivo automatizado, insights proactivos, forecast, comparativo multi-doctor, benchmarking anónimo). Recomendación: arrancar con capas 1+2 (Centro+Clínica) cuando se vuelva a abrir trial Clínica.
+
+### Operaciones requeridas para activar v0.13.3
+
+1. Aplicar migración 112 contra producción:
+   ```
+   supabase db push
+   # o pegar supabase/migrations/112_update_plan_prices.sql en SQL Editor
+   ```
+2. Verificar en `select-plan` que el plan Clínica ya no muestra "Iniciar prueba" y muestra "Contratar Clínica — S/649/mes".
+3. Verificar en landing que las 3 cards muestran S/129 / S/349 / S/649 y los anchors nuevos.
+4. (Opcional) Probar `POST /api/plans/start-trial` con `plan_id` del enterprise — debe responder 403.
+
+---
+
+## 37. Changelog — Sesión 2026-04-26 noche (v0.13.4) — Semestral 8.3% + anchor refinado + Reporte IA Avanzado documentado
+
+Cierre de loop sobre las decisiones diferidas en v0.13.3.
+
+### Anchor refinado (Independiente)
+
+- "Menos de S/5 al día por tener tu consultorio en orden" → **"Menos de S/5 al día por tener tu consultorio inteligente"**.
+- Aplicado en los 3 lugares que usan `PLAN_ANCHORS`: `components/landing/pricing.tsx`, `app/(auth)/select-plan/page.tsx`, `app/(dashboard)/plans/page.tsx`.
+
+### Frecuencia semestral (8.3% off)
+
+**Migración 113** (`supabase/migrations/113_plan_semiannual_price.sql`):
+- `ALTER TABLE plans ADD COLUMN price_semiannual NUMERIC(10,2)`.
+- UPDATE values: starter 709.50, professional 1919.50, enterprise 3569.50 (5.5 meses al precio mensual).
+- Comentario en columna + RAISE NOTICE para auditar.
+
+**Backend MP checkout:**
+- `lib/validations/api.ts` — `mpCheckoutSchema.billing_cycle` y `mpCreatePreferenceSchema.billing_cycle` ahora aceptan `"semiannual"`.
+- `app/api/mercadopago/checkout/route.ts`:
+  - SELECT trae `price_semiannual` además de los otros.
+  - Resolución de precio en cascada: yearly → semiannual → monthly (fallback al monthly si la cadencia pedida no está priceada).
+  - Mapeo de frequency a 1 / 6 / 12 meses (todos soportados por MP preapproval).
+  - Reason del preapproval con etiqueta legible "Anual" / "Semestral" / "Mensual".
+
+**Frontend:**
+- **`components/landing/pricing.tsx`** — toggle de 2 → 3 botones (Mensual / Semestral / Anual). State `cadence: "monthly" | "semiannual" | "annual"`. Helpers `priceFor()` y `anchorFor()` extraídos. Cada plan trae `priceSemiannual`, `savingsSemiannual`, `anchorSemiannual`. Badge "½ mes gratis" en semestral, "2 meses gratis" en anual.
+- **`app/(auth)/select-plan/page.tsx`** — mismo toggle, state local `cadence`. Type `Plan` extiende con `price_semiannual: number | null`. Cuando `cadence !== "monthly"`, el precio mostrado es per-month derivado del upfront, con sub-línea "Cobro único S/X cada N meses" + tachado del precio mensual original. CTA del botón cambia label según cadencia ("S/3,490/año", "S/1,919.50/semestre", etc.). El `handleSelect` mapea `cadence → billing_cycle` y lo manda al backend.
+- **`app/(dashboard)/plans/page.tsx`** — mismo refactor: toggle, type `Plan` con `price_semiannual`, render de precio per-month + upfront, CTA con label dinámico, `handleChangePlan` con cycle correcto.
+
+### Reporte IA Avanzado documentado en COMING-UPDATES (no implementado todavía)
+
+Sección nueva en `COMING-UPDATES.md` con tracking detallado de Capas 1+2 aprobadas en sesión 2026-04-26:
+
+- **Capa 1 — Brief Ejecutivo Automatizado**: cron weekly/monthly que envía email + widget en dashboard con narrativa LLM (3-5 párrafos) sobre operación, finanzas, clínica, alertas. Tabla `ai_executive_briefs` propuesta. Costo S/0.50-S/2.50/mes/org. Reusa `lib/pseudonymize-phi.ts`.
+- **Capa 2 — Insights Proactivos**: cron diario detecta 8 patrones (no-show, churn, follow-up gap, caída de ingresos, doctor subutilizado, plan estancado, cobros vencidos, bloqueo inusual) y los expone como widget + topbar dot + página `/dashboard/insights`. Tabla `ai_insights` propuesta. Costo ~S/15/mes/org.
+- **Capas 3-5 (parking lot)**: forecast predictivo, comparativo multi-doctor, benchmarking anónimo entre clínicas. Evaluar tras Vitra.
+
+Roadmap propuesto: Q2 2026 Capa 1 → Q3 2026 Capa 2 → Q4 2026 reactivar trial Clínica con Capas 1+2 como argumento de venta.
+
+### Archivos tocados (v0.13.4)
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/migrations/113_plan_semiannual_price.sql` *(nuevo)* | Columna + valores semestrales |
+| `lib/validations/api.ts` | Enums Zod aceptan `semiannual` |
+| `app/api/mercadopago/checkout/route.ts` | Resolver de precio + frequency 6 meses |
+| `components/landing/pricing.tsx` | Toggle 3 opciones + anchor refinado |
+| `app/(auth)/select-plan/page.tsx` | Toggle + render dinámico + handler con cycle + anchor |
+| `app/(dashboard)/plans/page.tsx` | Toggle + render dinámico + handler con cycle + anchor |
+| `COMING-UPDATES.md` | Sección nueva "Reporte IA Avanzado" con detalle |
+| `PRD.md` | Sección 5 actualizada con cuadro de cadencias + esta sección 37 |
+
+### Operaciones requeridas para activar v0.13.4
+
+1. Aplicar migración 113:
+   ```
+   supabase db push
+   ```
+   o pegar `supabase/migrations/113_plan_semiannual_price.sql` en SQL Editor.
+2. Verificar que `plans.price_semiannual` quedó poblado para los 3 planes.
+3. Probar el toggle en landing → cambiar a Semestral debe mostrar S/118.25/mes para Independiente con sub-línea "Cobro único S/709.50 cada 6 meses".
+4. Probar checkout completo en MP sandbox con `billing_cycle: "semiannual"` para confirmar que la subscription se crea con `auto_recurring.frequency = 6`.
+
+### Decisiones de diseño con contexto
+
+- **Curva 0% → 8% → 17%**: cada upgrade gana ~8 puntos. Si semestral diera 1 mes gratis (16.7%) empataría con anual y nadie elegiría anual, perdiendo cash adelantado.
+- **Per-month como número grande, upfront como sub-línea**: facilita comparar las 3 cadencias visualmente. El cliente ve "S/107.50/mes" en lugar de "S/1,290/año" como protagonista, lo que reduce la fricción de "S/1,290 es mucho dinero de un golpe".
+- **Frequency 6 en MP preapproval**: confirmado en docs de Mercado Pago que `frequency_type: "months"` acepta {1, 2, 3, 4, 6, 12}. No requirió contactar soporte de MP.
+- **Reporte IA Avanzado documentado pero NO implementado**: el usuario pidió tracking detallado para futura implementación. Las migraciones, prompts y tablas propuestas están listas para que cualquier dev (o yo en sesión futura) pueda arrancar sin re-investigar.
+
