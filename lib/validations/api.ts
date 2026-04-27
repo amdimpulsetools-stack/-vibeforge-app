@@ -87,6 +87,22 @@ export const aiReportSchema = z.object({
   dateTo: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD"),
 });
 
+// ── AI Executive Briefs (Capa 1 - Reporte IA Avanzado) ──────────
+// `period` chooses how the date range is computed server-side:
+//   week   → últimos 7 días
+//   month  → últimos 30 días
+//   custom → date_from/date_to required and validated as YYYY-MM-DD
+export const aiBriefGenerateSchema = z
+  .object({
+    period: z.enum(["week", "month", "custom"]),
+    date_from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD").optional(),
+    date_to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Formato: YYYY-MM-DD").optional(),
+  })
+  .refine(
+    (v) => v.period !== "custom" || (v.date_from && v.date_to),
+    { message: "date_from y date_to son obligatorios cuando period es 'custom'" }
+  );
+
 // ── Mercado Pago ─────────────────────────────────────────────────────
 export const mpCheckoutSchema = z.object({
   plan_id: z.string().uuid("plan_id debe ser un UUID válido"),
