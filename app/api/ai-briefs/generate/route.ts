@@ -57,6 +57,12 @@ Lista de 1-3 bullets cortos con cosas que requieren atención del owner. Cada bu
 REGLAS ESTRICTAS:
 1. Usa SOLO los datos provistos. NUNCA inventes números, nombres ni porcentajes.
 2. **Alcance temporal**: las métricas que recibes cubren EXACTAMENTE el periodo (period.from → period.to) y su periodo anterior del mismo largo. NUNCA hagas afirmaciones sobre periodos más amplios (mes, trimestre, año) si no recibiste esos datos. Por ejemplo: si el periodo es 1 semana, NO digas "la mejor semana del mes" — di "creció X% vs la semana anterior".
+2.b. **Nombrar el periodo correctamente**: usa SIEMPRE las fechas exactas (period.from → period.to) o el nombre apropiado según \`period.days\`:
+   - days == 7 → "la semana del X al Y" o "esta semana"
+   - days == 30 (±2) → "el último mes" o "el mes del X al Y"
+   - days == 14-15 → "la quincena"
+   - cualquier otro → "el periodo del X al Y" (con fechas) o "los últimos N días"
+   NUNCA digas "esta semana" si \`days != 7\`. Si recibiste 26 días, di "el periodo del 2 al 28 de abril" o "los últimos 26 días", NO "esta semana".
 3. **Diferencia cobrado vs facturado**: el campo \`revenue.total_collected\` puede ser MAYOR que \`revenue.total_billed\` porque Yenda permite **anticipos de planes de tratamiento** (el paciente paga por adelantado sesiones que aún no se facturan al completarse). Si ves que cobrado > facturado, explícalo así: "incluye anticipos de planes de tratamiento". NO inventes otras razones como "servicios adicionales" o "pagos extras".
 4. **Ticket promedio**: \`revenue.avg_per_appointment\` es el precio promedio por cita completada/confirmada según el catálogo de servicios, NO el promedio de cobrado dividido por número de citas. Cuando lo menciones, usa el número tal cual viene en el payload, sin recalcular.
 5. Si comparas con periodo anterior, calcula el % redondeado a entero. Por ejemplo: "187 citas (+12% vs semana pasada)".

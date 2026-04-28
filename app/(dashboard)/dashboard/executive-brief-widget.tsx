@@ -108,56 +108,36 @@ export function ExecutiveBriefWidget() {
 
   return (
     <>
-      {/* Card on dashboard */}
-      <div className="rounded-2xl border border-border/60 bg-gradient-to-br from-emerald-500/5 via-card to-card p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500">
-                <Sparkles className="h-4 w-4 text-white" />
-              </div>
-              <h3 className="text-sm font-bold">Brief Ejecutivo IA</h3>
-              <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                Beta
-              </span>
-            </div>
-            <p className="mt-2 text-xs text-muted-foreground max-w-md">
-              Genera un resumen narrativo de la última semana o mes con comparación vs. periodo anterior.
-              Pensado para owners y directores que quieren leer en 60 segundos qué pasó.
-            </p>
-          </div>
-          <button
-            onClick={() => {
-              setOpen(true);
-              if (!result && hasAiFeature) generate();
-            }}
-            disabled={!hasAiFeature}
-            className={cn(
-              "shrink-0 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all",
-              hasAiFeature
-                ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:scale-[1.02] active:scale-[0.98]"
-                : "bg-muted text-muted-foreground cursor-not-allowed"
-            )}
-          >
-            {hasAiFeature ? (
-              <Sparkles className="h-4 w-4 animate-pulse" />
-            ) : (
-              <Lock className="h-4 w-4" />
-            )}
-            {result ? "Ver brief" : "Generar brief"}
-            {!hasAiFeature && (
-              <span className="rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
-                PRO
-              </span>
-            )}
-          </button>
-        </div>
-        {result && (
-          <p className="mt-3 text-[11px] text-muted-foreground">
-            Último brief: {PERIOD_LABELS[result.period]} · {formatDate(result.period_start)} → {formatDate(result.period_end)}
-          </p>
+      {/* Compact pill button — replaces the previous big card. Designed to
+          live in the dashboard header next to other actions ("Ver reportes",
+          period filter), so it competes for attention only minimally. */}
+      <button
+        type="button"
+        onClick={() => {
+          setOpen(true);
+          if (!result && hasAiFeature) generate();
+        }}
+        disabled={!hasAiFeature}
+        title={hasAiFeature ? "Brief Ejecutivo IA" : "Disponible en plan Pro"}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-all",
+          hasAiFeature
+            ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:shadow-md hover:scale-[1.03] active:scale-[0.98]"
+            : "bg-muted text-muted-foreground cursor-not-allowed"
         )}
-      </div>
+      >
+        {hasAiFeature ? (
+          <Sparkles className="h-3.5 w-3.5" />
+        ) : (
+          <Lock className="h-3.5 w-3.5" />
+        )}
+        Brief IA
+        {!hasAiFeature && (
+          <span className="ml-0.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[9px] font-bold text-white">
+            PRO
+          </span>
+        )}
+      </button>
 
       {/* Modal with the brief */}
       <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : handleClose())}>

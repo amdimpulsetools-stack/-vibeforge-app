@@ -144,13 +144,24 @@ export async function POST(req: NextRequest) {
 
   const { data: membership } = await supabase
     .from("organization_members")
-    .select("organization_id")
+    .select("organization_id, role")
     .eq("user_id", user.id)
     .limit(1)
     .maybeSingle();
 
   if (!membership?.organization_id) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+
+  // Doctors can NOT emit invoices. Billing/comprobantes is admin/receptionist
+  // territory: it requires fiscal context (RUC del cliente, validation,
+  // SUNAT reasoning) that is outside the doctor's clinical scope. Owner +
+  // admin + receptionist are the only allowed roles.
+  if (membership.role === "doctor") {
+    return NextResponse.json(
+      { error: "El rol doctor no puede emitir comprobantes." },
+      { status: 403 }
+    );
   }
 
   let body: unknown;
