@@ -20,8 +20,8 @@ export function YendaLogo({
   className?: string;
   priority?: boolean;
 }) {
-  // The SVG natural ratio is 422.58 x 134.79 ≈ 3.135:1
-  const computedHeight = height ?? Math.round(width / 3.135);
+  // The SVG natural ratio is 394.85 x 137.32 ≈ 2.875:1
+  const computedHeight = height ?? Math.round(width / 2.875);
   return (
     <Image
       src="/yenda/logo.svg"
