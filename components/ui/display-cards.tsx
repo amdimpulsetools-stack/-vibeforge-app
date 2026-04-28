@@ -32,7 +32,11 @@ function DisplayCard({
   return (
     <div
       className={cn(
-        "relative flex h-36 w-[22rem] -skew-y-[8deg] select-none flex-col justify-between rounded-xl border-2 border-slate-200/80 bg-white/80 backdrop-blur-sm px-4 py-3 transition-all duration-700 after:absolute after:-right-1 after:top-[-5%] after:h-[110%] after:w-[20rem] after:bg-gradient-to-l after:from-white after:to-transparent after:content-[''] hover:border-emerald-300 hover:bg-white hover:shadow-lg hover:shadow-emerald-100/50 [&>*]:flex [&>*]:items-center [&>*]:gap-2",
+        // Width responsive: 18rem (288px) en mobile, 22rem (352px) desde sm.
+        // El after:w también baja proporcionalmente para que no asome fuera
+        // del viewport. Sin esto, el stack desbordaba ~530px en mobile y
+        // forzaba scroll horizontal en toda la pagina.
+        "relative flex h-36 w-[18rem] sm:w-[22rem] -skew-y-[8deg] select-none flex-col justify-between rounded-xl border-2 border-slate-200/80 bg-white/80 backdrop-blur-sm px-4 py-3 transition-all duration-700 after:absolute after:-right-1 after:top-[-5%] after:h-[110%] after:w-[16rem] sm:after:w-[20rem] after:bg-gradient-to-l after:from-white after:to-transparent after:content-[''] hover:border-emerald-300 hover:bg-white hover:shadow-lg hover:shadow-emerald-100/50 [&>*]:flex [&>*]:items-center [&>*]:gap-2",
         className
       )}
     >

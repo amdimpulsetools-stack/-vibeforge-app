@@ -28,8 +28,10 @@ const notificationCards: DisplayCardProps[] = [
     description: "Carlos López — Ecografía → Jueves 10:30",
     date: "Hace 15 min",
     titleClassName: "text-amber-600",
+    // translate-x reducido en mobile (8 vs 16) para que el stack no se
+    // dispare fuera del viewport. Desde sm vuelve al offset original.
     className:
-      "[grid-area:stack] translate-x-16 translate-y-10 hover:-translate-y-1 before:absolute before:w-[100%] before:outline-1 before:rounded-xl before:outline-slate-200 before:h-[100%] before:content-[''] before:bg-blend-overlay before:bg-white/50 grayscale-[100%] hover:before:opacity-0 before:transition-opacity before:duration-700 hover:grayscale-0 before:left-0 before:top-0",
+      "[grid-area:stack] translate-x-8 sm:translate-x-16 translate-y-10 hover:-translate-y-1 before:absolute before:w-[100%] before:outline-1 before:rounded-xl before:outline-slate-200 before:h-[100%] before:content-[''] before:bg-blend-overlay before:bg-white/50 grayscale-[100%] hover:before:opacity-0 before:transition-opacity before:duration-700 hover:grayscale-0 before:left-0 before:top-0",
   },
   {
     icon: <CreditCard className="size-4 text-blue-500" />,
@@ -38,7 +40,7 @@ const notificationCards: DisplayCardProps[] = [
     date: "Hace 30 min",
     titleClassName: "text-blue-600",
     className:
-      "[grid-area:stack] translate-x-32 translate-y-20 hover:translate-y-10",
+      "[grid-area:stack] translate-x-16 sm:translate-x-32 translate-y-20 hover:translate-y-10",
   },
 ];
 
@@ -62,7 +64,11 @@ export function LiveNotifications() {
   }, []);
 
   return (
-    <section className="py-20 sm:py-28 bg-slate-50/50">
+    // overflow-hidden defensivo: aunque las cards adentro ya estan
+    // dimensionadas para no desbordar, este wrapper garantiza que cualquier
+    // nuevo decorador con translate/skew no rompa el ancho del body en
+    // mobile (bug reportado: aparecia franja blanca a la derecha).
+    <section className="py-20 sm:py-28 bg-slate-50/50 overflow-hidden">
       <div
         ref={sectionRef}
         className="mx-auto max-w-7xl px-6 opacity-0 translate-y-8 transition-all duration-700 ease-out [&.animate-in]:opacity-100 [&.animate-in]:translate-y-0"
@@ -123,8 +129,10 @@ export function LiveNotifications() {
             </div>
           </div>
 
-          {/* Right — Display Cards */}
-          <div className="order-1 lg:order-2 flex items-center justify-center min-h-[350px]">
+          {/* Right — Display Cards. overflow-hidden + min-w-0 para que
+               el grid item permita comprimirse y no fuerce ancho minimo
+               de las cards skew/translate al body en mobile. */}
+          <div className="order-1 lg:order-2 flex items-center justify-center min-h-[350px] min-w-0 overflow-hidden">
             <DisplayCards cards={notificationCards} />
           </div>
         </div>
