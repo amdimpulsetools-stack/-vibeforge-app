@@ -13,9 +13,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
+import { useOrgRole } from "@/hooks/use-org-role";
+import { toast } from "sonner";
 import { format, startOfMonth } from "date-fns";
 import {
   Receipt,
@@ -121,6 +124,20 @@ const PAGE_SIZE = 50;
 export default function FacturacionPage() {
   useLanguage(); // ensures provider mounted; copy is in-page
   const einvoice = useEInvoiceConfig();
+  const router = useRouter();
+  const { isDoctor, loading: roleLoading } = useOrgRole();
+
+  // Doctors must never see comprobantes. The sidebar already hides this
+  // entry for them, this guard catches direct URL navigation. We wait
+  // for the org context to load before redirecting to avoid bouncing
+  // legitimate users on first paint.
+  useEffect(() => {
+    if (!roleLoading && isDoctor) {
+      toast.error("Esta sección no está disponible para tu rol.");
+      router.replace("/dashboard");
+    }
+  }, [isDoctor, roleLoading, router]);
+
   const [rows, setRows] = useState<EInvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -216,6 +233,13 @@ export default function FacturacionPage() {
     ).length;
     return { totalAmount, totalCount, pendingCount, rejectedCount };
   }, [rows]);
+
+  // While role resolves OR if user is a doctor, render nothing (the
+  // useEffect above will redirect doctors). This prevents a flash of
+  // billing data on direct URL navigation.
+  if (roleLoading || isDoctor) {
+    return null;
+  }
 
   // Empty state — module not connected yet. Render this and bail.
   if (!einvoice.loading && !einvoice.connected) {

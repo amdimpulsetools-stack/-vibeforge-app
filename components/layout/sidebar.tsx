@@ -43,6 +43,9 @@ interface NavItem {
   href: string;
   icon: LucideIcon;
   adminOnly?: boolean;
+  /** Hidden specifically for users with role=doctor (e.g. billing pages
+   *  that doctors should never see, even if recepcionistas can). */
+  hideForDoctor?: boolean;
 }
 
 interface NavGroup {
@@ -87,11 +90,12 @@ const navSections: NavSection[] = [
     ],
   },
   {
+    // Section visible para owner/admin (todo) y recepcionistas (solo
+    // /facturacion). Doctores no ven nada aqui — ambos items los excluyen.
     labelKey: "nav.section_insights",
-    adminOnly: true,
     entries: [
       { titleKey: "nav.reports", href: "/reports", icon: BarChart3, adminOnly: true },
-      { titleKey: "nav.facturacion", href: "/facturacion", icon: Receipt, adminOnly: true },
+      { titleKey: "nav.facturacion", href: "/facturacion", icon: Receipt, hideForDoctor: true },
     ],
   },
   {
@@ -133,7 +137,7 @@ export function Sidebar() {
   const router = useRouter();
   const { t } = useLanguage();
   const { organization } = useOrganization();
-  const { isAdmin } = useOrgRole();
+  const { isAdmin, isDoctor } = useOrgRole();
   const { isOpen: mobileOpen, setOpen: setMobileOpen } = useMobileNav();
   const einvoice = useEInvoiceConfig();
   const [collapsed, setCollapsed] = useState(false);
@@ -181,6 +185,7 @@ export function Sidebar() {
 
   const renderNavItem = (item: NavItem) => {
     if (item.adminOnly && !isAdmin) return null;
+    if (item.hideForDoctor && isDoctor) return null;
     // Gate the /facturacion entry behind an active e-invoice config —
     // shows up only after the org has finished the Nubefact wizard.
     // The hook caches per-org so this doesn't add extra requests.
@@ -338,10 +343,14 @@ export function Sidebar() {
       <nav className="relative flex-1 overflow-y-auto p-2.5">
         {navSections.map((section, idx) => {
           if (section.adminOnly && !isAdmin) return null;
-          // Filter visible entries to avoid empty sections
-          const visibleEntries = section.entries.filter(
-            (e) => !((e as { adminOnly?: boolean }).adminOnly) || isAdmin
-          );
+          // Filter visible entries to avoid empty sections.
+          // Respects both adminOnly (owner+admin) and hideForDoctor flags.
+          const visibleEntries = section.entries.filter((e) => {
+            const meta = e as { adminOnly?: boolean; hideForDoctor?: boolean };
+            if (meta.adminOnly && !isAdmin) return false;
+            if (meta.hideForDoctor && isDoctor) return false;
+            return true;
+          });
           if (visibleEntries.length === 0) return null;
           return (
             <div key={section.labelKey ?? idx} className={cn(idx > 0 && "mt-4")}>

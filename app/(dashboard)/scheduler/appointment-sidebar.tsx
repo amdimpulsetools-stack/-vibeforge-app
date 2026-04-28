@@ -1002,8 +1002,13 @@ export function AppointmentSidebar({
             {/* Issued invoices + emit button — gated by einvoice connection.
                 Una cita puede tener N comprobantes (modelo de pago parcial).
                 Render de cards para cada uno + botón "Emitir" si queda
-                saldo por facturar. Label dinámico cuando ya hay previos. */}
-            {einvoiceConfig.connected && (
+                saldo por facturar. Label dinámico cuando ya hay previos.
+
+                El rol doctor NO ve esta sección — ni los cards de
+                comprobantes emitidos ni el botón de emitir. Billing es
+                territorio de owner/admin/recepcionista. El backend también
+                rechaza emit si role=doctor (defense-in-depth). */}
+            {einvoiceConfig.connected && !isDoctorRole && (
               <>
                 {appointmentEinvoices.map((e) => (
                   <InvoiceCard key={e.id} einvoiceId={e.id} />

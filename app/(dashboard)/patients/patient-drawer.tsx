@@ -85,7 +85,7 @@ type AppointmentWithDetails = Appointment & {
 export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps) {
   const { t } = useLanguage();
   const { organizationId } = useOrganization();
-  const { isAdmin } = useOrgRole();
+  const { isAdmin, isDoctor } = useOrgRole();
   const { hasAddon } = useOrgAddons();
   const einvoiceConfig = useEInvoiceConfig();
   const { doctorId: currentDoctorId } = useCurrentDoctor();
@@ -345,7 +345,9 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     { key: "finances", label: t("patients.tab_finances"), icon: DollarSign },
     { key: "marketing", label: t("patients.tab_marketing"), icon: Megaphone },
     // Tab fiscal solo aparece si la org activó facturación electrónica.
-    ...(einvoiceConfig.connected
+    // El rol doctor no lo ve — los datos fiscales son administrativos
+    // (necesarios para emitir comprobantes), fuera del scope clínico.
+    ...(einvoiceConfig.connected && !isDoctor
       ? [{ key: "fiscal" as DrawerTab, label: "Fiscal", icon: Receipt }]
       : []),
   ];
@@ -1174,7 +1176,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         )}
 
         {/* ===== FISCAL TAB (gated by einvoice connection) ===== */}
-        {activeTab === "fiscal" && einvoiceConfig.connected && (
+        {activeTab === "fiscal" && einvoiceConfig.connected && !isDoctor && (
           <PatientFiscalSection patient={patient} onUpdate={onUpdate} />
         )}
       </div>
@@ -1481,7 +1483,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                 </div>
               )}
 
-              {activeTab === "fiscal" && einvoiceConfig.connected && (
+              {activeTab === "fiscal" && einvoiceConfig.connected && !isDoctor && (
                 <PatientFiscalSection patient={patient} onUpdate={onUpdate} />
               )}
             </div>
