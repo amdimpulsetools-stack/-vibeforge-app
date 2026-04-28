@@ -302,6 +302,7 @@ export default function SettingsPage() {
     handleSubmit,
     reset,
     watch,
+    setValue,
     formState: { errors, isDirty },
   } = useForm<OrganizationFormData>({
     resolver: zodResolver(organizationSchema),
@@ -948,22 +949,42 @@ export default function SettingsPage() {
                     error={errors.print_color_primary?.message}
                     hint="Hex (ej: #10b981). Default: emerald."
                   >
-                    <div className="flex items-center gap-2">
-                      <input
-                        id="org_print_color"
-                        type="color"
-                        disabled={!isOrgAdmin}
-                        {...register("print_color_primary")}
-                        className="h-9 w-12 cursor-pointer rounded-md border border-input bg-background disabled:opacity-50"
-                      />
-                      <input
-                        type="text"
-                        disabled={!isOrgAdmin}
-                        placeholder="#10b981"
-                        {...register("print_color_primary")}
-                        className={`${fieldClass} font-mono w-32`}
-                      />
-                    </div>
+                    {(() => {
+                      // Controlled pair: both inputs read/write the SAME
+                      // form field via watch+setValue. Using register() on
+                      // both creates dual refs and breaks sync (the picker
+                      // change wouldn't propagate to RHF state).
+                      const colorValue = watch("print_color_primary") || "#10b981";
+                      const setColor = (v: string) =>
+                        setValue("print_color_primary", v, { shouldDirty: true });
+                      // The native <input type=color> requires a strict
+                      // 7-char hex; if the user is mid-typing in the text
+                      // field we fall back to a default to avoid breaking
+                      // the picker preview.
+                      const safePicker = /^#[0-9a-fA-F]{6}$/.test(colorValue)
+                        ? colorValue
+                        : "#10b981";
+                      return (
+                        <div className="flex items-center gap-2">
+                          <input
+                            id="org_print_color"
+                            type="color"
+                            disabled={!isOrgAdmin}
+                            value={safePicker}
+                            onChange={(e) => setColor(e.target.value)}
+                            className="h-9 w-12 cursor-pointer rounded-md border border-input bg-background disabled:opacity-50"
+                          />
+                          <input
+                            type="text"
+                            disabled={!isOrgAdmin}
+                            placeholder="#10b981"
+                            value={colorValue}
+                            onChange={(e) => setColor(e.target.value)}
+                            className={`${fieldClass} font-mono w-32`}
+                          />
+                        </div>
+                      );
+                    })()}
                   </Field>
                   {/* Preview button — opens modal that renders the same
                        letterhead helper used by the actual PDF templates.
