@@ -67,6 +67,12 @@ const WhatsAppTemplatesTab = dynamic(() => import("./whatsapp-templates-tab"), {
 const BookingSettingsTab = dynamic(() => import("./booking-settings-tab"), { loading: TabLoader });
 const IntegracionesTab = dynamic(() => import("./integraciones-tab"), { loading: TabLoader });
 const ModulosTab = dynamic(() => import("./modulos-tab"), { loading: TabLoader });
+// Header preview modal lazy-loaded — only mounted when the user clicks
+// "Vista previa del membrete". Keeps the first paint of /settings small.
+const ClinicHeaderPreviewModal = dynamic(
+  () => import("./clinic-header-preview-modal").then((m) => m.ClinicHeaderPreviewModal),
+  { ssr: false }
+);
 
 type Tab = "general" | "agenda" | "reservas" | "correos" | "whatsapp" | "whatsapp-api" | "integraciones" | "modulos" | "permisos";
 
@@ -159,6 +165,7 @@ export default function SettingsPage() {
     organization?.logo_url ?? null
   );
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [showHeaderPreview, setShowHeaderPreview] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // ── WhatsApp integration status ──────────────────────────────────────────
@@ -958,13 +965,14 @@ export default function SettingsPage() {
                       />
                     </div>
                   </Field>
-                  {/* Preview button — wired in step 4. For now disabled with
-                       a tooltip explaining what's coming. */}
+                  {/* Preview button — opens modal that renders the same
+                       letterhead helper used by the actual PDF templates.
+                       Reads form values via watch() so the user sees their
+                       in-progress edits without saving first. */}
                   <button
                     type="button"
-                    disabled
-                    title="Disponible en el siguiente release"
-                    className="inline-flex items-center gap-2 rounded-lg border border-dashed border-border px-4 py-2 text-sm font-medium text-muted-foreground cursor-not-allowed"
+                    onClick={() => setShowHeaderPreview(true)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
                   >
                     <Eye className="h-4 w-4" />
                     Vista previa del membrete
@@ -1424,6 +1432,35 @@ export default function SettingsPage() {
 
       {/* ── Permisos tab ─────────────────────────────────────────────────────── */}
       {activeTab === "permisos" && <PermissionsSettingsTab />}
+
+      {/* Letterhead preview modal — reads form values via watch() so the
+          live edits are reflected without saving. */}
+      {showHeaderPreview && (
+        <ClinicHeaderPreviewModal
+          open={showHeaderPreview}
+          onClose={() => setShowHeaderPreview(false)}
+          clinic={{
+            name: watch("name") || organization?.name || "",
+            tagline: watch("tagline"),
+            logo_url: logoUrl,
+            legal_name: watch("legal_name"),
+            ruc: watch("ruc"),
+            address: watch("address"),
+            district: watch("district"),
+            phone: watch("phone"),
+            phone_secondary: watch("phone_secondary"),
+            email_public: watch("email_public"),
+            website: watch("website"),
+            social_facebook: watch("social_facebook"),
+            social_instagram: watch("social_instagram"),
+            social_tiktok: watch("social_tiktok"),
+            social_linkedin: watch("social_linkedin"),
+            social_youtube: watch("social_youtube"),
+            social_whatsapp: watch("social_whatsapp"),
+            print_color_primary: watch("print_color_primary") || "#10b981",
+          }}
+        />
+      )}
     </div>
   );
 }
