@@ -190,6 +190,9 @@ export function AdminDashboard({
               </button>
             ))}
           </div>
+          {/* Brief Ejecutivo IA — botón compacto en el header. Abre modal
+               con selector de periodo + comparativa vs. periodo anterior. */}
+          <ExecutiveBriefWidget />
           <Link
             href="/reports"
             className="hidden md:flex items-center gap-2 rounded-xl border border-border/60 bg-card px-4 py-2.5 text-sm font-medium transition-all hover:bg-accent/50 hover:border-border"
@@ -199,9 +202,6 @@ export function AdminDashboard({
           </Link>
         </div>
       </div>
-
-      {/* Executive Brief IA — Capa 1 (Slice C) */}
-      <ExecutiveBriefWidget />
 
       {/* ── ROW 1: Revenue | Pending Debt | Appointments ── */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
