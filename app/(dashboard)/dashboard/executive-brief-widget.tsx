@@ -108,9 +108,9 @@ export function ExecutiveBriefWidget() {
 
   return (
     <>
-      {/* Compact pill button — replaces the previous big card. Designed to
-          live in the dashboard header next to other actions ("Ver reportes",
-          period filter), so it competes for attention only minimally. */}
+      {/* Compact pill button — sized to match the sibling controls in the
+          dashboard header (period filter + "Ver reportes"). Same px-4 py-2.5
+          text-sm so all three controls align on a single visual line. */}
       <button
         type="button"
         onClick={() => {
@@ -120,16 +120,18 @@ export function ExecutiveBriefWidget() {
         disabled={!hasAiFeature}
         title={hasAiFeature ? "Brief Ejecutivo IA" : "Disponible en plan Pro"}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-semibold transition-all",
+          "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
           hasAiFeature
-            ? "bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-sm hover:shadow-md hover:scale-[1.03] active:scale-[0.98]"
-            : "bg-muted text-muted-foreground cursor-not-allowed"
+            ? // Gradient emerald → violet (#7C3AED). Subtle shadow + scale
+              // microinteraction matches the other primary CTAs.
+              "bg-gradient-to-r from-emerald-500 to-violet-600 text-white shadow-sm hover:shadow-md hover:scale-[1.02] active:scale-[0.98]"
+            : "bg-muted text-muted-foreground cursor-not-allowed border border-border/60"
         )}
       >
         {hasAiFeature ? (
-          <Sparkles className="h-3.5 w-3.5" />
+          <Sparkles className="h-4 w-4" />
         ) : (
-          <Lock className="h-3.5 w-3.5" />
+          <Lock className="h-4 w-4" />
         )}
         Brief IA
         {!hasAiFeature && (
