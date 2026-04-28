@@ -35,6 +35,12 @@ import {
   Phone,
   Plug,
   Blocks,
+  FileSignature,
+  Hash,
+  Eye,
+  Palette,
+  Share2,
+  Sparkles,
 } from "lucide-react";
 import {
   loadSchedulerConfig,
@@ -61,8 +67,77 @@ const WhatsAppTemplatesTab = dynamic(() => import("./whatsapp-templates-tab"), {
 const BookingSettingsTab = dynamic(() => import("./booking-settings-tab"), { loading: TabLoader });
 const IntegracionesTab = dynamic(() => import("./integraciones-tab"), { loading: TabLoader });
 const ModulosTab = dynamic(() => import("./modulos-tab"), { loading: TabLoader });
+// Header preview modal lazy-loaded — only mounted when the user clicks
+// "Vista previa del membrete". Keeps the first paint of /settings small.
+const ClinicHeaderPreviewModal = dynamic(
+  () => import("./clinic-header-preview-modal").then((m) => m.ClinicHeaderPreviewModal),
+  { ssr: false }
+);
 
 type Tab = "general" | "agenda" | "reservas" | "correos" | "whatsapp" | "whatsapp-api" | "integraciones" | "modulos" | "permisos";
+
+// ── Form helpers (extracted to keep the org-profile form readable) ──
+
+const fieldClass =
+  "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+
+function FormSection({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon?: React.ReactNode;
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3">
+      <div className="flex items-start gap-2">
+        {icon && (
+          <div className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-md bg-primary/10 text-primary shrink-0">
+            {icon}
+          </div>
+        )}
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold">{title}</h3>
+          {description && (
+            <p className="text-xs text-muted-foreground">{description}</p>
+          )}
+        </div>
+      </div>
+      <div className="space-y-3 pl-7">{children}</div>
+    </section>
+  );
+}
+
+function Field({
+  id,
+  label,
+  error,
+  hint,
+  children,
+}: {
+  id: string;
+  label: string;
+  error?: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs font-medium text-foreground/80" htmlFor={id}>
+        {label}
+      </label>
+      {children}
+      {hint && !error && (
+        <p className="text-[11px] text-muted-foreground">{hint}</p>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
@@ -90,6 +165,7 @@ export default function SettingsPage() {
     organization?.logo_url ?? null
   );
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [showHeaderPreview, setShowHeaderPreview] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
 
   // ── WhatsApp integration status ──────────────────────────────────────────
@@ -225,25 +301,59 @@ export default function SettingsPage() {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isDirty },
   } = useForm<OrganizationFormData>({
     resolver: zodResolver(organizationSchema),
     defaultValues: {
       name: organization?.name ?? "",
       slug: organization?.slug ?? "",
+      tagline: "",
+      ruc: "",
+      legal_name: "",
       address: organization?.address ?? "",
-      google_maps_url: (organization as any)?.google_maps_url ?? "",
+      district: "",
+      google_maps_url: (organization as unknown as Record<string, string | null>)?.google_maps_url ?? "",
+      phone: "",
+      phone_secondary: "",
+      email_public: "",
+      website: "",
+      social_facebook: "",
+      social_instagram: "",
+      social_tiktok: "",
+      social_linkedin: "",
+      social_youtube: "",
+      social_whatsapp: "",
+      print_color_primary: "#10b981",
     },
   });
 
-  // Sync form values when organization data loads asynchronously
+  // Sync form values when organization data loads asynchronously.
+  // Cast to a permissive shape so we can read the new branding columns
+  // (added in migration 115) without forcing a regen of generated types.
   useEffect(() => {
     if (organization) {
+      const o = organization as unknown as Record<string, string | null | undefined>;
       reset({
         name: organization.name ?? "",
         slug: organization.slug ?? "",
+        tagline: o.tagline ?? "",
+        ruc: o.ruc ?? "",
+        legal_name: o.legal_name ?? "",
         address: organization.address ?? "",
-        google_maps_url: (organization as any).google_maps_url ?? "",
+        district: o.district ?? "",
+        google_maps_url: o.google_maps_url ?? "",
+        phone: o.phone ?? "",
+        phone_secondary: o.phone_secondary ?? "",
+        email_public: o.email_public ?? "",
+        website: o.website ?? "",
+        social_facebook: o.social_facebook ?? "",
+        social_instagram: o.social_instagram ?? "",
+        social_tiktok: o.social_tiktok ?? "",
+        social_linkedin: o.social_linkedin ?? "",
+        social_youtube: o.social_youtube ?? "",
+        social_whatsapp: o.social_whatsapp ?? "",
+        print_color_primary: o.print_color_primary ?? "#10b981",
       });
     }
   }, [organization, reset]);
@@ -339,14 +449,34 @@ export default function SettingsPage() {
     if (!organizationId) return;
     setSaving(true);
 
+    // Empty string → null for all optional fields. The DB column types are
+    // nullable; null is the canonical "no value" so queries downstream
+    // (PDF letterhead, e-invoice wizard pre-fill) can use a single check.
+    const nullify = (v: string | undefined | null) => (v && v.trim() ? v.trim() : null);
+
     const supabase = createClient();
     const { error } = await supabase
       .from("organizations")
       .update({
         name: values.name,
         slug: values.slug,
-        address: values.address || null,
-        google_maps_url: values.google_maps_url || null,
+        tagline: nullify(values.tagline),
+        ruc: nullify(values.ruc),
+        legal_name: nullify(values.legal_name),
+        address: nullify(values.address),
+        district: nullify(values.district),
+        google_maps_url: nullify(values.google_maps_url),
+        phone: nullify(values.phone),
+        phone_secondary: nullify(values.phone_secondary),
+        email_public: nullify(values.email_public),
+        website: nullify(values.website),
+        social_facebook: nullify(values.social_facebook),
+        social_instagram: nullify(values.social_instagram),
+        social_tiktok: nullify(values.social_tiktok),
+        social_linkedin: nullify(values.social_linkedin),
+        social_youtube: nullify(values.social_youtube),
+        social_whatsapp: nullify(values.social_whatsapp),
+        print_color_primary: nullify(values.print_color_primary) ?? "#10b981",
       })
       .eq("id", organizationId);
 
@@ -558,104 +688,311 @@ export default function SettingsPage() {
             </div>
 
             {/* Org form */}
-            <form onSubmit={handleSubmit(onSubmitOrg)} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium" htmlFor="org_name">
-                    {t("settings.org_name")}
-                  </label>
-                  <input
+            <form onSubmit={handleSubmit(onSubmitOrg)} className="space-y-6">
+              {/* ── Identidad ─────────────────────────────────────────── */}
+              <FormSection
+                icon={<Sparkles className="h-3.5 w-3.5" />}
+                title="Identidad"
+                description="Cómo se ve tu organización en documentos y comunicaciones."
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
                     id="org_name"
-                    type="text"
-                    disabled={!isOrgAdmin}
-                    placeholder={t("settings.org_name_placeholder")}
-                    {...register("name")}
-                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  />
-                  {errors.name && (
-                    <p className="text-xs text-destructive">
-                      {errors.name.message}
-                    </p>
-                  )}
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium" htmlFor="org_slug">
-                    {t("settings.org_slug")}
-                  </label>
-                  <input
+                    label={t("settings.org_name")}
+                    error={errors.name?.message}
+                  >
+                    <input
+                      id="org_name"
+                      type="text"
+                      disabled={!isOrgAdmin}
+                      placeholder={t("settings.org_name_placeholder")}
+                      {...register("name")}
+                      className={fieldClass}
+                    />
+                  </Field>
+                  <Field
                     id="org_slug"
+                    label={t("settings.org_slug")}
+                    error={errors.slug?.message}
+                  >
+                    <input
+                      id="org_slug"
+                      type="text"
+                      disabled={!isOrgAdmin}
+                      placeholder={t("settings.org_slug_placeholder")}
+                      {...register("slug")}
+                      className={`${fieldClass} font-mono`}
+                    />
+                  </Field>
+                </div>
+                <Field
+                  id="org_tagline"
+                  label="Tagline (opcional)"
+                  error={errors.tagline?.message}
+                  hint='Frase corta debajo del nombre. Ej: "Especialistas en fertilidad".'
+                >
+                  <input
+                    id="org_tagline"
                     type="text"
                     disabled={!isOrgAdmin}
-                    placeholder={t("settings.org_slug_placeholder")}
-                    {...register("slug")}
-                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    placeholder="Salud que cuida tu vida"
+                    {...register("tagline")}
+                    className={fieldClass}
                   />
-                  {errors.slug && (
-                    <p className="text-xs text-destructive">
-                      {errors.slug.message}
-                    </p>
-                  )}
+                </Field>
+              </FormSection>
+
+              {/* ── Datos legales ─────────────────────────────────────── */}
+              <FormSection
+                icon={<FileSignature className="h-3.5 w-3.5" />}
+                title="Datos legales"
+                description="RUC y razón social. Aparecen en PDFs (recetas, notas, exámenes) y prellenan el wizard de facturación electrónica."
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    id="org_ruc"
+                    label="RUC"
+                    error={errors.ruc?.message}
+                    hint="11 dígitos numéricos."
+                  >
+                    <input
+                      id="org_ruc"
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={11}
+                      disabled={!isOrgAdmin}
+                      placeholder="20123456789"
+                      {...register("ruc")}
+                      className={`${fieldClass} font-mono`}
+                    />
+                  </Field>
+                  <Field
+                    id="org_legal_name"
+                    label="Razón social"
+                    error={errors.legal_name?.message}
+                  >
+                    <input
+                      id="org_legal_name"
+                      type="text"
+                      disabled={!isOrgAdmin}
+                      placeholder="Clínica Ejemplo S.A.C."
+                      {...register("legal_name")}
+                      className={fieldClass}
+                    />
+                  </Field>
                 </div>
-              </div>
+              </FormSection>
 
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="org_address">
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                    {t("settings.org_address")}
-                  </span>
-                </label>
-                <input
-                  id="org_address"
-                  type="text"
-                  disabled={!isOrgAdmin}
-                  placeholder={t("settings.org_address_placeholder")}
-                  {...register("address")}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                {errors.address && (
-                  <p className="text-xs text-destructive">
-                    {errors.address.message}
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-sm font-medium" htmlFor="org_maps_url">
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
-                    Link de ubicación (Google Maps)
-                  </span>
-                </label>
-                <input
+              {/* ── Ubicación ─────────────────────────────────────────── */}
+              <FormSection
+                icon={<MapPin className="h-3.5 w-3.5" />}
+                title="Ubicación"
+                description="Aparece en el membrete de tus PDFs y en los correos de confirmación."
+              >
+                <div className="grid gap-4 sm:grid-cols-[1fr_240px]">
+                  <Field
+                    id="org_address"
+                    label={t("settings.org_address")}
+                    error={errors.address?.message}
+                  >
+                    <input
+                      id="org_address"
+                      type="text"
+                      disabled={!isOrgAdmin}
+                      placeholder={t("settings.org_address_placeholder")}
+                      {...register("address")}
+                      className={fieldClass}
+                    />
+                  </Field>
+                  <Field
+                    id="org_district"
+                    label="Distrito"
+                    error={errors.district?.message}
+                  >
+                    <input
+                      id="org_district"
+                      type="text"
+                      disabled={!isOrgAdmin}
+                      placeholder="San Isidro"
+                      {...register("district")}
+                      className={fieldClass}
+                    />
+                  </Field>
+                </div>
+                <Field
                   id="org_maps_url"
-                  type="url"
-                  disabled={!isOrgAdmin}
-                  placeholder="https://maps.google.com/?q=..."
-                  {...register("google_maps_url")}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Pega el enlace de Google Maps para incluirlo en los correos de confirmación.
-                </p>
-                {errors.google_maps_url && (
-                  <p className="text-xs text-destructive">
-                    {errors.google_maps_url.message}
-                  </p>
-                )}
-              </div>
+                  label="Link de ubicación (Google Maps)"
+                  error={errors.google_maps_url?.message}
+                  hint="Pega el enlace de Google Maps para incluirlo en los correos de confirmación."
+                >
+                  <input
+                    id="org_maps_url"
+                    type="url"
+                    disabled={!isOrgAdmin}
+                    placeholder="https://maps.google.com/?q=..."
+                    {...register("google_maps_url")}
+                    className={fieldClass}
+                  />
+                </Field>
+              </FormSection>
+
+              {/* ── Contacto ──────────────────────────────────────────── */}
+              <FormSection
+                icon={<Phone className="h-3.5 w-3.5" />}
+                title="Contacto"
+                description="Datos públicos que se imprimen en el membrete."
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field
+                    id="org_phone"
+                    label="Teléfono principal"
+                    error={errors.phone?.message}
+                  >
+                    <input
+                      id="org_phone"
+                      type="tel"
+                      disabled={!isOrgAdmin}
+                      placeholder="+51 999 999 999"
+                      {...register("phone")}
+                      className={fieldClass}
+                    />
+                  </Field>
+                  <Field
+                    id="org_phone_secondary"
+                    label="Teléfono / Celular secundario"
+                    error={errors.phone_secondary?.message}
+                  >
+                    <input
+                      id="org_phone_secondary"
+                      type="tel"
+                      disabled={!isOrgAdmin}
+                      placeholder="+51 996 996 996"
+                      {...register("phone_secondary")}
+                      className={fieldClass}
+                    />
+                  </Field>
+                  <Field
+                    id="org_email_public"
+                    label="Email público"
+                    error={errors.email_public?.message}
+                  >
+                    <input
+                      id="org_email_public"
+                      type="email"
+                      disabled={!isOrgAdmin}
+                      placeholder="contacto@miclinica.pe"
+                      {...register("email_public")}
+                      className={fieldClass}
+                    />
+                  </Field>
+                  <Field
+                    id="org_website"
+                    label="Sitio web"
+                    error={errors.website?.message}
+                  >
+                    <input
+                      id="org_website"
+                      type="url"
+                      disabled={!isOrgAdmin}
+                      placeholder="https://miclinica.pe"
+                      {...register("website")}
+                      className={fieldClass}
+                    />
+                  </Field>
+                </div>
+              </FormSection>
+
+              {/* ── Redes sociales (opcional) ─────────────────────────── */}
+              <FormSection
+                icon={<Share2 className="h-3.5 w-3.5" />}
+                title="Redes sociales"
+                description="Todas opcionales. Si dejás vacío, no aparecen en el membrete."
+              >
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field id="org_social_facebook" label="Facebook" error={errors.social_facebook?.message}>
+                    <input id="org_social_facebook" type="url" disabled={!isOrgAdmin} placeholder="https://facebook.com/miclinica" {...register("social_facebook")} className={fieldClass} />
+                  </Field>
+                  <Field id="org_social_instagram" label="Instagram" error={errors.social_instagram?.message}>
+                    <input id="org_social_instagram" type="url" disabled={!isOrgAdmin} placeholder="https://instagram.com/miclinica" {...register("social_instagram")} className={fieldClass} />
+                  </Field>
+                  <Field id="org_social_tiktok" label="TikTok" error={errors.social_tiktok?.message}>
+                    <input id="org_social_tiktok" type="url" disabled={!isOrgAdmin} placeholder="https://tiktok.com/@miclinica" {...register("social_tiktok")} className={fieldClass} />
+                  </Field>
+                  <Field id="org_social_linkedin" label="LinkedIn" error={errors.social_linkedin?.message}>
+                    <input id="org_social_linkedin" type="url" disabled={!isOrgAdmin} placeholder="https://linkedin.com/company/miclinica" {...register("social_linkedin")} className={fieldClass} />
+                  </Field>
+                  <Field id="org_social_youtube" label="YouTube" error={errors.social_youtube?.message}>
+                    <input id="org_social_youtube" type="url" disabled={!isOrgAdmin} placeholder="https://youtube.com/@miclinica" {...register("social_youtube")} className={fieldClass} />
+                  </Field>
+                  <Field
+                    id="org_social_whatsapp"
+                    label="WhatsApp"
+                    error={errors.social_whatsapp?.message}
+                    hint="Número con código país o link wa.me."
+                  >
+                    <input id="org_social_whatsapp" type="text" disabled={!isOrgAdmin} placeholder="+51 999 999 999" {...register("social_whatsapp")} className={fieldClass} />
+                  </Field>
+                </div>
+              </FormSection>
+
+              {/* ── Branding del PDF ──────────────────────────────────── */}
+              <FormSection
+                icon={<Palette className="h-3.5 w-3.5" />}
+                title="Branding del PDF"
+                description="Color de acento del membrete y vista previa."
+              >
+                <div className="flex flex-wrap items-end gap-4">
+                  <Field
+                    id="org_print_color"
+                    label="Color primario"
+                    error={errors.print_color_primary?.message}
+                    hint="Hex (ej: #10b981). Default: emerald."
+                  >
+                    <div className="flex items-center gap-2">
+                      <input
+                        id="org_print_color"
+                        type="color"
+                        disabled={!isOrgAdmin}
+                        {...register("print_color_primary")}
+                        className="h-9 w-12 cursor-pointer rounded-md border border-input bg-background disabled:opacity-50"
+                      />
+                      <input
+                        type="text"
+                        disabled={!isOrgAdmin}
+                        placeholder="#10b981"
+                        {...register("print_color_primary")}
+                        className={`${fieldClass} font-mono w-32`}
+                      />
+                    </div>
+                  </Field>
+                  {/* Preview button — opens modal that renders the same
+                       letterhead helper used by the actual PDF templates.
+                       Reads form values via watch() so the user sees their
+                       in-progress edits without saving first. */}
+                  <button
+                    type="button"
+                    onClick={() => setShowHeaderPreview(true)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/10"
+                  >
+                    <Eye className="h-4 w-4" />
+                    Vista previa del membrete
+                  </button>
+                </div>
+              </FormSection>
 
               {isOrgAdmin && (
-                <button
-                  type="submit"
-                  disabled={saving || !isDirty || !organizationId}
-                  className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {saving
-                    ? t("settings.org_saving")
-                    : t("settings.org_save")}
-                </button>
+                <div className="flex items-center justify-end gap-3 pt-2 border-t border-border/40">
+                  <button
+                    type="submit"
+                    disabled={saving || !isDirty || !organizationId}
+                    className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {saving
+                      ? t("settings.org_saving")
+                      : t("settings.org_save")}
+                  </button>
+                </div>
               )}
             </form>
           </div>
@@ -1095,6 +1432,35 @@ export default function SettingsPage() {
 
       {/* ── Permisos tab ─────────────────────────────────────────────────────── */}
       {activeTab === "permisos" && <PermissionsSettingsTab />}
+
+      {/* Letterhead preview modal — reads form values via watch() so the
+          live edits are reflected without saving. */}
+      {showHeaderPreview && (
+        <ClinicHeaderPreviewModal
+          open={showHeaderPreview}
+          onClose={() => setShowHeaderPreview(false)}
+          clinic={{
+            name: watch("name") || organization?.name || "",
+            tagline: watch("tagline"),
+            logo_url: logoUrl,
+            legal_name: watch("legal_name"),
+            ruc: watch("ruc"),
+            address: watch("address"),
+            district: watch("district"),
+            phone: watch("phone"),
+            phone_secondary: watch("phone_secondary"),
+            email_public: watch("email_public"),
+            website: watch("website"),
+            social_facebook: watch("social_facebook"),
+            social_instagram: watch("social_instagram"),
+            social_tiktok: watch("social_tiktok"),
+            social_linkedin: watch("social_linkedin"),
+            social_youtube: watch("social_youtube"),
+            social_whatsapp: watch("social_whatsapp"),
+            print_color_primary: watch("print_color_primary") || "#10b981",
+          }}
+        />
+      )}
     </div>
   );
 }
