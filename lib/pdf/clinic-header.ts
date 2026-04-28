@@ -51,10 +51,13 @@ function escapeHtml(s: string): string {
 }
 
 /**
- * Joins non-empty strings with a separator ("·"). Falsy values are skipped.
+ * Joins non-empty strings with a separator (default "·").
+ * Caller is responsible for HTML-escaping each part — this function
+ * intentionally does NOT escape, so callers can include controlled HTML
+ * (e.g. an <a> tag) without it being double-escaped.
  */
 function joinParts(parts: (string | null | undefined)[], sep = " · "): string {
-  return parts.filter((p): p is string => Boolean(p && p.trim())).map(escapeHtml).join(sep);
+  return parts.filter((p): p is string => Boolean(p && p.trim())).join(sep);
 }
 
 /**
@@ -82,8 +85,12 @@ export function renderClinicHeader(
        </div>`
     : "";
 
-  // Address line: "Av. Salaverry 2585, San Isidro"
-  const fullAddress = joinParts([org.address, org.district], ", ");
+  // Address line: "Av. Salaverry 2585, San Isidro" — caller-side escape since
+  // joinParts() no longer escapes (left to the caller per its contract).
+  const fullAddress = joinParts(
+    [org.address, org.district].map((v) => (v ? escapeHtml(v) : null)),
+    ", "
+  );
 
   // Phones line: "+51 999 999 999 / +51 996 996 996"
   const phonesLine = [org.phone, org.phone_secondary]
@@ -91,16 +98,20 @@ export function renderClinicHeader(
     .map(escapeHtml)
     .join(" / ");
 
-  // Web/email line. Email is a clickable mailto in PDF (Chrome respects it).
+  // Web/email line. Email is wrapped in a clickable <a> tag (Chrome respects
+  // mailto: when printing to PDF). The anchor is intentionally pre-built
+  // with escapes inside; joinParts won't escape it again.
   const webEmailLine = joinParts([
-    org.email_public ? `<a href="mailto:${escapeHtml(org.email_public)}" style="color:inherit;text-decoration:none;">${escapeHtml(org.email_public)}</a>` : null,
+    org.email_public
+      ? `<a href="mailto:${escapeHtml(org.email_public)}" style="color:inherit;text-decoration:none;">${escapeHtml(org.email_public)}</a>`
+      : null,
     org.website ? escapeHtml(org.website.replace(/^https?:\/\//, "")) : null,
   ]);
 
-  // Legal line: "RUC: 20123456789 · Razon Social SAC"
+  // Legal line: "RUC: 20123456789 · CLINICA EJEMPLO SAC"
   const legalLine = joinParts([
     org.ruc ? `RUC: ${escapeHtml(org.ruc)}` : null,
-    org.legal_name,
+    org.legal_name ? escapeHtml(org.legal_name) : null,
   ]);
 
   // Body lines, stacked. Empty ones are filtered out.
