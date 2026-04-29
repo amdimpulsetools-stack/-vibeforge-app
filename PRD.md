@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-04-26
-> **Versión:** 0.13.4
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor + Pricing alineado: S/129 / S/349 / S/649 + **Frecuencia semestral (8.3% off) en checkout MP + Reporte IA Avanzado capas 1+2 documentado (v0.13.4)** + Preparación de pilot con primer cliente real (Vitra, fertilidad)
+> **Última actualización:** 2026-04-28
+> **Versión:** 0.13.5
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor + Pricing alineado: S/129 / S/349 / S/649 + Frecuencia semestral (8.3% off) en checkout MP + Reporte IA Avanzado capas 1+2 documentado + **Brief Ejecutivo IA (Slice C) en dashboard + Rebrand completo a Yenda + Role-based billing + Membrete de PDFs configurable (v0.13.5)** + Preparación de pilot con primer cliente real (Vitra, fertilidad) + Segundo cliente confirmado (Clínica Dermosalud)
 
 ---
 
@@ -2975,4 +2975,172 @@ Roadmap propuesto: Q2 2026 Capa 1 → Q3 2026 Capa 2 → Q4 2026 reactivar trial
 - **Per-month como número grande, upfront como sub-línea**: facilita comparar las 3 cadencias visualmente. El cliente ve "S/107.50/mes" en lugar de "S/1,290/año" como protagonista, lo que reduce la fricción de "S/1,290 es mucho dinero de un golpe".
 - **Frequency 6 en MP preapproval**: confirmado en docs de Mercado Pago que `frequency_type: "months"` acepta {1, 2, 3, 4, 6, 12}. No requirió contactar soporte de MP.
 - **Reporte IA Avanzado documentado pero NO implementado**: el usuario pidió tracking detallado para futura implementación. Las migraciones, prompts y tablas propuestas están listas para que cualquier dev (o yo en sesión futura) pueda arrancar sin re-investigar.
+
+---
+
+## 38. Changelog — Sesiones 2026-04-26 a 2026-04-28 (v0.13.5) — Brief IA en producción + Rebrand Yenda + Billing por rol + Membrete configurable
+
+Sesión larga acumulando 4 frentes paralelos: feature nueva (Brief Ejecutivo IA), rebrand completo de marca (PacientesPro/VibeForge → Yenda), separación de permisos billing vs clínica, y sistema de membrete para PDFs.
+
+### 1) Brief Ejecutivo IA — Slice C de Capa 1 (entregado en producción)
+
+**Driver comercial**: el plan Independiente tiene Reporte IA básico en `/reports`. Para justificar el upgrade Centro→Clínica (S/349 → S/649) necesitamos features que aprovechen *naturalmente* el volumen del tier alto. Capa 1+2 del Reporte IA Avanzado fueron aprobadas; arrancamos con Slice C (mínimo viable) para iterar el prompt con datos reales antes de invertir en cron + email.
+
+**Migración 114** (`ai_executive_briefs`): tabla con `period`, `period_start`, `period_end`, `content_markdown`, `metrics_snapshot JSONB`, `llm_model`, `llm_tokens_input/output`, `generated_at`. RLS por org members + admin delete. CHECK `period IN ('week','month','custom')` sin enum (futuro-friendly).
+
+**Endpoint `POST /api/ai-briefs/generate`** (admin/owner only, feature-gated por `feature_ai_assistant`):
+- Reusa `get_report_metrics_for_ai` (migración 056) que ya tiene `appointments_prev`, `revenue_prev`, `patients.new_prev_period` → comparativa periodo anterior built-in.
+- Resuelve fechas server-side: `week`=últimos 7d, `month`=últimos 30d, `custom`={date_from, date_to}.
+- Bloquea si `total_appointments < 3` (datos insuficientes).
+- Llama Anthropic Haiku 4.5 con prompt narrativo en 4 secciones (Volumen y agenda · Finanzas · Doctores y servicios · Alertas accionables), `temperature 0.3`, `max_tokens 1500`.
+
+**Componente `ExecutiveBriefWidget`**:
+- Inicialmente card grande con descripción larga.
+- Iterado a **botón pill compacto en el header** del dashboard (al lado del period filter y "Ver reportes"), `px-4 py-2.5 text-sm rounded-xl`.
+- Gradient emerald-500 → violet-600 (#7C3AED) reflejando los acentos de marca Yenda (verde principal + chispa morada del logo).
+- Click abre modal con selector de periodo (week/month/custom + date pickers), AiLoader, error con CTA upgrade, resultado en markdown renderizado, botones regenerar + Print/PDF + cerrar.
+
+**Iteraciones del prompt tras observar outputs reales** (3 fixes al prompt, sin cambios de UI/schema):
+
+| Bug | Causa | Fix |
+|---|---|---|
+| Brief truncado al final | `max_tokens: 1024` insuficiente para 4 secciones con bullets | `max_tokens: 1500` |
+| "La mejor semana del mes" cuando solo había datos de 1 semana + previa | LLM extrapola a periodos que no recibe | Regla #2 del prompt: "las métricas cubren EXACTAMENTE el periodo y su periodo anterior. NUNCA hagas afirmaciones sobre periodos más amplios" |
+| "La diferencia entre cobrado y facturado sugiere pagos adelantados o servicios adicionales" (invento) | LLM rellena con explicación plausible pero falsa | Regla #3 del prompt: explicar la diferencia como "anticipos de planes de tratamiento", sin inventar otras razones |
+| "La semana del 22-28 abril" cuando rango era 26 días | LLM colapsa cualquier periodo a "semana" por patrón de peak_hours | Regla #2.b: mapeo explícito `period.days → palabra`: 7=semana, 14-15=quincena, ~30=mes, otro=fechas exactas |
+
+**Botón Print/PDF en panel del Reporte IA básico** (`/reports`): mismo patrón que `prescription-print` y `clinical-note-print` — ventana nueva con HTML A4 estilizado + auto-print del navegador (que ofrece "Guardar como PDF"). Header del PDF incluye tipo de reporte, rango de fechas y timestamp.
+
+### 2) Rebrand completo PacientesPro/VibeForge → Yenda
+
+**APP_NAME default**: `"PacientesPro"` → `"Yenda"` en `lib/constants.ts`. Como casi todos los lugares usan `{APP_NAME}`, la mayoría del rebrand se propaga automáticamente.
+
+**Logos** (4 iteraciones tras feedback del usuario):
+- v1: SVGs originales subidos por el usuario (ratio 3.51:1).
+- v2: "logo final.svg" (3.135:1).
+- v3: "favicon final (2).svg" pese al nombre era horizontal (2.875:1).
+- v4: "favicon final 2.svg" — versión final del logo horizontal (2.776:1, viewBox 405.08 × 145.94).
+
+**Favicon v3** (separado del logo): "yenda favicon final 3.svg" — cuadrado 182×180 con esquinas redondeadas, "Y" blanca + chispa morada sobre fondo verde. Aplicado en:
+- `/public/yenda/favicon.svg`
+- `/public/yenda/mark.svg`
+- `/app/icon.svg` (favicon auto-detectado por Next 15)
+
+**Componente `<YendaLogo>` + `<YendaMark>`** en `components/icons/yenda-logo.tsx`:
+- Usa Next `<Image>` con paths a `/public/yenda/`.
+- Calcula altura automáticamente desde el ratio del SVG actual.
+- Reemplaza el ícono `Zap + texto APP_NAME` en navbar, footer, login, register, select-plan, waiting-for-plan, onboarding.
+
+**Sweep masivo (sed) de strings hardcoded**:
+- `"VibeForge"` → `"Yenda"` en strings de UI/email/PDF (toasts, fallbacks de clinic name, email senderName, headers de docs imprimibles).
+- `"vibeforge.app"` → `"yenda.app"` (metadataBase, sitemap, robots, privacy/terms emails).
+- `"vibeforge.com"` → `"yenda.app"` (URLs de fallback en cron/reminders).
+
+**Lo que NO se tocó (intencional)**: localStorage keys (`vibeforge-theme`, `vibeforge-language`, `vibeforge_remembered_email`, `vibeforge_break_time_config`, etc). Cambiarlos haría que los usuarios pierdan sus preferencias guardadas. Son keys internos no visibles. Migración futura opcional con helper que copie del key viejo al nuevo.
+
+### 3) Role-based billing — doctores no emiten ni ven comprobantes
+
+**Política**: billing/comprobantes es territorio owner+admin+recepcionista. Doctores nunca ven datos fiscales ni botones de emisión.
+
+**Backend `/api/einvoices/emit`** (defense-in-depth): rechaza con `403` si `role === 'doctor'`.
+
+**Sidebar (`components/layout/sidebar.tsx`)**:
+- Nueva flag `NavItem.hideForDoctor` que el filter respeta.
+- `/facturacion` sale de `adminOnly` y usa `hideForDoctor=true`: ahora **recepcionistas también lo ven** (antes era solo owner+admin, scope incorrecto). `/reports` queda `adminOnly` como antes.
+- Section "Insights" pierde su `adminOnly` de cabecera; el filter de `visibleEntries` autocolapsa la sección cuando todos sus items están filtrados.
+
+**Página `/facturacion`**: guard client-side con `useEffect` que redirige a `/dashboard` si role doctor (con toast). Render retorna `null` mientras el role carga o si es doctor — evita flash de datos en navegación directa por URL.
+
+**Sidebar de cita (`scheduler/appointment-sidebar.tsx`)**: el bloque de InvoiceCards + botón "Emitir comprobante" gated por `isDoctorRole`.
+
+**Patient drawer (`patients/patient-drawer.tsx`)**: tab "Fiscal" oculto para doctores. Defense-in-depth: render de `PatientFiscalSection` también chequea `!isDoctor`.
+
+**Matriz final de acceso**:
+
+| Acción | Owner | Admin | Recepcionista | Doctor |
+|---|---|---|---|---|
+| Ver `/facturacion` en sidebar | ✅ | ✅ | ✅ | ❌ |
+| Acceder a `/facturacion` por URL | ✅ | ✅ | ✅ | ❌ (redirect) |
+| Botón "Emitir" en card de cita | ✅ | ✅ | ✅ | ❌ |
+| Ver cards de comprobantes en cita | ✅ | ✅ | ✅ | ❌ |
+| Emitir vía API | ✅ | ✅ | ✅ | ❌ (403) |
+| Tab "Fiscal" del paciente | ✅ | ✅ | ✅ | ❌ |
+| Conectar Nubefact | ✅ | ✅ | ❌ | ❌ |
+
+**Caso "rol dual" del plan Independiente** clarificado: el owner de un plan Starter tiene `organization_members.role = 'owner'`, NO `'doctor'`. Tiene una fila separada en `doctors` table para atender clínicamente. El bloqueo solo afecta al rol `doctor` puro de membership (típico de plan Centro/Clínica con doctores externos invitados).
+
+### 4) Membrete de PDFs configurable
+
+**Migración 115 (`organization_branding`)**: 15 columnas nuevas en `organizations`, todas nullable salvo `print_color_primary` (default `#10b981`).
+
+| Categoría | Campos |
+|---|---|
+| Identidad | `tagline` |
+| Datos legales | `ruc` (CHECK: 11 dígitos), `legal_name` |
+| Ubicación | `district` |
+| Contacto | `phone`, `phone_secondary`, `email_public`, `website` |
+| Redes sociales | `social_facebook`, `social_instagram`, `social_tiktok`, `social_linkedin`, `social_youtube`, `social_whatsapp` |
+| Branding | `print_color_primary` |
+
+**Backfill desde `einvoice_configs`**: las orgs con Nubefact conectado heredan automáticamente `ruc + legal_name` (COALESCE para no pisar valores manuales). RUC y razón social ahora viven en `organizations`, independientes del módulo de facturación.
+
+**Helper `lib/pdf/clinic-header.ts`**:
+- `renderClinicHeader(org, opts)` devuelve HTML del letterhead embebible en cualquier print template. Una sola fuente de verdad para los 4 tipos de documento (receta, nota clínica, orden examen, plan tratamiento).
+- Logo opcional (left), nombre + tagline + dirección + teléfonos + email/web + línea legal RUC/razón social, separator color = `print_color_primary`.
+- Modo `compact` para A5 (recetas).
+- `renderClinicHeaderMini()` para documentos donde el letterhead completo no encaja.
+
+**Form extendido en Settings → Perfil de organización**:
+- Schema Zod `lib/validations/organization.ts` con 15 campos nuevos (RUC regex, hex color regex, URLs validadas, emails validados).
+- Helpers `FormSection` y `Field` para reducir boilerplate.
+- 6 secciones agrupadas: Identidad / Datos legales / Ubicación / Contacto / Redes sociales / Branding del PDF.
+- Color picker dual (input type=color + input type=text) sincronizado vía `watch + setValue` (originalmente con `register` doble; rompía sync — fixed).
+
+**Modal "Vista previa del membrete"** (`app/(dashboard)/settings/clinic-header-preview-modal.tsx`):
+- Renderiza HTML real del letterhead con el mismo helper que después usan los templates de PDF — "lo que ves es lo que sale" garantizado.
+- Tabs internos para los 4 tipos de documento. Cada tab agrega un body placeholder realista (paciente María García DNI 12345678, números coherentes con el dominio clínico).
+- Lectura en vivo de los valores del form vía `watch()`: el usuario tipea y al abrir preview ve el cambio sin guardar.
+- Lazy-loaded (`dynamic + ssr: false`) — bundle inicial de `/settings` no crece.
+
+**Fixes en el helper detectados al testear**:
+- `joinParts()` ya no escapa HTML — caller responsibility. El email `<a href="mailto:...">` se escapaba doble y aparecía como texto plano. Ahora cada caller escapa lo que necesita explícitamente.
+- Color picker dual con doble `register()` → controlled inputs vía `watch + setValue` para sync correcto.
+
+### 5) Fixes varios
+
+- **Landing mobile** (`live-notifications.tsx` + `display-cards.tsx`): el stack de cards con `w-[22rem]` + `translate-x-32` + `skew + after:gradient` desbordaba ~530px en mobile y forzaba scroll horizontal del body (franja blanca a la derecha). Triple defensa: cards `w-[18rem] sm:w-[22rem]`, translate-x reducido en mobile (`8 sm:16`, `16 sm:32`), `overflow-hidden` en `<section>` y wrapper.
+- **Settings → Agenda → Bloques** (`page.tsx` + `lib/scheduler-config.ts`): selector permitía multi-select de tamaños de bloque (15+30, etc), generando conflictos en la grilla. Cambiado a single-select (radio): click reemplaza la selección, no toggle. Migración suave en `loadSchedulerConfig()`: usuarios con 2+ intervals guardados se normalizan al menor.
+
+### 6) Documentación
+
+**COMING-UPDATES.md** ampliamente expandido:
+- Sección Reporte IA Avanzado con Slice C marcado como entregado y plan detallado de "Resto de Capa 1" pendiente (~3-5h: cron + email + página historial + widget en `/reports` + PHI pseudonimization, con migración 115 esperada y archivos nuevos listados).
+- Capas 3, 4 y 5 expandidas con detalle completo (sub-features, modelos ML, métricas, tablas SQL, decisiones pendientes, riesgos).
+- Roadmap actualizado: Q2 2026 Slice C entregado + resto de Capa 1 pendiente, Q2-Q3 Capa 2, Q3 reactivar trial Clínica, Q4 Capa 3, 2027+ Capas 4-5.
+
+**Comunicación con usuarios**:
+- Nuevo cliente real confirmado: **Clínica Dermosalud** — segundo pilot tras Vitra (fertilidad). Va a sumar workflow real para validar multi-tenant y dar feedback que tunee el roadmap. Mejoras específicas pendientes de procesar.
+- Decisión OAuth Google: explicada al usuario por qué aparece `lmgegvupririqyuvzxbk.supabase.co` en la pantalla de consentimiento de Google. Plan de 3 caminos (consent screen pulido $0 → custom domain Supabase $25/mes → verificación de app gratis pero proceso largo). Acción inmediata: pulir consent screen — requiere T&C y privacy actualizadas (ver siguiente sección del roadmap).
+
+### Operaciones requeridas para activar v0.13.5
+
+1. Aplicar migración 114 si no estaba (Brief Ejecutivo IA):
+   ```bash
+   supabase db push  # o pegar 114_ai_executive_briefs.sql en SQL editor
+   ```
+2. Aplicar migración 115 (organization_branding):
+   ```bash
+   supabase db push  # o pegar 115_organization_branding.sql
+   ```
+3. Verificar en `organizations`: 15 columnas nuevas + RUC/legal_name backfilleados desde `einvoice_configs` para orgs con Nubefact.
+4. Configurar membrete por organización: `/settings → General → Perfil de organización` (logo, tagline, RUC, dirección, teléfonos, email, web, redes sociales, color primario). Botón "Vista previa" para validar.
+
+### Próximos pasos identificados (no en este changelog)
+
+- **Términos y Privacidad** (en redacción): páginas legales completas para Yenda con cumplimiento Ley 29733 (PDP), Ley 29414 (Derechos del Paciente), normativa SUSALUD/MINSA, subprocesadores (Supabase, Anthropic, MercadoPago, Nubefact, Resend, Vercel, Google), transferencias internacionales, derechos ARCO, retención clínica 15 años. Bloqueante para Opción A del fix de Google OAuth Consent Screen.
+- **Paso 5 PDF**: actualizar las 4 plantillas existentes (`prescription-print`, `clinical-note-print`, `exam-order-print`, treatment-plan-print nueva) para consumir `renderClinicHeader()` en lugar del `clinicName` string. Cambia el prop signature: `clinicName: string` → `clinic: ClinicHeaderData`.
+- **Paso 6 Wizard Nubefact**: pre-completar campos RUC/razón social en el wizard de Nubefact desde `organizations` (en vez de pedirlos de cero). Si el usuario los modifica en el wizard, sincronizar a ambas tablas.
+- **Capa 1 completa Reporte IA Avanzado**: cron + email semanal/mensual + página historial + widget en `/reports`. Estimado 3-5h.
+- **Capa 2 Reporte IA Avanzado**: 8 detectores de anomalías. Sprint dedicado, ~10-15h.
+- **Mejoras Dermosalud**: lista por procesar tras video del cliente.
 
