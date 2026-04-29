@@ -55,6 +55,10 @@ export function loadSchedulerConfig(): SchedulerConfig {
       intervals = [15, 20, 30, 45, 60].includes(num) ? [num as IntervalOption] : [];
     }
     if (intervals.length === 0) intervals = DEFAULT_SCHEDULER_CONFIG.intervals;
+    // Migration: la UI ahora es single-select. Si un usuario tenia 2+
+    // intervals guardados de una version anterior, normalizamos al menor
+    // (que era el que efectivamente usaba el scheduler via Math.min).
+    if (intervals.length > 1) intervals = [Math.min(...intervals) as IntervalOption];
     const timeIndicator = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.timeIndicator) ?? "true") === "true";
     let disabledWeekdays: Weekday[] = DEFAULT_SCHEDULER_CONFIG.disabledWeekdays;
     try {

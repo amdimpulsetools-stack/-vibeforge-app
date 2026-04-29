@@ -1271,21 +1271,24 @@ export default function SettingsPage() {
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                   {language === "es" ? "Bloques" : "Slots"}
                 </h3>
-                <div className="grid grid-cols-5 gap-2">
+                <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label={language === "es" ? "Tamaño de bloque" : "Slot size"}>
                   {([15, 20, 30, 45, 60] as const).map((mins) => {
                     const isSelected = schedulerConfig.intervals.includes(mins);
                     return (
                       <button
                         key={mins}
+                        role="radio"
+                        aria-checked={isSelected}
                         onClick={() => {
-                          let next: IntervalOption[];
-                          if (isSelected) {
-                            if (schedulerConfig.intervals.length <= 1) return;
-                            next = schedulerConfig.intervals.filter((v) => v !== mins);
-                          } else {
-                            next = [...schedulerConfig.intervals, mins].sort((a, b) => a - b) as IntervalOption[];
-                          }
-                          updateSchedulerConfig({ intervals: next });
+                          // Single-select: el bloque seleccionado reemplaza al
+                          // anterior. Permitir multi-bloque aqui podia generar
+                          // conflictos entre intervalos al renderizar la
+                          // grilla del scheduler. Mantenemos `intervals` como
+                          // array por compatibilidad con el resto del scheduler
+                          // (Math.min(...intervals) sigue dando el mismo
+                          // resultado), pero garantizamos length === 1.
+                          if (isSelected) return;
+                          updateSchedulerConfig({ intervals: [mins] });
                         }}
                         className={`flex flex-col items-center gap-0.5 rounded-xl border p-2.5 transition-all ${
                           isSelected
