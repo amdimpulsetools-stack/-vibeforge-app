@@ -89,6 +89,7 @@ interface OrgDefaults {
   ruc?: string | null;
   legal_name?: string | null;
   fiscal_address?: string | null;
+  ubigeo?: string | null;
 }
 
 function emptyForm(orgDefaults?: OrgDefaults): FormState {
@@ -97,7 +98,7 @@ function emptyForm(orgDefaults?: OrgDefaults): FormState {
     legal_name: orgDefaults?.legal_name ?? "",
     trade_name: "",
     fiscal_address: orgDefaults?.fiscal_address ?? "",
-    ubigeo: "",
+    ubigeo: orgDefaults?.ubigeo ?? "",
 
     mode: "sandbox",
     route: "",
@@ -132,26 +133,20 @@ export function EInvoiceSetupDialog({
   const [testing, setTesting] = useState(false);
 
   // Pull pre-fillable fiscal data from the org profile (Settings → Organización).
-  // Ubigeo is NOT stored on `organizations` (only `district`), so it stays empty.
+  // Once migration 117 lands, `ubigeo` flows in here too — Settings persists
+  // both the 6-digit code and the human district label.
   const orgDefaults = useMemo<OrgDefaults>(() => {
-    const orgRecord = organization as
-      | (Record<string, unknown> & { address?: string | null })
-      | null;
-    const ruc =
-      typeof orgRecord?.ruc === "string" && orgRecord.ruc.trim().length > 0
-        ? (orgRecord.ruc as string)
-        : null;
-    const legalName =
-      typeof orgRecord?.legal_name === "string" &&
-      (orgRecord.legal_name as string).trim().length > 0
-        ? (orgRecord.legal_name as string)
-        : null;
-    const fiscalAddress =
-      typeof orgRecord?.address === "string" &&
-      (orgRecord.address as string).trim().length > 0
-        ? (orgRecord.address as string)
-        : null;
-    return { ruc, legal_name: legalName, fiscal_address: fiscalAddress };
+    if (!organization) {
+      return { ruc: null, legal_name: null, fiscal_address: null, ubigeo: null };
+    }
+    const trimOrNull = (v: string | null | undefined) =>
+      typeof v === "string" && v.trim().length > 0 ? v : null;
+    return {
+      ruc: trimOrNull(organization.ruc),
+      legal_name: trimOrNull(organization.legal_name),
+      fiscal_address: trimOrNull(organization.address),
+      ubigeo: trimOrNull(organization.ubigeo),
+    };
   }, [organization]);
 
   const showOrgEmptyBanner =
@@ -448,7 +443,15 @@ export function EInvoiceSetupDialog({
                   className={inputCls}
                 />
               </Field>
-              <Field label="Ubigeo" hint="Código de 6 dígitos (opcional)">
+              <Field
+                label="Ubigeo"
+                hint="Código de 6 dígitos (opcional)"
+                fromOrg={
+                  !isEdit &&
+                  !!orgDefaults.ubigeo &&
+                  form.ubigeo === orgDefaults.ubigeo
+                }
+              >
                 <input
                   type="text"
                   inputMode="numeric"

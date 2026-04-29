@@ -7,7 +7,6 @@ import { renderClinicHeader, type ClinicHeaderData } from "@/lib/pdf/clinic-head
 import {
   toClinicHeaderData,
   fallbackClinicHeader,
-  type OrganizationWithBranding,
 } from "@/lib/pdf/clinic-header-data";
 
 interface ExamOrderItem {
@@ -170,7 +169,7 @@ export function ExamOrderPrintButton(props: ExamOrderPrintProps) {
 
   const handlePrint = () => {
     const clinic = organization
-      ? toClinicHeaderData(organization as OrganizationWithBranding)
+      ? toClinicHeaderData(organization)
       : fallbackClinicHeader(props.clinicName);
     const html = buildExamOrderPrintHTML({ ...props, clinic });
     if (!html) return;

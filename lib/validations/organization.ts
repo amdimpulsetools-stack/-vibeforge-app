@@ -45,6 +45,12 @@ export const organizationSchema = z.object({
   // Location
   address: optionalString(250, "La dirección no puede superar 250 caracteres"),
   district: optionalString(80),
+  // Ubigeo SUNAT: exactamente 6 dígitos (DB CHECK), o vacío.
+  ubigeo: z
+    .string()
+    .regex(/^[0-9]{6}$/, "Ubigeo debe tener exactamente 6 dígitos")
+    .optional()
+    .or(z.literal("")),
   google_maps_url: optionalUrl(500),
 
   // Contact

@@ -8,7 +8,6 @@ import { renderClinicHeader, type ClinicHeaderData } from "@/lib/pdf/clinic-head
 import {
   toClinicHeaderData,
   fallbackClinicHeader,
-  type OrganizationWithBranding,
 } from "@/lib/pdf/clinic-header-data";
 
 interface PrescriptionPrintProps {
@@ -161,7 +160,7 @@ export function PrescriptionPrintButton(props: PrescriptionPrintProps) {
 
   const handlePrint = () => {
     const clinic = organization
-      ? toClinicHeaderData(organization as OrganizationWithBranding)
+      ? toClinicHeaderData(organization)
       : fallbackClinicHeader(props.clinicName);
     const html = buildPrescriptionPrintHTML({ ...props, clinic });
     if (!html) return;

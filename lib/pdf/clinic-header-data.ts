@@ -4,29 +4,12 @@ import type { ClinicHeaderData } from "@/lib/pdf/clinic-header";
 type OrganizationRow = Database["public"]["Tables"]["organizations"]["Row"];
 
 /**
- * Branding fields added in migration 115. The generated `Database` type has
- * not been re-synced yet, so we widen the org row shape with the columns
- * that may not appear in TypeScript yet. All optional / nullable.
+ * Re-export for backwards compatibility. The branding columns are now
+ * part of the generated `OrganizationRow` (since migration 115 + 117
+ * have been reflected in `types/database.ts`), so this is just an alias.
+ * Existing call sites keep working without churn.
  */
-export interface OrganizationBrandingFields {
-  tagline?: string | null;
-  legal_name?: string | null;
-  ruc?: string | null;
-  district?: string | null;
-  phone?: string | null;
-  phone_secondary?: string | null;
-  email_public?: string | null;
-  website?: string | null;
-  social_facebook?: string | null;
-  social_instagram?: string | null;
-  social_tiktok?: string | null;
-  social_linkedin?: string | null;
-  social_youtube?: string | null;
-  social_whatsapp?: string | null;
-  print_color_primary?: string | null;
-}
-
-export type OrganizationWithBranding = OrganizationRow & OrganizationBrandingFields;
+export type OrganizationWithBranding = OrganizationRow;
 
 /**
  * Adapts an `organizations` row (possibly partial / loosely typed) into the
@@ -34,7 +17,7 @@ export type OrganizationWithBranding = OrganizationRow & OrganizationBrandingFie
  * are nulled out — the renderer already handles absent values gracefully.
  */
 export function toClinicHeaderData(
-  org: Partial<OrganizationWithBranding> & { name?: string | null }
+  org: Partial<OrganizationRow> & { name?: string | null }
 ): ClinicHeaderData {
   return {
     name: org.name ?? "",

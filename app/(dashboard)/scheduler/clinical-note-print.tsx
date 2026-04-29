@@ -14,7 +14,6 @@ import { renderClinicHeader, type ClinicHeaderData } from "@/lib/pdf/clinic-head
 import {
   toClinicHeaderData,
   fallbackClinicHeader,
-  type OrganizationWithBranding,
 } from "@/lib/pdf/clinic-header-data";
 
 interface ClinicalNotePrintProps {
@@ -175,7 +174,7 @@ export function ClinicalNotePrintButton(props: ClinicalNotePrintProps) {
 
   const handlePrint = () => {
     const clinic = organization
-      ? toClinicHeaderData(organization as OrganizationWithBranding)
+      ? toClinicHeaderData(organization)
       : fallbackClinicHeader(props.clinicName);
     const html = buildPrintHTML({ ...props, clinic });
     const printWindow = window.open("", "_blank");

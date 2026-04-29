@@ -81,7 +81,8 @@ export async function updateSession(request: NextRequest) {
   const isOnboardingFlow =
     pathname === "/onboarding" ||
     pathname === "/select-plan" ||
-    pathname === "/waiting-for-plan";
+    pathname === "/waiting-for-plan" ||
+    pathname === "/account-suspended";
 
   // Founder panel — requires auth but skips subscription check
   const isFounderPanel = pathname.startsWith("/founder-dashboard");
@@ -121,7 +122,18 @@ export async function updateSession(request: NextRequest) {
       role: string | null;
       is_founder: boolean;
       has_active_subscription: boolean;
+      all_memberships_inactive?: boolean;
+      membership_count?: number;
     };
+
+    // 0. Suspended account — every membership is deactivated. Founders
+    // skip this check (they can act as platform superuser even without
+    // an active membership).
+    if (s.all_memberships_inactive === true && !s.is_founder) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/account-suspended";
+      return applySecurityHeaders(NextResponse.redirect(url));
+    }
 
     // 1. Onboarding incomplete — only for owners/admins (invited members skip this)
     // Uses org-level `onboarding_completed_at` flag (migration 085). Falls back to

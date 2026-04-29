@@ -41,7 +41,10 @@ import {
   Palette,
   Share2,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
+import { UbigeoCombobox } from "@/components/ui/ubigeo-combobox";
+import { findUbigeoByCode } from "@/lib/sunat/ubigeo";
 import {
   loadSchedulerConfig,
   fetchSchedulerConfig,
@@ -67,6 +70,7 @@ const WhatsAppTemplatesTab = dynamic(() => import("./whatsapp-templates-tab"), {
 const BookingSettingsTab = dynamic(() => import("./booking-settings-tab"), { loading: TabLoader });
 const IntegracionesTab = dynamic(() => import("./integraciones-tab"), { loading: TabLoader });
 const ModulosTab = dynamic(() => import("./modulos-tab"), { loading: TabLoader });
+const OrgSpecialtySection = dynamic(() => import("./org-specialty-section"), { loading: TabLoader });
 // Header preview modal lazy-loaded — only mounted when the user clicks
 // "Vista previa del membrete". Keeps the first paint of /settings small.
 const ClinicHeaderPreviewModal = dynamic(
@@ -314,7 +318,8 @@ export default function SettingsPage() {
       legal_name: "",
       address: organization?.address ?? "",
       district: "",
-      google_maps_url: (organization as unknown as Record<string, string | null>)?.google_maps_url ?? "",
+      ubigeo: "",
+      google_maps_url: organization?.google_maps_url ?? "",
       phone: "",
       phone_secondary: "",
       email_public: "",
@@ -329,32 +334,33 @@ export default function SettingsPage() {
     },
   });
 
-  // Sync form values when organization data loads asynchronously.
-  // Cast to a permissive shape so we can read the new branding columns
-  // (added in migration 115) without forcing a regen of generated types.
+  // Sync form values when organization data loads asynchronously. The
+  // branding/legal/contact columns now live in the regenerated `Database`
+  // types (migrations 115 + 117), so we can read them directly without any
+  // intermediate cast.
   useEffect(() => {
     if (organization) {
-      const o = organization as unknown as Record<string, string | null | undefined>;
       reset({
         name: organization.name ?? "",
         slug: organization.slug ?? "",
-        tagline: o.tagline ?? "",
-        ruc: o.ruc ?? "",
-        legal_name: o.legal_name ?? "",
+        tagline: organization.tagline ?? "",
+        ruc: organization.ruc ?? "",
+        legal_name: organization.legal_name ?? "",
         address: organization.address ?? "",
-        district: o.district ?? "",
-        google_maps_url: o.google_maps_url ?? "",
-        phone: o.phone ?? "",
-        phone_secondary: o.phone_secondary ?? "",
-        email_public: o.email_public ?? "",
-        website: o.website ?? "",
-        social_facebook: o.social_facebook ?? "",
-        social_instagram: o.social_instagram ?? "",
-        social_tiktok: o.social_tiktok ?? "",
-        social_linkedin: o.social_linkedin ?? "",
-        social_youtube: o.social_youtube ?? "",
-        social_whatsapp: o.social_whatsapp ?? "",
-        print_color_primary: o.print_color_primary ?? "#10b981",
+        district: organization.district ?? "",
+        ubigeo: organization.ubigeo ?? "",
+        google_maps_url: organization.google_maps_url ?? "",
+        phone: organization.phone ?? "",
+        phone_secondary: organization.phone_secondary ?? "",
+        email_public: organization.email_public ?? "",
+        website: organization.website ?? "",
+        social_facebook: organization.social_facebook ?? "",
+        social_instagram: organization.social_instagram ?? "",
+        social_tiktok: organization.social_tiktok ?? "",
+        social_linkedin: organization.social_linkedin ?? "",
+        social_youtube: organization.social_youtube ?? "",
+        social_whatsapp: organization.social_whatsapp ?? "",
+        print_color_primary: organization.print_color_primary ?? "#10b981",
       });
     }
   }, [organization, reset]);
@@ -466,6 +472,7 @@ export default function SettingsPage() {
         legal_name: nullify(values.legal_name),
         address: nullify(values.address),
         district: nullify(values.district),
+        ubigeo: nullify(values.ubigeo),
         google_maps_url: nullify(values.google_maps_url),
         phone: nullify(values.phone),
         phone_secondary: nullify(values.phone_secondary),
@@ -790,7 +797,7 @@ export default function SettingsPage() {
                 title="Ubicación"
                 description="Aparece en el membrete de tus PDFs y en los correos de confirmación."
               >
-                <div className="grid gap-4 sm:grid-cols-[1fr_240px]">
+                <div className="grid gap-4 sm:grid-cols-[1fr_280px]">
                   <Field
                     id="org_address"
                     label={t("settings.org_address")}
@@ -806,18 +813,56 @@ export default function SettingsPage() {
                     />
                   </Field>
                   <Field
-                    id="org_district"
-                    label="Distrito"
-                    error={errors.district?.message}
+                    id="org_ubigeo"
+                    label="Distrito (Ubigeo SUNAT)"
+                    error={errors.ubigeo?.message || errors.district?.message}
+                    hint="Selecciona tu distrito para auto-completar el código de 6 dígitos."
                   >
-                    <input
-                      id="org_district"
-                      type="text"
-                      disabled={!isOrgAdmin}
-                      placeholder="San Isidro"
-                      {...register("district")}
-                      className={fieldClass}
-                    />
+                    {(() => {
+                      // Controlled combobox: writes BOTH `ubigeo` (the code) and
+                      // `district` (the human label) so the PDF letterhead helper
+                      // keeps showing the district name without a regression. If
+                      // the org has a legacy free-text `district` but no ubigeo,
+                      // we render a non-blocking "migrate" badge above the combobox.
+                      const ubigeoValue = watch("ubigeo") || "";
+                      const districtValue = watch("district") || "";
+                      const hasLegacyDistrict = !ubigeoValue && districtValue.trim().length > 0;
+                      return (
+                        <div className="space-y-1.5">
+                          {hasLegacyDistrict && (
+                            <div className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[11px] text-amber-500">
+                              <AlertTriangle className="h-3 w-3 shrink-0" />
+                              <span className="truncate">
+                                Distrito actual:{" "}
+                                <span className="font-medium text-foreground">
+                                  {districtValue}
+                                </span>
+                              </span>
+                              <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 font-medium">
+                                Migrar a ubigeo
+                              </span>
+                            </div>
+                          )}
+                          <UbigeoCombobox
+                            id="org_ubigeo"
+                            value={ubigeoValue || null}
+                            disabled={!isOrgAdmin}
+                            onChange={(opt) => {
+                              setValue("ubigeo", opt?.code ?? "", { shouldDirty: true });
+                              // Keep `district` in sync with the label so the
+                              // letterhead renderer continues to show a friendly
+                              // name. We use the bare `distrito` (no provincia)
+                              // to match the existing PDF aesthetics.
+                              setValue("district", opt?.distrito ?? "", { shouldDirty: true });
+                            }}
+                          />
+                          {/* Hidden inputs keep the values registered with RHF
+                              so they participate in submit + dirty tracking. */}
+                          <input type="hidden" {...register("ubigeo")} />
+                          <input type="hidden" {...register("district")} />
+                        </div>
+                      );
+                    })()}
                   </Field>
                 </div>
                 <Field
@@ -1017,6 +1062,9 @@ export default function SettingsPage() {
               )}
             </form>
           </div>
+
+          {/* Specialty (migration 119) */}
+          <OrgSpecialtySection />
 
           {/* Language */}
           <div className="rounded-2xl border border-border/60 bg-card p-6">

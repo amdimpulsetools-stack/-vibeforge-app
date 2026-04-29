@@ -3,6 +3,12 @@ export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000
 
 export const ITEMS_PER_PAGE = 10;
 
+// Version tag stamped on Terms / Privacy pages. Bump this whenever the
+// content of /terms or /privacy changes — it is persisted on the user's
+// profile at signup so we have a paper trail of *which* version they
+// accepted. Format is the publication date for the docs (YYYY-MM-DD).
+export const TERMS_VERSION = "2026-04-29";
+
 export const USER_ROLES = {
   ADMIN: "admin",
   USER: "user",

@@ -4,12 +4,21 @@ import { useState, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { APP_NAME } from "@/lib/constants";
+import { APP_NAME, TERMS_VERSION } from "@/lib/constants";
 import { toast } from "sonner";
 import { Loader2, Building2, Mail, CheckCircle2, MessageCircle, BarChart3, Shield, Clock } from "lucide-react";
 import { YendaLogo } from "@/components/icons/yenda-logo";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShimmerText } from "@/components/ui/shimmer-text";
+import { Checkbox } from "@/components/ui/checkbox";
+import { z } from "zod";
+
+// Required-true refinement so the user MUST tick the box to proceed.
+const acceptTermsSchema = z.literal(true, {
+  errorMap: () => ({
+    message: "Debes aceptar los Términos y la Política de Privacidad para continuar",
+  }),
+});
 
 const ROTATING_PHRASES = [
   ["Tu clínica organizada", "desde el día #1"],
@@ -41,6 +50,8 @@ function RegisterPage() {
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [termsError, setTermsError] = useState<string | null>(null);
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [loadingInvite, setLoadingInvite] = useState(false);
   const [phraseIndex, setPhraseIndex] = useState(0);
@@ -103,6 +114,15 @@ function RegisterPage() {
       return;
     }
 
+    const termsCheck = acceptTermsSchema.safeParse(acceptedTerms);
+    if (!termsCheck.success) {
+      const msg = termsCheck.error.errors[0]?.message ?? "Debes aceptar los Términos";
+      setTermsError(msg);
+      toast.error(msg);
+      return;
+    }
+    setTermsError(null);
+
     setLoading(true);
 
     if (inviteToken) {
@@ -110,7 +130,14 @@ function RegisterPage() {
         const res = await fetch("/api/auth/register-invited", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, password, fullName, inviteToken }),
+          body: JSON.stringify({
+            email,
+            password,
+            fullName,
+            inviteToken,
+            acceptedTerms: true,
+            termsVersion: TERMS_VERSION,
+          }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -139,6 +166,7 @@ function RegisterPage() {
 
     // Normal registration
     const supabase = createClient();
+    const acceptedAtIso = new Date().toISOString();
     const { error } = await supabase.auth.signUp({
       email,
       password,
@@ -146,6 +174,12 @@ function RegisterPage() {
         data: {
           full_name: fullName,
           org_name: orgName || "Mi Clinica",
+          // Persisted in raw_user_meta_data so the auth callback can copy
+          // it onto user_profiles after email confirmation.
+          accepted_terms_at: acceptedAtIso,
+          accepted_terms_version: TERMS_VERSION,
+          accepted_privacy_at: acceptedAtIso,
+          accepted_privacy_version: TERMS_VERSION,
         },
         emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/onboarding`,
       },
@@ -162,6 +196,19 @@ function RegisterPage() {
   };
 
   const handleGoogleRegister = async () => {
+    // Google OAuth has no chance to show a checkbox after the redirect, so
+    // we require it up-front. If the user did not tick the box, we hold them
+    // here and let `/onboarding/accept-terms` catch first-login Google users
+    // who somehow bypass this (e.g. coming from /login the very first time).
+    const termsCheck = acceptTermsSchema.safeParse(acceptedTerms);
+    if (!termsCheck.success) {
+      const msg = termsCheck.error.errors[0]?.message ?? "Debes aceptar los Términos";
+      setTermsError(msg);
+      toast.error(msg);
+      return;
+    }
+    setTermsError(null);
+
     const supabase = createClient();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -426,6 +473,45 @@ function RegisterPage() {
               />
               {confirmPassword.length > 0 && password !== confirmPassword && (
                 <p className="text-xs text-red-500">Las contraseñas no coinciden</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="acceptTerms"
+                className="flex items-start gap-2.5 cursor-pointer select-none"
+              >
+                <Checkbox
+                  id="acceptTerms"
+                  checked={acceptedTerms}
+                  onCheckedChange={(v) => {
+                    setAcceptedTerms(v);
+                    if (v) setTermsError(null);
+                  }}
+                  className="mt-0.5"
+                />
+                <span className="text-xs text-muted-foreground leading-relaxed">
+                  He leído y acepto los{" "}
+                  <Link
+                    href="/terms"
+                    target="_blank"
+                    className="text-primary font-medium hover:underline"
+                  >
+                    Términos y Condiciones
+                  </Link>{" "}
+                  y la{" "}
+                  <Link
+                    href="/privacy"
+                    target="_blank"
+                    className="text-primary font-medium hover:underline"
+                  >
+                    Política de Privacidad
+                  </Link>
+                  .
+                </span>
+              </label>
+              {termsError && (
+                <p className="text-xs text-red-500 pl-6">{termsError}</p>
               )}
             </div>
 
