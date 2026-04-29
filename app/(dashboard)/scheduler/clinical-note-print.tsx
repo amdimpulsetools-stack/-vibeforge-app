@@ -9,6 +9,13 @@ import {
   type Vitals,
 } from "@/types/clinical-notes";
 import { cn } from "@/lib/utils";
+import { useOrganization } from "@/components/organization-provider";
+import { renderClinicHeader, type ClinicHeaderData } from "@/lib/pdf/clinic-header";
+import {
+  toClinicHeaderData,
+  fallbackClinicHeader,
+  type OrganizationWithBranding,
+} from "@/lib/pdf/clinic-header-data";
 
 interface ClinicalNotePrintProps {
   note: ClinicalNote;
@@ -18,10 +25,15 @@ interface ClinicalNotePrintProps {
   serviceName: string;
   appointmentDate: string;
   appointmentTime: string;
+  /** Legacy fallback if the org context isn't loaded. */
   clinicName?: string;
 }
 
-function buildPrintHTML(props: ClinicalNotePrintProps): string {
+interface BuildArgs extends ClinicalNotePrintProps {
+  clinic: ClinicHeaderData;
+}
+
+function buildPrintHTML(args: BuildArgs): string {
   const {
     note,
     patientName,
@@ -30,8 +42,10 @@ function buildPrintHTML(props: ClinicalNotePrintProps): string {
     serviceName,
     appointmentDate,
     appointmentTime,
-    clinicName,
-  } = props;
+    clinic,
+  } = args;
+
+  const accent = clinic.print_color_primary || "#10b981";
 
   const soapSections = (
     ["subjective", "objective", "assessment", "plan"] as SOAPSection[]
@@ -43,7 +57,7 @@ function buildPrintHTML(props: ClinicalNotePrintProps): string {
       return `
         <div style="margin-bottom:16px;">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:#059669;color:#fff;font-weight:700;font-size:13px;">${letter}</span>
+            <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:${accent};color:#fff;font-weight:700;font-size:13px;">${letter}</span>
             <span style="font-weight:600;font-size:14px;color:#111;">${label}</span>
           </div>
           <div style="padding-left:34px;font-size:13px;line-height:1.6;color:#333;">${content}</div>
@@ -103,6 +117,8 @@ function buildPrintHTML(props: ClinicalNotePrintProps): string {
         </div>`
     : "";
 
+  const headerHtml = renderClinicHeader(clinic);
+
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -119,9 +135,10 @@ function buildPrintHTML(props: ClinicalNotePrintProps): string {
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <div style="text-align:center;margin-bottom:24px;border-bottom:2px solid #059669;padding-bottom:16px;">
-    ${clinicName ? `<div style="font-size:16px;font-weight:700;color:#059669;margin-bottom:4px;">${clinicName}</div>` : ""}
+  ${headerHtml}
+
+  <!-- Document title -->
+  <div style="text-align:center;margin-bottom:18px;">
     <div style="font-size:18px;font-weight:700;letter-spacing:1px;color:#111;">NOTA CLÍNICA</div>
     <div style="font-size:12px;color:#6b7280;margin-top:4px;">${appointmentDate}</div>
   </div>
@@ -154,8 +171,13 @@ function buildPrintHTML(props: ClinicalNotePrintProps): string {
 }
 
 export function ClinicalNotePrintButton(props: ClinicalNotePrintProps) {
+  const { organization } = useOrganization();
+
   const handlePrint = () => {
-    const html = buildPrintHTML(props);
+    const clinic = organization
+      ? toClinicHeaderData(organization as OrganizationWithBranding)
+      : fallbackClinicHeader(props.clinicName);
+    const html = buildPrintHTML({ ...props, clinic });
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
     printWindow.document.write(html);

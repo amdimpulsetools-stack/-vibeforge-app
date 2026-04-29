@@ -2,6 +2,13 @@
 
 import { Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useOrganization } from "@/components/organization-provider";
+import { renderClinicHeader, type ClinicHeaderData } from "@/lib/pdf/clinic-header";
+import {
+  toClinicHeaderData,
+  fallbackClinicHeader,
+  type OrganizationWithBranding,
+} from "@/lib/pdf/clinic-header-data";
 
 interface ExamOrderItem {
   id: string;
@@ -24,26 +31,33 @@ interface ExamOrderPrintProps {
   patientDni?: string | null;
   doctorName: string;
   appointmentDate: string;
+  /** Legacy fallback if the org context isn't loaded. */
   clinicName?: string;
 }
 
-function buildExamOrderPrintHTML(props: ExamOrderPrintProps): string {
-  const { order, patientName, patientDni, doctorName, appointmentDate, clinicName } = props;
+interface BuildArgs extends ExamOrderPrintProps {
+  clinic: ClinicHeaderData;
+}
+
+function buildExamOrderPrintHTML(args: BuildArgs): string {
+  const { order, patientName, patientDni, doctorName, appointmentDate, clinic } = args;
 
   if (!order || order.exam_order_items.length === 0) return "";
+
+  const accent = clinic.print_color_primary || "#10b981";
 
   const examRows = order.exam_order_items
     .map(
       (item, idx) => `
       <tr style="${idx > 0 ? "border-top: 1px solid #e5e7eb;" : ""}">
-        <td style="padding: 10px 12px; vertical-align: top; width: 30px; font-weight: 600; color: #0891b2; font-size: 14px;">
+        <td style="padding: 10px 12px; vertical-align: top; width: 30px; font-weight: 600; color: ${accent}; font-size: 14px;">
           ${idx + 1}.
         </td>
         <td style="padding: 10px 12px; vertical-align: top;">
           <div style="font-size: 14px; font-weight: 600; color: #111; margin-bottom: 2px;">
             ${item.exam_name}
           </div>
-          ${item.instructions ? `<div style="font-size: 12px; color: #555; font-style: italic; padding-left: 8px; border-left: 2px solid #0891b2;">Indicaciones: ${item.instructions}</div>` : ""}
+          ${item.instructions ? `<div style="font-size: 12px; color: #555; font-style: italic; padding-left: 8px; border-left: 2px solid ${accent};">Indicaciones: ${item.instructions}</div>` : ""}
         </td>
       </tr>`
     )
@@ -54,6 +68,8 @@ function buildExamOrderPrintHTML(props: ExamOrderPrintProps): string {
     month: "long",
     year: "numeric",
   });
+
+  const headerHtml = renderClinicHeader(clinic, { compact: true });
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -80,11 +96,12 @@ function buildExamOrderPrintHTML(props: ExamOrderPrintProps): string {
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #0891b2; padding-bottom: 14px;">
-    ${clinicName ? `<div style="font-size: 16px; font-weight: 700; color: #0891b2; margin-bottom: 2px;">${clinicName}</div>` : ""}
-    <div style="font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #111;">ORDEN DE EXÁMENES</div>
-    <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">${formattedDate}</div>
+  ${headerHtml}
+
+  <!-- Document title -->
+  <div style="text-align: center; margin-bottom: 14px;">
+    <div style="font-size: 16px; font-weight: 700; letter-spacing: 1px; color: #111;">ORDEN DE EXÁMENES</div>
+    <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">${formattedDate}</div>
   </div>
 
   <!-- Patient & Doctor Info -->
@@ -147,10 +164,15 @@ function buildExamOrderPrintHTML(props: ExamOrderPrintProps): string {
 }
 
 export function ExamOrderPrintButton(props: ExamOrderPrintProps) {
+  const { organization } = useOrganization();
+
   if (!props.order || props.order.exam_order_items.length === 0) return null;
 
   const handlePrint = () => {
-    const html = buildExamOrderPrintHTML(props);
+    const clinic = organization
+      ? toClinicHeaderData(organization as OrganizationWithBranding)
+      : fallbackClinicHeader(props.clinicName);
+    const html = buildExamOrderPrintHTML({ ...props, clinic });
     if (!html) return;
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;

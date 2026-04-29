@@ -11,7 +11,8 @@
 // On submit, POSTs to /api/einvoices/connect (idempotent — also used for
 // "Editar" once already connected).
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import {
   Loader2,
@@ -24,6 +25,7 @@ import {
   Plus,
   X,
   Star,
+  Info,
 } from "lucide-react";
 import {
   Dialog,
@@ -35,6 +37,7 @@ import type {
   EInvoiceConfigData,
   EInvoiceSeries,
 } from "@/hooks/use-einvoice-config";
+import { useOrganization } from "@/components/organization-provider";
 
 interface Props {
   open: boolean;
@@ -82,12 +85,18 @@ const DOC_TYPE_LABELS: Record<number, string> = {
   4: "Nota de débito",
 };
 
-function emptyForm(): FormState {
+interface OrgDefaults {
+  ruc?: string | null;
+  legal_name?: string | null;
+  fiscal_address?: string | null;
+}
+
+function emptyForm(orgDefaults?: OrgDefaults): FormState {
   return {
-    ruc: "",
-    legal_name: "",
+    ruc: orgDefaults?.ruc ?? "",
+    legal_name: orgDefaults?.legal_name ?? "",
     trade_name: "",
-    fiscal_address: "",
+    fiscal_address: orgDefaults?.fiscal_address ?? "",
     ubigeo: "",
 
     mode: "sandbox",
@@ -116,10 +125,37 @@ export function EInvoiceSetupDialog({
   initialSeries,
 }: Props) {
   const isEdit = !!initialConfig;
+  const { organization } = useOrganization();
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+
+  // Pull pre-fillable fiscal data from the org profile (Settings → Organización).
+  // Ubigeo is NOT stored on `organizations` (only `district`), so it stays empty.
+  const orgDefaults = useMemo<OrgDefaults>(() => {
+    const orgRecord = organization as
+      | (Record<string, unknown> & { address?: string | null })
+      | null;
+    const ruc =
+      typeof orgRecord?.ruc === "string" && orgRecord.ruc.trim().length > 0
+        ? (orgRecord.ruc as string)
+        : null;
+    const legalName =
+      typeof orgRecord?.legal_name === "string" &&
+      (orgRecord.legal_name as string).trim().length > 0
+        ? (orgRecord.legal_name as string)
+        : null;
+    const fiscalAddress =
+      typeof orgRecord?.address === "string" &&
+      (orgRecord.address as string).trim().length > 0
+        ? (orgRecord.address as string)
+        : null;
+    return { ruc, legal_name: legalName, fiscal_address: fiscalAddress };
+  }, [organization]);
+
+  const showOrgEmptyBanner =
+    !isEdit && !orgDefaults.ruc && !orgDefaults.legal_name;
 
   // Reset form when dialog opens / initial values change
   useEffect(() => {
@@ -156,9 +192,9 @@ export function EInvoiceSetupDialog({
         auto_send_email: initialConfig.auto_send_email,
       });
     } else {
-      setForm(emptyForm());
+      setForm(emptyForm(orgDefaults));
     }
-  }, [open, initialConfig, initialSeries]);
+  }, [open, initialConfig, initialSeries, orgDefaults]);
 
   const setField = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -335,7 +371,32 @@ export function EInvoiceSetupDialog({
         <div className="flex-1 overflow-y-auto px-6 py-5">
           {step === 1 && (
             <div className="space-y-4">
-              <Field label="RUC *" hint="11 dígitos">
+              {showOrgEmptyBanner && (
+                <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-emerald-700 dark:text-emerald-300 flex items-start gap-2">
+                  <Info className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div className="flex-1">
+                    Tip: configura primero el{" "}
+                    <Link
+                      href="/settings"
+                      className="underline font-medium hover:text-emerald-800 dark:hover:text-emerald-200"
+                    >
+                      Perfil de organización
+                    </Link>{" "}
+                    en Ajustes → Organización para no tener que repetir estos
+                    datos.
+                  </div>
+                </div>
+              )}
+
+              <Field
+                label="RUC *"
+                hint="11 dígitos"
+                fromOrg={
+                  !isEdit &&
+                  !!orgDefaults.ruc &&
+                  form.ruc === orgDefaults.ruc
+                }
+              >
                 <input
                   type="text"
                   inputMode="numeric"
@@ -346,7 +407,14 @@ export function EInvoiceSetupDialog({
                   className={inputCls}
                 />
               </Field>
-              <Field label="Razón social *">
+              <Field
+                label="Razón social *"
+                fromOrg={
+                  !isEdit &&
+                  !!orgDefaults.legal_name &&
+                  form.legal_name === orgDefaults.legal_name
+                }
+              >
                 <input
                   type="text"
                   value={form.legal_name}
@@ -364,7 +432,14 @@ export function EInvoiceSetupDialog({
                   className={inputCls}
                 />
               </Field>
-              <Field label="Dirección fiscal *">
+              <Field
+                label="Dirección fiscal *"
+                fromOrg={
+                  !isEdit &&
+                  !!orgDefaults.fiscal_address &&
+                  form.fiscal_address === orgDefaults.fiscal_address
+                }
+              >
                 <input
                   type="text"
                   value={form.fiscal_address}
@@ -647,10 +722,12 @@ const inputCls =
 function Field({
   label,
   hint,
+  fromOrg,
   children,
 }: {
   label: string;
   hint?: string;
+  fromOrg?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -660,6 +737,11 @@ function Field({
         {hint && <span className="text-xs text-muted-foreground">{hint}</span>}
       </div>
       {children}
+      {fromOrg && (
+        <div className="mt-1 text-[11px] text-muted-foreground/80 italic">
+          Tomado del Perfil de organización
+        </div>
+      )}
     </label>
   );
 }
