@@ -22,11 +22,13 @@ import {
   User,
   ClipboardList,
   Clock,
+  Stethoscope,
   Video,
 } from "lucide-react";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
+import { SpecialtiesTab } from "./specialties-tab";
 
-type Tab = "profile" | "services" | "schedule";
+type Tab = "profile" | "services" | "schedule" | "specialties";
 
 export default function EditDoctorPage() {
   const { t } = useLanguage();
@@ -103,6 +105,7 @@ export default function EditDoctorPage() {
     { key: "profile", label: t("doctors.profile_tab"), icon: User },
     { key: "services", label: t("doctors.services_tab"), icon: ClipboardList },
     { key: "schedule", label: t("doctors.schedule_tab"), icon: Clock },
+    { key: "specialties", label: "Especialidades", icon: Stethoscope },
   ];
 
   return (
@@ -172,6 +175,9 @@ export default function EditDoctorPage() {
           onUpdate={fetchAll}
         />
       )}
+
+      {/* Specialties Tab */}
+      {activeTab === "specialties" && <SpecialtiesTab doctorId={doctor.id} />}
     </div>
   );
 }

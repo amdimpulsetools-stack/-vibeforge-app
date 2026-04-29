@@ -328,6 +328,30 @@ export interface Database {
           organization_id?: string;
         };
       };
+      // doctor_specialties (migration 119) — multi specialty per doctor.
+      doctor_specialties: {
+        Row: {
+          id: string;
+          doctor_id: string;
+          specialty: string;
+          is_primary: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          doctor_id: string;
+          specialty: string;
+          is_primary?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          doctor_id?: string;
+          specialty?: string;
+          is_primary?: boolean;
+          created_at?: string;
+        };
+      };
       doctor_schedules: {
         Row: {
           id: string;

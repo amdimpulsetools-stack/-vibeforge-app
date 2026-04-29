@@ -70,6 +70,7 @@ const WhatsAppTemplatesTab = dynamic(() => import("./whatsapp-templates-tab"), {
 const BookingSettingsTab = dynamic(() => import("./booking-settings-tab"), { loading: TabLoader });
 const IntegracionesTab = dynamic(() => import("./integraciones-tab"), { loading: TabLoader });
 const ModulosTab = dynamic(() => import("./modulos-tab"), { loading: TabLoader });
+const OrgSpecialtySection = dynamic(() => import("./org-specialty-section"), { loading: TabLoader });
 // Header preview modal lazy-loaded — only mounted when the user clicks
 // "Vista previa del membrete". Keeps the first paint of /settings small.
 const ClinicHeaderPreviewModal = dynamic(
@@ -1061,6 +1062,9 @@ export default function SettingsPage() {
               )}
             </form>
           </div>
+
+          {/* Specialty (migration 119) */}
+          <OrgSpecialtySection />
 
           {/* Language */}
           <div className="rounded-2xl border border-border/60 bg-card p-6">
