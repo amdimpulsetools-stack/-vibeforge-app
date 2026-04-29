@@ -17,6 +17,24 @@ export interface Database {
           is_active: boolean;
           created_at: string;
           updated_at: string;
+          // Branding (migration 115)
+          tagline: string | null;
+          ruc: string | null;
+          legal_name: string | null;
+          district: string | null;
+          phone: string | null;
+          phone_secondary: string | null;
+          email_public: string | null;
+          website: string | null;
+          social_facebook: string | null;
+          social_instagram: string | null;
+          social_tiktok: string | null;
+          social_linkedin: string | null;
+          social_youtube: string | null;
+          social_whatsapp: string | null;
+          print_color_primary: string | null;
+          // SUNAT ubigeo (migration 117) — exactly 6 digits.
+          ubigeo: string | null;
         };
         Insert: {
           id?: string;
@@ -24,10 +42,28 @@ export interface Database {
           slug: string;
           logo_url?: string | null;
           address?: string | null;
+          google_maps_url?: string | null;
+          primary_specialty_id?: string | null;
           plan?: "free" | "pro" | "enterprise";
           is_active?: boolean;
           created_at?: string;
           updated_at?: string;
+          tagline?: string | null;
+          ruc?: string | null;
+          legal_name?: string | null;
+          district?: string | null;
+          phone?: string | null;
+          phone_secondary?: string | null;
+          email_public?: string | null;
+          website?: string | null;
+          social_facebook?: string | null;
+          social_instagram?: string | null;
+          social_tiktok?: string | null;
+          social_linkedin?: string | null;
+          social_youtube?: string | null;
+          social_whatsapp?: string | null;
+          print_color_primary?: string | null;
+          ubigeo?: string | null;
         };
         Update: {
           id?: string;
@@ -35,9 +71,27 @@ export interface Database {
           slug?: string;
           logo_url?: string | null;
           address?: string | null;
+          google_maps_url?: string | null;
+          primary_specialty_id?: string | null;
           plan?: "free" | "pro" | "enterprise";
           is_active?: boolean;
           updated_at?: string;
+          tagline?: string | null;
+          ruc?: string | null;
+          legal_name?: string | null;
+          district?: string | null;
+          phone?: string | null;
+          phone_secondary?: string | null;
+          email_public?: string | null;
+          website?: string | null;
+          social_facebook?: string | null;
+          social_instagram?: string | null;
+          social_tiktok?: string | null;
+          social_linkedin?: string | null;
+          social_youtube?: string | null;
+          social_whatsapp?: string | null;
+          print_color_primary?: string | null;
+          ubigeo?: string | null;
         };
       };
       organization_members: {
@@ -78,6 +132,12 @@ export interface Database {
           theme: "light" | "dark";
           created_at: string;
           updated_at: string;
+          // Terms / Privacy acceptance (migration 116). NULL means the user
+          // predates the consent flow or has not yet accepted.
+          accepted_terms_at: string | null;
+          accepted_terms_version: string | null;
+          accepted_privacy_at: string | null;
+          accepted_privacy_version: string | null;
         };
         Insert: {
           id: string;
@@ -88,6 +148,10 @@ export interface Database {
           theme?: "light" | "dark";
           created_at?: string;
           updated_at?: string;
+          accepted_terms_at?: string | null;
+          accepted_terms_version?: string | null;
+          accepted_privacy_at?: string | null;
+          accepted_privacy_version?: string | null;
         };
         Update: {
           id?: string;
@@ -97,6 +161,10 @@ export interface Database {
           role?: "user" | "admin";
           theme?: "light" | "dark";
           updated_at?: string;
+          accepted_terms_at?: string | null;
+          accepted_terms_version?: string | null;
+          accepted_privacy_at?: string | null;
+          accepted_privacy_version?: string | null;
         };
       };
       offices: {

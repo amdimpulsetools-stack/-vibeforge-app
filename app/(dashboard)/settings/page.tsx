@@ -41,7 +41,10 @@ import {
   Palette,
   Share2,
   Sparkles,
+  AlertTriangle,
 } from "lucide-react";
+import { UbigeoCombobox } from "@/components/ui/ubigeo-combobox";
+import { findUbigeoByCode } from "@/lib/sunat/ubigeo";
 import {
   loadSchedulerConfig,
   fetchSchedulerConfig,
@@ -314,6 +317,7 @@ export default function SettingsPage() {
       legal_name: "",
       address: organization?.address ?? "",
       district: "",
+      ubigeo: "",
       google_maps_url: (organization as unknown as Record<string, string | null>)?.google_maps_url ?? "",
       phone: "",
       phone_secondary: "",
@@ -343,6 +347,7 @@ export default function SettingsPage() {
         legal_name: o.legal_name ?? "",
         address: organization.address ?? "",
         district: o.district ?? "",
+        ubigeo: o.ubigeo ?? "",
         google_maps_url: o.google_maps_url ?? "",
         phone: o.phone ?? "",
         phone_secondary: o.phone_secondary ?? "",
@@ -466,6 +471,7 @@ export default function SettingsPage() {
         legal_name: nullify(values.legal_name),
         address: nullify(values.address),
         district: nullify(values.district),
+        ubigeo: nullify(values.ubigeo),
         google_maps_url: nullify(values.google_maps_url),
         phone: nullify(values.phone),
         phone_secondary: nullify(values.phone_secondary),
@@ -790,7 +796,7 @@ export default function SettingsPage() {
                 title="Ubicación"
                 description="Aparece en el membrete de tus PDFs y en los correos de confirmación."
               >
-                <div className="grid gap-4 sm:grid-cols-[1fr_240px]">
+                <div className="grid gap-4 sm:grid-cols-[1fr_280px]">
                   <Field
                     id="org_address"
                     label={t("settings.org_address")}
@@ -806,18 +812,56 @@ export default function SettingsPage() {
                     />
                   </Field>
                   <Field
-                    id="org_district"
-                    label="Distrito"
-                    error={errors.district?.message}
+                    id="org_ubigeo"
+                    label="Distrito (Ubigeo SUNAT)"
+                    error={errors.ubigeo?.message || errors.district?.message}
+                    hint="Selecciona tu distrito para auto-completar el código de 6 dígitos."
                   >
-                    <input
-                      id="org_district"
-                      type="text"
-                      disabled={!isOrgAdmin}
-                      placeholder="San Isidro"
-                      {...register("district")}
-                      className={fieldClass}
-                    />
+                    {(() => {
+                      // Controlled combobox: writes BOTH `ubigeo` (the code) and
+                      // `district` (the human label) so the PDF letterhead helper
+                      // keeps showing the district name without a regression. If
+                      // the org has a legacy free-text `district` but no ubigeo,
+                      // we render a non-blocking "migrate" badge above the combobox.
+                      const ubigeoValue = watch("ubigeo") || "";
+                      const districtValue = watch("district") || "";
+                      const hasLegacyDistrict = !ubigeoValue && districtValue.trim().length > 0;
+                      return (
+                        <div className="space-y-1.5">
+                          {hasLegacyDistrict && (
+                            <div className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[11px] text-amber-500">
+                              <AlertTriangle className="h-3 w-3 shrink-0" />
+                              <span className="truncate">
+                                Distrito actual:{" "}
+                                <span className="font-medium text-foreground">
+                                  {districtValue}
+                                </span>
+                              </span>
+                              <span className="ml-auto rounded-full bg-amber-500/15 px-2 py-0.5 font-medium">
+                                Migrar a ubigeo
+                              </span>
+                            </div>
+                          )}
+                          <UbigeoCombobox
+                            id="org_ubigeo"
+                            value={ubigeoValue || null}
+                            disabled={!isOrgAdmin}
+                            onChange={(opt) => {
+                              setValue("ubigeo", opt?.code ?? "", { shouldDirty: true });
+                              // Keep `district` in sync with the label so the
+                              // letterhead renderer continues to show a friendly
+                              // name. We use the bare `distrito` (no provincia)
+                              // to match the existing PDF aesthetics.
+                              setValue("district", opt?.distrito ?? "", { shouldDirty: true });
+                            }}
+                          />
+                          {/* Hidden inputs keep the values registered with RHF
+                              so they participate in submit + dirty tracking. */}
+                          <input type="hidden" {...register("ubigeo")} />
+                          <input type="hidden" {...register("district")} />
+                        </div>
+                      );
+                    })()}
                   </Field>
                 </div>
                 <Field
