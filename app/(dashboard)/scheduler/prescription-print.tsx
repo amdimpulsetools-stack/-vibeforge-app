@@ -3,6 +3,13 @@
 import { Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { PrescriptionWithDoctor } from "@/types/clinical-history";
+import { useOrganization } from "@/components/organization-provider";
+import { renderClinicHeader, type ClinicHeaderData } from "@/lib/pdf/clinic-header";
+import {
+  toClinicHeaderData,
+  fallbackClinicHeader,
+  type OrganizationWithBranding,
+} from "@/lib/pdf/clinic-header-data";
 
 interface PrescriptionPrintProps {
   prescriptions: PrescriptionWithDoctor[];
@@ -10,31 +17,35 @@ interface PrescriptionPrintProps {
   patientDni?: string | null;
   doctorName: string;
   appointmentDate: string;
+  /** Legacy fallback if the org context isn't loaded. */
   clinicName?: string;
 }
 
-function buildPrescriptionPrintHTML(props: PrescriptionPrintProps): string {
+interface BuildArgs extends PrescriptionPrintProps {
+  clinic: ClinicHeaderData;
+}
+
+function buildPrescriptionPrintHTML(args: BuildArgs): string {
   const {
     prescriptions,
     patientName,
     patientDni,
     doctorName,
     appointmentDate,
-    clinicName,
-  } = props;
+    clinic,
+  } = args;
 
   const activePrescriptions = prescriptions.filter((rx) => rx.is_active);
 
   if (activePrescriptions.length === 0) return "";
 
-  // Get CMP from the first prescription's doctor if available
-  const doctorInfo = activePrescriptions[0]?.doctors;
+  const accent = clinic.print_color_primary || "#10b981";
 
   const prescriptionRows = activePrescriptions
     .map(
       (rx, idx) => `
       <tr style="${idx > 0 ? "border-top: 1px solid #e5e7eb;" : ""}">
-        <td style="padding: 10px 12px; vertical-align: top; width: 30px; font-weight: 600; color: #059669; font-size: 14px;">
+        <td style="padding: 10px 12px; vertical-align: top; width: 30px; font-weight: 600; color: ${accent}; font-size: 14px;">
           ${idx + 1}.
         </td>
         <td style="padding: 10px 12px; vertical-align: top;">
@@ -48,7 +59,7 @@ function buildPrescriptionPrintHTML(props: PrescriptionPrintProps): string {
             ${rx.duration ? `<span style="display: inline-block; background: #f3f4f6; border-radius: 4px; padding: 1px 6px; margin-right: 6px; font-size: 11px;">Duración: ${rx.duration}</span>` : ""}
             ${rx.quantity ? `<span style="display: inline-block; background: #f3f4f6; border-radius: 4px; padding: 1px 6px; font-size: 11px;">Cantidad: ${rx.quantity}</span>` : ""}
           </div>
-          ${rx.instructions ? `<div style="font-size: 12px; color: #555; margin-top: 6px; font-style: italic; padding-left: 8px; border-left: 2px solid #059669;">Indicaciones: ${rx.instructions}</div>` : ""}
+          ${rx.instructions ? `<div style="font-size: 12px; color: #555; margin-top: 6px; font-style: italic; padding-left: 8px; border-left: 2px solid ${accent};">Indicaciones: ${rx.instructions}</div>` : ""}
         </td>
       </tr>`
     )
@@ -59,6 +70,8 @@ function buildPrescriptionPrintHTML(props: PrescriptionPrintProps): string {
     month: "long",
     year: "numeric",
   });
+
+  const headerHtml = renderClinicHeader(clinic, { compact: true });
 
   return `<!DOCTYPE html>
 <html lang="es">
@@ -85,11 +98,12 @@ function buildPrescriptionPrintHTML(props: PrescriptionPrintProps): string {
   </style>
 </head>
 <body>
-  <!-- Header -->
-  <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #059669; padding-bottom: 14px;">
-    ${clinicName ? `<div style="font-size: 16px; font-weight: 700; color: #059669; margin-bottom: 2px;">${clinicName}</div>` : ""}
-    <div style="font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #111;">RECETA MÉDICA</div>
-    <div style="font-size: 11px; color: #6b7280; margin-top: 4px;">${formattedDate}</div>
+  ${headerHtml}
+
+  <!-- Document title -->
+  <div style="text-align: center; margin-bottom: 14px;">
+    <div style="font-size: 16px; font-weight: 700; letter-spacing: 1px; color: #111;">RECETA MÉDICA</div>
+    <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">${formattedDate}</div>
   </div>
 
   <!-- Patient & Doctor Info -->
@@ -140,12 +154,16 @@ function buildPrescriptionPrintHTML(props: PrescriptionPrintProps): string {
 }
 
 export function PrescriptionPrintButton(props: PrescriptionPrintProps) {
+  const { organization } = useOrganization();
   const activePrescriptions = props.prescriptions.filter((rx) => rx.is_active);
 
   if (activePrescriptions.length === 0) return null;
 
   const handlePrint = () => {
-    const html = buildPrescriptionPrintHTML(props);
+    const clinic = organization
+      ? toClinicHeaderData(organization as OrganizationWithBranding)
+      : fallbackClinicHeader(props.clinicName);
+    const html = buildPrescriptionPrintHTML({ ...props, clinic });
     if (!html) return;
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
