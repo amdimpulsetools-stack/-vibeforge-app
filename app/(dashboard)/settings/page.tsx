@@ -318,7 +318,7 @@ export default function SettingsPage() {
       address: organization?.address ?? "",
       district: "",
       ubigeo: "",
-      google_maps_url: (organization as unknown as Record<string, string | null>)?.google_maps_url ?? "",
+      google_maps_url: organization?.google_maps_url ?? "",
       phone: "",
       phone_secondary: "",
       email_public: "",
@@ -333,33 +333,33 @@ export default function SettingsPage() {
     },
   });
 
-  // Sync form values when organization data loads asynchronously.
-  // Cast to a permissive shape so we can read the new branding columns
-  // (added in migration 115) without forcing a regen of generated types.
+  // Sync form values when organization data loads asynchronously. The
+  // branding/legal/contact columns now live in the regenerated `Database`
+  // types (migrations 115 + 117), so we can read them directly without any
+  // intermediate cast.
   useEffect(() => {
     if (organization) {
-      const o = organization as unknown as Record<string, string | null | undefined>;
       reset({
         name: organization.name ?? "",
         slug: organization.slug ?? "",
-        tagline: o.tagline ?? "",
-        ruc: o.ruc ?? "",
-        legal_name: o.legal_name ?? "",
+        tagline: organization.tagline ?? "",
+        ruc: organization.ruc ?? "",
+        legal_name: organization.legal_name ?? "",
         address: organization.address ?? "",
-        district: o.district ?? "",
-        ubigeo: o.ubigeo ?? "",
-        google_maps_url: o.google_maps_url ?? "",
-        phone: o.phone ?? "",
-        phone_secondary: o.phone_secondary ?? "",
-        email_public: o.email_public ?? "",
-        website: o.website ?? "",
-        social_facebook: o.social_facebook ?? "",
-        social_instagram: o.social_instagram ?? "",
-        social_tiktok: o.social_tiktok ?? "",
-        social_linkedin: o.social_linkedin ?? "",
-        social_youtube: o.social_youtube ?? "",
-        social_whatsapp: o.social_whatsapp ?? "",
-        print_color_primary: o.print_color_primary ?? "#10b981",
+        district: organization.district ?? "",
+        ubigeo: organization.ubigeo ?? "",
+        google_maps_url: organization.google_maps_url ?? "",
+        phone: organization.phone ?? "",
+        phone_secondary: organization.phone_secondary ?? "",
+        email_public: organization.email_public ?? "",
+        website: organization.website ?? "",
+        social_facebook: organization.social_facebook ?? "",
+        social_instagram: organization.social_instagram ?? "",
+        social_tiktok: organization.social_tiktok ?? "",
+        social_linkedin: organization.social_linkedin ?? "",
+        social_youtube: organization.social_youtube ?? "",
+        social_whatsapp: organization.social_whatsapp ?? "",
+        print_color_primary: organization.print_color_primary ?? "#10b981",
       });
     }
   }, [organization, reset]);
