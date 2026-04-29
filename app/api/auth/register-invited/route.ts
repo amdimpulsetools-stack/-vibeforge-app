@@ -21,7 +21,8 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, registerInvitedSchema);
   if (parsed.error) return parsed.error;
-  const { email, password, fullName, inviteToken } = parsed.data;
+  const { email, password, fullName, inviteToken, termsVersion } = parsed.data;
+  const acceptedAt = new Date().toISOString();
 
   const supabaseAdmin = createAdminClient();
 
@@ -73,6 +74,10 @@ export async function POST(request: NextRequest) {
           ...existingUser.user_metadata,
           full_name: fullName,
           invite_token: inviteToken,
+          accepted_terms_at: acceptedAt,
+          accepted_terms_version: termsVersion,
+          accepted_privacy_at: acceptedAt,
+          accepted_privacy_version: termsVersion,
         },
       });
 
@@ -95,6 +100,10 @@ export async function POST(request: NextRequest) {
         user_metadata: {
           full_name: fullName,
           invite_token: inviteToken,
+          accepted_terms_at: acceptedAt,
+          accepted_terms_version: termsVersion,
+          accepted_privacy_at: acceptedAt,
+          accepted_privacy_version: termsVersion,
         },
       });
 
@@ -156,6 +165,28 @@ export async function POST(request: NextRequest) {
         { error: "Failed to add to organization" },
         { status: 500 }
       );
+    }
+  }
+
+  // Persist explicit Terms + Privacy acceptance on the user profile.
+  // The profile row was created by the on_auth_user_created trigger; we
+  // UPDATE it here to stamp the acceptance fields. If the row does not
+  // exist yet (race), we fall back to an upsert.
+  {
+    const { error: termsErr } = await supabaseAdmin
+      .from("user_profiles")
+      .update({
+        accepted_terms_at: acceptedAt,
+        accepted_terms_version: termsVersion,
+        accepted_privacy_at: acceptedAt,
+        accepted_privacy_version: termsVersion,
+      })
+      .eq("id", userId);
+    if (termsErr) {
+      // Non-fatal: log but do not block the signup. The next time the
+      // user logs in, the auth callback will still try to backfill from
+      // their auth metadata.
+      console.error("Failed to persist terms acceptance for invited user:", termsErr.message);
     }
   }
 

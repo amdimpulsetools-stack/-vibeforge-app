@@ -39,6 +39,11 @@ export const registerInvitedSchema = z.object({
   password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
   fullName: z.string().min(2, "Nombre debe tener al menos 2 caracteres"),
   inviteToken: z.string().regex(/^[a-f0-9-]{36}$/, "Token de invitación inválido"),
+  // Both required: an invited user MUST accept the legal docs at signup.
+  acceptedTerms: z.literal(true, {
+    errorMap: () => ({ message: "Debes aceptar los Términos y la Política de Privacidad" }),
+  }),
+  termsVersion: z.string().min(1, "Versión de términos requerida"),
 });
 
 // ── Email ────────────────────────────────────────────────────────────
