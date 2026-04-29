@@ -56,6 +56,7 @@ import { TreatmentPlansPanel } from "./treatment-plans-panel";
 import { BudgetsPanel } from "./budgets-panel";
 import { PrescriptionsPanel } from "./prescriptions-panel";
 import { ClinicalAttachmentsPanel } from "./clinical-attachments-panel";
+import { InformedConsentsPanel } from "./informed-consents-panel";
 import { ClinicalFollowupsPanel } from "./clinical-followups-panel";
 import { ExamOrdersPanel } from "./exam-orders-panel";
 import { VitalsTrendsChart } from "./vitals-trends-chart";
@@ -964,6 +965,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               <ExamOrdersPanel patientId={patient.id} canEdit={false} />
               <ClinicalFollowupsPanel patientId={patient.id} canEdit={false} />
               <ClinicalAttachmentsPanel patientId={patient.id} canEdit={false} />
+              <InformedConsentsPanel
+                patientId={patient.id}
+                patientName={`${patient.first_name} ${patient.last_name}`.trim()}
+                doctorId={currentDoctorId}
+                canCreate={isAdmin || !!currentDoctorId}
+              />
             </div>
           </div>
         )}
@@ -1386,6 +1393,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   </div>
                   <ClinicalFollowupsPanel patientId={patient.id} canEdit={false} />
                   <ClinicalAttachmentsPanel patientId={patient.id} canEdit={false} />
+                  <InformedConsentsPanel
+                    patientId={patient.id}
+                    patientName={`${patient.first_name} ${patient.last_name}`.trim()}
+                    doctorId={currentDoctorId}
+                    canCreate={isAdmin || !!currentDoctorId}
+                  />
                 </div>
               )}
 

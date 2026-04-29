@@ -328,6 +328,63 @@ export interface Database {
           organization_id?: string;
         };
       };
+      // informed_consents (migration 120) — append-only signed consents.
+      informed_consents: {
+        Row: {
+          id: string;
+          organization_id: string;
+          patient_id: string;
+          appointment_id: string | null;
+          service_id: string | null;
+          doctor_id: string | null;
+          consent_type: "general" | "procedimiento" | "tratamiento" | "fotografias";
+          procedure_description: string;
+          risks_explained: string | null;
+          signed_by_patient_name: string;
+          signed_at: string;
+          signature_method: "typed" | "drawn";
+          signature_data: string | null;
+          pdf_url: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          patient_id: string;
+          appointment_id?: string | null;
+          service_id?: string | null;
+          doctor_id?: string | null;
+          consent_type: "general" | "procedimiento" | "tratamiento" | "fotografias";
+          procedure_description: string;
+          risks_explained?: string | null;
+          signed_by_patient_name: string;
+          signed_at?: string;
+          signature_method: "typed" | "drawn";
+          signature_data?: string | null;
+          pdf_url?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          patient_id?: string;
+          appointment_id?: string | null;
+          service_id?: string | null;
+          doctor_id?: string | null;
+          consent_type?: "general" | "procedimiento" | "tratamiento" | "fotografias";
+          procedure_description?: string;
+          risks_explained?: string | null;
+          signed_by_patient_name?: string;
+          signed_at?: string;
+          signature_method?: "typed" | "drawn";
+          signature_data?: string | null;
+          pdf_url?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+      };
       // doctor_specialties (migration 119) — multi specialty per doctor.
       doctor_specialties: {
         Row: {
