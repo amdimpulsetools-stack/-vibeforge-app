@@ -9,7 +9,9 @@ import {
   Heart,
   Loader2,
   Lock,
+  Pill,
   Stethoscope,
+  TestTube,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -20,6 +22,7 @@ import {
   type SOAPSection,
   type Vitals,
 } from "@/types/clinical-notes";
+import type { PrescriptionWithDoctor } from "@/types/clinical-history";
 
 interface NotesTimelineProps {
   patientId: string | null;
@@ -32,17 +35,41 @@ type TimelineNote = ClinicalNote & {
   diagnoses?: ClinicalNoteDiagnosis[];
 };
 
+interface ExamOrderItemRow {
+  id: string;
+  order_id: string;
+  exam_name: string;
+  instructions: string | null;
+  status: "pending" | "completed";
+}
+
+interface ExamOrderRow {
+  id: string;
+  patient_id: string;
+  doctor_id: string;
+  clinical_note_id: string | null;
+  appointment_id: string | null;
+  diagnosis: string | null;
+  diagnosis_code: string | null;
+  notes: string | null;
+  status: "pending" | "partial" | "completed";
+  created_at: string;
+  exam_order_items?: ExamOrderItemRow[];
+}
+
 type SortOrder = "desc" | "asc";
 
 export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) {
   const [notes, setNotes] = useState<TimelineNote[]>([]);
+  const [prescriptions, setPrescriptions] = useState<PrescriptionWithDoctor[]>([]);
+  const [examOrders, setExamOrders] = useState<ExamOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const fetchedFor = useRef<string | null>(null);
 
-  const fetchNotes = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     if (!patientId) {
       setLoading(false);
       return;
@@ -51,10 +78,26 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/clinical-notes?patient_id=${patientId}`);
-      if (!res.ok) throw new Error("No se pudo cargar el historial");
-      const json = await res.json();
-      setNotes((json.data ?? []) as TimelineNote[]);
+      // 3 fetches en paralelo. Las prescripciones y exámenes pueden devolver
+      // sin permiso para algunos roles (recepcionistas) — fallamos blando ahí
+      // (la sección simplemente no muestra esa info).
+      const [notesRes, rxRes, examRes] = await Promise.all([
+        fetch(`/api/clinical-notes?patient_id=${patientId}`),
+        fetch(`/api/prescriptions?patient_id=${patientId}`),
+        fetch(`/api/exam-orders?patient_id=${patientId}`),
+      ]);
+      if (!notesRes.ok) throw new Error("No se pudo cargar el historial");
+      const notesJson = await notesRes.json();
+      setNotes((notesJson.data ?? []) as TimelineNote[]);
+
+      if (rxRes.ok) {
+        const rxJson = await rxRes.json();
+        setPrescriptions((rxJson.data ?? []) as PrescriptionWithDoctor[]);
+      }
+      if (examRes.ok) {
+        const examJson = await examRes.json();
+        setExamOrders((examJson.data ?? []) as ExamOrderRow[]);
+      }
       fetchedFor.current = patientId;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de red");
@@ -64,8 +107,31 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
   }, [patientId]);
 
   useEffect(() => {
-    fetchNotes();
-  }, [fetchNotes]);
+    fetchAll();
+  }, [fetchAll]);
+
+  // Indexar por clinical_note_id para lookup O(1) en cada card.
+  const prescriptionsByNote = useMemo(() => {
+    const map = new Map<string, PrescriptionWithDoctor[]>();
+    for (const rx of prescriptions) {
+      if (!rx.clinical_note_id) continue;
+      const list = map.get(rx.clinical_note_id) ?? [];
+      list.push(rx);
+      map.set(rx.clinical_note_id, list);
+    }
+    return map;
+  }, [prescriptions]);
+
+  const examOrdersByNote = useMemo(() => {
+    const map = new Map<string, ExamOrderRow[]>();
+    for (const order of examOrders) {
+      if (!order.clinical_note_id) continue;
+      const list = map.get(order.clinical_note_id) ?? [];
+      list.push(order);
+      map.set(order.clinical_note_id, list);
+    }
+    return map;
+  }, [examOrders]);
 
   const visibleNotes = useMemo(() => {
     const filtered = currentNoteId
@@ -179,6 +245,8 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
               note={note}
               expanded={expandedIds.has(note.id)}
               onToggle={() => toggleExpand(note.id)}
+              prescriptions={prescriptionsByNote.get(note.id) ?? []}
+              examOrders={examOrdersByNote.get(note.id) ?? []}
             />
           ))}
         </div>
@@ -193,11 +261,19 @@ function NoteCard({
   note,
   expanded,
   onToggle,
+  prescriptions,
+  examOrders,
 }: {
   note: TimelineNote;
   expanded: boolean;
   onToggle: () => void;
+  prescriptions: PrescriptionWithDoctor[];
+  examOrders: ExamOrderRow[];
 }) {
+  const totalExamItems = examOrders.reduce(
+    (acc, o) => acc + (o.exam_order_items?.length ?? 0),
+    0
+  );
   const dateStr = new Date(note.created_at).toLocaleDateString("es-PE", {
     day: "2-digit",
     month: "long",
@@ -288,6 +364,25 @@ function NoteCard({
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {/* Counters de receta/examen — pista visual de qué hay sin expandir */}
+          {prescriptions.length > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground"
+              title={`${prescriptions.length} medicamento${prescriptions.length === 1 ? "" : "s"}`}
+            >
+              <Pill className="h-3 w-3" />
+              {prescriptions.length}
+            </span>
+          )}
+          {totalExamItems > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground"
+              title={`${totalExamItems} examen${totalExamItems === 1 ? "" : "es"}`}
+            >
+              <TestTube className="h-3 w-3" />
+              {totalExamItems}
+            </span>
+          )}
           {note.is_signed && (
             <Lock className="h-3.5 w-3.5 text-emerald-500" />
           )}
@@ -301,7 +396,14 @@ function NoteCard({
       </button>
 
       {/* Body — solo se monta cuando se expande (lazy render). */}
-      {expanded && <NoteBody note={note} diagnoses={diagnoses} />}
+      {expanded && (
+        <NoteBody
+          note={note}
+          diagnoses={diagnoses}
+          prescriptions={prescriptions}
+          examOrders={examOrders}
+        />
+      )}
     </div>
   );
 }
@@ -311,9 +413,13 @@ function NoteCard({
 function NoteBody({
   note,
   diagnoses,
+  prescriptions,
+  examOrders,
 }: {
   note: TimelineNote;
   diagnoses: ClinicalNoteDiagnosis[];
+  prescriptions: PrescriptionWithDoctor[];
+  examOrders: ExamOrderRow[];
 }) {
   const hasVitals = VITALS_FIELDS.some(
     (f) => note.vitals?.[f.key as keyof Vitals] != null
@@ -382,6 +488,116 @@ function NoteBody({
                 )}
               </span>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Medicamentos recetados */}
+      {prescriptions.length > 0 && (
+        <div className="rounded-lg bg-card border border-border/50 px-4 py-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Pill className="h-4 w-4 text-emerald-500" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase">
+              Medicamentos recetados
+            </span>
+            <span className="text-[10px] text-muted-foreground">
+              · {prescriptions.length}
+            </span>
+          </div>
+          <ul className="space-y-1.5">
+            {prescriptions.map((rx) => (
+              <li
+                key={rx.id}
+                className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-sm leading-snug"
+              >
+                <span className="font-medium text-foreground">{rx.medication}</span>
+                {[rx.dosage, rx.frequency, rx.duration]
+                  .filter((v): v is string => Boolean(v && v.trim()))
+                  .map((part, i, arr) => (
+                    <span key={i} className="text-xs text-muted-foreground">
+                      {part}
+                      {i < arr.length - 1 && (
+                        <span className="text-muted-foreground/50"> · </span>
+                      )}
+                    </span>
+                  ))}
+                {rx.route && (
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                    ({rx.route})
+                  </span>
+                )}
+                {rx.instructions && (
+                  <span className="block w-full text-[11px] text-muted-foreground/80 italic pl-3">
+                    {rx.instructions}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Exámenes solicitados */}
+      {examOrders.length > 0 && (
+        <div className="rounded-lg bg-card border border-border/50 px-4 py-3">
+          <div className="flex items-center gap-1.5 mb-2">
+            <TestTube className="h-4 w-4 text-blue-500" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase">
+              Exámenes solicitados
+            </span>
+          </div>
+          <div className="space-y-2">
+            {examOrders.map((order) => {
+              const items = order.exam_order_items ?? [];
+              return (
+                <div key={order.id} className="space-y-1">
+                  {order.diagnosis && (
+                    <p className="text-[11px] text-muted-foreground">
+                      Por: <span className="text-foreground">{order.diagnosis}</span>
+                    </p>
+                  )}
+                  {items.length > 0 ? (
+                    <ul className="space-y-0.5">
+                      {items.map((item) => (
+                        <li
+                          key={item.id}
+                          className="flex items-baseline gap-2 text-sm leading-snug"
+                        >
+                          <span
+                            className={cn(
+                              "h-1.5 w-1.5 rounded-full shrink-0 mt-1.5",
+                              item.status === "completed"
+                                ? "bg-emerald-500"
+                                : "bg-muted-foreground/40"
+                            )}
+                            title={
+                              item.status === "completed"
+                                ? "Completado"
+                                : "Pendiente"
+                            }
+                          />
+                          <span className="text-foreground">{item.exam_name}</span>
+                          {item.instructions && (
+                            <span className="text-xs text-muted-foreground/80 italic">
+                              · {item.instructions}
+                            </span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      Orden sin ítems
+                    </p>
+                  )}
+                  {order.notes && (
+                    <p className="text-[11px] text-muted-foreground/80 italic pl-3">
+                      Notas: {order.notes}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

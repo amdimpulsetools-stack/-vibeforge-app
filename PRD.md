@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-04-29
-> **Versión:** 0.14.1
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor + Pricing alineado: S/129 / S/349 / S/649 + Frecuencia semestral (8.3% off) en checkout MP + Reporte IA Avanzado capas 1+2 documentado (v0.13.4) + Perfil de Organización + helper de membrete + plantillas PDF (receta/nota/exámenes) usando membrete + wizard Nubefact pre-llena RUC desde org + hardening legal Ley 29733 con rediseño visual de /terms y /privacy (v0.14.0) + **Aceptación explícita de Terms+Privacy en registro (mig 116) + Ubigeo SUNAT en organizations (mig 117) + Bloqueo de sesión para miembros desactivados (mig 118) + Especialidad editable + tabla doctor_specialties (mig 119) + Consentimiento informado digital MVP (mig 120) (v0.14.1)** + Preparación de pilot con primer cliente real (Vitra, fertilidad)
+> **Última actualización:** 2026-04-30
+> **Versión:** 0.14.2
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor + Pricing alineado: S/129 / S/349 / S/649 + Frecuencia semestral (8.3% off) en checkout MP + Reporte IA Avanzado capas 1+2 documentado (v0.13.4) + Perfil de Organización + helper de membrete + plantillas PDF (receta/nota/exámenes) usando membrete + wizard Nubefact pre-llena RUC desde org + hardening legal Ley 29733 con rediseño visual de /terms y /privacy (v0.14.0) + Aceptación explícita de Terms+Privacy en registro (mig 116) + Ubigeo SUNAT en organizations (mig 117) + Bloqueo de sesión para miembros desactivados (mig 118) + Especialidad editable + tabla doctor_specialties (mig 119) + Consentimiento informado digital MVP (mig 120) + UX unificada de consentimientos manuales + digitales (mig 121) (v0.14.1) + **Hardening de seguridad post-review: TERMS_VERSION server-side + RPC get_user_id_by_email (mig 122) + storage UPDATE policy + signature_data CHECK + middleware terms-acceptance gate (mig 123) + HC: DNI+edad en header, label "Motivo de consulta (Subjetivo)", layout SOAP vertical + Múltiples diagnósticos CIE-10 por nota con chips removibles (mig 124) + Código CIE-10 manual one-off + Toggle Nota | Timeline en modal HC con cards colapsables y filtro asc/desc (v0.14.2)** + Preparación de pilot con primer cliente real (Vitra, fertilidad)
 
 ---
 
@@ -665,6 +665,12 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Especialidades editables + tabla `doctor_specialties`** (v0.14.1 — migración 119) — Tabla `doctor_specialties (doctor_id, specialty, is_primary, ...)` con UNIQUE parcial sobre primaria, RLS multi-tenant copiando patrón de `prescriptions`. Catálogo canónico `lib/specialties.ts` con 28 entradas (espejo del seed mig 076: medicina-general, ginecología, pediatría, dermatología, odontología, oftalmología, cardiología, endocrinología, etc.). Selector solo-Owner en Settings → Organización (`org-specialty-section.tsx`) que persiste en `organizations.primary_specialty_id`. Tab "Especialidades" en editor de doctor (`admin/doctors/[id]/specialties-tab.tsx`) con multi-select, marca de principal y borrado. NO toca `useOrgAddons` — el matching automático queda para iteración 2.
 - [x] **Consentimiento informado digital MVP (F12)** (v0.14.1 — migración 120) — Cumplimiento Ley 29414 + DS 027-2015-SA. Tabla `informed_consents` append-only con campos: tipo (general/procedimiento/tratamiento/fotografias), descripción del procedimiento, riesgos, nombre firmado, método (`typed`/`drawn`), `signature_data` (base64 PNG si trazada), referencias a paciente/cita/servicio/doctor. RLS multi-tenant. Bucket privado `informed-consents` en Supabase Storage con RLS de storage. Wizard de 3 pasos (`components/clinical/informed-consent-modal.tsx`): tipo+descripción → preview con membrete real (vía `renderClinicHeader`) → firma tipeada o trazada en canvas. API `/api/informed-consents` (POST/GET listado por paciente) y `/api/informed-consents/[id]` (GET detalle). **Sin DELETE** por motivos legales — anulación queda para tier 2 con columnas `voided_at`/`voided_reason`. Tab "Consentimientos firmados" en el drawer de paciente. **Limitación conocida:** el artefacto se guarda como HTML en el bucket porque el repo no tiene `puppeteer`/`@react-pdf/renderer` instalados; la fila DB con `signature_data` y `signed_by_patient_name` es el registro legal canónico. Conversión HTML→PDF queda como TODO.
 - [x] **UX unificada: consentimientos manuales (foto) + digitales conviven** (v0.14.1 — migración 121) — Cliente importante (Dermosalud) hace consentimientos en papel + foto adjunta. Para no imponer cambio de flujo: RPC `get_patient_consents_unified(p_patient_id UUID)` con UNION ALL entre `informed_consents` (source='digital') y `clinical_attachments` con `category='consent'` (source='scanned'); SECURITY INVOKER (RLS de cada tabla filtra por org). Panel nuevo `consents-unified-panel.tsx` reemplaza al `informed-consents-panel.tsx` (eliminado, código muerto): muestra lista combinada con badges Digital/Foto, conteo dinámico ("3 consentimientos — 2 fotos, 1 digital"), botones "Ver" que abren PDF o foto según source. Botón unificado "Agregar consentimiento" (`consent-entry-button.tsx`) con popover de 2 opciones: "Subir foto del consentimiento firmado" (recepcionistas + admins + doctores) y "Firmar digitalmente" (solo doctores + admins — gating por rol). Componente standalone `attachment-upload-dialog.tsx` extraído del flujo existente para que ambos puntos de entrada llamen al mismo `POST /api/clinical-attachments`. Resultado: Dermosalud sigue subiendo fotos sin cambio en su rutina; el doctor puede usar firma digital cuando convenga; auditoría legal en una sola query.
+- [x] **Hardening de seguridad post-review (terms + invite + consent)** (v0.14.2 — migración 122) — Cierre de gaps detectados en review final de v0.14.1. **TERMS_VERSION forzado server-side**: `app/api/auth/accept-terms` y `app/api/auth/register-invited` ya no aceptan el `termsVersion` que envía el cliente — siempre persisten el `TERMS_VERSION` autoritativo de `lib/constants.ts` (un cliente desactualizado no puede grabar aceptación para una versión arbitraria). **RPC `get_user_id_by_email`**: el flujo de registro por invitación reemplaza el `supabaseAdmin.auth.admin.listUsers()` (cargaba TODOS los usuarios en memoria) por una RPC `SECURITY DEFINER` que busca por email en `auth.users` con `LIMIT 1` — escala a millones de usuarios. Permisos revocados a `anon`/`authenticated`, solo `service_role` puede invocarla. **PDFs de consentimiento con signed URL on-demand**: `informed-consents` ya no persiste un signed URL de 7 días en la columna `pdf_url` — guarda el path en storage y genera signed URL fresco (1 hora) en cada GET. Las URLs expiradas dejan de ser un problema; sin riesgo de leak por logs/backups con URLs largas que no caducan.
+- [x] **Hardening de consentimientos + middleware terms-gate** (v0.14.2 — migración 123) — Cierra warnings y notas del review final. **Storage UPDATE policy** en bucket `informed-consents` (mig 120 solo tenía SELECT + INSERT; UPDATE simétrico para org members permite re-render o refresh de metadata sin perder la fila). **CHECK length 200KB** en `informed_consents.signature_data` + zod cap de 500KB → 200KB (PNG de 600×180 cabe sobrado en 5–30KB; el cap previene bloat de la tabla). **`patient.organization_id` validado en POST** de `/api/informed-consents` (defense-in-depth sobre RLS — refuse cross-org si una regresión de RLS slipped). **GET `/api/informed-consents` requiere filtro** (`patient_id` o `appointment_id`) — listar todos los consentimientos del org leak información innecesaria. **Middleware terms-acceptance gate**: `get_user_session_check` extendida con `accepted_terms_at` y `accepted_terms_version`; el middleware redirige a `/onboarding/accept-terms` si la columna es NULL o si la versión persistida no coincide con `TERMS_VERSION` (cubre usuarios pre-existentes creados antes de mig 116, y bumps de versión futuros). **UI editor de consentimientos**: tipo no preseleccionado (paso 1 bloqueado hasta elegir explícitamente), fix texto duplicado en error de registro.
+- [x] **Historia Clínica: DNI+edad en header, label SOAP, layout vertical** (v0.14.2) — En el modal de HC (durante consulta), el header ahora muestra **DNI** y **edad** junto al nombre del paciente (la query del scheduler ahora trae `dni` y `birth_date` en el join `patients(...)` y los propaga via `patientDni`/`patientBirthDate` al modal). **`SOAP_LABELS.subjective.label`**: "Subjetivo" → "**Motivo de consulta (Subjetivo)**" (los doctores no siempre están familiarizados con el método SOAP académico; el término técnico entre paréntesis preserva la estructura clínica pero baja la fricción cognitiva). El cambio se propaga automáticamente al editor, drawer del paciente, modal de historia clínica, plantillas admin y plantillas de impresión. **Layout SOAP vertical**: los 4 campos S/O/A/P pasan de `grid grid-cols-1 md:grid-cols-2` a `space-y-3` siempre — los doctores escriben en flujo secuencial; las columnas obligaban a navegar lateralmente y reducían el área útil de cada caja.
+- [x] **Múltiples diagnósticos CIE-10 por nota clínica** (v0.14.2 — migración 124) — Una sola consulta ahora soporta múltiples CIE-10 (comorbilidades reales: el paciente con E11 + I10 + Z71.3 ya no fuerza al doctor a "elegir el más importante"). **Tabla normalizada `clinical_note_diagnoses`** `(id, clinical_note_id, organization_id, code, label, is_primary, position, created_at)` con UNIQUE parcial sobre `is_primary=true` (un primary por nota), UNIQUE `(note_id, lower(code))` (sin duplicados), índices por code/note/org y RLS multi-tenant. Backfill automático en la migración: una fila por nota con `diagnosis_code IS NOT NULL`, marcada `is_primary=true`. **Trigger `sync_primary_diagnosis_to_note`** AFTER INSERT/UPDATE/DELETE espeja el primary a `clinical_notes.diagnosis_code/label` — prints, exam orders, prescriptions y history views existentes siguen funcionando 100% sin tocar nada (las columnas legacy quedan deprecated pero leíbles, mantenidas como vista derivada). **API**: GET incluye `diagnoses:clinical_note_diagnoses(*)`; POST/PATCH aceptan array `diagnoses[]` (replace-all semantics) o caen al legacy `diagnosis_code/label` si vienen solos. Helper `replaceDiagnoses()` centraliza delete+insert + asignación de exactamente un `is_primary` (si el caller no lo marca, el primero gana). **UI editor (`clinical-note-panel.tsx`)**: state pasa de single (code/label) a array; el buscador agrega chip al set (dedupe case-insensitive por código). Cada chip tiene **×** para remover y **★** para promover a principal (chip primario tiene borde primary + estrella sólida). Plantilla legacy con un diagnóstico se convierte en chip principal sin perder los previos. **Read-only views** (clinical-history-modal, patient-drawer, clinical-note-print): render lista completa de chips/líneas con badge "principal" para el primario; `DiagnosisHistoryPanel` ahora cuenta cada diagnóstico individual (no cada nota), agrupando comorbilidades correctamente. Recetas y exam orders ya estaban scoped por `clinical_note_id` (mig 053/078) — no se tocan.
+- [x] **Código CIE-10 manual one-off en nota** (v0.14.2) — Botón discreto **`+ Código manual`** debajo del buscador de CIE-10 en el editor abre dos inputs inline (código mono + descripción + Cancelar/Agregar). Agrega chip a la nota actual **sin persistir al catálogo de la org** — para casos donde el doctor conoce un sub-código MINSA específico que aún no está catalogado pero no quiere crear un código personalizado permanente. Enter en el input de descripción confirma. Hint "Si lo usas seguido, agrégalo en Ajustes → CIE-10 personalizados" para escalado natural a custom codes. Dedupe respetado: pasa por el mismo `addDiagnosis` → no se duplica si el código ya existe.
+- [x] **Toggle Nota | Timeline en modal de HC** (v0.14.2) — Sub-header sticky con segmented control `📄 Nota` | `🕘 Timeline` debajo del header principal del modal. Solo aparece si la cita tiene paciente vinculado. **Modo Nota** = layout actual (2-col SOAP + side panels), sin cambios. **Modo Timeline** = full-width con cards colapsables del historial completo de notas del paciente, descendente por defecto (filtro asc/desc + Expandir-todo / Colapsar). Excluye la nota de la consulta actual. Cards colapsadas muestran fecha · hora · doctor (con dot de color) · top-2 chips de diagnóstico (+N más) — scan rápido sin expandir. **Body lazy-renderizado**: el SOAP completo + diagnósticos + vitales + signed badge solo se construyen al expandir (perf con pacientes crónicos de 50+ consultas). CTAs Save/Sign/Print y atajo Ctrl+S quedan ocultos en Timeline (read-only). El editor de Nota queda siempre montado (CSS `hidden`) → no pierde draft ni autosave entre toggles. Mount-once del Timeline: primera vez que se entra, se carga; al volver a Nota y regresar, datos cacheados (no re-fetch). Reset al cerrar el modal — próxima apertura siempre arranca en Nota. Componente nuevo: `app/(dashboard)/scheduler/notes-timeline.tsx`. **Beneficio**: elimina 4-5 clicks de fricción ("¿qué le mandé la última vez?") al revisar contexto durante la consulta en vivo.
 
 ### Pendiente / Por Mejorar
 - [x] **Facturación electrónica SUNAT vía Nubefact (MVP completo)** — v0.13.0 → v0.13.1. Cierre del módulo de facturación electrónica multi-tenant para clínicas peruanas. Componentes:
@@ -2986,4 +2992,162 @@ Roadmap propuesto: Q2 2026 Capa 1 → Q3 2026 Capa 2 → Q4 2026 reactivar trial
 - **Per-month como número grande, upfront como sub-línea**: facilita comparar las 3 cadencias visualmente. El cliente ve "S/107.50/mes" en lugar de "S/1,290/año" como protagonista, lo que reduce la fricción de "S/1,290 es mucho dinero de un golpe".
 - **Frequency 6 en MP preapproval**: confirmado en docs de Mercado Pago que `frequency_type: "months"` acepta {1, 2, 3, 4, 6, 12}. No requirió contactar soporte de MP.
 - **Reporte IA Avanzado documentado pero NO implementado**: el usuario pidió tracking detallado para futura implementación. Las migraciones, prompts y tablas propuestas están listas para que cualquier dev (o yo en sesión futura) pueda arrancar sin re-investigar.
+
+---
+
+## 38. Changelog — Sesión 2026-04-30 (v0.14.2) — Hardening seguridad/consent + Multi-diagnóstico CIE-10 + Timeline HC
+
+Sesión de cierre de gaps de seguridad detectados en review final de v0.14.1 + tres mejoras de UX clínica solicitadas por el equipo médico (DNI/edad visible, terminología SOAP más amigable, layout vertical) + feature mayor de comorbilidades multi-CIE-10 + reorganización del modal de HC con tab Timeline.
+
+### Hardening de seguridad post-review (migraciones 122 + 123)
+
+**Gaps cerrados:**
+- Cliente podía enviar `termsVersion` arbitrario al aceptar términos (un cliente desactualizado registraba aceptación para una versión que no era la actual). Ahora ambos endpoints (`/api/auth/accept-terms` y `/api/auth/register-invited`) ignoran el campo del cliente y persisten siempre `TERMS_VERSION` del server.
+- `register-invited` cargaba **TODOS los usuarios** vía `supabaseAdmin.auth.admin.listUsers()` para resolver email → user_id (no escala). RPC `get_user_id_by_email(lookup_email text)` con `SECURITY DEFINER` y `LIMIT 1` reemplaza ese path. Permisos revocados a `anon`/`authenticated` — solo `service_role`.
+- `informed-consents.pdf_url` guardaba un signed URL de **7 días**. Refactor: la columna ahora guarda el path en storage; `GET /api/informed-consents` genera signed URL fresco (1h) on-demand. URLs expiradas dejan de existir; sin riesgo de leak por logs/backups.
+- Faltaba **storage UPDATE policy** en bucket `informed-consents` (mig 120 solo tenía SELECT + INSERT). Agregada simétricamente para org members — habilita futuras operaciones de re-render o refresh de metadata sin perder la fila append-only.
+- `informed_consents.signature_data` permitía hasta **500KB** de base64. PNG de 600×180 cabe en 5–30KB; reducido a 200KB vía CHECK constraint + zod cap. Previene bloat de tabla.
+- `informed-consents` POST no validaba que `patient.organization_id === user's org` (RLS lo cubre, pero no había defense-in-depth). Validación explícita agregada — refuse cross-org incluso si una regresión de RLS slipped.
+- `informed-consents` GET sin filtro listaba todos los consentimientos del org. Ahora requiere `patient_id` o `appointment_id`.
+- **Middleware terms-acceptance gate**: usuarios pre-existentes (creados antes de mig 116) tenían `accepted_terms_at = NULL` y nadie los redirigía a aceptar. `get_user_session_check` extendida con `accepted_terms_at` + `accepted_terms_version`; el middleware redirige a `/onboarding/accept-terms` si la columna es NULL o si la versión no coincide con `TERMS_VERSION` (cubre también bumps de versión futuros). `/onboarding/accept-terms` agregado a `isOnboardingFlow` para que sea accesible sin pasar por gates de subscription/onboarding.
+- **UI editor de consentimientos**: tipo no preseleccionado (estado inicial `null`); paso 1 bloqueado hasta que el usuario elija explícitamente con tooltip "Selecciona el tipo". Texto duplicado en error de registro corregido (`"intenta otra vez.. Intenta de nuevo."` → `"intenta otra vez."`).
+
+### Historia Clínica: 3 mejoras UX rápidas
+
+- **DNI + edad en header del modal de HC**: la query del scheduler ahora trae `dni` y `birth_date` en el join `patients(...)`. `appointment-sidebar.tsx` los propaga al `ClinicalNoteModal` via `patientDni` (ya existía como prop pero estaba hardcoded a `null`) y nuevo `patientBirthDate`. Header renderiza badges `DNI: 12345678` y `42 años` junto al nombre del paciente.
+- **Label SOAP "Subjetivo" → "Motivo de consulta (Subjetivo)"** en `SOAP_LABELS.subjective.label` (centralizado en `types/clinical-notes.ts`). El cambio se propaga automáticamente al editor (clinical-note-panel), drawer del paciente, modal de historia clínica, plantillas admin y plantillas de impresión. Razón: los doctores no siempre conocen el método SOAP académico; el término técnico entre paréntesis preserva la estructura clínica pero baja la fricción cognitiva.
+- **Layout SOAP vertical**: los 4 campos S/O/A/P en `clinical-note-panel.tsx` pasan de `grid grid-cols-1 md:grid-cols-2` (en `wideLayout`) a `space-y-3` siempre. Razón: los doctores escriben en flujo secuencial; las columnas obligaban a navegar lateralmente y reducían el área útil de cada caja.
+
+### Múltiples diagnósticos CIE-10 por nota (migración 124)
+
+**Problema:** una nota clínica solo soportaba un `diagnosis_code` + `diagnosis_label`. La realidad clínica peruana (especialmente geriatría, internal med, derma, endocrino) tiene comorbilidades como regla, no excepción. SUSALUD/SIS pide primario + secundarios.
+
+**Decisión de schema:** tabla normalizada `clinical_note_diagnoses` (no JSONB) por:
+- Analítica futura barata: "pacientes con E11 + I10 simultáneo", reportes epidemiológicos, búsqueda por código.
+- Modelo coincide con HIS-MINSA / RIS / SIS para facturación (primary + secondary).
+
+**Estructura:**
+
+```sql
+CREATE TABLE clinical_note_diagnoses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinical_note_id UUID NOT NULL REFERENCES clinical_notes(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  label TEXT NOT NULL,
+  is_primary BOOLEAN NOT NULL DEFAULT false,
+  position INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Un primary por nota (partial unique index).
+CREATE UNIQUE INDEX uq_clinical_note_diagnoses_primary
+  ON clinical_note_diagnoses(clinical_note_id) WHERE is_primary = true;
+
+-- Sin duplicar el mismo código en la misma nota (case-insensitive).
+CREATE UNIQUE INDEX uq_clinical_note_diagnoses_unique_code
+  ON clinical_note_diagnoses(clinical_note_id, lower(code));
+```
+
+**Compat con código legacy (clave del diseño):** se mantienen las columnas `clinical_notes.diagnosis_code/label` como **espejo del primary**, gestionado por el trigger `sync_primary_diagnosis_to_note` (AFTER INSERT/UPDATE/DELETE en `clinical_note_diagnoses`). Resultado: prints, exam orders, prescriptions, history views, audit logs y todo lo legacy sigue funcionando 100% sin tocarlos. Las columnas legacy quedan formalmente "deprecated, do not write directly" (TODO: agregar `COMMENT ON COLUMN` y eventualmente trigger BEFORE UPDATE que rechace escrituras directas).
+
+**Backfill:** la migración inserta una fila por cada `clinical_notes` con `diagnosis_code IS NOT NULL`, marcada `is_primary=true`, `position=0`.
+
+**API:**
+- `GET /api/clinical-notes` incluye `diagnoses:clinical_note_diagnoses(*)` en el join.
+- `POST` y `PATCH` aceptan `diagnoses[]` (replace-all semantics) o caen al legacy `diagnosis_code/label` si vienen solos.
+- Helper `replaceDiagnoses()` centraliza delete + insert atómico + asignación de exactamente un `is_primary` (si el caller no lo marca, el primero del array gana).
+
+**UI editor (`clinical-note-panel.tsx`):**
+- State pasa de `diagnosisCode/Label` (single) a `diagnoses: ClinicalNoteDiagnosisInput[]`.
+- Buscador CIE-10 agrega chip al set (dedupe case-insensitive). Items ya agregados aparecen disabled+gris en el dropdown.
+- Cada chip: borde primary + estrella sólida si `i === 0` (principal); resto con borde border + ★ outlined (click promueve a principal) y × para remover.
+- Plantillas legacy con `diagnosis_code` se convierten en chip principal sin perder los previos.
+- Botón discreto `+ Código manual` debajo del buscador abre dos inputs inline (código mono + descripción) — agrega chip one-off sin persistir al catálogo de la org. Hint a Settings → CIE-10 personalizados para escalado.
+
+**Read-only views actualizados:**
+- `clinical-history-modal.tsx`, `patient-drawer.tsx` (note expandido), `clinical-note-print.tsx`: render lista completa de chips/líneas con badge "principal" para el primario.
+- `diagnosis-history-panel.tsx`: ahora cuenta cada diagnóstico individual (no cada nota), agrupando comorbilidades correctamente para el panel "Historial de Diagnósticos" del paciente.
+
+**Recetas y exam orders:** ya estaban scoped por `clinical_note_id` (migraciones 053 y 078) — no se tocan. El link receta↔diagnóstico-específico (columna `for_diagnosis_id`) queda como follow-up en COMING-UPDATES.
+
+### Toggle Nota | Timeline en modal de HC
+
+**Problema observado:** durante la consulta en vivo, el doctor ve "K29.7 · gastritis crónica · 2026-03-15" en antecedentes y quiere ver qué le mandó la última vez. Hoy implica: cerrar modal de consulta → ir al drawer del paciente → tab Historia Clínica → expandir nota → leer. 4-5 clicks rotos por consulta recurrente.
+
+**Solución:** sub-header sticky con segmented control `📄 Nota` | `🕘 Timeline` debajo del header principal del modal. Diseño inspirado en el toggle día/semana del scheduler (consistencia visual).
+
+**Comportamiento:**
+- **Solo aparece si hay paciente vinculado** (sin paciente = no hay historial).
+- **Modo Nota** = layout actual (2-col SOAP + side panels) — sin cambios.
+- **Modo Timeline** = full-width con cards colapsables. Default descendente (más reciente arriba); botón en filtro alterna asc/desc. Botones Expandir-todo / Colapsar cuando hay >1 nota.
+- **Cards colapsadas** muestran fecha · hora · doctor (con dot de color) · top-2 chips de diagnóstico (+N más) — scan rápido sin expandir.
+- **Body lazy-renderizado**: el SOAP completo + diagnósticos + vitales + signed badge solo se construyen al expandir (perf con pacientes crónicos de 50+ consultas).
+- **Excluye la nota de la consulta actual** (evita duplicar lo que el doctor ya está viendo).
+- **CTAs Save/Sign/Print y Ctrl+S** ocultos en Timeline (read-only).
+- **Estado preservado**: el editor de Nota queda siempre montado (CSS `hidden`) entre toggles → no pierde draft ni autosave.
+- **Mount-once del Timeline**: primera vez que se entra, se carga; al volver a Nota y regresar, datos cacheados (no re-fetch). Dedupe por `patientId` vía ref.
+- Reset al cerrar el modal — próxima apertura siempre arranca en Nota.
+
+**Componente nuevo:** `app/(dashboard)/scheduler/notes-timeline.tsx` (~370 líneas). Internamente usa los mismos chips/colores/iconografía que el editor para que el doctor vea la misma UI de diagnósticos en lectura y escritura.
+
+**Beneficio:** elimina 4-5 clicks de fricción ("¿qué le mandé la última vez?") al revisar contexto durante la consulta en vivo. No requiere migración ni cambios de schema — los datos ya estaban.
+
+### Archivos tocados (v0.14.2)
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/migrations/122_get_user_id_by_email.sql` *(nuevo)* | RPC SECURITY DEFINER con permisos restringidos a service_role |
+| `app/api/auth/accept-terms/route.ts` | Forzar TERMS_VERSION server-side (ignorar campo cliente) |
+| `app/api/auth/register-invited/route.ts` | Forzar TERMS_VERSION + reemplazar listUsers() por RPC |
+| `app/api/informed-consents/route.ts` | Path en lugar de signed URL persistido + signed URL on-demand en GET + filtro requerido en GET + validación org del paciente en POST + zod cap 200KB |
+| `supabase/migrations/123_consent_hardening_and_terms_gate.sql` *(nuevo)* | Storage UPDATE policy + CHECK length signature_data + RPC get_user_session_check con accepted_terms_at/version |
+| `lib/supabase/middleware.ts` | Terms-acceptance gate + /onboarding/accept-terms en isOnboardingFlow |
+| `components/clinical/informed-consent-modal.tsx` | consent_type inicia null + bloqueo paso 1 + tooltip de selección requerida |
+| `app/(auth)/register/page.tsx` | Fix texto duplicado en error de registro |
+| `app/(dashboard)/scheduler/page.tsx` | Join `patients(is_recurring, dni, birth_date)` en query del scheduler |
+| `app/(dashboard)/scheduler/appointment-sidebar.tsx` | Pasa `patientDni` real (no null) y nuevo `patientBirthDate` al modal HC |
+| `app/(dashboard)/scheduler/clinical-note-modal.tsx` | Header con DNI + edad + toggle Nota/Timeline + lazy mount + ocultar CTAs en Timeline |
+| `app/(dashboard)/scheduler/clinical-note-panel.tsx` | State multi-diagnóstico + chips + buscador con dedupe + botón "Código manual" inline + layout SOAP vertical (sin grid 2-col) |
+| `types/clinical-notes.ts` | Label SOAP "Motivo de consulta (Subjetivo)" + interfaces ClinicalNoteDiagnosis + ClinicalNoteDiagnosisInput + diagnoses?: en ClinicalNote |
+| `lib/validations/clinical-note.ts` | Schema diagnoses array (max 20, code+label+is_primary?+position?) en clinicalNoteSchema |
+| `app/api/clinical-notes/route.ts` | GET incluye diagnoses join + helper `replaceDiagnoses()` exportado + POST extrae diagnoses + reemplaza set + re-fetch |
+| `app/api/clinical-notes/[id]/route.ts` | Importa replaceDiagnoses + PATCH reemplaza set después de update + audit log incluye "Diagnósticos" |
+| `app/(dashboard)/scheduler/clinical-note-print.tsx` | Render lista completa con badge "principal" |
+| `app/(dashboard)/patients/clinical-history-modal.tsx` | Render lista completa de chips con badge "principal" |
+| `app/(dashboard)/patients/patient-drawer.tsx` | Render lista completa de chips en note expandido |
+| `app/(dashboard)/patients/diagnosis-history-panel.tsx` | Cuenta cada diagnóstico individual (no cada nota) |
+| `supabase/migrations/124_clinical_note_diagnoses.sql` *(nuevo)* | Tabla normalizada + indexes + RLS + backfill + trigger sync primary→legacy |
+| `app/(dashboard)/scheduler/notes-timeline.tsx` *(nuevo)* | Timeline lazy con cards colapsables, filtro asc/desc, expand/collapse-all |
+| `COMING-UPDATES.md` | Item nuevo: link receta/examen ↔ diagnóstico específico (post-mig 124) |
+| `PRD.md` | Esta sección 38 + bullets en sección 12 + header v0.14.2 |
+
+### Operaciones requeridas para activar v0.14.2
+
+1. **Aplicar migración 122** (RPC `get_user_id_by_email`):
+   ```
+   supabase db push
+   ```
+   o pegar `supabase/migrations/122_get_user_id_by_email.sql` en SQL Editor.
+2. **Aplicar migración 123** (storage UPDATE policy + CHECK signature_data + RPC con accepted_terms_at): Supabase advertirá "Query has destructive operations" por la línea `DROP TRIGGER IF EXISTS`. Es seguro confirmar — es el patrón estándar para triggers idempotentes (drop si existe + recrear). En primera ejecución es no-op.
+3. **Aplicar migración 124** (tabla `clinical_note_diagnoses` + backfill + trigger):
+   - El backfill se ejecuta dentro de la migración (`INSERT ... ON CONFLICT DO NOTHING`).
+   - Verificar post-aplicación: `SELECT count(*) FROM clinical_note_diagnoses WHERE is_primary = true;` debe coincidir con `SELECT count(*) FROM clinical_notes WHERE diagnosis_code IS NOT NULL AND diagnosis_code <> '';`.
+   - El trigger `sync_primary_diagnosis_to_note` queda activo automáticamente.
+4. **Probar flujos críticos:**
+   - Usuario pre-existente (creado antes de mig 116) navega a `/dashboard` → debe redirigir a `/onboarding/accept-terms`. Aceptar términos y verificar que `accepted_terms_at` y `accepted_terms_version = TERMS_VERSION` quedan persistidos.
+   - Crear cita de paciente con DNI y birth_date → abrir modal HC → confirmar que header muestra "DNI: ..." y "X años".
+   - En editor de nota, agregar 2 diagnósticos vía buscador (ej. E11.9 y I10) → confirmar chips, promover el segundo a principal con ★, guardar → reabrir nota y verificar que el primary quedó correcto y que `clinical_notes.diagnosis_code` espeja el primary.
+   - Botón `+ Código manual`: agregar un código no catalogado (ej. K30.X) → confirmar que aparece como chip pero no aparece en el buscador después (no se persistió al catálogo).
+   - Toggle Nota → Timeline en paciente con varias consultas previas: verificar cards colapsadas con chips de diagnóstico, expandir una para ver SOAP completo, alternar asc/desc, volver a Nota y confirmar que el draft del autosave no se perdió.
+
+### Decisiones de diseño con contexto
+
+- **Tabla normalizada en lugar de JSONB**: comorbilidades aparecerán en reportes epidemiológicos, búsquedas "pacientes con E11 + I10", facturación SIS y export a HIS-MINSA. JSONB hubiera sido más rápido de implementar pero malo para analítica posterior. El costo extra (1 tabla, 1 trigger) es ~150 líneas de SQL.
+- **Trigger en lugar de view**: una vista derivada de `clinical_note_diagnoses` para reemplazar `clinical_notes.diagnosis_code` rompería decenas de queries que hacen `SELECT * FROM clinical_notes`. El trigger mantiene compat 100% sin tocar lectores.
+- **`replaceDiagnoses()` hace DELETE + INSERT en lugar de diff-based**: para N=1-3 chips típicos el costo es invisible. Diff-based duplicaría la complejidad del helper sin ganancia visible. Cuando una nota llegue a 8+ diagnósticos y autosave fire frecuentemente → ahí sí.
+- **Botón "Código manual" agrega chip sin persistir al catálogo**: forzar al doctor a ir a Settings → CIE-10 personalizados para un código one-off es fricción. Un input libre permanente invita a abuso (typos, fake codes). El botón discreto + hint a Settings es el balance correcto.
+- **Toggle Nota|Timeline en lugar de modal-on-modal con botón "Ver" por diagnóstico**: el toggle es estrictamente mejor — sin pelea de z-index/Esc, scan de múltiples consultas a la vez, descubre consultas sin diagnóstico (solo seguimiento), reusa patrón existente de cards colapsables. La idea original ("Ver" por diagnóstico) hubiera sido más lineal pero más friccional.
+- **Mount-once del Timeline + estado preservado del editor con CSS `hidden`**: alternar entre Nota y Timeline NO debe perder el draft del autosave. Unmount/remount lo perdería. CSS `hidden` mantiene el árbol React montado pero invisible — el editor sigue ejecutando su autosave timer aunque esté en Timeline.
+- **`/onboarding/accept-terms` agregado a `isOnboardingFlow`**: si no, el middleware la trataría como ruta protegida — un usuario con membresía sin onboarding completado quedaría en loop entre `/onboarding/accept-terms` y `/onboarding`. Listándola en `isOnboardingFlow` la marca como pre-gates.
 
