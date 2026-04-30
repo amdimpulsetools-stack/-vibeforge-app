@@ -134,14 +134,10 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          {prescriptions.length > 0 && patientName && doctorName && appointmentDate && (
+          {prescriptions.length > 0 && appointmentId && (
             <PrescriptionPrintButton
+              appointmentId={appointmentId}
               prescriptions={prescriptions}
-              patientName={patientName}
-              patientDni={patientDni}
-              doctorName={doctorName}
-              appointmentDate={appointmentDate}
-              clinicName={clinicName}
             />
           )}
           {canEdit && doctorId && !isSigned && (
