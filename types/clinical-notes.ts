@@ -1,5 +1,29 @@
 // ── Clinical Notes Types ────────────────────────────────────────────────────
 
+/**
+ * Diagnóstico CIE-10 asociado a una nota clínica (migración 124).
+ * Una nota puede tener múltiples diagnósticos; el primary se espeja a
+ * clinical_notes.diagnosis_code/label vía trigger.
+ */
+export interface ClinicalNoteDiagnosis {
+  id: string;
+  clinical_note_id: string;
+  organization_id: string;
+  code: string;
+  label: string;
+  is_primary: boolean;
+  position: number;
+  created_at: string;
+}
+
+/** Payload para crear/reemplazar la lista de diagnósticos de una nota. */
+export interface ClinicalNoteDiagnosisInput {
+  code: string;
+  label: string;
+  is_primary?: boolean;
+  position?: number;
+}
+
 /** Vitals stored as JSONB in clinical_notes.vitals */
 export interface Vitals {
   weight_kg?: number | null;
@@ -25,8 +49,13 @@ export interface ClinicalNote {
   assessment: string;
   plan: string;
 
+  /** @deprecated Espejo del diagnóstico primario. Lee `diagnoses` en su lugar. */
   diagnosis_code: string | null;
+  /** @deprecated Espejo del diagnóstico primario. Lee `diagnoses` en su lugar. */
   diagnosis_label: string | null;
+  /** Lista completa de diagnósticos CIE-10 (migración 124). Optional porque
+   *  algunas queries no la traen. */
+  diagnoses?: ClinicalNoteDiagnosis[];
   is_signed: boolean;
   signed_at: string | null;
 

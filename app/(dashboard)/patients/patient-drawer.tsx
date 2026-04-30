@@ -907,17 +907,41 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                           );
                         })}
 
-                        {/* Diagnosis */}
-                        {(cn_note.diagnosis_code || cn_note.diagnosis_label) && (
-                          <div className="pl-[22px] text-xs">
-                            <span className="text-[10px] font-semibold text-muted-foreground uppercase">Diagnóstico: </span>
-                            {cn_note.diagnosis_code && (
-                              <span className="font-mono font-medium text-primary">{cn_note.diagnosis_code}</span>
-                            )}
-                            {cn_note.diagnosis_code && cn_note.diagnosis_label && " — "}
-                            {cn_note.diagnosis_label}
-                          </div>
-                        )}
+                        {/* Diagnósticos (lista completa, migración 124) */}
+                        {(() => {
+                          const list = (cn_note.diagnoses && cn_note.diagnoses.length > 0)
+                            ? cn_note.diagnoses.slice().sort((a, b) => {
+                                if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+                                return a.position - b.position;
+                              })
+                            : cn_note.diagnosis_code
+                              ? [{ code: cn_note.diagnosis_code, label: cn_note.diagnosis_label ?? cn_note.diagnosis_code, is_primary: true }]
+                              : [];
+                          if (list.length === 0) return null;
+                          return (
+                            <div className="pl-[22px]">
+                              <span className="text-[10px] font-semibold text-muted-foreground uppercase block mb-1">
+                                Diagnóstico{list.length > 1 ? "s" : ""}
+                              </span>
+                              <div className="flex flex-wrap gap-1">
+                                {list.map((d, i) => (
+                                  <span
+                                    key={d.code}
+                                    className={cn(
+                                      "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]",
+                                      i === 0
+                                        ? "border-primary/40 bg-primary/10 text-primary"
+                                        : "border-border bg-muted/40 text-foreground"
+                                    )}
+                                  >
+                                    <span className="font-mono font-semibold">{d.code}</span>
+                                    <span className="opacity-80">{d.label}</span>
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })()}
 
                         {/* Vitals summary */}
                         {hasVitals && (

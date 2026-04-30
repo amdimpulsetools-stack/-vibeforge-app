@@ -229,26 +229,55 @@ export function ClinicalHistoryModal({
                             })}
                           </div>
 
-                          {/* Diagnosis */}
-                          {(note.diagnosis_code ||
-                            note.diagnosis_label) && (
-                            <div className="rounded-lg bg-muted/30 px-4 py-3">
-                              <span className="text-xs font-semibold text-muted-foreground uppercase">
-                                Diagnóstico:{" "}
-                              </span>
-                              {note.diagnosis_code && (
-                                <span className="font-mono font-semibold text-sm text-primary">
-                                  {note.diagnosis_code}
+                          {/* Diagnósticos (lista completa, migración 124) */}
+                          {(() => {
+                            const list = (note.diagnoses && note.diagnoses.length > 0)
+                              ? note.diagnoses.slice().sort((a, b) => {
+                                  if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+                                  return a.position - b.position;
+                                })
+                              : note.diagnosis_code
+                                ? [{
+                                    id: "legacy",
+                                    clinical_note_id: note.id,
+                                    organization_id: note.organization_id,
+                                    code: note.diagnosis_code,
+                                    label: note.diagnosis_label ?? note.diagnosis_code,
+                                    is_primary: true,
+                                    position: 0,
+                                    created_at: note.created_at,
+                                  }]
+                                : [];
+                            if (list.length === 0) return null;
+                            return (
+                              <div className="rounded-lg bg-muted/30 px-4 py-3">
+                                <span className="text-xs font-semibold text-muted-foreground uppercase block mb-2">
+                                  Diagnóstico{list.length > 1 ? "s" : ""}
                                 </span>
-                              )}
-                              {note.diagnosis_code &&
-                                note.diagnosis_label &&
-                                " — "}
-                              <span className="text-sm">
-                                {note.diagnosis_label}
-                              </span>
-                            </div>
-                          )}
+                                <div className="flex flex-wrap gap-1.5">
+                                  {list.map((d, i) => (
+                                    <span
+                                      key={d.code}
+                                      className={cn(
+                                        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs",
+                                        i === 0
+                                          ? "border-primary/40 bg-primary/10 text-primary"
+                                          : "border-border bg-background text-foreground"
+                                      )}
+                                    >
+                                      <span className="font-mono font-semibold">{d.code}</span>
+                                      <span className="opacity-80">{d.label}</span>
+                                      {i === 0 && list.length > 1 && (
+                                        <span className="text-[9px] uppercase tracking-wide opacity-70">
+                                          principal
+                                        </span>
+                                      )}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
 
                           {/* Vitals */}
                           {hasVitals && (
