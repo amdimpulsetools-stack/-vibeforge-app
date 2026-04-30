@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
 import { registerInvitedSchema } from "@/lib/validations/api";
+import { TERMS_VERSION } from "@/lib/constants";
 
 const registerLimiter = rateLimit({ max: 5, windowMs: 60 * 1000 });
 
@@ -21,8 +22,10 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, registerInvitedSchema);
   if (parsed.error) return parsed.error;
-  const { email, password, fullName, inviteToken, termsVersion } = parsed.data;
+  const { email, password, fullName, inviteToken } = parsed.data;
   const acceptedAt = new Date().toISOString();
+  // Always use the server's authoritative version — never trust the client.
+  const termsVersion = TERMS_VERSION;
 
   const supabaseAdmin = createAdminClient();
 
@@ -56,11 +59,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Check if user already exists (created by inviteUserByEmail)
-  const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-  const existingUser = existingUsers?.users?.find(
-    (u) => u.email?.toLowerCase() === email.toLowerCase()
+  // Check if user already exists (created by inviteUserByEmail).
+  // Use RPC to query auth.users by email instead of loading all users.
+  const { data: existingUserRows } = await supabaseAdmin.rpc(
+    "get_user_id_by_email" as never,
+    { lookup_email: email.toLowerCase() } as never,
   );
+  let existingUser: Awaited<
+    ReturnType<typeof supabaseAdmin.auth.admin.getUserById>
+  >["data"]["user"] | null = null;
+
+  const matchedId = (existingUserRows as { id: string }[] | null)?.[0]?.id;
+  if (matchedId) {
+    const { data: fetched } = await supabaseAdmin.auth.admin.getUserById(matchedId);
+    existingUser = fetched?.user ?? null;
+  }
 
   let userId: string;
 

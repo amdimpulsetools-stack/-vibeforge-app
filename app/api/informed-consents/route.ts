@@ -66,7 +66,19 @@ export async function GET(request: NextRequest) {
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ data: (data ?? []) as InformedConsentRecord[] });
+  // Generate fresh signed URLs for any consent that has a stored path.
+  const rows = (data ?? []) as InformedConsentRecord[];
+  const enriched = await Promise.all(
+    rows.map(async (row) => {
+      if (!row.pdf_url || row.pdf_url.startsWith("http")) return row;
+      const { data: signed } = await supabase.storage
+        .from("informed-consents")
+        .createSignedUrl(row.pdf_url, 60 * 60); // 1 hour
+      return { ...row, pdf_url: signed?.signedUrl ?? null };
+    }),
+  );
+
+  return NextResponse.json({ data: enriched });
 }
 
 export async function POST(request: NextRequest) {
@@ -219,22 +231,16 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Signed URL good for 7 days, refreshable on demand from the listing UI.
-  const { data: signed } = await supabase.storage
-    .from("informed-consents")
-    .createSignedUrl(path, 60 * 60 * 24 * 7);
-
-  const pdfUrl = signed?.signedUrl ?? null;
-  if (pdfUrl) {
-    await supabase
-      .from("informed_consents")
-      .update({ pdf_url: pdfUrl })
-      .eq("id", consentRow.id);
-  }
+  // Persist the storage path (not a signed URL) so it never expires.
+  // Signed URLs are generated on demand when the client fetches the consent.
+  await supabase
+    .from("informed_consents")
+    .update({ pdf_url: path })
+    .eq("id", consentRow.id);
 
   return NextResponse.json(
     {
-      data: { ...consentRow, pdf_url: pdfUrl },
+      data: { ...consentRow, pdf_url: path },
     },
     { status: 201 },
   );
