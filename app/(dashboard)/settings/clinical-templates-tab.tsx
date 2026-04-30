@@ -109,14 +109,16 @@ export default function ClinicalTemplatesTab() {
       const json = await res.json();
       const list = (json.data ?? []) as ClinicalDocumentTemplate[];
       setTemplates(list);
-      // Auto-seleccionar la primera disponible (prescription)
+      // Auto-seleccionar la primera disponible (prescription) AUNQUE no haya
+      // fila aún. El editor a la derecha trabajará con defaults; el upsert
+      // en PATCH crea la fila al primer guardado.
       if (!activeSlug) {
         const firstAvailable = SLUGS.find((s) => s.available);
-        const found = list.find((t) => t.slug === firstAvailable?.slug);
-        if (found) {
-          setActiveSlug(found.slug);
-          setDraftHtml(found.body_html ?? "");
-          setDraftEnabled(found.is_enabled);
+        if (firstAvailable) {
+          setActiveSlug(firstAvailable.slug);
+          const found = list.find((t) => t.slug === firstAvailable.slug);
+          setDraftHtml(found?.body_html ?? "");
+          setDraftEnabled(found?.is_enabled ?? true);
         }
       }
     } catch (err) {
@@ -133,10 +135,12 @@ export default function ClinicalTemplatesTab() {
   const activeTemplate = templates.find((t) => t.slug === activeSlug) ?? null;
   const activeMeta = SLUGS.find((s) => s.slug === activeSlug);
 
-  // Detectar cambios sin guardar.
-  const isDirty =
-    !!activeTemplate &&
-    (draftHtml !== activeTemplate.body_html || draftEnabled !== activeTemplate.is_enabled);
+  // Detectar cambios sin guardar. Si aún no hay fila en DB, comparamos contra
+  // el estado "vacío inicial" (body_html='', is_enabled=true) para que el
+  // botón Guardar se habilite cuando el usuario empiece a escribir.
+  const baseHtml = activeTemplate?.body_html ?? "";
+  const baseEnabled = activeTemplate?.is_enabled ?? true;
+  const isDirty = draftHtml !== baseHtml || draftEnabled !== baseEnabled;
 
   const selectSlug = (slug: TemplateSlug) => {
     if (isDirty) {
@@ -150,7 +154,7 @@ export default function ClinicalTemplatesTab() {
   };
 
   const handleSave = async () => {
-    if (!activeSlug || !activeTemplate) return;
+    if (!activeSlug) return;
     setSaving(true);
     try {
       const res = await fetch(`/api/clinical-document-templates/${activeSlug}`, {
@@ -167,7 +171,12 @@ export default function ClinicalTemplatesTab() {
       }
       const json = await res.json();
       const updated = json.data as ClinicalDocumentTemplate;
-      setTemplates((prev) => prev.map((t) => (t.slug === activeSlug ? updated : t)));
+      // Insert si la fila no existía, replace si sí. Mantenemos el array
+      // ordenado por slug.
+      setTemplates((prev) => {
+        const filtered = prev.filter((t) => t.slug !== updated.slug);
+        return [...filtered, updated].sort((a, b) => a.slug.localeCompare(b.slug));
+      });
       toast.success("Plantilla guardada");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error de red");
@@ -177,9 +186,8 @@ export default function ClinicalTemplatesTab() {
   };
 
   const handleDiscard = () => {
-    if (!activeTemplate) return;
-    setDraftHtml(activeTemplate.body_html ?? "");
-    setDraftEnabled(activeTemplate.is_enabled);
+    setDraftHtml(activeTemplate?.body_html ?? "");
+    setDraftEnabled(activeTemplate?.is_enabled ?? true);
   };
 
   if (loading) {
@@ -255,7 +263,7 @@ export default function ClinicalTemplatesTab() {
 
         {/* Editor */}
         <div className="space-y-4">
-          {!activeTemplate || !activeMeta ? (
+          {!activeMeta ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 py-20 text-center">
               <FileText className="h-8 w-8 text-muted-foreground/40 mb-2" />
               <p className="text-sm text-muted-foreground">
@@ -269,11 +277,16 @@ export default function ClinicalTemplatesTab() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <h3 className="text-base font-semibold">{activeMeta.label}</h3>
-                    {activeTemplate.description && (
+                    {activeTemplate?.description ? (
                       <p className="mt-1 text-xs text-muted-foreground">
                         {activeTemplate.description}
                       </p>
-                    )}
+                    ) : !activeTemplate ? (
+                      <p className="mt-1 text-xs text-amber-600 dark:text-amber-500">
+                        Plantilla aún no inicializada para tu organización. Edítala y
+                        guarda — se creará automáticamente.
+                      </p>
+                    ) : null}
                   </div>
                   {/* Toggle habilitar */}
                   <label className="flex items-center gap-2 cursor-pointer text-xs">
