@@ -12,6 +12,7 @@ import {
   Save,
   RotateCcw,
   Lock,
+  CheckCircle2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RichTextEditor, type RichTextEditorHandle } from "@/components/rich-text-editor";
@@ -255,7 +256,9 @@ export default function ClinicalTemplatesTab() {
                   </span>
                 ) : tpl && !tpl.is_enabled ? (
                   <Lock className="h-3 w-3 text-muted-foreground/60" />
-                ) : null}
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                )}
               </button>
             );
           })}
