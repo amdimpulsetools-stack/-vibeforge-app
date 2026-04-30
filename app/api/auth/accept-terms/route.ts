@@ -36,7 +36,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const version = parsed.data.termsVersion || TERMS_VERSION;
+  // Always use the server's authoritative version — never trust the client.
+  const version = TERMS_VERSION;
   const acceptedAt = new Date().toISOString();
 
   const { error } = await supabase
