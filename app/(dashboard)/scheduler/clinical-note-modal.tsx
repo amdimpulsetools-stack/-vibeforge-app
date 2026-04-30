@@ -15,6 +15,7 @@ import {
 } from "./clinical-note-panel";
 import { ClinicalSidePanels } from "./clinical-side-panels";
 import { ClinicalNotePrintButton } from "./clinical-note-print";
+import { NotesTimeline } from "./notes-timeline";
 import {
   User,
   CalendarDays,
@@ -25,6 +26,8 @@ import {
   Loader2,
   Cloud,
   CloudOff,
+  FileText,
+  History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateAge } from "@/lib/export";
@@ -81,6 +84,21 @@ export function ClinicalNoteModal({
     autoSaveStatus: "idle",
   });
 
+  // View toggle: "note" = editor de la consulta actual, "timeline" =
+  // historial de notas anteriores del paciente. Mantenemos el panel de Nota
+  // siempre montado para preservar estado del editor; el Timeline se monta
+  // la primera vez que se abre y permanece montado para cachear datos.
+  const [view, setView] = useState<"note" | "timeline">("note");
+  const [hasOpenedTimeline, setHasOpenedTimeline] = useState(false);
+  useEffect(() => {
+    if (view === "timeline") setHasOpenedTimeline(true);
+  }, [view]);
+
+  // Reset al cerrar el modal — la próxima apertura empieza siempre en Nota.
+  useEffect(() => {
+    if (!open) setView("note");
+  }, [open]);
+
   const isSigned = panelState.isLocked;
   const canSign =
     canEdit &&
@@ -89,8 +107,9 @@ export function ClinicalNoteModal({
     !!panelState.note;
 
   // Ctrl+S / Cmd+S triggers save while the modal is open and editable.
+  // Solo activo en modo Nota — en Timeline no hay nada que guardar.
   useEffect(() => {
-    if (!open || !canEdit || isSigned) return;
+    if (!open || !canEdit || isSigned || view !== "note") return;
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
@@ -99,7 +118,7 @@ export function ClinicalNoteModal({
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [open, canEdit, isSigned, panelState.isSaving]);
+  }, [open, canEdit, isSigned, panelState.isSaving, view]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -190,8 +209,8 @@ export function ClinicalNoteModal({
               </DialogDescription>
             </div>
 
-            {/* Global CTAs — always visible while the modal is open */}
-            {canEdit && (
+            {/* Global CTAs — solo en modo Nota (Timeline es read-only). */}
+            {canEdit && view === "note" && (
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 {panelState.note &&
                   panelState.hasContent &&
@@ -248,13 +267,60 @@ export function ClinicalNoteModal({
           </div>
         </DialogHeader>
 
+        {/* View toggle — Nota | Timeline. Sub-header sticky bajo el header
+            principal para que esté siempre visible al hacer scroll. Solo
+            mostrar si hay paciente vinculado (sin paciente no hay historial
+            que mostrar). */}
+        {patientId && (
+          <div className="sticky top-[68px] z-[9] border-b border-border bg-card/95 backdrop-blur px-4 py-2 md:px-6">
+            <div
+              className="inline-flex items-center gap-1 rounded-lg bg-muted p-1"
+              role="tablist"
+              aria-label="Vista de la historia clínica"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "note"}
+                onClick={() => setView("note")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  view === "note"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Nota
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === "timeline"}
+                onClick={() => setView("timeline")}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                  view === "timeline"
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <History className="h-3.5 w-3.5" />
+                Timeline
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Body */}
         <div className="px-4 py-4 md:px-6 md:py-5">
+          {/* Modo Nota — siempre montado para preservar estado del editor. */}
           <div
             className={cn(
               "grid grid-cols-1 gap-4 md:gap-6",
               "xl:grid-cols-[minmax(0,1fr)_440px] 2xl:grid-cols-[minmax(0,1fr)_500px]",
-              isSigned && "xl:items-start"
+              isSigned && "xl:items-start",
+              view !== "note" && "hidden"
             )}
           >
             {/* Left: SOAP Clinical Note */}
@@ -297,6 +363,17 @@ export function ClinicalNoteModal({
               </div>
             )}
           </div>
+
+          {/* Modo Timeline — full-width, lazy-mounted la primera vez y luego
+              persistido para cachear datos entre toggles. */}
+          {hasOpenedTimeline && (
+            <div className={cn(view !== "timeline" && "hidden")}>
+              <NotesTimeline
+                patientId={patientId}
+                currentNoteId={panelState.note?.id ?? null}
+              />
+            </div>
+          )}
         </div>
       </DialogContent>
     </Dialog>

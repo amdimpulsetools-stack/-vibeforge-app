@@ -578,6 +578,8 @@ Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vit
 
 ## 🏥 Historia Clínica
 
+- [ ] **Link receta/examen ↔ diagnóstico específico** — No hay link entre receta/examen y diagnóstico específico. Si el paciente tiene E11 + I10 y le recetas metformina, idealmente la receta debería decir "para E11". Hoy queda implícito ("para esta nota"). Para MVP es OK; para reportes farmacológicos serios faltaría.
+
 - [ ] **Importación masiva de códigos CIE-10** — La base ya permite agregar códigos personalizados uno a uno. Falta importar lotes (CSV/Excel) por especialidad para ahorrar tiempo a clínicas con muchos diagnósticos específicos.
 
 - [ ] **Consentimiento informado — Tier 2: Templates configurables + PDF pre-llenado** — Extiende el MVP (Tier 1, v0.12.2) con la generación automática del documento de consentimiento a partir de plantillas de la clínica. Hoy el doctor escribe el consentimiento en Word/fuera del sistema; esto lo trae dentro y reduce 10 min por procedimiento.
