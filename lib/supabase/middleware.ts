@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { TERMS_VERSION } from "@/lib/constants";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -80,6 +81,7 @@ export async function updateSession(request: NextRequest) {
   // Rutas del flujo de onboarding/plan (accesibles con auth pero sin plan)
   const isOnboardingFlow =
     pathname === "/onboarding" ||
+    pathname === "/onboarding/accept-terms" ||
     pathname === "/select-plan" ||
     pathname === "/waiting-for-plan" ||
     pathname === "/account-suspended";
@@ -124,6 +126,8 @@ export async function updateSession(request: NextRequest) {
       has_active_subscription: boolean;
       all_memberships_inactive?: boolean;
       membership_count?: number;
+      accepted_terms_at?: string | null;
+      accepted_terms_version?: string | null;
     };
 
     // 0. Suspended account — every membership is deactivated. Founders
@@ -132,6 +136,20 @@ export async function updateSession(request: NextRequest) {
     if (s.all_memberships_inactive === true && !s.is_founder) {
       const url = request.nextUrl.clone();
       url.pathname = "/account-suspended";
+      return applySecurityHeaders(NextResponse.redirect(url));
+    }
+
+    // 0b. Terms acceptance gate (Ley 29733). Pre-existing users created
+    // before migration 116 have NULL accepted_terms_at; new users who
+    // accepted an older TERMS_VERSION must re-accept after a bump.
+    const onAcceptTermsPage = pathname === "/onboarding/accept-terms";
+    const termsOutdated =
+      !s.accepted_terms_at ||
+      (s.accepted_terms_version != null && s.accepted_terms_version !== TERMS_VERSION);
+    if (termsOutdated && !onAcceptTermsPage) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/onboarding/accept-terms";
+      url.searchParams.set("next", pathname);
       return applySecurityHeaders(NextResponse.redirect(url));
     }
 
