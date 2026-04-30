@@ -110,28 +110,47 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
     fetchAll();
   }, [fetchAll]);
 
-  // Indexar por clinical_note_id para lookup O(1) en cada card.
+  // Mapa de appointment_id -> note.id para hacer fallback cuando una receta
+  // o examen tiene appointment_id pero no clinical_note_id (caso común en
+  // datos creados antes de wirear clinicalNoteId en clinical-side-panels).
+  const noteByAppointment = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const n of notes) {
+      if (n.appointment_id) map.set(n.appointment_id, n.id);
+    }
+    return map;
+  }, [notes]);
+
+  // Indexar por clinical_note_id para lookup O(1) en cada card. Si la fila
+  // no tiene clinical_note_id pero sí appointment_id, intentamos resolverlo
+  // vía noteByAppointment (rescata datos creados sin el FK directo).
   const prescriptionsByNote = useMemo(() => {
     const map = new Map<string, PrescriptionWithDoctor[]>();
     for (const rx of prescriptions) {
-      if (!rx.clinical_note_id) continue;
-      const list = map.get(rx.clinical_note_id) ?? [];
+      const noteId =
+        rx.clinical_note_id ??
+        (rx.appointment_id ? noteByAppointment.get(rx.appointment_id) : undefined);
+      if (!noteId) continue;
+      const list = map.get(noteId) ?? [];
       list.push(rx);
-      map.set(rx.clinical_note_id, list);
+      map.set(noteId, list);
     }
     return map;
-  }, [prescriptions]);
+  }, [prescriptions, noteByAppointment]);
 
   const examOrdersByNote = useMemo(() => {
     const map = new Map<string, ExamOrderRow[]>();
     for (const order of examOrders) {
-      if (!order.clinical_note_id) continue;
-      const list = map.get(order.clinical_note_id) ?? [];
+      const noteId =
+        order.clinical_note_id ??
+        (order.appointment_id ? noteByAppointment.get(order.appointment_id) : undefined);
+      if (!noteId) continue;
+      const list = map.get(noteId) ?? [];
       list.push(order);
-      map.set(order.clinical_note_id, list);
+      map.set(noteId, list);
     }
     return map;
-  }, [examOrders]);
+  }, [examOrders, noteByAppointment]);
 
   const visibleNotes = useMemo(() => {
     const filtered = currentNoteId

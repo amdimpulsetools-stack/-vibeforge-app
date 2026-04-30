@@ -352,6 +352,7 @@ export function ClinicalNoteModal({
                   patientId={patientId}
                   doctorId={doctorId}
                   appointmentId={appointmentId}
+                  clinicalNoteId={panelState.note?.id ?? null}
                   canEdit={canEdit}
                   isSigned={isSigned}
                   patientName={patientName}

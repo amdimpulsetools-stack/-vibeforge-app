@@ -37,6 +37,10 @@ interface ClinicalSidePanelsProps {
   patientId: string;
   doctorId: string;
   appointmentId?: string;
+  /** ID de la nota clínica vinculada a esta cita. Crítico para que las
+   *  recetas y exámenes nuevos queden ligados a la nota (no solo a la cita) —
+   *  sin esto, el Timeline de HC no puede agruparlos por consulta. */
+  clinicalNoteId?: string | null;
   canEdit: boolean;
   isSigned: boolean;
   patientName?: string;
@@ -52,6 +56,7 @@ export function ClinicalSidePanels({
   patientId,
   doctorId,
   appointmentId,
+  clinicalNoteId,
   canEdit,
   isSigned,
   patientName,
@@ -162,6 +167,7 @@ export function ClinicalSidePanels({
               patientId={patientId}
               doctorId={doctorId}
               appointmentId={appointmentId}
+              clinicalNoteId={clinicalNoteId ?? undefined}
               canEdit={canEdit}
               isSigned={isSigned}
               patientName={patientName}
@@ -183,6 +189,7 @@ export function ClinicalSidePanels({
               patientId={patientId}
               doctorId={doctorId}
               appointmentId={appointmentId}
+              clinicalNoteId={clinicalNoteId ?? undefined}
               canEdit={canEdit}
               isSigned={isSigned}
               patientName={patientName}
