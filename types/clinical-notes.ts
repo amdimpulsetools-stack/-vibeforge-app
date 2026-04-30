@@ -70,7 +70,7 @@ export type SOAPSection = "subjective" | "objective" | "assessment" | "plan";
 export const SOAP_LABELS: Record<SOAPSection, { letter: string; label: string; placeholder: string }> = {
   subjective: {
     letter: "S",
-    label: "Subjetivo",
+    label: "Motivo de consulta (Subjetivo)",
     placeholder: "Motivo de consulta, síntomas reportados por el paciente, historia de la enfermedad actual...",
   },
   objective: {

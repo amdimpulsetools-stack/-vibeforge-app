@@ -27,6 +27,7 @@ import {
   CloudOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { calculateAge } from "@/lib/export";
 import {
   CLINICAL_PRIMARY_CTA,
   CLINICAL_SIGN_CTA,
@@ -44,6 +45,7 @@ interface ClinicalNoteModalProps {
   appointmentStatus: string;
   patientName?: string;
   patientDni?: string | null;
+  patientBirthDate?: string | null;
   doctorName?: string;
   serviceName?: string;
   appointmentDate?: string;
@@ -61,12 +63,14 @@ export function ClinicalNoteModal({
   appointmentStatus,
   patientName,
   patientDni,
+  patientBirthDate,
   doctorName,
   serviceName,
   appointmentDate,
   appointmentTime,
   clinicName,
 }: ClinicalNoteModalProps) {
+  const patientAge = patientBirthDate ? calculateAge(patientBirthDate) : null;
   const panelRef = useRef<ClinicalNotePanelHandle>(null);
   const [panelState, setPanelState] = useState<ClinicalNotePanelState>({
     note: null,
@@ -128,6 +132,14 @@ export function ClinicalNoteModal({
                     <span className="flex items-center gap-1">
                       <User className="h-3 w-3" />
                       {patientName}
+                    </span>
+                  )}
+                  {patientDni && (
+                    <span className="font-medium">DNI: {patientDni}</span>
+                  )}
+                  {patientAge != null && (
+                    <span className="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                      {patientAge} años
                     </span>
                   )}
                   {appointmentDate && (
