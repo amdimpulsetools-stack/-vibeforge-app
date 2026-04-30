@@ -54,8 +54,20 @@ export async function GET(
   return NextResponse.json({ data });
 }
 
+// Default labels para auto-creación cuando la fila aún no existe
+// (org creada después del seed, o migración aún no aplicada — el upsert
+// igual funciona si la tabla existe).
+const DEFAULT_NAMES: Record<TemplateSlug, string> = {
+  prescription: "Receta médica",
+  clinical_note: "Nota clínica SOAP",
+  exam_order: "Orden de exámenes",
+  consent: "Consentimiento informado",
+  treatment_plan: "Plan de tratamiento",
+};
+
 // PATCH /api/clinical-document-templates/[slug] — actualiza body_html, etc.
-// Solo owner/admin (RLS lo refuerza con is_org_admin).
+// Hace upsert: si la fila no existe, la crea con los defaults. Solo
+// owner/admin (RLS lo refuerza con is_org_admin tanto en INSERT como UPDATE).
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ slug: string }> }
@@ -64,6 +76,7 @@ export async function PATCH(
   if (!VALID_SLUGS.includes(slug as TemplateSlug)) {
     return NextResponse.json({ error: "Slug inválido" }, { status: 400 });
   }
+  const validSlug = slug as TemplateSlug;
 
   const supabase = await createClient();
   const {
@@ -90,22 +103,45 @@ export async function PATCH(
     );
   }
 
+  // Resolver org del usuario (necesario para upsert si la fila no existe).
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id")
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .limit(1)
+    .single();
+
+  if (!membership) {
+    return NextResponse.json({ error: "No organization" }, { status: 403 });
+  }
+
+  // Upsert: insert si no existe (org+slug), update si existe.
   const { data, error } = await supabase
     .from("clinical_document_templates")
-    .update(parsed.data)
-    .eq("slug", slug)
+    .upsert(
+      {
+        organization_id: membership.organization_id,
+        slug: validSlug,
+        name: parsed.data.name ?? DEFAULT_NAMES[validSlug],
+        description: parsed.data.description ?? null,
+        body_html: parsed.data.body_html ?? "",
+        is_enabled: parsed.data.is_enabled ?? true,
+      },
+      { onConflict: "organization_id,slug" }
+    )
     .select("*")
     .maybeSingle();
 
   if (error) {
-    console.error("Clinical document template update error:", error);
+    console.error("Clinical document template upsert error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
   if (!data) {
     return NextResponse.json(
-      { error: "Plantilla no encontrada o sin permiso" },
-      { status: 404 }
+      { error: "No se pudo guardar la plantilla" },
+      { status: 500 }
     );
   }
 
