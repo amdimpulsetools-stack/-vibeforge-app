@@ -131,6 +131,13 @@ export const ClinicalNotePanel = forwardRef<
   const [showCie10, setShowCie10] = useState(false);
   const [customCie10, setCustomCie10] = useState<CIE10Entry[]>([]);
 
+  // Manual CIE-10 entry (sin persistir al catálogo). Para casos donde el
+  // doctor conoce un sub-código que aún no está catalogado pero no quiere
+  // crear un código personalizado permanente.
+  const [showManualCie10, setShowManualCie10] = useState(false);
+  const [manualCode, setManualCode] = useState("");
+  const [manualLabel, setManualLabel] = useState("");
+
   // Template state
   const [templates, setTemplates] = useState<ClinicalTemplateWithDoctor[]>([]);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -761,6 +768,78 @@ export const ClinicalNotePanel = forwardRef<
                 </>
               )}
             </div>
+
+            {/* Manual entry — para códigos no catalogados (no persiste al
+                catálogo de la org; vive solo dentro de esta nota). */}
+            {showManualCie10 ? (
+              <div className="rounded-lg border border-dashed border-border bg-muted/20 p-2 space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={manualCode}
+                    onChange={(e) => setManualCode(e.target.value)}
+                    placeholder="Código (ej: E11.9)"
+                    className="w-32 rounded-md border border-input bg-background px-2 py-1 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                  />
+                  <input
+                    type="text"
+                    value={manualLabel}
+                    onChange={(e) => setManualLabel(e.target.value)}
+                    placeholder="Descripción del diagnóstico"
+                    className="flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && manualCode.trim() && manualLabel.trim()) {
+                        e.preventDefault();
+                        addDiagnosis(manualCode, manualLabel);
+                        setManualCode("");
+                        setManualLabel("");
+                        setShowManualCie10(false);
+                      }
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] text-muted-foreground/70">
+                    Solo para esta nota. Si lo usas seguido, agrégalo en{" "}
+                    <span className="font-medium">Ajustes → CIE-10 personalizados</span>.
+                  </p>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowManualCie10(false);
+                        setManualCode("");
+                        setManualLabel("");
+                      }}
+                      className="rounded-md border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-muted transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!manualCode.trim() || !manualLabel.trim()}
+                      onClick={() => {
+                        addDiagnosis(manualCode, manualLabel);
+                        setManualCode("");
+                        setManualLabel("");
+                        setShowManualCie10(false);
+                      }}
+                      className="rounded-md bg-primary px-2 py-0.5 text-[11px] font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Agregar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowManualCie10(true)}
+                className="text-[11px] text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
+              >
+                + Código manual
+              </button>
+            )}
 
             {/* Chips: cada diagnóstico con × y star (promover a principal) */}
             {diagnoses.length > 0 ? (
