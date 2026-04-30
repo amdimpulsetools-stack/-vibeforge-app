@@ -19,16 +19,33 @@ interface DiagnosisEntry {
 }
 
 function buildDiagnoses(notes: (ClinicalNote & { doctors?: { full_name: string } })[]): DiagnosisEntry[] {
-  return notes
-    .filter((n) => n.diagnosis_code || n.diagnosis_label)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .map((n) => ({
-      code: n.diagnosis_code || "",
-      label: n.diagnosis_label || "",
-      date: n.created_at,
-      doctorName: n.doctors?.full_name || null,
-      noteId: n.id,
-    }));
+  // Una nota puede tener múltiples diagnósticos (migración 124). Devolvemos
+  // una entrada por diagnóstico para que la agrupación cuente comorbilidades.
+  // Fallback al campo legacy si la nota aún no tiene rows en la tabla nueva.
+  const out: DiagnosisEntry[] = [];
+  const sorted = notes.slice().sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  );
+  for (const n of sorted) {
+    const list = n.diagnoses && n.diagnoses.length > 0
+      ? n.diagnoses.slice().sort((a, b) => {
+          if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+          return a.position - b.position;
+        })
+      : (n.diagnosis_code
+          ? [{ code: n.diagnosis_code, label: n.diagnosis_label ?? n.diagnosis_code }]
+          : []);
+    for (const d of list) {
+      out.push({
+        code: d.code,
+        label: d.label,
+        date: n.created_at,
+        doctorName: n.doctors?.full_name ?? null,
+        noteId: n.id,
+      });
+    }
+  }
+  return out;
 }
 
 export function DiagnosisHistoryPanel({ patientId, clinicalNotes }: DiagnosisHistoryPanelProps) {

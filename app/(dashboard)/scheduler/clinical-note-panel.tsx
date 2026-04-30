@@ -11,7 +11,12 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { ClinicalNote, Vitals, SOAPSection } from "@/types/clinical-notes";
+import type {
+  ClinicalNote,
+  ClinicalNoteDiagnosisInput,
+  Vitals,
+  SOAPSection,
+} from "@/types/clinical-notes";
 import { SOAP_LABELS, VITALS_FIELDS } from "@/types/clinical-notes";
 import type { ClinicalTemplateWithDoctor } from "@/types/clinical-templates";
 import {
@@ -28,6 +33,8 @@ import {
   LayoutTemplate,
   CloudOff,
   Cloud,
+  X,
+  Star,
 } from "lucide-react";
 import { searchCIE10WithCustom, type CIE10Entry } from "@/lib/cie10-catalog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -108,8 +115,9 @@ export const ClinicalNotePanel = forwardRef<
   const [objective, setObjective] = useState("");
   const [assessment, setAssessment] = useState("");
   const [plan, setPlan] = useState("");
-  const [diagnosisCode, setDiagnosisCode] = useState("");
-  const [diagnosisLabel, setDiagnosisLabel] = useState("");
+  // Multi-diagnosis: una nota puede tener varios CIE-10 (comorbilidades).
+  // El primer item es el principal por defecto; el usuario puede cambiarlo.
+  const [diagnoses, setDiagnoses] = useState<ClinicalNoteDiagnosisInput[]>([]);
   const [internalNotes, setInternalNotes] = useState("");
   const [vitals, setVitals] = useState<Vitals>({});
 
@@ -145,8 +153,12 @@ export const ClinicalNotePanel = forwardRef<
           objective,
           assessment,
           plan,
-          diagnosis_code: diagnosisCode || null,
-          diagnosis_label: diagnosisLabel || null,
+          diagnoses: diagnoses.map((d, i) => ({
+            code: d.code,
+            label: d.label,
+            is_primary: i === 0,
+            position: i,
+          })),
           internal_notes: internalNotes || null,
           vitals,
           consent_registered: consentRegistered,
@@ -188,7 +200,7 @@ export const ClinicalNotePanel = forwardRef<
         setAutoSaveStatus("error");
       }
     }, 30000); // 30 seconds
-  }, [note, subjective, objective, assessment, plan, diagnosisCode, diagnosisLabel, internalNotes, vitals, consentRegistered, consentNotes, patientId, doctorId, canEdit, appointmentId]);
+  }, [note, subjective, objective, assessment, plan, diagnoses, internalNotes, vitals, consentRegistered, consentNotes, patientId, doctorId, canEdit, appointmentId]);
 
   // Track dirty state on any field change
   const markDirty = useCallback(() => {
@@ -223,8 +235,19 @@ export const ClinicalNotePanel = forwardRef<
         setObjective(n.objective);
         setAssessment(n.assessment);
         setPlan(n.plan);
-        setDiagnosisCode(n.diagnosis_code ?? "");
-        setDiagnosisLabel(n.diagnosis_label ?? "");
+        // Lista normalizada (migración 124). Orden: primary primero, luego
+        // por position. Fallback al campo legacy si la nota es muy vieja.
+        const list = (n.diagnoses ?? [])
+          .slice()
+          .sort((a, b) => {
+            if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+            return a.position - b.position;
+          })
+          .map((d) => ({ code: d.code, label: d.label }));
+        if (list.length === 0 && n.diagnosis_code) {
+          list.push({ code: n.diagnosis_code, label: n.diagnosis_label ?? n.diagnosis_code });
+        }
+        setDiagnoses(list);
         setInternalNotes(n.internal_notes ?? "");
         setVitals(n.vitals ?? {});
         setConsentRegistered(n.consent_registered ?? false);
@@ -317,11 +340,47 @@ export const ClinicalNotePanel = forwardRef<
     if (tpl.objective) setObjective(tpl.objective);
     if (tpl.assessment) setAssessment(tpl.assessment);
     if (tpl.plan) setPlan(tpl.plan);
-    if (tpl.diagnosis_code) setDiagnosisCode(tpl.diagnosis_code);
-    if (tpl.diagnosis_label) setDiagnosisLabel(tpl.diagnosis_label);
+    if (tpl.diagnosis_code) {
+      // Plantillas legacy traen un solo diagnóstico — agregar como principal
+      // si no estaba ya en la lista.
+      const code = tpl.diagnosis_code;
+      const label = tpl.diagnosis_label ?? code;
+      setDiagnoses((prev) => {
+        if (prev.some((d) => d.code.toLowerCase() === code.toLowerCase())) return prev;
+        return [{ code, label }, ...prev];
+      });
+    }
     if (tpl.internal_notes) setInternalNotes(tpl.internal_notes);
     setShowTemplates(false);
     toast.success(`Plantilla "${tpl.name}" aplicada`);
+  };
+
+  // ── Diagnoses helpers ────────────────────────────────────────────
+  const addDiagnosis = (code: string, label: string) => {
+    const c = code.trim();
+    if (!c) return;
+    setDiagnoses((prev) => {
+      if (prev.some((d) => d.code.toLowerCase() === c.toLowerCase())) return prev;
+      return [...prev, { code: c, label: label.trim() || c }];
+    });
+    markDirty();
+  };
+
+  const removeDiagnosis = (code: string) => {
+    setDiagnoses((prev) => prev.filter((d) => d.code !== code));
+    markDirty();
+  };
+
+  const promoteDiagnosis = (code: string) => {
+    setDiagnoses((prev) => {
+      const idx = prev.findIndex((d) => d.code === code);
+      if (idx <= 0) return prev;
+      const next = prev.slice();
+      const [item] = next.splice(idx, 1);
+      next.unshift(item);
+      return next;
+    });
+    markDirty();
   };
 
   const handleSave = async () => {
@@ -332,8 +391,12 @@ export const ClinicalNotePanel = forwardRef<
         objective,
         assessment,
         plan,
-        diagnosis_code: diagnosisCode || null,
-        diagnosis_label: diagnosisLabel || null,
+        diagnoses: diagnoses.map((d, i) => ({
+          code: d.code,
+          label: d.label,
+          is_primary: i === 0,
+          position: i,
+        })),
         internal_notes: internalNotes || null,
         vitals,
         consent_registered: consentRegistered,
@@ -616,12 +679,18 @@ export const ClinicalNotePanel = forwardRef<
         })}
       </div>
 
-      {/* Diagnosis with CIE-10 autocomplete */}
+      {/* Diagnósticos CIE-10 — múltiples (comorbilidades) */}
       <div className="space-y-2">
         <label className="text-xs font-semibold flex items-center gap-1.5">
           <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-          Diagnóstico
+          Diagnósticos
+          {diagnoses.length > 1 && (
+            <span className="text-[10px] font-normal text-muted-foreground">
+              · {diagnoses.length}
+            </span>
+          )}
         </label>
+
         {editable ? (
           <div className="space-y-2">
             {/* CIE-10 search */}
@@ -652,58 +721,117 @@ export const ClinicalNotePanel = forwardRef<
                 <>
                   <div className="fixed inset-0 z-[5]" onClick={() => setShowCie10(false)} />
                   <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-xl">
-                    {cie10Results.map((entry) => (
-                      <button
-                        key={entry.code}
-                        type="button"
-                        onClick={() => {
-                          setDiagnosisCode(entry.code);
-                          setDiagnosisLabel(entry.label);
-                          setCie10Query("");
-                          setShowCie10(false);
-                          markDirty();
-                        }}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-accent transition-colors"
-                      >
-                        <span className="font-mono font-semibold text-primary shrink-0">{entry.code}</span>
-                        <span className="text-foreground truncate flex-1">{entry.label}</span>
-                        {entry.custom && (
-                          <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
-                            personalizado
-                          </span>
-                        )}
-                      </button>
-                    ))}
+                    {cie10Results.map((entry) => {
+                      const alreadyAdded = diagnoses.some(
+                        (d) => d.code.toLowerCase() === entry.code.toLowerCase()
+                      );
+                      return (
+                        <button
+                          key={entry.code}
+                          type="button"
+                          disabled={alreadyAdded}
+                          onClick={() => {
+                            addDiagnosis(entry.code, entry.label);
+                            setCie10Query("");
+                            setShowCie10(false);
+                          }}
+                          className={cn(
+                            "flex w-full items-center gap-2 px-3 py-2 text-left text-xs transition-colors",
+                            alreadyAdded
+                              ? "cursor-not-allowed opacity-50"
+                              : "hover:bg-accent"
+                          )}
+                        >
+                          <span className="font-mono font-semibold text-primary shrink-0">{entry.code}</span>
+                          <span className="text-foreground truncate flex-1">{entry.label}</span>
+                          {entry.custom && (
+                            <span className="text-[10px] font-medium text-primary bg-primary/10 px-1.5 py-0.5 rounded shrink-0">
+                              personalizado
+                            </span>
+                          )}
+                          {alreadyAdded && (
+                            <span className="text-[10px] text-muted-foreground shrink-0">
+                              agregado
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </>
               )}
             </div>
-            {/* Selected diagnosis display */}
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={diagnosisCode}
-                onChange={(e) => { setDiagnosisCode(e.target.value); markDirty(); }}
-                placeholder="CIE-10"
-                className={cn("rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors", wideLayout ? "w-32" : "w-24")}
-              />
-              <input
-                type="text"
-                value={diagnosisLabel}
-                onChange={(e) => { setDiagnosisLabel(e.target.value); markDirty(); }}
-                placeholder="Descripción del diagnóstico"
-                className="flex-1 rounded-lg border border-input bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-              />
-            </div>
+
+            {/* Chips: cada diagnóstico con × y star (promover a principal) */}
+            {diagnoses.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {diagnoses.map((d, i) => {
+                  const isPrimary = i === 0;
+                  return (
+                    <span
+                      key={d.code}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition-colors",
+                        isPrimary
+                          ? "border-primary/40 bg-primary/10 text-primary"
+                          : "border-border bg-muted/40 text-foreground"
+                      )}
+                    >
+                      {isPrimary && (
+                        <Star className="h-3 w-3 fill-current shrink-0" aria-label="Principal" />
+                      )}
+                      <span className="font-mono font-semibold">{d.code}</span>
+                      <span className="opacity-80 truncate max-w-[280px]" title={d.label}>
+                        {d.label}
+                      </span>
+                      {!isPrimary && (
+                        <button
+                          type="button"
+                          onClick={() => promoteDiagnosis(d.code)}
+                          title="Marcar como principal"
+                          className="rounded-full p-0.5 text-muted-foreground hover:bg-foreground/10 hover:text-primary"
+                        >
+                          <Star className="h-3 w-3" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeDiagnosis(d.code)}
+                        title="Quitar diagnóstico"
+                        className="rounded-full p-0.5 hover:bg-foreground/10"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-[11px] text-muted-foreground/70 italic">
+                Aún no agregaste diagnósticos. Busca arriba — puedes agregar varios para registrar comorbilidades.
+              </p>
+            )}
+          </div>
+        ) : diagnoses.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5">
+            {diagnoses.map((d, i) => (
+              <span
+                key={d.code}
+                className={cn(
+                  "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px]",
+                  i === 0
+                    ? "border-primary/40 bg-primary/10 text-primary"
+                    : "border-border bg-muted/40 text-foreground"
+                )}
+              >
+                {i === 0 && <Star className="h-3 w-3 fill-current shrink-0" />}
+                <span className="font-mono font-semibold">{d.code}</span>
+                <span className="opacity-80">{d.label}</span>
+              </span>
+            ))}
           </div>
         ) : (
-          (diagnosisCode || diagnosisLabel) && (
-            <p className="text-xs text-muted-foreground">
-              {diagnosisCode && <span className="font-mono font-medium text-foreground">{diagnosisCode}</span>}
-              {diagnosisCode && diagnosisLabel && " — "}
-              {diagnosisLabel}
-            </p>
-          )
+          <p className="text-xs text-muted-foreground/60 italic">Sin diagnósticos</p>
         )}
       </div>
 

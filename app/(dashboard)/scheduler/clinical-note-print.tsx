@@ -64,13 +64,46 @@ function buildPrintHTML(args: BuildArgs): string {
     })
     .join("");
 
+  // Lista completa de diagnósticos (migración 124). Fallback al campo legacy
+  // si la nota es muy vieja y aún no tiene rows en clinical_note_diagnoses.
+  const diagnosisList = (() => {
+    if (note.diagnoses && note.diagnoses.length > 0) {
+      return note.diagnoses
+        .slice()
+        .sort((a, b) => {
+          if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+          return a.position - b.position;
+        });
+    }
+    if (note.diagnosis_code) {
+      return [
+        {
+          code: note.diagnosis_code,
+          label: note.diagnosis_label ?? note.diagnosis_code,
+          is_primary: true,
+          position: 0,
+        },
+      ];
+    }
+    return [];
+  })();
+
   const diagnosisHTML =
-    note.diagnosis_code || note.diagnosis_label
+    diagnosisList.length > 0
       ? `
         <div style="margin-bottom:20px;">
-          <h3 style="font-size:13px;font-weight:600;color:#111;margin:0 0 6px 0;text-transform:uppercase;letter-spacing:0.5px;">Diagnóstico</h3>
-          <div style="font-size:13px;color:#333;">
-            ${note.diagnosis_code ? `<span style="font-weight:600;">${note.diagnosis_code}</span>` : ""}${note.diagnosis_code && note.diagnosis_label ? " — " : ""}${note.diagnosis_label ?? ""}
+          <h3 style="font-size:13px;font-weight:600;color:#111;margin:0 0 8px 0;text-transform:uppercase;letter-spacing:0.5px;">Diagnóstico${diagnosisList.length > 1 ? "s" : ""}</h3>
+          <div style="font-size:13px;color:#333;display:flex;flex-direction:column;gap:4px;">
+            ${diagnosisList
+              .map(
+                (d, i) => `
+              <div${i === 0 ? ` style="font-weight:600;"` : ""}>
+                <span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:${i === 0 ? accent : "#111"};">${d.code}</span>
+                ${d.label ? ` — ${d.label}` : ""}
+                ${i === 0 && diagnosisList.length > 1 ? ` <span style="font-size:10px;color:#6b7280;font-weight:500;">(principal)</span>` : ""}
+              </div>`
+              )
+              .join("")}
           </div>
         </div>`
       : "";

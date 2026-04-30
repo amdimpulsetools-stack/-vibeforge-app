@@ -11,6 +11,20 @@ const vitalsSchema = z.object({
   spo2: z.coerce.number().min(50).max(100).nullish(),
 }).default({});
 
+// Single diagnosis entry — used inside the diagnoses array.
+const diagnosisInputSchema = z.object({
+  code: z.string().min(1, "Código requerido").max(20),
+  label: z.string().min(1, "Descripción requerida").max(200),
+  is_primary: z.boolean().optional(),
+  position: z.number().int().min(0).max(100).optional(),
+});
+
+// Full replace-all list. Cap at 20 to prevent abuse.
+const diagnosesSchema = z
+  .array(diagnosisInputSchema)
+  .max(20, "Máximo 20 diagnósticos por nota")
+  .optional();
+
 export const clinicalNoteSchema = z.object({
   appointment_id: z.string().uuid("appointment_id debe ser un UUID válido"),
   patient_id: z.string().uuid().nullish(),
@@ -21,8 +35,14 @@ export const clinicalNoteSchema = z.object({
   assessment: z.string().max(5000, "Máximo 5000 caracteres").default(""),
   plan: z.string().max(5000, "Máximo 5000 caracteres").default(""),
 
+  // Legacy single-diagnosis fields. Mantener por compat con plantillas y
+  // clientes que aún no migraron a `diagnoses`. Si se envía `diagnoses`,
+  // estos se ignoran (el trigger DB sincroniza el primary).
   diagnosis_code: z.string().max(20).nullish(),
   diagnosis_label: z.string().max(200).nullish(),
+
+  /** Lista completa de diagnósticos CIE-10. Reemplaza el set existente. */
+  diagnoses: diagnosesSchema,
 
   vitals: vitalsSchema,
 

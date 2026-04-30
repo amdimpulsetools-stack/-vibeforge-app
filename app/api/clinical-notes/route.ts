@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   if (appointmentId) {
     const { data, error } = await supabase
       .from("clinical_notes")
-      .select("*, doctors(full_name, color)")
+      .select("*, doctors(full_name, color), diagnoses:clinical_note_diagnoses(*)")
       .eq("appointment_id", appointmentId)
       .maybeSingle();
 
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
   // All notes for a patient (history)
   const { data, error } = await supabase
     .from("clinical_notes")
-    .select("*, doctors(full_name, color)")
+    .select("*, doctors(full_name, color), diagnoses:clinical_note_diagnoses(*)")
     .eq("patient_id", patientId!)
     .order("created_at", { ascending: false });
 
@@ -116,12 +116,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data, error } = await supabase
+  // Separate diagnoses from the rest of the payload — they go to the join
+  // table, not directly to clinical_notes (the DB trigger mirrors the primary
+  // back to clinical_notes.diagnosis_code/label).
+  const { diagnoses, ...notePayload } = parsed.data;
+
+  const { data: inserted, error } = await supabase
     .from("clinical_notes")
     .insert({
-      ...parsed.data,
+      ...notePayload,
       organization_id: membership.organization_id,
-      vitals: parsed.data.vitals ?? {},
+      vitals: notePayload.vitals ?? {},
     })
     .select("*, doctors(full_name, color)")
     .single();
@@ -138,5 +143,93 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Error al crear nota clínica" }, { status: 500 });
   }
 
-  return NextResponse.json({ data }, { status: 201 });
+  await replaceDiagnoses(supabase, {
+    noteId: inserted.id,
+    organizationId: membership.organization_id,
+    diagnoses,
+    legacyCode: notePayload.diagnosis_code ?? null,
+    legacyLabel: notePayload.diagnosis_label ?? null,
+  });
+
+  // Re-fetch with the diagnoses join so the client sees the canonical state.
+  const { data: full } = await supabase
+    .from("clinical_notes")
+    .select("*, doctors(full_name, color), diagnoses:clinical_note_diagnoses(*)")
+    .eq("id", inserted.id)
+    .single();
+
+  return NextResponse.json({ data: full ?? inserted }, { status: 201 });
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────
+
+type DiagnosisInput = {
+  code: string;
+  label: string;
+  is_primary?: boolean;
+  position?: number;
+};
+
+type ServerSupabaseClient = Awaited<
+  ReturnType<typeof import("@/lib/supabase/server").createClient>
+>;
+
+/**
+ * Replace the full set of diagnoses for a note. If `diagnoses` is undefined
+ * (caller didn't send it), keep the existing rows untouched UNLESS the legacy
+ * single-diagnosis fields were sent — in that case mirror them as a one-row
+ * set so older callers stay coherent.
+ */
+export async function replaceDiagnoses(
+  supabase: ServerSupabaseClient,
+  args: {
+    noteId: string;
+    organizationId: string;
+    diagnoses: DiagnosisInput[] | undefined;
+    legacyCode: string | null;
+    legacyLabel: string | null;
+  }
+) {
+  let list: DiagnosisInput[] | null = null;
+
+  if (args.diagnoses !== undefined) {
+    list = args.diagnoses;
+  } else if (args.legacyCode) {
+    list = [
+      {
+        code: args.legacyCode,
+        label: args.legacyLabel ?? args.legacyCode,
+        is_primary: true,
+        position: 0,
+      },
+    ];
+  }
+
+  if (list === null) return; // caller didn't touch diagnoses, leave rows alone
+
+  await supabase
+    .from("clinical_note_diagnoses")
+    .delete()
+    .eq("clinical_note_id", args.noteId);
+
+  if (list.length === 0) return;
+
+  // Force exactly one is_primary=true. If the caller didn't mark any, the
+  // first wins. If they marked multiple, only the first marked stays primary.
+  let primaryAssigned = false;
+  const rows = list.map((d, idx) => {
+    const wantPrimary = d.is_primary === true && !primaryAssigned;
+    if (wantPrimary) primaryAssigned = true;
+    return {
+      clinical_note_id: args.noteId,
+      organization_id: args.organizationId,
+      code: d.code.trim(),
+      label: d.label.trim(),
+      is_primary: wantPrimary,
+      position: d.position ?? idx,
+    };
+  });
+  if (!primaryAssigned && rows.length > 0) rows[0].is_primary = true;
+
+  await supabase.from("clinical_note_diagnoses").insert(rows);
 }

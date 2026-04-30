@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
 import { clinicalNoteUpdateSchema, signNoteSchema } from "@/lib/validations/api";
+import { replaceDiagnoses } from "../route";
 
 // PATCH /api/clinical-notes/[id] — Update a clinical note
 export async function PATCH(
@@ -123,6 +124,7 @@ export async function PATCH(
     if (parsed.data.assessment !== undefined && parsed.data.assessment !== currentNote.assessment) changes.push("Evaluación");
     if (parsed.data.plan !== undefined && parsed.data.plan !== currentNote.plan) changes.push("Plan");
     if (parsed.data.diagnosis_code !== undefined && parsed.data.diagnosis_code !== currentNote.diagnosis_code) changes.push("Diagnóstico");
+    if (parsed.data.diagnoses !== undefined) changes.push("Diagnósticos");
     if (parsed.data.vitals !== undefined) changes.push("Signos vitales");
 
     if (changes.length > 0) {
@@ -144,14 +146,17 @@ export async function PATCH(
     }
   }
 
-  const { data, error } = await supabase
+  // Diagnoses live in a separate table; strip from the main update.
+  const { diagnoses, ...noteUpdate } = parsed.data;
+
+  const { data: updated, error } = await supabase
     .from("clinical_notes")
     .update({
-      ...parsed.data,
-      vitals: parsed.data.vitals ?? undefined,
+      ...noteUpdate,
+      vitals: noteUpdate.vitals ?? undefined,
     })
     .eq("id", id)
-    .select("*, doctors(full_name, color)")
+    .select("id, organization_id")
     .single();
 
   if (error) {
@@ -159,7 +164,21 @@ export async function PATCH(
     return NextResponse.json({ error: "Error al actualizar nota clínica" }, { status: 500 });
   }
 
-  return NextResponse.json({ data });
+  await replaceDiagnoses(supabase, {
+    noteId: id,
+    organizationId: updated.organization_id,
+    diagnoses,
+    legacyCode: noteUpdate.diagnosis_code ?? null,
+    legacyLabel: noteUpdate.diagnosis_label ?? null,
+  });
+
+  const { data: full } = await supabase
+    .from("clinical_notes")
+    .select("*, doctors(full_name, color), diagnoses:clinical_note_diagnoses(*)")
+    .eq("id", id)
+    .single();
+
+  return NextResponse.json({ data: full });
 }
 
 // DELETE /api/clinical-notes/[id] — Delete a clinical note (admin only, enforced by RLS)
