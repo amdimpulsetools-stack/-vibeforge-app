@@ -36,6 +36,7 @@ import {
   Plug,
   Blocks,
   FileSignature,
+  FileText,
   Hash,
   Eye,
   Palette,
@@ -70,6 +71,7 @@ const WhatsAppTemplatesTab = dynamic(() => import("./whatsapp-templates-tab"), {
 const BookingSettingsTab = dynamic(() => import("./booking-settings-tab"), { loading: TabLoader });
 const IntegracionesTab = dynamic(() => import("./integraciones-tab"), { loading: TabLoader });
 const ModulosTab = dynamic(() => import("./modulos-tab"), { loading: TabLoader });
+const ClinicalTemplatesTab = dynamic(() => import("./clinical-templates-tab"), { loading: TabLoader });
 const OrgSpecialtySection = dynamic(() => import("./org-specialty-section"), { loading: TabLoader });
 // Header preview modal lazy-loaded — only mounted when the user clicks
 // "Vista previa del membrete". Keeps the first paint of /settings small.
@@ -78,7 +80,7 @@ const ClinicHeaderPreviewModal = dynamic(
   { ssr: false }
 );
 
-type Tab = "general" | "agenda" | "reservas" | "correos" | "whatsapp" | "whatsapp-api" | "integraciones" | "modulos" | "permisos";
+type Tab = "general" | "agenda" | "reservas" | "correos" | "plantillas-hc" | "whatsapp" | "whatsapp-api" | "integraciones" | "modulos" | "permisos";
 
 // ── Form helpers (extracted to keep the org-profile form readable) ──
 
@@ -156,7 +158,7 @@ export default function SettingsPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const VALID_TABS: Tab[] = ["general", "agenda", "reservas", "correos", "whatsapp", "whatsapp-api", "integraciones", "modulos", "permisos"];
+  const VALID_TABS: Tab[] = ["general", "agenda", "reservas", "correos", "plantillas-hc", "whatsapp", "whatsapp-api", "integraciones", "modulos", "permisos"];
   const tabParam = searchParams.get("tab") as Tab | null;
   const activeTab: Tab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "general";
   const setActiveTab = (tab: Tab) => {
@@ -513,6 +515,7 @@ export default function SettingsPage() {
     { id: "agenda", label: language === "es" ? "Agenda" : "Scheduler", icon: <CalendarDays className="h-4 w-4" /> },
     { id: "reservas", label: language === "es" ? "Reservas" : "Booking", icon: <Globe2 className="h-4 w-4" /> },
     { id: "correos", label: language === "es" ? "Correos" : "Emails", icon: <Mail className="h-4 w-4" /> },
+    { id: "plantillas-hc", label: language === "es" ? "Plantillas HC" : "Clinical Templates", icon: <FileText className="h-4 w-4" /> },
     { id: "whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" /> },
     { id: "whatsapp-api", label: "WA Business", icon: <Smartphone className="h-4 w-4" /> },
     { id: "integraciones", label: language === "es" ? "Integraciones" : "Integrations", icon: <Plug className="h-4 w-4" /> },
@@ -1474,6 +1477,9 @@ export default function SettingsPage() {
 
       {/* ── Correos tab ──────────────────────────────────────────────────────── */}
       {activeTab === "correos" && <EmailSettingsTab />}
+
+      {/* ── Plantillas HC tab ────────────────────────────────────────────────── */}
+      {activeTab === "plantillas-hc" && <ClinicalTemplatesTab />}
 
       {/* ── WhatsApp tab ─────────────────────────────────────────────────────── */}
       {activeTab === "whatsapp" && (
