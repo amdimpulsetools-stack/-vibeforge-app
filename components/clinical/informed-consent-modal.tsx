@@ -48,7 +48,7 @@ export function InformedConsentModal(props: InformedConsentModalProps) {
   const [step, setStep] = useState<Step>(1);
   const [submitting, setSubmitting] = useState(false);
 
-  const [consentType, setConsentType] = useState<InformedConsentType>("procedimiento");
+  const [consentType, setConsentType] = useState<InformedConsentType | null>(null);
   const [procedureDescription, setProcedureDescription] = useState<string>(serviceName ?? "");
   const [risksExplained, setRisksExplained] = useState<string>("");
   const [signatureMethod, setSignatureMethod] = useState<InformedConsentSignatureMethod>("typed");
@@ -61,6 +61,7 @@ export function InformedConsentModal(props: InformedConsentModalProps) {
     if (!open) {
       setStep(1);
       setSubmitting(false);
+      setConsentType(null);
       setProcedureDescription(serviceName ?? "");
       setRisksExplained("");
       setSignatureMethod("typed");
@@ -71,8 +72,8 @@ export function InformedConsentModal(props: InformedConsentModalProps) {
   }, [open, patientName, serviceName]);
 
   const canAdvanceFromStep1 = useMemo(() => {
-    return procedureDescription.trim().length >= 4;
-  }, [procedureDescription]);
+    return consentType !== null && procedureDescription.trim().length >= 4;
+  }, [consentType, procedureDescription]);
 
   const canSubmit = useMemo(() => {
     if (signedByPatientName.trim().length < 2) return false;
@@ -81,7 +82,7 @@ export function InformedConsentModal(props: InformedConsentModalProps) {
   }, [signedByPatientName, signatureMethod, legalAccepted, drawnDataUrl]);
 
   const handleSubmit = async () => {
-    if (!canSubmit) return;
+    if (!canSubmit || !consentType) return;
     setSubmitting(true);
     const payload: InformedConsentCreatePayload = {
       patient_id: patientId,
@@ -146,7 +147,7 @@ export function InformedConsentModal(props: InformedConsentModalProps) {
               serviceName={serviceName ?? null}
             />
           )}
-          {step === 2 && (
+          {step === 2 && consentType && (
             <Step2
               consentType={consentType}
               procedureDescription={procedureDescription}
@@ -186,7 +187,11 @@ export function InformedConsentModal(props: InformedConsentModalProps) {
               type="button"
               onClick={() => {
                 if (step === 1 && !canAdvanceFromStep1) {
-                  toast.error("Describe el procedimiento (mínimo 4 caracteres)");
+                  if (consentType === null) {
+                    toast.error("Selecciona el tipo de consentimiento");
+                  } else {
+                    toast.error("Describe el procedimiento (mínimo 4 caracteres)");
+                  }
                   return;
                 }
                 setStep((s) => Math.min(3, (s + 1) as Step) as Step);
@@ -219,7 +224,7 @@ export function InformedConsentModal(props: InformedConsentModalProps) {
 
 // ─── Step 1: type + description + risks ────────────────────────────
 function Step1(props: {
-  consentType: InformedConsentType;
+  consentType: InformedConsentType | null;
   setConsentType: (v: InformedConsentType) => void;
   procedureDescription: string;
   setProcedureDescription: (v: string) => void;
@@ -230,7 +235,9 @@ function Step1(props: {
   return (
     <div className="space-y-4">
       <div>
-        <label className="text-sm font-medium">Tipo de consentimiento</label>
+        <label className="text-sm font-medium">
+          Tipo de consentimiento <span className="text-destructive">*</span>
+        </label>
         <div className="mt-2 grid grid-cols-2 gap-2">
           {CONSENT_TYPE_OPTIONS.map((opt) => (
             <button
@@ -248,6 +255,11 @@ function Step1(props: {
             </button>
           ))}
         </div>
+        {props.consentType === null && (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Elige el tipo de consentimiento que corresponde al acto clínico.
+          </p>
+        )}
       </div>
 
       {props.serviceName && (

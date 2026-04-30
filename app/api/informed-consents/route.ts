@@ -23,13 +23,14 @@ const createSchema = z.object({
   risks_explained: z.string().max(4000).nullable().optional(),
   signed_by_patient_name: z.string().min(2).max(200),
   signature_method: signatureMethodEnum,
-  signature_data: z.string().max(500_000).nullable().optional(),
+  signature_data: z.string().max(200_000).nullable().optional(),
 });
 
 interface PatientRow {
   first_name: string | null;
   last_name: string | null;
   dni: string | null;
+  organization_id: string | null;
 }
 
 interface DoctorRow {
@@ -54,6 +55,17 @@ export async function GET(request: NextRequest) {
 
   const patientId = request.nextUrl.searchParams.get("patient_id");
   const appointmentId = request.nextUrl.searchParams.get("appointment_id");
+
+  // Require at least one scoping filter — RLS already restricts to the
+  // user's org, but listing every consent in the org is rarely useful
+  // and can leak signed PDFs of patients the caller has no business
+  // touching from a UI perspective.
+  if (!patientId && !appointmentId) {
+    return NextResponse.json(
+      { error: "Especifica patient_id o appointment_id" },
+      { status: 400 },
+    );
+  }
 
   let query = supabase
     .from("informed_consents")
@@ -128,7 +140,7 @@ export async function POST(request: NextRequest) {
     supabase.from("organizations").select("*").eq("id", organizationId).single(),
     supabase
       .from("patients")
-      .select("first_name, last_name, dni")
+      .select("first_name, last_name, dni, organization_id")
       .eq("id", payload.patient_id)
       .single(),
     payload.doctor_id
@@ -155,6 +167,16 @@ export async function POST(request: NextRequest) {
   }
 
   const patient = patientRes.data as PatientRow;
+
+  // Defense in depth on top of RLS: refuse if the patient does not
+  // belong to the caller's org. Prevents cross-tenant consent rows
+  // even if a future RLS regression slips through.
+  if (patient.organization_id !== organizationId) {
+    return NextResponse.json(
+      { error: "El paciente no pertenece a tu organización" },
+      { status: 403 },
+    );
+  }
   const doctor = (doctorRes.data ?? null) as DoctorRow | null;
   const service = (serviceRes.data ?? null) as ServiceRow | null;
 
