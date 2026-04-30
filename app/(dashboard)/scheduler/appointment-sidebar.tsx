@@ -1589,7 +1589,8 @@ export function AppointmentSidebar({
             }
             appointmentStatus={appointment.status}
             patientName={appointment.patient_name}
-            patientDni={null}
+            patientDni={appointment.patients?.dni ?? null}
+            patientBirthDate={appointment.patients?.birth_date ?? null}
             doctorName={appointment.doctors?.full_name}
             serviceName={appointment.services?.name}
             appointmentDate={appointment.appointment_date}

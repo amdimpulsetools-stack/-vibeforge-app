@@ -186,7 +186,7 @@ export default function SchedulerPage() {
     // transfer and JSON parse time at 500+ appointments/day.
     const apptRes = await supabase
       .from("appointments")
-      .select("id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price), patients(is_recurring)")
+      .select("id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price), patients(is_recurring, dni, birth_date)")
       .gte("appointment_date", startDate)
       .lte("appointment_date", endDate)
       .neq("status", "cancelled")

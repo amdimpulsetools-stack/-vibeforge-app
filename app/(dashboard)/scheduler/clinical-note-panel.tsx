@@ -573,8 +573,9 @@ export const ClinicalNotePanel = forwardRef<
         </div>
       )}
 
-      {/* SOAP Sections */}
-      <div className={cn("space-y-3", wideLayout && "grid grid-cols-1 md:grid-cols-2 gap-4 space-y-0")}>
+      {/* SOAP Sections — stack vertical (los doctores escriben en flujo
+          secuencial; columnas obligan a navegar lateralmente). */}
+      <div className="space-y-3">
         {(Object.keys(SOAP_LABELS) as SOAPSection[]).map((section) => {
           const { letter, label, placeholder } = SOAP_LABELS[section];
           const { value, set } = soapState[section];
