@@ -23,6 +23,7 @@ import {
   RotateCcw,
   LayoutTemplate,
   Trash2,
+  Printer,
 } from "lucide-react";
 import {
   CLINICAL_PANEL_CTA,
@@ -623,6 +624,23 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
                       })}
                   </div>
                 )}
+
+                {/* Imprimir plan PDF — disponible en cualquier estado */}
+                <div className="flex gap-1 pt-1">
+                  <button
+                    onClick={() =>
+                      window.open(
+                        `/api/pdf/treatment-plan/${plan.id}`,
+                        "_blank",
+                        "noopener"
+                      )
+                    }
+                    className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-accent transition-colors"
+                    title="Abrir plan en PDF (usa la plantilla de Settings → Plantillas HC)"
+                  >
+                    <Printer className="h-3 w-3" /> Imprimir
+                  </button>
+                </div>
 
                 {/* Status actions */}
                 {canEdit && plan.status === "active" && (

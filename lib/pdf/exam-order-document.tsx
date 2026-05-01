@@ -1,17 +1,5 @@
 /**
- * Documento de receta médica con @react-pdf/renderer.
- *
- * Reemplaza al `buildPrescriptionPrintHTML()` (window.print) anterior. Este
- * componente es server-only: lo invoca `/api/pdf/prescription/[id]` para
- * producir un PDF real.
- *
- * Estructura:
- *   1. Membrete (logo + datos org)
- *   2. Título "RECETA MÉDICA" + fecha
- *   3. Box con datos paciente/doctor
- *   4. Lista de medicamentos (renderizada por código, no por plantilla)
- *   5. Cuerpo personalizable (body_html del template, vía html-to-react-pdf)
- *   6. Firma + footer
+ * Documento de orden de exámenes con @react-pdf/renderer.
  */
 
 import {
@@ -25,27 +13,25 @@ import { htmlToReactPdf } from "./html-to-react-pdf";
 import type { ClinicHeaderData } from "./clinic-header";
 import {
   ACCENT_FALLBACK,
-  BG_CHIP,
   BORDER,
   ClinicHeader,
   SignatureBlock,
   TEXT_DARK,
+  TEXT_MUTED,
   createPageStyles,
   formatPeruDate,
 } from "./shared-pdf";
 
-export interface PrescriptionItem {
-  medication: string;
-  dosage?: string | null;
-  frequency?: string | null;
-  duration?: string | null;
-  route?: string | null;
-  quantity?: string | null;
+export interface ExamItem {
+  exam_name: string;
   instructions?: string | null;
 }
 
-export interface PrescriptionDocumentProps {
-  prescriptions: PrescriptionItem[];
+export interface ExamOrderDocumentProps {
+  items: ExamItem[];
+  diagnosis?: string | null;
+  diagnosisCode?: string | null;
+  notes?: string | null;
   patientName: string;
   patientDni?: string | null;
   doctorName: string;
@@ -55,47 +41,56 @@ export interface PrescriptionDocumentProps {
   customBodyHtml?: string | null;
 }
 
-function rxStyles(accent: string) {
+function examStyles(accent: string) {
   return StyleSheet.create({
-    rxRow: {
+    examRow: {
       flexDirection: "row",
       paddingVertical: 6,
       borderBottomWidth: 1,
       borderBottomColor: BORDER,
     },
-    rxIndex: {
+    examIndex: {
       width: 22,
       fontWeight: "bold",
       color: accent,
       fontSize: 12,
     },
-    rxBody: { flex: 1 },
-    rxName: { fontSize: 12, fontWeight: "bold", marginBottom: 2 },
-    rxChips: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: 2 },
-    rxChip: {
-      fontSize: 9,
-      backgroundColor: BG_CHIP,
-      borderRadius: 3,
-      paddingHorizontal: 5,
-      paddingVertical: 1,
-      color: "#444",
-    },
-    rxInstructions: {
+    examBody: { flex: 1 },
+    examName: { fontSize: 12, fontWeight: "bold", color: TEXT_DARK, marginBottom: 2 },
+    examInstructions: {
       fontSize: 10,
       fontStyle: "italic",
       color: "#444",
-      marginTop: 4,
+      marginTop: 2,
       paddingLeft: 6,
       borderLeftWidth: 2,
       borderLeftColor: accent,
     },
+    diagnosisBox: {
+      marginBottom: 12,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      backgroundColor: "#f0f9ff",
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: "#bae6fd",
+    },
+    notesBox: {
+      marginTop: 12,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      backgroundColor: "#fefce8",
+      borderRadius: 4,
+      borderWidth: 1,
+      borderColor: "#fde68a",
+    },
   });
 }
 
-export function PrescriptionDocument(props: PrescriptionDocumentProps) {
+export function ExamOrderDocument(props: ExamOrderDocumentProps) {
   const accent = props.clinic.print_color_primary || ACCENT_FALLBACK;
   const s = createPageStyles(accent);
-  const rx = rxStyles(accent);
+  const e = examStyles(accent);
   const formattedDate = formatPeruDate(props.appointmentDate);
   const customBody = props.customBodyHtml ? htmlToReactPdf(props.customBodyHtml) : null;
 
@@ -104,7 +99,7 @@ export function PrescriptionDocument(props: PrescriptionDocumentProps) {
       <Page size="A4" style={s.page}>
         <ClinicHeader clinic={props.clinic} s={s} />
 
-        <Text style={s.title}>RECETA MÉDICA</Text>
+        <Text style={s.title}>ORDEN DE EXÁMENES</Text>
         <Text style={s.titleDate}>{formattedDate}</Text>
 
         <View style={s.infoBox}>
@@ -133,31 +128,42 @@ export function PrescriptionDocument(props: PrescriptionDocumentProps) {
           </View>
         </View>
 
+        {props.diagnosis ? (
+          <View style={e.diagnosisBox}>
+            <Text style={s.infoLabel}>Diagnóstico presuntivo</Text>
+            <Text style={[s.infoValue, { fontSize: 11 }]}>
+              {props.diagnosis}
+              {props.diagnosisCode ? (
+                <Text style={{ color: TEXT_MUTED, fontWeight: "normal" }}>
+                  {" "}({props.diagnosisCode})
+                </Text>
+              ) : null}
+            </Text>
+          </View>
+        ) : null}
+
         <Text style={s.sectionTitle}>
-          Rp/ ({props.prescriptions.length}{" "}
-          {props.prescriptions.length === 1 ? "medicamento" : "medicamentos"})
+          Exámenes solicitados ({props.items.length})
         </Text>
 
-        {props.prescriptions.map((p, i) => (
-          <View key={i} style={rx.rxRow} wrap={false}>
-            <Text style={rx.rxIndex}>{i + 1}.</Text>
-            <View style={rx.rxBody}>
-              <Text style={rx.rxName}>
-                {p.medication}
-                {p.dosage ? ` — ${p.dosage}` : ""}
-              </Text>
-              <View style={rx.rxChips}>
-                {p.route ? <Text style={rx.rxChip}>Vía: {p.route}</Text> : null}
-                {p.frequency ? <Text style={rx.rxChip}>{p.frequency}</Text> : null}
-                {p.duration ? <Text style={rx.rxChip}>Duración: {p.duration}</Text> : null}
-                {p.quantity ? <Text style={rx.rxChip}>Cantidad: {p.quantity}</Text> : null}
-              </View>
-              {p.instructions ? (
-                <Text style={rx.rxInstructions}>Indicaciones: {p.instructions}</Text>
+        {props.items.map((item, i) => (
+          <View key={i} style={e.examRow} wrap={false}>
+            <Text style={e.examIndex}>{i + 1}.</Text>
+            <View style={e.examBody}>
+              <Text style={e.examName}>{item.exam_name}</Text>
+              {item.instructions ? (
+                <Text style={e.examInstructions}>Indicaciones: {item.instructions}</Text>
               ) : null}
             </View>
           </View>
         ))}
+
+        {props.notes ? (
+          <View style={e.notesBox}>
+            <Text style={[s.infoLabel, { marginBottom: 2 }]}>NOTA</Text>
+            <Text style={{ fontSize: 11 }}>{props.notes}</Text>
+          </View>
+        ) : null}
 
         {customBody ? <View style={s.customBody}>{customBody}</View> : null}
 
@@ -170,6 +176,3 @@ export function PrescriptionDocument(props: PrescriptionDocumentProps) {
     </Document>
   );
 }
-
-// Type-cleanup re-exports
-export { TEXT_DARK };

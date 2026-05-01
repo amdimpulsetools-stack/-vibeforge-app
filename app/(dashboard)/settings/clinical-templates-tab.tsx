@@ -44,50 +44,54 @@ interface SlugMeta {
   variables: { token: string; description: string }[];
 }
 
-// Por ahora solo prescription es funcional (POC). Las otras 4 se muestran
-// deshabilitadas con badge "Próximamente" para mantener visibilidad del roadmap.
+// Variables comunes a todos los documentos (paciente, doctor, fecha, clínica).
+const COMMON_VARS = [
+  { token: "{{paciente_nombre}}", description: "Nombre completo del paciente" },
+  { token: "{{paciente_dni}}", description: "DNI del paciente" },
+  { token: "{{doctor_nombre}}", description: "Nombre del doctor tratante" },
+  { token: "{{doctor_cmp}}", description: "Número de CMP del doctor" },
+  { token: "{{fecha}}", description: "Fecha del documento" },
+  { token: "{{clinica_nombre}}", description: "Nombre de la organización" },
+] as const;
+
 const SLUGS: SlugMeta[] = [
   {
     slug: "prescription",
     label: "Receta médica",
     icon: Pill,
     available: true,
-    variables: [
-      { token: "{{paciente_nombre}}", description: "Nombre completo del paciente" },
-      { token: "{{paciente_dni}}", description: "DNI del paciente" },
-      { token: "{{doctor_nombre}}", description: "Nombre del doctor tratante" },
-      { token: "{{doctor_cmp}}", description: "Número de CMP del doctor" },
-      { token: "{{fecha}}", description: "Fecha de la consulta" },
-      { token: "{{clinica_nombre}}", description: "Nombre de la organización" },
-    ],
+    variables: [...COMMON_VARS],
   },
   {
     slug: "clinical_note",
     label: "Nota clínica SOAP",
     icon: FileText,
-    available: false,
-    variables: [],
+    available: true,
+    variables: [...COMMON_VARS],
   },
   {
     slug: "exam_order",
     label: "Orden de exámenes",
     icon: TestTube,
-    available: false,
-    variables: [],
+    available: true,
+    variables: [...COMMON_VARS],
   },
   {
     slug: "consent",
     label: "Consentimiento informado",
     icon: FileSignature,
-    available: false,
-    variables: [],
+    available: true,
+    variables: [
+      ...COMMON_VARS,
+      { token: "{{procedimiento}}", description: "Descripción del procedimiento" },
+    ],
   },
   {
     slug: "treatment_plan",
     label: "Plan de tratamiento",
     icon: ClipboardList,
-    available: false,
-    variables: [],
+    available: true,
+    variables: [...COMMON_VARS],
   },
 ];
 
@@ -220,17 +224,19 @@ export default function ClinicalTemplatesTab() {
         </div>
       </div>
 
-      {/* Banner del estado del POC — sé claro sobre qué está disponible */}
+      {/* Banner — los 5 documentos están disponibles para personalizar */}
       <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 flex items-start gap-3">
         <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
         <div className="text-sm">
           <p className="font-medium text-foreground">
-            Disponible ahora: <span className="text-emerald-700 dark:text-emerald-400">Receta médica</span>
+            Los 5 documentos están disponibles para personalizar
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Los otros 4 documentos (nota clínica, orden de exámenes, consentimiento, plan
-            de tratamiento) llegarán en próximas iteraciones. Por ahora aparecen marcados
-            con &quot;Pronto&quot; en gris.
+            Receta, nota clínica, orden de exámenes, consentimiento y plan de tratamiento.
+            El membrete (logo + datos de la organización) y el contenido dinámico (lista
+            de medicamentos, SOAP, items, etc.) se renderizan automáticamente. Aquí
+            personalizas el cuerpo: encabezados adicionales, indicaciones generales,
+            footers legales.
           </p>
         </div>
       </div>

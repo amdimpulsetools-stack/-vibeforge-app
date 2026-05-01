@@ -82,11 +82,10 @@ export function ConsentsUnifiedPanel(props: ConsentsUnifiedPanelProps) {
 
   const handleView = async (row: UnifiedConsentRow) => {
     if (row.source === "digital") {
-      if (!row.asset_url) {
-        toast.error("Este consentimiento no tiene PDF disponible");
-        return;
-      }
-      window.open(row.asset_url, "_blank", "noopener,noreferrer");
+      // Render server-side a PDF real con la plantilla personalizable de la
+      // org (Settings → Plantillas HC → Consentimiento). El asset_url del
+      // HTML legacy en storage queda como fallback histórico.
+      window.open(`/api/pdf/consent/${row.id}`, "_blank", "noopener,noreferrer");
       return;
     }
     // Scanned: ask the API for a short-lived signed URL.
