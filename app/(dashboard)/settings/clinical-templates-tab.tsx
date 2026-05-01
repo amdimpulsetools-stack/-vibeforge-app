@@ -220,6 +220,21 @@ export default function ClinicalTemplatesTab() {
         </div>
       </div>
 
+      {/* Banner del estado del POC — sé claro sobre qué está disponible */}
+      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 flex items-start gap-3">
+        <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0 mt-0.5" />
+        <div className="text-sm">
+          <p className="font-medium text-foreground">
+            Disponible ahora: <span className="text-emerald-700 dark:text-emerald-400">Receta médica</span>
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Los otros 4 documentos (nota clínica, orden de exámenes, consentimiento, plan
+            de tratamiento) llegarán en próximas iteraciones. Por ahora aparecen marcados
+            con &quot;Pronto&quot; en gris.
+          </p>
+        </div>
+      </div>
+
       {/* Layout 2-col: lista de plantillas + editor */}
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
         {/* Sidebar: lista de plantillas */}
@@ -257,7 +272,10 @@ export default function ClinicalTemplatesTab() {
                 ) : tpl && !tpl.is_enabled ? (
                   <Lock className="h-3 w-3 text-muted-foreground/60" />
                 ) : (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wide font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/15 px-1.5 py-0.5 rounded">
+                    <CheckCircle2 className="h-2.5 w-2.5" />
+                    Activa
+                  </span>
                 )}
               </button>
             );
