@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
+import { maybeCreateBudgetPendingFollowup } from "@/lib/fertility/followup-triggers";
 
 const planItemSchema = z.object({
   service_id: z.string().uuid(),
@@ -172,6 +173,15 @@ export async function POST(request: NextRequest) {
     }));
     await supabase.from("treatment_sessions").insert(sessions);
   }
+
+  // Best-effort: create a fertility followup if the addon is enabled.
+  // The helper no-ops silently if not, so we don't gate by status here —
+  // if the org doesn't run fertility, isFertilityAddonEnabled returns false.
+  await maybeCreateBudgetPendingFollowup(supabase, {
+    organization_id: membership.organization_id,
+    patient_id: parsed.data.patient_id,
+    doctor_id: parsed.data.doctor_id,
+  });
 
   return NextResponse.json({ data }, { status: 201 });
 }
