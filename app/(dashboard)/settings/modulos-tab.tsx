@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import { useOrgAddons, type Addon } from "@/hooks/use-org-addons";
 import { useOrgRole } from "@/hooks/use-org-role";
@@ -17,11 +19,14 @@ import {
   Baby,
   Eye,
   HeartPulse,
+  HeartHandshake,
   Bone,
   Video,
   BarChart3,
   Package,
   FlaskConical,
+  Settings,
+  Sliders,
 } from "lucide-react";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -32,6 +37,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Baby,
   Eye,
   HeartPulse,
+  HeartHandshake,
   Bone,
   Sparkles,
   Video,
@@ -39,6 +45,19 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Package,
   FlaskConical,
 };
+
+const FERTILITY_BASIC_BULLETS = [
+  "Seguimientos automáticos entre 1ra y 2da consulta",
+  "Atribución honesta de recuperaciones",
+  "Plantillas WhatsApp y email aprobadas",
+];
+
+const FERTILITY_PREMIUM_BULLETS = [
+  "Constructor de reglas custom por tipo de servicio",
+  "Plantillas editables por la clínica",
+  "Cascadas de canales (WhatsApp + email + SMS)",
+  "Reportes de conversión por médico",
+];
 
 const CATEGORY_LABELS: Record<string, { es: string; en: string }> = {
   specialty: { es: "Especialidades Médicas", en: "Medical Specialties" },
@@ -53,13 +72,49 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 export default function ModulosTab() {
-  const { addons, loading, toggleAddon } = useOrgAddons();
+  const { addons, loading, toggleAddon, activateAddon, deactivateAddon } =
+    useOrgAddons();
   const { isAdmin } = useOrgRole();
+  const router = useRouter();
   const [toggling, setToggling] = useState<string | null>(null);
 
   const handleToggle = async (addon: Addon) => {
     if (!isAdmin) return;
+    if (addon.key === "fertility_premium" && !addon.enabled) {
+      toast.info(
+        "Pack Fertilidad Premium aún no está disponible. Activa el pack básico para empezar."
+      );
+      return;
+    }
     setToggling(addon.key);
+
+    // Fertility uses the tier-aware activate/deactivate endpoints so the
+    // exclusive tier_group guard runs and the wizard URL is returned.
+    if (addon.key === "fertility_basic") {
+      if (!addon.enabled) {
+        const result = await activateAddon(addon.key);
+        setToggling(null);
+        if (result.ok) {
+          toast.success(`${addon.name} activado`);
+          if (result.warnings?.length) {
+            for (const w of result.warnings) toast.warning(w);
+          }
+          const url =
+            result.setup_url ?? "/admin/addon-config/fertility/canonical-mapping";
+          router.push(url);
+        } else {
+          toast.error(result.error);
+        }
+        return;
+      } else {
+        const ok = await deactivateAddon(addon.key);
+        setToggling(null);
+        if (ok) toast.success(`${addon.name} desactivado`);
+        else toast.error("Error al desactivar el módulo");
+        return;
+      }
+    }
+
     const ok = await toggleAddon(addon.key, !addon.enabled);
     setToggling(null);
     if (ok) {
@@ -165,6 +220,8 @@ function AddonCard({
   highlighted?: boolean;
 }) {
   const Icon = ICON_MAP[addon.icon ?? ""] ?? Sparkles;
+  const isFertilityBasic = addon.key === "fertility_basic";
+  const isFertilityPremium = addon.key === "fertility_premium";
 
   return (
     <div
@@ -189,7 +246,12 @@ function AddonCard({
         </div>
 
         {/* Toggle or lock */}
-        {isAdmin ? (
+        {isFertilityPremium ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 border border-violet-500/30 px-2 py-0.5 text-[10px] font-semibold text-violet-500">
+            <Sparkles className="h-2.5 w-2.5" />
+            Próximamente
+          </span>
+        ) : isAdmin ? (
           <button
             onClick={onToggle}
             disabled={toggling}
@@ -237,6 +299,51 @@ function AddonCard({
         </p>
       </div>
 
+      {/* Bullets for fertility addons */}
+      {(isFertilityBasic || isFertilityPremium) && (
+        <ul className="mt-3 space-y-1.5 border-t border-border/40 pt-3 text-[11px] text-muted-foreground">
+          {(isFertilityBasic
+            ? FERTILITY_BASIC_BULLETS
+            : FERTILITY_PREMIUM_BULLETS
+          ).map((bullet) => (
+            <li key={bullet} className="flex items-start gap-1.5">
+              <CheckCircle2
+                className={`mt-[1px] h-3 w-3 shrink-0 ${
+                  isFertilityBasic ? "text-primary" : "text-violet-500"
+                }`}
+              />
+              <span className="leading-snug">{bullet}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Settings links for activated fertility_basic */}
+      {isFertilityBasic && addon.enabled && (
+        <div className="mt-3 flex flex-col gap-1.5 border-t border-border/40 pt-3">
+          <Link
+            href="/admin/addon-config/fertility/canonical-mapping"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+          >
+            <Sliders className="h-3 w-3" />
+            Mapear servicios
+          </Link>
+          <Link
+            href="/admin/addon-config/fertility/settings"
+            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
+          >
+            <Settings className="h-3 w-3" />
+            Configurar plazos y tono
+          </Link>
+        </div>
+      )}
+
+      {isFertilityPremium && (
+        <p className="mt-3 border-t border-border/40 pt-3 text-[11px] text-muted-foreground italic">
+          Disponible en próxima iteración. Activa el pack básico para empezar.
+        </p>
+      )}
+
       {/* Footer */}
       <div className="mt-3 flex items-center gap-2 text-[10px] text-muted-foreground">
         {addon.enabled && addon.activated_at && (
@@ -245,7 +352,7 @@ function AddonCard({
             Activo
           </span>
         )}
-        {addon.is_premium && (
+        {addon.is_premium && !isFertilityPremium && (
           <span>
             Plan {PLAN_LABELS[addon.min_plan] ?? addon.min_plan}+
           </span>

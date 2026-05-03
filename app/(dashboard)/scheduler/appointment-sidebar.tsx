@@ -10,6 +10,7 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { sendNotification } from "@/lib/send-notification";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
+import { fireAppointmentCompletedFollowupTrigger } from "@/lib/scheduler/appointment-completed-trigger";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import { EInvoiceEmitDialog } from "@/components/einvoice/emit-dialog";
 import { InvoiceCard } from "@/components/einvoice/invoice-card";
@@ -570,6 +571,13 @@ export function AppointmentSidebar({
       return;
     }
     toast.success(t("scheduler.save_success"));
+
+    // Fire-and-forget: si la cita pasó a completed, dispara la creación
+    // de seguimientos automáticos del addon fertility (sec. G del spec).
+    // No bloquea la UX y silencia errores.
+    if (newStatus === "completed") {
+      fireAppointmentCompletedFollowupTrigger(appointment.id);
+    }
 
     // Mirror to Google Calendar (best-effort, no-op if not connected).
     // Cancel → mark event as cancelled. Other status changes don't change

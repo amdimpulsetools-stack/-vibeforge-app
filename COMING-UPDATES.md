@@ -1,6 +1,6 @@
-# Coming Updates — REPLACE
+# Coming Updates — Yenda
 
-> **Última actualización:** 2026-04-26 (v0.13.5)
+> **Última actualización:** 2026-05-02 (v0.14.x — fertility addon entregado)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -734,32 +734,131 @@ Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vit
 
 ---
 
+## 🔐 Seguridad y Auth
+
+Sección transversal a toda la plataforma — aplica a todos los roles, todas las orgs, todas las especialidades. **No vinculada a addons.** Crítica para defender el modelo de negocio (anti account-sharing) y para compliance médico (Ley 29733 + NTS 139 — auditoría de quién accede a HC).
+
+### Pendientes (orden de mi recomendación)
+
+- [ ] **Límite de dispositivos simultáneos por user** — Anti account-sharing patrón Netflix/Kommo/Spotify. Una clínica con 8 doctores que comparte 1 cuenta de owner = pierdes 7 ventas. Diseño:
+  - Tabla nueva `auth_sessions` con `user_id, organization_id, device_fingerprint (IP + UA + localStorage device_id), device_label, last_seen_at, revoked_at`.
+  - Límites configurables por org (defaults: Owner 2 / Admin 2 / Doctor 2 / Recepcionista 1).
+  - Enforcement en login (modal "Tienes N dispositivos activos, ¿cerrar la más antigua?") + middleware que verifica `revoked_at` en cada request (con cache 30s para no agregar latencia).
+  - Página `/account/devices` con lista de sesiones activas + ubicación aproximada + botón "Cerrar".
+  - Cron de limpieza diario para sesiones huérfanas (`last_seen_at` > 7 días → revoke).
+  - Complicación: Supabase JWT no tiene revocación nativa — verificar contra tabla en cada request hasta que el JWT expire.
+  - **Esfuerzo: Medio-Alto (~5-7 días).**
+  - **Impacto: Muy alto.** Previene leak de revenue por account-sharing + auditoría real.
+
+- [ ] **Logout from all devices** — Botón en `/account` que invalida todas las sesiones del user. Útil cuando: cambias contraseña, sospechas de acceso no autorizado, dejas un dispositivo en uso público. Reusa la tabla `auth_sessions` del punto anterior.
+  - **Esfuerzo: Bajo (~1 día).** Casi gratis si el item anterior está hecho.
+  - **Impacto: Medio.** Higiene de seguridad estándar.
+
+- [ ] **Login alerts por email** — Cuando un user logea desde un dispositivo o IP nueva, email automático: "Hemos detectado un nuevo inicio de sesión desde [Lima, Chrome en Windows]. Si no fuiste tú, [cierra todas las sesiones]". Aprovecha la tabla `auth_sessions`.
+  - **Esfuerzo: Bajo (~1 día).**
+  - **Impacto: Medio-Alto.** Detección temprana de credenciales comprometidas.
+
+- [ ] **2FA opcional para owner/admin** — TOTP estándar (Google Authenticator / 1Password / Authy). Hoy founder sí tiene 2FA (`founder_2fa_sessions`), pero owners/admins de clínicas no. Para clínicas con datos sensibles este es un requisito típico.
+  - Setup: QR code + recovery codes + enforcement por org (admin puede forzarlo a todos los miembros).
+  - **Esfuerzo: Medio (~3-4 días).**
+  - **Impacto: Alto.** Vendible como feature de Plan Clínica/Enterprise.
+
+- [ ] **Audit log de acceso a datos clínicos sensibles** — Tabla `clinical_access_log` con `user_id, organization_id, resource_type (patient|clinical_note|prescription|attachment), resource_id, action (view|edit|export|print), at, ip, user_agent`. RLS solo lectura para owner/admin. Página `/admin/audit-log` con filtros + export CSV.
+  - **Compliance:** la NTS 139 exige trazabilidad de acceso a HC. RLS multi-tenant no basta — hay que loggear quién vio qué cuándo.
+  - **Esfuerzo: Medio-Alto (~4-5 días).** El loggeo es liviano (insert async); la complejidad está en cubrir todos los puntos de acceso sin perder eventos.
+  - **Impacto: Alto.** Diferenciador legal frente a competidores que no lo tienen + protección legal de la clínica frente a denuncias de pacientes.
+
+- [ ] **Rate limiting + captcha en login después de N intentos fallidos** — Hoy `lib/rate-limit.ts` es in-memory básico. Falta enforcement específico en login (5 intentos fallidos → captcha o bloqueo de 15 min de la IP). Previene brute force.
+  - **Esfuerzo: Bajo-Medio (~2 días).** Reusa `lib/rate-limit.ts` + Cloudflare Turnstile o reCAPTCHA v3.
+  - **Impacto: Medio.** Higiene de seguridad básica. Más relevante cuando crezca el tráfico.
+
+- [ ] **Password policy + rotación obligatoria opcional** — Settings org-level: longitud mínima (default 10), exigir mayúsculas/números/símbolos, rotación cada N días (opcional, off por default). Hoy Supabase Auth solo enforce 6 chars. Algunas clínicas grandes tienen política corporativa que pide >12 chars + rotación 90 días.
+  - **Esfuerzo: Medio (~2-3 días).**
+  - **Impacto: Bajo-Medio.** Importa para vender a clínicas con dpto. de seguridad maduro (corporativo, hospitales). En piloto Vitra no es prioridad.
+
+- [ ] **Session timeout por inactividad** — Auto-logout después de N minutos sin actividad (configurable por org). Hoy las sesiones duran lo que duren los JWT (default 1h refresh). Para consultorios donde varias personas usan la misma compu, importa que se cierre solo.
+  - **Esfuerzo: Bajo (~1 día).** Listener de eventos en cliente + heartbeat al backend.
+  - **Impacto: Medio.** Importa para roles de recepción más que para owner/doctor.
+
+### Cerrados
+
+- [x] **Aceptación explícita de Términos y Privacidad en registro** (mig 116) — Checkbox obligatorio en `/register`, redirección a `/onboarding/accept-terms` para Google OAuth, persistencia en `user_profiles.accepted_terms_at` + version. *(v0.14.1)*
+- [x] **Bloqueo de sesión para miembros desactivados** (mig 118) — Si todas las membresías del user están `is_active=false`, redirige a `/account-suspended`. *(v0.14.1)*
+- [x] **Hardening Ley 29733** en `/terms` y `/privacy` — Yenda como Encargado del Tratamiento, sub-encargados completos, retención específica, breach notification 72h, plazo ARCO 20d. *(v0.14.0)*
+- [x] **2FA founders** — Tabla `founder_2fa_sessions` (mig 104) con cookie verificada en `requireFounder()`. *(v0.12.4)*
+- [x] **Magic-link token hash** — SHA-256 antes de persistir, raw solo viaja por email/URL (mig 105). *(v0.12.5)*
+
+### Diferidos / dependencias
+
+- **F-05 Redis rate limiter** (de Technical Debt) — depende de migrar in-memory a Upstash. Solo necesario cuando escalemos a >1 clínica con tráfico simultáneo o autoscale activo.
+- **Captcha en /register** — esperar a tener señal de spam real antes de meter friction al signup.
+
+---
+
+
+
 ## 🔜 Prioridad sugerida
 
-| # | Feature | Esfuerzo | Impacto | Prioridad |
+> **Re-rankeada al 2026-05-02** integrando seguridad transversal y nuevos verticales. Criterios: defensa de modelo de negocio (account sharing, monetización), compliance legal Perú (Ley 29733, NTS 139), esfuerzo realista, leverage cruzado entre features.
+>
+> **Items que defienden el modelo de negocio van primero** — sin esos, el resto de features pierde valor económico cuando una clínica con 10 doctores comparte 1 cuenta y pagás solo 1 plan.
+
+### 🔴 Alta — defienden modelo o son compliance
+
+| # | Feature | Esfuerzo | Impacto | Razón estratégica |
 |---|---|---|---|---|
-| ~~1~~ | ~~Email activación trial~~ | ~~Bajo~~ | ~~Alto~~ | ✅ Entregado |
-| ~~2~~ | ~~Bloques de horarios (copiar)~~ | ~~Medio~~ | ~~Alto (uso diario recepcionista)~~ | ✅ Entregado |
-| ~~3~~ | ~~Estadísticas de edades~~ | ~~Bajo~~ | ~~Medio~~ | ✅ Entregado |
-| 4 | Bloque hora único en calendar | Bajo | Medio (UX) | 🟡 Media |
-| ~~5~~ | ~~Plantillas de tratamiento~~ | ~~Medio~~ | ~~Alto~~ | ✅ Entregado |
-| 6 | Notificaciones periódicas | Medio | Alto (engagement) | 🟡 Media |
-| 7 | Reporte IA por paciente | Alto | Alto (diferenciador) | 🟡 Media |
-| 8 | Google Calendar sync | Alto | Alto (integración clave) | 🟠 Media-baja |
-| 9 | Links Zoom/Meet automáticos | Alto | Medio (teleconsulta) | 🟠 Media-baja |
-| ~~10~~ | ~~Facturación SUNAT (boletas/facturas)~~ | ~~Alto~~ | ~~Alto (requisito legal Perú)~~ | ✅ Entregado (v0.13.0, MVP con Nubefact) |
-| 11 | CRM multi-canal (WhatsApp + IG + FB) | Muy alto | Muy alto (diferenciador) | 🟡 Media |
-| ~~12~~ | ~~Catálogo CIE-10 personalizable~~ | ~~Medio~~ | ~~Alto~~ | ✅ Entregado |
-| 13 | Descuentos condicionales | Medio | Medio (billing) | 🟠 Media-baja |
-| 14 | Importación masiva CIE-10 (CSV) | Bajo | Medio | 🟠 Media-baja |
-| 15 | ~~Etiqueta "Paciente Recurrente"~~ | ~~Bajo~~ | ~~Alto (segmentación)~~ | ✅ Entregado (v0.11.0) |
-| 16 | Límites de plan: soft-wall UX | Medio | Alto (monetización) | 🔴 Alta |
-| 17 | Storage: límites y mensajes | Medio | Alto (monetización) | 🟡 Media |
-| 18 | Módulo Laboratorio (addon) | Alto | Alto (especialidades) | 🟡 Media |
-| 19 | Grabación + transcripción IA | Muy alto | Muy alto (diferenciador) | 🟡 Media |
-| 20 | Dermatología: antes/después | Alto | Alto (especialidades) | 🟡 Media |
-| 21 | Bundle Consulta + Tratamiento | Medio | Alto (billing + UX) | 🟡 Media |
-| ~~22~~ | ~~Portal del Paciente Phase 1~~ (auth + mis citas + cancelar) | ~~Muy alto~~ | ~~Muy alto~~ | ✅ Entregado |
+| 1 | **Límite de dispositivos simultáneos** (sec. 🔐 Seguridad) | Medio-Alto | Muy alto | Anti account-sharing. Sin esto el ARPU se diluye en cuanto vendamos a clínicas medianas. **Bloqueante para piloto Vitra escalado.** |
+| 2 | **Audit log de acceso a HC** (sec. 🔐 Seguridad) | Medio-Alto | Alto | Compliance NTS 139 — exigible legalmente. Diferenciador frente a Doctoralia/Helisa. |
+| 3 | **Límites de plan: soft-wall UX** | Medio | Alto | Sin enforcement de límites, el upgrade de plan no se gatilla. Monetización rota silenciosa. |
+| 4 | **2FA opcional para owner/admin** (sec. 🔐 Seguridad) | Medio | Alto | Vendible como feature Plan Clínica. Estándar de mercado en SaaS médico. |
+
+### 🟡 Media — diferencia y crece producto
+
+| # | Feature | Esfuerzo | Impacto | Razón |
+|---|---|---|---|---|
+| 5 | **Notificaciones periódicas (correos)** | Medio | Alto | Engagement del owner — sin emails de resumen, baja recurrencia de uso del producto. |
+| 6 | **Reporte IA Avanzado capa 1+2** (Brief Ejecutivo + Insights proactivos) | Alto | Alto | Diferenciador Plan Centro Médico/Clínica. Capa 1 mínima ya entregada en v0.13.5. |
+| 7 | **Storage: límites y mensajes** | Medio | Alto | Necesario antes de Dermatología antes/después (que sube fotos pesadas). |
+| 8 | **CRM multi-canal Fase 1** (WhatsApp bidireccional) | Alto | Muy alto | Diferenciador real frente a Doctoralia/Helisa. Empezar solo con WhatsApp; IG y FB en fase 2. |
+| 9 | **Login alerts por email + Logout from all devices** (sec. 🔐 Seguridad) | Bajo | Medio-Alto | Casi gratis si #1 está hecho. Higiene de seguridad estándar. |
+| 10 | **Consentimiento informado Tier 2** (templates + PDF pre-llenado) | Medio | Alto | Ahorra ~10 min/procedimiento. Vendible Professional/Enterprise. |
+| 11 | **Módulo Dermatología antes/después** | Alto | Alto | Vertical clave junto con Fertilidad. Esperar feedback Dermosalud para definir scope final. |
+| 12 | **Bundle Consulta + Tratamiento** | Medio | Alto | Billing + UX. Útil para fertilidad/estética. |
+
+### 🟠 Media-baja — útiles pero no urgentes
+
+| # | Feature | Esfuerzo | Impacto | Razón |
+|---|---|---|---|---|
+| 13 | **Google Calendar sync** | Alto | Alto | Integración clave pero usuarios viven feliz sin ella. Reactivar cuando 3+ clientes la pidan. |
+| 14 | **Session timeout por inactividad** (sec. 🔐 Seguridad) | Bajo | Medio | Para roles de recepción (varias personas misma compu). |
+| 15 | **Rate limit + captcha en login** (sec. 🔐 Seguridad) | Bajo-Medio | Medio | Higiene básica. Más relevante cuando crezca el tráfico. |
+| 16 | **Bloque hora único en calendar** | Bajo | Medio | UX. |
+| 17 | **Módulo Laboratorio (addon)** | Alto | Alto | Vertical post-Vitra. Esperar feedback de qué clínica lo pide. |
+| 18 | **Grabación + transcripción IA** | Muy alto | Muy alto | Diferenciador grande pero requiere evaluación de privacidad médica + costo API. |
+| 19 | **Importación masiva CIE-10 (CSV)** | Bajo | Medio | Útil para clínicas con códigos específicos por especialidad. |
+| 20 | **Descuentos condicionales** | Medio | Medio | Billing avanzado. |
+| 21 | **Links Zoom/Meet automáticos** | Alto | Medio | Teleconsulta — uso aún limitado en Perú. |
+| 22 | **Reporte IA Avanzado capa 3-5** (Forecast + Multi-Doctor + Benchmark) | Muy alto | Alto | Roadmap largo. Reactivar cuando Plan Clínica tenga >3 clientes. |
+| 23 | **Password policy + rotación** (sec. 🔐 Seguridad) | Medio | Bajo-Medio | Vendible solo a clínicas corporativas grandes. No urgente para piloto. |
+
+### ✅ Entregados (referencia)
+
+| Feature | Versión |
+|---|---|
+| ~~Email activación trial~~ | ✅ v0.8.1 |
+| ~~Bloques de horarios (copiar)~~ | ✅ v0.9.1 |
+| ~~Estadísticas de edades~~ | ✅ |
+| ~~Plantillas de tratamiento~~ | ✅ |
+| ~~Catálogo CIE-10 personalizable~~ | ✅ v0.8.2 |
+| ~~Etiqueta "Paciente Recurrente"~~ | ✅ v0.11.0 |
+| ~~Portal del Paciente Phase 1~~ (auth + mis citas + cancelar) | ✅ v0.10.0 |
+| ~~Pricing alineado~~ | ✅ v0.13.3 |
+| ~~Brief Ejecutivo IA Slice C~~ | ✅ v0.13.5 |
+| ~~Facturación SUNAT (boletas/facturas)~~ | ✅ v0.13.0 (MVP Nubefact) |
+| ~~Aceptación explícita Terms+Privacy en registro~~ (sec. 🔐) | ✅ v0.14.1 |
+| ~~Bloqueo sesión miembros desactivados~~ (sec. 🔐) | ✅ v0.14.1 |
+| ~~Hardening Ley 29733 + rediseño /terms /privacy~~ | ✅ v0.14.0 |
+| ~~Addon `fertility_basic` MVP — seguimientos automatizados~~ | ✅ v0.14.x (rama claude/add-terms-privacy-fH9H7) |
 
 ---
 
