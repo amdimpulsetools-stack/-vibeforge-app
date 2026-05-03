@@ -1,11 +1,8 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { useState } from "react";
 import { useOrgAddons, type Addon } from "@/hooks/use-org-addons";
 import { useOrgRole } from "@/hooks/use-org-role";
-import { toast } from "sonner";
 import {
   Loader2,
   Sparkles,
@@ -25,9 +22,17 @@ import {
   BarChart3,
   Package,
   FlaskConical,
-  Settings,
-  Sliders,
+  Settings as SettingsIcon,
+  Layers,
+  Stethoscope,
 } from "lucide-react";
+import {
+  ModuleActivateDialog,
+} from "@/components/modules/module-activate-dialog";
+import {
+  ModuleConfigDialog,
+  type ConfigLink,
+} from "@/components/modules/module-config-dialog";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   Scan,
@@ -47,23 +52,17 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const FERTILITY_BASIC_BULLETS = [
-  "Seguimientos automáticos entre 1ra y 2da consulta",
-  "Atribución honesta de recuperaciones",
+  "Seguimientos automaticos entre 1ra y 2da consulta",
+  "Atribucion honesta de recuperaciones",
   "Plantillas WhatsApp y email aprobadas",
 ];
 
 const FERTILITY_PREMIUM_BULLETS = [
   "Constructor de reglas custom por tipo de servicio",
-  "Plantillas editables por la clínica",
+  "Plantillas editables por la clinica",
   "Cascadas de canales (WhatsApp + email + SMS)",
-  "Reportes de conversión por médico",
+  "Reportes de conversion por medico",
 ];
-
-const CATEGORY_LABELS: Record<string, { es: string; en: string }> = {
-  specialty: { es: "Especialidades Médicas", en: "Medical Specialties" },
-  workflow: { es: "Flujos de Trabajo", en: "Workflows" },
-  clinical: { es: "Clínico", en: "Clinical" },
-};
 
 const PLAN_LABELS: Record<string, string> = {
   starter: "Starter",
@@ -71,62 +70,72 @@ const PLAN_LABELS: Record<string, string> = {
   enterprise: "Enterprise",
 };
 
-export default function ModulosTab() {
-  const { addons, loading, toggleAddon, activateAddon, deactivateAddon } =
-    useOrgAddons();
-  const { isAdmin } = useOrgRole();
-  const router = useRouter();
-  const [toggling, setToggling] = useState<string | null>(null);
+interface AddonMetadata {
+  features: string[];
+  setupUrl?: string;
+  configLinks: ConfigLink[];
+  iconTone: "emerald" | "violet" | "sky" | "amber" | "rose";
+}
 
-  const handleToggle = async (addon: Addon) => {
-    if (!isAdmin) return;
-    if (addon.key === "fertility_premium" && !addon.enabled) {
-      toast.info(
-        "Pack Fertilidad Premium aún no está disponible. Activa el pack básico para empezar."
-      );
-      return;
-    }
-    setToggling(addon.key);
+function getAddonMetadata(addon: Addon): AddonMetadata {
+  if (addon.key === "fertility_basic") {
+    return {
+      features: FERTILITY_BASIC_BULLETS,
+      setupUrl: "/admin/addon-config/fertility/canonical-mapping",
+      configLinks: [
+        {
+          label: "Mapear servicios",
+          description:
+            "Conecta los nombres de tus servicios con las categorias canonicas del addon.",
+          href: "/admin/addon-config/fertility/canonical-mapping",
+        },
+        {
+          label: "Configurar plazos y tono",
+          description:
+            "Ajusta el timing y la voz de los seguimientos automaticos.",
+          href: "/admin/addon-config/fertility/settings",
+        },
+      ],
+      iconTone: "emerald",
+    };
+  }
 
-    // Fertility uses the tier-aware activate/deactivate endpoints so the
-    // exclusive tier_group guard runs and the wizard URL is returned.
-    if (addon.key === "fertility_basic") {
-      if (!addon.enabled) {
-        const result = await activateAddon(addon.key);
-        setToggling(null);
-        if (result.ok) {
-          toast.success(`${addon.name} activado`);
-          if (result.warnings?.length) {
-            for (const w of result.warnings) toast.warning(w);
-          }
-          const url =
-            result.setup_url ?? "/admin/addon-config/fertility/canonical-mapping";
-          router.push(url);
-        } else {
-          toast.error(result.error);
-        }
-        return;
-      } else {
-        const ok = await deactivateAddon(addon.key);
-        setToggling(null);
-        if (ok) toast.success(`${addon.name} desactivado`);
-        else toast.error("Error al desactivar el módulo");
-        return;
-      }
-    }
+  if (addon.key === "fertility_premium") {
+    return {
+      features: FERTILITY_PREMIUM_BULLETS,
+      configLinks: [],
+      iconTone: "violet",
+    };
+  }
 
-    const ok = await toggleAddon(addon.key, !addon.enabled);
-    setToggling(null);
-    if (ok) {
-      toast.success(
-        addon.enabled
-          ? `${addon.name} desactivado`
-          : `${addon.name} activado`
-      );
-    } else {
-      toast.error("Error al cambiar el módulo");
-    }
+  const tone: AddonMetadata["iconTone"] =
+    addon.category === "workflow"
+      ? "sky"
+      : addon.category === "clinical"
+        ? "amber"
+        : "emerald";
+
+  return {
+    features: [],
+    configLinks: [],
+    iconTone: tone,
   };
+}
+
+const TONE_CLASSES: Record<AddonMetadata["iconTone"], string> = {
+  emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  violet: "bg-violet-500/10 text-violet-600 dark:text-violet-400",
+  sky: "bg-sky-500/10 text-sky-600 dark:text-sky-400",
+  amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  rose: "bg-rose-500/10 text-rose-600 dark:text-rose-400",
+};
+
+export default function ModulosTab() {
+  const { addons, loading, activateAddon, deactivateAddon } = useOrgAddons();
+  const { isAdmin } = useOrgRole();
+
+  const [activateTarget, setActivateTarget] = useState<Addon | null>(null);
+  const [configTarget, setConfigTarget] = useState<Addon | null>(null);
 
   if (loading) {
     return (
@@ -136,180 +145,263 @@ export default function ModulosTab() {
     );
   }
 
-  const recommended = addons.filter((a) => a.recommended);
-  const byCategory = addons.reduce(
-    (acc, a) => {
-      (acc[a.category] ??= []).push(a);
-      return acc;
-    },
-    {} as Record<string, Addon[]>
+  const active = addons.filter((a) => a.enabled);
+  const activeKeys = new Set(active.map((a) => a.key));
+
+  const inactive = addons.filter((a) => !activeKeys.has(a.key));
+
+  const recommended = inactive.filter(
+    (a) => a.recommended && !a.is_premium && a.category === "specialty"
   );
+  const recommendedKeys = new Set(recommended.map((a) => a.key));
+
+  const otherSpecialties = inactive.filter(
+    (a) => a.category === "specialty" && !recommendedKeys.has(a.key)
+  );
+
+  const additional = inactive.filter((a) => a.category !== "specialty");
+
+  const sections: Array<{
+    key: string;
+    title: string;
+    subtitle?: string;
+    icon: React.ElementType;
+    iconClassName: string;
+    items: Addon[];
+  }> = [];
+
+  if (active.length > 0) {
+    sections.push({
+      key: "active",
+      title: "Mis activos",
+      subtitle: "Modulos activos en tu clinica",
+      icon: CheckCircle2,
+      iconClassName: "text-primary",
+      items: active,
+    });
+  }
+
+  if (recommended.length > 0) {
+    sections.push({
+      key: "recommended",
+      title: "Recomendados para tu especialidad",
+      subtitle:
+        "Sugeridos en base a la especialidad principal que elegiste durante el onboarding",
+      icon: Star,
+      iconClassName: "text-emerald-500",
+      items: recommended,
+    });
+  }
+
+  if (otherSpecialties.length > 0) {
+    sections.push({
+      key: "specialty",
+      title: "Otras especialidades disponibles",
+      icon: Stethoscope,
+      iconClassName: "text-muted-foreground",
+      items: otherSpecialties,
+    });
+  }
+
+  if (additional.length > 0) {
+    sections.push({
+      key: "additional",
+      title: "Herramientas adicionales",
+      subtitle: "Workflow y herramientas clinicas",
+      icon: Layers,
+      iconClassName: "text-muted-foreground",
+      items: additional,
+    });
+  }
+
+  const handleActivateClick = (addon: Addon) => {
+    if (!isAdmin) return;
+    setActivateTarget(addon);
+  };
+
+  const handleConfigureClick = (addon: Addon) => {
+    if (!isAdmin) return;
+    setConfigTarget(addon);
+  };
+
+  const activateMeta = activateTarget ? getAddonMetadata(activateTarget) : null;
+  const configMeta = configTarget ? getAddonMetadata(configTarget) : null;
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h2 className="text-lg font-semibold">Módulos</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Activa herramientas especializadas para tu clínica. Los módulos recomendados
-          se basan en la especialidad que elegiste durante el onboarding.
-        </p>
-      </div>
-
-      {/* Recommended section */}
-      {recommended.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2">
-            <Star className="h-4 w-4 text-amber-500" />
-            <h3 className="text-sm font-semibold">Recomendados para tu especialidad</h3>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {recommended.map((addon) => (
-              <AddonCard
-                key={addon.key}
-                addon={addon}
-                toggling={toggling === addon.key}
-                isAdmin={isAdmin}
-                onToggle={() => handleToggle(addon)}
-                highlighted
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* All modules by category */}
-      {(["specialty", "workflow", "clinical"] as const).map((cat) => {
-        const items = byCategory[cat];
-        if (!items?.length) return null;
-        const label = CATEGORY_LABELS[cat];
-        return (
-          <div key={cat} className="space-y-3">
-            <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-              {label.es}
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {items.map((addon) => (
-                <AddonCard
-                  key={addon.key}
-                  addon={addon}
-                  toggling={toggling === addon.key}
-                  isAdmin={isAdmin}
-                  onToggle={() => handleToggle(addon)}
-                />
-              ))}
+    <>
+      <div className="space-y-8">
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+              <Package className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold">Modulos</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Activa herramientas especializadas para tu clinica. Los modulos
+                recomendados se basan en la especialidad que elegiste durante
+                el onboarding.
+              </p>
             </div>
           </div>
-        );
-      })}
-    </div>
+        </div>
+
+        {sections.map((section) => {
+          const SectionIcon = section.icon;
+          return (
+            <section key={section.key} className="space-y-3">
+              <div className="flex items-start gap-2">
+                <SectionIcon
+                  className={`h-4 w-4 mt-0.5 shrink-0 ${section.iconClassName}`}
+                />
+                <div>
+                  <h3 className="text-sm font-semibold">{section.title}</h3>
+                  {section.subtitle && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {section.subtitle}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {section.items.map((addon) => (
+                  <AddonCard
+                    key={addon.key}
+                    addon={addon}
+                    isAdmin={isAdmin}
+                    onActivate={() => handleActivateClick(addon)}
+                    onConfigure={() => handleConfigureClick(addon)}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })}
+
+        {sections.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 p-8 text-center">
+            <p className="text-sm font-medium">
+              No hay modulos disponibles para tu plan actual.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Escribenos a soporte@yenda.app si quieres ver mas opciones.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {activateTarget && activateMeta && (
+        <ModuleActivateDialog
+          open={!!activateTarget}
+          onOpenChange={(open) => {
+            if (!open) setActivateTarget(null);
+          }}
+          addonKey={activateTarget.key}
+          addonName={activateTarget.name}
+          addonDescription={activateTarget.description}
+          addonFeatures={activateMeta.features}
+          setupUrl={activateMeta.setupUrl}
+          activate={activateAddon}
+        />
+      )}
+
+      {configTarget && configMeta && (
+        <ModuleConfigDialog
+          open={!!configTarget}
+          onOpenChange={(open) => {
+            if (!open) setConfigTarget(null);
+          }}
+          addonKey={configTarget.key}
+          addonName={configTarget.name}
+          configLinks={configMeta.configLinks}
+          onDeactivate={async () => deactivateAddon(configTarget.key)}
+        />
+      )}
+    </>
   );
+}
+
+interface AddonCardProps {
+  addon: Addon;
+  isAdmin: boolean;
+  onActivate: () => void;
+  onConfigure: () => void;
 }
 
 function AddonCard({
   addon,
-  toggling,
   isAdmin,
-  onToggle,
-  highlighted,
-}: {
-  addon: Addon;
-  toggling: boolean;
-  isAdmin: boolean;
-  onToggle: () => void;
-  highlighted?: boolean;
-}) {
+  onActivate,
+  onConfigure,
+}: AddonCardProps) {
   const Icon = ICON_MAP[addon.icon ?? ""] ?? Sparkles;
-  const isFertilityBasic = addon.key === "fertility_basic";
-  const isFertilityPremium = addon.key === "fertility_premium";
+  const meta = getAddonMetadata(addon);
+  const isComingSoon = addon.key === "fertility_premium";
+
+  const isActive = addon.enabled;
 
   return (
     <div
-      className={`relative rounded-2xl border p-4 transition-all ${
-        addon.enabled
-          ? "border-primary/40 bg-primary/5 ring-1 ring-primary/20"
-          : highlighted
-            ? "border-amber-500/30 bg-amber-500/5"
-            : "border-border/60 bg-card hover:border-border"
+      className={`relative flex flex-col rounded-2xl border bg-card p-6 transition-all ${
+        isActive
+          ? "border-primary/40 ring-1 ring-primary/20"
+          : isComingSoon
+            ? "border-border/40 opacity-90"
+            : "border-border/60 hover:border-primary/40 hover:shadow-md"
       }`}
     >
-      {/* Top row: icon + toggle */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-3 mb-3">
         <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-            addon.enabled
-              ? "bg-primary/10 text-primary"
-              : "bg-muted/60 text-muted-foreground"
+          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${
+            TONE_CLASSES[meta.iconTone]
           }`}
         >
-          <Icon className="h-5 w-5" />
+          <Icon className="h-6 w-6" />
         </div>
 
-        {/* Toggle or lock */}
-        {isFertilityPremium ? (
-          <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 border border-violet-500/30 px-2 py-0.5 text-[10px] font-semibold text-violet-500">
-            <Sparkles className="h-2.5 w-2.5" />
-            Próximamente
-          </span>
-        ) : isAdmin ? (
-          <button
-            onClick={onToggle}
-            disabled={toggling}
-            className="relative shrink-0"
-            title={addon.enabled ? "Desactivar módulo" : "Activar módulo"}
-          >
-            {toggling ? (
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            ) : (
-              <div className="relative">
-                <div
-                  className={`h-6 w-11 rounded-full transition-colors ${
-                    addon.enabled ? "bg-primary" : "bg-muted"
-                  }`}
-                />
-                <div
-                  className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                    addon.enabled ? "translate-x-5" : ""
-                  }`}
-                />
-              </div>
-            )}
-          </button>
-        ) : addon.enabled ? (
-          <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
-        ) : (
-          <Lock className="h-4 w-4 text-muted-foreground/40 shrink-0" />
-        )}
-      </div>
-
-      {/* Name + badges */}
-      <div className="mt-3 space-y-1.5">
         <div className="flex items-center gap-2">
-          <h4 className="text-sm font-semibold leading-tight">{addon.name}</h4>
-          {addon.is_premium && (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-amber-500">
-              <Sparkles className="h-2.5 w-2.5" />
-              PRO
+          {isActive && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="h-2.5 w-2.5" />
+              Activo
             </span>
           )}
+          {isComingSoon && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+              <Sparkles className="h-2.5 w-2.5" />
+              Proximamente
+            </span>
+          )}
+          {isActive && isAdmin && (
+            <button
+              type="button"
+              onClick={onConfigure}
+              title="Configurar modulo"
+              className="rounded-lg p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            >
+              <SettingsIcon className="h-4 w-4" />
+            </button>
+          )}
         </div>
-
-        <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-          {addon.description}
-        </p>
       </div>
 
-      {/* Bullets for fertility addons */}
-      {(isFertilityBasic || isFertilityPremium) && (
-        <ul className="mt-3 space-y-1.5 border-t border-border/40 pt-3 text-[11px] text-muted-foreground">
-          {(isFertilityBasic
-            ? FERTILITY_BASIC_BULLETS
-            : FERTILITY_PREMIUM_BULLETS
-          ).map((bullet) => (
+      <h3 className="text-sm font-semibold leading-tight mb-1.5">
+        {addon.name}
+      </h3>
+
+      {addon.description && (
+        <p className="text-xs text-muted-foreground leading-relaxed mb-3 min-h-[3rem]">
+          {addon.description}
+        </p>
+      )}
+
+      {meta.features.length > 0 && !isActive && (
+        <ul className="space-y-1.5 border-t border-border/40 pt-3 mb-3 text-[11px] text-muted-foreground">
+          {meta.features.map((bullet) => (
             <li key={bullet} className="flex items-start gap-1.5">
               <CheckCircle2
                 className={`mt-[1px] h-3 w-3 shrink-0 ${
-                  isFertilityBasic ? "text-primary" : "text-violet-500"
+                  isComingSoon ? "text-violet-500" : "text-primary"
                 }`}
               />
               <span className="leading-snug">{bullet}</span>
@@ -318,44 +410,63 @@ function AddonCard({
         </ul>
       )}
 
-      {/* Settings links for activated fertility_basic */}
-      {isFertilityBasic && addon.enabled && (
-        <div className="mt-3 flex flex-col gap-1.5 border-t border-border/40 pt-3">
-          <Link
-            href="/admin/addon-config/fertility/canonical-mapping"
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
-          >
-            <Sliders className="h-3 w-3" />
-            Mapear servicios
-          </Link>
-          <Link
-            href="/admin/addon-config/fertility/settings"
-            className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-primary hover:bg-primary/10"
-          >
-            <Settings className="h-3 w-3" />
-            Configurar plazos y tono
-          </Link>
-        </div>
-      )}
-
-      {isFertilityPremium && (
-        <p className="mt-3 border-t border-border/40 pt-3 text-[11px] text-muted-foreground italic">
-          Disponible en próxima iteración. Activa el pack básico para empezar.
+      {isActive && addon.activated_at && (
+        <p className="text-[11px] text-muted-foreground border-t border-border/40 pt-3 mb-3">
+          Activado el{" "}
+          {new Date(addon.activated_at).toLocaleDateString("es-PE", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}
         </p>
       )}
 
-      {/* Footer */}
-      <div className="mt-3 flex items-center gap-2 text-[10px] text-muted-foreground">
-        {addon.enabled && addon.activated_at && (
-          <span className="inline-flex items-center gap-1 text-primary font-medium">
-            <CheckCircle2 className="h-3 w-3" />
-            Activo
-          </span>
+      <div className="mt-auto pt-2">
+        {isActive ? (
+          <button
+            type="button"
+            onClick={onConfigure}
+            disabled={!isAdmin}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <SettingsIcon className="h-3.5 w-3.5" />
+            Configurar
+          </button>
+        ) : isComingSoon ? (
+          <button
+            type="button"
+            disabled
+            title="Disponible proximamente"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/40 px-3 py-2 text-xs font-medium text-muted-foreground/60 cursor-not-allowed"
+          >
+            <Lock className="h-3.5 w-3.5" />
+            Notificame
+          </button>
+        ) : isAdmin ? (
+          <button
+            type="button"
+            onClick={onActivate}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Activar
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled
+            title="Solo administradores pueden activar modulos"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/40 px-3 py-2 text-xs font-medium text-muted-foreground/60 cursor-not-allowed"
+          >
+            <Lock className="h-3.5 w-3.5" />
+            Solo admins
+          </button>
         )}
-        {addon.is_premium && !isFertilityPremium && (
-          <span>
-            Plan {PLAN_LABELS[addon.min_plan] ?? addon.min_plan}+
-          </span>
+      </div>
+
+      <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+        {addon.is_premium && !isComingSoon && (
+          <span>Plan {PLAN_LABELS[addon.min_plan] ?? addon.min_plan}+</span>
         )}
       </div>
     </div>
