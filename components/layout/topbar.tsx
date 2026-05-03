@@ -141,6 +141,7 @@ export function Topbar() {
         <div ref={dropdownRef} className="relative">
           <button
             onClick={() => setOpen(!open)}
+            data-tour-step="topbar-notifications"
             className="relative flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
             title="Notificaciones"
           >
@@ -203,7 +204,7 @@ export function Topbar() {
         {loading ? (
           <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
         ) : (
-          <div className="flex items-center gap-3">
+          <div data-tour-step="topbar-user" className="flex items-center gap-3">
             <span className="text-xs text-muted-foreground hidden sm:block font-medium">
               {user?.email}
             </span>

@@ -4,6 +4,8 @@ import { AiAssistantPanel } from "@/components/ai-assistant-panel";
 import { OrganizationProvider } from "@/components/organization-provider";
 import { PlanLimitWarner } from "@/components/plan-limit-warner";
 import { MobileNavProvider } from "@/components/layout/mobile-nav-context";
+import { TourProvider } from "@/components/onboarding/tour-provider";
+import { TourAutostart } from "@/components/onboarding/tour-autostart";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -20,15 +22,18 @@ export default async function DashboardLayout({
   return (
     <OrganizationProvider>
       <MobileNavProvider>
-        <PlanLimitWarner />
-        <div className="flex h-screen overflow-hidden">
-          <Sidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <Topbar />
-            <main className="flex-1 overflow-auto p-4 md:p-7">{children}</main>
+        <TourProvider>
+          <PlanLimitWarner />
+          <TourAutostart />
+          <div className="flex h-screen overflow-hidden">
+            <Sidebar />
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <Topbar />
+              <main className="flex-1 overflow-auto p-4 md:p-7">{children}</main>
+            </div>
+            <AiAssistantPanel />
           </div>
-          <AiAssistantPanel />
-        </div>
+        </TourProvider>
       </MobileNavProvider>
     </OrganizationProvider>
   );
