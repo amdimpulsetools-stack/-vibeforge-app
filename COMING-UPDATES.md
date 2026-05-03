@@ -631,6 +631,40 @@ Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vit
 
 ---
 
+## 🎓 Onboarding y Educación de Owner
+
+- [ ] **Tour interactivo de primera vez (overlay con tooltips guiados)** — Cuando un owner nuevo entra al dashboard la primera vez, lanzar un tour con overlay opaco + tooltips contextuales sobre las partes clave del producto. Librería sugerida: **`driver.js` v1+** (~5KB, sin React deps pesadas, tooltips con título + descripción + Atrás/Siguiente/Omitir, persistencia localStorage built-in, customizable con CSS para matchear branding emerald de Yenda). Steps sugeridos (~10):
+  - **Scheduler** (5-6 steps): "Esta es tu agenda con vista día/semana", "Crear cita: botón Nueva cita o click en slot", "Bloquear horarios temporales: botón Lock", "Configurar break time recurrente: botón Coffee", "Compartir horarios disponibles por WhatsApp: botón Share"
+  - **Dashboard navigation** (4-5 steps): "Sidebar con todas las secciones", "Pacientes: ficha clínica completa", "Reportes: métricas financieras", "Settings → Módulos: activar verticales por especialidad"
+  - **Persistencia**: `localStorage.tour_completed_v1 = true` por user. Botón "Omitir" en cada paso. Re-disparable desde `/account → Ver tour de onboarding`.
+  - **Mitigación de fragilidad**: agregar atributos `data-tour-step="..."` en HTML estable para que selectores no se rompan al cambiar UI.
+  - **Esfuerzo**: 1.5 días — 4-6h infra (driver.js + provider context + persistencia + helpers) + 6-8h escribir steps + ajustar selectores + testing mobile.
+  - **Impacto**: Muy alto — reduce support tickets de "no entiendo cómo crear una cita", aumenta conversión trial → paid (owners que entienden el producto rápido convierten más).
+
+- [ ] **Empty state guiados también en otras secciones** — Aplicar el mismo patrón que `/admin/services` (entregado v0.15.0) a las primeras visitas de:
+  - `/admin/doctors` cuando 0 doctores
+  - `/admin/offices` cuando 0 consultorios (si el plan lo permite)
+  - `/patients` cuando 0 pacientes (CTA "Importar pacientes desde CSV" + "Crear paciente")
+  - `/scheduler` cuando 0 citas y 0 servicios (mensaje guiado al wizard de servicios)
+
+---
+
+## ⏰ Configuración de horario y formato
+
+- [ ] **Break time per-org persistido en DB** (deuda técnica de v0.15.0) — Hoy `DEFAULT_BREAK_TIME_CONFIG` vive en localStorage del navegador del user (`break-time-dialog.tsx`). Eso significa que cada usuario en cada navegador tiene su propio breaktime independiente, y si cambian de PC ven defaults. Lo correcto: tabla nueva `org_scheduler_settings` con columnas `breaktime_enabled`, `breaktime_days`, `breaktime_start`, `breaktime_end` + RLS por org. Setting visible en `/settings/agenda`. **Esfuerzo**: 4-5 horas (migración + form en settings + reemplazar localStorage con fetch de la org). **En v0.15.0**: el default `enabled` se cambió de `true` → `false` para no imponer 1-2pm a clínicas que no tienen ese horario; la migración a DB queda pendiente.
+
+- [ ] **Formato de hora 12h en outputs al paciente, 24h en dashboard interno** — Decisión de producto: el dashboard interno (scheduler, sidebar, modals admin, reportes) sigue en formato 24h porque es uso profesional de doctores/recepcionistas. **PERO** los outputs al paciente final (emails de confirmación, recordatorios, mensajes WhatsApp, página pública `/book`, prints de comprobantes) deben usar **12h con AM/PM** (`1:00 p.m.` en lugar de `13:00`) — es el lenguaje natural del paciente promedio peruano y elimina ambigüedad. **Implementación**: helper nuevo `lib/format.ts → formatTimeForPatient(hhmm: string): string` que convierte "13:00" → "1:00 p.m.". Aplicar en:
+  - Templates de email (`lib/notifications/...`, `lib/trial-welcome-email.ts`, etc.)
+  - Templates de WhatsApp (`lib/whatsapp/templates.ts`, plantillas de fertilidad, recordatorios cron)
+  - Página pública `/book/[slug]` (selector de horario + confirmación)
+  - Prints de comprobantes y consentimientos
+  - Variables `{{hora_cita}}` en plantillas configurables → resolver a 12h cuando el contexto es paciente
+  - **Mantener 24h** en: scheduler grid, sidebar de cita, dashboard, reportes, modals admin
+  - **Esfuerzo**: ~1 día — 1h crear helper, ~6h reemplazar ~20-30 puntos de display en templates de comunicación al paciente, 1h testing manual de cada canal (email + WhatsApp + book público).
+  - **Sin setting de usuario** — es decisión de producto, no configurable por el cliente. Cero ambigüedad.
+
+---
+
 ## 📅 Citas / Calendario
 
 - [ ] **Generación automática de links de reunión Zoom/Meet** — Al crear una cita virtual:
