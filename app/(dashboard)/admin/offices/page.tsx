@@ -14,6 +14,7 @@ import { officeSchema, type OfficeFormData } from "@/lib/validations/office";
 import type { Office } from "@/types/admin";
 import {
   Building2,
+  DoorOpen,
   Plus,
   Pencil,
   Trash2,
@@ -95,6 +96,17 @@ export default function OfficesPage() {
           <div className="h-32 animate-pulse rounded-xl bg-muted" />
         </div>
       </div>
+    );
+  }
+
+  if (isAdmin && offices.length === 0 && !showAddForm) {
+    return (
+      <EmptyStateOffices
+        onCreate={() => {
+          setShowAddForm(true);
+          setEditingId(null);
+        }}
+      />
     );
   }
 
@@ -404,5 +416,39 @@ function OfficeForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function EmptyStateOffices({ onCreate }: { onCreate: () => void }) {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-10 text-center shadow-sm">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
+          <DoorOpen className="h-8 w-8 text-emerald-500" />
+        </div>
+        <h2 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
+          Configura tu primer consultorio
+        </h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+          Los consultorios son los espacios físicos donde atiendes. Cada cita se
+          asigna a uno; te ayuda a evitar choques de horario y planificar mejor.
+        </p>
+        <div className="mt-7 flex justify-center">
+          <button
+            type="button"
+            onClick={onCreate}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Crear primer consultorio
+          </button>
+        </div>
+        <div className="mt-5 flex justify-center">
+          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            Si trabajas en un solo espacio, crea uno tipo &quot;Consultorio principal&quot; y listo.
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }

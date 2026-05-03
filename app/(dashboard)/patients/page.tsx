@@ -23,6 +23,7 @@ import {
   Download,
   Cake,
   Upload,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useOrgRole } from "@/hooks/use-org-role";
@@ -365,6 +366,37 @@ export default function PatientsPage() {
     exportToCSV(headers, rows, `pacientes_${date}.csv`);
     setExporting(false);
   };
+
+  const hasNoFiltersOrSearch =
+    !debouncedSearch &&
+    statusFilter === "all" &&
+    recurrenceFilter === "all" &&
+    activeFilterCount === 0;
+  const isFirstTimeEmpty =
+    !loading && totalCount === 0 && hasNoFiltersOrSearch;
+
+  if (isFirstTimeEmpty) {
+    return (
+      <>
+        <EmptyStatePatients
+          onCreate={() => setShowForm(true)}
+          onImport={() => setShowBulkImport(true)}
+        />
+        {showForm && (
+          <PatientFormModal
+            onClose={() => setShowForm(false)}
+            onSaved={handleSaved}
+          />
+        )}
+        {showBulkImport && (
+          <BulkImportModal
+            onClose={() => setShowBulkImport(false)}
+            onSuccess={handleSaved}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
@@ -817,6 +849,54 @@ export default function PatientsPage() {
           onSuccess={handleSaved}
         />
       )}
+    </div>
+  );
+}
+
+function EmptyStatePatients({
+  onCreate,
+  onImport,
+}: {
+  onCreate: () => void;
+  onImport: () => void;
+}) {
+  return (
+    <div className="flex min-h-[calc(100vh-7rem)] items-center justify-center px-4">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-10 text-center shadow-sm">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
+          <UserPlus className="h-8 w-8 text-emerald-500" />
+        </div>
+        <h2 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
+          Aún no tienes pacientes registrados
+        </h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+          Empieza agregando tus pacientes para poder agendarlos en citas, llevar
+          su historia clínica y enviarles recordatorios.
+        </p>
+        <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <button
+            type="button"
+            onClick={onCreate}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 transition-colors sm:w-auto"
+          >
+            <Plus className="h-4 w-4" />
+            Agregar primer paciente
+          </button>
+          <button
+            type="button"
+            onClick={onImport}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-transparent px-5 py-2.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-500/10 transition-colors dark:text-emerald-400 sm:w-auto"
+          >
+            <Upload className="h-4 w-4" />
+            Importar desde CSV
+          </button>
+        </div>
+        <div className="mt-5 flex justify-center">
+          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            Puedes importar hasta 500 pacientes a la vez desde un archivo CSV.
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -67,6 +67,10 @@ export default function DoctorsPage() {
     );
   }
 
+  if (isAdmin && doctors.length === 0) {
+    return <EmptyStateDoctors />;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -211,6 +215,39 @@ export default function DoctorsPage() {
             <span className="text-sm font-medium">{t("doctors.add")}</span>
           </Link>
         )}
+      </div>
+    </div>
+  );
+}
+
+function EmptyStateDoctors() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-10 text-center shadow-sm">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
+          <Stethoscope className="h-8 w-8 text-emerald-500" />
+        </div>
+        <h2 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
+          Agrega al primer doctor de tu clínica
+        </h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+          Los doctores son quienes atienden las citas. Cada uno puede tener su
+          propio horario, consultorios autorizados y especialidades.
+        </p>
+        <div className="mt-7 flex justify-center">
+          <Link
+            href="/admin/doctors/new"
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Agregar primer doctor
+          </Link>
+        </div>
+        <div className="mt-5 flex justify-center">
+          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+            Después podrás invitar al doctor por email a Yenda para que él mismo gestione su agenda.
+          </span>
+        </div>
       </div>
     </div>
   );
