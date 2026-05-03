@@ -11,6 +11,7 @@ import {
   Settings,
   ArrowRight,
   AlertTriangle,
+  Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/components/language-provider";
@@ -358,14 +359,13 @@ export default function IntegracionesTab() {
           </div>
         </div>
 
-        {/* Integrations grid */}
+        {/* Integrations grouped by status: connected → available → coming-soon */}
         {loadingStatus ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {integrations.map((it) => {
+        ) : (() => {
+          const renderCard = (it: Integration) => {
               const isInteractive = it.status !== "coming-soon";
               return (
                 <div
@@ -512,9 +512,78 @@ export default function IntegracionesTab() {
                   )}
                 </div>
               );
-            })}
-          </div>
-        )}
+            };
+
+          const connected = integrations.filter((i) => i.status === "connected");
+          const available = integrations.filter((i) => i.status === "available");
+          const comingSoon = integrations.filter((i) => i.status === "coming-soon");
+
+          const sectionHeader = (
+            icon: React.ReactNode,
+            title: string,
+            count: number,
+            tone: "emerald" | "blue" | "muted",
+          ) => {
+            const toneClasses = {
+              emerald: "text-emerald-600 dark:text-emerald-400",
+              blue: "text-blue-600 dark:text-blue-400",
+              muted: "text-muted-foreground",
+            }[tone];
+            return (
+              <div className="flex items-center gap-2 mb-3">
+                <span className={toneClasses}>{icon}</span>
+                <h3 className="text-sm font-semibold">{title}</h3>
+                <span className="text-xs text-muted-foreground">({count})</span>
+              </div>
+            );
+          };
+
+          return (
+            <div className="space-y-8">
+              {connected.length > 0 && (
+                <section>
+                  {sectionHeader(
+                    <CheckCircle2 className="h-4 w-4" />,
+                    es ? "Mis integraciones activas" : "My active integrations",
+                    connected.length,
+                    "emerald",
+                  )}
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {connected.map(renderCard)}
+                  </div>
+                </section>
+              )}
+
+              {available.length > 0 && (
+                <section>
+                  {sectionHeader(
+                    <Plug className="h-4 w-4" />,
+                    es ? "Disponibles para conectar" : "Available to connect",
+                    available.length,
+                    "blue",
+                  )}
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {available.map(renderCard)}
+                  </div>
+                </section>
+              )}
+
+              {comingSoon.length > 0 && (
+                <section>
+                  {sectionHeader(
+                    <Clock className="h-4 w-4" />,
+                    es ? "Próximamente" : "Coming soon",
+                    comingSoon.length,
+                    "muted",
+                  )}
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {comingSoon.map(renderCard)}
+                  </div>
+                </section>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Footer hint */}
         <div className="rounded-2xl border border-dashed border-border/60 bg-muted/10 p-5 text-center">
