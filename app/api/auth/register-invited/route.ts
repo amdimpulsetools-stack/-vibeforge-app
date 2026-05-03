@@ -239,14 +239,26 @@ export async function POST(request: NextRequest) {
           .update({ user_id: userId })
           .eq("id", unlinkedDoctor.id);
       } else {
-        const tempCmp = `PEND-${crypto.randomUUID().slice(0, 8)}`;
-        await supabaseAdmin.from("doctors").insert({
-          full_name: fullName,
-          cmp: tempCmp,
-          organization_id: invitation.organization_id,
-          user_id: userId,
-          is_active: true,
-        });
+        // Chequear duplicado por user_id + organization_id antes de insertar.
+        // Previene 2 rows en doctors si el flow corre dos veces (retry, fix
+        // manual paralelo) — bug detectado en testeo de invitación a Vitra.
+        const { data: existingDoctor } = await supabaseAdmin
+          .from("doctors")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("organization_id", invitation.organization_id)
+          .maybeSingle();
+
+        if (!existingDoctor) {
+          const tempCmp = `PEND-${crypto.randomUUID().slice(0, 8)}`;
+          await supabaseAdmin.from("doctors").insert({
+            full_name: fullName,
+            cmp: tempCmp,
+            organization_id: invitation.organization_id,
+            user_id: userId,
+            is_active: true,
+          });
+        }
       }
     }
   }

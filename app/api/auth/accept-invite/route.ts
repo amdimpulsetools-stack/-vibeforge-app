@@ -71,24 +71,35 @@ export async function POST() {
       is_active: true,
     });
 
-    // If doctor role, create doctor record
+    // If doctor role, create doctor record (idempotente — chequea si ya
+    // existe para ese user en la misma org antes de insertar; previene
+    // duplicados si el flow corre dos veces, ej. retry o fix manual paralelo).
     if (invitation.role === "doctor") {
-      const { data: profile } = await admin
-        .from("user_profiles")
-        .select("full_name")
-        .eq("id", user.id)
-        .single();
+      const { data: existingDoctor } = await admin
+        .from("doctors")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("organization_id", invitation.organization_id)
+        .maybeSingle();
 
-      const name = profile?.full_name || user.email.split("@")[0];
+      if (!existingDoctor) {
+        const { data: profile } = await admin
+          .from("user_profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
 
-      await admin.from("doctors").insert({
-        organization_id: invitation.organization_id,
-        user_id: user.id,
-        full_name: name,
-        specialty: "Medicina General",
-        is_active: true,
-        cmp: `PEND-${crypto.randomUUID().slice(0, 8)}`,
-      });
+        const name = profile?.full_name || user.email.split("@")[0];
+
+        await admin.from("doctors").insert({
+          organization_id: invitation.organization_id,
+          user_id: user.id,
+          full_name: name,
+          specialty: "Medicina General",
+          is_active: true,
+          cmp: `PEND-${crypto.randomUUID().slice(0, 8)}`,
+        });
+      }
 
       if (invitation.professional_title) {
         await admin
