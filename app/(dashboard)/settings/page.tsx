@@ -581,7 +581,10 @@ export default function SettingsPage() {
       {/* Tab navigation */}
       <div className="flex gap-1 rounded-xl border border-border bg-muted/30 p-1 overflow-x-auto">
         {tabs.map((tab) => {
-          const waLocked = !waConnected && (tab.id === "whatsapp" || tab.id === "whatsapp-api");
+          // Solo el tab WA Business (Meta API) requiere integración conectada.
+          // El tab "whatsapp" (clipboard config) siempre disponible — es la
+          // alternativa para clínicas sin Business API.
+          const waLocked = !waConnected && tab.id === "whatsapp-api";
           return (
             <button
               key={tab.id}
@@ -1482,13 +1485,11 @@ export default function SettingsPage() {
       {activeTab === "plantillas-hc" && <ClinicalTemplatesTab />}
 
       {/* ── WhatsApp tab ─────────────────────────────────────────────────────── */}
-      {activeTab === "whatsapp" && (
-        !waConnected ? (
-          <WhatsAppLockedBanner es={language === "es"} onGoToIntegraciones={() => setActiveTab("integraciones")} />
-        ) : (
-          <WhatsAppClipboardTab />
-        )
-      )}
+      {/* Clipboard config NO requiere Business API: es la alternativa para
+          clínicas sin Meta conectado (modal post-cita con copia manual). Por
+          eso siempre disponible. El tab WA Business (línea ~1495) sí está
+          gateado por waConnected porque ese sí requiere la integración. */}
+      {activeTab === "whatsapp" && <WhatsAppClipboardTab />}
 
       {/* ── WhatsApp Business API tab ──────────────────────────────────────── */}
       {activeTab === "whatsapp-api" && (
