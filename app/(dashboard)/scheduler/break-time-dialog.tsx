@@ -12,7 +12,10 @@ export interface BreakTimeConfig {
 }
 
 export const DEFAULT_BREAK_TIME_CONFIG: BreakTimeConfig = {
-  enabled: true,
+  // Off por default. La clínica activa explícitamente su break time desde el
+  // botón ☕ en el header del scheduler. Asumir 1-2pm como default era invasivo
+  // para clínicas que no tienen ese horario o trabajan sin almuerzo fijo.
+  enabled: false,
   days: [1, 2, 3, 4, 5], // Mon–Fri
   startTime: "13:00",
   endTime: "14:00",

@@ -7,7 +7,8 @@ import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { format, addDays, startOfWeek } from "date-fns";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Loader2, CalendarPlus, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import type {
   AppointmentWithRelations,
@@ -95,13 +96,14 @@ export default function SchedulerPage() {
   const { t } = useLanguage();
   const { organizationId, organization } = useOrganization();
   const { doctorId: currentDoctorId, isDoctor } = useCurrentDoctor();
-  const { isOwner } = useOrgRole();
+  const { isOwner, isAdmin } = useOrgRole();
   const schedulerConfig = useMemo(() => loadSchedulerConfig(), []);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [loadingAppts, setLoadingAppts] = useState(true);
+  const [totalApptCount, setTotalApptCount] = useState<number | null>(null);
 
   // ── Master data (cached via React Query — survives page navigations) ──
   const { data: masterData, isLoading: loadingMaster } = useSchedulerMasterData(organizationId);
@@ -237,6 +239,17 @@ export default function SchedulerPage() {
     fetchAppointments();
     fetchBlocks();
   }, [fetchAppointments, fetchBlocks]);
+
+  // Lightweight org-wide appointments count — used only to decide whether to
+  // show the first-time empty state. Runs once per mount.
+  useEffect(() => {
+    if (!organizationId) return;
+    const supabase = createClient();
+    supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .then(({ count }) => setTotalApptCount(count ?? 0));
+  }, [organizationId]);
 
   // Office filter handler
   const handleOfficeFilterChange = useCallback((officeIds: string[]) => {
@@ -402,6 +415,20 @@ export default function SchedulerPage() {
     [blocks, breakTimeConfig, rangeStart, rangeEnd]
   );
 
+  // First-time empty state: 0 services AND 0 total appointments AND admin.
+  // Doctors/recepcionistas no lo ven — solo el owner/admin que aún no
+  // configuró el catálogo de servicios. Si hay servicios pero 0 citas, la
+  // grid normal ya alcanza para que el user agende su primera cita.
+  const showFirstTimeEmpty =
+    isAdmin &&
+    !loadingMaster &&
+    services.length === 0 &&
+    totalApptCount === 0;
+
+  if (showFirstTimeEmpty) {
+    return <EmptyStateScheduler />;
+  }
+
   return (
     <div className="flex h-[calc(100vh-7rem)] md:gap-4">
       {/* Left column: header + calendar */}
@@ -550,6 +577,39 @@ export default function SchedulerPage() {
           initialDoctorId={isDoctor ? currentDoctorId : null}
         />
       )}
+    </div>
+  );
+}
+
+function EmptyStateScheduler() {
+  return (
+    <div className="flex min-h-[calc(100vh-7rem)] items-center justify-center px-4">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-10 text-center shadow-sm">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
+          <CalendarPlus className="h-8 w-8 text-emerald-500" />
+        </div>
+        <h2 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
+          Antes de agendar, configura tus servicios
+        </h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+          Para crear citas necesitas tener al menos un servicio definido
+          (consultas, procedimientos, etc.). Configurá tu catálogo en menos de
+          2 minutos.
+        </p>
+        <div className="mt-7 flex justify-center">
+          <Link
+            href="/admin/services"
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 transition-colors"
+          >
+            Configurar servicios
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+        <p className="mt-5 text-xs text-muted-foreground">
+          ¿Ya tienes servicios pero el grid se ve vacío? Click en cualquier
+          slot del horario para agendar tu primera cita.
+        </p>
+      </div>
     </div>
   );
 }

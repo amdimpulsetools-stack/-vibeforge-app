@@ -191,8 +191,16 @@ export function Sidebar() {
     // The hook caches per-org so this doesn't add extra requests.
     if (item.href === "/facturacion" && !einvoice.connected) return null;
     const isActive = isPathActive(item.href);
+    const tourStepByHref: Record<string, string> = {
+      "/dashboard": "nav-dashboard",
+      "/scheduler": "nav-scheduler",
+      "/patients": "nav-patients",
+      "/reports": "nav-reports",
+      "/settings": "nav-settings",
+    };
+    const tourStep = tourStepByHref[item.href];
     return (
-      <Link key={item.href} href={item.href}>
+      <Link key={item.href} href={item.href} data-tour-step={tourStep}>
         <span
           className={cn(
             "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
@@ -219,9 +227,13 @@ export function Sidebar() {
 
     const groupActive = isGroupActive(group);
     const isExpanded = expandedGroups[group.titleKey] ?? groupActive;
+    const tourStepByGroup: Record<string, string> = {
+      "nav.scheduler": "nav-scheduler",
+    };
+    const tourStep = tourStepByGroup[group.titleKey];
 
     return (
-      <div key={group.titleKey}>
+      <div key={group.titleKey} data-tour-step={tourStep}>
         <button
           onClick={() => {
             if (collapsed) {
@@ -276,6 +288,7 @@ export function Sidebar() {
         />
       )}
       <aside
+        data-tour-step="sidebar"
         className={cn(
           "flex h-screen flex-col bg-sidebar-bg border-r border-border/60 transition-all duration-300 relative",
           // Desktop: static sidebar with collapse

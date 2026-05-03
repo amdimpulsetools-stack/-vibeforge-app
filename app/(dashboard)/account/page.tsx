@@ -25,6 +25,7 @@ import { BorderAvatar } from "@/components/ui/avatar-border";
 import { AvatarSilhouette, AVATAR_OPTIONS } from "@/components/ui/avatar-silhouettes";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { AvatarOption as AvatarOptionType } from "@/hooks/use-user-avatar";
+import { useTour } from "@/components/onboarding/tour-provider";
 import {
   Loader2,
   User,
@@ -51,6 +52,8 @@ import {
   RefreshCw,
   CreditCard,
   AlertTriangle,
+  HelpCircle,
+  Sparkles,
   type LucideIcon,
 } from "lucide-react";
 
@@ -66,6 +69,7 @@ export default function AccountPage() {
   const { t } = useLanguage();
   const { organization, orgRole, isOrgAdmin } = useOrganization();
   const { plan, subscription, usage, daysRemaining, getLimit, isNearLimit, isAtLimit, loading: planLoading, refetch } = usePlan();
+  const { startTour, resetTour } = useTour();
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarOption, setAvatarOption] = useState<AvatarOptionType | null>(null);
@@ -669,6 +673,28 @@ export default function AccountPage() {
             />
           ) : <div />}
         </div>
+      </div>
+
+      {/* Ayuda — tour de bienvenida */}
+      <div className="rounded-2xl border border-border/60 bg-card p-6">
+        <div className="flex items-center gap-2 mb-2">
+          <HelpCircle className="h-4 w-4 text-primary" />
+          <h2 className="text-lg font-semibold">Ayuda</h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          ¿Quieres volver a ver el recorrido inicial por las funciones de Yenda? Te lo mostramos en 10 pasos.
+        </p>
+        <button
+          type="button"
+          onClick={async () => {
+            resetTour();
+            await startTour();
+          }}
+          className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          <Sparkles className="h-4 w-4 text-primary" />
+          Ver tour de bienvenida
+        </button>
       </div>
 
       {/* Danger Zone — full width at bottom */}
