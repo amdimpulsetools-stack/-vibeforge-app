@@ -38,6 +38,9 @@ import {
   ChevronDown,
   Building2,
   Video,
+  FolderTree,
+  Stethoscope,
+  ArrowRight,
 } from "lucide-react";
 
 export default function ServicesPage() {
@@ -136,6 +139,49 @@ export default function ServicesPage() {
     category: cat,
     services: services.filter((s) => s.category_id === cat.id),
   }));
+
+  // First-time empty state: no categories AND no services.
+  // Hide once the owner opens the category form so the inline form can take over.
+  if (
+    isAdmin &&
+    categories.length === 0 &&
+    services.length === 0 &&
+    !showCategoryForm
+  ) {
+    return (
+      <EmptyStateCategories
+        onCreate={() => {
+          setActiveTab("categories");
+          setEditingCategory(null);
+          setShowCategoryForm(true);
+        }}
+      />
+    );
+  }
+
+  // Second-step empty state: at least one category but still no services.
+  if (
+    isAdmin &&
+    categories.length > 0 &&
+    services.length === 0 &&
+    !showServiceForm &&
+    !showCategoryForm
+  ) {
+    return (
+      <EmptyStateServices
+        onCreateService={() => {
+          setActiveTab("services");
+          setEditingService(null);
+          setShowServiceForm(true);
+        }}
+        onCreateCategory={() => {
+          setActiveTab("categories");
+          setEditingCategory(null);
+          setShowCategoryForm(true);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -791,5 +837,91 @@ function CategoryForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function EmptyStateCategories({ onCreate }: { onCreate: () => void }) {
+  const examples = ["Consultas", "Procedimientos", "Exámenes"];
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-10 text-center shadow-sm">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
+          <FolderTree className="h-8 w-8 text-emerald-500" />
+        </div>
+        <h2 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
+          Empieza creando tu primera categoría
+        </h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+          Las categorías agrupan tus servicios para que sea más fácil encontrarlos.
+          Por ejemplo: Consultas, Procedimientos, Exámenes.
+        </p>
+        <div className="mt-7 flex justify-center">
+          <button
+            type="button"
+            onClick={onCreate}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Crear mi primera categoría
+          </button>
+        </div>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+          {examples.map((ex) => (
+            <span
+              key={ex}
+              className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400"
+            >
+              {ex}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyStateServices({
+  onCreateService,
+  onCreateCategory,
+}: {
+  onCreateService: () => void;
+  onCreateCategory: () => void;
+}) {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-10 text-center shadow-sm">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
+          <Stethoscope className="h-8 w-8 text-emerald-500" />
+        </div>
+        <h2 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
+          Listo, ahora crea tu primer servicio
+        </h2>
+        <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+          Cada servicio se asigna a una categoría. Define duración, precio, y si
+          requiere consentimiento informado.
+        </p>
+        <div className="mt-7 flex justify-center">
+          <button
+            type="button"
+            onClick={onCreateService}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 transition-colors"
+          >
+            <Plus className="h-4 w-4" />
+            Crear mi primer servicio
+          </button>
+        </div>
+        <div className="mt-5 text-xs text-muted-foreground">
+          ¿Quieres crear más categorías primero?{" "}
+          <button
+            type="button"
+            onClick={onCreateCategory}
+            className="inline-flex items-center gap-1 font-medium text-emerald-600 hover:text-emerald-700 hover:underline dark:text-emerald-400"
+          >
+            Crear otra categoría
+            <ArrowRight className="h-3 w-3" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
