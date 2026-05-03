@@ -553,6 +553,7 @@ Items identificados en la auditoría multi-agente del 2026-04-22. Análisis comp
 Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vitra.
 
 - [ ] **F-05 — rate limiter Upstash/Redis**. In-memory actual (`lib/rate-limit.ts`) basta para 1 clínica single-instance. Migrar cuando escalemos a 2-3 clientes o autoscale activo.
+- [ ] **Cron `fertility-followup-contact` daily → hourly cuando upgrade a Vercel Pro**. Hoy schedule es `0 13 * * *` (1pm UTC = 8am Lima) por límite de Vercel Hobby (`once-per-day`). El código del cron tiene gate multi-TZ (chequea hora local de cada org) que está dormido mientras el schedule sea daily. Reactivación: upgrade a Vercel Pro ($20/mes) + cambiar schedule a `0 * * * *` en `vercel.json` + redeploy. **Trigger sugerido:** primer cliente fuera de Lima (UTC-5), o cuando se agreguen 2+ crons hourly más al sistema. Ver commit `3f7c078`.
 - [ ] **2 modales hand-rolled grandes restantes → Radix Dialog** (diferidos intencionalmente por riesgo de regresión):
   - `patients/patient-drawer.tsx` — **~1400 líneas**, es el drawer principal del paciente que recepción usa a diario. Refactor delicado: múltiples tabs anidados, estado complejo de edición inline, keyboard shortcuts. Requiere sesión dedicada con tests manuales exhaustivos post-refactor.
   - `patients/bulk-import-modal.tsx` — parsing de CSV con edge cases numerosos (duplicados, DNIs inválidos, encoding). Pasar a Radix sin probar con 4-5 archivos reales es riesgoso.
