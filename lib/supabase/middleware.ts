@@ -96,8 +96,17 @@ export async function updateSession(request: NextRequest) {
     return applySecurityHeaders(NextResponse.redirect(url));
   }
 
-  // Redirigir a dashboard si ya autenticado e intenta ir a login/register
-  if (user && ["/login", "/register"].includes(pathname)) {
+  // Redirigir a dashboard si ya autenticado e intenta ir a login/register.
+  // Excepción: /register?invite=TOKEN debe ejecutarse para que el usuario
+  // autenticado (vía magic link de Supabase) pueda procesar la invitación
+  // pendiente. Si lo redirigimos a /dashboard, la invitación nunca se acepta
+  // y el user queda como owner de su org auto-generada.
+  const isInviteAcceptance =
+    pathname === "/register" && request.nextUrl.searchParams.has("invite");
+  if (
+    user &&
+    (pathname === "/login" || (pathname === "/register" && !isInviteAcceptance))
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/dashboard";
     return applySecurityHeaders(NextResponse.redirect(url));

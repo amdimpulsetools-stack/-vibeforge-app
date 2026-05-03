@@ -19,11 +19,13 @@ export async function POST() {
 
   const admin = createAdminClient();
 
-  // Find pending invitation for this email
+  // Find pending invitation for this email (case-insensitive: legacy rows
+  // may have mixed-case emails; new rows are forced lowercase by mig 134).
+  const normalizedEmail = user.email.trim().toLowerCase();
   const { data: invitation } = await admin
     .from("organization_invitations")
     .select("id, organization_id, role, professional_title")
-    .eq("email", user.email)
+    .ilike("email", normalizedEmail)
     .eq("status", "pending")
     .order("created_at", { ascending: false })
     .limit(1)
