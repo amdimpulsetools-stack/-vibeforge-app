@@ -553,6 +553,15 @@ Items identificados en la auditoría multi-agente del 2026-04-22. Análisis comp
 Funcionan hoy, no bloquean operación clínica. Atacar tras feedback real de Vitra.
 
 - [ ] **F-05 — rate limiter Upstash/Redis**. In-memory actual (`lib/rate-limit.ts`) basta para 1 clínica single-instance. Migrar cuando escalemos a 2-3 clientes o autoscale activo.
+- [ ] **Slug `'starter'` literal en 7 archivos — auditar y migrar al helper `isIndependientePlanSlug()`** (mig 133 ya consolidó la DB a `'independiente'`). Las comparaciones `plan.slug === 'starter'` o `!== 'starter'` en estos archivos hoy nunca matchean (porque la DB tiene `'independiente'`), generando bugs de gating silenciosos:
+  - `app/api/plans/route.ts` (status / trial_ends_at de subscription)
+  - `app/api/ai-assistant/route.ts` (default fallback)
+  - `app/api/discount-codes/route.ts` y `apply/route.ts` (gating de discount codes — hoy NO se gatean)
+  - `app/api/ai-reports/route.ts` (default fallback)
+  - `app/(dashboard)/admin/discount-codes/page.tsx` (`isPro` siempre true → muestra UI Pro a Independiente)
+  - `app/(dashboard)/scheduler/appointment-sidebar.tsx:98` (gating)
+  - **NO tocar sin sesión dedicada de QA** — fixearlos cambia behaviors que pueden tener cascada (ej. quitar acceso a discount codes a usuarios Independiente actuales). Helper ya disponible en `lib/constants.ts` como `isIndependientePlanSlug(slug)`.
+
 - [ ] **Cron `fertility-followup-contact` daily → hourly cuando upgrade a Vercel Pro**. Hoy schedule es `0 13 * * *` (1pm UTC = 8am Lima) por límite de Vercel Hobby (`once-per-day`). El código del cron tiene gate multi-TZ (chequea hora local de cada org) que está dormido mientras el schedule sea daily. Reactivación: upgrade a Vercel Pro ($20/mes) + cambiar schedule a `0 * * * *` en `vercel.json` + redeploy. **Trigger sugerido:** primer cliente fuera de Lima (UTC-5), o cuando se agreguen 2+ crons hourly más al sistema. Ver commit `3f7c078`.
 - [ ] **2 modales hand-rolled grandes restantes → Radix Dialog** (diferidos intencionalmente por riesgo de regresión):
   - `patients/patient-drawer.tsx` — **~1400 líneas**, es el drawer principal del paciente que recepción usa a diario. Refactor delicado: múltiples tabs anidados, estado complejo de edición inline, keyboard shortcuts. Requiere sesión dedicada con tests manuales exhaustivos post-refactor.

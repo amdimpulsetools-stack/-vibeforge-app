@@ -43,3 +43,27 @@ export const ORG_TYPE_LABELS: Record<string, string> = {
   centro_medico: "Centro Médico",
   clinica: "Clínica",
 };
+
+// Plan slugs (canonical post-mig 133). El repo histórico usaba dos slugs
+// intercambiables para el plan base — 'starter' (migrations 020-112) e
+// 'independiente' (migration 003 + lib/constants ORG_TYPES). La consolidación
+// a 'independiente' se hizo en migration 133, pero hay orgs legacy en DBs
+// no migradas todavía. Estos helpers aceptan AMBOS slugs como equivalentes
+// para mantener compatibilidad sin riesgo de regresión.
+export const PLAN_SLUG_INDEPENDIENTE = "independiente";
+export const PLAN_SLUG_PROFESSIONAL = "professional";
+export const PLAN_SLUG_ENTERPRISE = "enterprise";
+
+const INDEPENDIENTE_LEGACY_SLUGS = new Set(["independiente", "starter"]);
+
+/** True si el slug corresponde al plan base (Independiente / starter legacy). */
+export function isIndependientePlanSlug(slug: string | null | undefined): boolean {
+  if (!slug) return false;
+  return INDEPENDIENTE_LEGACY_SLUGS.has(slug);
+}
+
+/** True si el slug corresponde a un tier pago (Centro Médico o Clínica). */
+export function isPaidPlanSlug(slug: string | null | undefined): boolean {
+  if (!slug) return false;
+  return slug === PLAN_SLUG_PROFESSIONAL || slug === PLAN_SLUG_ENTERPRISE;
+}
