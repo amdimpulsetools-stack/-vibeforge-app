@@ -168,13 +168,13 @@ export function Pricing() {
               key={plan.name}
               className={`price-card relative rounded-2xl border p-6 transition-all duration-500 opacity-0 translate-y-6 ${
                 plan.highlight
-                  ? "border-emerald-300 bg-white shadow-xl shadow-emerald-100/40 md:scale-105 md:-my-2 z-10"
+                  ? "pricing-popular border-transparent bg-white md:scale-105 md:-my-2 z-10"
                   : "border-slate-200 bg-white shadow-sm hover:shadow-md"
               }`}
               style={{ transitionDelay: `${i * 100}ms` }}
             >
               {plan.badge && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-3 py-0.5 text-[11px] font-semibold text-white shadow-sm">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 rounded-full bg-gradient-to-r from-emerald-500 to-violet-600 px-3 py-0.5 text-[11px] font-semibold text-white shadow-sm">
                   {plan.badge}
                 </span>
               )}
@@ -218,7 +218,7 @@ export function Pricing() {
                 href="/register"
                 className={`mt-6 flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all ${
                   plan.highlight
-                    ? "gradient-primary text-white shadow-md hover:opacity-90 hover:shadow-lg"
+                    ? "btn-popular-cta text-white shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]"
                     : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                 }`}
               >

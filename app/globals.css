@@ -297,6 +297,102 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   PRICING — Popular plan animated border + glow
+   - ::before crea borde con gradient emerald → violet → cyan que shifteó
+     la background-position en loop continuo (5s ease-in-out).
+     Mask trick (mask-composite: xor) recorta el centro del fondo y deja
+     solo un anillo de 2px alrededor del card.
+   - ::after crea glow externo radial difuminado (blur 16px) que pulsa
+     entre 60% y 100% de opacity para efecto "respirando".
+   - Botón CTA usa gradient lineal animado (mismo patrón que el botón
+     Brief IA del dashboard pero con loop horizontal infinito).
+   ═══════════════════════════════════════════════════════════════════ */
+.pricing-popular {
+  position: relative;
+  isolation: isolate;
+}
+
+.pricing-popular::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    90deg,
+    #10b981 0%,
+    #8b5cf6 35%,
+    #06b6d4 65%,
+    #10b981 100%
+  );
+  background-size: 300% 100%;
+  background-position: 0% 50%;
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: pricing-border-shift 5s ease-in-out infinite;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.pricing-popular::after {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 1.5rem;
+  background:
+    radial-gradient(closest-side, rgba(16, 185, 129, 0.18), transparent 70%),
+    radial-gradient(closest-side at 70% 50%, rgba(139, 92, 246, 0.14), transparent 70%);
+  filter: blur(16px);
+  animation: pricing-glow-pulse 4s ease-in-out infinite;
+  z-index: -2;
+  pointer-events: none;
+}
+
+@keyframes pricing-border-shift {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@keyframes pricing-glow-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+.btn-popular-cta {
+  background-image: linear-gradient(
+    90deg,
+    #10b981 0%,
+    #8b5cf6 50%,
+    #06b6d4 80%,
+    #10b981 100%
+  );
+  background-size: 250% 100%;
+  background-position: 0% 0%;
+  animation: btn-popular-shift 3.5s ease-in-out infinite;
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+
+.btn-popular-cta:hover {
+  box-shadow: 0 10px 28px -10px rgba(139, 92, 246, 0.45);
+}
+
+@keyframes btn-popular-shift {
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 100% 0%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pricing-popular::before,
+  .pricing-popular::after,
+  .btn-popular-cta {
+    animation: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    HERO — "Agenda inteligente" gradient
    - Background: 4 stops emerald → violet → cyan → emerald que crea
      un loop suave. Animación automática shifteando background-position.
