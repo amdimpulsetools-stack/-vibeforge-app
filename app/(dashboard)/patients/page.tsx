@@ -132,7 +132,7 @@ export default function PatientsPage() {
     let query = supabase
       .from("patients")
       .select(
-        "id, first_name, last_name, dni, document_type, phone, email, birth_date, status, is_recurring, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag)",
+        "id, first_name, last_name, dni, document_type, phone, email, birth_date, sex, status, is_recurring, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag)",
         { count: "exact" }
       )
       .order("last_name")
@@ -311,7 +311,7 @@ export default function PatientsPage() {
       const supabase = createClient();
       supabase
         .from("patients")
-        .select("id, first_name, last_name, dni, document_type, phone, email, birth_date, status, is_recurring, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag)")
+        .select("id, first_name, last_name, dni, document_type, phone, email, birth_date, sex, status, is_recurring, created_at, referral_source, origin, departamento, distrito, notes, custom_field_1, custom_field_2, is_foreigner, nationality, patient_tags(id, tag)")
         .eq("id", selectedPatient.id)
         .single()
         .then(({ data }) => {
