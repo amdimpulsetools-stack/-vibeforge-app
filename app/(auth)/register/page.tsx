@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME, TERMS_VERSION } from "@/lib/constants";
 import { toast } from "sonner";
-import { Loader2, Building2, Mail, CheckCircle2, MessageCircle, BarChart3, Shield, Clock } from "lucide-react";
+import { Loader2, Building2, Mail, CheckCircle2, MessageCircle, BarChart3, Shield, Clock, LogOut, AlertCircle } from "lucide-react";
 import { YendaLogo } from "@/components/icons/yenda-logo";
 import { motion, AnimatePresence } from "framer-motion";
 import { ShimmerText } from "@/components/ui/shimmer-text";
@@ -53,7 +53,11 @@ function RegisterPage() {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [loadingInvite, setLoadingInvite] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+  const [acceptingInvite, setAcceptingInvite] = useState(false);
   const [phraseIndex, setPhraseIndex] = useState(0);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -67,21 +71,51 @@ function RegisterPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Detect if the user is already authenticated. Relevant when Supabase Auth
+  // redirects an invited user back to /register?invite=TOKEN with an active
+  // session (magic link flow). In that case we render the "accept invitation"
+  // CTA instead of the full registration form.
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      setIsAuthenticated(!!data.user);
+      setCheckingAuth(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Validate invite token on mount
   useEffect(() => {
     if (!inviteToken) return;
     setLoadingInvite(true);
+    setInviteError(null);
     fetch(`/api/invite/${inviteToken}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("invalid");
-        return res.json();
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          const code = (body?.error as string | undefined) ?? "invalid_token";
+          throw new Error(code);
+        }
+        return res.json() as Promise<InviteInfo>;
       })
-      .then((data: InviteInfo) => {
+      .then((data) => {
         setInviteInfo(data);
         setEmail(data.email);
       })
-      .catch(() => {
-        toast.error("La invitación no es válida o ha expirado");
+      .catch((err: Error) => {
+        const code = err.message;
+        const messages: Record<string, string> = {
+          invitation_expired: "Esta invitación expiró. Pídele al administrador que te envíe una nueva.",
+          invitation_already_used: "Esta invitación ya fue aceptada. Inicia sesión para continuar.",
+          invalid_token: "La invitación no es válida.",
+        };
+        const msg = messages[code] ?? "La invitación no es válida o ha expirado";
+        setInviteError(msg);
+        toast.error(msg);
       })
       .finally(() => setLoadingInvite(false));
   }, [inviteToken]);
@@ -225,10 +259,155 @@ function RegisterPage() {
     admin: "Administrador/a",
   };
 
-  if (loadingInvite) {
+  const handleAcceptInviteAuthenticated = async () => {
+    if (!inviteToken) return;
+    setAcceptingInvite(true);
+    try {
+      const res = await fetch("/api/auth/accept-invite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(
+          (data?.error as string | undefined) === "Unauthorized"
+            ? "Tu sesión expiró. Vuelve a iniciar sesión."
+            : "No pudimos aceptar la invitación. Intenta de nuevo."
+        );
+        setAcceptingInvite(false);
+        return;
+      }
+      if (data?.message === "no_pending_invitation") {
+        toast.error(
+          "No encontramos una invitación pendiente para tu cuenta. Pide al administrador que te invite nuevamente."
+        );
+        setAcceptingInvite(false);
+        return;
+      }
+      toast.success("Invitación aceptada. Bienvenido al equipo.");
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      toast.error("Sin conexión. Revisa tu internet e intenta otra vez.");
+      setAcceptingInvite(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
+    router.refresh();
+  };
+
+  if (loadingInvite || checkingAuth) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  // Authenticated user landed on /register?invite=TOKEN (Supabase magic-link
+  // flow). Show a compact CTA instead of the full registration form.
+  if (inviteToken && isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="w-full max-w-md space-y-6">
+          <div className="text-center">
+            <Link href="/" className="inline-flex items-center" aria-label={APP_NAME}>
+              <YendaLogo width={120} priority />
+            </Link>
+          </div>
+
+          {inviteError ? (
+            <div className="space-y-4 rounded-2xl border border-red-500/30 bg-red-500/5 p-6 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
+                <AlertCircle className="h-6 w-6 text-red-500" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Invitación no disponible</h2>
+                <p className="mt-2 text-sm text-muted-foreground">{inviteError}</p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Link
+                  href="/dashboard"
+                  className="flex h-11 w-full items-center justify-center rounded-xl gradient-primary text-sm font-semibold text-white shadow-md transition-all hover:opacity-90"
+                >
+                  Ir a mi escritorio
+                </Link>
+                <button
+                  onClick={handleSignOut}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-card px-4 text-sm font-medium transition-all hover:bg-accent/50"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Cerrar sesión
+                </button>
+              </div>
+            </div>
+          ) : inviteInfo ? (
+            <div className="space-y-6 rounded-2xl border border-border/60 bg-card p-6 shadow-sm">
+              <div className="flex items-center gap-3">
+                {inviteInfo.organization_logo ? (
+                  <img
+                    src={inviteInfo.organization_logo}
+                    alt=""
+                    className="h-12 w-12 rounded-xl object-cover"
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
+                    <Building2 className="h-6 w-6 text-primary" />
+                  </div>
+                )}
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                    Únete al equipo de
+                  </p>
+                  <p className="text-lg font-bold">
+                    {inviteInfo.organization_name ?? "tu organización"}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-sm text-muted-foreground">
+                Estás aceptando una invitación como{" "}
+                <span className="font-semibold text-foreground">
+                  {roleLabels[inviteInfo.role] ?? inviteInfo.role}
+                </span>
+                {inviteInfo.email ? (
+                  <>
+                    {" "}para la cuenta{" "}
+                    <span className="font-medium text-foreground">{inviteInfo.email}</span>
+                  </>
+                ) : null}
+                .
+              </p>
+
+              <div className="space-y-2">
+                <button
+                  onClick={handleAcceptInviteAuthenticated}
+                  disabled={acceptingInvite}
+                  className="flex h-12 w-full items-center justify-center rounded-xl gradient-primary text-sm font-semibold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-50"
+                >
+                  {acceptingInvite && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Aceptar invitación y continuar
+                </button>
+                <button
+                  onClick={handleSignOut}
+                  disabled={acceptingInvite}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-card px-4 text-sm font-medium text-muted-foreground transition-all hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
+                >
+                  <LogOut className="h-4 w-4" />
+                  ¿No es tu cuenta? Cerrar sesión
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-center py-10">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          )}
+        </div>
       </div>
     );
   }

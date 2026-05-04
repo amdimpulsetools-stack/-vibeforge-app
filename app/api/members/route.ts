@@ -126,7 +126,8 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, inviteMemberSchema);
   if (parsed.error) return parsed.error;
-  const { email, role, professional_title } = parsed.data;
+  const { email: rawEmail, role, professional_title } = parsed.data;
+  const email = rawEmail.trim().toLowerCase();
 
   // Try to find existing user by email
   const { data: targetUserId } = await supabase.rpc(

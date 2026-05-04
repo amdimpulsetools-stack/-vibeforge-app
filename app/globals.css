@@ -297,6 +297,42 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   HERO — "Agenda inteligente" gradient
+   - Background: 4 stops emerald → violet → cyan → emerald que crea
+     un loop suave. Animación automática shifteando background-position.
+   - El --angle es seteado por JS en mousemove (rota la dirección del
+     gradient hacia donde apunta el cursor desde el centro del span).
+   - prefers-reduced-motion desactiva la animación auto y deja el
+     ángulo estático.
+   ═══════════════════════════════════════════════════════════════════ */
+.agenda-inteligente {
+  background-image: linear-gradient(
+    var(--angle, 110deg),
+    #10b981 0%,
+    #8b5cf6 35%,
+    #06b6d4 65%,
+    #10b981 100%
+  );
+  background-size: 250% 250%;
+  background-position: 0% 50%;
+  animation: agenda-shimmer 6s ease-in-out infinite;
+  transition: background-image 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: background-position, background-image;
+}
+
+@keyframes agenda-shimmer {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agenda-inteligente {
+    animation: none;
+    background-position: 50% 50%;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    CARD HOVER LIFT
    ═══════════════════════════════════════════════════════════════════ */
 .card-hover {

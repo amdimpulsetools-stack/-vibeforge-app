@@ -254,6 +254,13 @@ export default function AccountPage() {
       .update({ full_name: values.full_name })
       .eq("user_id", user.id);
 
+    // Sync name to auth metadata so otros componentes que leen
+    // user.user_metadata.full_name (sidebar/topbar/displayName del header)
+    // se refrescan inmediatamente sin esperar al próximo refresh.
+    await supabase.auth.updateUser({
+      data: { full_name: values.full_name },
+    });
+
     setSaving(false);
 
     if (error) {
@@ -285,8 +292,14 @@ export default function AccountPage() {
     setShowPwd(false);
   };
 
+  // Reactive: refleja lo que el user tipea en vivo + tras guardar.
+  // Fallback: auth metadata, después local-part del email.
+  const watchedFullName = watch("full_name");
   const displayName =
-    user?.user_metadata?.full_name ?? user?.email?.split("@")[0] ?? "";
+    (watchedFullName && watchedFullName.trim()) ||
+    user?.user_metadata?.full_name ||
+    user?.email?.split("@")[0] ||
+    "";
 
   if (userLoading || !profileLoaded) {
     return (

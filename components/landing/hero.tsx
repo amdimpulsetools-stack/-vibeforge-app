@@ -20,6 +20,7 @@ import {
 
 export function Hero() {
   const dashboardRef = useRef<HTMLDivElement>(null);
+  const titleHighlightRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     const el = dashboardRef.current;
@@ -35,6 +36,30 @@ export function Hero() {
     );
     observer.observe(el);
     return () => observer.disconnect();
+  }, []);
+
+  // Reactive gradient angle on "Agenda inteligente" — sigue el cursor con
+  // requestAnimationFrame para evitar reflows. Cuando el mouse no se mueve,
+  // queda activa la animación CSS automática del shimmer (ver globals.css).
+  useEffect(() => {
+    const el = titleHighlightRef.current;
+    if (!el) return;
+    let raf: number | null = null;
+    const handler = (e: MouseEvent) => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const rect = el.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const angle = Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI) + 90;
+        el.style.setProperty("--angle", `${angle}deg`);
+      });
+    };
+    window.addEventListener("mousemove", handler);
+    return () => {
+      window.removeEventListener("mousemove", handler);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, []);
 
   return (
@@ -61,10 +86,14 @@ export function Hero() {
 
           {/* Title */}
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl text-slate-900 opacity-0 animate-[fadeUp_0.6s_0.2s_ease-out_forwards]">
-            Menos tiempo administrando.{" "}
-            <span className="bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent">
-              Más tiempo con tus pacientes.
+            La{" "}
+            <span
+              ref={titleHighlightRef}
+              className="agenda-inteligente bg-clip-text text-transparent"
+            >
+              Agenda inteligente
             </span>
+            {" "}que hace crecer tu facturación.
           </h1>
 
           {/* Subtitle */}

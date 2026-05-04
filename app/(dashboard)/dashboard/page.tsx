@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { AdminDashboard } from "./admin-dashboard";
 import { DoctorDashboardWrapper } from "./doctor-dashboard-wrapper";
 import { OwnerDoctorSection } from "./owner-doctor-section";
+import { WelcomeInvitedToast } from "./welcome-invited-toast";
 import {
   format,
   subDays,
@@ -44,9 +45,12 @@ export default async function DashboardPage() {
   // Doctor role: show personal dashboard
   if (role === "doctor") {
     return (
-      <DoctorDashboardWrapper
-        userName={displayName}
-      />
+      <>
+        <WelcomeInvitedToast role={role} />
+        <DoctorDashboardWrapper
+          userName={displayName}
+        />
+      </>
     );
   }
 
@@ -237,6 +241,7 @@ export default async function DashboardPage() {
 
   return (
     <>
+      <WelcomeInvitedToast role={role} />
       <AdminDashboard
         userName={userName}
         periodData={{
