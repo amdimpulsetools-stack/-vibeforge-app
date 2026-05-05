@@ -126,8 +126,9 @@ export async function POST(request: NextRequest) {
 
   const parsed = await parseBody(request, inviteMemberSchema);
   if (parsed.error) return parsed.error;
-  const { email: rawEmail, role, professional_title } = parsed.data;
+  const { email: rawEmail, role, professional_title, is_fertility_advisor } = parsed.data;
   const email = rawEmail.trim().toLowerCase();
+  const fertilityAdvisor = role === "doctor" && is_fertility_advisor === true;
 
   // Try to find existing user by email
   const { data: targetUserId } = await supabase.rpc(
@@ -185,6 +186,7 @@ export async function POST(request: NextRequest) {
         user_id: targetUserId,
         organization_id: callerMembership.organization_id,
         role,
+        is_fertility_advisor: fertilityAdvisor,
       })
       .select()
       .single();
@@ -310,6 +312,7 @@ export async function POST(request: NextRequest) {
       role,
       professional_title: professional_title || null,
       invited_by: user.id,
+      invitation_meta: fertilityAdvisor ? { is_fertility_advisor: true } : {},
     })
     .select("token")
     .single();

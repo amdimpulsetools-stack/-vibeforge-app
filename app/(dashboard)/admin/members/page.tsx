@@ -30,6 +30,9 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { usePlan } from "@/hooks/use-plan";
+import { useOrgAddons } from "@/hooks/use-org-addons";
+import { Sparkles } from "lucide-react";
+import { FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY } from "@/types/fertility";
 
 type ProfessionalTitle = "doctor" | "especialista" | "licenciada" | null;
 
@@ -152,6 +155,9 @@ export default function MembersPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteOptionIdx, setInviteOptionIdx] = useState(0);
   const [inviting, setInviting] = useState(false);
+  const [inviteFertilityAdvisor, setInviteFertilityAdvisor] = useState(false);
+  const { hasAnyAddon } = useOrgAddons();
+  const fertilityActive = hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY]);
   const isAdmin = orgRole === "owner" || orgRole === "admin";
   const memberLimitReached = isAtLimit("members");
   const isIndependientePlan = plan?.target_audience === "independiente";
@@ -188,6 +194,10 @@ export default function MembersPage() {
           email: inviteEmail.trim(),
           role: selectedOption.role,
           professional_title: selectedOption.title,
+          is_fertility_advisor:
+            selectedOption.role === "doctor" && fertilityActive
+              ? inviteFertilityAdvisor
+              : false,
         }),
       });
 
@@ -235,6 +245,7 @@ export default function MembersPage() {
       }
       setInviteEmail("");
       setInviteOptionIdx(0);
+      setInviteFertilityAdvisor(false);
       setShowInvite(false);
       fetchMembers();
     } catch (err) {
@@ -626,6 +637,28 @@ export default function MembersPage() {
                   })}
                 </div>
               </div>
+
+              {/* Fertility advisor toggle (only when role=doctor + addon active) */}
+              {fertilityActive &&
+                MEMBER_TYPE_OPTIONS[inviteOptionIdx]?.role === "doctor" && (
+                  <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.04] p-3">
+                    <input
+                      type="checkbox"
+                      checked={inviteFertilityAdvisor}
+                      onChange={(e) => setInviteFertilityAdvisor(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-border accent-emerald-600"
+                    />
+                    <div className="space-y-0.5">
+                      <p className="flex items-center gap-1.5 text-sm font-medium">
+                        <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                        También funciona como asesora de fertilidad (obstetra)
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Le permite ver y gestionar todos los presupuestos de la clínica, no solo los de sus pacientes.
+                      </p>
+                    </div>
+                  </label>
+                )}
 
               {/* Admin section — contact support */}
               <div className="rounded-lg border border-border bg-muted/50 p-4">

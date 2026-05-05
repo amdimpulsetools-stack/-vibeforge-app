@@ -35,6 +35,7 @@ import {
   FlaskConical,
   BookOpen,
   Receipt,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
@@ -46,6 +47,8 @@ interface NavItem {
   /** Hidden specifically for users with role=doctor (e.g. billing pages
    *  that doctors should never see, even if recepcionistas can). */
   hideForDoctor?: boolean;
+  /** Only visible if the org has at least one of the listed addons enabled. */
+  requiresAnyAddon?: string[];
 }
 
 interface NavGroup {
@@ -83,6 +86,12 @@ const navSections: NavSection[] = [
         items: [
           { titleKey: "nav.scheduler_calendar", href: "/scheduler", icon: CalendarDays },
           { titleKey: "nav.scheduler_followups", href: "/scheduler/follow-ups", icon: ClipboardCheck },
+          {
+            titleKey: "nav.scheduler_budgets",
+            href: "/scheduler/budgets",
+            icon: Wallet,
+            requiresAnyAddon: ["fertility_basic", "fertility_premium"],
+          },
           { titleKey: "nav.scheduler_history", href: "/scheduler/history", icon: History },
         ],
       },
@@ -131,6 +140,7 @@ const navSections: NavSection[] = [
 
 import { useMobileNav } from "./mobile-nav-context";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
+import { useOrgAddons } from "@/hooks/use-org-addons";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -140,6 +150,7 @@ export function Sidebar() {
   const { isAdmin, isDoctor } = useOrgRole();
   const { isOpen: mobileOpen, setOpen: setMobileOpen } = useMobileNav();
   const einvoice = useEInvoiceConfig();
+  const { hasAnyAddon } = useOrgAddons();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isFounder, setIsFounder] = useState(false);
@@ -186,6 +197,7 @@ export function Sidebar() {
   const renderNavItem = (item: NavItem) => {
     if (item.adminOnly && !isAdmin) return null;
     if (item.hideForDoctor && isDoctor) return null;
+    if (item.requiresAnyAddon && !hasAnyAddon(item.requiresAnyAddon)) return null;
     // Gate the /facturacion entry behind an active e-invoice config —
     // shows up only after the org has finished the Nubefact wizard.
     // The hook caches per-org so this doesn't add extra requests.

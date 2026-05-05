@@ -218,6 +218,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Scheduler history
     "nav.scheduler_calendar": "Agenda",
     "nav.scheduler_followups": "Seguimientos",
+    "nav.scheduler_budgets": "Presupuestos",
     "nav.scheduler_history": "Histórico de citas",
     "history.title": "Histórico de Citas",
     "history.subtitle": "Registro cronológico de todas las citas",
@@ -828,6 +829,7 @@ const translations: Record<Language, Record<string, string>> = {
     // Scheduler history
     "nav.scheduler_calendar": "Schedule",
     "nav.scheduler_followups": "Follow-ups",
+    "nav.scheduler_budgets": "Budgets",
     "nav.scheduler_history": "Appointment History",
     "history.title": "Appointment History",
     "history.subtitle": "Chronological record of all appointments",
