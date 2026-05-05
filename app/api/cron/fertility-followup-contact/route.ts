@@ -149,10 +149,6 @@ export async function GET(req: NextRequest) {
         : "08:00";
     const sendEmailEnabled = orgSettings.auto_send_email !== false;
     const sendWaEnabled = orgSettings.auto_send_whatsapp !== false;
-    const tone =
-      typeof orgSettings.default_message_tone === "string"
-        ? (orgSettings.default_message_tone as string)
-        : "amable";
 
     const minutesIntoLimaDay = computeLimaDayMinutes(now);
     const targetMinutes = parseHHMM(autoContactTime, DEFAULT_AUTO_CONTACT_TIME_MIN);
@@ -344,36 +340,40 @@ export async function GET(req: NextRequest) {
       if (sendEmailEnabled && (patient as PatientRow).email && rule.email_template_key) {
         if (isEmailConfigured()) {
           attemptedAny = true;
-          let tpl = emailTemplateByKey.get(`${rule.email_template_key}|${tone}`);
+          // Plantilla per-org desde email_templates (mig 138). Si la
+          // org la deshabilitó (is_enabled=false) en Settings → Correos,
+          // se respeta ese toggle y se skipea el envío para esta regla.
+          let tpl = emailTemplateByKey.get(rule.email_template_key);
+          let templateDisabled = false;
           if (!tpl) {
-            // Prefer org-specific template; fallback to global.
             const { data: orgTpl } = await supabase
-              .from("message_templates")
-              .select("subject, body")
-              .eq("template_key", rule.email_template_key)
-              .eq("channel", "email")
-              .eq("tone", tone)
+              .from("email_templates")
+              .select("subject, body, body_html, is_enabled")
               .eq("organization_id", orgId)
+              .eq("slug", rule.email_template_key)
               .maybeSingle();
             if (orgTpl) {
-              tpl = orgTpl as { subject: string | null; body: string };
-            } else {
-              const { data: globalTpl } = await supabase
-                .from("message_templates")
-                .select("subject, body")
-                .eq("template_key", rule.email_template_key)
-                .eq("channel", "email")
-                .eq("tone", tone)
-                .is("organization_id", null)
-                .maybeSingle();
-              if (globalTpl) {
-                tpl = globalTpl as { subject: string | null; body: string };
+              if (!orgTpl.is_enabled) {
+                templateDisabled = true;
+              } else {
+                tpl = {
+                  subject: orgTpl.subject ?? null,
+                  body: (orgTpl.body_html ?? orgTpl.body) ?? "",
+                };
+                emailTemplateByKey.set(rule.email_template_key, tpl);
               }
             }
-            if (tpl) emailTemplateByKey.set(`${rule.email_template_key}|${tone}`, tpl);
           }
 
-          if (tpl) {
+          if (templateDisabled) {
+            newEvents.push({
+              type: "auto_email",
+              at: new Date().toISOString(),
+              by_user_id: null,
+              delivery_status: "skipped_template_disabled",
+              channel: "email",
+            });
+          } else if (tpl) {
             let subject = tpl.subject ?? "";
             let bodyText = tpl.body ?? "";
             for (const [k, v] of Object.entries(variables)) {
