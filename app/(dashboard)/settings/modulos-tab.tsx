@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useOrgAddons, type Addon } from "@/hooks/use-org-addons";
 import { useOrgRole } from "@/hooks/use-org-role";
+import { useOrganization } from "@/components/organization-provider";
 import {
   Loader2,
   Sparkles,
@@ -133,6 +134,15 @@ const TONE_CLASSES: Record<AddonMetadata["iconTone"], string> = {
 export default function ModulosTab() {
   const { addons, loading, activateAddon, deactivateAddon } = useOrgAddons();
   const { isAdmin } = useOrgRole();
+  const { organization } = useOrganization();
+  // Si la org tiene specialty principal (típico tras onboarding), oculto la
+  // sección "Otras especialidades disponibles" — un consultorio de fertilidad
+  // no necesita ver oftalmología/odontología en su listado de módulos. Cuando
+  // la org no tiene specialty seteada (caso edge: legacy o sin onboarding),
+  // se muestran todas como fallback informativo.
+  const hasOrgSpecialty = Boolean(
+    (organization as { primary_specialty_id?: string | null } | null)?.primary_specialty_id
+  );
 
   const [activateTarget, setActivateTarget] = useState<Addon | null>(null);
   const [configTarget, setConfigTarget] = useState<Addon | null>(null);
@@ -193,7 +203,10 @@ export default function ModulosTab() {
     });
   }
 
-  if (otherSpecialties.length > 0) {
+  // Solo mostrar "Otras especialidades disponibles" si la org NO tiene
+  // specialty principal seteada — para consultorios verticales (fertilidad,
+  // dermatología, etc.) es ruido confuso ver oftalmología u odontología.
+  if (!hasOrgSpecialty && otherSpecialties.length > 0) {
     sections.push({
       key: "specialty",
       title: "Otras especialidades disponibles",

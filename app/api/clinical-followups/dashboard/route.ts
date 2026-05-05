@@ -426,7 +426,11 @@ async function loadRecoveredKpis(
 
   const recoveryRatePct =
     totalClosed > 0 ? (recoveredCount / totalClosed) * 100 : 0;
-  const revenueAttributed = recoveredCount * ltvValue;
+  // Honestidad de la métrica (spec sec. 0.3): el revenue solo se atribuye
+  // donde el sistema EFECTIVAMENTE actuó (categoría A — withContact).
+  // La categoría B (paciente volvió por iniciativa propia) NO cuenta para
+  // revenue atribuido, aunque sí aparece como "Iniciativa propia" en KPIs.
+  const revenueAttributed = withContact * ltvValue;
 
   return {
     recovered_attributable: withContact,
