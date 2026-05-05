@@ -37,6 +37,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { FOLLOWUP_PRIORITY_CONFIG } from "@/types/clinical-history";
+import { BUDGET_TREATMENT_TYPE_LABELS } from "@/types/fertility";
+import { Receipt } from "lucide-react";
 import type { FollowupVariant, FollowupWithDetails } from "./types";
 
 const VIOLET = "#8B5CF6";
@@ -70,6 +72,11 @@ export function FollowupCard({
     : "—";
   const isRule = followup.source === "rule";
   const priorityConfig = FOLLOWUP_PRIORITY_CONFIG[followup.priority];
+  // Si el followup vino de la regla `fertility.budget_pending_acceptance`,
+  // hay un budget_record linkeado vía FK inversa. Mostramos badge cyan con
+  // el tipo de tratamiento (FIV/IIU/etc.) para diferenciar de seguimientos
+  // de consulta. Si hay multiple rows (caso edge), tomamos el primero.
+  const linkedBudget = followup.budget_records?.[0] ?? null;
 
   const handleCopyPhone = (phone: string) => {
     navigator.clipboard.writeText(phone);
@@ -166,6 +173,13 @@ export function FollowupCard({
                 >
                   <Sparkles className="h-3 w-3" />
                   Automatizado
+                </span>
+              )}
+
+              {linkedBudget && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-700 dark:text-cyan-400">
+                  <Receipt className="h-3 w-3" />
+                  Presupuesto {BUDGET_TREATMENT_TYPE_LABELS[linkedBudget.treatment_type] ?? linkedBudget.treatment_type}
                 </span>
               )}
 

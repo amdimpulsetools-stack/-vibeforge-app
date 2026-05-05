@@ -233,7 +233,7 @@ const RECOVERED_LOOKBACK_DAYS = 30;
 const NO_RESPONSE_LOOKBACK_DAYS = 60;
 
 const SELECT_WITH_DETAILS =
-  "*, doctors(full_name), patients(first_name, last_name, phone)";
+  "*, doctors(full_name), patients(first_name, last_name, phone), budget_records!budget_records_followup_id_fkey(id, treatment_type, amount, sent_by_user_id, sent_at)";
 
 type SupaClient = Awaited<ReturnType<typeof createClient>>;
 
