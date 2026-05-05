@@ -1,5 +1,5 @@
 import type { ClinicalFollowupWithRelations } from "@/types/clinical-history";
-import type { FollowupSource, FollowupStatus } from "@/types/fertility";
+import type { FollowupSource, FollowupStatus, BudgetTreatmentType } from "@/types/fertility";
 
 /**
  * Local extension of the existing followup type with the columns added in
@@ -19,6 +19,17 @@ export interface FollowupWithDetails extends ClinicalFollowupWithRelations {
   closed_at: string | null;
   status: FollowupStatus;
   days_diff?: number;
+  /** Budget record vinculado vía budget_records.followup_id, si el followup
+   *  fue creado por la regla `fertility.budget_pending_acceptance`. Permite
+   *  diferenciar visualmente seguimientos de presupuesto vs. seguimientos
+   *  de consulta y mostrar el tipo de tratamiento (FIV/IIU/etc.) en la card. */
+  budget_records?: Array<{
+    id: string;
+    treatment_type: BudgetTreatmentType;
+    amount: number | null;
+    sent_by_user_id: string | null;
+    sent_at: string;
+  }> | null;
 }
 
 export type FollowupVariant = "pending" | "recovered" | "no_response";
