@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   // Validate the invitation token
   const { data: invitation, error: invError } = await supabaseAdmin
     .from("organization_invitations")
-    .select("id, email, role, professional_title, organization_id, status, expires_at")
+    .select("id, email, role, professional_title, organization_id, status, expires_at, invitation_meta")
     .eq("token", inviteToken)
     .eq("status", "pending")
     .single();
@@ -163,6 +163,11 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (!alreadyMember) {
+    // Carry the optional fertility advisor flag from invitation_meta.
+    const meta = (invitation.invitation_meta ?? {}) as Record<string, unknown>;
+    const isFertilityAdvisor =
+      invitation.role === "doctor" && meta.is_fertility_advisor === true;
+
     // Insert into organization
     const { error: memberError } = await supabaseAdmin
       .from("organization_members")
@@ -170,6 +175,7 @@ export async function POST(request: NextRequest) {
         user_id: userId,
         organization_id: invitation.organization_id,
         role: invitation.role,
+        is_fertility_advisor: isFertilityAdvisor,
       });
 
     if (memberError) {

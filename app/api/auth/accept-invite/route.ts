@@ -24,7 +24,7 @@ export async function POST() {
   const normalizedEmail = user.email.trim().toLowerCase();
   const { data: invitation } = await admin
     .from("organization_invitations")
-    .select("id, organization_id, role, professional_title")
+    .select("id, organization_id, role, professional_title, invitation_meta")
     .ilike("email", normalizedEmail)
     .eq("status", "pending")
     .order("created_at", { ascending: false })
@@ -63,12 +63,19 @@ export async function POST() {
       }
     }
 
+    // Carry the optional fertility advisor flag from invitation_meta
+    // (set at invite time when the org has fertility_basic|fertility_premium).
+    const meta = (invitation.invitation_meta ?? {}) as Record<string, unknown>;
+    const isFertilityAdvisor =
+      invitation.role === "doctor" && meta.is_fertility_advisor === true;
+
     // Add to invited org
     await admin.from("organization_members").insert({
       user_id: user.id,
       organization_id: invitation.organization_id,
       role: invitation.role,
       is_active: true,
+      is_fertility_advisor: isFertilityAdvisor,
     });
 
     // If doctor role, create doctor record (idempotente — chequea si ya

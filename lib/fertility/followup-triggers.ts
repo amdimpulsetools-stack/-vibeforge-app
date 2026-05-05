@@ -21,7 +21,14 @@ import {
 interface BudgetPendingArgs {
   organization_id: string;
   patient_id: string;
-  doctor_id: string;
+  doctor_id: string | null;
+  /**
+   * Optional. When the followup is created from a budget_records row
+   * (fertility budgets module) rather than a treatment plan, the
+   * caller passes the budget id so it can be linked back. Stored as
+   * the contact_events first event for traceability.
+   */
+  budget_record_id?: string;
 }
 
 /**
@@ -34,7 +41,7 @@ export async function maybeCreateBudgetPendingFollowup(
   args: BudgetPendingArgs
 ): Promise<{ created: boolean; followup_id?: string; reason?: string }> {
   try {
-    const { organization_id, patient_id, doctor_id } = args;
+    const { organization_id, patient_id, doctor_id, budget_record_id } = args;
 
     // 1. Check addon enabled.
     const enabled = await isFertilityAddonEnabled(supabase, organization_id);
@@ -54,21 +61,34 @@ export async function maybeCreateBudgetPendingFollowup(
       Date.now() + (rule.delay_days ?? 7) * 24 * 3600 * 1000
     ).toISOString();
 
+    const insertPayload: Record<string, unknown> = {
+      organization_id,
+      patient_id,
+      doctor_id,
+      priority: "yellow",
+      reason: "Recordar aceptación de presupuesto",
+      source: "rule",
+      rule_key: rule.rule_key,
+      target_category_canonical: rule.target_category_key,
+      expected_by: expectedBy,
+      status: "pendiente",
+      max_attempts: rule.max_attempts ?? 3,
+    };
+
+    if (budget_record_id) {
+      insertPayload.contact_events = [
+        {
+          type: "budget_record_created",
+          at: new Date().toISOString(),
+          delivery_status: "unknown",
+          budget_record_id,
+        },
+      ];
+    }
+
     const { data: inserted, error } = await supabase
       .from("clinical_followups")
-      .insert({
-        organization_id,
-        patient_id,
-        doctor_id,
-        priority: "yellow",
-        reason: "Recordar aceptación de presupuesto",
-        source: "rule",
-        rule_key: rule.rule_key,
-        target_category_canonical: rule.target_category_key,
-        expected_by: expectedBy,
-        status: "pendiente",
-        max_attempts: rule.max_attempts ?? 3,
-      })
+      .insert(insertPayload)
       .select("id")
       .single();
 

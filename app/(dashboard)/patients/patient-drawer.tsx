@@ -54,6 +54,7 @@ import type { ClinicalNote } from "@/types/clinical-notes";
 import { SOAP_LABELS, VITALS_FIELDS, type SOAPSection, type Vitals } from "@/types/clinical-notes";
 import { TreatmentPlansPanel } from "./treatment-plans-panel";
 import { BudgetsPanel } from "./budgets-panel";
+import { FertilityBudgetRecordsSection } from "./fertility-budget-records-section";
 import { PrescriptionsPanel } from "./prescriptions-panel";
 import { ClinicalAttachmentsPanel } from "./clinical-attachments-panel";
 import { ConsentsUnifiedPanel } from "./consents-unified-panel";
@@ -1010,7 +1011,13 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
         {/* ===== BUDGETS TAB ===== */}
         {activeTab === "budgets" && (
-          <BudgetsPanel patientId={patient.id} canEdit={isAdmin || !!currentDoctorId} />
+          <div className="space-y-4">
+            <FertilityBudgetRecordsSection
+              patientId={patient.id}
+              patientFullName={`${patient.first_name ?? ""} ${patient.last_name ?? ""}`.trim()}
+            />
+            <BudgetsPanel patientId={patient.id} canEdit={isAdmin || !!currentDoctorId} />
+          </div>
         )}
 
         {/* ===== FINANCES TAB ===== */}
@@ -1436,7 +1443,13 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
               {/* ===== BUDGETS TAB ===== */}
               {activeTab === "budgets" && (
-                <BudgetsPanel patientId={patient.id} canEdit={isAdmin || !!currentDoctorId} />
+                <div className="space-y-4">
+                  <FertilityBudgetRecordsSection
+                    patientId={patient.id}
+                    patientFullName={`${patient.first_name ?? ""} ${patient.last_name ?? ""}`.trim()}
+                  />
+                  <BudgetsPanel patientId={patient.id} canEdit={isAdmin || !!currentDoctorId} />
+                </div>
               )}
 
               {/* ===== FINANCES TAB ===== */}

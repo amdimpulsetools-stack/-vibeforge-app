@@ -31,7 +31,8 @@ export type ContactEventType =
   | "auto_whatsapp"
   | "manual_contacted"
   | "manual_whatsapp"
-  | "manual_close";
+  | "manual_close"
+  | "budget_record_created";
 
 export type ContactDeliveryStatus =
   | "sent"
@@ -46,11 +47,12 @@ export type ContactDeliveryStatus =
 export interface ContactEvent {
   type: ContactEventType;
   at: string;
-  by_user_id: string | null;
+  by_user_id?: string | null;
   delivery_status: ContactDeliveryStatus;
   reason?: string;
   channel?: "email" | "whatsapp";
   error?: string;
+  budget_record_id?: string;
 }
 
 export interface FollowupRuleRow {
@@ -100,6 +102,70 @@ export interface FertilityCanonicalMapping {
 export const FERTILITY_TIER_GROUP = "fertility";
 export const FERTILITY_BASIC_KEY = "fertility_basic";
 export const FERTILITY_PREMIUM_KEY = "fertility_premium";
+
+export const BUDGET_TREATMENT_TYPES = [
+  "FIV",
+  "IIU",
+  "INDUCCION",
+  "CRIO",
+  "OVODONACION",
+  "ROPA",
+  "OTRO",
+] as const;
+
+export type BudgetTreatmentType = (typeof BUDGET_TREATMENT_TYPES)[number];
+
+export const BUDGET_TREATMENT_TYPE_LABELS: Record<BudgetTreatmentType, string> = {
+  FIV: "FIV (Fertilización In Vitro)",
+  IIU: "IIU (Inseminación Intrauterina)",
+  INDUCCION: "Inducción de ovulación",
+  CRIO: "Criopreservación",
+  OVODONACION: "Ovodonación",
+  ROPA: "Método ROPA",
+  OTRO: "Otro",
+};
+
+export type BudgetAcceptanceStatus =
+  | "pending_acceptance"
+  | "accepted"
+  | "rejected";
+
+export interface BudgetRecord {
+  id: string;
+  organization_id: string;
+  patient_id: string;
+  treatment_plan_id: string | null;
+  sent_by_user_id: string | null;
+  sent_at: string;
+  treatment_type: BudgetTreatmentType;
+  amount: number | null;
+  notes: string | null;
+  acceptance_status: BudgetAcceptanceStatus;
+  accepted_at: string | null;
+  rejected_at: string | null;
+  rejection_reason: string | null;
+  followup_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BudgetRecordWithJoins extends BudgetRecord {
+  patient?: {
+    id: string;
+    first_name: string | null;
+    last_name: string | null;
+    phone: string | null;
+  } | null;
+  sent_by?: {
+    id: string;
+    full_name: string | null;
+  } | null;
+  followup?: {
+    id: string;
+    expected_by: string | null;
+    status: string | null;
+  } | null;
+}
 
 /** The 3 essential canonical categories that must be mapped for the
  *  Tier 2 rules to fire. UI shows these with a star, but the API only

@@ -9,6 +9,7 @@ export const inviteMemberSchema = z.object({
   professional_title: z
     .enum(["doctor", "especialista", "licenciada"])
     .nullish(),
+  is_fertility_advisor: z.boolean().optional(),
 });
 
 export const updateMemberSchema = z
