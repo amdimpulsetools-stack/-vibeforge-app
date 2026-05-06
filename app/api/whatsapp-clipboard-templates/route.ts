@@ -5,13 +5,13 @@ import { z } from "zod";
 export const runtime = "nodejs";
 
 // ─── Types & defaults (kept in sync with lib/whatsapp-clipboard-config.ts) ───
-export const CLIPBOARD_TEMPLATE_KINDS = [
+const CLIPBOARD_TEMPLATE_KINDS = [
   "post_appointment",
   "second_consultation_followup",
   "budget_followup",
 ] as const;
 
-export type ClipboardTemplateKind = (typeof CLIPBOARD_TEMPLATE_KINDS)[number];
+type ClipboardTemplateKind = (typeof CLIPBOARD_TEMPLATE_KINDS)[number];
 
 const DEFAULT_TEMPLATES: Record<ClipboardTemplateKind, string> = {
   post_appointment:
