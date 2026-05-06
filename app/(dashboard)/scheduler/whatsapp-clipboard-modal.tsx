@@ -1,29 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, X, Copy, Check } from "lucide-react";
+import { CheckCircle2, X, Copy, Check, MessageCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   loadWaClipboardConfig,
   buildWhatsAppMessage,
+  normalizePhoneForWa,
   type AppointmentVariables,
 } from "@/lib/whatsapp-clipboard-config";
 
 interface WhatsAppClipboardModalProps {
   open: boolean;
   variables: AppointmentVariables;
+  /** Patient phone (raw). When valid the "Enviar por WhatsApp" button is shown. */
+  phone?: string | null;
   onClose: () => void;
 }
 
 export function WhatsAppClipboardModal({
   open,
   variables,
+  phone,
   onClose,
 }: WhatsAppClipboardModalProps) {
   const [copied, setCopied] = useState(false);
-  const config = loadWaClipboardConfig();
+  const [isMobile, setIsMobile] = useState(false);
 
+  // Device-aware default action ordering. We track this on mount + on
+  // resize so the visual update follows window size changes.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(max-width: 768px)");
+    const update = () => setIsMobile(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
+
+  const config = loadWaClipboardConfig();
   const message = buildWhatsAppMessage(config.template, variables);
+  const waPhone = normalizePhoneForWa(phone);
+  const canSend = !!waPhone;
 
   const handleCopy = async () => {
     try {
@@ -44,6 +63,19 @@ export function WhatsAppClipboardModal({
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const handleSendWa = () => {
+    if (!waPhone) return;
+    const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  // Style classes for the two action buttons. On mobile, "Enviar por WA"
+  // is the primary visual; on desktop, "Copiar" is primary.
+  const primaryBtn =
+    "flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-600 active:bg-emerald-700";
+  const secondaryBtn =
+    "flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent active:bg-accent/80";
 
   return (
     <AnimatePresence>
@@ -84,36 +116,61 @@ export function WhatsAppClipboardModal({
             <h3 className="text-xl font-bold mb-2">Nueva cita reservada</h3>
 
             {/* Message preview */}
-            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+            <p className="text-sm text-muted-foreground mb-6 leading-relaxed whitespace-pre-line">
               {message}
             </p>
 
             {/* Actions */}
             <div className="space-y-2">
-              <button
-                onClick={onClose}
-                className="w-full rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-600 active:bg-emerald-700"
-              >
-                Listo
-              </button>
+              {canSend && isMobile && (
+                <button onClick={handleSendWa} className={primaryBtn}>
+                  <MessageCircle className="h-4 w-4" />
+                  Enviar por WhatsApp
+                </button>
+              )}
 
               <button
                 onClick={handleCopy}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent active:bg-accent/80"
+                className={cn(canSend && !isMobile ? primaryBtn : secondaryBtn)}
               >
                 {copied ? (
                   <>
-                    <Check className="h-4 w-4 text-emerald-500" />
-                    <span className="text-emerald-600 dark:text-emerald-400">
+                    <Check
+                      className={cn(
+                        "h-4 w-4",
+                        canSend && !isMobile ? "text-white" : "text-emerald-500"
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        canSend && !isMobile
+                          ? "text-white"
+                          : "text-emerald-600 dark:text-emerald-400"
+                      )}
+                    >
                       ¡Copiado!
                     </span>
                   </>
                 ) : (
                   <>
                     <Copy className="h-4 w-4" />
-                    Copiar mensaje de Whatsapp
+                    Copiar mensaje
                   </>
                 )}
+              </button>
+
+              {canSend && !isMobile && (
+                <button onClick={handleSendWa} className={secondaryBtn}>
+                  <MessageCircle className="h-4 w-4" />
+                  Enviar por WhatsApp
+                </button>
+              )}
+
+              <button
+                onClick={onClose}
+                className="w-full rounded-xl px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Listo
               </button>
             </div>
           </motion.div>
