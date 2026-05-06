@@ -232,8 +232,18 @@ const NO_RESPONSE_STATUSES = [
 const RECOVERED_LOOKBACK_DAYS = 30;
 const NO_RESPONSE_LOOKBACK_DAYS = 60;
 
+// Explicit whitelist of `clinical_followups` columns the bucket UI consumes.
+// Avoids shipping heavy fields (`contact_events JSONB`, `notes TEXT`, etc.)
+// that aren't rendered by the followup card. Verified against
+// `app/(dashboard)/scheduler/follow-ups/followup-card.tsx` and `types.ts`.
+const FOLLOWUP_COLUMNS =
+  "id, organization_id, patient_id, doctor_id, status, source, rule_key, " +
+  "follow_up_date, expected_by, closed_at, attempt_count, max_attempts, " +
+  "priority, reason, snooze_until, first_contact_at, " +
+  "target_category_canonical, closure_reason, created_at, updated_at";
+
 const SELECT_WITH_DETAILS =
-  "*, doctors(full_name), patients(first_name, last_name, phone), budget_records!budget_records_followup_id_fkey(id, treatment_type, amount, sent_by_user_id, sent_at)";
+  `${FOLLOWUP_COLUMNS}, doctors(id, full_name), patients(first_name, last_name, phone), budget_records!budget_records_followup_id_fkey(id, treatment_type, amount, sent_by_user_id, sent_at)`;
 
 type SupaClient = Awaited<ReturnType<typeof createClient>>;
 
