@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { usePlan } from "@/hooks/use-plan";
+import { useOrgAddons } from "@/hooks/use-org-addons";
 import { toast } from "sonner";
 import { RichTextEditor, type RichTextEditorHandle } from "@/components/rich-text-editor";
 import { substituteVariables } from "@/lib/sanitize-email-html";
@@ -32,6 +33,7 @@ import {
   CalendarCheck,
   MessageCircle,
   RefreshCw,
+  HeartHandshake,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -66,9 +68,9 @@ interface EmailTemplate {
   sort_order: number;
 }
 
-type TemplateCategory = "appointments" | "patients" | "payments" | "team" | "marketing";
+type TemplateCategory = "appointments" | "patients" | "payments" | "team" | "marketing" | "fertility";
 
-const CATEGORIES: TemplateCategory[] = ["appointments", "patients", "payments", "team", "marketing"];
+const CATEGORIES: TemplateCategory[] = ["appointments", "patients", "payments", "team", "marketing", "fertility"];
 
 const CATEGORY_ICONS: Record<TemplateCategory, React.ReactNode> = {
   appointments: <CalendarCheck className="h-4 w-4" />,
@@ -76,6 +78,7 @@ const CATEGORY_ICONS: Record<TemplateCategory, React.ReactNode> = {
   payments: <CreditCard className="h-4 w-4" />,
   team: <Users className="h-4 w-4" />,
   marketing: <Megaphone className="h-4 w-4" />,
+  fertility: <HeartHandshake className="h-4 w-4" />,
 };
 
 const PLAN_HIERARCHY: Record<string, number> = {
@@ -134,6 +137,8 @@ export default function EmailSettingsTab() {
   const { t } = useLanguage();
   const { organizationId, organization, isOrgAdmin } = useOrganization();
   const { plan } = usePlan();
+  const { hasAnyAddon } = useOrgAddons();
+  const fertilityActive = hasAnyAddon(["fertility_basic", "fertility_premium"]);
 
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<EmailSettings | null>(null);
@@ -268,13 +273,20 @@ export default function EmailSettingsTab() {
         </div>
 
         {(() => {
-          const HIDDEN_SLUGS = new Set([
+          const HIDDEN_SLUGS = new Set<string>([
             "team_new_appointment",
             "team_cancellation",
             "patient_post_consultation",
             "patient_review_request",
             "marketing_campaign",
             "payment_pending",
+            ...(fertilityActive
+              ? []
+              : [
+                  "fertility_first_consultation_lapse",
+                  "fertility_second_consultation_lapse",
+                  "fertility_budget_pending_acceptance",
+                ]),
           ]);
           const hasAny = templates.some((tpl) => !HIDDEN_SLUGS.has(tpl.slug));
           if (hasAny) return null;
@@ -330,13 +342,20 @@ export default function EmailSettingsTab() {
 
         {CATEGORIES.map((category) => {
           // Hide unimplemented templates
-          const HIDDEN_SLUGS = new Set([
+          const HIDDEN_SLUGS = new Set<string>([
             "team_new_appointment",
             "team_cancellation",
             "patient_post_consultation",
             "patient_review_request",
             "marketing_campaign",
             "payment_pending",
+            ...(fertilityActive
+              ? []
+              : [
+                  "fertility_first_consultation_lapse",
+                  "fertility_second_consultation_lapse",
+                  "fertility_budget_pending_acceptance",
+                ]),
           ]);
           const categoryTemplates = templates.filter(
             (t) => t.category === category && !HIDDEN_SLUGS.has(t.slug)

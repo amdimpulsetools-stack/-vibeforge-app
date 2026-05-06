@@ -271,6 +271,37 @@ export async function POST(
     }
   }
 
+  // 4) Email templates fertility: garantizamos que existan en
+  //    email_templates per-org (vía seed_email_templates RPC, que es
+  //    ON CONFLICT DO NOTHING) y las habilitamos. Las plantillas son
+  //    editables en Settings → Correos (mig 138).
+  const { error: seedErr } = await admin.rpc("seed_email_templates", {
+    org_id: orgId,
+  });
+  if (seedErr) {
+    warnings.push(
+      `No se pudieron sembrar plantillas de email: ${seedErr.message}`
+    );
+  }
+
+  const FERTILITY_EMAIL_SLUGS = [
+    "fertility_first_consultation_lapse",
+    "fertility_second_consultation_lapse",
+    "fertility_budget_pending_acceptance",
+  ];
+
+  const { error: enableErr } = await admin
+    .from("email_templates")
+    .update({ is_enabled: true })
+    .eq("organization_id", orgId)
+    .in("slug", FERTILITY_EMAIL_SLUGS)
+    .eq("is_enabled", false);
+  if (enableErr) {
+    warnings.push(
+      `No se pudieron habilitar plantillas de email de fertility: ${enableErr.message}`
+    );
+  }
+
   return NextResponse.json(
     {
       activated: true,

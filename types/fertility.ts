@@ -42,6 +42,7 @@ export type ContactDeliveryStatus =
   | "skipped_no_whatsapp_config"
   | "skipped_template_not_approved"
   | "skipped_template_missing"
+  | "skipped_template_disabled"
   | "unknown";
 
 export interface ContactEvent {
