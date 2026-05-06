@@ -58,15 +58,13 @@ Una secuencia ordenada — cada paso suma valor sobre el anterior. NO saltes; no
 
 ---
 
-## 5. Manejo del fail-safe durante la demo
+## 5. Fail-safe durante la demo
 
-Plan B por escenario:
-
-- **Nubefact emite error.** Tú ya sabes que era config de serie (B001/F001) — desbloqueado hoy. Si vuelve a fallar: *"Esto lo resolvimos esta mañana — fue config en su panel de Nubefact, no en Yenda. Tengo el flujo en otra cuenta de prueba para que veamos el resultado."* Ten una org de demo lista en otra pestaña con una boleta emitida exitosamente.
-- **Una página tarda en cargar (follow-ups / budgets).** *"Ese listado lo optimizamos la semana pasada — encontramos round-trips secuenciales, ya están priorizados los fixes en el backlog técnico."* Tienes el doc `docs/research/perf-followups-budgets.md` que lo respalda. NO muestres el doc — solo úsalo como respaldo mental de que es problema conocido y dimensionado.
-- **Pregunta por feature que no existe** (ej. importar pacientes desde Excel, integración con laboratorio externo, multi-sede): *"No está hoy. Anótalo, lo evaluamos en la review quincenal del pilot. Lo que sí podemos hacer este mes es [alternativa concreta]."* NO digas "lo tengo en una semana".
-- **Error 500 en consola / pantalla blanca.** F5, sigue con la siguiente sección de la demo. *"Acabo de pushear cambios anoche, lo reviso después; no afecta tu flujo del lunes."* Sentry te lo loguea — revisar después.
-- **Pregunta sobre HC profunda / "¿reemplazas a Omnia?"** Respuesta clara: *"Yenda y Omnia conviven. Yenda lleva agenda, cobros, facturación, presupuestos, seguimientos. Omnia sigue con la HC clínica detallada. No te pedimos migrar todo de una."*
+- **Nubefact da error** → era config de serie (B001/F001) desbloqueada hoy. Ten una org de demo lista en otra pestaña con boleta exitosa: *"Lo resolvimos esta mañana, te muestro en otra cuenta."*
+- **Página lenta (follow-ups/budgets)** → *"Ya identificamos round-trips secuenciales, los fixes están priorizados."* Doc `perf-followups-budgets.md` como respaldo mental, no se muestra.
+- **Feature no existe** (import Excel, integración lab, multi-sede) → *"Hoy no. Lo anotamos en review quincenal. Esta semana podemos hacer [alternativa]."* NO prometas fechas.
+- **Error 500 / pantalla blanca** → F5, sigue. *"Cambios de anoche, lo reviso después; no afecta tu flujo del lunes."*
+- **"¿Reemplazas a Omnia?"** → *"Conviven. Yenda = agenda, cobros, facturación, presupuestos, seguimientos. Omnia sigue con la HC clínica."*
 
 ---
 
@@ -124,28 +122,24 @@ Programa cada viernes 30 min para extraer métricas vía SQL y meter en `vitra-f
 
 ---
 
-## 9. Riesgos del trial — qué puede ir mal
+## 9. Riesgos del trial
 
-Cuatro escenarios concretos + cómo prevenir/detectar:
-
-1. **Vitra no usa el addon fertility (sigue con WhatsApp manual).** Síntoma: 0 seguimientos accionados en `/scheduler/follow-ups` la primera semana. Prevención: la sesión de capacitación de la obstetra (Mar AM) tiene que terminar con 1 seguimiento real cerrado en vivo. Detección: revisa la métrica del bullet 3 cada viernes.
-2. **Recepcionistas no cargan presupuestos en Yenda (siguen en Excel).** Síntoma: `/scheduler/budgets` empty toda la semana 1. Prevención: durante la capacitación de recepcionistas, crea 1 presupuesto real para una paciente que vaya a venir. Detección: SQL `SELECT count(*) FROM budget_records WHERE organization_id = '<vitra>'` cada viernes.
-3. **Admin pide reporte que no existe (ej. "ingresos por advisor", "comisiones por doctor", "edad promedio del paciente").** Síntoma: frustración expresada en reunión semanal. Prevención: en el meeting de mañana, pregúntale **proactivamente** "¿qué reporte revisas hoy en Excel que te gustaría ver acá?" — anota literal. Si el reporte que pide es razonable, métele en `COMING-UPDATES.md` con su nombre como solicitante.
-4. **Caída de servicio sin SLA documentado.** Síntoma: 1 incidente de 10 min y la admin se enoja porque no sabía qué esperar. Prevención: en el cierre de mañana acuerda explícito: *"En el trial el SLA es best-effort, respondo dentro de 4h en horario laboral. Si en el mes hay caída > 1h te aviso por WhatsApp con la causa."*
+1. **No usan addon fertility (siguen WhatsApp manual)** — síntoma: 0 seguimientos accionados sem 1. Prevención: la sesión con la obstetra termina con 1 seguimiento real cerrado en vivo. Detecta vía métrica de seguimientos cada viernes.
+2. **Recepcionistas no cargan presupuestos (siguen Excel)** — `/scheduler/budgets` empty sem 1. Prevención: en la capacitación crea 1 presupuesto real. Detecta con `count(*) FROM budget_records` cada viernes.
+3. **Admin pide reporte que no existe** (comisiones por doctor, edad promedio) — pregunta proactiva mañana: *"¿qué reporte revisas hoy en Excel que te gustaría acá?"* Anota literal y métele en `COMING-UPDATES.md`.
+4. **Caída sin SLA documentado** — acuerda explícito en cierre: *"Trial es best-effort, respuesta < 4h laboral. Caída > 1h te aviso por WhatsApp con causa."*
 
 ---
 
-## 10. Cierre del meeting — qué dejar firmado/acordado
+## 10. Cierre — qué dejar acordado
 
-Antes de despedirte, asegúrate de tener acordado:
-
-- **Canal de soporte directo:** WhatsApp del founder (preferido para P0/P1) + email para resto. Documéntalo en `docs/vitra-feedback-log.md`.
-- **Frecuencia de check-ins:** Viernes 4pm semanal (30 min), primera semana puede ser martes y viernes (ver `vitra-pilot-checklist.md` Fase 2).
-- **Champion interno:** confirma que la admin asume ese rol — ella es el punto de contacto único para todo lo que no es bug operativo (decisiones, feedback, escalación a owner médico).
-- **Mid-trial review:** día 15 (≈ 21 mayo) — 30 min — revisar uso por rol, bugs abiertos, expectativas para los 15 días restantes.
-- **Final review:** día 30 (≈ 5 junio) — 1h — formato `vitra-pilot-checklist.md` Fase 4 (evaluación por módulo 1-10 + decisión comercial).
-- **Precio post-trial transparente:** ten claro qué plan ofreces (Pro/Enterprise) y a qué precio. **Sugerencia:** ofrecer "precio pilot" con descuento del 20-30% en el primer año por ser primer cliente de fertilidad — a cambio de testimonial en marketing y derecho a citarlos como caso. Si el plan Pro estándar es $X/mes, ofrece $0.75X durante 12 meses.
-- **Términos de salida:** sin penalidad si cancelan al final del trial. Datos exportables (CSV de pacientes, citas, pagos). Ponlo por escrito en un email post-meeting — la confianza se gana así.
+- **Canal soporte:** WhatsApp founder (P0/P1) + email (resto). Documéntalo en `vitra-feedback-log.md`.
+- **Check-ins:** viernes 4pm semanal (30 min); sem 1 también martes (ver pilot-checklist Fase 2).
+- **Champion interno:** la admin — punto único para decisiones, feedback, escalación a owner médico.
+- **Mid-trial:** día 15 (≈ 21-may), 30 min. Revisar uso por rol, bugs, expectativas restantes.
+- **Final review:** día 30 (≈ 5-jun), 1h. Formato pilot-checklist Fase 4 (evaluación por módulo 1-10 + decisión comercial).
+- **Precio post-trial:** plan Pro con **20-30% descuento primer año** por ser pilot de fertilidad, a cambio de testimonial + derecho a citarlos como caso.
+- **Términos de salida:** sin penalidad si cancelan al final. CSV exportable de pacientes/citas/pagos. Ponlo por escrito en email post-meeting.
 
 ---
 
