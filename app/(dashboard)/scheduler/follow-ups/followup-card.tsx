@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -36,12 +36,64 @@ import {
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useOrganization } from "@/components/organization-provider";
 import { FOLLOWUP_PRIORITY_CONFIG } from "@/types/clinical-history";
 import { BUDGET_TREATMENT_TYPE_LABELS } from "@/types/fertility";
 import { Receipt } from "lucide-react";
+import {
+  buildMessage,
+  loadTemplateFromDb,
+  normalizePhoneForWa,
+  type ClipboardTemplateKind,
+} from "@/lib/whatsapp-clipboard-config";
 import type { FollowupVariant, FollowupWithDetails } from "./types";
 
 const VIOLET = "#8B5CF6";
+
+/**
+ * Module-level cache so we don't re-fetch the same template once per card
+ * mount. The dashboard often renders 20+ cards at once; without this we'd
+ * fire 20+ identical API calls. Keyed by template kind. The `Promise`
+ * itself is cached so concurrent first-clicks dedupe to a single fetch.
+ */
+const templateCache = new Map<ClipboardTemplateKind, Promise<string>>();
+
+function getCachedTemplate(kind: ClipboardTemplateKind): Promise<string> {
+  const existing = templateCache.get(kind);
+  if (existing) return existing;
+  const p = loadTemplateFromDb(kind);
+  templateCache.set(kind, p);
+  return p;
+}
+
+/**
+ * Friendly phone display: "+51 987 654 321".
+ * - If the input already starts with `+`, we keep that prefix.
+ * - Otherwise we assume Peru (+51) and prepend it for the visual.
+ * - Digits are grouped in threes from the left (after the country code).
+ */
+function formatPhoneDisplay(raw: string): string {
+  const trimmed = raw.trim();
+  const hadPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 0) return raw;
+  let cc: string;
+  let rest: string;
+  if (hadPlus) {
+    // Peruvian numbers are length 11 (51 + 9). For other CCs, take a
+    // best-effort 2-digit country code; the visual is just for humans.
+    cc = digits.slice(0, 2);
+    rest = digits.slice(2);
+  } else if (digits.startsWith("51") && digits.length >= 11) {
+    cc = "51";
+    rest = digits.slice(2);
+  } else {
+    cc = "51";
+    rest = digits;
+  }
+  const groups = rest.match(/.{1,3}/g) ?? [];
+  return `+${cc} ${groups.join(" ")}`.trim();
+}
 
 interface FollowupCardProps {
   followup: FollowupWithDetails;

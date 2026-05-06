@@ -132,9 +132,14 @@ export default function SchedulerPage() {
   // focus trap con el Radix Dialog del form (cuando el modal interno renderizaba
   // arriba del form sin cerrar el Dialog primero, los botones quedaban
   // freezeados y solo el click fuera funcionaba).
-  const [waModal, setWaModal] = useState<{ open: boolean; variables: AppointmentVariables | null }>({
+  const [waModal, setWaModal] = useState<{
+    open: boolean;
+    variables: AppointmentVariables | null;
+    phone: string | null;
+  }>({
     open: false,
     variables: null,
+    phone: null,
   });
 
   // Reschedule modal
@@ -535,8 +540,8 @@ export default function SchedulerPage() {
           restrictToDoctor={isDoctor && !isOwner}
           onClose={handleFormClose}
           onSaved={handleSaved}
-          onShowWhatsAppFollowup={(variables) =>
-            setWaModal({ open: true, variables })
+          onShowWhatsAppFollowup={(variables, phone) =>
+            setWaModal({ open: true, variables, phone: phone ?? null })
           }
         />
       )}
@@ -599,7 +604,8 @@ export default function SchedulerPage() {
         <WhatsAppClipboardModal
           open={waModal.open}
           variables={waModal.variables}
-          onClose={() => setWaModal({ open: false, variables: null })}
+          phone={waModal.phone}
+          onClose={() => setWaModal({ open: false, variables: null, phone: null })}
         />
       )}
     </div>

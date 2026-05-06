@@ -78,7 +78,7 @@ interface AppointmentFormModalProps {
    *  internamente (que conflictea con el focus trap del Radix Dialog del form),
    *  delega al padre. El padre cierra el form Dialog primero y muestra el
    *  clipboard modal después, sin overlap. */
-  onShowWhatsAppFollowup?: (variables: AppointmentVariables) => void;
+  onShowWhatsAppFollowup?: (variables: AppointmentVariables, phone: string | null) => void;
 }
 
 export function AppointmentFormModal({
@@ -707,7 +707,11 @@ export function AppointmentFormModal({
         // Delegamos al padre: el clipboard modal se renderiza fuera del Radix
         // Dialog del form, evitando el conflicto de focus trap. El padre
         // primero cierra el form (onSaved) y luego muestra el clipboard.
-        onShowWhatsAppFollowup(variables);
+        // Forward the patient phone so the modal can render the
+        // "Enviar por WhatsApp" button. We pass the form value (the phone
+        // that was registered with the appointment), normalization
+        // happens in the modal.
+        onShowWhatsAppFollowup(variables, values.patient_phone || null);
         onSaved();
       } else {
         // Fallback legacy: render interno (puede tener freeze por focus trap).

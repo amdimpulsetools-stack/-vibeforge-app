@@ -244,6 +244,37 @@ function buildBudgetFollowup(template: string, vars: BudgetFollowupVars): string
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// Phone normalization for wa.me links
+// ─────────────────────────────────────────────────────────────────────
+/**
+ * Normalizes a raw phone string into the digits-only form that wa.me
+ * expects (no `+`, no spaces, no parens). Assumes Peru (+51) when the
+ * input has no country code.
+ *
+ * Examples:
+ *   "+51 987 654 321" → "51987654321"
+ *   "987654321"       → "51987654321"
+ *   "(01) 234-5678"   → null  // less than 9 digits after stripping
+ *   ""                → null
+ *
+ * Returns null when the input is empty/invalid (fewer than 9 digits).
+ */
+export function normalizePhoneForWa(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+  const hadPlus = trimmed.startsWith("+");
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length < 9) return null;
+  // If the original had a leading `+`, the digits already include the
+  // country code. Otherwise we assume Peru and prepend "51" — but only
+  // when the digits don't already look like they include it.
+  if (hadPlus) return digits;
+  if (digits.startsWith("51") && digits.length >= 11) return digits;
+  return `51${digits}`;
+}
+
 // Type-narrowed builder. Overloads guarantee the right vars per kind.
 export function buildMessage(
   kind: "post_appointment",
