@@ -1,10 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { AnimatePresence, motion } from "framer-motion";
+import { toast } from "sonner";
 import { useUser } from "@/hooks/use-user";
 import { useUserAvatar } from "@/hooks/use-user-avatar";
+import { useUserProfile } from "@/hooks/use-user-profile";
+import { useOrgRole } from "@/hooks/use-org-role";
 import { useNotifications, type Notification } from "@/hooks/use-notifications";
+import { useLanguage } from "@/components/language-provider";
+import { createClient } from "@/lib/supabase/client";
 import { getInitials } from "@/lib/utils";
 import { BorderAvatar } from "@/components/ui/avatar-border";
 import {
@@ -16,6 +23,10 @@ import {
   Check,
   CheckCheck,
   Menu,
+  UserCircle,
+  Settings,
+  LogOut,
+  ChevronDown,
 } from "lucide-react";
 import { useMobileNav } from "./mobile-nav-context";
 
@@ -94,6 +105,9 @@ function NotificationItem({
 export function Topbar() {
   const { user, loading } = useUser();
   const { avatarUrl, avatarOption } = useUserAvatar();
+  const { profile } = useUserProfile();
+  const { isAdmin } = useOrgRole();
+  const { t } = useLanguage();
   const { toggle: toggleMobileNav } = useMobileNav();
   const {
     notifications,
@@ -107,16 +121,54 @@ export function Topbar() {
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = () => {
+    if (closeTimerRef.current) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+    }
+  };
+
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimerRef.current = setTimeout(() => setUserMenuOpen(false), 120);
+  };
+
+  useEffect(() => () => cancelClose(), []);
+
   // Close on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
     }
-    if (open) document.addEventListener("mousedown", handleClick);
+    if (open || userMenuOpen) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
+  }, [open, userMenuOpen]);
+
+  const handleLogout = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    toast.success(t("nav.logout_success"));
+    setUserMenuOpen(false);
+    router.push("/login");
+    router.refresh();
+  };
+
+  const displayName = (() => {
+    const full = profile?.full_name?.trim();
+    if (full) return full.split(" ")[0];
+    const metaFull = (user?.user_metadata?.full_name as string | undefined)?.trim();
+    if (metaFull) return metaFull.split(" ")[0];
+    return null;
+  })();
 
   const handleNotificationClick = (n: Notification) => {
     if (!n.is_read) markAsRead(n.id);
@@ -200,21 +252,111 @@ export function Topbar() {
           )}
         </div>
 
-        {/* User avatar */}
+        {/* User menu */}
         {loading ? (
           <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
         ) : (
-          <div data-tour-step="topbar-user" className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground hidden sm:block font-medium">
-              {user?.email}
-            </span>
-            <BorderAvatar
-              src={avatarUrl}
-              avatarOption={avatarOption}
-              alt={user?.email || "User"}
-              fallback={user?.email ? getInitials(user.email) : "?"}
-              size="sm"
-            />
+          <div
+            ref={userMenuRef}
+            data-tour-step="topbar-user"
+            className="relative"
+            onMouseEnter={() => {
+              cancelClose();
+              setUserMenuOpen(true);
+            }}
+            onMouseLeave={scheduleClose}
+          >
+            <button
+              type="button"
+              onClick={() => setUserMenuOpen((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={userMenuOpen}
+              className="group flex items-center gap-2 rounded-full pl-2 pr-1 py-1 transition-all duration-200 ease-out hover:bg-accent/60 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            >
+              {displayName && (
+                <span className="hidden sm:block text-xs font-medium text-foreground/80 transition-colors duration-200 group-hover:text-foreground">
+                  {displayName}
+                </span>
+              )}
+              <BorderAvatar
+                src={avatarUrl}
+                avatarOption={avatarOption}
+                alt={displayName || user?.email || "User"}
+                fallback={
+                  displayName
+                    ? getInitials(displayName)
+                    : user?.email
+                      ? getInitials(user.email)
+                      : "?"
+                }
+                size="sm"
+              />
+              <ChevronDown
+                className={`h-3.5 w-3.5 text-muted-foreground transition-transform duration-200 ease-out ${
+                  userMenuOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+
+            <AnimatePresence>
+              {userMenuOpen && (
+                <motion.div
+                  role="menu"
+                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
+                  style={{ willChange: "transform, opacity" }}
+                  className="absolute right-0 top-full z-[100] mt-2 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-background/95 shadow-xl backdrop-blur-sm"
+                >
+                  {/* Header */}
+                  <div className="border-b border-border/60 px-3 py-2.5">
+                    {displayName && (
+                      <p className="text-sm font-semibold leading-tight">
+                        {displayName}
+                      </p>
+                    )}
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {user?.email}
+                    </p>
+                  </div>
+
+                  {/* Items */}
+                  <div className="p-1">
+                    <Link
+                      href="/account"
+                      role="menuitem"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-foreground/90 transition-colors duration-150 hover:bg-accent hover:text-foreground"
+                    >
+                      <UserCircle className="h-4 w-4 text-muted-foreground" />
+                      {t("nav.account")}
+                    </Link>
+                    {isAdmin && (
+                      <Link
+                        href="/settings"
+                        role="menuitem"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-foreground/90 transition-colors duration-150 hover:bg-accent hover:text-foreground"
+                      >
+                        <Settings className="h-4 w-4 text-muted-foreground" />
+                        {t("nav.settings")}
+                      </Link>
+                    )}
+                    <div className="my-1 h-px bg-border/60" />
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={handleLogout}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-red-500 transition-colors duration-150 hover:bg-red-500/10"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      {t("nav.logout")}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </div>

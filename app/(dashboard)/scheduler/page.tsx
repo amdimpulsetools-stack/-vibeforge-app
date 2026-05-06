@@ -20,6 +20,8 @@ import { useSchedulerMasterData } from "@/hooks/use-scheduler-master-data";
 import { SchedulerHeader } from "./scheduler-header";
 import { DayView } from "./day-view";
 import { WeekView } from "./week-view";
+import { WhatsAppClipboardModal } from "./whatsapp-clipboard-modal";
+import type { AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
 import {
   loadBreakTimeConfig,
   DEFAULT_BREAK_TIME_CONFIG,
@@ -125,6 +127,15 @@ export default function SchedulerPage() {
     startTime?: string;
     officeId?: string;
   } | null>(null);
+
+  // WhatsApp clipboard modal — controlado en el padre para evitar conflicto de
+  // focus trap con el Radix Dialog del form (cuando el modal interno renderizaba
+  // arriba del form sin cerrar el Dialog primero, los botones quedaban
+  // freezeados y solo el click fuera funcionaba).
+  const [waModal, setWaModal] = useState<{ open: boolean; variables: AppointmentVariables | null }>({
+    open: false,
+    variables: null,
+  });
 
   // Reschedule modal
   const [showReschedule, setShowReschedule] = useState(false);
@@ -524,6 +535,9 @@ export default function SchedulerPage() {
           restrictToDoctor={isDoctor && !isOwner}
           onClose={handleFormClose}
           onSaved={handleSaved}
+          onShowWhatsAppFollowup={(variables) =>
+            setWaModal({ open: true, variables })
+          }
         />
       )}
 
@@ -575,6 +589,17 @@ export default function SchedulerPage() {
           onClose={() => setShowAvailableSlots(false)}
           doctors={doctors}
           initialDoctorId={isDoctor ? currentDoctorId : null}
+        />
+      )}
+
+      {/* WhatsApp clipboard modal — montado a nivel page (no dentro del form
+          modal) para que cuando aparezca, el Radix Dialog del form ya esté
+          desmontado y no bloquee los clicks por focus trap. */}
+      {waModal.variables && (
+        <WhatsAppClipboardModal
+          open={waModal.open}
+          variables={waModal.variables}
+          onClose={() => setWaModal({ open: false, variables: null })}
         />
       )}
     </div>

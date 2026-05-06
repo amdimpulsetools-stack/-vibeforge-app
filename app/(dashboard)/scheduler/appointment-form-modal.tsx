@@ -74,6 +74,11 @@ interface AppointmentFormModalProps {
   restrictToDoctor?: boolean;
   onClose: () => void;
   onSaved: () => void;
+  /** Si está presente, en lugar de renderizar el modal de WhatsApp clipboard
+   *  internamente (que conflictea con el focus trap del Radix Dialog del form),
+   *  delega al padre. El padre cierra el form Dialog primero y muestra el
+   *  clipboard modal después, sin overlap. */
+  onShowWhatsAppFollowup?: (variables: AppointmentVariables) => void;
 }
 
 export function AppointmentFormModal({
@@ -97,6 +102,7 @@ export function AppointmentFormModal({
   restrictToDoctor = true,
   onClose,
   onSaved,
+  onShowWhatsAppFollowup,
 }: AppointmentFormModalProps) {
   const { t, language } = useLanguage();
 
@@ -687,7 +693,7 @@ export function AppointmentFormModal({
       // Format date to dd/mm/yyyy
       const [y, m, d] = values.appointment_date.split("-");
       const formattedDate = `${d}/${m}/${y}`;
-      setWaVariables({
+      const variables: AppointmentVariables = {
         patientName: fullName,
         date: formattedDate,
         time: values.start_time,
@@ -695,8 +701,19 @@ export function AppointmentFormModal({
         serviceName: service?.name ?? "",
         clinicName: organizationName,
         clinicAddress: organizationAddress,
-      });
-      setShowWaModal(true);
+      };
+
+      if (onShowWhatsAppFollowup) {
+        // Delegamos al padre: el clipboard modal se renderiza fuera del Radix
+        // Dialog del form, evitando el conflicto de focus trap. El padre
+        // primero cierra el form (onSaved) y luego muestra el clipboard.
+        onShowWhatsAppFollowup(variables);
+        onSaved();
+      } else {
+        // Fallback legacy: render interno (puede tener freeze por focus trap).
+        setWaVariables(variables);
+        setShowWaModal(true);
+      }
     } else {
       onSaved();
     }
