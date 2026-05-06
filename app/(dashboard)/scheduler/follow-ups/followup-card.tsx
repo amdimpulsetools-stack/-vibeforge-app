@@ -117,6 +117,20 @@ export function FollowupCard({
   const [busy, setBusy] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [closeReason, setCloseReason] = useState("");
+  const [isMobile, setIsMobile] = useState(false);
+  const { organization } = useOrganization();
+
+  // Track viewport so the WA/Copy button styling reflows on resize. The
+  // initial state is `false` (desktop-first) — if we're actually on
+  // mobile the effect flips it on the next paint.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const mql = window.matchMedia("(max-width: 768px)");
+    const update = () => setIsMobile(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
 
   const patient = followup.patients;
   const patientName = patient
@@ -130,19 +144,75 @@ export function FollowupCard({
   // de consulta. Si hay multiple rows (caso edge), tomamos el primero.
   const linkedBudget = followup.budget_records?.[0] ?? null;
 
-  const handleCopyPhone = (phone: string) => {
-    navigator.clipboard.writeText(phone);
-    toast.success("Teléfono copiado");
+  // Phone in three forms: raw (DB), wa.me-compatible (digits + CC), and
+  // a humanized display string. waPhone is null when the input is empty
+  // or has fewer than 9 digits — in that case the WA actions are
+  // disabled.
+  const rawPhone = patient?.phone ?? null;
+  const waPhone = rawPhone ? normalizePhoneForWa(rawPhone) : null;
+  const displayPhone = rawPhone ? formatPhoneDisplay(rawPhone) : null;
+
+  // Pick the template kind based on the followup's origin. Budget
+  // followups win over rule_key (a budget followup IS a rule, but it has
+  // a linked budget so we need the TRATAMIENTO variable).
+  const templateKind: ClipboardTemplateKind = linkedBudget
+    ? "budget_followup"
+    : "second_consultation_followup";
+
+  // Lazy fetch + cached. We only hit the API when the user clicks, never
+  // on mount. The cached promise is shared across cards/mounts.
+  const buildingRef = useRef(false);
+  const buildFollowupMessage = async (): Promise<string | null> => {
+    const template = await getCachedTemplate(templateKind);
+    if (templateKind === "budget_followup") {
+      if (!linkedBudget) return null;
+      return buildMessage("budget_followup", template, {
+        patientName,
+        clinicName: organization?.name ?? "",
+        treatmentType:
+          BUDGET_TREATMENT_TYPE_LABELS[linkedBudget.treatment_type] ??
+          linkedBudget.treatment_type,
+      });
+    }
+    return buildMessage("second_consultation_followup", template, {
+      patientName,
+      clinicName: organization?.name ?? "",
+      doctorName: followup.doctors?.full_name ?? "tu doctor",
+    });
   };
 
-  const handleCopyWhatsApp = () => {
-    const message = `Hola ${
-      patient?.first_name ?? ""
-    }, te escribimos de la clínica. Te recordamos que tienes un seguimiento pendiente: ${
-      followup.reason
-    }. ¿Te gustaría agendar tu próxima cita?`;
-    navigator.clipboard.writeText(message);
-    toast.success("Mensaje copiado al portapapeles");
+  const handleSendWhatsApp = async () => {
+    if (!waPhone || buildingRef.current) return;
+    buildingRef.current = true;
+    try {
+      const message = await buildFollowupMessage();
+      if (!message) {
+        toast.error("No se pudo construir el mensaje");
+        return;
+      }
+      const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
+      window.open(url, "_blank", "noopener,noreferrer");
+    } finally {
+      buildingRef.current = false;
+    }
+  };
+
+  const handleCopyMessage = async () => {
+    if (buildingRef.current) return;
+    buildingRef.current = true;
+    try {
+      const message = await buildFollowupMessage();
+      if (!message) {
+        toast.error("No se pudo construir el mensaje");
+        return;
+      }
+      await navigator.clipboard.writeText(message);
+      toast.success("Mensaje copiado");
+    } catch {
+      toast.error("No se pudo copiar el mensaje");
+    } finally {
+      buildingRef.current = false;
+    }
   };
 
   const wrap = async (fn?: () => unknown | Promise<unknown>) => {
@@ -257,6 +327,25 @@ export function FollowupCard({
               )}
             </div>
 
+            {/* Phone — clickable to open wa.me directly */}
+            {displayPhone && waPhone ? (
+              <a
+                href={`https://wa.me/${waPhone}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir en WhatsApp"
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-emerald-600 transition-colors"
+              >
+                <Phone className="h-3.5 w-3.5" />
+                {displayPhone}
+              </a>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/70">
+                <Phone className="h-3.5 w-3.5" />
+                Sin teléfono
+              </span>
+            )}
+
             <div className="flex items-center gap-2">
               <p className="text-sm text-muted-foreground line-clamp-1">
                 {followup.reason}
@@ -316,24 +405,51 @@ export function FollowupCard({
           <div className="flex shrink-0 items-center gap-1.5">
             {variant === "pending" && (
               <>
-                {patient?.phone && (
-                  <button
-                    onClick={() => handleCopyPhone(patient.phone!)}
-                    className="flex items-center gap-1 rounded-lg border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                    title={patient.phone}
-                  >
-                    <Phone className="h-3.5 w-3.5" />
-                    <Copy className="h-3 w-3" />
-                  </button>
-                )}
-
-                <button
-                  onClick={handleCopyWhatsApp}
-                  className="flex items-center gap-1 rounded-lg border border-emerald-500/30 px-2.5 py-1.5 text-xs text-emerald-500 hover:bg-emerald-500/10"
-                  title="WhatsApp"
-                >
-                  <MessageCircle className="h-3.5 w-3.5" />
-                </button>
+                {/*
+                  WA + Copy buttons. Device-aware: on mobile the WA send
+                  button is the visual primary; on desktop the Copy
+                  button is. Both stay visible in both layouts. When
+                  there's no phone, both are disabled with a tooltip.
+                */}
+                {(() => {
+                  const noPhoneTitle = "El paciente no tiene teléfono registrado";
+                  const sendPrimary = isMobile;
+                  const sendBtn = (
+                    <button
+                      key="send"
+                      onClick={handleSendWhatsApp}
+                      disabled={!waPhone}
+                      title={waPhone ? "Enviar por WhatsApp" : noPhoneTitle}
+                      className={cn(
+                        "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                        sendPrimary
+                          ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                          : "border border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                      )}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Enviar</span>
+                    </button>
+                  );
+                  const copyBtn = (
+                    <button
+                      key="copy"
+                      onClick={handleCopyMessage}
+                      disabled={!waPhone}
+                      title={waPhone ? "Copiar mensaje" : noPhoneTitle}
+                      className={cn(
+                        "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
+                        !sendPrimary
+                          ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                          : "border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
+                      )}
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Copiar</span>
+                    </button>
+                  );
+                  return sendPrimary ? [sendBtn, copyBtn] : [copyBtn, sendBtn];
+                })()}
 
                 <button
                   onClick={() => wrap(onContact)}
