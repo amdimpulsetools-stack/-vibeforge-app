@@ -3217,3 +3217,141 @@ SOAP → Diagnósticos → Medicamentos → Exámenes → Vitales → Firmada el
 - **Soft-fail en rx/exams si 401/403**: recepcionistas no deberían ver recetas (privacidad clínica) pero deberían poder ver el SOAP del Timeline. En lugar de bloquear toda la feature por permisos, la sección simplemente no aparece para roles sin acceso. Las RLS de Supabase ya manejan el filtrado.
 - **Sin botón "Reimprimir receta" desde el Timeline**: tentador pero scope creep. V1 es solo lectura. Si aparece como necesidad real, agregar después con el `ClinicalNotePrintButton` que ya existe.
 
+## 39. Changelog — Sesión 2026-05-06 (v0.15.3) — Topbar dropdown + Animaciones unificadas + WhatsApp clipboard multi-kind + Followup card dual-action + Phase 1 perf
+
+Sesión enfocada en pulido visual (topbar + animaciones de modales), expansión de las plantillas de WhatsApp clipboard a 3 kinds (post-cita / 2da consulta / presupuesto) cubriendo el flujo de seguimiento del Pack Fertilidad, mejoras al card de seguimiento con dual button device-aware (wa.me / Copiar), y primera ola de optimización de performance en `/scheduler/follow-ups` y `/scheduler/budgets`. También se cerró research para futuras decisiones (Openpay PE multi-gateway + Phase 2/3 perf).
+
+### Topbar rediseñado con dropdown hover
+
+- Reemplaza el bloque email + avatar plano por trigger compacto (avatar + first name opcional) que despliega dropdown al hover con 3 items: **Cuenta**, **Configuración**, **Cerrar sesión**.
+- Animación Framer Motion con curva `cubic-bezier(0.16, 1, 0.3, 1)` (ease-out muy suave). Esa misma curva pasó a ser el estándar de animación de modales/popovers en toda la app (siguiente sub-sección).
+
+### Animaciones de modales/popovers unificadas
+
+- **Problema**: las clases `data-[state=open]:animate-in data-[state=closed]:animate-out` venían de `tailwindcss-animate` pero no había keyframes definidos en Tailwind v4 — eran clases muertas. Resultado: los modales aparecían/desaparecían sin animación.
+- **Fix**: keyframes CSS reales en `globals.css` (`fade-in`, `fade-out`, `zoom-in-95`, `zoom-out-95`, `slide-in-from-*`, `slide-out-to-*`) con la misma curva `cubic-bezier(0.16, 1, 0.3, 1)` del dropdown del topbar. Aplicados en `Dialog`, `AlertDialog`, `Sheet`, `Popover`, `DropdownMenu`.
+- Honra `prefers-reduced-motion: reduce` (las animaciones se desactivan completamente).
+- **Bug fix asociado**: flicker top-left al abrir Dialog — la propiedad `translate` de Tailwind v4 colisionaba con el `transform` del keyframe (Tailwind v4 setea `translate: var(--tw-translate-x) var(--tw-translate-y)` como propiedad nativa CSS, separada de `transform`). Solución: limpiar `translate` y centrar via `transform: translate(-50%, -50%)` directo en el content del Dialog.
+
+### Plantillas WhatsApp clipboard multi-kind (mig 139)
+
+**Por qué**: el Pack Fertilidad necesita mensajes distintos según el contexto de seguimiento (cita post-agendada, paciente que no volvió a 2da consulta, paciente con presupuesto pendiente). Una sola plantilla universal no sirve.
+
+**Migración 139** (`org_whatsapp_clipboard_templates`):
+- Tabla con `id, organization_id, kind (CHECK 3 valores), template TEXT, is_enabled BOOLEAN, created_at, updated_at`. Unique `(organization_id, kind)`.
+- 3 kinds: `post_appointment`, `second_consultation_followup`, `budget_followup`.
+- RLS multi-tenant (mismo patrón que el resto de tablas org-scoped).
+- Seed function `seed_org_whatsapp_clipboard_templates(org_id)` con plantillas default por kind, en español Perú.
+- **Backfill retroactivo** dentro de la migración: `post_appointment` para todas las orgs existentes; los 2 kinds de seguimiento solo para orgs con addon `fertility_basic` o `fertility_premium` activo (`organization_addons` JOIN `addons`).
+
+**API y lib**:
+- `GET/PUT /api/whatsapp-clipboard-templates` (admin/owner only). GET devuelve los 3 kinds, PUT actualiza uno.
+- `lib/whatsapp-clipboard-config.ts` refactorizado a multi-kind: `buildMessage(kind, template, vars)` con narrowing por tipo según kind. Legacy single-template exports preservados como aliases (sin breaking change para callers viejos).
+
+**Settings UI**:
+- Tabs por kind. Los 2 kinds de seguimiento aparecen solo si la org tiene `fertility_basic` o `fertility_premium` activo (gating cliente; el server lo refuerza vía RLS y addon-check del API).
+- **Toolbar B/I/S** que inserta los marcadores de WhatsApp en la posición del cursor: `*bold*`, `_italic_`, `~strike~`.
+- **Picker de ~25 emojis curados** (✅ ❌ 📅 ⏰ 📍 💚 🩺 💊 🧪 🤰 👶 🎯 ⚠️ 📝 🔔 ☝️ 🙌 👋 ✨ 🤝 💬 📞 📲 🏥 ❤️). Inserción cursor-aware.
+- **Vista previa** parsea los marcadores WA → bold/italic/strike HTML para visualización fiel a cómo se verá el mensaje en WhatsApp (no es el mismo formato Markdown de typical CMS).
+- Variables disponibles: las mismas del template original (paciente, doctor, fecha, hora, servicio, clínica, dirección, etc.).
+
+**Bug fix asociado**: error de export en `route.ts` — Next.js 15 prohíbe exportar cosas que no sean handlers HTTP desde un `route.ts`. Las constantes que estaban exportadas se movieron a un módulo separado.
+
+### Followup card: teléfono visible + dual button device-aware
+
+**Cambios en `card-followup.tsx`**:
+- Teléfono del paciente visible debajo del nombre, formateado `+51 987 654 321`. Click → `wa.me/<digits>` (sin texto preset).
+- **Dos botones por card**: `Enviar por WhatsApp` (genera `wa.me?text=...` con plantilla pre-renderizada) + `Copiar mensaje` (copia al clipboard).
+- **Default device-aware**: detección `window.matchMedia('(max-width: 767px)')`. En móvil, `Enviar por WhatsApp` es el botón primario (variant default); en desktop, `Copiar mensaje` es el primario. Razón: las recepcionistas peruanas tienen WhatsApp Web abierto en otra pestaña y un `wa.me` fresco la **recarga** (rompe su flujo). Mejor: copiar y pegar a la ventana ya abierta. En móvil sí abre WhatsApp directo y es lo natural.
+- Ambos botones se deshabilitan cleanly cuando el teléfono falta (con tooltip).
+
+**Selección de kind por card**:
+- Si el card tiene `linked_budget_id` → kind = `budget_followup`.
+- Si no → kind = `second_consultation_followup`.
+
+**Cache de promesas**:
+- Module-level `Map<orgId, Promise<TemplatesResponse>>` deduplica fetches: si 30 cards renderizan al mismo tiempo y todas necesitan la plantilla, se hace 1 sola request.
+
+**Modal post-cita** (`whatsapp-clipboard-modal.tsx`): también ganó dual buttons device-aware (Copiar + wa.me) y recibe el teléfono propagado desde el form de cita (que ya lo tenía pero no lo pasaba al modal).
+
+### Phase 1 perf en seguimientos y presupuestos
+
+**`/scheduler/follow-ups`**:
+- Eliminado double-fetch en mount: el mount disparaba el dashboard endpoint que internamente corría 6 counts secuenciales (pendientes, recuperadas, sin respuesta, atribuidas, iniciativa propia, organic). Reorganizado a 3 counts en paralelo con los buckets de KPI.
+
+**`/api/budgets` GET**:
+- De ~6 round-trips secuenciales a **3 olas** con `Promise.all`:
+  - **Ola 1**: membership + addon-check (resolución de permisos).
+  - **Ola 2**: listing + counts (pending/accepted/rejected) + KPIs.
+  - **Ola 3**: senders (resolución de `sent_by_user_id` → display_name).
+- Removido `count: "exact"` del listing → uso de `limit + 1` con `.range()` para detectar `hasMore`. Sin overhead de full count.
+- Columnas whitelisted en ambos endpoints. Drop explícito de fields pesados sin uso en la card list (`contact_events JSONB` del followup, `notes` largas del budget). Solo se traen al expand de detalle.
+
+**Cliente**:
+- Dropdown de doctores filtra solo `id, full_name` (no carga el row completo).
+
+**TTFB estimado**: −50–70 % en `/scheduler/budgets`, −30–40 % en `/scheduler/follow-ups`. Validar con métricas reales tras pilot.
+
+**Phase 2 / Phase 3 documentados** en `docs/research/perf-followups-budgets.md`:
+- **Phase 2**: indexes específicos para queries de buckets (compuestos `(organization_id, status, sent_at DESC)`), migración a React Query con stale-while-revalidate y prefetch en hover.
+- **Phase 3**: KPIs materializados (refresh por trigger), conversión de las páginas a Server Components con streaming Suspense, paginación cursor-based.
+
+### Research: Openpay PE multi-gateway
+
+**`docs/research/openpay-pe-evaluation.md`**:
+- Análisis de Openpay PE contra docs oficiales (v2 del doc, primero contra docs incorrectos).
+- Propuesta de **abstracción multi-gateway** en `lib/payments/` para no atarse a un solo proveedor.
+- **Recomendación**: iniciar con **Culqi** (Yape nativo es el dolor #1 de clínicas peruanas, mucho más relevante que tarjetas internacionales). Openpay PE en segundo lugar **solo** para clientes B2B con relación BBVA establecida (Openpay es de BBVA y la relación bancaria abre puertas).
+- **Sin código shippeado**: la decisión queda pendiente. El doc es para que el orchestrator decida antes de invertir tiempo de implementación.
+
+### Migración aplicada
+
+| Migración | Descripción |
+|---|---|
+| `supabase/migrations/139_org_whatsapp_clipboard_templates.sql` *(nuevo)* | Tabla `org_whatsapp_clipboard_templates` (3 kinds) + RLS + seed function + backfill retroactivo (post_appointment para todas las orgs; kinds de seguimiento solo para orgs con `fertility_basic` o `fertility_premium`) |
+
+### Archivos tocados (v0.15.3)
+
+| Archivo | Cambio |
+|---|---|
+| `components/layout/topbar.tsx` | Trigger compacto avatar + first name + dropdown hover con 3 items, Framer Motion |
+| `app/globals.css` | Keyframes CSS reales (`fade-in/out`, `zoom-in/out-95`, `slide-in/out-from-*`) con `cubic-bezier(0.16, 1, 0.3, 1)` + respeto a `prefers-reduced-motion` |
+| `components/ui/dialog.tsx` | Aplicar nuevas clases de keyframe + fix flicker top-left por colisión de `translate` Tailwind v4 vs `transform` keyframe |
+| `components/ui/alert-dialog.tsx` | Aplicar nuevas clases de keyframe |
+| `components/ui/sheet.tsx` | Aplicar nuevas clases de keyframe |
+| `components/ui/popover.tsx` | Aplicar nuevas clases de keyframe |
+| `components/ui/dropdown-menu.tsx` | Aplicar nuevas clases de keyframe |
+| `supabase/migrations/139_org_whatsapp_clipboard_templates.sql` *(nuevo)* | Tabla multi-kind + RLS + seed + backfill retroactivo |
+| `app/api/whatsapp-clipboard-templates/route.ts` *(nuevo)* | GET (all kinds) + PUT (one kind), admin/owner only |
+| `lib/whatsapp-clipboard-config.ts` | Refactor a multi-kind con `buildMessage(kind, template, vars)` type-narrowed, legacy exports preservados |
+| `app/(dashboard)/settings/whatsapp-clipboard-tab.tsx` | Reescritura con tabs por kind (gated), toolbar B/I/S, picker de emojis, vista previa con parser WA |
+| `app/(dashboard)/scheduler/follow-ups/card-followup.tsx` | Teléfono visible + dual button device-aware (wa.me / Copiar) + selección de kind por card + cache de promesas |
+| `app/(dashboard)/scheduler/whatsapp-clipboard-modal.tsx` | Dual buttons device-aware + recepción del teléfono desde el form |
+| `app/(dashboard)/scheduler/follow-ups/page.tsx` | Eliminado double-fetch en mount, counts en paralelo |
+| `app/api/budgets/route.ts` | Reorganización a 3 olas `Promise.all`, drop de `count: "exact"`, columnas whitelisted, `limit+1` con `.range()` para `hasMore` |
+| `app/api/clinical-followups/dashboard/route.ts` | Columnas whitelisted, drop de `contact_events JSONB` y `notes` del listing |
+| `app/(dashboard)/scheduler/budgets/page.tsx` | Dropdown de doctores filtra solo `id, full_name` |
+| `docs/research/openpay-pe-evaluation.md` *(nuevo)* | Evaluación Openpay PE + propuesta multi-gateway + recomendación Culqi-first |
+| `docs/research/perf-followups-budgets.md` *(nuevo)* | Diagnóstico completo + Phase 2 (indexes + React Query) + Phase 3 (KPIs materializados + Server Components) |
+| `PRD.md` | Esta sección 39 + bullets en sección 12 + header v0.15.3 |
+
+### Operaciones requeridas para activar v0.15.3
+
+1. **Aplicar migración 139** (`org_whatsapp_clipboard_templates`):
+   - `supabase db push` o pegar `supabase/migrations/139_org_whatsapp_clipboard_templates.sql` en SQL Editor.
+   - El backfill se ejecuta dentro de la migración. Verificar post-aplicación: cada org debe tener fila `post_appointment`; las orgs con `fertility_basic`/`fertility_premium` deben tener también `second_consultation_followup` y `budget_followup`.
+2. **Smoke tests**:
+   - Topbar: hover muestra dropdown con animación suave; click en items navega a `/account` y `/settings`; Cerrar sesión termina la sesión.
+   - Modal HC abre/cierra con fade + zoom suaves (sin flicker top-left). Sheet del paciente, Popover de filtros, Dropdown de menú: todos animados consistentemente.
+   - Settings → WhatsApp: clínica sin addon fertility ve solo tab "Post-cita". Clínica con `fertility_basic` ve los 3 tabs. Toolbar B/I/S inserta marcadores en cursor; picker de emojis inserta en cursor; vista previa renderiza bold/italic/strike correctamente.
+   - `/scheduler/follow-ups`: cards muestran teléfono debajo del nombre; en desktop el botón primario es Copiar; en móvil (DevTools throttle) el primario es wa.me; cards sin teléfono tienen botones disabled.
+   - `/scheduler/budgets` y `/scheduler/follow-ups`: medir TTFB con DevTools Network — debería bajar significativamente vs v0.15.2.
+
+### Decisiones de diseño con contexto
+
+- **Dual button device-aware en lugar de un solo botón "inteligente"**: la lógica "abrir wa.me en móvil, copiar en desktop" se podría empaquetar en un solo botón que decide por dentro. Pero la **acción discreta** importa: en desktop el receptionist a veces sí quiere reabrir el chat (ej. primera vez del día), no solo copiar. Mostrar las dos opciones siempre y solo cambiar cuál es primaria por device es la forma honesta — no le sacas opciones, solo le pre-seleccionas la más probable.
+- **Cache de promesas a nivel módulo en lugar de React Query**: para v0.15.3 era una sola plantilla compartida entre 30 cards. React Query habría sido overkill (bundle + setup). Cuando Phase 2 perf llegue y migremos toda la data fetching a React Query, este cache se reemplaza naturalmente por un `useQuery` con `staleTime` largo.
+- **`limit+1` en lugar de `count: "exact"` para `hasMore`**: PostgreSQL hace un `COUNT(*)` adicional cuando pides `count: "exact"` que escanea toda la tabla aunque tengas paginación. `limit+1` con `.range()` solo trae 1 fila más para saber si hay siguiente página. Performance significativamente mejor en tablas con muchas rows; tradeoff: pierdes el total exacto (pero ya no se mostraba en UI).
+- **Backfill retroactivo dentro de la migración 139**: dejar la tabla vacía y hacer seed lazy en cada org cuando entra a Settings sería más limpio en código, pero significa que el primer admin que entra ve UI vacía. Backfill garantiza que el día 1 todas las orgs ya tienen sus 3 plantillas (gated por addon). Idempotente (ON CONFLICT DO NOTHING).
+- **Modales unificados con la curva del dropdown del topbar**: cohesión visual. Cuando el user descubre la animación del dropdown del topbar, el resto de los modales se sienten "del mismo lenguaje" — no como Frankenstein de animaciones de distintas épocas.
+
