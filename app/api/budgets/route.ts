@@ -192,11 +192,34 @@ export async function GET(request: NextRequest) {
   if (!rl.success)
     return NextResponse.json({ error: "Demasiadas solicitudes" }, { status: 429 });
 
-  const membership = await getMembership(user.id);
+  // Wave 1: resolve membership and the addon list in parallel. We can fetch
+  // the user's addons via the same `user_id` join condition without
+  // depending on the membership row, so both round-trips overlap. We
+  // re-validate the result (fertility-active scoped to the user's org)
+  // after both promises resolve.
+  const [membershipRow, addonRows] = await Promise.all([
+    supabase
+      .from("organization_members")
+      .select("organization_id, role, is_fertility_advisor")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("organization_addons")
+      .select("organization_id, addon_key, enabled")
+      .eq("enabled", true)
+      .in("addon_key", [FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY]),
+  ]);
+
+  const membership = (membershipRow.data as MembershipRow | null) ?? null;
   if (!membership)
     return NextResponse.json({ error: "Sin organización" }, { status: 403 });
 
-  if (!(await isFertilityActive(membership.organization_id))) {
+  const fertilityActive = (addonRows.data ?? []).some(
+    (r) => r.organization_id === membership.organization_id,
+  );
+  if (!fertilityActive) {
     return NextResponse.json(
       { error: "Esta función requiere el addon Pack Fertilidad" },
       { status: 403 },
@@ -257,15 +280,28 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // Explicit column whitelist for the listing. The card and the patient
+  // detail panel both consume `notes` and `rejection_reason`; everything in
+  // BudgetRecord is rendered somewhere, so we keep the full list but
+  // declare it explicitly to avoid future column bloat (e.g. blob fields)
+  // shipping over the wire.
+  const BUDGET_COLUMNS =
+    "id, organization_id, patient_id, treatment_plan_id, sent_by_user_id, " +
+    "sent_at, treatment_type, amount, notes, acceptance_status, " +
+    "accepted_at, rejected_at, rejection_reason, followup_id, " +
+    "created_at, updated_at";
+  const BUDGET_SELECT =
+    `${BUDGET_COLUMNS}, patient:patients(id, first_name, last_name, phone), followup:clinical_followups!followup_id(id, expected_by, status)`;
+
+  // Fetch limit+1 so we can detect `has_more` without a separate
+  // `count: "exact"` round-trip on the listing — the per-bucket counts
+  // below already give us the totals for the badges.
   let query = supabase
     .from("budget_records")
-    .select(
-      "*, patient:patients(id, first_name, last_name, phone), followup:clinical_followups!followup_id(id, expected_by, status)",
-      { count: "exact" },
-    )
+    .select(BUDGET_SELECT)
     .eq("organization_id", membership.organization_id)
     .order("sent_at", { ascending: false })
-    .range(offset, offset + limit - 1);
+    .range(offset, offset + limit);
 
   if (acceptanceStatus) query = query.eq("acceptance_status", acceptanceStatus);
   if (treatmentType) query = query.eq("treatment_type", treatmentType);
@@ -283,47 +319,6 @@ export async function GET(request: NextRequest) {
       query = query.eq("sent_by_user_id", user.id);
     }
   }
-
-  const { data, error, count } = await query;
-  if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
-
-  let items = data ?? [];
-
-  if (q && q.trim()) {
-    const needle = q.trim().toLowerCase();
-    items = items.filter((r) => {
-      const p = (r as { patient?: { first_name: string | null; last_name: string | null } | null }).patient;
-      const name = `${p?.first_name ?? ""} ${p?.last_name ?? ""}`.toLowerCase();
-      return name.includes(needle);
-    });
-  }
-
-  // Resolve "sent_by" display name via admin client (bypass RLS on profiles).
-  const senderIds = Array.from(
-    new Set(items.map((r) => (r as BudgetRecord).sent_by_user_id).filter(Boolean) as string[]),
-  );
-  const adminClient = createAdminClient();
-  const senderMap = new Map<string, { id: string; full_name: string | null }>();
-  if (senderIds.length > 0) {
-    const { data: profiles } = await adminClient
-      .from("user_profiles")
-      .select("id, full_name")
-      .in("id", senderIds);
-    for (const p of profiles ?? []) {
-      senderMap.set(p.id, { id: p.id, full_name: p.full_name });
-    }
-  }
-
-  const enriched = items.map((r) => {
-    const row = r as BudgetRecord;
-    return {
-      ...r,
-      sent_by: row.sent_by_user_id
-        ? senderMap.get(row.sent_by_user_id) ?? { id: row.sent_by_user_id, full_name: null }
-        : null,
-    };
-  });
 
   // Counts per bucket (org-wide, ignoring filters except scope+treatment_type+doctor).
   const baseCountQuery = (status: BudgetAcceptanceStatus) => {
@@ -346,13 +341,7 @@ export async function GET(request: NextRequest) {
     return q2;
   };
 
-  const [pendCount, accCount, rejCount] = await Promise.all([
-    baseCountQuery("pending_acceptance"),
-    baseCountQuery("accepted"),
-    baseCountQuery("rejected"),
-  ]);
-
-  // KPIs
+  // KPIs query: 90-day window, lightweight projection.
   const now = Date.now();
   const since30d = new Date(now - 30 * 24 * 3600 * 1000).toISOString();
   const since90d = new Date(now - 90 * 24 * 3600 * 1000).toISOString();
@@ -375,8 +364,74 @@ export async function GET(request: NextRequest) {
     return qq;
   };
 
-  const { data: kpiRows } = await buildKpiQuery();
-  const kpiAll = kpiRows ?? [];
+  // Wave 2: listing + 3 counts + KPI in a single Promise.all. None of these
+  // queries depend on each other; they all share the same org/role/scope
+  // filters. The senders lookup must be sequential (Wave 3) because it
+  // needs the unique `sent_by_user_id` values from the listing rows.
+  const [
+    listingRes,
+    pendCount,
+    accCount,
+    rejCount,
+    kpiRes,
+  ] = await Promise.all([
+    query,
+    baseCountQuery("pending_acceptance"),
+    baseCountQuery("accepted"),
+    baseCountQuery("rejected"),
+    buildKpiQuery(),
+  ]);
+
+  if (listingRes.error)
+    return NextResponse.json({ error: listingRes.error.message }, { status: 500 });
+
+  const fetched = listingRes.data ?? [];
+  const hasMore = fetched.length > limit;
+  let items = hasMore ? fetched.slice(0, limit) : fetched;
+
+  if (q && q.trim()) {
+    const needle = q.trim().toLowerCase();
+    items = items.filter((r) => {
+      const raw = (r as unknown as {
+        patient?:
+          | { first_name: string | null; last_name: string | null }
+          | { first_name: string | null; last_name: string | null }[]
+          | null;
+      }).patient;
+      const p = Array.isArray(raw) ? raw[0] : raw;
+      const name = `${p?.first_name ?? ""} ${p?.last_name ?? ""}`.toLowerCase();
+      return name.includes(needle);
+    });
+  }
+
+  // Wave 3: resolve "sent_by" display name via admin client (bypass RLS on
+  // profiles). Sequential because it depends on the listing rows.
+  const senderIds = Array.from(
+    new Set(items.map((r) => (r as BudgetRecord).sent_by_user_id).filter(Boolean) as string[]),
+  );
+  const senderMap = new Map<string, { id: string; full_name: string | null }>();
+  if (senderIds.length > 0) {
+    const adminClient = createAdminClient();
+    const { data: profiles } = await adminClient
+      .from("user_profiles")
+      .select("id, full_name")
+      .in("id", senderIds);
+    for (const p of profiles ?? []) {
+      senderMap.set(p.id, { id: p.id, full_name: p.full_name });
+    }
+  }
+
+  const enriched = items.map((r) => {
+    const row = r as BudgetRecord;
+    return {
+      ...r,
+      sent_by: row.sent_by_user_id
+        ? senderMap.get(row.sent_by_user_id) ?? { id: row.sent_by_user_id, full_name: null }
+        : null,
+    };
+  });
+
+  const kpiAll = kpiRes.data ?? [];
   const kpiSent30d = kpiAll.filter((r) => r.sent_at >= since30d);
   const totalSent30d = kpiSent30d.length;
   const accepted30d = kpiSent30d.filter((r) => r.acceptance_status === "accepted").length;
@@ -401,9 +456,9 @@ export async function GET(request: NextRequest) {
     ) / 10;
   }
 
-  const totalForBucket = count ?? enriched.length;
-  const hasMore = offset + enriched.length < totalForBucket;
-
+  // `hasMore` was computed by fetching `limit + 1` rows from the listing.
+  // The bucket counts give us the total per bucket without counting on the
+  // listing itself, eliminating one Postgres `count(*)` round-trip.
   return NextResponse.json({
     items: enriched,
     has_more: hasMore,

@@ -36,7 +36,6 @@ import type {
 } from "./types";
 
 const PAGE_SIZE = 20;
-const COUNTS_TTL_MS = 60_000;
 
 const DEFAULT_FILTERS: FollowupFilters = {
   doctor_id: "all",
@@ -66,7 +65,6 @@ export default function FollowUpsPage() {
     recovered: 0,
     no_response: 0,
   });
-  const [countsAt, setCountsAt] = useState(0);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [rules, setRules] = useState<FollowupRuleLite[]>([]);
   const [filters, setFilters] = useState<FollowupFilters>(DEFAULT_FILTERS);
@@ -84,12 +82,14 @@ export default function FollowUpsPage() {
   // Initial doctors + rules
   useEffect(() => {
     const supabase = createClient();
+    // We only need (id, full_name) for the doctor filter dropdown — avoid
+    // pulling heavy fields like `bio` or `signature_url` that ship with `*`.
     supabase
       .from("doctors")
-      .select("*")
+      .select("id, full_name")
       .eq("is_active", true)
       .order("full_name")
-      .then(({ data }) => setDoctors(data ?? []));
+      .then(({ data }) => setDoctors((data ?? []) as Doctor[]));
   }, []);
 
   useEffect(() => {
@@ -99,43 +99,33 @@ export default function FollowUpsPage() {
       .catch(() => setRules([]));
   }, []);
 
-  const refreshCounts = useCallback(async () => {
-    if (Date.now() - countsAt < COUNTS_TTL_MS) return;
-    try {
-      const res = await fetch(
-        `/api/clinical-followups/dashboard?${buildQuery(filters, "counts")}`,
-        { cache: "no-store" }
-      );
-      if (!res.ok) return;
-      const json = (await res.json()) as {
-        counts?: Partial<FollowupCounts> & {
-          overdue?: number;
-          this_week?: number;
-          upcoming?: number;
-          total?: number;
-        };
-      };
-      if (json.counts) {
-        // Support both the new shape (pending/recovered/no_response) and
-        // the legacy shape (overdue/this_week/upcoming/total).
-        const c = json.counts;
-        setCounts({
-          pending:
-            c.pending ??
-            ((c.overdue ?? 0) + (c.this_week ?? 0) + (c.upcoming ?? 0)),
-          recovered: c.recovered ?? 0,
-          no_response: c.no_response ?? 0,
-        });
-        setCountsAt(Date.now());
-      }
-    } catch {
-      // soft fail
-    }
-  }, [countsAt, filters]);
-
-  useEffect(() => {
-    refreshCounts();
-  }, [refreshCounts]);
+  // Apply counts coming from any bucket response. Used by `fetchTab` so we
+  // don't need a separate `bucket=counts` round-trip on mount or after
+  // mutations — every list request already includes counts in its body.
+  const applyCountsFromResponse = useCallback(
+    (
+      raw:
+        | (Partial<FollowupCounts> & {
+            overdue?: number;
+            this_week?: number;
+            upcoming?: number;
+            total?: number;
+          })
+        | undefined,
+    ) => {
+      if (!raw) return;
+      // Support both the new shape (pending/recovered/no_response) and
+      // the legacy shape (overdue/this_week/upcoming/total).
+      setCounts({
+        pending:
+          raw.pending ??
+          ((raw.overdue ?? 0) + (raw.this_week ?? 0) + (raw.upcoming ?? 0)),
+        recovered: raw.recovered ?? 0,
+        no_response: raw.no_response ?? 0,
+      });
+    },
+    [],
+  );
 
   const fetchTab = useCallback(
     async (
@@ -171,12 +161,23 @@ export default function FollowUpsPage() {
         }
         const json = (await res.json()) as Partial<ListResponse> & {
           kpis?: RecoveredKpis;
+          counts?: Partial<FollowupCounts> & {
+            overdue?: number;
+            this_week?: number;
+            upcoming?: number;
+            total?: number;
+          };
           data?: {
             overdue?: FollowupWithDetails[];
             this_week?: FollowupWithDetails[];
             upcoming?: FollowupWithDetails[];
           };
         };
+
+        // The bucket endpoint always returns counts alongside items — use
+        // them to update the tab badges so we never need a separate
+        // `bucket=counts` round-trip on mount.
+        applyCountsFromResponse(json.counts);
 
         let items: FollowupWithDetails[];
         let hasMore: boolean;
@@ -211,7 +212,12 @@ export default function FollowUpsPage() {
         setter((prev) => ({ ...prev, loading: false, error: true }));
       }
     },
-    [pending.items.length, recovered.items.length, noResponse.items.length]
+    [
+      pending.items.length,
+      recovered.items.length,
+      noResponse.items.length,
+      applyCountsFromResponse,
+    ]
   );
 
   // Fetch the default tab on mount.
@@ -240,15 +246,14 @@ export default function FollowUpsPage() {
     setPending(emptyTab());
     setRecovered(emptyTab());
     setNoResponse(emptyTab());
-    setCountsAt(0);
     fetchTab(TAB_TO_VARIANT[tab], next, true);
     setFiltersOpen(false);
   };
 
   const refresh = () => {
-    setCountsAt(0);
+    // No separate `bucket=counts` request — fetchTab returns fresh counts
+    // alongside the listing in its response body.
     fetchTab(TAB_TO_VARIANT[tab], filters, true);
-    refreshCounts();
   };
 
   // Action handlers — call PATCH subroute endpoints (owned by Agente 2).
