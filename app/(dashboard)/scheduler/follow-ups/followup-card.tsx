@@ -18,6 +18,8 @@ import {
   Flag,
   RotateCcw,
   XCircle,
+  CalendarClock,
+  ThumbsDown,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -103,6 +105,19 @@ interface FollowupCardProps {
   onMarkNoResponse?: () => unknown | Promise<unknown>;
   onCloseManual?: (reason: string) => unknown | Promise<unknown>;
   onReactivate?: () => unknown | Promise<unknown>;
+  /**
+   * Cascade actions (Sprint 1, Pack Fertilidad). Si se proveen, sustituyen
+   * el dropdown de "Posponer N días" por un date picker explícito y
+   * agregan el botón "Sin respuesta" como acción primaria. La obstetra
+   * camina los 3 intentos sin necesidad de abrir menus.
+   */
+  onAdvance?: (
+    action:
+      | { kind: "mark_contacted"; notes?: string }
+      | { kind: "pospuesto"; next_date: string; notes?: string }
+      | { kind: "agendado"; appointment_id?: string; notes?: string }
+      | { kind: "cerrar_sin_respuesta"; notes?: string }
+  ) => unknown | Promise<unknown>;
 }
 
 export function FollowupCard({
@@ -113,11 +128,16 @@ export function FollowupCard({
   onMarkNoResponse,
   onCloseManual,
   onReactivate,
+  onAdvance,
 }: FollowupCardProps) {
   const [busy, setBusy] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [closeReason, setCloseReason] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+  const [reagendarOpen, setReagendarOpen] = useState(false);
+  const [reagendarDate, setReagendarDate] = useState("");
+  const [agendoOpen, setAgendoOpen] = useState(false);
+  const [sinRespuestaOpen, setSinRespuestaOpen] = useState(false);
   const { organization } = useOrganization();
 
   // Track viewport so the WA/Copy button styling reflows on resize. The
@@ -243,6 +263,56 @@ export function FollowupCard({
 
   const stepActiveIdx = ruleStepperActiveIdx(followup.rule_key);
 
+  // ── Cascade state (Sprint 1) ───────────────────────────────────────
+  // Para mostrar el chip "Intento N/M" y habilitar/deshabilitar los
+  // botones de cascada según el estado actual del followup.
+  const isOpen = !followup.closed_at;
+  const attemptCount = followup.attempt_count ?? 0;
+  const maxAttempts = followup.max_attempts ?? 3;
+  const currentAttempt = Math.min(attemptCount + 1, maxAttempts);
+  const canMarkContacted =
+    followup.status === "pendiente" || followup.status === "pospuesto";
+  const canReagendar = attemptCount < maxAttempts;
+  const isLastAttempt = attemptCount === maxAttempts - 1;
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const ninetyDaysStr = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  const attemptChipClass =
+    currentAttempt === 1
+      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
+      : currentAttempt === 2
+        ? "border-amber-500/40 bg-amber-500/10 text-amber-600"
+        : "border-red-500/40 bg-red-500/10 text-red-600";
+
+  const handleAdvance = async (
+    action: Parameters<NonNullable<FollowupCardProps["onAdvance"]>>[0]
+  ) => {
+    if (!onAdvance) return;
+    setBusy(true);
+    try {
+      await onAdvance(action);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleReagendarSubmit = async () => {
+    if (!reagendarDate) {
+      toast.error("Elige una fecha");
+      return;
+    }
+    if (reagendarDate < todayStr) {
+      toast.error("La fecha debe ser hoy o futura");
+      return;
+    }
+    await handleAdvance({ kind: "pospuesto", next_date: reagendarDate });
+    setReagendarOpen(false);
+    setReagendarDate("");
+  };
+
   const borderClass =
     variant === "recovered"
       ? "border-emerald-500/30 bg-emerald-500/5"
@@ -281,6 +351,18 @@ export function FollowupCard({
                 >
                   <Flag className="h-3 w-3" />
                   {priorityConfig.label}
+                </span>
+              )}
+
+              {variant === "pending" && isOpen && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                    attemptChipClass
+                  )}
+                  title={`Intento ${currentAttempt} de ${maxAttempts}`}
+                >
+                  Intento {currentAttempt}/{maxAttempts}
                 </span>
               )}
 
@@ -549,6 +631,86 @@ export function FollowupCard({
             )}
           </div>
         </div>
+
+        {/*
+          Cascade action row (Sprint 1, Pack Fertilidad).
+          Cuatro acciones explícitas para que la obstetra camine los 3
+          intentos sin abrir menus: Agendó, Contactado, Reagendar,
+          Sin respuesta. Solo se renderiza si el card está abierto,
+          es la variante "pending" y el caller pasó `onAdvance`.
+        */}
+        {variant === "pending" && isOpen && onAdvance && (
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
+            <button
+              onClick={() => setAgendoOpen(true)}
+              disabled={busy}
+              className="flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+              title="La paciente agendó cita"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Agendó
+            </button>
+
+            <button
+              onClick={() =>
+                handleAdvance({ kind: "mark_contacted" })
+              }
+              disabled={busy || !canMarkContacted}
+              className="flex items-center gap-1 rounded-lg border border-blue-500/40 px-2.5 py-1.5 text-xs text-blue-600 hover:bg-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              title={
+                canMarkContacted
+                  ? "Marcar como contactada (sin decisión todavía)"
+                  : "Solo aplicable desde estados pendiente o pospuesto"
+              }
+            >
+              <MessageCircle className="h-3.5 w-3.5" />
+              Contactada
+            </button>
+
+            <button
+              onClick={() => {
+                setReagendarDate("");
+                setReagendarOpen(true);
+              }}
+              disabled={busy || !canReagendar}
+              className={cn(
+                "flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-50 disabled:cursor-not-allowed",
+                isLastAttempt
+                  ? "border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                  : "border-violet-500/40 text-violet-600 hover:bg-violet-500/10"
+              )}
+              title={
+                !canReagendar
+                  ? "Ya se alcanzó el máximo de intentos"
+                  : isLastAttempt
+                    ? "Último intento. Si vuelves a reagendar, se cerrará automáticamente."
+                    : "La paciente pidió más tiempo — elige nueva fecha"
+              }
+            >
+              <CalendarClock className="h-3.5 w-3.5" />
+              Reagendar
+            </button>
+
+            <button
+              onClick={() => setSinRespuestaOpen(true)}
+              disabled={busy}
+              className="flex items-center gap-1 rounded-lg border border-red-500/40 px-2.5 py-1.5 text-xs text-red-600 hover:bg-red-500/10 disabled:opacity-50"
+              title="Cerrar caso sin respuesta"
+            >
+              <ThumbsDown className="h-3.5 w-3.5" />
+              Sin respuesta
+            </button>
+
+            {isLastAttempt && (
+              <span className="text-[11px] text-amber-600/80">
+                Último intento — si reagendas otra vez se cierra automáticamente.
+              </span>
+            )}
+            {busy && (
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+            )}
+          </div>
+        )}
       </div>
 
       <Dialog open={closeOpen} onOpenChange={setCloseOpen}>
@@ -581,6 +743,122 @@ export function FollowupCard({
             >
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Cerrar caso
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reagendar (cascade pospuesto) */}
+      <Dialog open={reagendarOpen} onOpenChange={setReagendarOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reagendar contacto</DialogTitle>
+            <DialogDescription>
+              {isLastAttempt
+                ? "Este es el último intento. Si la paciente no responde, se cerrará automáticamente."
+                : "La paciente pidió más tiempo. Elige la fecha del próximo intento."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <label className="block text-xs font-medium text-muted-foreground">
+              Próxima fecha de contacto
+            </label>
+            <input
+              type="date"
+              value={reagendarDate}
+              min={todayStr}
+              max={ninetyDaysStr}
+              onChange={(e) => setReagendarDate(e.target.value)}
+              className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Intento {currentAttempt} de {maxAttempts}.
+            </p>
+          </div>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setReagendarOpen(false)}
+              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm hover:bg-accent"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleReagendarSubmit}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Confirmar reagenda
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmar agendamiento (cascade agendado) */}
+      <Dialog open={agendoOpen} onOpenChange={setAgendoOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>¿Confirmas que la paciente agendó?</DialogTitle>
+            <DialogDescription>
+              Esto cierra el seguimiento como recuperado vía contacto. Cuenta
+              en KPIs de recuperación atribuible.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setAgendoOpen(false)}
+              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm hover:bg-accent"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await handleAdvance({ kind: "agendado" });
+                setAgendoOpen(false);
+              }}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+            >
+              {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Sí, agendó
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmar sin respuesta (cascade cerrar_sin_respuesta) */}
+      <Dialog open={sinRespuestaOpen} onOpenChange={setSinRespuestaOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cerrar sin respuesta</DialogTitle>
+            <DialogDescription>
+              El caso pasa a "Sin respuesta". No suma a recuperaciones
+              atribuibles. ¿Confirmas?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setSinRespuestaOpen(false)}
+              className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm hover:bg-accent"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                await handleAdvance({ kind: "cerrar_sin_respuesta" });
+                setSinRespuestaOpen(false);
+              }}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50"
+            >
+              {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Confirmar cierre
             </button>
           </DialogFooter>
         </DialogContent>

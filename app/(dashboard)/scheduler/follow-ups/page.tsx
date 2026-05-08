@@ -51,6 +51,10 @@ const TAB_TO_VARIANT: Record<string, FollowupVariant> = {
   no_response: "no_response",
 };
 
+type AdvanceAction = Parameters<
+  NonNullable<Parameters<typeof FollowupCard>[0]["onAdvance"]>
+>[0];
+
 interface ListResponse {
   items: FollowupWithDetails[];
   has_more: boolean;
@@ -257,32 +261,44 @@ export default function FollowUpsPage() {
   };
 
   // Action handlers — call PATCH subroute endpoints (owned by Agente 2).
+  const requestAction = async (
+    path: string,
+    method: "PATCH" | "POST",
+    body: Record<string, unknown> | null,
+    successMsg: string
+  ): Promise<{ ok: boolean; payload: unknown }> => {
+    try {
+      const res = await fetch(path, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const errMsg =
+          (payload && typeof payload === "object" && "error" in payload
+            ? String((payload as { error: unknown }).error)
+            : null) ?? `HTTP ${res.status}`;
+        throw new Error(errMsg);
+      }
+      toast.success(successMsg);
+      refresh();
+      return { ok: true, payload };
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Error al actualizar el seguimiento"
+      );
+      return { ok: false, payload: null };
+    }
+  };
+
   const patchAction = async (
     path: string,
     body: Record<string, unknown> | null,
     successMsg: string
   ): Promise<boolean> => {
-    try {
-      const res = await fetch(path, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      if (!res.ok) {
-        const err = await res
-          .json()
-          .catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
-      toast.success(successMsg);
-      refresh();
-      return true;
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Error al actualizar el seguimiento"
-      );
-      return false;
-    }
+    const r = await requestAction(path, "PATCH", body, successMsg);
+    return r.ok;
   };
 
   const onContact = (id: string) =>
@@ -319,6 +335,41 @@ export default function FollowUpsPage() {
       null,
       "Seguimiento reactivado"
     );
+
+  // Cascade advance — un solo endpoint POST cubre las 4 transiciones de
+  // la cascada de 3 intentos del Pack Fertilidad. Si el endpoint cierra
+  // automáticamente por overflow (intentaste posponer cuando ya no
+  // quedan intentos), el response trae `auto_closed: true` y la UI lo
+  // anuncia al obstetra.
+  const onAdvance = async (id: string, action: AdvanceAction) => {
+    const successMsg =
+      action.kind === "agendado"
+        ? "Marcado como agendado"
+        : action.kind === "mark_contacted"
+          ? "Contactada"
+          : action.kind === "pospuesto"
+            ? "Reagendado"
+            : "Cerrado sin respuesta";
+    const res = await requestAction(
+      `/api/clinical-followups/${id}/advance`,
+      "POST",
+      action,
+      successMsg
+    );
+    if (
+      res.ok &&
+      res.payload &&
+      typeof res.payload === "object" &&
+      "auto_closed" in res.payload &&
+      (res.payload as { auto_closed?: boolean }).auto_closed
+    ) {
+      toast.info(
+        "Cerrado automáticamente — alcanzó intento máximo",
+        { duration: 5000 }
+      );
+    }
+    return res.ok;
+  };
 
   const activeTabState =
     tab === "pending" ? pending : tab === "recovered" ? recovered : noResponse;
@@ -423,6 +474,7 @@ export default function FollowUpsPage() {
               onSnooze={onSnooze}
               onMarkNoResponse={onMarkNoResponse}
               onCloseManual={onCloseManual}
+              onAdvance={onAdvance}
               onLoadMore={() => fetchTab("pending", filters, false)}
             />
           </TabsContent>
@@ -484,6 +536,7 @@ function PendingTabContent({
   onSnooze,
   onMarkNoResponse,
   onCloseManual,
+  onAdvance,
   onLoadMore,
 }: {
   state: TabState;
@@ -491,6 +544,7 @@ function PendingTabContent({
   onSnooze: (id: string, days: number) => Promise<unknown>;
   onMarkNoResponse: (id: string) => Promise<unknown>;
   onCloseManual: (id: string, reason: string) => Promise<unknown>;
+  onAdvance: (id: string, action: AdvanceAction) => Promise<unknown>;
   onLoadMore: () => void;
 }) {
   if (!state.loaded) return null;
@@ -513,6 +567,7 @@ function PendingTabContent({
           onSnooze={(days) => onSnooze(f.id, days)}
           onMarkNoResponse={() => onMarkNoResponse(f.id)}
           onCloseManual={(reason) => onCloseManual(f.id, reason)}
+          onAdvance={(action) => onAdvance(f.id, action)}
         />
       ))}
       {state.hasMore && (
