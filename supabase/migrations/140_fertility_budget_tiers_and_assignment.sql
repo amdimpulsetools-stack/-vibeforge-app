@@ -206,3 +206,196 @@ END $$;
 
 -- NOTE: rows without a match keep service_id = NULL. This is expected
 -- and handled at the application layer (reports use LEFT JOIN).
+
+-- ─────────────────────────────────────────────────────────────────
+-- 5. services.created_by_addon — addon-managed service marker
+-- ─────────────────────────────────────────────────────────────────
+-- Marca un servicio como creado automáticamente al activar un addon.
+-- Estos servicios pueden EDITARSE y DESACTIVARSE (is_active=false)
+-- pero NO ELIMINARSE — si se eliminan se rompe consistencia con
+-- budget_records y reportes históricos. Defense in depth: trigger DB
+-- + UI gateado.
+ALTER TABLE services
+  ADD COLUMN IF NOT EXISTS created_by_addon TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_services_created_by_addon
+  ON services(created_by_addon) WHERE created_by_addon IS NOT NULL;
+
+COMMENT ON COLUMN services.created_by_addon IS
+  'Si el servicio fue creado automáticamente al activar un addon (ej. ''fertility_basic''), guarda esa key. Estos servicios pueden editarse y desactivarse pero NO eliminarse.';
+
+-- DELETE-protection trigger
+CREATE OR REPLACE FUNCTION prevent_delete_addon_services()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.created_by_addon IS NOT NULL THEN
+    RAISE EXCEPTION 'No se puede eliminar el servicio "%": fue creado por el addon "%". Desactivalo (is_active=false) en su lugar.',
+      OLD.name, OLD.created_by_addon
+      USING ERRCODE = 'restrict_violation';
+  END IF;
+  RETURN OLD;
+END $$;
+
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger WHERE tgname = 'protect_addon_services_delete'
+  ) THEN
+    CREATE TRIGGER protect_addon_services_delete
+      BEFORE DELETE ON services
+      FOR EACH ROW EXECUTE FUNCTION prevent_delete_addon_services();
+  END IF;
+END $$;
+
+-- ─────────────────────────────────────────────────────────────────
+-- 6. seed_fertility_services(p_org_id) — RPC idempotente
+-- ─────────────────────────────────────────────────────────────────
+-- Crea/actualiza los 6 servicios TRA estándar + sus 18 tiers (A/B/C)
+-- con precios baseline tomados del catálogo de Vitra. Idempotente:
+-- si el servicio ya existe (por nombre + org), solo marca el flag
+-- is_budget_eligible y created_by_addon. Los tiers se insertan con
+-- ON CONFLICT DO NOTHING (la UNIQUE parcial ya filtra duplicados).
+--
+-- Llamar al activar el addon fertility_basic | fertility_premium en
+-- una org. Para Vitra (única org con el addon ya activo al momento
+-- de esta migración) se invoca al final del script (sección 7).
+--
+-- Precios baseline (NUEVO admin de la org puede editarlos en la UI):
+--   FIV         A=16260  B=17020  C=16260
+--   IIU         A=3750   B=3420   C=3100
+--   ROPA        A=13600  B=12520  C=11980
+--   CRIO        A=12600  B=11520  C=10980
+--   OVODONACION A=32050  B=30750  C=30750
+--   TED         A=4500   B=4280   C=4280
+CREATE OR REPLACE FUNCTION seed_fertility_services(p_org_id UUID)
+RETURNS TABLE(out_service_id UUID, out_service_name TEXT, out_action TEXT)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_category_id UUID;
+  v_service_id UUID;
+  v_action TEXT;
+  v_idx INT;
+  v_tier_idx INT;
+  v_name TEXT;
+  v_price NUMERIC;
+  v_default_minutes INT;
+  v_services TEXT[] := ARRAY[
+    'Fecundación In Vitro (FIV)',
+    'Inseminación Artificial (IIU)',
+    'Método ROPA',
+    'Criopreservación de óvulos',
+    'Ovodonación + NGS',
+    'Transferencia Embrionaria Diferida (TED)'
+  ];
+  -- Default minutes per service (TED is shorter, FIV/ROPA longer)
+  v_minutes INT[] := ARRAY[60, 45, 90, 60, 90, 45];
+  -- Tier prices: 6 services × 3 tiers (A/B/C)
+  v_prices NUMERIC[][] := ARRAY[
+    ARRAY[16260.00, 17020.00, 16260.00],  -- FIV
+    ARRAY[3750.00,  3420.00,  3100.00],   -- IIU
+    ARRAY[13600.00, 12520.00, 11980.00],  -- ROPA
+    ARRAY[12600.00, 11520.00, 10980.00],  -- CRIO
+    ARRAY[32050.00, 30750.00, 30750.00],  -- OVODONACION
+    ARRAY[4500.00,  4280.00,  4280.00]    -- TED
+  ];
+  v_tier_letters TEXT[] := ARRAY['A','B','C'];
+BEGIN
+  -- 1) Asegurar categoría "Reproducción Asistida (TRA)" para la org.
+  --    service_categories tiene UNIQUE(organization_id, name) (mig 013).
+  SELECT id INTO v_category_id
+  FROM service_categories
+  WHERE organization_id = p_org_id AND name = 'Reproducción Asistida (TRA)';
+
+  IF v_category_id IS NULL THEN
+    INSERT INTO service_categories (organization_id, name, description, is_active, display_order)
+    VALUES (
+      p_org_id,
+      'Reproducción Asistida (TRA)',
+      'Tratamientos de reproducción asistida del addon Fertilidad. Servicios protegidos contra eliminación.',
+      true,
+      90
+    )
+    RETURNING id INTO v_category_id;
+  END IF;
+
+  -- 2) Por cada servicio: upsert manual (no hay UNIQUE en services.name)
+  FOR v_idx IN 1..array_length(v_services, 1) LOOP
+    v_name := v_services[v_idx];
+    v_price := v_prices[v_idx][1];  -- baseline = tier A
+    v_default_minutes := v_minutes[v_idx];
+
+    SELECT id INTO v_service_id
+    FROM services
+    WHERE organization_id = p_org_id AND name = v_name
+    LIMIT 1;
+
+    IF v_service_id IS NULL THEN
+      INSERT INTO services (
+        organization_id, category_id, name,
+        base_price, duration_minutes,
+        is_active, is_budget_eligible, created_by_addon,
+        display_order
+      )
+      VALUES (
+        p_org_id, v_category_id, v_name,
+        v_price, v_default_minutes,
+        true, true, 'fertility_basic',
+        v_idx * 10
+      )
+      RETURNING id INTO v_service_id;
+      v_action := 'created';
+    ELSE
+      UPDATE services
+        SET is_budget_eligible = true,
+            created_by_addon   = COALESCE(created_by_addon, 'fertility_basic')
+      WHERE id = v_service_id;
+      v_action := 'flagged_existing';
+    END IF;
+
+    -- 3) Tiers A/B/C — la UNIQUE parcial filtra duplicados activos
+    FOR v_tier_idx IN 1..3 LOOP
+      INSERT INTO service_budget_tiers (
+        service_id, tier, amount, currency, is_active
+      )
+      VALUES (
+        v_service_id,
+        v_tier_letters[v_tier_idx],
+        v_prices[v_idx][v_tier_idx],
+        'PEN',
+        true
+      )
+      ON CONFLICT DO NOTHING;
+    END LOOP;
+
+    out_service_id := v_service_id;
+    out_service_name := v_name;
+    out_action := v_action;
+    RETURN NEXT;
+  END LOOP;
+END $$;
+
+COMMENT ON FUNCTION seed_fertility_services(UUID) IS
+  'Sembrado idempotente de los 6 servicios TRA estándar + 18 tiers (A/B/C) para una org. Llamar al activar el addon fertility_basic|fertility_premium. SECURITY DEFINER: bypassa RLS durante seed; el caller debe gatear con app-layer addon check + admin role.';
+
+-- ─────────────────────────────────────────────────────────────────
+-- 7. Backfill — sembrar para orgs que YA tienen el addon activo
+-- ─────────────────────────────────────────────────────────────────
+-- Vitra es la única org con fertility_basic activado al momento de
+-- esta migración. Cualquier org futura se siembra al activar el
+-- addon (TODO en la API de toggle del addon — Phase 2).
+DO $$
+DECLARE
+  v_org_id UUID;
+  v_count INT := 0;
+BEGIN
+  FOR v_org_id IN
+    SELECT DISTINCT oa.organization_id
+    FROM organization_addons oa
+    WHERE oa.addon_key IN ('fertility_basic', 'fertility_premium')
+      AND oa.enabled = true
+  LOOP
+    PERFORM seed_fertility_services(v_org_id);
+    v_count := v_count + 1;
+  END LOOP;
+
+  RAISE NOTICE 'seed_fertility_services applied to % orgs', v_count;
+END $$;
