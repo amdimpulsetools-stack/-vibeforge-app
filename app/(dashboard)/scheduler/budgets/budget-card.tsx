@@ -42,7 +42,8 @@ function formatDate(iso: string | null): string {
   });
 }
 
-function daysAgo(iso: string): number {
+function daysAgo(iso: string | null): number | null {
+  if (!iso) return null;
   const ms = Date.now() - new Date(iso).getTime();
   return Math.max(0, Math.round(ms / (24 * 3600 * 1000)));
 }
@@ -174,10 +175,13 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
             <span className="text-xs text-muted-foreground">{treatmentLabel}</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {amountText} · Enviado por {sentByText} · {formatDate(budget.sent_at)}{" "}
-            <span className="text-muted-foreground/70">
-              · Hace {sentDays} día{sentDays === 1 ? "" : "s"}
-            </span>
+            {amountText} · {budget.sent_at ? "Enviado" : "Sin enviar"} por{" "}
+            {sentByText} · {formatDate(budget.sent_at)}
+            {sentDays !== null && (
+              <span className="text-muted-foreground/70">
+                {" "}· Hace {sentDays} día{sentDays === 1 ? "" : "s"}
+              </span>
+            )}
           </p>
           {budget.notes && (
             <p className="text-[11px] text-muted-foreground line-clamp-2">

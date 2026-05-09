@@ -42,7 +42,8 @@ function formatDate(iso: string | null): string {
   });
 }
 
-function daysBetween(aIso: string, bIso: string): number {
+function daysBetween(aIso: string | null, bIso: string | null): number | null {
+  if (!aIso || !bIso) return null;
   const ms = new Date(bIso).getTime() - new Date(aIso).getTime();
   return Math.max(0, Math.round(ms / (24 * 3600 * 1000)));
 }
@@ -128,9 +129,14 @@ export function FertilityBudgetRecordsSection({
 
   const sorted = useMemo(
     () =>
-      [...items].sort(
-        (a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
-      ),
+      [...items].sort((a, b) => {
+        // sent_at is nullable since mig 140 (records can be assigned but
+        // not yet sent). Treat unsent rows as time=0 so they fall to the
+        // bottom of the list deterministically.
+        const aTs = a.sent_at ? new Date(a.sent_at).getTime() : 0;
+        const bTs = b.sent_at ? new Date(b.sent_at).getTime() : 0;
+        return bTs - aTs;
+      }),
     [items],
   );
 
@@ -329,7 +335,7 @@ function BudgetRow({
             <span className="text-sm font-semibold">{treatmentLabel}</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {amountLabel} · Enviado {formatDate(budget.sent_at)}
+            {amountLabel} · {budget.sent_at ? `Enviado ${formatDate(budget.sent_at)}` : "Sin enviar"}
             {budget.sent_by?.full_name ? ` · por ${budget.sent_by.full_name}` : ""}
           </p>
           {budget.notes && (

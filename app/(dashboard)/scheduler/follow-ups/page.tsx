@@ -12,6 +12,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Sheet,
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { createClient } from "@/lib/supabase/client";
+import { useFertilityAddon } from "@/hooks/use-fertility-addon";
 import type { Doctor } from "@/types/admin";
 import { FollowupCard } from "./followup-card";
 import type {
@@ -61,6 +63,7 @@ interface ListResponse {
 }
 
 export default function FollowUpsPage() {
+  const { active: fertilityActive, loading: addonsLoading } = useFertilityAddon();
   const [tab, setTab] = useState<"pending" | "recovered" | "no_response">(
     "pending"
   );
@@ -373,6 +376,34 @@ export default function FollowUpsPage() {
 
   const activeTabState =
     tab === "pending" ? pending : tab === "recovered" ? recovered : noResponse;
+
+  if (addonsLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!fertilityActive) {
+    return (
+      <div className="p-6">
+        <div className="rounded-xl border border-dashed border-border p-10 text-center">
+          <CalendarCheck className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+          <p className="text-base font-semibold">Pack Fertilidad requerido</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Esta función está disponible con el addon Pack Fertilidad.
+          </p>
+          <Link
+            href="/settings?tab=modulos"
+            className="mt-4 inline-flex items-center rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15"
+          >
+            Activar Pack Fertilidad
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
