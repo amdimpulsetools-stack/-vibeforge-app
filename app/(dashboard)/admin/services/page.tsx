@@ -10,14 +10,19 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import { RoleGate } from "@/components/role-gate";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
+import { useFertilityAddon } from "@/hooks/use-fertility-addon";
+import { FertilityAddonGate } from "@/components/addons/fertility-addon-gate";
 import {
   serviceSchema,
   serviceCategorySchema,
   SERVICE_MODALITY_OPTIONS,
   IGV_AFFECTATION_OPTIONS,
   UNIT_OF_MEASURE_OPTIONS,
+  TIER_LETTERS,
+  TIER_CURRENCY_OPTIONS,
   type ServiceFormData,
   type ServiceCategoryFormData,
+  type TierLetter,
 } from "@/lib/validations/service";
 import { DURATION_OPTIONS, SERVICE_MODALITY_LABELS } from "@/types/admin";
 import type { Service, ServiceCategory } from "@/types/admin";
@@ -41,11 +46,13 @@ import {
   FolderTree,
   Stethoscope,
   ArrowRight,
+  Sparkles,
 } from "lucide-react";
 
 export default function ServicesPage() {
   const { t } = useLanguage();
   const { isAdmin } = useOrgRole();
+  const { active: fertilityActive } = useFertilityAddon();
   const confirm = useConfirm();
   const [services, setServices] = useState<(Service & { service_categories: ServiceCategory })[]>([]);
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
@@ -272,7 +279,12 @@ export default function ServicesPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {catServices.map((service) => (
+                  {catServices.map((service) => {
+                    const isAddonManaged = Boolean(
+                      (service as { created_by_addon?: string | null })
+                        .created_by_addon,
+                    );
+                    return (
                     <div
                       key={service.id}
                       className="flex items-center justify-between rounded-xl border border-border bg-card p-4"
@@ -281,6 +293,12 @@ export default function ServicesPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <h4 className="font-medium">{service.name}</h4>
+                            {fertilityActive && isAddonManaged && (
+                              <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                                <Sparkles className="h-3 w-3" />
+                                Addon Fertilidad
+                              </span>
+                            )}
                             {(service as any).modality === "virtual" && (
                               <span className="flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-600 dark:text-blue-400">
                                 <ZoomIcon className="h-3 w-3" />
@@ -329,7 +347,7 @@ export default function ServicesPage() {
                             <Pencil className="h-4 w-4" />
                           </button>
                         )}
-                        {isAdmin && (
+                        {isAdmin && !isAddonManaged && (
                           <button
                             onClick={() => handleDeleteService(service.id)}
                             className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
@@ -339,7 +357,8 @@ export default function ServicesPage() {
                         )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -429,6 +448,26 @@ export default function ServicesPage() {
   );
 }
 
+interface TierRowState {
+  tier: TierLetter;
+  amount: string;
+  currency: "PEN" | "USD";
+  includes_text: string;
+  notes: string;
+  is_active: boolean;
+}
+
+function emptyTierRows(): TierRowState[] {
+  return TIER_LETTERS.map((tier) => ({
+    tier,
+    amount: "",
+    currency: "PEN" as const,
+    includes_text: "",
+    notes: "",
+    is_active: true,
+  }));
+}
+
 function ServiceForm({
   service,
   categories,
@@ -442,7 +481,10 @@ function ServiceForm({
 }) {
   const { t } = useLanguage();
   const { organizationId } = useOrganization();
+  const { active: fertilityActive } = useFertilityAddon();
   const [saving, setSaving] = useState(false);
+  const [tierRows, setTierRows] = useState<TierRowState[]>(() => emptyTierRows());
+  const [tiersLoading, setTiersLoading] = useState(false);
 
   const {
     register,
@@ -463,8 +505,94 @@ function ServiceForm({
       sunat_product_code: (service as { sunat_product_code?: string })?.sunat_product_code ?? "",
       unit_of_measure: (service as { unit_of_measure?: string })?.unit_of_measure ?? "ZZ",
       igv_affectation: (service as { igv_affectation?: number })?.igv_affectation ?? 1,
+      is_budget_eligible:
+        (service as { is_budget_eligible?: boolean })?.is_budget_eligible ?? false,
     },
   });
+
+  const isBudgetEligible = watch("is_budget_eligible");
+
+  // Load existing tiers when editing an existing service that has the
+  // addon active. Skipped for create-mode (service.id is required).
+  useEffect(() => {
+    if (!service?.id || !fertilityActive) return;
+    let cancelled = false;
+    setTiersLoading(true);
+    fetch(`/api/services/${service.id}/tiers`)
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const json = (await res.json()) as {
+          tiers?: Array<{
+            tier: TierLetter;
+            amount: number | string;
+            currency: string;
+            includes_text: string | null;
+            notes: string | null;
+            is_active: boolean;
+          }>;
+        };
+        return json.tiers ?? [];
+      })
+      .then((rows) => {
+        if (cancelled) return;
+        const baseline = emptyTierRows();
+        if (rows && rows.length > 0) {
+          const byTier = new Map(rows.map((r) => [r.tier, r]));
+          for (const row of baseline) {
+            const found = byTier.get(row.tier);
+            if (found) {
+              row.amount = String(found.amount ?? "");
+              row.currency = (found.currency === "USD" ? "USD" : "PEN");
+              row.includes_text = found.includes_text ?? "";
+              row.notes = found.notes ?? "";
+              row.is_active = found.is_active;
+            }
+          }
+        }
+        setTierRows(baseline);
+      })
+      .finally(() => {
+        if (!cancelled) setTiersLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [service?.id, fertilityActive]);
+
+  const updateTierRow = (idx: number, patch: Partial<TierRowState>) => {
+    setTierRows((rows) => rows.map((r, i) => (i === idx ? { ...r, ...patch } : r)));
+  };
+
+  const handleSaveTiers = async (serviceId: string) => {
+    setSaving(true);
+    try {
+      const payload = {
+        tiers: tierRows.map((r) => ({
+          tier: r.tier,
+          amount: r.amount === "" ? 0 : Number(r.amount),
+          currency: r.currency,
+          includes_text: r.includes_text || null,
+          notes: r.notes || null,
+          is_active: r.is_active,
+        })),
+      };
+      const res = await fetch(`/api/services/${serviceId}/tiers`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(json.error ?? "No se pudieron guardar los tiers");
+        return;
+      }
+      toast.success("Tiers guardados");
+    } catch {
+      toast.error("No se pudieron guardar los tiers");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const einvoiceConfig = useEInvoiceConfig();
 
@@ -486,6 +614,13 @@ function ServiceForm({
       requires_consent: values.requires_consent,
       is_active: values.is_active,
     };
+
+    // Budget eligibility flag — only persist when the addon is active.
+    // For inactive orgs the field is invisible in the UI; we still
+    // pass through whatever the existing record had.
+    if (fertilityActive) {
+      payload.is_budget_eligible = values.is_budget_eligible;
+    }
 
     // Only persist fiscal fields if e-invoicing is connected — otherwise we
     // leave whatever was there (or NULL for new services). This keeps the
@@ -650,6 +785,159 @@ function ServiceForm({
         <input type="checkbox" {...register("is_active")} className="rounded" />
         {t("services.active")}
       </label>
+
+      {/* Bloque addon Fertilidad — tiers A/B/C */}
+      <FertilityAddonGate>
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-3">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              {...register("is_budget_eligible")}
+              className="mt-0.5 rounded"
+            />
+            <div className="flex-1">
+              <div className="font-medium flex items-center gap-2">
+                <Sparkles className="h-3.5 w-3.5 text-emerald-500" />
+                Habilitar para presupuestos del addon Fertilidad
+              </div>
+              <div className="text-xs text-muted-foreground">
+                Marca este servicio como elegible para tiers A/B/C. La asesora podrá
+                asignar uno de los tres paquetes a la paciente al cotizar.
+              </div>
+            </div>
+          </label>
+
+          {isBudgetEligible && (
+            <div className="space-y-3 pt-2 border-t border-emerald-500/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold">Tiers de presupuesto (A/B/C)</div>
+                  <p className="text-xs text-muted-foreground">
+                    Configura los tres paquetes de precios de este servicio.
+                    Define qué incluye cada uno para que la paciente entienda la diferencia.
+                  </p>
+                </div>
+              </div>
+
+              {!service ? (
+                <div className="rounded-lg border border-dashed border-emerald-500/40 bg-card/50 p-3 text-xs text-muted-foreground">
+                  Primero guarda el servicio. Después podrás configurar los tiers.
+                </div>
+              ) : tiersLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Cargando tiers…
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {tierRows.map((row, idx) => (
+                    <div
+                      key={row.tier}
+                      className="rounded-lg border border-border bg-card p-3 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                            {row.tier}
+                          </span>
+                          <span className="text-sm font-medium">Tier {row.tier}</span>
+                        </div>
+                        <label className="flex items-center gap-1.5 text-xs">
+                          <input
+                            type="checkbox"
+                            checked={row.is_active}
+                            onChange={(e) =>
+                              updateTierRow(idx, { is_active: e.target.checked })
+                            }
+                            className="rounded"
+                          />
+                          Activo
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div className="sm:col-span-2 space-y-1">
+                          <label className="text-xs font-medium">Monto</label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={row.amount}
+                            onChange={(e) =>
+                              updateTierRow(idx, { amount: e.target.value })
+                            }
+                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-medium">Moneda</label>
+                          <select
+                            value={row.currency}
+                            onChange={(e) =>
+                              updateTierRow(idx, {
+                                currency: e.target.value === "USD" ? "USD" : "PEN",
+                              })
+                            }
+                            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm"
+                          >
+                            {TIER_CURRENCY_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">
+                          Qué incluye{" "}
+                          <span className="text-muted-foreground font-normal">(opcional)</span>
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={row.includes_text}
+                          onChange={(e) =>
+                            updateTierRow(idx, { includes_text: e.target.value })
+                          }
+                          placeholder="Ej: Honorarios + estimulación + congelación"
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-xs font-medium">
+                          Notas internas{" "}
+                          <span className="text-muted-foreground font-normal">(opcional)</span>
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={row.notes}
+                          onChange={(e) => updateTierRow(idx, { notes: e.target.value })}
+                          placeholder="Notas privadas del admin (no se muestran a la paciente)"
+                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
+                        />
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => handleSaveTiers(service.id)}
+                    disabled={saving}
+                    className="flex items-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-700 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors dark:text-emerald-400"
+                  >
+                    {saving ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                    Guardar tiers
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </FertilityAddonGate>
 
       {/* Bloque fiscal — solo visible si Nubefact está conectado */}
       {einvoiceConfig.connected && (
