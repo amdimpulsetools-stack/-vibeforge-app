@@ -3,7 +3,17 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Check, Clock, FileDown, Loader2, Send, X } from "lucide-react";
+import {
+  Activity,
+  Check,
+  CheckCircle,
+  Clock,
+  FileDown,
+  Loader2,
+  Play,
+  Send,
+  X,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +26,7 @@ import {
   type BudgetRecord,
   type BudgetTreatmentType,
 } from "@/types/fertility";
+import { useOrgRole } from "@/hooks/use-org-role";
 
 export interface BudgetCardProps {
   budget: BudgetRecord & {
@@ -30,6 +41,11 @@ export interface BudgetCardProps {
     assigned_by?: { id: string; full_name: string | null } | null;
     assigned_at?: string | null;
     assigned_by_user_id?: string | null;
+    /** mig 142 — set when accepted → in_progress. */
+    started_at?: string | null;
+    started_by_user_id?: string | null;
+    /** mig 142 — set when in_progress → completed. */
+    completed_at?: string | null;
   };
   bucket: BudgetAcceptanceStatus;
   onChanged: () => void;
@@ -55,8 +71,15 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
   const [actionLoading, setActionLoading] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [startLoading, setStartLoading] = useState(false);
+  const [completeLoading, setCompleteLoading] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+
+  // Phase 5 prep — admin/owner gating for the "Marcar completado"
+  // action. Doctors and advisors can /start, but only admin/owner
+  // can /complete (it's a financial-impact decision).
+  const { isAdmin } = useOrgRole();
 
   // Phase 3 — a budget is "Sin procesar" when it has been assigned
   // (assigned_at + assigned_by_user_id are populated) but sent_at is
@@ -137,6 +160,36 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
     }
   };
 
+  const startTreatment = async () => {
+    setStartLoading(true);
+    const res = await fetch(`/api/budgets/${budget.id}/start`, {
+      method: "POST",
+    });
+    setStartLoading(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error ?? "No se pudo marcar el inicio de tratamiento");
+      return;
+    }
+    toast.success("Tratamiento marcado como iniciado");
+    onChanged();
+  };
+
+  const completeTreatment = async () => {
+    setCompleteLoading(true);
+    const res = await fetch(`/api/budgets/${budget.id}/complete`, {
+      method: "POST",
+    });
+    setCompleteLoading(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error ?? "No se pudo marcar como completado");
+      return;
+    }
+    toast.success("Tratamiento marcado como completado");
+    onChanged();
+  };
+
   const reject = async () => {
     setActionLoading(true);
     const res = await fetch(`/api/budgets/${budget.id}/mark-rejected`, {
@@ -187,10 +240,46 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
       );
     }
   } else if (budget.acceptance_status === "accepted") {
+    // Phase 5 prep — Por iniciar urgency tint based on accepted_at
+    // age: <7d gray, 7-14d amber, >14d red. Mirrors how older
+    // unstarted treatments are surfaced as more urgent.
+    const acceptedAge = daysAgo(budget.accepted_at) ?? 0;
+    const tone =
+      acceptedAge > 14
+        ? {
+            cls: "bg-rose-500/15 text-rose-600",
+            note: " — verificar con paciente",
+          }
+        : acceptedAge >= 7
+          ? {
+              cls: "bg-amber-500/15 text-amber-600",
+              note: " — recordar inicio",
+            }
+          : {
+              cls: "bg-muted text-muted-foreground",
+              note: "",
+            };
+    badge = (
+      <span
+        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${tone.cls}`}
+      >
+        <Check className="h-3 w-3" />
+        Aceptado hace {acceptedAge} día{acceptedAge === 1 ? "" : "s"}
+        {tone.note}
+      </span>
+    );
+  } else if (budget.acceptance_status === "in_progress") {
+    badge = (
+      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-[11px] font-semibold text-blue-600">
+        <Activity className="h-3 w-3" />
+        En curso desde {formatDate(budget.started_at ?? null)}
+      </span>
+    );
+  } else if (budget.acceptance_status === "completed") {
     badge = (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
-        <Check className="h-3 w-3" />
-        Aceptado el {formatDate(budget.accepted_at)}
+        <CheckCircle className="h-3 w-3" />
+        Completado el {formatDate(budget.completed_at ?? null)}
       </span>
     );
   } else if (budget.acceptance_status === "rejected") {
@@ -304,6 +393,44 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
               <FileDown className="h-3 w-3" />
             )}
             Descargar PDF
+          </button>
+        </div>
+      )}
+
+      {/* Phase 5 prep — "Por iniciar" sub-bucket: doctors/advisors/
+          admin can stamp started_at. */}
+      {budget.acceptance_status === "accepted" && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={startTreatment}
+            disabled={startLoading}
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          >
+            {startLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Play className="h-3 w-3" />
+            )}
+            Marcar inicio de tratamiento
+          </button>
+        </div>
+      )}
+
+      {/* Phase 5 prep — "En curso" sub-bucket: admin/owner only can
+          mark a treatment as completed (financial-impact decision). */}
+      {budget.acceptance_status === "in_progress" && isAdmin && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={completeTreatment}
+            disabled={completeLoading}
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          >
+            {completeLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <CheckCircle className="h-3 w-3" />
+            )}
+            Marcar completado
           </button>
         </div>
       )}

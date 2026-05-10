@@ -47,6 +47,12 @@ interface ListResponse {
     pending_unsent?: number;
     /** Phase 3 — pending_acceptance rows with sent_at IS NOT NULL. */
     pending_sent?: number;
+    /** Phase 5 prep — accepted but not yet started. Drives the kanban tab badge. */
+    accepted_unstarted?: number;
+    /** Phase 5 prep — acceptance_status='in_progress'. */
+    in_progress?: number;
+    /** Phase 5 prep — acceptance_status='completed'. */
+    completed?: number;
   };
   kpis: {
     total_sent_30d: number;
@@ -135,6 +141,9 @@ export default function BudgetsPage() {
     rejected: 0,
     pending_unsent: 0,
     pending_sent: 0,
+    accepted_unstarted: 0,
+    in_progress: 0,
+    completed: 0,
   };
   const kpis = data?.kpis;
 
@@ -247,7 +256,19 @@ export default function BudgetsPage() {
           </TabsTrigger>
           <TabsTrigger value="accepted">
             <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-            Aceptados ({counts.accepted})
+            Aceptados (
+            {(counts.accepted_unstarted ?? counts.accepted) +
+              (counts.in_progress ?? 0) +
+              (counts.completed ?? 0)}
+            )
+            {(counts.accepted_unstarted ?? counts.accepted) > 0 && (
+              <span
+                className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400"
+                title="Aceptados aún sin marcar como iniciados"
+              >
+                {counts.accepted_unstarted ?? counts.accepted}
+              </span>
+            )}
           </TabsTrigger>
           <TabsTrigger value="rejected">
             <XCircle className="mr-1.5 h-3.5 w-3.5" />
@@ -275,6 +296,18 @@ export default function BudgetsPage() {
                 items={filtered}
                 pendingUnsentCount={counts.pending_unsent ?? 0}
                 pendingSentCount={counts.pending_sent ?? 0}
+                onChanged={refresh}
+              />
+            ) : b === "accepted" ? (
+              // Phase 5 prep — split the Aceptados column into 3
+              // visual sub-groups based on the new acceptance_status
+              // states: "Por iniciar" (accepted) → "En curso"
+              // (in_progress) → "Completados" (completed).
+              <AcceptedSubGroups
+                items={filtered}
+                acceptedUnstartedCount={counts.accepted_unstarted ?? counts.accepted}
+                inProgressCount={counts.in_progress ?? 0}
+                completedCount={counts.completed ?? 0}
                 onChanged={refresh}
               />
             ) : (
@@ -426,6 +459,134 @@ function PendingSubGroups({
                 key={item.id}
                 budget={item}
                 bucket="pending_acceptance"
+                onChanged={onChanged}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Phase 5 prep — "Aceptados" split into three visual sub-groups,
+// mirroring the <PendingSubGroups> pattern.
+//
+// "Por iniciar"  = acceptance_status='accepted' (still pre-start). The
+//                  card shows urgency-tinted age based on accepted_at
+//                  (gray <7d, amber 7-14d, red >14d).
+// "En curso"     = acceptance_status='in_progress'. Admin/owner can
+//                  mark the budget as completed.
+// "Completados"  = acceptance_status='completed'. Read-only.
+//
+// Items are split client-side. The header counts come from the API
+// response so badges remain authoritative across paginated responses.
+// ─────────────────────────────────────────────────────────────────────
+function AcceptedSubGroups({
+  items,
+  acceptedUnstartedCount,
+  inProgressCount,
+  completedCount,
+  onChanged,
+}: {
+  items: BudgetWithJoins[];
+  acceptedUnstartedCount: number;
+  inProgressCount: number;
+  completedCount: number;
+  onChanged: () => void;
+}) {
+  const unstarted = items.filter((b) => b.acceptance_status === "accepted");
+  const inProgress = items.filter(
+    (b) => b.acceptance_status === "in_progress",
+  );
+  const completed = items.filter((b) => b.acceptance_status === "completed");
+
+  return (
+    <div className="space-y-5">
+      <section>
+        <header className="mb-2 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600">
+            Por iniciar
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            Aceptados, pendientes de iniciar tratamiento
+          </span>
+          <span className="ml-auto text-[11px] font-semibold text-muted-foreground">
+            {acceptedUnstartedCount}
+          </span>
+        </header>
+        {unstarted.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/60 p-4 text-center">
+            <p className="text-xs text-muted-foreground">
+              No hay presupuestos aceptados pendientes de iniciar.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {unstarted.map((item) => (
+              <BudgetCard
+                key={item.id}
+                budget={item}
+                bucket="accepted"
+                onChanged={onChanged}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <header className="mb-2 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-600">
+            En curso
+          </span>
+          <span className="ml-auto text-[11px] font-semibold text-muted-foreground">
+            {inProgressCount}
+          </span>
+        </header>
+        {inProgress.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/60 p-4 text-center">
+            <p className="text-xs text-muted-foreground">
+              No hay tratamientos en curso.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {inProgress.map((item) => (
+              <BudgetCard
+                key={item.id}
+                budget={item}
+                bucket="in_progress"
+                onChanged={onChanged}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <header className="mb-2 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-600">
+            Completados
+          </span>
+          <span className="ml-auto text-[11px] font-semibold text-muted-foreground">
+            {completedCount}
+          </span>
+        </header>
+        {completed.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/60 p-4 text-center">
+            <p className="text-xs text-muted-foreground">
+              Aún no hay tratamientos completados.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {completed.map((item) => (
+              <BudgetCard
+                key={item.id}
+                budget={item}
+                bucket="completed"
                 onChanged={onChanged}
               />
             ))}

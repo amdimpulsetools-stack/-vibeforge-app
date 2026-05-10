@@ -258,9 +258,90 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // ── Phase 5 prep — transform linked upstream followup ─────────
+  // If the caller linked an existing open followup that lives in the
+  // upstream stages of the journey (first/second consultation lapse),
+  // we transform it to `fertility.budget_pending_acceptance` instead
+  // of leaving it stale. This preserves the original first_contact_at
+  // (attribution honesty signal — Categoría A vs B is decided at the
+  // mark-accepted step from the same flag) while extending expected_by
+  // to the new phase's window.
+  //
+  // Dedup verification: `maybeCreateBudgetPendingFollowup` (lib/
+  // fertility/followup-triggers.ts:55) queries for an existing
+  // followup with rule_key='fertility.budget_pending_acceptance'
+  // before inserting; the cron will see this transformed row and
+  // skip creating a duplicate.
+  const newBudgetId = inserted.id as string;
+  if (payload.followup_id) {
+    const { data: existingFollowup } = await supabase
+      .from("clinical_followups")
+      .select(
+        "id, rule_key, status, contact_events, closed_at, organization_id",
+      )
+      .eq("id", payload.followup_id)
+      .eq("organization_id", membership.organization_id)
+      .maybeSingle();
+
+    if (
+      existingFollowup &&
+      !existingFollowup.closed_at &&
+      typeof existingFollowup.rule_key === "string" &&
+      (existingFollowup.rule_key === "fertility.first_consultation_lapse" ||
+        existingFollowup.rule_key === "fertility.second_consultation_lapse")
+    ) {
+      const fromRule = existingFollowup.rule_key;
+      const events = Array.isArray(existingFollowup.contact_events)
+        ? (existingFollowup.contact_events as unknown[])
+        : [];
+
+      const newEvent = {
+        type: "rule_transition",
+        at: new Date().toISOString(),
+        by_user_id: user.id,
+        from_rule: fromRule,
+        to_rule: "fertility.budget_pending_acceptance",
+        budget_record_id: newBudgetId,
+        delivery_status: "unknown",
+      };
+
+      const newExpectedBy = new Date(
+        Date.now() + 90 * 24 * 3600 * 1000,
+      ).toISOString();
+
+      const transformUpdate: Record<string, unknown> = {
+        rule_key: "fertility.budget_pending_acceptance",
+        target_category_canonical: "fertility.treatment_initiated",
+        attempt_count: 0,
+        snooze_until: null,
+        expected_by: newExpectedBy,
+        contact_events: [...events, newEvent],
+        // first_contact_at is intentionally preserved — it carries
+        // the attribution signal for Categoría A (Recuperado con
+        // contacto) vs Categoría B (Recuperado orgánico).
+      };
+      if (existingFollowup.status === "pospuesto") {
+        transformUpdate.status = "pendiente";
+      }
+
+      await supabase
+        .from("clinical_followups")
+        .update(transformUpdate)
+        .eq("id", payload.followup_id)
+        .eq("organization_id", membership.organization_id);
+
+      // Link the new budget to the (now-transformed) followup so the
+      // mark-accepted/rejected closure logic finds it.
+      await supabase
+        .from("budget_records")
+        .update({ followup_id: payload.followup_id })
+        .eq("id", newBudgetId);
+    }
+  }
+
   return NextResponse.json(
     {
-      id: inserted.id as string,
+      id: newBudgetId,
       assigned_at: inserted.assigned_at as string,
     },
     { status: 201 },
