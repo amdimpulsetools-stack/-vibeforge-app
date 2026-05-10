@@ -283,13 +283,18 @@ function buildPendingQuery(
   selectClause: string,
   countOnly = false
 ): AnyQuery {
-  const nowIso = new Date().toISOString();
+  // Pending bucket shows ALL open rows in PENDING_STATUSES regardless of
+  // snooze_until. Originally the bucket hid snoozed rows ("don't show me
+  // until the snooze expires"), but Vitra's cascade workflow expects every
+  // pending patient to stay visible: the obstetra reagendas to a future
+  // date and must keep that row in sight so she can plan her contacts.
+  // The card surfaces the next-contact date so prioritization is visual.
+  // If a true "archived" bucket is needed later, it gets its own filter.
   const q = supabase
     .from("clinical_followups")
     .select(selectClause, countOnly ? { count: "exact", head: true } : undefined)
     .eq("organization_id", orgId)
-    .in("status", PENDING_STATUSES)
-    .or(`snooze_until.is.null,snooze_until.lte.${nowIso}`);
+    .in("status", PENDING_STATUSES);
   return applyCommonFilters(q, filters);
 }
 
