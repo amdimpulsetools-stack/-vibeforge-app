@@ -421,20 +421,28 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Wave 3: resolve "sent_by" display name via admin client (bypass RLS on
-  // profiles). Sequential because it depends on the listing rows.
-  const senderIds = Array.from(
-    new Set(items.map((r) => (r as BudgetRecord).sent_by_user_id).filter(Boolean) as string[]),
+  // Wave 3: resolve "sent_by" + "assigned_by" display names via admin
+  // client (bypass RLS on profiles). One round-trip for both id sets.
+  // For "Sin procesar" cards (sent_at IS NULL) the meaningful person is
+  // the doctor who assigned, not the empty sender — that's why we
+  // enrich both.
+  const personIds = Array.from(
+    new Set(
+      items.flatMap((r) => {
+        const row = r as BudgetRecord;
+        return [row.sent_by_user_id, row.assigned_by_user_id].filter(Boolean) as string[];
+      }),
+    ),
   );
-  const senderMap = new Map<string, { id: string; full_name: string | null }>();
-  if (senderIds.length > 0) {
+  const profileMap = new Map<string, { id: string; full_name: string | null }>();
+  if (personIds.length > 0) {
     const adminClient = createAdminClient();
     const { data: profiles } = await adminClient
       .from("user_profiles")
       .select("id, full_name")
-      .in("id", senderIds);
+      .in("id", personIds);
     for (const p of profiles ?? []) {
-      senderMap.set(p.id, { id: p.id, full_name: p.full_name });
+      profileMap.set(p.id, { id: p.id, full_name: p.full_name });
     }
   }
 
@@ -443,7 +451,10 @@ export async function GET(request: NextRequest) {
     return {
       ...r,
       sent_by: row.sent_by_user_id
-        ? senderMap.get(row.sent_by_user_id) ?? { id: row.sent_by_user_id, full_name: null }
+        ? profileMap.get(row.sent_by_user_id) ?? { id: row.sent_by_user_id, full_name: null }
+        : null,
+      assigned_by: row.assigned_by_user_id
+        ? profileMap.get(row.assigned_by_user_id) ?? { id: row.assigned_by_user_id, full_name: null }
         : null,
     };
   });

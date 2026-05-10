@@ -37,7 +37,7 @@ import type {
   RecoveredKpis,
 } from "./types";
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 15;
 
 const DEFAULT_FILTERS: FollowupFilters = {
   doctor_id: "all",

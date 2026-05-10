@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Check, Clock, Loader2, Send, X } from "lucide-react";
+import { Check, Clock, FileDown, Loader2, Send, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,9 @@ export interface BudgetCardProps {
     } | null;
     followup?: { id: string; expected_by: string | null; status: string | null } | null;
     sent_by?: { id: string; full_name: string | null } | null;
+    assigned_by?: { id: string; full_name: string | null } | null;
+    assigned_at?: string | null;
+    assigned_by_user_id?: string | null;
   };
   bucket: BudgetAcceptanceStatus;
   onChanged: () => void;
@@ -51,6 +54,7 @@ function daysAgo(iso: string | null): number | null {
 export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
   const [actionLoading, setActionLoading] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -98,8 +102,39 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
       toast.error(err.error ?? "No se pudo enviar el presupuesto");
       return;
     }
+    // Phase 4 — `send` now also returns a `pdf_signed_url`. If we got
+    // one, open it in a new tab so the obstetra can immediately
+    // download/forward the PDF.
+    const json = (await res.json().catch(() => ({}))) as {
+      pdf_signed_url?: string | null;
+      pdf_error?: string | null;
+    };
+    if (json.pdf_signed_url) {
+      window.open(json.pdf_signed_url, "_blank", "noopener,noreferrer");
+    } else if (json.pdf_error) {
+      toast.warning(`Enviado, pero no se pudo generar el PDF: ${json.pdf_error}`);
+    }
     toast.success("Presupuesto marcado como enviado");
     onChanged();
+  };
+
+  const downloadPdf = async () => {
+    setPdfLoading(true);
+    const res = await fetch(`/api/budgets/${budget.id}/pdf`, {
+      method: "POST",
+    });
+    setPdfLoading(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error ?? "No se pudo generar el PDF");
+      return;
+    }
+    const json = (await res.json()) as { signed_url?: string };
+    if (json.signed_url) {
+      window.open(json.signed_url, "_blank", "noopener,noreferrer");
+    } else {
+      toast.error("No se recibió el enlace del PDF");
+    }
   };
 
   const reject = async () => {
@@ -178,6 +213,11 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
       : "Sin monto registrado";
   const sentByText = budget.sent_by?.full_name ?? "—";
   const sentDays = daysAgo(budget.sent_at);
+  // For "Sin procesar" cards (sent_at IS NULL) we surface the doctor who
+  // assigned instead of an empty "Enviado por —". Falls back to assigned_by
+  // user_id resolved name; if neither, hide the doctor line.
+  const assignedByText = budget.assigned_by?.full_name ?? null;
+  const assignedDays = daysAgo(budget.assigned_at ?? null);
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -203,12 +243,30 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
             <span className="text-xs text-muted-foreground">{treatmentLabel}</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {amountText} · {budget.sent_at ? "Enviado" : "Sin enviar"} por{" "}
-            {sentByText} · {formatDate(budget.sent_at)}
-            {sentDays !== null && (
-              <span className="text-muted-foreground/70">
-                {" "}· Hace {sentDays} día{sentDays === 1 ? "" : "s"}
-              </span>
+            {budget.sent_at ? (
+              <>
+                {amountText} · Enviado por {sentByText} · {formatDate(budget.sent_at)}
+                {sentDays !== null && (
+                  <span className="text-muted-foreground/70">
+                    {" "}· Hace {sentDays} día{sentDays === 1 ? "" : "s"}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                {amountText} ·{" "}
+                {assignedByText ? `Asignado por ${assignedByText}` : "Sin enviar"}
+                {budget.assigned_at && (
+                  <>
+                    {" "}· {formatDate(budget.assigned_at)}
+                    {assignedDays !== null && (
+                      <span className="text-muted-foreground/70">
+                        {" "}· Hace {assignedDays} día{assignedDays === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </>
+                )}
+              </>
             )}
           </p>
           {budget.notes && (
@@ -223,11 +281,33 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
         </div>
       </div>
 
+      {/* Phase 4 — Descargar PDF. Visible for any status except
+          'expired' (admins might still want to archive accepted/
+          rejected). The current acceptance_status enum has no
+          'expired' literal yet but the guard is forward-compatible. */}
+      {budget.acceptance_status !== ("expired" as BudgetAcceptanceStatus) && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={downloadPdf}
+            disabled={pdfLoading}
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 disabled:opacity-60 dark:text-emerald-400"
+          >
+            {pdfLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <FileDown className="h-3 w-3" />
+            )}
+            Descargar PDF
+          </button>
+        </div>
+      )}
+
       {budget.acceptance_status === "pending_acceptance" && (
         <div className="mt-3 flex flex-wrap gap-2">
           {/* Phase 3 — "Enviar al paciente" turns Sin procesar → Enviado.
-              Only renders for sent_at IS NULL. The endpoint will
-              eventually trigger PDF generation in Phase 4. */}
+              Only renders for sent_at IS NULL. Phase 4 — also
+              triggers PDF generation server-side and returns the
+              signed URL, opened in a new tab. */}
           {isUnsent && (
             <button
               onClick={sendToPatient}

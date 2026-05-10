@@ -735,7 +735,8 @@ export function FollowupCard({
         {(variant === "pending" || variant === "no_response") &&
           !linkedBudget &&
           !isReceptionist &&
-          followup.patient_id && (
+          followup.patient_id &&
+          followup.rule_key?.startsWith("fertility.") && (
             <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
               <button
                 onClick={() => setAssignBudgetOpen(true)}

@@ -137,7 +137,8 @@ export interface BudgetRecord {
   patient_id: string;
   treatment_plan_id: string | null;
   sent_by_user_id: string | null;
-  sent_at: string;
+  /** Nullable since mig 140: \"assigned\" budgets exist before they are sent. */
+  sent_at: string | null;
   treatment_type: BudgetTreatmentType;
   amount: number | null;
   notes: string | null;
@@ -146,6 +147,14 @@ export interface BudgetRecord {
   rejected_at: string | null;
   rejection_reason: string | null;
   followup_id: string | null;
+  /** mig 140 — service the tier was assigned from. NULL on legacy rows. */
+  service_id: string | null;
+  /** mig 140 — A | B | C | NULL for custom one-offs. */
+  tier: "A" | "B" | "C" | null;
+  /** mig 140 — set by /api/budgets/assign at creation time. */
+  assigned_at: string | null;
+  /** mig 140 — the doctor (or whoever) that assigned the tier. */
+  assigned_by_user_id: string | null;
   created_at: string;
   updated_at: string;
 }

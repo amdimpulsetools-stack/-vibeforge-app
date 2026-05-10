@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -59,6 +59,14 @@ export default function ServicesPage() {
   const [loading, setLoading] = useState(true);
   const [showServiceForm, setShowServiceForm] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const formRef = useRef<HTMLDivElement | null>(null);
+
+  // Scroll the form into view when it opens (either via "Crear" or "Editar")
+  useEffect(() => {
+    if (showServiceForm && formRef.current) {
+      formRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [showServiceForm, editingService?.id]);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ServiceCategory | null>(null);
   const [activeTab, setActiveTab] = useState<"services" | "categories">("services");
@@ -242,7 +250,7 @@ export default function ServicesPage() {
           )}
 
           {showServiceForm && (
-            <div className="rounded-xl border border-border bg-card p-6">
+            <div ref={formRef} className="rounded-xl border border-border bg-card p-6 scroll-mt-20">
               <ServiceForm
                 service={editingService}
                 categories={categories}

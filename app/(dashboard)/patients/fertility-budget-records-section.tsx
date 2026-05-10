@@ -10,6 +10,7 @@ import {
   X as XIcon,
   Clock,
   Receipt,
+  FileDown,
 } from "lucide-react";
 import {
   Dialog,
@@ -286,6 +287,25 @@ function BudgetRow({
   actionLoading: boolean;
   canEdit: boolean;
 }) {
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const downloadPdf = async () => {
+    setPdfLoading(true);
+    const res = await fetch(`/api/budgets/${budget.id}/pdf`, {
+      method: "POST",
+    });
+    setPdfLoading(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error ?? "No se pudo generar el PDF");
+      return;
+    }
+    const json = (await res.json()) as { signed_url?: string };
+    if (json.signed_url) {
+      window.open(json.signed_url, "_blank", "noopener,noreferrer");
+    } else {
+      toast.error("No se recibió el enlace del PDF");
+    }
+  };
   const treatmentLabel =
     BUDGET_TREATMENT_TYPE_LABELS[budget.treatment_type as BudgetTreatmentType] ??
     budget.treatment_type;
@@ -370,6 +390,24 @@ function BudgetRow({
             {extraLine}
           </div>
         </div>
+      </div>
+
+      {/* Phase 4 — Descargar PDF available for any non-expired status.
+          The current acceptance_status enum has no 'expired' literal,
+          so the guard is currently always-true; kept forward-compat. */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          onClick={downloadPdf}
+          disabled={pdfLoading}
+          className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 hover:bg-emerald-500/20 disabled:opacity-60 dark:text-emerald-400"
+        >
+          {pdfLoading ? (
+            <Loader2 className="h-3 w-3 animate-spin" />
+          ) : (
+            <FileDown className="h-3 w-3" />
+          )}
+          Descargar PDF
+        </button>
       </div>
 
       {canEdit && budget.acceptance_status === "pending_acceptance" && (

@@ -12,6 +12,10 @@
     {
       "path": "/api/cron/fertility-followup-contact",
       "schedule": "0 13 * * *"
+    },
+    {
+      "path": "/api/cron/budget-pdf-cleanup",
+      "schedule": "0 8 1 * *"
     }
   ]
 }
