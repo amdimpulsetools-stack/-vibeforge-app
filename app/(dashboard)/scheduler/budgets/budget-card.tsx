@@ -27,6 +27,9 @@ export interface BudgetCardProps {
     } | null;
     followup?: { id: string; expected_by: string | null; status: string | null } | null;
     sent_by?: { id: string; full_name: string | null } | null;
+    assigned_by?: { id: string; full_name: string | null } | null;
+    assigned_at?: string | null;
+    assigned_by_user_id?: string | null;
   };
   bucket: BudgetAcceptanceStatus;
   onChanged: () => void;
@@ -178,6 +181,11 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
       : "Sin monto registrado";
   const sentByText = budget.sent_by?.full_name ?? "—";
   const sentDays = daysAgo(budget.sent_at);
+  // For "Sin procesar" cards (sent_at IS NULL) we surface the doctor who
+  // assigned instead of an empty "Enviado por —". Falls back to assigned_by
+  // user_id resolved name; if neither, hide the doctor line.
+  const assignedByText = budget.assigned_by?.full_name ?? null;
+  const assignedDays = daysAgo(budget.assigned_at ?? null);
 
   return (
     <div className="rounded-xl border border-border bg-card p-4">
@@ -203,12 +211,30 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
             <span className="text-xs text-muted-foreground">{treatmentLabel}</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {amountText} · {budget.sent_at ? "Enviado" : "Sin enviar"} por{" "}
-            {sentByText} · {formatDate(budget.sent_at)}
-            {sentDays !== null && (
-              <span className="text-muted-foreground/70">
-                {" "}· Hace {sentDays} día{sentDays === 1 ? "" : "s"}
-              </span>
+            {budget.sent_at ? (
+              <>
+                {amountText} · Enviado por {sentByText} · {formatDate(budget.sent_at)}
+                {sentDays !== null && (
+                  <span className="text-muted-foreground/70">
+                    {" "}· Hace {sentDays} día{sentDays === 1 ? "" : "s"}
+                  </span>
+                )}
+              </>
+            ) : (
+              <>
+                {amountText} ·{" "}
+                {assignedByText ? `Asignado por ${assignedByText}` : "Sin enviar"}
+                {budget.assigned_at && (
+                  <>
+                    {" "}· {formatDate(budget.assigned_at)}
+                    {assignedDays !== null && (
+                      <span className="text-muted-foreground/70">
+                        {" "}· Hace {assignedDays} día{assignedDays === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </>
+                )}
+              </>
             )}
           </p>
           {budget.notes && (
