@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { generalLimiter } from "@/lib/rate-limit";
+import { generateBudgetPdf } from "@/lib/budget-pdf/generate";
 import {
   FERTILITY_BASIC_KEY,
   FERTILITY_PREMIUM_KEY,
 } from "@/types/fertility";
+
+export const runtime = "nodejs"; // generateBudgetPdf needs @react-pdf.
 
 // ──────────────────────────────────────────────────────────────────
 // POST /api/budgets/[id]/send
@@ -14,6 +18,11 @@ import {
 // Enviar). The budget transitions from the "Sin procesar" sub-bucket
 // to "Esperando respuesta" within the Pendientes column.
 //
+// Phase 4 — also lazily generates the PDF inline (sharing the
+// renderer with /api/budgets/[id]/pdf via lib/budget-pdf/generate)
+// and returns the signed URL in the response so the obstetra can
+// download it without a second round-trip.
+//
 // Constraints:
 //   - Caller role: owner | admin | doctor | fertility advisor.
 //     Receptionists are blocked.
@@ -21,10 +30,6 @@ import {
 //     AND `sent_at IS NULL`.
 //   - The budget must belong to the caller's org (RLS enforces this;
 //     we double-check explicitly so we can return a clean 404).
-//
-// TODO(Phase 4): trigger PDF generation + (optional) WhatsApp/Email
-// dispatch from this endpoint. Right now we ONLY mark the row as
-// sent — the doctor still copies the message manually.
 // ──────────────────────────────────────────────────────────────────
 
 interface MembershipRow {
@@ -136,5 +141,27 @@ export async function POST(
     );
   }
 
-  return NextResponse.json({ data: updated });
+  // Phase 4 — generate (or reuse) the PDF and surface the signed URL
+  // in the response. Failures here are non-fatal: the budget IS sent
+  // (DB row updated above), so we still return success — the client
+  // can retry via POST /api/budgets/[id]/pdf.
+  let signedUrl: string | null = null;
+  let pdfError: string | null = null;
+  try {
+    const admin = createAdminClient();
+    const pdfResult = await generateBudgetPdf(supabase, admin, id);
+    if (pdfResult.ok) {
+      signedUrl = pdfResult.result.signedUrl;
+    } else {
+      pdfError = pdfResult.error;
+    }
+  } catch (e) {
+    pdfError = e instanceof Error ? e.message : "PDF render failed";
+  }
+
+  return NextResponse.json({
+    data: updated,
+    pdf_signed_url: signedUrl,
+    pdf_error: pdfError,
+  });
 }
