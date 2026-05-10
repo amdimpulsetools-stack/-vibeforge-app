@@ -242,33 +242,39 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
             </span>
             <span className="text-xs text-muted-foreground">{treatmentLabel}</span>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {budget.sent_at ? (
-              <>
+          {budget.sent_at ? (
+            <>
+              <p className="text-xs text-muted-foreground">
                 {amountText} · Enviado por {sentByText} · {formatDate(budget.sent_at)}
                 {sentDays !== null && (
                   <span className="text-muted-foreground/70">
                     {" "}· Hace {sentDays} día{sentDays === 1 ? "" : "s"}
                   </span>
                 )}
-              </>
-            ) : (
-              <>
-                {amountText} ·{" "}
-                {assignedByText ? `Asignado por ${assignedByText}` : "Sin enviar"}
+              </p>
+              <p className="text-[11px] text-muted-foreground/80">
+                Asignado por {assignedByText ?? "—"}
                 {budget.assigned_at && (
-                  <>
-                    {" "}· {formatDate(budget.assigned_at)}
-                    {assignedDays !== null && (
-                      <span className="text-muted-foreground/70">
-                        {" "}· Hace {assignedDays} día{assignedDays === 1 ? "" : "s"}
-                      </span>
-                    )}
-                  </>
+                  <> · {formatDate(budget.assigned_at)}</>
                 )}
-              </>
-            )}
-          </p>
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {amountText} ·{" "}
+              {assignedByText ? `Asignado por ${assignedByText}` : "Sin enviar"}
+              {budget.assigned_at && (
+                <>
+                  {" "}· {formatDate(budget.assigned_at)}
+                  {assignedDays !== null && (
+                    <span className="text-muted-foreground/70">
+                      {" "}· Hace {assignedDays} día{assignedDays === 1 ? "" : "s"}
+                    </span>
+                  )}
+                </>
+              )}
+            </p>
+          )}
           {budget.notes && (
             <p className="text-[11px] text-muted-foreground line-clamp-2">
               {budget.notes}
