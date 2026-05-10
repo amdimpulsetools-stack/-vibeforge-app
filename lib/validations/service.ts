@@ -41,9 +41,36 @@ export const serviceSchema = z.object({
     .optional()
     .or(z.literal("")),
   igv_affectation: z.coerce.number().int().optional(),
+
+  // Fertility addon — only relevant if the org has fertility_basic|premium
+  // active. Inert otherwise. UI gates this with <FertilityAddonGate>.
+  is_budget_eligible: z.boolean().default(false),
 });
 
 export type ServiceFormData = z.infer<typeof serviceSchema>;
+
+// ──────────────────────────────────────────────────────────────────
+// Budget tiers (A/B/C) for services flagged is_budget_eligible.
+// Persisted to service_budget_tiers via PUT /api/services/[id]/tiers.
+// ──────────────────────────────────────────────────────────────────
+export const TIER_LETTERS = ["A", "B", "C"] as const;
+export type TierLetter = (typeof TIER_LETTERS)[number];
+
+export const TIER_CURRENCY_OPTIONS = [
+  { value: "PEN", label: "PEN (S/.)" },
+  { value: "USD", label: "USD ($)" },
+] as const;
+
+export const serviceBudgetTierSchema = z.object({
+  tier: z.enum(TIER_LETTERS),
+  amount: z.coerce.number().min(0, "Monto inválido"),
+  currency: z.enum(["PEN", "USD"]).default("PEN"),
+  includes_text: z.string().max(2000).optional().or(z.literal("")),
+  notes: z.string().max(2000).optional().or(z.literal("")),
+  is_active: z.boolean().default(true),
+});
+
+export type ServiceBudgetTierFormData = z.infer<typeof serviceBudgetTierSchema>;
 
 // Catálogo IGV para el selector. Estos son los más comunes para servicios
 // médicos en Perú; el manual Nubefact tiene la lista completa.

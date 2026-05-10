@@ -46,6 +46,8 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import { usePlan } from "@/hooks/use-plan";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
+import { useFertilityAddon } from "@/hooks/use-fertility-addon";
+import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
 import dynamic from "next/dynamic";
 
 const ClinicalNoteModal = dynamic(
@@ -89,7 +91,14 @@ export function AppointmentSidebar({
 }: AppointmentSidebarProps) {
   const { t } = useLanguage();
   const { profile } = useUserProfile();
-  const { isAdmin, isDoctor: isDoctorRole } = useOrgRole();
+  const { isAdmin, isDoctor: isDoctorRole, isReceptionist } = useOrgRole();
+  // Phase 3 (Budget Tiers): only show the "Asignar presupuesto" CTA on
+  // completed appointments and only for orgs with the fertility addon
+  // active. Receptionists are excluded (advisors with non-receptionist
+  // base role still pass; advisors flagged on a receptionist row are
+  // gated by the backend).
+  const { active: fertilityActive } = useFertilityAddon();
+  const [assignBudgetOpen, setAssignBudgetOpen] = useState(false);
   const { plan } = usePlan();
   const einvoiceConfig = useEInvoiceConfig();
   const [emitDialogOpen, setEmitDialogOpen] = useState(false);
@@ -1126,6 +1135,24 @@ export function AppointmentSidebar({
                 ) : null}
               </>
             )}
+
+            {/* Phase 3 Budget Tiers — "Asignar presupuesto" CTA. Only on
+                completed appointments, only when the fertility addon is
+                active, hidden for receptionists (advisors with non-
+                receptionist base role still pass; receptionists flagged
+                as advisors are gated by the backend). */}
+            {appointment.status === "completed" &&
+              fertilityActive &&
+              !isReceptionist &&
+              appointment.patient_id && (
+                <button
+                  onClick={() => setAssignBudgetOpen(true)}
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                >
+                  <Receipt className="h-4 w-4" />
+                  Asignar presupuesto
+                </button>
+              )}
           </div>
         )}
 
@@ -1674,6 +1701,23 @@ export function AppointmentSidebar({
           // alimenta el stack de cards y el cómputo de saldo restante).
           onUpdate();
           void fetchAppointmentEinvoices();
+        }}
+      />
+    )}
+
+    {/* Phase 3 Budget Tiers — Asignar presupuesto modal. Mounted at the
+        component root so it is portaled outside the sidebar's scroll
+        container. Self-gated via <FertilityAddonGate> internally. */}
+    {appointment.patient_id && (
+      <AssignBudgetModal
+        open={assignBudgetOpen}
+        onClose={() => setAssignBudgetOpen(false)}
+        patientId={appointment.patient_id}
+        appointmentId={appointment.id}
+        onCreated={() => {
+          // Refresh the sidebar so any associated state (e.g. linked
+          // budget metadata) reflects the new record.
+          onUpdate();
         }}
       />
     )}

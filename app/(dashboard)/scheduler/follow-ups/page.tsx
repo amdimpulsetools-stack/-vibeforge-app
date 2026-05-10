@@ -12,6 +12,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Sheet,
@@ -24,6 +25,7 @@ import {
 } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { createClient } from "@/lib/supabase/client";
+import { useFertilityAddon } from "@/hooks/use-fertility-addon";
 import type { Doctor } from "@/types/admin";
 import { FollowupCard } from "./followup-card";
 import type {
@@ -51,12 +53,17 @@ const TAB_TO_VARIANT: Record<string, FollowupVariant> = {
   no_response: "no_response",
 };
 
+type AdvanceAction = Parameters<
+  NonNullable<Parameters<typeof FollowupCard>[0]["onAdvance"]>
+>[0];
+
 interface ListResponse {
   items: FollowupWithDetails[];
   has_more: boolean;
 }
 
 export default function FollowUpsPage() {
+  const { active: fertilityActive, loading: addonsLoading } = useFertilityAddon();
   const [tab, setTab] = useState<"pending" | "recovered" | "no_response">(
     "pending"
   );
@@ -257,32 +264,44 @@ export default function FollowUpsPage() {
   };
 
   // Action handlers — call PATCH subroute endpoints (owned by Agente 2).
+  const requestAction = async (
+    path: string,
+    method: "PATCH" | "POST",
+    body: Record<string, unknown> | null,
+    successMsg: string
+  ): Promise<{ ok: boolean; payload: unknown }> => {
+    try {
+      const res = await fetch(path, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        const errMsg =
+          (payload && typeof payload === "object" && "error" in payload
+            ? String((payload as { error: unknown }).error)
+            : null) ?? `HTTP ${res.status}`;
+        throw new Error(errMsg);
+      }
+      toast.success(successMsg);
+      refresh();
+      return { ok: true, payload };
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Error al actualizar el seguimiento"
+      );
+      return { ok: false, payload: null };
+    }
+  };
+
   const patchAction = async (
     path: string,
     body: Record<string, unknown> | null,
     successMsg: string
   ): Promise<boolean> => {
-    try {
-      const res = await fetch(path, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      if (!res.ok) {
-        const err = await res
-          .json()
-          .catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(err.error ?? `HTTP ${res.status}`);
-      }
-      toast.success(successMsg);
-      refresh();
-      return true;
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Error al actualizar el seguimiento"
-      );
-      return false;
-    }
+    const r = await requestAction(path, "PATCH", body, successMsg);
+    return r.ok;
   };
 
   const onContact = (id: string) =>
@@ -320,8 +339,71 @@ export default function FollowUpsPage() {
       "Seguimiento reactivado"
     );
 
+  // Cascade advance — un solo endpoint POST cubre las 4 transiciones de
+  // la cascada de 3 intentos del Pack Fertilidad. Si el endpoint cierra
+  // automáticamente por overflow (intentaste posponer cuando ya no
+  // quedan intentos), el response trae `auto_closed: true` y la UI lo
+  // anuncia al obstetra.
+  const onAdvance = async (id: string, action: AdvanceAction) => {
+    const successMsg =
+      action.kind === "agendado"
+        ? "Marcado como agendado"
+        : action.kind === "mark_contacted"
+          ? "Contactada"
+          : action.kind === "pospuesto"
+            ? "Reagendado"
+            : "Cerrado sin respuesta";
+    const res = await requestAction(
+      `/api/clinical-followups/${id}/advance`,
+      "POST",
+      action,
+      successMsg
+    );
+    if (
+      res.ok &&
+      res.payload &&
+      typeof res.payload === "object" &&
+      "auto_closed" in res.payload &&
+      (res.payload as { auto_closed?: boolean }).auto_closed
+    ) {
+      toast.info(
+        "Cerrado automáticamente — alcanzó intento máximo",
+        { duration: 5000 }
+      );
+    }
+    return res.ok;
+  };
+
   const activeTabState =
     tab === "pending" ? pending : tab === "recovered" ? recovered : noResponse;
+
+  if (addonsLoading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!fertilityActive) {
+    return (
+      <div className="p-6">
+        <div className="rounded-xl border border-dashed border-border p-10 text-center">
+          <CalendarCheck className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+          <p className="text-base font-semibold">Pack Fertilidad requerido</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Esta función está disponible con el addon Pack Fertilidad.
+          </p>
+          <Link
+            href="/settings?tab=modulos"
+            className="mt-4 inline-flex items-center rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15"
+          >
+            Activar Pack Fertilidad
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
@@ -423,6 +505,8 @@ export default function FollowUpsPage() {
               onSnooze={onSnooze}
               onMarkNoResponse={onMarkNoResponse}
               onCloseManual={onCloseManual}
+              onAdvance={onAdvance}
+              onBudgetAssigned={refresh}
               onLoadMore={() => fetchTab("pending", filters, false)}
             />
           </TabsContent>
@@ -440,6 +524,7 @@ export default function FollowUpsPage() {
               state={noResponse}
               onCloseManual={onCloseManual}
               onReactivate={onReactivate}
+              onBudgetAssigned={refresh}
               onLoadMore={() => fetchTab("no_response", filters, false)}
             />
           </TabsContent>
@@ -484,6 +569,8 @@ function PendingTabContent({
   onSnooze,
   onMarkNoResponse,
   onCloseManual,
+  onAdvance,
+  onBudgetAssigned,
   onLoadMore,
 }: {
   state: TabState;
@@ -491,6 +578,8 @@ function PendingTabContent({
   onSnooze: (id: string, days: number) => Promise<unknown>;
   onMarkNoResponse: (id: string) => Promise<unknown>;
   onCloseManual: (id: string, reason: string) => Promise<unknown>;
+  onAdvance: (id: string, action: AdvanceAction) => Promise<unknown>;
+  onBudgetAssigned: () => void;
   onLoadMore: () => void;
 }) {
   if (!state.loaded) return null;
@@ -513,6 +602,8 @@ function PendingTabContent({
           onSnooze={(days) => onSnooze(f.id, days)}
           onMarkNoResponse={() => onMarkNoResponse(f.id)}
           onCloseManual={(reason) => onCloseManual(f.id, reason)}
+          onAdvance={(action) => onAdvance(f.id, action)}
+          onBudgetAssigned={onBudgetAssigned}
         />
       ))}
       {state.hasMore && (
@@ -570,11 +661,13 @@ function NoResponseTabContent({
   state,
   onCloseManual,
   onReactivate,
+  onBudgetAssigned,
   onLoadMore,
 }: {
   state: TabState;
   onCloseManual: (id: string, reason: string) => Promise<unknown>;
   onReactivate: (id: string) => Promise<unknown>;
+  onBudgetAssigned: () => void;
   onLoadMore: () => void;
 }) {
   if (!state.loaded) return null;
@@ -595,6 +688,7 @@ function NoResponseTabContent({
           variant="no_response"
           onReactivate={() => onReactivate(f.id)}
           onCloseManual={(reason) => onCloseManual(f.id, reason)}
+          onBudgetAssigned={onBudgetAssigned}
         />
       ))}
       {state.hasMore && (

@@ -289,6 +289,10 @@ export async function GET(request: NextRequest) {
     "id, organization_id, patient_id, treatment_plan_id, sent_by_user_id, " +
     "sent_at, treatment_type, amount, notes, acceptance_status, " +
     "accepted_at, rejected_at, rejection_reason, followup_id, " +
+    // Phase 3 / mig 140 — assignment fields. Needed so the kanban can
+    // render the "Sin procesar" sub-bucket (sent_at IS NULL) and the
+    // service/tier badge on each card.
+    "service_id, tier, assigned_at, assigned_by_user_id, " +
     "created_at, updated_at";
   const BUDGET_SELECT =
     `${BUDGET_COLUMNS}, patient:patients(id, first_name, last_name, phone), followup:clinical_followups!followup_id(id, expected_by, status)`;
@@ -341,6 +345,15 @@ export async function GET(request: NextRequest) {
     return q2;
   };
 
+  // Phase 3 — split the "pending_acceptance" bucket into:
+  //   - pending_unsent: sent_at IS NULL (Sin procesar)
+  //   - pending_sent:   sent_at IS NOT NULL (Esperando respuesta)
+  // The kanban "Pendientes" column renders these as two sub-groups.
+  const pendingUnsentCountQuery = () =>
+    baseCountQuery("pending_acceptance").is("sent_at", null);
+  const pendingSentCountQuery = () =>
+    baseCountQuery("pending_acceptance").not("sent_at", "is", null);
+
   // KPIs query: 90-day window, lightweight projection.
   const now = Date.now();
   const since30d = new Date(now - 30 * 24 * 3600 * 1000).toISOString();
@@ -373,12 +386,16 @@ export async function GET(request: NextRequest) {
     pendCount,
     accCount,
     rejCount,
+    pendUnsentCount,
+    pendSentCount,
     kpiRes,
   ] = await Promise.all([
     query,
     baseCountQuery("pending_acceptance"),
     baseCountQuery("accepted"),
     baseCountQuery("rejected"),
+    pendingUnsentCountQuery(),
+    pendingSentCountQuery(),
     buildKpiQuery(),
   ]);
 
@@ -466,6 +483,10 @@ export async function GET(request: NextRequest) {
       pending: pendCount.count ?? 0,
       accepted: accCount.count ?? 0,
       rejected: rejCount.count ?? 0,
+      // Phase 3 — split of the "pending_acceptance" bucket into two
+      // visual sub-groups in the kanban "Pendientes" column.
+      pending_unsent: pendUnsentCount.count ?? 0,
+      pending_sent: pendSentCount.count ?? 0,
     },
     kpis: {
       total_sent_30d: totalSent30d,

@@ -158,6 +158,33 @@ export async function POST(
 
   const warnings: string[] = [];
 
+  // 0) Seed the 6 standard TRA services + 18 tiers (A/B/C) on
+  //    FIRST activation only. The RPC is idempotent but checking
+  //    first avoids needless work on re-activation. Any failure
+  //    is logged as a warning — the addon is still considered
+  //    activated.
+  const { count: existingAddonServiceCount, error: countErr } = await admin
+    .from("services")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", orgId)
+    .eq("created_by_addon", FERTILITY_BASIC_KEY);
+
+  if (countErr) {
+    warnings.push(
+      `No se pudo verificar servicios sembrados previos: ${countErr.message}`,
+    );
+  } else if ((existingAddonServiceCount ?? 0) === 0) {
+    const { error: seedServicesErr } = await admin.rpc(
+      "seed_fertility_services",
+      { p_org_id: orgId },
+    );
+    if (seedServicesErr) {
+      warnings.push(
+        `No se pudieron sembrar servicios de fertilidad: ${seedServicesErr.message}`,
+      );
+    }
+  }
+
   // 1) Clone the 3 global rules (organization_id IS NULL, addon_key='fertility').
   const { data: globalRules, error: globalRulesErr } = await admin
     .from("followup_rules")

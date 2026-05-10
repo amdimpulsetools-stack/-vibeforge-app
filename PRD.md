@@ -1,8 +1,8 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-05-04
-> **Versión:** 0.15.2
-> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor + Pricing alineado: S/129 / S/349 / S/649 + Frecuencia semestral (8.3% off) en checkout MP + Reporte IA Avanzado capas 1+2 documentado (v0.13.4) + Perfil de Organización + helper de membrete + plantillas PDF (receta/nota/exámenes) usando membrete + wizard Nubefact pre-llena RUC desde org + hardening legal Ley 29733 con rediseño visual de /terms y /privacy (v0.14.0) + Aceptación explícita de Terms+Privacy en registro (mig 116) + Ubigeo SUNAT en organizations (mig 117) + Bloqueo de sesión para miembros desactivados (mig 118) + Especialidad editable + tabla doctor_specialties (mig 119) + Consentimiento informado digital MVP (mig 120) + UX unificada de consentimientos manuales + digitales (mig 121) (v0.14.1) + Hardening de seguridad post-review: TERMS_VERSION server-side + RPC get_user_id_by_email (mig 122) + storage UPDATE policy + signature_data CHECK + middleware terms-acceptance gate (mig 123) + HC: DNI+edad en header, label "Motivo de consulta (Subjetivo)", layout SOAP vertical + Múltiples diagnósticos CIE-10 por nota con chips removibles (mig 124) + Código CIE-10 manual one-off + Toggle Nota | Timeline en modal HC con cards colapsables y filtro asc/desc + Medicamentos y exámenes dentro de cada card del Timeline (snapshot clínico completo por consulta) (v0.14.2) + Primer addon vertical end-to-end: Fertilidad (Pack Básico) — Seguimientos automatizados con atribución honesta de recuperaciones, journey state machine, integración con WhatsApp Business API existente + 5 plantillas peruano + cron diario (mig 127-131) + tier_group para mutua exclusión basic/premium en addons + UX redesign Settings/Módulos al estilo /integraciones (Activar → modal → engranaje config) + Empty states guiados en /admin/services para onboarding de owner nuevo + Slug de plan consolidado (mig 132 fix precio Independiente + mig 133 consolidación 'starter' → 'independiente') (v0.15.0) + Settings/Integraciones agrupado por status + Break time default OFF + Empty states /admin/doctors /admin/offices /patients /scheduler + Tour interactivo driver.js + Hardening completo del flujo de invitación (mig 134) + UNIQUE INDEX doctors (mig 135) + Account header reactivo + WhatsApp clipboard tab desbloqueado + Hero landing con gradient animado (v0.15.1) + **Card Centro Médico con borde gradient animado + glow pulsante + botón CTA tipo Brief IA con shimmer + Sección "Otras especialidades disponibles" oculta si la org tiene specialty principal (verticales más limpias) + Fix lectura de `patients.sex` en SELECT del drawer (campo sí persistía pero no se leía) + Fix KPI revenue atribuido solo cuenta categoría A (withContact) — honestidad de la métrica del módulo de seguimientos + Embudo de presupuestos del Pack Fertilidad: tabla `budget_records` (mig 136) independiente de `treatment_plans` (Vitra usa Omnia para HC, no necesitan plan en Yenda para registrar envío) + 7 tipos de tratamiento (FIV/IIU/Inducción/Crio/Ovodonación/ROPA/Otro) + monto opcional + flag `is_fertility_advisor` en organization_members (mig 137) para rol obstetra/asesora con permisos extendidos + vista nueva `/scheduler/budgets` con kanban (Pendientes/Aceptados/Rechazados) + 4 KPIs (enviados 30d, % aceptación, % rechazo, tiempo promedio aceptación en días) + tracking abierto indefinidamente (3+ meses entre envío y decisión es realista) (v0.15.2)** + Preparación de pilot con primer cliente real (Vitra, fertilidad)
+> **Última actualización:** 2026-05-09
+> **Versión:** 0.15.7
+> **Estado:** MVP en producción + Sistema de módulos verticales (addons) + Primer vertical OMS (curvas de crecimiento pediátrico) + Portal del Paciente Phase 1 + Dashboard admin con timeline + Pacientes: etiqueta Recurrente + /book redesign + Presupuestos de tratamiento + Descuentos + Consentimiento informado Tier 1 (Ley 29414) + Facturación electrónica SUNAT vía Nubefact (MVP) + Google Calendar (org-level, one-way) + Rediseño UX Modal Historia Clínica + Consultorios autorizados por doctor + Pricing alineado: S/129 / S/349 / S/649 + Frecuencia semestral (8.3% off) en checkout MP + Reporte IA Avanzado capas 1+2 documentado (v0.13.4) + Perfil de Organización + helper de membrete + plantillas PDF (receta/nota/exámenes) usando membrete + wizard Nubefact pre-llena RUC desde org + hardening legal Ley 29733 con rediseño visual de /terms y /privacy (v0.14.0) + Aceptación explícita de Terms+Privacy en registro (mig 116) + Ubigeo SUNAT en organizations (mig 117) + Bloqueo de sesión para miembros desactivados (mig 118) + Especialidad editable + tabla doctor_specialties (mig 119) + Consentimiento informado digital MVP (mig 120) + UX unificada de consentimientos manuales + digitales (mig 121) (v0.14.1) + Hardening de seguridad post-review: TERMS_VERSION server-side + RPC get_user_id_by_email (mig 122) + storage UPDATE policy + signature_data CHECK + middleware terms-acceptance gate (mig 123) + HC: DNI+edad en header, label "Motivo de consulta (Subjetivo)", layout SOAP vertical + Múltiples diagnósticos CIE-10 por nota con chips removibles (mig 124) + Código CIE-10 manual one-off + Toggle Nota | Timeline en modal HC con cards colapsables y filtro asc/desc + Medicamentos y exámenes dentro de cada card del Timeline (snapshot clínico completo por consulta) (v0.14.2) + Primer addon vertical end-to-end: Fertilidad (Pack Básico) — Seguimientos automatizados con atribución honesta de recuperaciones, journey state machine, integración con WhatsApp Business API existente + 5 plantillas peruano + cron diario (mig 127-131) + tier_group para mutua exclusión basic/premium en addons + UX redesign Settings/Módulos al estilo /integraciones (Activar → modal → engranaje config) + Empty states guiados en /admin/services para onboarding de owner nuevo + Slug de plan consolidado (mig 132 fix precio Independiente + mig 133 consolidación 'starter' → 'independiente') (v0.15.0) + Settings/Integraciones agrupado por status + Break time default OFF + Empty states /admin/doctors /admin/offices /patients /scheduler + Tour interactivo driver.js + Hardening completo del flujo de invitación (mig 134) + UNIQUE INDEX doctors (mig 135) + Account header reactivo + WhatsApp clipboard tab desbloqueado + Hero landing con gradient animado (v0.15.1) + **Card Centro Médico con borde gradient animado + glow pulsante + botón CTA tipo Brief IA con shimmer + Sección "Otras especialidades disponibles" oculta si la org tiene specialty principal (verticales más limpias) + Fix lectura de `patients.sex` en SELECT del drawer (campo sí persistía pero no se leía) + Fix KPI revenue atribuido solo cuenta categoría A (withContact) — honestidad de la métrica del módulo de seguimientos + Embudo de presupuestos del Pack Fertilidad: tabla `budget_records` (mig 136) independiente de `treatment_plans` (Vitra usa Omnia para HC, no necesitan plan en Yenda para registrar envío) + 7 tipos de tratamiento (FIV/IIU/Inducción/Crio/Ovodonación/ROPA/Otro) + monto opcional + flag `is_fertility_advisor` en organization_members (mig 137) para rol obstetra/asesora con permisos extendidos + vista nueva `/scheduler/budgets` con kanban (Pendientes/Aceptados/Rechazados) + 4 KPIs (enviados 30d, % aceptación, % rechazo, tiempo promedio aceptación en días) + tracking abierto indefinidamente (3+ meses entre envío y decisión es realista) (v0.15.2)** + Preparación de pilot con primer cliente real (Vitra, fertilidad) + **Topbar rediseñada con dropdown hover (avatar + nombre opcional, items Cuenta/Configuración/Cerrar sesión) y animación Framer Motion suave + Animaciones de modales/popovers/sheets/dropdowns/alert-dialogs unificadas con keyframes CSS reales (mismo cubic-bezier(0.16, 1, 0.3, 1) que el dropdown del topbar) reemplazando utilidades muertas de `tailwindcss-animate` y honrando `prefers-reduced-motion` + Plantillas WhatsApp clipboard multi-kind (mig 139): tabla `org_whatsapp_clipboard_templates` con 3 tipos (`post_appointment`, `second_consultation_followup`, `budget_followup`), seed function + backfill retroactivo (post_appointment para todas las orgs; kinds de seguimiento solo para orgs con `fertility_basic`/`fertility_premium`) + API `/api/whatsapp-clipboard-templates` (GET all kinds, PUT one, admin/owner only) + lib `lib/whatsapp-clipboard-config.ts` refactorizado a multi-kind con `buildMessage(kind, template, vars)` type-narrowed (legacy single-template exports preservados para retrocompatibilidad) + Settings UI reescrito con tabs por kind, addon-gated, toolbar B/I/S con marcadores WhatsApp (`*bold*`/`_italic_`/`~strike~`), picker de ~25 emojis curados, inserción cursor-aware y vista previa que parsea formato WA → bold/italic/strike HTML + Card de seguimiento con teléfono visible formato `+51 987 654 321` clickeable como wa.me + dual buttons (Enviar por WhatsApp wa.me / Copiar mensaje) device-aware (móvil → wa.me primario; desktop → Copiar primario porque las recepcionistas mantienen WhatsApp Web abierto en otra pestaña y un wa.me fresco la recarga) + kind elegido por card (`budget_followup` si hay budget linkeado, `second_consultation_followup` si no) + cache de promesas a nivel módulo deduplicando fetches de plantilla entre todas las cards + Modal post-cita también con dual buttons device-aware (Copiar + wa.me) y teléfono propagado desde el form de cita + **Phase 1 de optimización de performance en `/scheduler/follow-ups` y `/scheduler/budgets`**: eliminado double-fetch en mount de followups (de 6 counts en cold start a 3) + `/api/budgets` GET reorganizado de ~6 round-trips secuenciales a 3 olas con `Promise.all` (membership+addon-check, listing+counts+kpi, senders) + removido `count: "exact"` redundante del listing usando `limit+1` con `.range()` para `hasMore` + columnas whitelisted en ambos endpoints (drop de campos pesados sin uso como `contact_events JSONB`, `notes`) + dropdown de doctores filtra solo `id, full_name` desde el cliente (TTFB estimado: −50–70 % en `/scheduler/budgets`, −30–40 % en `/scheduler/follow-ups`) + Research deliverables en `docs/research/`: `openpay-pe-evaluation.md` (propuesta de abstracción multi-gateway, recomendación de iniciar con Culqi por Yape nativo y Openpay PE solo en segundo lugar para B2B con relación BBVA) y `perf-followups-budgets.md` (diagnóstico completo con Phase 2 — indexes + React Query — y Phase 3 — KPIs materializados + server components — recomendados) + Branch fixes en el camino: dialog flicker top-left por colisión `translate` de Tailwind v4 con `transform` del keyframe; route export error en `/api/whatsapp-clipboard-templates` por non-handler exports prohibidos en `route.ts` de Next.js 15 (v0.15.3) + Cascada de 3 intentos en seguimientos (Vitra Sprint 1): endpoint único `POST /api/clinical-followups/[id]/advance` con discriminated-union Zod (mark_contacted/pospuesto/agendado/cerrar_sin_respuesta), append a `contact_events`, overflow → auto-close + chip "Intento N/M" + 4 botones de cascada en la card (v0.15.4) + **Phase 1 (foundation) de Budget Tiers A/B/C del addon Fertilidad**: migración 140 (`services.is_budget_eligible` + tabla `service_budget_tiers` con UNIQUE parcial `WHERE is_active=true` para soft-delete + recreación + extensión `budget_records` con `service_id`/`tier`/`assigned_at`/`assigned_by_user_id` y drop de NOT NULL en `sent_at`/`sent_by_user_id` + backfill best-effort de `service_id` por ILIKE de `services.name` vs `treatment_type` legacy; `treatment_type` se conserva como snapshot denormalizado y los reports deben usar LEFT JOIN) + helper `useFertilityAddon()` y componente `<FertilityAddonGate>` reusables (eliminan el inline `hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY])` en futuros call-sites, los 6 actuales se migrarán naturalmente en fases siguientes) + fix UI audit §3.2: `/scheduler/follow-ups` ahora tiene gate de UI (early return con CTA a `/settings?tab=modulos`) y nav entry con `requiresAnyAddon` (sidebar) + null-guards en `daysAgo`/`daysBetween` y en los renders de `sent_at` ("Sin enviar" en lugar de "Invalid date") por la nueva nullability de `sent_at` + nuevo hook `useOrgFertilityAdvisors()` + endpoint addon-gated `GET /api/admin/fertility/advisors` (lista miembros con `is_fertility_advisor=true`, listo para el dropdown asesora de Phase 3) (v0.15.5) + **Phase 2 (UI admin) de Budget Tiers A/B/C del addon Fertilidad**: nuevo endpoint `GET|PUT /api/services/[id]/tiers` (admin/owner only, addon-gated, upsert por id existente para preservar la UNIQUE parcial `WHERE is_active=true`) + UI en `/admin/services` (gateada con `<FertilityAddonGate>`): checkbox "Habilitar para presupuestos del addon Fertilidad" en el form, sub-sección expandible con 3 filas A/B/C (monto + moneda PEN/USD + qué incluye + notas internas + toggle activo) y botón explícito "Guardar tiers" + badge "Addon Fertilidad" (lucide Sparkles, emerald) en la lista de servicios para `created_by_addon IS NOT NULL` + botón "Eliminar" oculto para servicios addon-managed (defense in depth: trigger DB ya bloquea + UI no lo ofrece) + activación de addon (`POST /api/addons/[key]/activate`) ahora invoca `seed_fertility_services(p_org_id)` solo en la PRIMERA activación (count de servicios con `created_by_addon='fertility_basic'` antes de seedear; idempotente pero evita reruns innecesarios) (v0.15.6) + **Phase 3 (modal + entry points + sub-bucket) de Budget Tiers A/B/C del addon Fertilidad**: componente reusable `<AssignBudgetModal>` (autogateado con `<FertilityAddonGate>`) que carga servicios elegibles vía nuevo endpoint addon-gated `GET /api/services/budget-eligible` (servicios con `is_budget_eligible=true AND is_active=true` + tiers activos sorteados A→B→C) y asesoras vía `useOrgFertilityAdvisors()`, con tier picker A/B/C como cards con monto/moneda/incluye visibles + dropdown asesora (incluye "Sin asignar") + textarea notas; submit a nuevo `POST /api/budgets/assign` (addon-gated; recepcionistas 403; lookup de tier para snapshot de monto+currency; insert en `budget_records` con `assigned_at=NOW()`/`assigned_by_user_id=auth.uid()` y `sent_at=NULL`/`sent_by_user_id=NULL`; `treatment_type` inferido vía mapping documentado de `services.name` → enum FIV/IIU/INDUCCION/CRIO/OVODONACION/ROPA/OTRO con TED→OTRO porque el enum no tiene aún valor TED) + tres entry points wireados: appointment-sidebar (botón Asignar presupuesto solo en status `completed` y addon activo, oculto a recepcionistas), `FertilityBudgetRecordsSection` del patient-drawer (botón sustituye al legacy "Registrar presupuesto enviado" como ruta default), followup-card (`pending`/`no_response` y `linkedBudget === null`, con `onBudgetAssigned` cascada hasta `refresh()` en page.tsx) + sub-bucket "Sin procesar" en `/scheduler/budgets` Pendientes: endpoint `/api/budgets` ahora devuelve `counts.pending_unsent` y `counts.pending_sent`, UI splitea en dos sub-secciones con badges amber (Sin procesar) y blue (Enviado, esperando respuesta), card en Sin procesar gana botón "Enviar al paciente" que llama nuevo `POST /api/budgets/[id]/send` (rellena `sent_at=NOW()`/`sent_by_user_id=auth.uid()`; addon-gated; valida `pending_acceptance AND sent_at IS NULL`; TODO Phase 4 para PDF + dispatch) + decisión documentada: `asesora_id` en body de `assign` es validada contra `organization_members` pero NO PERSISTIDA todavía porque `budget_records` no tiene columna dedicada; sobrecargar `sent_by_user_id` rompería el split Sin procesar/Enviado, por lo que Phase 4 debe agregar `assigned_asesora_member_id` (v0.15.7)
 
 ---
 
@@ -691,6 +691,12 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Fix: lectura de `patients.sex` en SELECT del drawer del paciente** (v0.15.2 — bug transversal) — Bug reportado por el owner: en cualquier org, al seleccionar "Sexo biológico" en el drawer del paciente y guardar, parecía que no persistía (al reabrir el drawer el campo volvía a aparecer vacío). **Diagnóstico**: el UPDATE sí persistía correctamente en `patients.sex`, pero los SELECTs en `app/(dashboard)/patients/page.tsx` (la query principal de la lista paginada en línea 134-135 y la query del drawer post-save reload en línea 314) **no incluían la columna `sex`**. Resultado: el state inicial de `infoSex` arrancaba en `""` siempre. **Fix de 4 letras**: agregar `sex` al string del SELECT en los 2 lugares. Cero cambios de UI o UPDATE — solo READ. Bug **transversal a todas las orgs**, los datos estaban guardados en DB todo el tiempo, solo no se mostraban.
 - [x] **Fix: KPI "Revenue estimado atribuido" en panel de Recuperados solo cuenta categoría A (withContact)** (v0.15.2 — honestidad de la métrica) — En el panel `/scheduler/follow-ups` tab Recuperados, el KPI "Revenue estimado atribuido" estaba mostrando `S/ 5,000` cuando había 0 recuperaciones atribuibles y solo 1 paciente que volvió por iniciativa propia (categoría B). **Bug en `app/api/clinical-followups/dashboard/route.ts:429`**: usaba `revenueAttributed = recoveredCount * ltvValue`, donde `recoveredCount` incluía AMBAS categorías (A=atribuible + B=iniciativa propia). **Fix**: cambio a `revenueAttributed = withContact * ltvValue` — solo categoría A. Esto respeta la **promesa de honestidad de atribución** del spec sec. 0.3 ("el sistema solo se atribuye recuperaciones donde efectivamente actuó"). Si paciente volvió sola, NO cuenta como revenue atribuido aunque sí aparece como "Iniciativa propia" en KPIs.
 - [x] **Embudo de presupuestos del Pack Fertilidad — tabla `budget_records` independiente de `treatment_plans`** (v0.15.2 — migraciones 136 y 137) — Feature comercial clave del addon `fertility_basic` para clínicas que envían presupuestos por miles de soles (FIV/IIU/etc.). Modelo arquitectónico: separación de responsabilidades entre tracking comercial del presupuesto (`budget_records`) y modelo clínico (`treatment_plans`). **Por qué tabla nueva y no extender treatment_plans**: Vitra (anchor del piloto) usa **Omnia para historia clínica** — sus doctores NO crean `treatment_plan` en Yenda. Forzar la creación de un plan vacío para luego marcarlo como enviado sería trabajo administrativo sin valor. La obstetra debe poder registrar el envío directamente, sin tocar HC. Para clínicas futuras con HC interna, `budget_records.treatment_plan_id` es FK opcional para linkear ambos. **Migración 136** (`budget_records`): `id, organization_id, patient_id, treatment_plan_id (nullable), sent_by_user_id, sent_at, treatment_type (CHECK 7 valores), amount NUMERIC(10,2) opcional, notes, acceptance_status (pending_acceptance/accepted/rejected), accepted_at, rejected_at, rejection_reason, followup_id, created_at, updated_at`. RLS multi-tenant patrón `informed_consents`. Append-only por auditoría comercial (sin policy DELETE). Trigger automático para `updated_at`. **7 tipos de tratamiento canónicos**: FIV (Fecundación In Vitro), IIU (Inseminación Intrauterina), INDUCCION (Inducción de ovulación), CRIO (Criopreservación), OVODONACION, ROPA (Método ROPA), OTRO. **Migración 137**: `organization_members.is_fertility_advisor BOOLEAN DEFAULT false` para flag de obstetra/asesora de fertilidad (NO un rol nuevo en DB — usa `role='doctor'` con flag adicional para no contaminar la matriz de 4 roles existente con permisos one-off). También `organization_invitations.invitation_meta JSONB DEFAULT '{}'` para persistir flags opcionales de invitación (incluye `{is_fertility_advisor: true}` cuando se marca el toggle en el form de invitar). **Endpoints REST**: `POST /api/budgets` (crear, dispara seguimiento), `PATCH /api/budgets/[id]/mark-accepted` (cierra como `agendado_via_contacto`), `PATCH /api/budgets/[id]/mark-rejected` (cierra como `cerrado_manual` con razón opcional), `GET /api/budgets` con buckets (pending/accepted/rejected) + filtros (treatment_type, doctor_id, patient_id, date range, q libre) + KPIs (`total_sent_30d`, `acceptance_rate_pct`, `rejection_rate_pct`, `avg_time_to_acceptance_days`), `GET /api/budgets/[id]` detalle. Todos gateados por `hasAnyAddon(['fertility_basic', 'fertility_premium'])` — devuelven 403 si no. **Matriz de permisos**: Owner/Admin → ven y gestionan toda la org. Doctor con `is_fertility_advisor=true` (obstetra) → ven y gestionan toda la org. Doctor sin flag → solo lo suyo (envíos propios + pacientes con citas asignadas). Recepcionista → ven todo, NO crean ni editan. **UI**: (a) Modal "Registrar presupuesto enviado" (`components/clinical/budget-record-modal.tsx`) con form RHF+Zod — paciente preseleccionado o búsqueda con debounce 250ms, tipo de tratamiento Select, monto opcional con prefix S/, notas Textarea max 500. (b) Sección "Presupuestos enviados" en el drawer del paciente (`app/(dashboard)/patients/fertility-budget-records-section.tsx`) con badges contextuales por estado + countdown del followup + botones Marcar aceptado/rechazado. (c) Vista nueva `/scheduler/budgets` con kanban de 3 tabs (Pendientes/Aceptados/Rechazados) + 4 KPI cards arriba + sheet de filtros + cards con avatar paciente, badge tipo tratamiento, monto si aplica, "Enviado por X", tiempo desde envío, notas truncadas. (d) Toggle "También funciona como asesora de fertilidad" en form de invitación de admin/members — solo aparece si org tiene addon fertility activo Y rol elegido es `doctor`. (e) Sidebar entry condicional `/scheduler/budgets` bajo grupo Agenda con nuevo campo `requiresAnyAddon` en NavItem (solo visible si fertility addon activo). **Trigger del seguimiento**: `maybeCreateBudgetPendingFollowup()` extendido para aceptar `budget_record_id` opcional. Se llama al **mark-as-sent** (que en el nuevo modelo es el INSERT mismo del budget_record), no al `treatment_plan_created` como en el diseño previo. Delay default 7 días. **Comportamiento clave**: el `budget_record` queda **abierto indefinidamente** hasta que la obstetra marque manualmente — el seguimiento de 7 días es solo recordatorio para contactar. Si una paciente decide a los 3 meses (escenario realista en fertilidad), `accepted_at - sent_at = 90 días` queda registrado y el KPI `avg_time_to_acceptance_days` lo refleja. **Para Vitra**: se ejecutó manualmente para Allison Tomasto (cita ya completada antes de tener mapeo + reglas) un INSERT de seguimiento retroactivo, dado que el trigger automático funcional solo aplica para citas marcadas como completed POST mig 134-137. Activación legacy de Vitra requirió clonar reglas globales con SQL manual y guardar el mapping del wizard.
+- [x] **Topbar rediseñado con dropdown hover (avatar + nombre opcional)** (v0.15.3) — Reemplaza el bloque email + avatar plano del topbar por un trigger compacto (avatar + first name opcional) que despliega un dropdown al hover con 3 items (Cuenta, Configuración, Cerrar sesión). Animación suave Framer Motion (`cubic-bezier(0.16, 1, 0.3, 1)`) que después se adoptó como estándar de animación de modales en toda la app.
+- [x] **Animaciones de modales / popovers / sheets / dropdowns / alert-dialogs unificadas** (v0.15.3) — Reemplaza utilidades muertas de `tailwindcss-animate` por keyframes CSS reales en `Dialog`, `AlertDialog`, `Sheet`, `Popover`, `DropdownMenu`. Mismo `cubic-bezier(0.16, 1, 0.3, 1)` que el dropdown del topbar. Honra `prefers-reduced-motion`. Fix de flicker top-left en Dialog por colisión entre la propiedad `translate` de Tailwind v4 y `transform` del keyframe.
+- [x] **Plantillas WhatsApp clipboard multi-kind** (v0.15.3 — migración 139) — Tabla `org_whatsapp_clipboard_templates` con 3 kinds (`post_appointment`, `second_consultation_followup`, `budget_followup`), RLS multi-tenant, seed function + backfill retroactivo (post_appointment para todas las orgs; los 2 kinds de seguimiento solo para orgs con `fertility_basic` o `fertility_premium` activo). API route `/api/whatsapp-clipboard-templates` (GET all kinds, PUT one, admin/owner only). `lib/whatsapp-clipboard-config.ts` refactorizado a multi-kind con `buildMessage(kind, template, vars)` type-narrowed; legacy single-template exports preservados para retrocompatibilidad. Settings UI reescrito con tabs por kind (los 2 kinds de seguimiento addon-gated), toolbar B/I/S con marcadores WhatsApp (`*bold*` / `_italic_` / `~strike~`), picker curado de ~25 emojis (✅ ❌ 📅 ⏰ 📍 💚 🩺 💊 🧪 🤰 👶 🎯 ⚠️ 📝 🔔 ☝️ 🙌 👋 ✨ 🤝 💬 📞 📲 🏥 ❤️), inserción cursor-aware y vista previa que parsea formato WA → bold/italic/strike HTML para visualización fiel. Fix adicional: route export error en Next.js 15 (prohibido exportar non-handlers desde `route.ts`).
+- [x] **Followup card con teléfono visible + dual button device-aware** (v0.15.3) — Cada card de seguimiento muestra el teléfono del paciente debajo del nombre, formateado `+51 987 654 321` y clickeable como deeplink `wa.me`. Dos botones de acción por card: **Enviar por WhatsApp** (`wa.me`) y **Copiar mensaje**. Default device-aware: en móvil `wa.me` es primario; en desktop `Copiar` es primario porque las recepcionistas peruanas mantienen WhatsApp Web abierto en otra pestaña y un `wa.me` fresco la recarga. Ambos se deshabilitan limpiamente cuando el teléfono falta. El kind de plantilla se elige por card (`budget_followup` si hay budget linkeado, `second_consultation_followup` si no). Cache de promesas a nivel módulo deduplica fetches de plantilla entre todas las cards en pantalla. **Modal post-cita** también ganó dual buttons (Copiar + wa.me) device-aware con teléfono propagado desde el form de cita.
+- [x] **Phase 1 perf: `/scheduler/follow-ups` y `/scheduler/budgets`** (v0.15.3) — Eliminado double-fetch en mount de followups (de 6 counts en cold start a 3). `/api/budgets` GET reorganizado de ~6 round-trips secuenciales a 3 olas con `Promise.all` (membership+addon-check, listing+counts+kpi, senders). Removido `count: "exact"` redundante del listing usando `limit+1` con `.range()` para `hasMore`. Columnas whitelisted en ambos endpoints (drop de campos pesados sin uso como `contact_events JSONB`, `notes`). Dropdown de doctores filtra solo `id, full_name` desde el cliente. **TTFB estimado: −50–70 % en `/scheduler/budgets`, −30–40 % en `/scheduler/follow-ups`**. Phase 2 (indexes + React Query) y Phase 3 (KPIs materializados + server components) documentados pero pendientes de decisión en `docs/research/perf-followups-budgets.md`.
+- [x] **Research: evaluación Openpay PE para integración multi-gateway de payment-link** (v0.15.3 — pendiente de decisión) — `docs/research/openpay-pe-evaluation.md` documenta propuesta de abstracción multi-gateway y recomendación de iniciar con Culqi (Yape nativo, dolor #1 de clínicas peruanas) y posicionar Openpay PE en segundo lugar solo para clientes B2B con relación BBVA. Ningún código de pasarela shippeado todavía — el doc es pura research para tomar decisión antes de invertir tiempo de implementación.
 
 ### Pendiente / Por Mejorar
 - [x] **Facturación electrónica SUNAT vía Nubefact (MVP completo)** — v0.13.0 → v0.13.1. Cierre del módulo de facturación electrónica multi-tenant para clínicas peruanas. Componentes:
@@ -3210,4 +3216,407 @@ SOAP → Diagnósticos → Medicamentos → Exámenes → Vitales → Firmada el
 - **Counters en header colapsado**: agrega ~10px de ancho pero ahorra al doctor expandir 5 cards solo para encontrar "la consulta donde le mandé el antibiótico". Beneficio neto.
 - **Soft-fail en rx/exams si 401/403**: recepcionistas no deberían ver recetas (privacidad clínica) pero deberían poder ver el SOAP del Timeline. En lugar de bloquear toda la feature por permisos, la sección simplemente no aparece para roles sin acceso. Las RLS de Supabase ya manejan el filtrado.
 - **Sin botón "Reimprimir receta" desde el Timeline**: tentador pero scope creep. V1 es solo lectura. Si aparece como necesidad real, agregar después con el `ClinicalNotePrintButton` que ya existe.
+
+## 39. Changelog — Sesión 2026-05-06 (v0.15.3) — Topbar dropdown + Animaciones unificadas + WhatsApp clipboard multi-kind + Followup card dual-action + Phase 1 perf
+
+Sesión enfocada en pulido visual (topbar + animaciones de modales), expansión de las plantillas de WhatsApp clipboard a 3 kinds (post-cita / 2da consulta / presupuesto) cubriendo el flujo de seguimiento del Pack Fertilidad, mejoras al card de seguimiento con dual button device-aware (wa.me / Copiar), y primera ola de optimización de performance en `/scheduler/follow-ups` y `/scheduler/budgets`. También se cerró research para futuras decisiones (Openpay PE multi-gateway + Phase 2/3 perf).
+
+### Topbar rediseñado con dropdown hover
+
+- Reemplaza el bloque email + avatar plano por trigger compacto (avatar + first name opcional) que despliega dropdown al hover con 3 items: **Cuenta**, **Configuración**, **Cerrar sesión**.
+- Animación Framer Motion con curva `cubic-bezier(0.16, 1, 0.3, 1)` (ease-out muy suave). Esa misma curva pasó a ser el estándar de animación de modales/popovers en toda la app (siguiente sub-sección).
+
+### Animaciones de modales/popovers unificadas
+
+- **Problema**: las clases `data-[state=open]:animate-in data-[state=closed]:animate-out` venían de `tailwindcss-animate` pero no había keyframes definidos en Tailwind v4 — eran clases muertas. Resultado: los modales aparecían/desaparecían sin animación.
+- **Fix**: keyframes CSS reales en `globals.css` (`fade-in`, `fade-out`, `zoom-in-95`, `zoom-out-95`, `slide-in-from-*`, `slide-out-to-*`) con la misma curva `cubic-bezier(0.16, 1, 0.3, 1)` del dropdown del topbar. Aplicados en `Dialog`, `AlertDialog`, `Sheet`, `Popover`, `DropdownMenu`.
+- Honra `prefers-reduced-motion: reduce` (las animaciones se desactivan completamente).
+- **Bug fix asociado**: flicker top-left al abrir Dialog — la propiedad `translate` de Tailwind v4 colisionaba con el `transform` del keyframe (Tailwind v4 setea `translate: var(--tw-translate-x) var(--tw-translate-y)` como propiedad nativa CSS, separada de `transform`). Solución: limpiar `translate` y centrar via `transform: translate(-50%, -50%)` directo en el content del Dialog.
+
+### Plantillas WhatsApp clipboard multi-kind (mig 139)
+
+**Por qué**: el Pack Fertilidad necesita mensajes distintos según el contexto de seguimiento (cita post-agendada, paciente que no volvió a 2da consulta, paciente con presupuesto pendiente). Una sola plantilla universal no sirve.
+
+**Migración 139** (`org_whatsapp_clipboard_templates`):
+- Tabla con `id, organization_id, kind (CHECK 3 valores), template TEXT, is_enabled BOOLEAN, created_at, updated_at`. Unique `(organization_id, kind)`.
+- 3 kinds: `post_appointment`, `second_consultation_followup`, `budget_followup`.
+- RLS multi-tenant (mismo patrón que el resto de tablas org-scoped).
+- Seed function `seed_org_whatsapp_clipboard_templates(org_id)` con plantillas default por kind, en español Perú.
+- **Backfill retroactivo** dentro de la migración: `post_appointment` para todas las orgs existentes; los 2 kinds de seguimiento solo para orgs con addon `fertility_basic` o `fertility_premium` activo (`organization_addons` JOIN `addons`).
+
+**API y lib**:
+- `GET/PUT /api/whatsapp-clipboard-templates` (admin/owner only). GET devuelve los 3 kinds, PUT actualiza uno.
+- `lib/whatsapp-clipboard-config.ts` refactorizado a multi-kind: `buildMessage(kind, template, vars)` con narrowing por tipo según kind. Legacy single-template exports preservados como aliases (sin breaking change para callers viejos).
+
+**Settings UI**:
+- Tabs por kind. Los 2 kinds de seguimiento aparecen solo si la org tiene `fertility_basic` o `fertility_premium` activo (gating cliente; el server lo refuerza vía RLS y addon-check del API).
+- **Toolbar B/I/S** que inserta los marcadores de WhatsApp en la posición del cursor: `*bold*`, `_italic_`, `~strike~`.
+- **Picker de ~25 emojis curados** (✅ ❌ 📅 ⏰ 📍 💚 🩺 💊 🧪 🤰 👶 🎯 ⚠️ 📝 🔔 ☝️ 🙌 👋 ✨ 🤝 💬 📞 📲 🏥 ❤️). Inserción cursor-aware.
+- **Vista previa** parsea los marcadores WA → bold/italic/strike HTML para visualización fiel a cómo se verá el mensaje en WhatsApp (no es el mismo formato Markdown de typical CMS).
+- Variables disponibles: las mismas del template original (paciente, doctor, fecha, hora, servicio, clínica, dirección, etc.).
+
+**Bug fix asociado**: error de export en `route.ts` — Next.js 15 prohíbe exportar cosas que no sean handlers HTTP desde un `route.ts`. Las constantes que estaban exportadas se movieron a un módulo separado.
+
+### Followup card: teléfono visible + dual button device-aware
+
+**Cambios en `card-followup.tsx`**:
+- Teléfono del paciente visible debajo del nombre, formateado `+51 987 654 321`. Click → `wa.me/<digits>` (sin texto preset).
+- **Dos botones por card**: `Enviar por WhatsApp` (genera `wa.me?text=...` con plantilla pre-renderizada) + `Copiar mensaje` (copia al clipboard).
+- **Default device-aware**: detección `window.matchMedia('(max-width: 767px)')`. En móvil, `Enviar por WhatsApp` es el botón primario (variant default); en desktop, `Copiar mensaje` es el primario. Razón: las recepcionistas peruanas tienen WhatsApp Web abierto en otra pestaña y un `wa.me` fresco la **recarga** (rompe su flujo). Mejor: copiar y pegar a la ventana ya abierta. En móvil sí abre WhatsApp directo y es lo natural.
+- Ambos botones se deshabilitan cleanly cuando el teléfono falta (con tooltip).
+
+**Selección de kind por card**:
+- Si el card tiene `linked_budget_id` → kind = `budget_followup`.
+- Si no → kind = `second_consultation_followup`.
+
+**Cache de promesas**:
+- Module-level `Map<orgId, Promise<TemplatesResponse>>` deduplica fetches: si 30 cards renderizan al mismo tiempo y todas necesitan la plantilla, se hace 1 sola request.
+
+**Modal post-cita** (`whatsapp-clipboard-modal.tsx`): también ganó dual buttons device-aware (Copiar + wa.me) y recibe el teléfono propagado desde el form de cita (que ya lo tenía pero no lo pasaba al modal).
+
+### Phase 1 perf en seguimientos y presupuestos
+
+**`/scheduler/follow-ups`**:
+- Eliminado double-fetch en mount: el mount disparaba el dashboard endpoint que internamente corría 6 counts secuenciales (pendientes, recuperadas, sin respuesta, atribuidas, iniciativa propia, organic). Reorganizado a 3 counts en paralelo con los buckets de KPI.
+
+**`/api/budgets` GET**:
+- De ~6 round-trips secuenciales a **3 olas** con `Promise.all`:
+  - **Ola 1**: membership + addon-check (resolución de permisos).
+  - **Ola 2**: listing + counts (pending/accepted/rejected) + KPIs.
+  - **Ola 3**: senders (resolución de `sent_by_user_id` → display_name).
+- Removido `count: "exact"` del listing → uso de `limit + 1` con `.range()` para detectar `hasMore`. Sin overhead de full count.
+- Columnas whitelisted en ambos endpoints. Drop explícito de fields pesados sin uso en la card list (`contact_events JSONB` del followup, `notes` largas del budget). Solo se traen al expand de detalle.
+
+**Cliente**:
+- Dropdown de doctores filtra solo `id, full_name` (no carga el row completo).
+
+**TTFB estimado**: −50–70 % en `/scheduler/budgets`, −30–40 % en `/scheduler/follow-ups`. Validar con métricas reales tras pilot.
+
+**Phase 2 / Phase 3 documentados** en `docs/research/perf-followups-budgets.md`:
+- **Phase 2**: indexes específicos para queries de buckets (compuestos `(organization_id, status, sent_at DESC)`), migración a React Query con stale-while-revalidate y prefetch en hover.
+- **Phase 3**: KPIs materializados (refresh por trigger), conversión de las páginas a Server Components con streaming Suspense, paginación cursor-based.
+
+### Research: Openpay PE multi-gateway
+
+**`docs/research/openpay-pe-evaluation.md`**:
+- Análisis de Openpay PE contra docs oficiales (v2 del doc, primero contra docs incorrectos).
+- Propuesta de **abstracción multi-gateway** en `lib/payments/` para no atarse a un solo proveedor.
+- **Recomendación**: iniciar con **Culqi** (Yape nativo es el dolor #1 de clínicas peruanas, mucho más relevante que tarjetas internacionales). Openpay PE en segundo lugar **solo** para clientes B2B con relación BBVA establecida (Openpay es de BBVA y la relación bancaria abre puertas).
+- **Sin código shippeado**: la decisión queda pendiente. El doc es para que el orchestrator decida antes de invertir tiempo de implementación.
+
+### Migración aplicada
+
+| Migración | Descripción |
+|---|---|
+| `supabase/migrations/139_org_whatsapp_clipboard_templates.sql` *(nuevo)* | Tabla `org_whatsapp_clipboard_templates` (3 kinds) + RLS + seed function + backfill retroactivo (post_appointment para todas las orgs; kinds de seguimiento solo para orgs con `fertility_basic` o `fertility_premium`) |
+
+### Archivos tocados (v0.15.3)
+
+| Archivo | Cambio |
+|---|---|
+| `components/layout/topbar.tsx` | Trigger compacto avatar + first name + dropdown hover con 3 items, Framer Motion |
+| `app/globals.css` | Keyframes CSS reales (`fade-in/out`, `zoom-in/out-95`, `slide-in/out-from-*`) con `cubic-bezier(0.16, 1, 0.3, 1)` + respeto a `prefers-reduced-motion` |
+| `components/ui/dialog.tsx` | Aplicar nuevas clases de keyframe + fix flicker top-left por colisión de `translate` Tailwind v4 vs `transform` keyframe |
+| `components/ui/alert-dialog.tsx` | Aplicar nuevas clases de keyframe |
+| `components/ui/sheet.tsx` | Aplicar nuevas clases de keyframe |
+| `components/ui/popover.tsx` | Aplicar nuevas clases de keyframe |
+| `components/ui/dropdown-menu.tsx` | Aplicar nuevas clases de keyframe |
+| `supabase/migrations/139_org_whatsapp_clipboard_templates.sql` *(nuevo)* | Tabla multi-kind + RLS + seed + backfill retroactivo |
+| `app/api/whatsapp-clipboard-templates/route.ts` *(nuevo)* | GET (all kinds) + PUT (one kind), admin/owner only |
+| `lib/whatsapp-clipboard-config.ts` | Refactor a multi-kind con `buildMessage(kind, template, vars)` type-narrowed, legacy exports preservados |
+| `app/(dashboard)/settings/whatsapp-clipboard-tab.tsx` | Reescritura con tabs por kind (gated), toolbar B/I/S, picker de emojis, vista previa con parser WA |
+| `app/(dashboard)/scheduler/follow-ups/card-followup.tsx` | Teléfono visible + dual button device-aware (wa.me / Copiar) + selección de kind por card + cache de promesas |
+| `app/(dashboard)/scheduler/whatsapp-clipboard-modal.tsx` | Dual buttons device-aware + recepción del teléfono desde el form |
+| `app/(dashboard)/scheduler/follow-ups/page.tsx` | Eliminado double-fetch en mount, counts en paralelo |
+| `app/api/budgets/route.ts` | Reorganización a 3 olas `Promise.all`, drop de `count: "exact"`, columnas whitelisted, `limit+1` con `.range()` para `hasMore` |
+| `app/api/clinical-followups/dashboard/route.ts` | Columnas whitelisted, drop de `contact_events JSONB` y `notes` del listing |
+| `app/(dashboard)/scheduler/budgets/page.tsx` | Dropdown de doctores filtra solo `id, full_name` |
+| `docs/research/openpay-pe-evaluation.md` *(nuevo)* | Evaluación Openpay PE + propuesta multi-gateway + recomendación Culqi-first |
+| `docs/research/perf-followups-budgets.md` *(nuevo)* | Diagnóstico completo + Phase 2 (indexes + React Query) + Phase 3 (KPIs materializados + Server Components) |
+| `PRD.md` | Esta sección 39 + bullets en sección 12 + header v0.15.3 |
+
+### Operaciones requeridas para activar v0.15.3
+
+1. **Aplicar migración 139** (`org_whatsapp_clipboard_templates`):
+   - `supabase db push` o pegar `supabase/migrations/139_org_whatsapp_clipboard_templates.sql` en SQL Editor.
+   - El backfill se ejecuta dentro de la migración. Verificar post-aplicación: cada org debe tener fila `post_appointment`; las orgs con `fertility_basic`/`fertility_premium` deben tener también `second_consultation_followup` y `budget_followup`.
+2. **Smoke tests**:
+   - Topbar: hover muestra dropdown con animación suave; click en items navega a `/account` y `/settings`; Cerrar sesión termina la sesión.
+   - Modal HC abre/cierra con fade + zoom suaves (sin flicker top-left). Sheet del paciente, Popover de filtros, Dropdown de menú: todos animados consistentemente.
+   - Settings → WhatsApp: clínica sin addon fertility ve solo tab "Post-cita". Clínica con `fertility_basic` ve los 3 tabs. Toolbar B/I/S inserta marcadores en cursor; picker de emojis inserta en cursor; vista previa renderiza bold/italic/strike correctamente.
+   - `/scheduler/follow-ups`: cards muestran teléfono debajo del nombre; en desktop el botón primario es Copiar; en móvil (DevTools throttle) el primario es wa.me; cards sin teléfono tienen botones disabled.
+   - `/scheduler/budgets` y `/scheduler/follow-ups`: medir TTFB con DevTools Network — debería bajar significativamente vs v0.15.2.
+
+### Decisiones de diseño con contexto
+
+- **Dual button device-aware en lugar de un solo botón "inteligente"**: la lógica "abrir wa.me en móvil, copiar en desktop" se podría empaquetar en un solo botón que decide por dentro. Pero la **acción discreta** importa: en desktop el receptionist a veces sí quiere reabrir el chat (ej. primera vez del día), no solo copiar. Mostrar las dos opciones siempre y solo cambiar cuál es primaria por device es la forma honesta — no le sacas opciones, solo le pre-seleccionas la más probable.
+- **Cache de promesas a nivel módulo en lugar de React Query**: para v0.15.3 era una sola plantilla compartida entre 30 cards. React Query habría sido overkill (bundle + setup). Cuando Phase 2 perf llegue y migremos toda la data fetching a React Query, este cache se reemplaza naturalmente por un `useQuery` con `staleTime` largo.
+- **`limit+1` en lugar de `count: "exact"` para `hasMore`**: PostgreSQL hace un `COUNT(*)` adicional cuando pides `count: "exact"` que escanea toda la tabla aunque tengas paginación. `limit+1` con `.range()` solo trae 1 fila más para saber si hay siguiente página. Performance significativamente mejor en tablas con muchas rows; tradeoff: pierdes el total exacto (pero ya no se mostraba en UI).
+- **Backfill retroactivo dentro de la migración 139**: dejar la tabla vacía y hacer seed lazy en cada org cuando entra a Settings sería más limpio en código, pero significa que el primer admin que entra ve UI vacía. Backfill garantiza que el día 1 todas las orgs ya tienen sus 3 plantillas (gated por addon). Idempotente (ON CONFLICT DO NOTHING).
+- **Modales unificados con la curva del dropdown del topbar**: cohesión visual. Cuando el user descubre la animación del dropdown del topbar, el resto de los modales se sienten "del mismo lenguaje" — no como Frankenstein de animaciones de distintas épocas.
+
+---
+
+## 40. Changelog — Sesión 2026-05-08 (v0.15.4) — Cascada de 3 intentos en seguimientos (Vitra Sprint 1)
+
+Sprint 1 del feedback de Vitra (cliente fertilidad piloto): la obstetra trabaja seguimientos en **cascada de 3 intentos**, no en single-shot. Antes había un dropdown "Posponer N días" pero el flujo no estaba mapeado al modelo mental de la asesora (intento 1 → respuesta o pospuesto → intento 2 → ... → intento 3 → cierre automático). Esta sesión expone las 4 acciones de cascada como botones primarios en cada card, con date picker explícito para el reagendamiento y auto-cierre por overflow al alcanzar `max_attempts`.
+
+### Endpoint nuevo: `POST /api/clinical-followups/[id]/advance`
+
+Un solo endpoint cubre las 4 transiciones de la cascada:
+- `mark_contacted` — primer contacto sin decisión todavía. Setea `first_contact_at` solo si era NULL (preserva atribución honesta).
+- `pospuesto` — paciente pidió más tiempo. Incrementa `attempt_count`, fija `follow_up_date`/`expected_by` a la fecha sugerida.
+- `agendado` — paciente agendó. Cierra como `agendado_via_contacto` (categoría A en KPIs).
+- `cerrar_sin_respuesta` — cierre manual como `desistido_silencioso`.
+
+**Overflow handling**: si la obstetra intenta posponer cuando `attempt_count + 1 > max_attempts`, el endpoint fuerza `desistido_silencioso` y devuelve `auto_closed: true`. La UI muestra toast: "Cerrado automáticamente — alcanzó intento máximo".
+
+Cada acción append-ea un evento al JSONB `contact_events` (mig 128) con `by_user_id`, timestamp y notas. 409 si el seguimiento ya está cerrado. Defense-in-depth scoping por `organization_id`.
+
+### Card: chip de intento + 4 botones de cascada
+
+- **Chip "Intento N/M"** en la meta row del card pendiente: emerald si N=1, amber si N=2, red si N=3.
+- **Action row nueva** debajo del separador, con 4 botones:
+  - ✅ **Agendó** (verde primary, abre confirm dialog)
+  - 💬 **Contactada** (azul outline, instant — solo habilitado desde `pendiente` o `pospuesto`)
+  - 📅 **Reagendar** (violet outline, abre date picker; deshabilitado si ya alcanzó max)
+  - 👎 **Sin respuesta** (red outline, abre confirm dialog)
+- Tooltip de "Reagendar" cuando estás en el último intento: "Si vuelves a reagendar, se cerrará automáticamente." Mensaje también visible inline en amber.
+- Date picker para reagendar usa `<input type="date">` con `min=hoy` y `max=hoy+90 días`. No se introduce ningún componente de calendar nuevo; se reutiliza el patrón ya presente en los filtros del propio page.tsx.
+
+### Cron — sin cambios, ya cubre el caso
+
+Verifiqué `app/api/cron/fertility-followup-contact/route.ts`: ya cierra automáticamente followups con `attempt_count >= cap` al recorrerlos (líneas ~283 y ~550). El filtro `eq("status", "pendiente")` salta rows que el endpoint nuevo ya cerró. No hay double-fire.
+
+### Archivos tocados (v0.15.4)
+
+| Archivo | Cambio |
+|---|---|
+| `app/api/clinical-followups/[id]/advance/route.ts` *(nuevo)* | POST con discriminated union Zod (`mark_contacted` / `pospuesto` / `agendado` / `cerrar_sin_respuesta`), append a `contact_events`, overflow → auto-close |
+| `app/(dashboard)/scheduler/follow-ups/followup-card.tsx` | Chip "Intento N/M", 4 botones de cascada, 3 dialogs (Reagendar con date picker, confirmar Agendó, confirmar Sin respuesta), prop `onAdvance` |
+| `app/(dashboard)/scheduler/follow-ups/page.tsx` | Handler `onAdvance` con detección de `auto_closed` para toast informativo, refactor `requestAction` que devuelve payload, propagación a `PendingTabContent` |
+| `PRD.md` | Esta sección 40 + header v0.15.4 |
+
+### Decisiones de diseño con contexto
+
+- **Endpoint único en lugar de 4 endpoints separados**: las 4 acciones comparten validación (membership + closed_at), audit trail (append a `contact_events`) y RLS-by-org. Un endpoint con discriminated union evita duplicar 80 % de boilerplate. Los endpoints viejos (`contact`, `snooze`, `close-no-response`, `close-manual`) se conservan para la dropdown legacy y para los flujos no-cascade.
+- **Overflow → auto-close en lugar de error**: cuando la obstetra intenta posponer un cuarto intento, lo natural sería bloquear con error. Pero el modelo mental real es "ok, se acabó el tiempo", no "operación inválida". Cerrar automáticamente y avisar es honesto con el flujo de trabajo.
+- **`<input type="date">` en lugar de Popover + Calendar**: el calendar shadcn requiere boilerplate (Popover + Calendar + format) que solo paga su costo si necesitamos restricciones complejas (días bloqueados, locale, etc.). Para un date picker básico con min/max, el input nativo es suficiente y es accesible out-of-the-box.
+
+---
+
+## 41. Changelog — Sesión 2026-05-09 (v0.15.5) — Phase 1: Budget tiers foundation
+
+Foundation work para el feature de tiers A/B/C de presupuestos del addon Fertilidad (orientado a Vitra y futuras clínicas que cotizan con paquetes A/B/C — desde básico hasta premium con NGS, donante in-house, etc.). Esta sesión implementa **únicamente** la base técnica que destrabaron los dos audits previos (`docs/research/budget-tiers-schema-audit.md` y `docs/research/budget-tiers-ui-audit.md`, ambos GO with concerns). Phases 2/3/4 (UI admin de configuración de tiers, modal "Asignar presupuesto" con 3 entry points, generador de PDF) quedan en cola para sesiones próximas.
+
+### Migración 140 — `service_budget_tiers` + assignment fields
+
+`supabase/migrations/140_fertility_budget_tiers_and_assignment.sql`:
+
+- **`services.is_budget_eligible BOOLEAN DEFAULT false`**: instant-add en PG≥11 (default constante = metadata only). Marca el servicio como elegible para tiers; la UI debe gatear su lectura/escritura con `useFertilityAddon()`.
+- **`service_budget_tiers`**: tier A|B|C por servicio con `amount`, `currency` (default PEN), `includes_text`, `notes`, `is_active`, timestamps + `updated_at` trigger reusando la función global `update_updated_at()` de mig 001. **UNIQUE parcial** `(service_id, tier) WHERE is_active=true` (concern A del schema audit) — permite recrear un tier después de soft-delete sin coleccionar duplicados activos. RLS heredada vía `service_id → services.organization_id`: SELECT abierto a cualquier miembro, INSERT/UPDATE/DELETE solo `is_org_admin()`. NO se añadió trigger de validación de addon: el patrón establecido (mig 127, 130, 136) gatea el addon en la capa de aplicación.
+- **`budget_records`** extendida con `service_id` (FK ON DELETE SET NULL, nullable para filas legacy), `tier` (CHECK A|B|C o NULL), `assigned_at` (default NOW()), `assigned_by_user_id`, y se dropearon NOT NULL de `sent_at` y `sent_by_user_id` (el flujo nuevo es asignar primero, enviar después — pueden quedarse NULL indefinidamente si la obstetra contacta a la paciente off-channel).
+- **Backfill best-effort** (concern B): `UPDATE budget_records SET service_id = ...` por ILIKE de `services.name` vs `treatment_type` legacy (FIV→`FIV%`, IIU→`IIU%`, INDUCCION→`Inducción%`, CRIO→`Crio%`, OVODONACION→`Ovodon%`, ROPA→`%ROPA%`). Selección determinista por `display_order, created_at`. Si no hay match, queda NULL — los reports DEBEN usar LEFT JOIN.
+- `treatment_type` **NO se dropea**: 9+ consumidores en frontend + filtro SQL en `/api/budgets`. Queda como snapshot denormalizado (documentado vía COMMENT).
+
+### Helpers reusables (UI audit §6)
+
+- `hooks/use-fertility-addon.ts` — wrapper compacto sobre `useOrgAddons` que devuelve `{ active, loading }`. Reemplaza el inline `hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY])` repetido en 6+ archivos. Los call-sites actuales NO se migraron en este PR (ruido innecesario); fases 2-4 los van adoptando.
+- `components/addons/fertility-addon-gate.tsx` — componente declarativo `<FertilityAddonGate fallback={...} loadingFallback={...}>` sobre el hook anterior.
+
+### Fix crítico UI audit §3.2 — `/scheduler/follow-ups`
+
+- `components/layout/sidebar.tsx`: añadido `requiresAnyAddon: ["fertility_basic", "fertility_premium"]` al nav entry de seguimientos (paridad con `/scheduler/budgets`).
+- `app/(dashboard)/scheduler/follow-ups/page.tsx`: page-level gate con early return ("Pack Fertilidad requerido" + link a `/settings?tab=modulos`) y loader durante `addonsLoading`. Estilo idéntico al gate ya presente en `/scheduler/budgets/page.tsx`.
+
+### Null-safety de `sent_at` (concern D)
+
+Mig 140 hace `sent_at` nullable. Patches preventivos:
+
+- `app/(dashboard)/scheduler/budgets/budget-card.tsx`: `daysAgo()` acepta `string | null` y devuelve `null`; render condicional ("Sin enviar" en lugar de fecha + chip "Hace X días" oculto cuando no hay `sent_at`). El helper `formatDate()` ya tenía null-guard.
+- `app/(dashboard)/patients/fertility-budget-records-section.tsx`: `daysBetween()` acepta nullable; sort usa fallback timestamp 0 (rows sin `sent_at` van al final); render "Sin enviar" en la línea de detalles. `formatDate()` ya tenía null-guard.
+- `app/(dashboard)/scheduler/follow-ups/followup-card.tsx`: NO renderiza `sent_at` directamente — no requiere parche (la línea 386 del audit corresponde a un chip de `linkedBudget.treatment_type`, no a la fecha).
+
+### Hook + endpoint para asesoras (UI audit §3.5)
+
+- `app/api/admin/fertility/advisors/route.ts` — `GET` lista miembros con `is_fertility_advisor=true` (mig 137) joineados con `user_profiles.full_name`. Addon-gated (403 si no hay fertility_basic/premium). Visible para todos los roles dentro de la org. Usa `createAdminClient()` para el join cross-table siguiendo el patrón de `/api/members/responsibles`.
+- `hooks/use-org-fertility-advisors.ts` — wrapper cliente que: (a) gatea con `useFertilityAddon()`, (b) tolera 403 surfaceándolo como `[]` para que la Phase 3 UI no necesite branchear, (c) re-fetcha cuando cambia `organizationId`.
+
+### Concern 3 (UI audit) — `is_budget_eligible` en services SELECT
+
+Audit del impacto: las 7 ubicaciones que hacen `from("services").select("*")` (admin/services, admin/doctors/[id], scheduler/history, admin/discount-codes, scheduler/appointment-sidebar, patients/treatment-plans-panel, patients/page, einvoice/emit-dialog) reciben la nueva columna como propiedad extra del payload. Ningún consumer la usa hoy (TS la marca como `undefined` hasta `npm run types`); todas son lecturas tolerantes. **No se migraron a SELECT projecteado en este PR** — Phase 2 introduce la API gateada `/api/services/budget-eligible` y endurece según corresponda. Documentado para tracking.
+
+### Archivos tocados (v0.15.5)
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/migrations/140_fertility_budget_tiers_and_assignment.sql` *(nuevo)* | Migración foundational: services flag + tabla tiers + extensión budget_records + backfill |
+| `hooks/use-fertility-addon.ts` *(nuevo)* | Wrapper compacto sobre `useOrgAddons` |
+| `components/addons/fertility-addon-gate.tsx` *(nuevo)* | Gate declarativo `<FertilityAddonGate>` |
+| `hooks/use-org-fertility-advisors.ts` *(nuevo)* | Hook cliente para listar asesoras de la org |
+| `app/api/admin/fertility/advisors/route.ts` *(nuevo)* | Endpoint addon-gated para el dropdown asesora (Phase 3) |
+| `components/layout/sidebar.tsx` | `requiresAnyAddon` agregado al entry `/scheduler/follow-ups` |
+| `app/(dashboard)/scheduler/follow-ups/page.tsx` | Page-level gate con CTA a `/settings?tab=modulos` |
+| `app/(dashboard)/scheduler/budgets/budget-card.tsx` | Null-safety en `daysAgo()` y render del bloque de envío |
+| `app/(dashboard)/patients/fertility-budget-records-section.tsx` | Null-safety en `daysBetween()`, sort de `sent_at` y línea de detalles |
+| `PRD.md` | Header v0.15.5 + esta sección 41 |
+
+### Decisiones de diseño con contexto
+
+- **No introducir trigger de addon-validation a nivel DB**: el patrón establecido en mig 127, 130 y 136 gatea el addon en la capa de aplicación. Un trigger acoplaría `service_budget_tiers` a `organization_addons`, rompería seeds/tests y dejaría filas "huérfanas" cuando una org desactive el addon (RLS las ocultaría). La defensa en profundidad es: RLS multi-tenant + check de addon en cada endpoint. Documentado en el header de la migración.
+- **UNIQUE parcial en lugar de UNIQUE total**: `(service_id, tier) WHERE is_active=true` permite que un admin desactive un tier B y luego cree uno nuevo (con monto distinto) sin violar la constraint. Si se hubiera puesto UNIQUE total, el flujo de "actualizar tier creando una nueva versión" sería imposible sin DELETE físico, contradiciendo la política append-only de auditoría comercial.
+- **Backfill best-effort en lugar de backfill obligatorio**: el mapping `treatment_type → services.name` por ILIKE puede no matchear si la org tiene servicios con nombres exóticos ("FIV con donante propio" no matchea `FIV%` literal — sí matchea, perdón, mal ejemplo. "Ciclo de fertilización in vitro" NO matchea `FIV%`). Bloquear la migración si no hay match haría imposible aplicarla a clínicas con servicios ya nombrados a su gusto. NULL es válido y los reports usan LEFT JOIN.
+- **Hook devuelve `[]` en lugar de error en 403**: el `useOrgFertilityAdvisors` está pensado para consumirse dentro de UI ya gateada. Si un caller lo consume sin gate (anti-patrón), el endpoint 403 se surfacea como lista vacía y la UI degrada sin mostrar dropdown — comportamiento más amable que un toast de error. El `error` queda en el state para casos de red real.
+- **Phase 1 NO toca los 6 call-sites existentes que repiten `hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY])`**: migrarlos al hook nuevo en este mismo PR habría inflado el diff sin cambio funcional. Phases 2-4 los irán reemplazando naturalmente cuando toquen esas zonas.
+
+### Operaciones requeridas para activar v0.15.5
+
+1. Aplicar migración 140 en Supabase (local: `npx supabase db push` — instantánea por defaults constantes; remote: aplicar via dashboard o CLI).
+2. Regenerar tipos TS: `npm run types`. Esto expone `is_budget_eligible`, `service_budget_tiers` y los nuevos campos de `budget_records` al tipo `Database`.
+3. Validar visualmente: una org sin addon ya no ve `/scheduler/follow-ups` en el sidebar y, si entra por URL directo, ve el empty state "Pack Fertilidad requerido" con CTA a Settings.
+4. (Opcional) Auditar el resultado del backfill: `SELECT count(*) FROM budget_records WHERE service_id IS NULL` debe ser ≤ el conteo histórico de filas `treatment_type='OTRO'` + servicios con nombres no-mappeables.
+
+---
+
+## 42. Changelog — Phase 2: Admin UI for budget tiers (v0.15.6)
+
+UI administrativa para configurar los tiers A/B/C de los servicios elegibles del addon Fertilidad. Phase 2 toma la foundation técnica de v0.15.5 y la conecta con `/admin/services` y la activación del addon, sin tocar el flujo de "Asignar presupuesto" en el drawer del paciente (eso es Phase 3).
+
+### Endpoint nuevo — `/api/services/[id]/tiers`
+
+`app/api/services/[id]/tiers/route.ts`:
+
+- **GET**: devuelve los tiers existentes (activos e inactivos) para un servicio. RLS filtra por `service_id → services.organization_id`. Validación de membership + scoping al org del caller. Addon-gated (403 si no hay `fertility_basic|fertility_premium`).
+- **PUT**: upsert de hasta 3 tiers (A/B/C). Body Zod: `{ tiers: [{ tier, amount, currency: 'PEN'|'USD', includes_text?, notes?, is_active }] }`. Solo `owner|admin`. Para honrar la UNIQUE parcial `WHERE is_active=true`, hacemos lookup por `(service_id, tier)` y actualizamos en-place el row existente (preferimos el activo, fallback al inactivo más reciente). Inserción solo si no existe. Esto permite el flujo "soft-delete + recreate" sin violar la constraint y sin coleccionar duplicados activos.
+- Sin exports no-handler (Next.js 15 strict en `route.ts`).
+
+### UI `/admin/services` — gateada con `<FertilityAddonGate>`
+
+`app/(dashboard)/admin/services/page.tsx`:
+
+- **Lista de servicios**: badge "Addon Fertilidad" (lucide `Sparkles`, emerald) cuando `service.created_by_addon` está seteado y la org tiene el addon activo. Botón "Eliminar" oculto para esos mismos servicios — la org sigue pudiendo desactivar (toggle existente) y editar nombre/precio/duración. Defense in depth: el trigger `prevent_delete_addon_services()` ya bloquearía el DELETE.
+- **Form del servicio**: nuevo bloque envuelto en `<FertilityAddonGate>` con:
+  - Checkbox "Habilitar para presupuestos del addon Fertilidad" → `services.is_budget_eligible`. Persistido junto con el resto del payload via UPDATE/INSERT existente.
+  - Sub-sección expandible con 3 filas A/B/C (label tier read-only). Por fila: monto (number, 2 decimales), moneda (select PEN/USD), qué incluye (textarea), notas internas (textarea), toggle activo.
+  - Botón explícito "Guardar tiers" — separado del "Guardar" del servicio porque el endpoint es distinto (PUT vs supabase client) y porque para servicios nuevos el id no existe hasta el primer save (mensaje "Primero guarda el servicio. Después podrás configurar los tiers.").
+- En orgs sin el addon, todo el bloque desaparece (no hay checkbox ni badge) — el componente nunca renderiza por el gate.
+
+### Activación del addon — seed automático
+
+`app/api/addons/[key]/activate/route.ts`:
+
+- Antes del seed de WhatsApp templates, count `services WHERE created_by_addon = 'fertility_basic' AND organization_id = X`. Si == 0, invoca `seed_fertility_services(p_org_id)` (RPC SECURITY DEFINER de mig 140). Esto crea 6 servicios TRA + 18 tiers (3 por servicio) en la org recién activada. La RPC es idempotente, pero el count evita reruns innecesarios en re-activaciones (ej. desactivar y volver a activar).
+- Failure → warning soft, no bloquea la activación (mismo patrón que el seed de rules y WhatsApp templates).
+
+### Validation schema
+
+`lib/validations/service.ts`:
+
+- `serviceSchema` extendido con `is_budget_eligible: z.boolean().default(false)`.
+- Nuevos exports: `TIER_LETTERS` (`['A','B','C']` const), `TIER_CURRENCY_OPTIONS`, `serviceBudgetTierSchema`, tipos `TierLetter` y `ServiceBudgetTierFormData`.
+
+### Archivos tocados (v0.15.6)
+
+| Archivo | Cambio |
+|---|---|
+| `app/api/services/[id]/tiers/route.ts` *(nuevo)* | GET + PUT addon-gated para tiers A/B/C |
+| `app/api/addons/[key]/activate/route.ts` | Llama `seed_fertility_services` solo en primera activación |
+| `app/(dashboard)/admin/services/page.tsx` | Badge addon + delete oculto + nuevo bloque tiers en form |
+| `lib/validations/service.ts` | `is_budget_eligible` + schema y constantes de tier |
+| `PRD.md` | Header v0.15.6 + esta sección 42 |
+
+### Decisiones de diseño con contexto
+
+- **Botón "Guardar tiers" separado del "Guardar" del servicio**: el form de servicio usa `supabase` client directo para PATCH/INSERT; los tiers requieren un endpoint API porque la UNIQUE parcial necesita lógica de "update-by-id" (no upsert directo). Combinarlos en un solo botón implicaría secuenciar dos requests con rollback complejo si la segunda falla. Botón separado es honesto con el modelo: el admin entiende que los tiers son una entidad propia.
+- **Update por id existente, no upsert por (service_id, tier)**: la UNIQUE parcial `WHERE is_active=true` impide un upsert ingenuo (un row inactivo + un row activo coexisten). Lookup explícito + UPDATE in-place + INSERT solo si no hay row del tier preserva la política "soft-delete + recreate" sin duplicar histórico.
+- **Seed sólo en primera activación**: la RPC es idempotente, pero re-correrla en cada toggle es ruidoso (warnings de "flagged_existing" en logs). Verificar con `count(*)` antes evita el rerun y deja el código del activate más legible.
+- **Sin migrar el `services.select("*")` de los 7 callers documentados**: Phase 2 no toca esa cleanup. Las 7 ubicaciones reciben `is_budget_eligible` y `created_by_addon` como propiedades extra del payload, ningún consumer las usa hoy fuera de `/admin/services`. Phase 3/4 puede consolidar si surge necesidad real.
+
+### Operaciones requeridas para activar v0.15.6
+
+1. Deploy del código (mig 140 ya está aplicada en Vitra; `seed_fertility_services` ya disponible en DB).
+2. Regenerar tipos TS si aún no se hizo: `npm run types`. Sin esto, `is_budget_eligible` y `created_by_addon` quedan como `undefined` en el tipo `Database`, pero la UI sigue funcionando vía cast.
+3. Validar visualmente con la cuenta de Vitra: editar uno de los 6 servicios TRA seedeados, ver el bloque "Tiers de presupuesto", arreglar los 3 typos de precios documentados (FIV-A == FIV-C, OVODON-B == OVODON-C, TED-B == TED-C) usando el botón "Guardar tiers".
+4. Probar activación del addon en una org de prueba (no Vitra): verificar que los 6 servicios + 18 tiers aparecen automáticamente bajo categoría "Reproducción Asistida (TRA)".
+
+---
+
+## Changelog — Phase 3: Modal + entry points + sub-bucket
+
+**Fecha:** 2026-05-09 · **Versión:** 0.15.7
+
+Phase 3 cierra el flujo end-to-end de Budget Tiers A/B/C: la doctora asigna el tier desde 3 puntos de entrada (cita completada, drawer del paciente, card de followup) y la obstetra "de turno" envía el presupuesto desde el kanban con un botón explícito.
+
+### Entrega 1 — `<AssignBudgetModal>` reusable
+
+`components/addons/fertility/assign-budget-modal.tsx` (nuevo):
+
+- Wrapper auto-gateado con `<FertilityAddonGate>` (defense in depth).
+- Carga servicios elegibles vía `GET /api/services/budget-eligible` y asesoras vía `useOrgFertilityAdvisors()`.
+- Tier picker A/B/C como cards con monto/moneda/incluye visibles, borde emerald + ring en el seleccionado, disabled state si ese tier no está configurado para el servicio.
+- Dropdown asesora con opción "Sin asignar" (la obstetra de turno la asignará al enviar). Optional notes textarea (max 500).
+- Submit a `POST /api/budgets/assign`. Toast "Presupuesto asignado. Pendiente de procesar.", llama `onCreated(id)`, cierra.
+
+### Entrega 2 — `POST /api/budgets/assign`
+
+`app/api/budgets/assign/route.ts` (nuevo):
+
+- Addon-gated. Recepcionistas 403 (advisors con base role no-recepcionista pasan; advisors flagged en row de recepcionista quedan bloqueados por el role check + addon gate combinados).
+- Lookup de `service_budget_tiers` por `(service_id, tier, is_active=true)` para snapshot de `amount` + `currency`. Sin row → 422 "Tier no configurado para este servicio".
+- Validación cross-org del paciente, servicio y asesora.
+- `treatment_type` inferido desde `services.name` con mapping conservador documentado in-line: `FIV*`/`(FIV)` → FIV; `IIU`/`Inseminación` → IIU; `ROPA` → ROPA; `Crio` → CRIO; `Ovodon` → OVODONACION; `Inducci` → INDUCCION; **TED** y cualquier otro → OTRO. (El enum de `budget_records.treatment_type` no tiene aún valor TED — Phase 4 puede agregarlo.)
+- Insert: `assigned_at=NOW()`, `assigned_by_user_id=auth.uid()`, `sent_at=NULL`, `sent_by_user_id=NULL`, `acceptance_status='pending_acceptance'`. Devuelve `{ id, assigned_at }`.
+
+**Decisión documentada — `asesora_id` no se persiste todavía**: el body acepta `asesora_id` (organization_members.id flagged como `is_fertility_advisor`) y lo valida contra la org, pero `budget_records` no tiene una columna dedicada para guardar la asesora asignada. Sobrecargar `sent_by_user_id` rompería el split Sin procesar/Enviado introducido en este mismo phase. Phase 4 debe agregar `budget_records.assigned_asesora_member_id UUID REFERENCES organization_members(id) ON DELETE SET NULL`. Hasta entonces el dropdown es informativo/UX-only.
+
+### Entrega 3 — `GET /api/services/budget-eligible`
+
+`app/api/services/budget-eligible/route.ts` (nuevo):
+
+- Addon-gated. Lectura abierta a cualquier rol dentro de una org con addon activo.
+- Devuelve `services` con `is_budget_eligible=true AND is_active=true`, sorteados por `display_order`, joined con `service_budget_tiers` activos sorteados A→B→C.
+
+### Entrega 4 — Tres entry points
+
+- **Appointment sidebar** (`app/(dashboard)/scheduler/appointment-sidebar.tsx`): botón "Asignar presupuesto" (lucide `Receipt`, emerald outline) sólo en `appointment.status === "completed"` y con addon activo, oculto a recepcionistas. Modal montado al final del componente, fuera del scroll container.
+- **Patient drawer** (`app/(dashboard)/patients/fertility-budget-records-section.tsx`): el botón nuevo precede al legacy "Registrar presupuesto enviado" como ruta default. Cabe dentro de la sección ya gateada (`FertilityBudgetRecordsSection` retorna null si la org no tiene addon).
+- **Followup card** (`app/(dashboard)/scheduler/follow-ups/followup-card.tsx`): botón aparece para `variant === "pending" || "no_response"` y `linkedBudget === null` y rol no recepcionista. Nuevo prop `onBudgetAssigned`; cuando el modal crea el budget, llama hacia arriba hasta `refresh()` en `page.tsx` para que la card se redibuje con el chip cyan "Presupuesto …" y el botón desaparezca.
+
+### Entrega 5 — Sub-bucket "Sin procesar" en `/scheduler/budgets`
+
+- **API** (`app/api/budgets/route.ts`): el `Promise.all` ahora incluye `pendingUnsentCountQuery()` (`acceptance_status='pending_acceptance' AND sent_at IS NULL`) y `pendingSentCountQuery()` (`AND sent_at IS NOT NULL`). Response devuelve `counts.pending_unsent` y `counts.pending_sent` además del `pending` total. `BUDGET_COLUMNS` ahora incluye `service_id`, `tier`, `assigned_at`, `assigned_by_user_id` para que el card pueda mostrar "Sin procesar" y el contexto de tier.
+- **UI page** (`app/(dashboard)/scheduler/budgets/page.tsx`): nuevo helper `<PendingSubGroups>` que splitea client-side sobre `sent_at` y rinde dos sub-secciones con headers + counts. Sin procesar (amber, "Asignados, pendientes de envío al paciente") arriba; "Enviado, esperando respuesta" (blue) abajo.
+- **Card** (`app/(dashboard)/scheduler/budgets/budget-card.tsx`): nuevo flag `isUnsent` (`pending_acceptance && !sent_at`). Badge cambia a "Sin procesar" amber para isUnsent, "Esperando respuesta" blue para sent. Nuevo botón "Enviar al paciente" (lucide `Send`, fondo amber sólido) sólo en isUnsent que llama `POST /api/budgets/[id]/send`.
+
+### Entrega 6 — `POST /api/budgets/[id]/send`
+
+`app/api/budgets/[id]/send/route.ts` (nuevo):
+
+- Caller role: owner|admin|doctor|advisor. Recepcionistas 403.
+- Addon-gated. Valida que la fila pertenezca a la org del caller, que `acceptance_status='pending_acceptance'` y que `sent_at IS NULL`.
+- Setea `sent_at=NOW()` + `sent_by_user_id=auth.uid()` (la obstetra de turno que clickeó Enviar).
+- **TODO Phase 4**: trigger de PDF + dispatch (WhatsApp/Email). Comentario in-file.
+
+### Archivos tocados (v0.15.7)
+
+| Archivo | Cambio |
+|---|---|
+| `components/addons/fertility/assign-budget-modal.tsx` *(nuevo)* | Modal reusable con tier picker A/B/C |
+| `app/api/services/budget-eligible/route.ts` *(nuevo)* | GET addon-gated, services + tiers |
+| `app/api/budgets/assign/route.ts` *(nuevo)* | POST addon-gated, snapshot del monto del tier |
+| `app/api/budgets/[id]/send/route.ts` *(nuevo)* | POST marca sent_at + sent_by_user_id |
+| `app/api/budgets/route.ts` | `pending_unsent` / `pending_sent` counts + columnas Phase 3 |
+| `app/(dashboard)/scheduler/budgets/page.tsx` | `<PendingSubGroups>` helper |
+| `app/(dashboard)/scheduler/budgets/budget-card.tsx` | Badge "Sin procesar" + botón "Enviar al paciente" |
+| `app/(dashboard)/scheduler/appointment-sidebar.tsx` | Botón "Asignar presupuesto" en `completed` |
+| `app/(dashboard)/patients/fertility-budget-records-section.tsx` | Botón "Asignar presupuesto" en la sección |
+| `app/(dashboard)/scheduler/follow-ups/followup-card.tsx` | Botón "Asignar presupuesto" + prop `onBudgetAssigned` |
+| `app/(dashboard)/scheduler/follow-ups/page.tsx` | Wire `onBudgetAssigned` → `refresh()` |
+| `PRD.md` | Header v0.15.7 + esta sección |
+
+### Pendiente para Phase 4
+
+- Generación de PDF al hacer click en "Enviar al paciente" + dispatch opcional WhatsApp/Email.
+- Migración: agregar `budget_records.assigned_asesora_member_id` para persistir la asesora (Phase 3 sólo valida soft).
+- Considerar agregar valor `TED` al enum `treatment_type` de `budget_records` si la métrica TED amerita su propio bucket en reports (hoy queda en OTRO).
 

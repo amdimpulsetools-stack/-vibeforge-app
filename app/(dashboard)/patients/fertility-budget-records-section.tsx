@@ -9,6 +9,7 @@ import {
   Check,
   X as XIcon,
   Clock,
+  Receipt,
 } from "lucide-react";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { BudgetRecordModal } from "@/components/clinical/budget-record-modal";
+import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
 import {
   BUDGET_TREATMENT_TYPE_LABELS,
   FERTILITY_BASIC_KEY,
@@ -42,7 +44,8 @@ function formatDate(iso: string | null): string {
   });
 }
 
-function daysBetween(aIso: string, bIso: string): number {
+function daysBetween(aIso: string | null, bIso: string | null): number | null {
+  if (!aIso || !bIso) return null;
   const ms = new Date(bIso).getTime() - new Date(aIso).getTime();
   return Math.max(0, Math.round(ms / (24 * 3600 * 1000)));
 }
@@ -61,6 +64,7 @@ export function FertilityBudgetRecordsSection({
   const [items, setItems] = useState<BudgetWithJoins[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [showAssign, setShowAssign] = useState(false);
   const [rejectFor, setRejectFor] = useState<BudgetWithJoins | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -128,9 +132,14 @@ export function FertilityBudgetRecordsSection({
 
   const sorted = useMemo(
     () =>
-      [...items].sort(
-        (a, b) => new Date(b.sent_at).getTime() - new Date(a.sent_at).getTime(),
-      ),
+      [...items].sort((a, b) => {
+        // sent_at is nullable since mig 140 (records can be assigned but
+        // not yet sent). Treat unsent rows as time=0 so they fall to the
+        // bottom of the list deterministically.
+        const aTs = a.sent_at ? new Date(a.sent_at).getTime() : 0;
+        const bTs = b.sent_at ? new Date(b.sent_at).getTime() : 0;
+        return bTs - aTs;
+      }),
     [items],
   );
 
@@ -145,13 +154,25 @@ export function FertilityBudgetRecordsSection({
           <h4 className="text-sm font-semibold">Presupuestos enviados</h4>
         </div>
         {!isReceptionist && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Registrar presupuesto enviado
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Phase 3 — Asignar presupuesto (tiers A/B/C). Sits before
+                the legacy "Registrar presupuesto enviado" button so the
+                tier flow is the new default path. */}
+            <button
+              onClick={() => setShowAssign(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              Asignar presupuesto
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Registrar presupuesto enviado
+            </button>
+          </div>
         )}
       </div>
 
@@ -195,6 +216,13 @@ export function FertilityBudgetRecordsSection({
         onOpenChange={setShowCreate}
         patient={{ id: patientId, full_name: patientFullName }}
         onSaved={refresh}
+      />
+
+      <AssignBudgetModal
+        open={showAssign}
+        onClose={() => setShowAssign(false)}
+        patientId={patientId}
+        onCreated={() => refresh()}
       />
 
       {/* Rejection sub-modal */}
@@ -329,7 +357,7 @@ function BudgetRow({
             <span className="text-sm font-semibold">{treatmentLabel}</span>
           </div>
           <p className="text-xs text-muted-foreground">
-            {amountLabel} · Enviado {formatDate(budget.sent_at)}
+            {amountLabel} · {budget.sent_at ? `Enviado ${formatDate(budget.sent_at)}` : "Sin enviar"}
             {budget.sent_by?.full_name ? ` · por ${budget.sent_by.full_name}` : ""}
           </p>
           {budget.notes && (

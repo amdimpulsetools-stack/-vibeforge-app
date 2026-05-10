@@ -85,7 +85,12 @@ const navSections: NavSection[] = [
         icon: CalendarDays,
         items: [
           { titleKey: "nav.scheduler_calendar", href: "/scheduler", icon: CalendarDays },
-          { titleKey: "nav.scheduler_followups", href: "/scheduler/follow-ups", icon: ClipboardCheck },
+          {
+            titleKey: "nav.scheduler_followups",
+            href: "/scheduler/follow-ups",
+            icon: ClipboardCheck,
+            requiresAnyAddon: ["fertility_basic", "fertility_premium"],
+          },
           {
             titleKey: "nav.scheduler_budgets",
             href: "/scheduler/budgets",
