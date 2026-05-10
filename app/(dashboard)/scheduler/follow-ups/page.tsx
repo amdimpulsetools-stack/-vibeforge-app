@@ -506,6 +506,7 @@ export default function FollowUpsPage() {
               onMarkNoResponse={onMarkNoResponse}
               onCloseManual={onCloseManual}
               onAdvance={onAdvance}
+              onBudgetAssigned={refresh}
               onLoadMore={() => fetchTab("pending", filters, false)}
             />
           </TabsContent>
@@ -523,6 +524,7 @@ export default function FollowUpsPage() {
               state={noResponse}
               onCloseManual={onCloseManual}
               onReactivate={onReactivate}
+              onBudgetAssigned={refresh}
               onLoadMore={() => fetchTab("no_response", filters, false)}
             />
           </TabsContent>
@@ -568,6 +570,7 @@ function PendingTabContent({
   onMarkNoResponse,
   onCloseManual,
   onAdvance,
+  onBudgetAssigned,
   onLoadMore,
 }: {
   state: TabState;
@@ -576,6 +579,7 @@ function PendingTabContent({
   onMarkNoResponse: (id: string) => Promise<unknown>;
   onCloseManual: (id: string, reason: string) => Promise<unknown>;
   onAdvance: (id: string, action: AdvanceAction) => Promise<unknown>;
+  onBudgetAssigned: () => void;
   onLoadMore: () => void;
 }) {
   if (!state.loaded) return null;
@@ -599,6 +603,7 @@ function PendingTabContent({
           onMarkNoResponse={() => onMarkNoResponse(f.id)}
           onCloseManual={(reason) => onCloseManual(f.id, reason)}
           onAdvance={(action) => onAdvance(f.id, action)}
+          onBudgetAssigned={onBudgetAssigned}
         />
       ))}
       {state.hasMore && (
@@ -656,11 +661,13 @@ function NoResponseTabContent({
   state,
   onCloseManual,
   onReactivate,
+  onBudgetAssigned,
   onLoadMore,
 }: {
   state: TabState;
   onCloseManual: (id: string, reason: string) => Promise<unknown>;
   onReactivate: (id: string) => Promise<unknown>;
+  onBudgetAssigned: () => void;
   onLoadMore: () => void;
 }) {
   if (!state.loaded) return null;
@@ -681,6 +688,7 @@ function NoResponseTabContent({
           variant="no_response"
           onReactivate={() => onReactivate(f.id)}
           onCloseManual={(reason) => onCloseManual(f.id, reason)}
+          onBudgetAssigned={onBudgetAssigned}
         />
       ))}
       {state.hasMore && (

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Check, Clock, Loader2, X } from "lucide-react";
+import { Check, Clock, Loader2, Send, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -50,8 +50,16 @@ function daysAgo(iso: string | null): number | null {
 
 export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
   const [actionLoading, setActionLoading] = useState(false);
+  const [sendLoading, setSendLoading] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+
+  // Phase 3 — a budget is "Sin procesar" when it has been assigned
+  // (assigned_at + assigned_by_user_id are populated) but sent_at is
+  // still null. The flag drives the "Sin procesar" badge + the
+  // "Enviar al paciente" button.
+  const isUnsent =
+    budget.acceptance_status === "pending_acceptance" && !budget.sent_at;
 
   const patient = budget.patient;
   const patientName = patient
@@ -76,6 +84,21 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
       return;
     }
     toast.success("Presupuesto aceptado");
+    onChanged();
+  };
+
+  const sendToPatient = async () => {
+    setSendLoading(true);
+    const res = await fetch(`/api/budgets/${budget.id}/send`, {
+      method: "POST",
+    });
+    setSendLoading(false);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      toast.error(err.error ?? "No se pudo enviar el presupuesto");
+      return;
+    }
+    toast.success("Presupuesto marcado como enviado");
     onChanged();
   };
 
@@ -104,8 +127,13 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
   let extra: React.ReactNode = null;
 
   if (bucket === "pending_acceptance" || budget.acceptance_status === "pending_acceptance") {
-    badge = (
+    badge = isUnsent ? (
       <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-600">
+        <Clock className="h-3 w-3" />
+        Sin procesar
+      </span>
+    ) : (
+      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-[11px] font-semibold text-blue-600">
         <Clock className="h-3 w-3" />
         Esperando respuesta
       </span>
@@ -197,9 +225,26 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
 
       {budget.acceptance_status === "pending_acceptance" && (
         <div className="mt-3 flex flex-wrap gap-2">
+          {/* Phase 3 — "Enviar al paciente" turns Sin procesar → Enviado.
+              Only renders for sent_at IS NULL. The endpoint will
+              eventually trigger PDF generation in Phase 4. */}
+          {isUnsent && (
+            <button
+              onClick={sendToPatient}
+              disabled={sendLoading || actionLoading}
+              className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            >
+              {sendLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <Send className="h-3 w-3" />
+              )}
+              Enviar al paciente
+            </button>
+          )}
           <button
             onClick={accept}
-            disabled={actionLoading}
+            disabled={actionLoading || sendLoading}
             className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
           >
             {actionLoading ? (
@@ -211,7 +256,7 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
           </button>
           <button
             onClick={() => setRejectOpen(true)}
-            disabled={actionLoading}
+            disabled={actionLoading || sendLoading}
             className="inline-flex items-center gap-1.5 rounded-md bg-rose-500/15 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-500/25 disabled:opacity-60"
           >
             <X className="h-3 w-3" />

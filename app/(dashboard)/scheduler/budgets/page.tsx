@@ -39,7 +39,15 @@ interface BudgetWithJoins extends BudgetRecord {
 interface ListResponse {
   items: BudgetWithJoins[];
   has_more: boolean;
-  counts: { pending: number; accepted: number; rejected: number };
+  counts: {
+    pending: number;
+    accepted: number;
+    rejected: number;
+    /** Phase 3 — pending_acceptance rows with sent_at IS NULL. */
+    pending_unsent?: number;
+    /** Phase 3 — pending_acceptance rows with sent_at IS NOT NULL. */
+    pending_sent?: number;
+  };
   kpis: {
     total_sent_30d: number;
     acceptance_rate_pct: number;
@@ -121,7 +129,13 @@ export default function BudgetsPage() {
     refresh();
   }, [refresh]);
 
-  const counts = data?.counts ?? { pending: 0, accepted: 0, rejected: 0 };
+  const counts = data?.counts ?? {
+    pending: 0,
+    accepted: 0,
+    rejected: 0,
+    pending_unsent: 0,
+    pending_sent: 0,
+  };
   const kpis = data?.kpis;
 
   const onApplyFilters = (next: BudgetFilters) => {
@@ -253,6 +267,16 @@ export default function BudgetsPage() {
                   No hay presupuestos en esta categoría.
                 </p>
               </div>
+            ) : b === "pending" ? (
+              // Phase 3 — split the Pendientes column into two visual
+              // sub-groups: "Sin procesar" (sent_at IS NULL) and
+              // "Enviado, esperando respuesta" (sent_at IS NOT NULL).
+              <PendingSubGroups
+                items={filtered}
+                pendingUnsentCount={counts.pending_unsent ?? 0}
+                pendingSentCount={counts.pending_sent ?? 0}
+                onChanged={refresh}
+              />
             ) : (
               <div className="space-y-2">
                 {filtered.map((item) => (
@@ -312,6 +336,102 @@ function KpiCard({
       {subtitle && (
         <p className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</p>
       )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Phase 3 — "Pendientes" split into two visual sub-groups.
+//
+// "Sin procesar" = sent_at IS NULL: doctor assigned the budget but no
+// obstetra has sent it to the patient yet. The cards expose an
+// "Enviar al paciente" button (handled inside <BudgetCard>) that
+// flips sent_at.
+//
+// "Enviado, esperando respuesta" = sent_at IS NOT NULL with status
+// pending_acceptance. Existing flow unchanged.
+//
+// We split the items client-side off `sent_at` because the listing
+// endpoint already returns mixed pending rows. The header counts come
+// from the API response (`pending_unsent` / `pending_sent`) so they
+// remain authoritative across pages.
+// ─────────────────────────────────────────────────────────────────────
+function PendingSubGroups({
+  items,
+  pendingUnsentCount,
+  pendingSentCount,
+  onChanged,
+}: {
+  items: BudgetWithJoins[];
+  pendingUnsentCount: number;
+  pendingSentCount: number;
+  onChanged: () => void;
+}) {
+  const unsent = items.filter((b) => !b.sent_at);
+  const sent = items.filter((b) => Boolean(b.sent_at));
+
+  return (
+    <div className="space-y-5">
+      <section>
+        <header className="mb-2 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600">
+            Sin procesar
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            Asignados, pendientes de envío al paciente
+          </span>
+          <span className="ml-auto text-[11px] font-semibold text-muted-foreground">
+            {pendingUnsentCount}
+          </span>
+        </header>
+        {unsent.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/60 p-4 text-center">
+            <p className="text-xs text-muted-foreground">
+              No hay presupuestos sin procesar en esta vista.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {unsent.map((item) => (
+              <BudgetCard
+                key={item.id}
+                budget={item}
+                bucket="pending_acceptance"
+                onChanged={onChanged}
+              />
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section>
+        <header className="mb-2 flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-600">
+            Enviado, esperando respuesta
+          </span>
+          <span className="ml-auto text-[11px] font-semibold text-muted-foreground">
+            {pendingSentCount}
+          </span>
+        </header>
+        {sent.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/60 p-4 text-center">
+            <p className="text-xs text-muted-foreground">
+              No hay presupuestos enviados a la espera de respuesta.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {sent.map((item) => (
+              <BudgetCard
+                key={item.id}
+                budget={item}
+                bucket="pending_acceptance"
+                onChanged={onChanged}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

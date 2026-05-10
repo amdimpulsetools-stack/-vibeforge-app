@@ -39,6 +39,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgRole } from "@/hooks/use-org-role";
+import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
 import { FOLLOWUP_PRIORITY_CONFIG } from "@/types/clinical-history";
 import { BUDGET_TREATMENT_TYPE_LABELS } from "@/types/fertility";
 import { Receipt } from "lucide-react";
@@ -118,6 +120,13 @@ interface FollowupCardProps {
       | { kind: "agendado"; appointment_id?: string; notes?: string }
       | { kind: "cerrar_sin_respuesta"; notes?: string }
   ) => unknown | Promise<unknown>;
+  /**
+   * Phase 3 (Budget Tiers): invoked after the doctor assigns a budget
+   * from this card. The parent should refresh the followup list so the
+   * card picks up the newly-linked budget (and the entry-point button
+   * disappears, since `linkedBudget` is no longer null).
+   */
+  onBudgetAssigned?: () => unknown | Promise<unknown>;
 }
 
 export function FollowupCard({
@@ -129,6 +138,7 @@ export function FollowupCard({
   onCloseManual,
   onReactivate,
   onAdvance,
+  onBudgetAssigned,
 }: FollowupCardProps) {
   const [busy, setBusy] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
@@ -138,7 +148,9 @@ export function FollowupCard({
   const [reagendarDate, setReagendarDate] = useState("");
   const [agendoOpen, setAgendoOpen] = useState(false);
   const [sinRespuestaOpen, setSinRespuestaOpen] = useState(false);
+  const [assignBudgetOpen, setAssignBudgetOpen] = useState(false);
   const { organization } = useOrganization();
+  const { isReceptionist } = useOrgRole();
 
   // Track viewport so the WA/Copy button styling reflows on resize. The
   // initial state is `false` (desktop-first) — if we're actually on
@@ -711,7 +723,48 @@ export function FollowupCard({
             )}
           </div>
         )}
+
+        {/* Phase 3 Budget Tiers — "Asignar presupuesto". Renders for the
+            "pending" and "no_response" variants only, and only when:
+              - There's NO existing linked budget (otherwise the cyan
+                "Presupuesto …" chip is already shown in the header).
+              - The user is not a receptionist (advisors with non-
+                receptionist base role pass; advisors flagged on a
+                receptionist row are gated by the backend).
+              - We have a patient row to target. */}
+        {(variant === "pending" || variant === "no_response") &&
+          !linkedBudget &&
+          !isReceptionist &&
+          followup.patient_id && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
+              <button
+                onClick={() => setAssignBudgetOpen(true)}
+                disabled={busy}
+                className="flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/5 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-500/15 disabled:opacity-50 dark:text-emerald-400"
+                title="Asignar presupuesto al paciente"
+              >
+                <Receipt className="h-3.5 w-3.5" />
+                Asignar presupuesto
+              </button>
+            </div>
+          )}
       </div>
+
+      {/* Phase 3 Budget Tiers — Asignar presupuesto modal. Self-gated
+          by <FertilityAddonGate> internally. The followup row carries
+          `patient_id` directly (the joined `patients` projection only
+          exposes name/phone, no id). */}
+      {followup.patient_id && (
+        <AssignBudgetModal
+          open={assignBudgetOpen}
+          onClose={() => setAssignBudgetOpen(false)}
+          patientId={followup.patient_id}
+          followupId={followup.id}
+          onCreated={() => {
+            void onBudgetAssigned?.();
+          }}
+        />
+      )}
 
       <Dialog open={closeOpen} onOpenChange={setCloseOpen}>
         <DialogContent className="max-w-md">

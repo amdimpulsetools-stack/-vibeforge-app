@@ -9,6 +9,7 @@ import {
   Check,
   X as XIcon,
   Clock,
+  Receipt,
 } from "lucide-react";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { BudgetRecordModal } from "@/components/clinical/budget-record-modal";
+import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
 import {
   BUDGET_TREATMENT_TYPE_LABELS,
   FERTILITY_BASIC_KEY,
@@ -62,6 +64,7 @@ export function FertilityBudgetRecordsSection({
   const [items, setItems] = useState<BudgetWithJoins[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [showAssign, setShowAssign] = useState(false);
   const [rejectFor, setRejectFor] = useState<BudgetWithJoins | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -151,13 +154,25 @@ export function FertilityBudgetRecordsSection({
           <h4 className="text-sm font-semibold">Presupuestos enviados</h4>
         </div>
         {!isReceptionist && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Registrar presupuesto enviado
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Phase 3 — Asignar presupuesto (tiers A/B/C). Sits before
+                the legacy "Registrar presupuesto enviado" button so the
+                tier flow is the new default path. */}
+            <button
+              onClick={() => setShowAssign(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/20 dark:text-emerald-400"
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              Asignar presupuesto
+            </button>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Registrar presupuesto enviado
+            </button>
+          </div>
         )}
       </div>
 
@@ -201,6 +216,13 @@ export function FertilityBudgetRecordsSection({
         onOpenChange={setShowCreate}
         patient={{ id: patientId, full_name: patientFullName }}
         onSaved={refresh}
+      />
+
+      <AssignBudgetModal
+        open={showAssign}
+        onClose={() => setShowAssign(false)}
+        patientId={patientId}
+        onCreated={() => refresh()}
       />
 
       {/* Rejection sub-modal */}
