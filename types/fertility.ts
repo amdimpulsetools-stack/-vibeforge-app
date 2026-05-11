@@ -32,7 +32,11 @@ export type ContactEventType =
   | "manual_contacted"
   | "manual_whatsapp"
   | "manual_close"
-  | "budget_record_created";
+  | "budget_record_created"
+  // mig 142 — Phase 5 prep, treatment lifecycle.
+  | "rule_transition"
+  | "treatment_started"
+  | "budget_accepted_pending_start_alert";
 
 export type ContactDeliveryStatus =
   | "sent"
@@ -54,6 +58,10 @@ export interface ContactEvent {
   channel?: "email" | "whatsapp";
   error?: string;
   budget_record_id?: string;
+  /** mig 142 — only populated for `type='rule_transition'` events. */
+  from_rule?: string;
+  /** mig 142 — only populated for `type='rule_transition'` events. */
+  to_rule?: string;
 }
 
 export interface FollowupRuleRow {
@@ -129,7 +137,10 @@ export const BUDGET_TREATMENT_TYPE_LABELS: Record<BudgetTreatmentType, string> =
 export type BudgetAcceptanceStatus =
   | "pending_acceptance"
   | "accepted"
-  | "rejected";
+  | "in_progress"
+  | "completed"
+  | "rejected"
+  | "expired";
 
 export interface BudgetRecord {
   id: string;
@@ -155,6 +166,12 @@ export interface BudgetRecord {
   assigned_at: string | null;
   /** mig 140 — the doctor (or whoever) that assigned the tier. */
   assigned_by_user_id: string | null;
+  /** mig 142 — set by POST /api/budgets/[id]/start when transitioning accepted → in_progress. */
+  started_at: string | null;
+  /** mig 142 — auth.users.id of the staff member that marked treatment started. */
+  started_by_user_id: string | null;
+  /** mig 142 — set by POST /api/budgets/[id]/complete (admin/owner only). */
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 }

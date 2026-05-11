@@ -565,6 +565,104 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // ──────────────────────────────────────────────────────────────────
+  // Phase 5 prep — auto-create `fertility.budget_accepted_pending_start`
+  // followups for budgets that have been `accepted` for more than the
+  // configured delay (default 14 days, sourced from the per-org rule)
+  // and are still unstarted.
+  //
+  // Idempotency: we skip a budget if there is already an open followup
+  // (closed_at IS NULL) for the same patient with the matching rule_key
+  // AND a `contact_events[].budget_record_id` pointing at this budget.
+  // ──────────────────────────────────────────────────────────────────
+  let acceptedPendingStartCreated = 0;
+  for (const orgId of orgIds) {
+    const { data: rule } = await supabase
+      .from("followup_rules")
+      .select("id, rule_key, delay_days, max_attempts, is_active")
+      .eq("organization_id", orgId)
+      .eq("rule_key", "fertility.budget_accepted_pending_start")
+      .maybeSingle();
+    if (!rule || !rule.is_active) continue;
+
+    const delayDays = typeof rule.delay_days === "number" ? rule.delay_days : 14;
+    const maxAttempts =
+      typeof rule.max_attempts === "number" ? rule.max_attempts : 3;
+    const acceptedBefore = new Date(
+      now.getTime() - delayDays * 24 * 3600 * 1000,
+    ).toISOString();
+
+    const { data: candidates } = await supabase
+      .from("budget_records")
+      .select("id, organization_id, patient_id, accepted_at")
+      .eq("organization_id", orgId)
+      .eq("acceptance_status", "accepted")
+      .is("started_at", null)
+      .not("accepted_at", "is", null)
+      .lte("accepted_at", acceptedBefore);
+
+    if (!candidates || candidates.length === 0) continue;
+
+    for (const b of candidates) {
+      // Idempotency: search for an open followup for this patient
+      // with the matching rule_key. The link to the specific budget
+      // is in contact_events[].budget_record_id.
+      const { data: existing } = await supabase
+        .from("clinical_followups")
+        .select("id, contact_events, closed_at")
+        .eq("organization_id", orgId)
+        .eq("patient_id", b.patient_id)
+        .eq("rule_key", "fertility.budget_accepted_pending_start")
+        .is("closed_at", null);
+
+      const alreadyLinked = (existing ?? []).some((row) => {
+        const events = Array.isArray(row.contact_events)
+          ? (row.contact_events as ContactEvent[])
+          : [];
+        return events.some((e) => e.budget_record_id === b.id);
+      });
+      if (alreadyLinked) continue;
+
+      const expectedBy = new Date(
+        now.getTime() + 7 * 24 * 3600 * 1000,
+      ).toISOString();
+
+      const initialEvent: ContactEvent = {
+        type: "budget_accepted_pending_start_alert",
+        at: now.toISOString(),
+        by_user_id: null,
+        delivery_status: "unknown",
+        budget_record_id: b.id,
+      };
+
+      const { error: insertErr } = await supabase
+        .from("clinical_followups")
+        .insert({
+          organization_id: orgId,
+          patient_id: b.patient_id,
+          // doctor_id is required NOT NULL on clinical_followups in
+          // the live schema, but the budget itself doesn't have a
+          // canonical doctor (it has assigned_by_user_id which is a
+          // user, not a doctor). Resolve the patient's primary
+          // doctor from a recent appointment as a best-effort, else
+          // leave null and let the insert fail-open silently — the
+          // cron treats followup creation as best-effort.
+          doctor_id: await resolvePatientDoctor(supabase, orgId, b.patient_id),
+          priority: "yellow",
+          reason: "Verificar inicio de tratamiento",
+          source: "rule",
+          rule_key: "fertility.budget_accepted_pending_start",
+          target_category_canonical: "fertility.treatment_started",
+          expected_by: expectedBy,
+          status: "pendiente",
+          attempt_count: 0,
+          max_attempts: maxAttempts,
+          contact_events: [initialEvent],
+        });
+      if (!insertErr) acceptedPendingStartCreated++;
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     timestamp: now.toISOString(),
@@ -575,7 +673,41 @@ export async function GET(req: NextRequest) {
     skipped,
     failed,
     closed_as_abandoned: closedAsAbandoned,
+    accepted_pending_start_created: acceptedPendingStartCreated,
   });
+}
+
+/**
+ * Best-effort resolver for the doctor associated with a patient.
+ * Falls back to the most recent appointment's doctor_id, else any
+ * active doctor in the org. Returns null only if the org has zero
+ * doctors at all (unlikely; the followup insert fails-open silent
+ * when this happens).
+ */
+async function resolvePatientDoctor(
+  supabase: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  patientId: string,
+): Promise<string | null> {
+  const { data: appt } = await supabase
+    .from("appointments")
+    .select("doctor_id")
+    .eq("organization_id", orgId)
+    .eq("patient_id", patientId)
+    .not("doctor_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (appt?.doctor_id) return appt.doctor_id as string;
+
+  const { data: anyDoctor } = await supabase
+    .from("doctors")
+    .select("id")
+    .eq("organization_id", orgId)
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+  return (anyDoctor?.id as string | undefined) ?? null;
 }
 
 function computeLimaDayMinutes(now: Date): number {

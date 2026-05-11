@@ -205,6 +205,10 @@ function buildReasonForTarget(targetCategoryKey: string | null): string {
       return "Recordar cita de decisión de tratamiento";
     case "fertility.treatment_initiated":
       return "Recordar inicio de tratamiento";
+    case "fertility.treatment_started":
+      // mig 142 — Phase 5 prep: target of
+      // `fertility.budget_accepted_pending_start`.
+      return "Verificar inicio de tratamiento";
     default:
       return "Recordar próxima etapa del journey de fertilidad";
   }

@@ -83,29 +83,41 @@ export async function PATCH(
     );
 
   // Cierra el followup asociado, si existe.
+  // Atribución honesta (mig 128): si la obstetra contactó a la paciente
+  // antes de que aceptara, el cierre es "agendado_via_contacto"
+  // (Categoría A — Recuperado atribuido). Si la paciente aceptó sin
+  // contacto previo, es "agendado_organico_dentro_ventana"
+  // (Categoría B — Recuperado orgánico). Ambos enums se agrupan como
+  // "Recuperados" en el dashboard de followups.
   if (budget.followup_id) {
     const { data: fu } = await supabase
       .from("clinical_followups")
-      .select("contact_events")
+      .select("contact_events, first_contact_at")
       .eq("id", budget.followup_id)
       .single();
 
     const events: ContactEvent[] = Array.isArray(fu?.contact_events)
       ? (fu?.contact_events as unknown as ContactEvent[])
       : [];
+    const hadContact = Boolean(fu?.first_contact_at);
+    const closureStatus = hadContact
+      ? "agendado_via_contacto"
+      : "agendado_organico_dentro_ventana";
     const closeEvent: ContactEvent = {
       type: "manual_close",
       at: now,
       by_user_id: user.id,
       delivery_status: "unknown",
-      reason: "Presupuesto aceptado",
+      reason: hadContact
+        ? "Presupuesto aceptado (con contacto previo)"
+        : "Presupuesto aceptado (orgánico, sin contacto previo)",
     };
 
     await supabase
       .from("clinical_followups")
       .update({
-        status: "agendado_via_contacto",
-        closure_reason: "agendado_via_contacto",
+        status: closureStatus,
+        closure_reason: closureStatus,
         closed_at: now,
         is_resolved: true,
         resolved_at: now,

@@ -931,6 +931,10 @@ function ruleStepperActiveIdx(ruleKey: string | null): number | null {
   if (ruleKey.startsWith("fertility.first_consultation_lapse")) return 1;
   if (ruleKey.startsWith("fertility.second_consultation_lapse")) return 2;
   if (ruleKey.startsWith("fertility.budget_pending_acceptance")) return 2;
+  // Phase 5 prep — Verificar inicio de tratamiento. Same stage 3
+  // dot as budget_pending_acceptance because both belong to the
+  // post-second-consultation treatment-decision phase.
+  if (ruleKey.startsWith("fertility.budget_accepted_pending_start")) return 2;
   return null;
 }
 

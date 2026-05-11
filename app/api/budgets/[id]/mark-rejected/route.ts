@@ -98,6 +98,13 @@ export async function PATCH(
       { status: 500 },
     );
 
+  // TODO(atribución honesta): hoy cerramos siempre como
+  // "desistido_silencioso" porque el enum followup_status no distingue
+  // entre rechazo activo (la paciente respondió "no me interesa") y
+  // abandono pasivo (no respondió en la ventana). Cuando Vitra valide
+  // que necesita esa distinción, agregar un valor "rechazo_activo"
+  // (o similar) al enum y bifurcar aquí según first_contact_at +
+  // rejection_reason.
   if (budget.followup_id) {
     const { data: fu } = await supabase
       .from("clinical_followups")

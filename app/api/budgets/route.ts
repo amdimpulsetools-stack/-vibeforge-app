@@ -260,9 +260,14 @@ export async function GET(request: NextRequest) {
     callerDoctorId = doc?.id ?? null;
   }
 
+  // For "accepted" bucket we now return 3 sub-states (accepted/
+  // in_progress/completed) so the UI can split the column. The
+  // single-status filter is replaced by an `.in()` filter below.
   let acceptanceStatus: BudgetAcceptanceStatus | null = null;
+  let acceptanceStatusIn: BudgetAcceptanceStatus[] | null = null;
   if (bucket === "pending") acceptanceStatus = "pending_acceptance";
-  else if (bucket === "accepted") acceptanceStatus = "accepted";
+  else if (bucket === "accepted")
+    acceptanceStatusIn = ["accepted", "in_progress", "completed"];
   else if (bucket === "rejected") acceptanceStatus = "rejected";
 
   // Build the patient ID set when caller is restricted: their assigned
@@ -293,6 +298,10 @@ export async function GET(request: NextRequest) {
     // render the "Sin procesar" sub-bucket (sent_at IS NULL) and the
     // service/tier badge on each card.
     "service_id, tier, assigned_at, assigned_by_user_id, " +
+    // Phase 5 prep / mig 142 — treatment lifecycle. The kanban
+    // "Aceptados" column splits into Por iniciar / En curso /
+    // Completados using these fields.
+    "started_at, started_by_user_id, completed_at, " +
     "created_at, updated_at";
   const BUDGET_SELECT =
     `${BUDGET_COLUMNS}, patient:patients(id, first_name, last_name, phone), followup:clinical_followups!followup_id(id, expected_by, status)`;
@@ -308,6 +317,8 @@ export async function GET(request: NextRequest) {
     .range(offset, offset + limit);
 
   if (acceptanceStatus) query = query.eq("acceptance_status", acceptanceStatus);
+  if (acceptanceStatusIn)
+    query = query.in("acceptance_status", acceptanceStatusIn);
   if (treatmentType) query = query.eq("treatment_type", treatmentType);
   if (doctorId) query = query.eq("sent_by_user_id", doctorId);
   if (patientFilter) query = query.eq("patient_id", patientFilter);
@@ -354,6 +365,15 @@ export async function GET(request: NextRequest) {
   const pendingSentCountQuery = () =>
     baseCountQuery("pending_acceptance").not("sent_at", "is", null);
 
+  // Phase 5 prep — split "Aceptados" into 3 visual sub-buckets:
+  //   - accepted_unstarted: acceptance_status='accepted' (still pre-start)
+  //   - in_progress:        acceptance_status='in_progress'
+  //   - completed:          acceptance_status='completed'
+  // The kanban "Aceptados" tab badge surfaces accepted_unstarted so
+  // the team sees pending starts at a glance.
+  const inProgressCountQuery = () => baseCountQuery("in_progress");
+  const completedCountQuery = () => baseCountQuery("completed");
+
   // KPIs query: 90-day window, lightweight projection.
   const now = Date.now();
   const since30d = new Date(now - 30 * 24 * 3600 * 1000).toISOString();
@@ -388,6 +408,8 @@ export async function GET(request: NextRequest) {
     rejCount,
     pendUnsentCount,
     pendSentCount,
+    inProgressCount,
+    completedCount,
     kpiRes,
   ] = await Promise.all([
     query,
@@ -396,6 +418,8 @@ export async function GET(request: NextRequest) {
     baseCountQuery("rejected"),
     pendingUnsentCountQuery(),
     pendingSentCountQuery(),
+    inProgressCountQuery(),
+    completedCountQuery(),
     buildKpiQuery(),
   ]);
 
@@ -498,6 +522,12 @@ export async function GET(request: NextRequest) {
       // visual sub-groups in the kanban "Pendientes" column.
       pending_unsent: pendUnsentCount.count ?? 0,
       pending_sent: pendSentCount.count ?? 0,
+      // Phase 5 prep — split of the "Aceptados" tab into 3 sub-buckets.
+      // `accepted` is the "Por iniciar" count (pre-start). `in_progress`
+      // and `completed` mirror the new acceptance_status values.
+      accepted_unstarted: accCount.count ?? 0,
+      in_progress: inProgressCount.count ?? 0,
+      completed: completedCount.count ?? 0,
     },
     kpis: {
       total_sent_30d: totalSent30d,
