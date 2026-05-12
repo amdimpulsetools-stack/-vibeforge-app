@@ -35,12 +35,17 @@ const TOC: LegalTocItem[] = [
   { id: "uso", label: "Cómo usamos tus datos" },
   { id: "almacenamiento", label: "Almacenamiento y seguridad" },
   { id: "datos-medicos", label: "Datos médicos" },
+  { id: "categoria-especial", label: "Datos sensibles (Categoría Especial)" },
+  { id: "consentimiento-paciente", label: "Consentimiento del paciente" },
+  { id: "menores", label: "Datos de menores de edad" },
+  { id: "rnpdp", label: "Inscripción ante la ANPD (RNPDP)" },
   { id: "retencion", label: "Retención de datos" },
   { id: "terceros", label: "Sub-encargados y terceros" },
   { id: "incidentes", label: "Notificación de incidentes" },
   { id: "cookies", label: "Cookies y almacenamiento local" },
   { id: "derechos", label: "Tus derechos (Ley 29733)" },
   { id: "dpo", label: "Delegado de Protección de Datos" },
+  { id: "titular-banco", label: "Titular del Banco de Datos" },
   { id: "contacto", label: "Contacto" },
 ];
 
@@ -59,7 +64,7 @@ export default function PrivacyPage() {
       <header className="mb-10 max-w-3xl">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
           <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-          Documento legal · Última actualización: 29 de abril de 2026
+          Documento legal · Última actualización: 12 de mayo de 2026
         </div>
         <h1 className="bg-gradient-to-br from-foreground via-foreground to-emerald-200/90 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
           Política de Privacidad
@@ -262,8 +267,87 @@ export default function PrivacyPage() {
           </LegalSection>
 
           <LegalSection
-            id="retencion"
+            id="categoria-especial"
             number="06"
+            title="Tratamiento de datos sensibles (Categoría Especial)"
+          >
+            <p>
+              Reconocemos que los datos de salud, historia clínica, diagnósticos,
+              tratamientos, resultados de laboratorio e imágenes médicas que se
+              procesan en {APP_NAME} constituyen <strong>datos sensibles</strong>{" "}
+              o de <strong>Categoría Especial</strong> conforme al art. 2.5 y al
+              art. 13.5 de la Ley N° 29733. Para su tratamiento se requiere
+              consentimiento expreso, escrito y previo del titular (paciente),
+              salvo las excepciones del art. 14 (atención médica de emergencia,
+              salud pública, investigación con datos disociados). El Cliente
+              (clínica/consultorio), en su calidad de Titular del Banco de Datos,
+              es responsable de obtener y conservar dicho consentimiento;{" "}
+              {APP_NAME} provee herramientas (módulo de consentimientos
+              informados) para facilitar su captura y archivo.
+            </p>
+          </LegalSection>
+
+          <LegalSection
+            id="consentimiento-paciente"
+            number="07"
+            title="Consentimiento del paciente"
+          >
+            <p>
+              Antes de registrar los datos personales y clínicos de un paciente
+              en {APP_NAME}, el profesional de salud o la clínica debe obtener
+              del paciente (o de su representante legal en caso de menores o
+              incapaces) el consentimiento informado, expreso y por escrito o
+              por medio electrónico equivalente, conforme a la Ley 29414
+              (Derechos de las Personas Usuarias de los Servicios de Salud), la
+              Ley 29733 (art. 13.5 y 14) y la NTS 139-MINSA. {APP_NAME} pone a
+              disposición plantillas y un módulo de consentimientos informados
+              para facilitar esta obligación. El paciente conserva sus derechos
+              ARCO sobre sus datos en todo momento y puede ejercerlos
+              directamente con la clínica o, subsidiariamente, escribiendo a{" "}
+              <a
+                href="mailto:privacidad@yenda.app"
+                className="font-medium text-emerald-300 hover:text-emerald-200"
+              >
+                privacidad@yenda.app
+              </a>
+              .
+            </p>
+          </LegalSection>
+
+          <LegalSection
+            id="menores"
+            number="08"
+            title="Tratamiento de datos de menores de edad"
+          >
+            <p>
+              El tratamiento de datos personales de menores de 14 años requiere
+              el consentimiento de sus padres o representantes legales (art. 14
+              Ley 29733 y Reglamento). En el contexto pediátrico, la clínica
+              (Cliente) es responsable de recabar dicho consentimiento antes de
+              registrar al paciente menor en {APP_NAME}.
+            </p>
+          </LegalSection>
+
+          <LegalSection
+            id="rnpdp"
+            number="09"
+            title="Inscripción ante la Autoridad Nacional de Protección de Datos Personales (ANPD)"
+          >
+            <p>
+              {APP_NAME} mantiene inscritos sus bancos de datos personales ante
+              la ANPD del Ministerio de Justicia conforme al art. 29 de la Ley
+              29733. Códigos de inscripción:{" "}
+              <strong>[PENDIENTE: INSERTAR CÓDIGOS RNPDP]</strong>. El Cliente,
+              como Titular del Banco de Datos de pacientes, debe inscribir su
+              propio banco cuando corresponda (más de 5,000 titulares o
+              tratamientos sistemáticos de Categoría Especial); {APP_NAME}{" "}
+              provee asistencia documental para esta inscripción.
+            </p>
+          </LegalSection>
+
+          <LegalSection
+            id="retencion"
+            number="10"
             title="Retención de datos"
             description="Los plazos de conservación responden a obligaciones legales sectoriales y a la naturaleza de cada categoría de dato."
           >
@@ -295,7 +379,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="terceros"
-            number="07"
+            number="11"
             title="Sub-encargados y terceros"
             description="No vendemos ni compartimos datos personales con fines publicitarios. Trabajamos con los siguientes proveedores para prestar el servicio:"
           >
@@ -386,7 +470,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="incidentes"
-            number="08"
+            number="12"
             title="Notificación de incidentes de seguridad"
           >
             <LegalCallout
@@ -404,11 +488,21 @@ export default function PrivacyPage() {
               tomadas para contener el incidente y recomendaciones para el
               Cliente.
             </p>
+            <p>
+              Adicionalmente, en caso de incidente que afecte datos sensibles de
+              manera significativa, {APP_NAME} comunicará el evento a la{" "}
+              <strong>
+                Autoridad Nacional de Protección de Datos Personales (ANPD)
+              </strong>{" "}
+              dentro del plazo razonable que la normativa establezca, y
+              colaborará con el Cliente para que éste cumpla con sus propias
+              obligaciones de notificación a los pacientes afectados.
+            </p>
           </LegalSection>
 
           <LegalSection
             id="cookies"
-            number="09"
+            number="13"
             title="Cookies y almacenamiento local"
           >
             <LegalList>
@@ -430,7 +524,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="derechos"
-            number="10"
+            number="14"
             title="Tus derechos (Ley 29733)"
             description="De acuerdo con la Ley N° 29733 y normativa aplicable, tienes los siguientes derechos sobre tus datos personales:"
           >
@@ -474,11 +568,36 @@ export default function PrivacyPage() {
               </a>
               .
             </LegalCallout>
+            <p>
+              Si consideras que tu solicitud ARCO no ha sido atendida
+              adecuadamente, puedes presentar un reclamo ante la{" "}
+              <strong>
+                Autoridad Nacional de Protección de Datos Personales (ANPD)
+              </strong>{" "}
+              del Ministerio de Justicia y Derechos Humanos: Calle Scipión Llona
+              350, Miraflores, Lima ·{" "}
+              <a
+                href="https://www.gob.pe/anpd"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-emerald-300 hover:text-emerald-200"
+              >
+                www.gob.pe/anpd
+              </a>{" "}
+              ·{" "}
+              <a
+                href="mailto:protecciondedatos@minjus.gob.pe"
+                className="font-medium text-emerald-300 hover:text-emerald-200"
+              >
+                protecciondedatos@minjus.gob.pe
+              </a>
+              .
+            </p>
           </LegalSection>
 
           <LegalSection
             id="dpo"
-            number="11"
+            number="15"
             title="Delegado de Protección de Datos"
           >
             <p>
@@ -502,7 +621,46 @@ export default function PrivacyPage() {
             </div>
           </LegalSection>
 
-          <LegalSection id="contacto" number="12" title="Contacto">
+          <LegalSection
+            id="titular-banco"
+            number="16"
+            title="Titular del Banco de Datos / Responsable del tratamiento"
+          >
+            <div className="not-prose mt-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 text-sm leading-relaxed text-muted-foreground">
+              <p>
+                <strong className="text-foreground">Razón social:</strong>{" "}
+                [PENDIENTE: INSERTAR RAZÓN SOCIAL S.A.C.]
+              </p>
+              <p>
+                <strong className="text-foreground">RUC:</strong>{" "}
+                [PENDIENTE: INSERTAR]
+              </p>
+              <p>
+                <strong className="text-foreground">Domicilio fiscal:</strong>{" "}
+                [PENDIENTE: INSERTAR DIRECCIÓN COMPLETA EN LIMA, PERÚ]
+              </p>
+              <p>
+                <strong className="text-foreground">Correo legal:</strong>{" "}
+                <a
+                  href="mailto:legal@yenda.app"
+                  className="font-medium text-emerald-300 hover:text-emerald-200"
+                >
+                  legal@yenda.app
+                </a>
+              </p>
+              <p>
+                <strong className="text-foreground">Correo de privacidad:</strong>{" "}
+                <a
+                  href="mailto:privacidad@yenda.app"
+                  className="font-medium text-emerald-300 hover:text-emerald-200"
+                >
+                  privacidad@yenda.app
+                </a>
+              </p>
+            </div>
+          </LegalSection>
+
+          <LegalSection id="contacto" number="17" title="Contacto">
             <p>
               Si tienes preguntas o solicitudes relacionadas con esta política
               de privacidad, puedes contactarnos a través de los siguientes

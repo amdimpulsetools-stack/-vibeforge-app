@@ -26,6 +26,7 @@ import { AvatarSilhouette, AVATAR_OPTIONS } from "@/components/ui/avatar-silhoue
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import type { AvatarOption as AvatarOptionType } from "@/hooks/use-user-avatar";
 import { useTour } from "@/components/onboarding/tour-provider";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   Loader2,
   User,
@@ -70,7 +71,14 @@ export default function AccountPage() {
   const { organization, orgRole, isOrgAdmin } = useOrganization();
   const { plan, subscription, usage, daysRemaining, getLimit, isNearLimit, isAtLimit, loading: planLoading, refetch } = usePlan();
   const { startTour, resetTour } = useTour();
+  const confirm = useConfirm();
   const [profileLoaded, setProfileLoaded] = useState(false);
+  // Subscription cancellation state (Danger Zone). When the cancel
+  // call succeeds we flip into a "cancelled — acceso hasta X" view
+  // without a full reload (the next page nav triggers usePlan refetch).
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelledAccessUntil, setCancelledAccessUntil] = useState<string | null>(null);
+  const [isSubscriptionCancelled, setIsSubscriptionCancelled] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarOption, setAvatarOption] = useState<AvatarOptionType | null>(null);
   const [isFounder, setIsFounder] = useState(false);
@@ -300,6 +308,56 @@ export default function AccountPage() {
     user?.user_metadata?.full_name ||
     user?.email?.split("@")[0] ||
     "";
+
+  // ── Cancel subscription (Danger Zone, owner only) ──
+  // Wires `/api/billing/cancel` (POST). Confirmation dialog explains
+  // the 3 grace guarantees: access until paid period ends, data
+  // retained 90 days, reactivation possible. After success we flip
+  // the UI into a read-only "cancelada — acceso hasta {date}" badge
+  // until the user reloads.
+  const handleCancelSubscription = async () => {
+    const accessUntil = subscription?.expires_at || subscription?.trial_ends_at || null;
+    const accessUntilLabel = accessUntil
+      ? new Date(accessUntil).toLocaleDateString("es-PE", {
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        })
+      : "el final del período pagado";
+
+    const ok = await confirm({
+      title: "¿Cancelar tu suscripción?",
+      description: `Mantienes acceso hasta ${accessUntilLabel}. Tus datos se conservan 90 días y puedes reactivar la cuenta en cualquier momento durante ese plazo. Después de la cancelación no se realizarán nuevos cobros.`,
+      variant: "destructive",
+      confirmText: "Confirmar cancelación",
+      cancelText: "Volver",
+    });
+    if (!ok) return;
+
+    setCancelling(true);
+    try {
+      const res = await fetch("/api/billing/cancel", { method: "POST" });
+      const body: { ok?: boolean; access_until?: string | null; message?: string; error?: string } =
+        await res.json().catch(() => ({}));
+
+      if (!res.ok || !body.ok) {
+        toast.error(
+          body.message || "No se pudo cancelar. Intenta de nuevo o contacta soporte.",
+        );
+        return;
+      }
+
+      setIsSubscriptionCancelled(true);
+      setCancelledAccessUntil(body.access_until ?? accessUntil);
+      toast.success(body.message || "Suscripción cancelada.");
+      refetch();
+    } catch (err) {
+      console.error("[account] cancel failed", err);
+      toast.error("Error de red. Intenta de nuevo.");
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   if (userLoading || !profileLoaded) {
     return (
@@ -710,17 +768,56 @@ export default function AccountPage() {
         </button>
       </div>
 
-      {/* Danger Zone — full width at bottom */}
+      {/* Danger Zone — full width at bottom. Owner-only "Cancelar
+          suscripción" button replaces the legacy "Eliminar cuenta"
+          stub (no handler). Account-deletion is a separate flow
+          (delete the org, not just stop billing) and will land in a
+          later iteration. */}
       <div className="rounded-2xl border border-destructive/30 bg-card p-6">
         <h2 className="text-lg font-semibold text-destructive mb-2">
-          {t("account.danger_zone")}
+          Zona peligrosa
         </h2>
         <p className="text-sm text-muted-foreground mb-4">
-          {t("account.danger_description")}
+          Cancelar tu suscripción detiene los cobros automáticos. Mantienes acceso hasta el fin del período que ya pagaste y tus datos se conservan 90 días.
         </p>
-        <button className="rounded-xl border border-destructive/30 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors">
-          {t("account.delete_account")}
-        </button>
+
+        {orgRole === "owner" ? (
+          isSubscriptionCancelled ? (
+            <div className="inline-flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm font-medium text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <span>
+                Cancelada
+                {cancelledAccessUntil
+                  ? ` — acceso hasta ${new Date(cancelledAccessUntil).toLocaleDateString("es-PE", {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })}`
+                  : ""}
+              </span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={handleCancelSubscription}
+              disabled={cancelling || !subscription}
+              className="inline-flex items-center gap-2 rounded-xl border border-destructive/30 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {cancelling ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Cancelando…
+                </>
+              ) : (
+                "Cancelar suscripción"
+              )}
+            </button>
+          )
+        ) : (
+          <p className="text-xs text-muted-foreground italic">
+            Solo el propietario de la organización puede cancelar la suscripción.
+          </p>
+        )}
       </div>
     </div>
   );
