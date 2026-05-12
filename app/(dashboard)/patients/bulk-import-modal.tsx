@@ -1,8 +1,17 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { useOrganization } from "@/components/organization-provider";
+// Bulk patient import modal.
+//
+// Day 4 of the pre-launch blockers (see
+// docs/launch-prep/bulk-import-audit.md): the data path is now fully
+// server-side. The modal does:
+//   1. Parse the CSV in-browser (preview only, no DB writes).
+//   2. Let the admin confirm the column mapping.
+//   3. POST the file + mapping to /api/patient-imports/start.
+//   4. Poll /api/patient-imports/[id] every 2s for status.
+//   5. Show counts; offer a download of the failed-rows CSV.
+
+import { useState, useCallback, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
@@ -18,40 +27,19 @@ import {
   Trash2,
   Info,
 } from "lucide-react";
+import {
+  parseCSV,
+  autoMapColumns,
+  mapRow,
+  validateRow,
+  type MappedPatient,
+  type RawRow,
+  type RowValidation,
+} from "@/lib/patient-imports/csv";
 
 /* ─── Types ─── */
 
 type ImportStep = "upload" | "mapping" | "preview" | "importing" | "done";
-
-type RawRow = Record<string, string>;
-
-type MappedPatient = {
-  first_name: string;
-  last_name: string;
-  dni?: string;
-  document_type?: string;
-  phone?: string;
-  email?: string;
-  birth_date?: string;
-  departamento?: string;
-  distrito?: string;
-  is_foreigner?: boolean;
-  nationality?: string;
-  notes?: string;
-  origin?: string;
-  referral_source?: string;
-  custom_field_1?: string;
-  custom_field_2?: string;
-};
-
-type RowValidation = {
-  row: number;
-  data: MappedPatient;
-  errors: string[];
-  warnings: string[];
-};
-
-/* ─── Constants ─── */
 
 const PATIENT_FIELDS: { key: keyof MappedPatient; label: string; required: boolean }[] = [
   { key: "first_name", label: "Nombre", required: true },
@@ -72,178 +60,12 @@ const PATIENT_FIELDS: { key: keyof MappedPatient; label: string; required: boole
   { key: "custom_field_2", label: "Campo personalizado 2", required: false },
 ];
 
-// Common CSV header aliases for auto-mapping
-const HEADER_ALIASES: Record<string, keyof MappedPatient> = {
-  nombre: "first_name",
-  nombres: "first_name",
-  "primer nombre": "first_name",
-  "first name": "first_name",
-  first_name: "first_name",
-  firstname: "first_name",
-  name: "first_name",
-  apellido: "first_name" in {} ? "last_name" : "last_name",
-  apellidos: "last_name",
-  "last name": "last_name",
-  last_name: "last_name",
-  lastname: "last_name",
-  surname: "last_name",
-  dni: "dni",
-  documento: "dni",
-  "nro documento": "dni",
-  "numero documento": "dni",
-  "numero de documento": "dni",
-  document: "dni",
-  "document number": "dni",
-  "tipo documento": "document_type",
-  "tipo de documento": "document_type",
-  document_type: "document_type",
-  telefono: "phone",
-  "teléfono": "phone",
-  celular: "phone",
-  phone: "phone",
-  mobile: "phone",
-  tel: "phone",
-  email: "email",
-  correo: "email",
-  "correo electrónico": "email",
-  "correo electronico": "email",
-  mail: "email",
-  "fecha de nacimiento": "birth_date",
-  "fecha nacimiento": "birth_date",
-  nacimiento: "birth_date",
-  birth_date: "birth_date",
-  birthdate: "birth_date",
-  "date of birth": "birth_date",
-  dob: "birth_date",
-  departamento: "departamento",
-  department: "departamento",
-  distrito: "distrito",
-  district: "distrito",
-  extranjero: "is_foreigner",
-  nacionalidad: "nationality",
-  nationality: "nationality",
-  notas: "notes",
-  notes: "notes",
-  observaciones: "notes",
-  origen: "origin",
-  origin: "origin",
-  referido: "referral_source",
-  "referido por": "referral_source",
-  referral: "referral_source",
-  referral_source: "referral_source",
+type ImportSummary = {
+  total_rows: number;
+  inserted_rows: number;
+  skipped_duplicates: number;
+  failed_rows: number;
 };
-
-/* ─── CSV Parser ─── */
-
-function parseCSV(text: string): { headers: string[]; rows: RawRow[] } {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim());
-  if (lines.length < 2) return { headers: [], rows: [] };
-
-  // Detect delimiter (comma, semicolon, tab)
-  const firstLine = lines[0];
-  const commas = (firstLine.match(/,/g) || []).length;
-  const semis = (firstLine.match(/;/g) || []).length;
-  const tabs = (firstLine.match(/\t/g) || []).length;
-  const delimiter = tabs > commas && tabs > semis ? "\t" : semis > commas ? ";" : ",";
-
-  const parseLine = (line: string): string[] => {
-    const result: string[] = [];
-    let current = "";
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === delimiter && !inQuotes) {
-        result.push(current.trim());
-        current = "";
-      } else {
-        current += char;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  };
-
-  const headers = parseLine(lines[0]);
-  const rows: RawRow[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseLine(lines[i]);
-    if (values.every((v) => !v)) continue; // skip empty rows
-    const row: RawRow = {};
-    headers.forEach((h, idx) => {
-      row[h] = values[idx] || "";
-    });
-    rows.push(row);
-  }
-
-  return { headers, rows };
-}
-
-/* ─── Validation ─── */
-
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-
-function parseDateFlexible(value: string): string | null {
-  if (!value) return null;
-  // Try YYYY-MM-DD
-  if (DATE_REGEX.test(value)) return value;
-  // Try DD/MM/YYYY or DD-MM-YYYY
-  const dmyMatch = value.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
-  if (dmyMatch) {
-    const [, d, m, y] = dmyMatch;
-    return `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`;
-  }
-  // Try MM/DD/YYYY
-  const mdyMatch = value.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})$/);
-  if (mdyMatch) {
-    // Already handled above; in ambiguous cases assume DD/MM/YYYY (LATAM convention)
-    return null;
-  }
-  return null;
-}
-
-function validateRow(data: MappedPatient, rowIndex: number): RowValidation {
-  const errors: string[] = [];
-  const warnings: string[] = [];
-
-  if (!data.first_name || data.first_name.length < 2) {
-    errors.push("Nombre es requerido (mínimo 2 caracteres)");
-  }
-  if (data.first_name && data.first_name.length > 100) {
-    errors.push("Nombre muy largo (máximo 100 caracteres)");
-  }
-  if (!data.last_name || data.last_name.length < 2) {
-    errors.push("Apellido es requerido (mínimo 2 caracteres)");
-  }
-  if (data.last_name && data.last_name.length > 100) {
-    errors.push("Apellido muy largo (máximo 100 caracteres)");
-  }
-  if (data.email && !EMAIL_REGEX.test(data.email)) {
-    warnings.push("Email inválido — se importará sin email");
-  }
-  if (data.dni && data.dni.length > 20) {
-    warnings.push("Documento muy largo — se truncará a 20 caracteres");
-  }
-  if (data.phone && data.phone.length > 20) {
-    warnings.push("Teléfono muy largo — se truncará a 20 caracteres");
-  }
-  if (data.document_type && !["DNI", "CE", "Pasaporte"].includes(data.document_type)) {
-    warnings.push(`Tipo de documento "${data.document_type}" no válido — se usará DNI`);
-  }
-
-  return { row: rowIndex + 1, data, errors, warnings };
-}
-
-/* ─── Component ─── */
 
 interface BulkImportModalProps {
   onClose: () => void;
@@ -251,25 +73,23 @@ interface BulkImportModalProps {
 }
 
 export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
-  const { organizationId } = useOrganization();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [step, setStep] = useState<ImportStep>("upload");
+  const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState("");
   const [rawHeaders, setRawHeaders] = useState<string[]>([]);
   const [rawRows, setRawRows] = useState<RawRow[]>([]);
   const [columnMapping, setColumnMapping] = useState<Record<string, keyof MappedPatient | "">>({});
   const [validations, setValidations] = useState<RowValidation[]>([]);
   const [importProgress, setImportProgress] = useState(0);
-  const [importResults, setImportResults] = useState<{ success: number; failed: number; duplicates: number }>({
-    success: 0,
-    failed: 0,
-    duplicates: 0,
-  });
+  const [importId, setImportId] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
+  const [importing, setImporting] = useState(false);
 
   /* ─── Step 1: Upload ─── */
 
-  const handleFile = useCallback((file: File) => {
+  const handleFile = useCallback((selected: File) => {
     const reader = new FileReader();
     reader.onload = (e) => {
       const text = e.target?.result as string;
@@ -280,32 +100,22 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
         return;
       }
 
-      setFileName(file.name);
+      setFile(selected);
+      setFileName(selected.name);
       setRawHeaders(headers);
       setRawRows(rows);
-
-      // Auto-map columns based on header aliases
-      const autoMapping: Record<string, keyof MappedPatient | ""> = {};
-      headers.forEach((h) => {
-        const normalized = h.toLowerCase().trim();
-        if (HEADER_ALIASES[normalized]) {
-          autoMapping[h] = HEADER_ALIASES[normalized];
-        } else {
-          autoMapping[h] = "";
-        }
-      });
-      setColumnMapping(autoMapping);
+      setColumnMapping(autoMapColumns(headers));
       setStep("mapping");
     };
-    reader.readAsText(file);
+    reader.readAsText(selected);
   }, []);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
-      const file = e.dataTransfer.files[0];
-      if (file && (file.name.endsWith(".csv") || file.name.endsWith(".txt") || file.name.endsWith(".tsv"))) {
-        handleFile(file);
+      const dropped = e.dataTransfer.files[0];
+      if (dropped && (dropped.name.endsWith(".csv") || dropped.name.endsWith(".txt") || dropped.name.endsWith(".tsv"))) {
+        handleFile(dropped);
       } else {
         toast.error("Solo se aceptan archivos CSV, TSV o TXT");
       }
@@ -315,8 +125,8 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) handleFile(file);
+      const picked = e.target.files?.[0];
+      if (picked) handleFile(picked);
     },
     [handleFile]
   );
@@ -333,33 +143,10 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
   };
 
   const proceedToPreview = () => {
-    // Map raw rows to patient data
     const mapped = rawRows.map((row, idx) => {
-      const patient: Record<string, string | boolean | undefined> = {};
-
-      Object.entries(columnMapping).forEach(([csvHeader, field]) => {
-        if (!field) return;
-        const value = row[csvHeader]?.trim() || "";
-        if (!value) return;
-
-        if (field === "is_foreigner") {
-          patient[field] = ["sí", "si", "yes", "true", "1", "s"].includes(value.toLowerCase());
-        } else if (field === "birth_date") {
-          const parsed = parseDateFlexible(value);
-          if (parsed) patient[field] = parsed;
-        } else if (field === "document_type") {
-          const upper = value.toUpperCase();
-          if (["DNI", "CE", "PASAPORTE"].includes(upper)) {
-            patient[field] = upper === "PASAPORTE" ? "Pasaporte" : upper;
-          }
-        } else {
-          patient[field] = value;
-        }
-      });
-
-      return validateRow(patient as MappedPatient, idx);
+      const data = mapRow(row, columnMapping);
+      return validateRow(data, idx, row);
     });
-
     setValidations(mapped);
     setStep("preview");
   };
@@ -370,73 +157,90 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
   const errorRows = validations.filter((v) => v.errors.length > 0);
   const warningRows = validations.filter((v) => v.warnings.length > 0 && v.errors.length === 0);
 
-  /* ─── Step 4: Import ─── */
+  /* ─── Step 4: Import — server-side via /api/patient-imports/start ─── */
 
-  const startImport = async () => {
-    if (!organizationId) return;
+  const startImport = useCallback(async () => {
+    if (!file) return;
     setStep("importing");
+    setImporting(true);
     setImportProgress(0);
 
-    const supabase = createClient();
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    let success = 0;
-    let failed = 0;
-    let duplicates = 0;
-    const batchSize = 25;
-    const toImport = validRows;
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("mapping", JSON.stringify(columnMapping));
 
-    for (let i = 0; i < toImport.length; i += batchSize) {
-      const batch = toImport.slice(i, i + batchSize);
-      const records = batch.map((v) => {
-        const p = v.data;
-        return {
-          organization_id: organizationId,
-          first_name: p.first_name,
-          last_name: p.last_name,
-          dni: p.dni && p.dni.length <= 20 ? p.dni : null,
-          document_type: p.document_type && ["DNI", "CE", "Pasaporte"].includes(p.document_type) ? p.document_type : "DNI",
-          phone: p.phone?.substring(0, 20) || null,
-          email: p.email && EMAIL_REGEX.test(p.email) ? p.email : null,
-          birth_date: p.birth_date || null,
-          departamento: p.departamento || null,
-          distrito: p.distrito || null,
-          is_foreigner: p.is_foreigner || false,
-          nationality: p.nationality || null,
-          notes: p.notes?.substring(0, 500) || null,
-          origin: p.origin || null,
-          referral_source: p.referral_source?.substring(0, 200) || null,
-          custom_field_1: p.custom_field_1?.substring(0, 200) || null,
-          custom_field_2: p.custom_field_2?.substring(0, 200) || null,
-          status: "active" as const,
-          created_by: currentUser?.id ?? null,
-        };
+    try {
+      const res = await fetch("/api/patient-imports/start", {
+        method: "POST",
+        body: formData,
       });
-
-      const { data, error } = await supabase.from("patients").insert(records).select("id");
-
-      if (error) {
-        // If batch fails, try one by one to identify duplicates
-        for (const record of records) {
-          const { error: singleError } = await supabase.from("patients").insert(record).select("id");
-          if (singleError) {
-            if (singleError.message?.includes("duplicate") || singleError.code === "23505") {
-              duplicates++;
-            } else {
-              failed++;
-            }
-          } else {
-            success++;
-          }
-        }
-      } else {
-        success += data?.length || records.length;
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(body.error ?? "Error al iniciar la importación");
+        setStep("preview");
+        setImporting(false);
+        return;
       }
-
-      setImportProgress(Math.min(100, Math.round(((i + batch.length) / toImport.length) * 100)));
+      const data = (await res.json()) as { import_id: string } & ImportSummary;
+      setImportId(data.import_id);
+      setImportSummary({
+        total_rows: data.total_rows,
+        inserted_rows: data.inserted_rows,
+        skipped_duplicates: data.skipped_duplicates,
+        failed_rows: data.failed_rows,
+      });
+      setImportProgress(100);
+      setImporting(false);
+      setStep("done");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error de red al importar");
+      setStep("preview");
+      setImporting(false);
     }
+  }, [file, columnMapping]);
 
-    setImportResults({ success, failed, duplicates });
-    setStep("done");
+  /* ─── Polling — if the request returns before the server finishes (rare
+        because we wait for completion) we still poll so the UI keeps in
+        sync. Real-world the start endpoint blocks until done. ─── */
+
+  useEffect(() => {
+    if (step !== "importing" || !importId || importSummary) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch(`/api/patient-imports/${importId}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as ImportSummary & {
+          status: "uploading" | "processing" | "completed" | "failed";
+          progress: number;
+        };
+        if (cancelled) return;
+        setImportProgress(data.progress);
+        if (data.status === "completed" || data.status === "failed") {
+          setImportSummary({
+            total_rows: data.total_rows,
+            inserted_rows: data.inserted_rows,
+            skipped_duplicates: data.skipped_duplicates,
+            failed_rows: data.failed_rows,
+          });
+          setStep("done");
+        }
+      } catch {
+        // Swallow polling errors — next tick retries.
+      }
+    };
+    const interval = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [step, importId, importSummary]);
+
+  /* ─── Download failed CSV ─── */
+
+  const downloadFailedCsv = () => {
+    if (!importId) return;
+    window.location.href = `/api/patient-imports/${importId}/failed-csv`;
   };
 
   /* ─── Download Template ─── */
@@ -444,7 +248,7 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
   const downloadTemplate = () => {
     const headers = ["nombre", "apellido", "dni", "tipo_documento", "telefono", "email", "fecha_nacimiento", "departamento", "distrito", "notas"];
     const exampleRow = ["María", "García López", "12345678", "DNI", "987654321", "maria@email.com", "15/03/1990", "Lima", "Miraflores", "Paciente referida"];
-    const csv = "\ufeff" + headers.join(",") + "\n" + exampleRow.join(",") + "\n";
+    const csv = "﻿" + headers.join(",") + "\n" + exampleRow.join(",") + "\n";
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -478,7 +282,7 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
           </div>
           <button
             onClick={onClose}
-            disabled={step === "importing"}
+            disabled={importing}
             className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:opacity-30 transition-colors"
           >
             <X className="h-4 w-4" />
@@ -525,7 +329,6 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
           {/* ─── STEP: Upload ─── */}
           {step === "upload" && (
             <div className="space-y-4">
-              {/* Drop zone */}
               <div
                 onDrop={handleDrop}
                 onDragOver={(e) => e.preventDefault()}
@@ -550,7 +353,6 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                 />
               </div>
 
-              {/* Info */}
               <div className="rounded-lg border border-border/50 bg-muted/20 p-3.5 space-y-2.5">
                 <div className="flex items-center gap-2">
                   <Info className="h-3.5 w-3.5 text-primary" />
@@ -561,10 +363,10 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                   <li>Excel guardado como CSV (Archivo → Guardar como → CSV UTF-8)</li>
                   <li>La primera fila debe contener los encabezados (nombre, apellido, etc.)</li>
                   <li>Solo <strong className="text-foreground">nombre</strong> y <strong className="text-foreground">apellido</strong> son obligatorios</li>
+                  <li>Máximo <strong className="text-foreground">5000 filas</strong> y 10MB por archivo</li>
                 </ul>
               </div>
 
-              {/* Template download */}
               <button
                 onClick={downloadTemplate}
                 className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-2.5 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
@@ -585,7 +387,7 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                   <p className="text-[11px] text-muted-foreground">{rawRows.length} filas encontradas</p>
                 </div>
                 <button
-                  onClick={() => { setStep("upload"); setRawHeaders([]); setRawRows([]); }}
+                  onClick={() => { setStep("upload"); setRawHeaders([]); setRawRows([]); setFile(null); }}
                   className="rounded-lg p-1 text-muted-foreground hover:text-red-400 transition-colors"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -653,7 +455,6 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
           {/* ─── STEP: Preview ─── */}
           {step === "preview" && (
             <div className="space-y-4">
-              {/* Summary cards */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
                   <p className="text-lg font-bold text-emerald-400">{validRows.length}</p>
@@ -669,7 +470,6 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                 </div>
               </div>
 
-              {/* Error details */}
               {errorRows.length > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-red-400">Filas con errores (no se importarán):</p>
@@ -689,7 +489,6 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                 </div>
               )}
 
-              {/* Warning details */}
               {warningRows.length > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium text-amber-400">Advertencias (se importarán con ajustes):</p>
@@ -709,7 +508,6 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                 </div>
               )}
 
-              {/* Preview table */}
               {validRows.length > 0 && (
                 <div className="space-y-1.5">
                   <p className="text-xs font-medium">Vista previa (primeros 10):</p>
@@ -750,7 +548,9 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <div className="text-center">
                 <p className="text-sm font-medium">Importando pacientes...</p>
-                <p className="text-xs text-muted-foreground mt-1">No cierres esta ventana</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Procesando en el servidor. Puedes cerrar la ventana y volver más tarde — la importación continuará.
+                </p>
               </div>
               <div className="w-full max-w-xs">
                 <div className="h-2 overflow-hidden rounded-full bg-muted/30">
@@ -765,28 +565,40 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
           )}
 
           {/* ─── STEP: Done ─── */}
-          {step === "done" && (
-            <div className="flex flex-col items-center justify-center gap-4 py-8">
+          {step === "done" && importSummary && (
+            <div className="flex flex-col items-center justify-center gap-4 py-6">
               <div className="rounded-full bg-emerald-500/10 p-3">
                 <CheckCircle2 className="h-8 w-8 text-emerald-400" />
               </div>
               <div className="text-center">
                 <p className="text-base font-semibold">Importación completada</p>
+                <p className="text-[11px] text-muted-foreground mt-1">
+                  Total procesado: {importSummary.total_rows} filas
+                </p>
               </div>
               <div className="grid w-full max-w-xs grid-cols-3 gap-3">
                 <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2.5 text-center">
-                  <p className="text-lg font-bold text-emerald-400">{importResults.success}</p>
+                  <p className="text-lg font-bold text-emerald-400">{importSummary.inserted_rows}</p>
                   <p className="text-[10px] text-muted-foreground">Importados</p>
                 </div>
                 <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-center">
-                  <p className="text-lg font-bold text-amber-400">{importResults.duplicates}</p>
+                  <p className="text-lg font-bold text-amber-400">{importSummary.skipped_duplicates}</p>
                   <p className="text-[10px] text-muted-foreground">Duplicados</p>
                 </div>
                 <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-2.5 text-center">
-                  <p className="text-lg font-bold text-red-400">{importResults.failed}</p>
+                  <p className="text-lg font-bold text-red-400">{importSummary.failed_rows}</p>
                   <p className="text-[10px] text-muted-foreground">Fallidos</p>
                 </div>
               </div>
+              {(importSummary.failed_rows > 0 || importSummary.skipped_duplicates > 0) && importId && (
+                <button
+                  onClick={downloadFailedCsv}
+                  className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Descargar CSV de errores
+                </button>
+              )}
             </div>
           )}
         </div>

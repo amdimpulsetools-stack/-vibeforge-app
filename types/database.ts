@@ -616,6 +616,8 @@ export interface Database {
           organization_id: string;
           created_at: string;
           updated_at: string;
+          // GENERATED ALWAYS STORED (mig 143). Read-only; do not pass on Insert/Update.
+          dedup_key: string;
         };
         Insert: {
           id?: string;
@@ -639,6 +641,7 @@ export interface Database {
           organization_id: string;
           created_at?: string;
           updated_at?: string;
+          created_by?: string | null;
         };
         Update: {
           id?: string;
@@ -661,6 +664,7 @@ export interface Database {
           notes?: string | null;
           organization_id?: string;
           updated_at?: string;
+          created_by?: string | null;
         };
       };
       patient_tags: {
@@ -1092,6 +1096,73 @@ export interface Database {
           sent_at?: string;
           delivered_at?: string | null;
           read_at?: string | null;
+        };
+      };
+      patient_imports: {
+        Row: {
+          id: string;
+          organization_id: string;
+          imported_by_user_id: string | null;
+          started_at: string;
+          finished_at: string | null;
+          csv_filename: string;
+          csv_storage_path: string | null;
+          total_rows: number;
+          inserted_rows: number;
+          skipped_duplicates: number;
+          failed_rows: number;
+          error_summary: Array<{
+            row: number;
+            dni?: string | null;
+            reason: string;
+            code?: string | null;
+          }>;
+          status: "uploading" | "processing" | "completed" | "failed";
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          imported_by_user_id?: string | null;
+          started_at?: string;
+          finished_at?: string | null;
+          csv_filename: string;
+          csv_storage_path?: string | null;
+          total_rows?: number;
+          inserted_rows?: number;
+          skipped_duplicates?: number;
+          failed_rows?: number;
+          error_summary?: Array<{
+            row: number;
+            dni?: string | null;
+            reason: string;
+            code?: string | null;
+          }>;
+          status?: "uploading" | "processing" | "completed" | "failed";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          imported_by_user_id?: string | null;
+          started_at?: string;
+          finished_at?: string | null;
+          csv_filename?: string;
+          csv_storage_path?: string | null;
+          total_rows?: number;
+          inserted_rows?: number;
+          skipped_duplicates?: number;
+          failed_rows?: number;
+          error_summary?: Array<{
+            row: number;
+            dni?: string | null;
+            reason: string;
+            code?: string | null;
+          }>;
+          status?: "uploading" | "processing" | "completed" | "failed";
+          updated_at?: string;
         };
       };
     };
