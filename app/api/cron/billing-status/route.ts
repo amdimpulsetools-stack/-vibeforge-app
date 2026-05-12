@@ -4,6 +4,7 @@ import {
   resolveBillingEmailContext,
   sendGraceEndingEmail,
   sendAccessSuspendedEmail,
+  sendAccountDeletionGraceReminderEmail,
 } from "@/lib/billing-emails";
 
 export const runtime = "nodejs";
@@ -60,6 +61,8 @@ export async function GET(req: NextRequest) {
   let graceReminded = 0;
   let graceSuspended = 0;
   let pastDueTerminated = 0;
+  let deletionGraceReminded = 0;
+  const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString();
 
   // ── 1. trialing → past_due when trial elapses ─────────────────
   const { data: expiredTrials } = await supabase
@@ -194,6 +197,49 @@ export async function GET(req: NextRequest) {
     pastDueTerminated++;
   }
 
+  // ── 5. account-deletion grace ending in <7d → reminder email ──
+  // Separate from the payment grace reminder (step 2, 2d). The
+  // anonymization cron (account-deletion-process) does the actual
+  // PII removal at day 30; this step only nags the owner one week
+  // before that happens. Idempotent via billing_events lookup.
+  const { data: deletionReminders } = await supabase
+    .from("organizations")
+    .select("id, delete_grace_until")
+    .not("deleted_at", "is", null)
+    .is("anonymized_at", null)
+    .gt("delete_grace_until", nowIso)
+    .lte("delete_grace_until", sevenDaysFromNow);
+
+  for (const org of deletionReminders ?? []) {
+    // Idempotency: only send once per deletion request.
+    const { data: alreadySent } = await supabase
+      .from("billing_events")
+      .select("id")
+      .eq("organization_id", org.id)
+      .eq("event_type", "deletion_grace_reminder_sent")
+      .limit(1)
+      .maybeSingle();
+    if (alreadySent) continue;
+
+    const ctx = await resolveBillingEmailContext(supabase, org.id, null);
+    if (!ctx) continue;
+    ctx.graceUntil = org.delete_grace_until;
+
+    const result = await sendAccountDeletionGraceReminderEmail(ctx);
+    if (result.ok) {
+      await supabase.from("billing_events").insert({
+        organization_id: org.id,
+        subscription_id: null,
+        event_type: "deletion_grace_reminder_sent",
+        metadata: {
+          grace_until: org.delete_grace_until,
+          to: ctx.toEmail,
+        },
+      });
+      deletionGraceReminded++;
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     timestamp: nowIso,
@@ -201,5 +247,6 @@ export async function GET(req: NextRequest) {
     grace_reminded: graceReminded,
     grace_suspended: graceSuspended,
     past_due_terminated: pastDueTerminated,
+    deletion_grace_reminded: deletionGraceReminded,
   });
 }
