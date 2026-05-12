@@ -1,0 +1,270 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getPreApprovalClient } from "@/lib/mercadopago/client";
+import { paymentLimiter } from "@/lib/rate-limit";
+
+/**
+ * POST /api/billing/reactivate
+ *
+ * Owner-only "deshacer cancelación" path. The audit found we had no
+ * way for an owner who cancelled (intentionally or by mistake) to
+ * come back without creating a brand-new account and losing their
+ * data. The data stays put for ~90 days post-cancel (no hard purge
+ * happens unless the owner also triggers account deletion), so we
+ * just need to wire a payment channel back to it.
+ *
+ * Mercado Pago does NOT allow flipping a `cancelled` preApproval
+ * back to `authorized` — once cancelled it is dead forever. So we
+ * follow the same pattern as the initial checkout: create a fresh
+ * preApproval, save a pending subscription, return `init_point`.
+ * The webhook will mark the new sub as `active` after the user
+ * authorizes the recurring charge.
+ *
+ * Validation:
+ *  - Caller is the org owner
+ *  - The latest subscription is `cancelled` AND `cancelled_at` is
+ *    within 90 days (older than that and we ask the user to re-pick
+ *    a plan from /select-plan to make sure they accept current pricing)
+ *  - The org is NOT in account-deletion flow (deleted_at IS NULL)
+ *
+ * Add-ons: reactivation re-creates the preApproval with the plan's
+ * base price ONLY. The previous addons stay marked is_active=true in
+ * `plan_addons` (we never cancelled them on cancel — they're tied to
+ * MP, which is dead now). The webhook handler will reconcile them
+ * after the new preApproval is authorized: it bumps the new
+ * preApproval's transaction_amount to plan + active addons.
+ * For Sprint 3 MVP we keep the reactivation amount at plan price and
+ * leave addon re-charge to a follow-up (founder can re-add manually).
+ */
+export async function POST() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  const rl = paymentLimiter(user.id);
+  if (!rl.success) {
+    return NextResponse.json(
+      { error: "too_many_requests" },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.ceil((rl.reset - Date.now()) / 1000)),
+        },
+      },
+    );
+  }
+
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", user.id)
+    .limit(1)
+    .single();
+
+  if (!membership) {
+    return NextResponse.json({ error: "no_organization" }, { status: 400 });
+  }
+  if (membership.role !== "owner") {
+    return NextResponse.json(
+      { error: "forbidden_owner_only" },
+      { status: 403 },
+    );
+  }
+
+  // Make sure the org isn't already in account-deletion flow.
+  const { data: org } = await supabase
+    .from("organizations")
+    .select("id, name, deleted_at")
+    .eq("id", membership.organization_id)
+    .maybeSingle();
+
+  if (!org) {
+    return NextResponse.json({ error: "org_not_found" }, { status: 404 });
+  }
+  if (org.deleted_at) {
+    return NextResponse.json(
+      {
+        error: "org_in_deletion",
+        message:
+          "Tu clínica está marcada para eliminación. Revierte la eliminación antes de reactivar la suscripción.",
+      },
+      { status: 409 },
+    );
+  }
+
+  // Find the latest cancelled subscription. We accept reactivation
+  // only within the 90-day post-cancel window — older than that we
+  // funnel users through /select-plan to ensure they see current
+  // pricing.
+  const { data: lastSub } = await supabase
+    .from("organization_subscriptions")
+    .select(
+      "id, status, plan_id, cancelled_at, mp_payer_email, plans(id, name, slug, price_monthly, is_active)",
+    )
+    .eq("organization_id", membership.organization_id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!lastSub) {
+    return NextResponse.json(
+      {
+        error: "no_subscription_history",
+        message: "No tienes suscripciones previas. Elige un plan en /select-plan.",
+      },
+      { status: 400 },
+    );
+  }
+
+  if (lastSub.status !== "cancelled") {
+    return NextResponse.json(
+      {
+        error: "subscription_not_cancelled",
+        message:
+          "Tu suscripción no está cancelada. Si necesitas cambiar de plan ve a /select-plan.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const cancelledAt = lastSub.cancelled_at ? new Date(lastSub.cancelled_at) : null;
+  const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 3600 * 1000);
+  if (!cancelledAt || cancelledAt < ninetyDaysAgo) {
+    return NextResponse.json(
+      {
+        error: "reactivation_window_expired",
+        message:
+          "Han pasado más de 90 días desde tu cancelación. Selecciona un plan desde /select-plan para volver.",
+      },
+      { status: 410 },
+    );
+  }
+
+  const plan = (lastSub.plans as unknown as {
+    id: string;
+    name: string;
+    slug: string;
+    price_monthly: number;
+    is_active: boolean;
+  } | null);
+
+  if (!plan || !plan.is_active) {
+    return NextResponse.json(
+      {
+        error: "plan_unavailable",
+        message:
+          "El plan que tenías ya no está disponible. Elige uno actual en /select-plan.",
+      },
+      { status: 410 },
+    );
+  }
+
+  const price = Number(plan.price_monthly);
+  if (!price || price < 2) {
+    return NextResponse.json(
+      { error: "invalid_plan_price" },
+      { status: 400 },
+    );
+  }
+
+  // Detect test mode to pick the right payer email (matches the
+  // initial checkout endpoint).
+  const accessToken = process.env.MP_ACCESS_TOKEN || "";
+  const isTestMode =
+    accessToken.startsWith("TEST-") || accessToken.startsWith("APP_USR-");
+  const payerEmail = isTestMode
+    ? process.env.MP_TEST_PAYER_EMAIL || ""
+    : user.email || lastSub.mp_payer_email || "";
+
+  if (!payerEmail) {
+    return NextResponse.json(
+      { error: "no_payer_email" },
+      { status: 400 },
+    );
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+
+  let result;
+  try {
+    const preApproval = getPreApprovalClient();
+    result = await preApproval.create({
+      body: {
+        reason: `Yenda - Reactivación Plan ${plan.name}`,
+        payer_email: payerEmail,
+        external_reference: JSON.stringify({
+          organization_id: membership.organization_id,
+          plan_id: plan.id,
+          plan_slug: plan.slug,
+          billing_cycle: "monthly",
+          user_id: user.id,
+          reactivation: true,
+        }),
+        auto_recurring: {
+          frequency: 1,
+          frequency_type: "months",
+          transaction_amount: price,
+          currency_id: "PEN",
+        },
+        back_url: `${appUrl}/account?reactivated=1`,
+      },
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[billing/reactivate] MP create error:", msg);
+    return NextResponse.json(
+      { error: "mp_error", message: msg },
+      { status: 502 },
+    );
+  }
+
+  const admin = createAdminClient();
+
+  // Clean up any abandoned pending rows so we don't accumulate
+  // half-checkouts.
+  await admin
+    .from("organization_subscriptions")
+    .delete()
+    .eq("organization_id", membership.organization_id)
+    .eq("status", "pending");
+
+  await admin.from("organization_subscriptions").insert({
+    organization_id: membership.organization_id,
+    plan_id: plan.id,
+    status: "pending",
+    started_at: new Date().toISOString(),
+    payment_provider: "mercadopago",
+    external_id: result.id?.toString() || null,
+    mp_preapproval_id: result.id?.toString() || null,
+    mp_payer_email: payerEmail,
+  });
+
+  await admin.from("billing_events").insert({
+    organization_id: membership.organization_id,
+    subscription_id: lastSub.id,
+    event_type: "reactivation_requested",
+    metadata: {
+      requested_by: user.id,
+      previous_subscription_id: lastSub.id,
+      previous_cancelled_at: lastSub.cancelled_at,
+      new_mp_preapproval_id: result.id?.toString() || null,
+      plan_id: plan.id,
+      plan_slug: plan.slug,
+    },
+  });
+
+  return NextResponse.json({
+    ok: true,
+    init_point: result.init_point,
+    preapproval_id: result.id,
+    message:
+      "Vamos a Mercado Pago para confirmar tu método de pago. Apenas autorices, tu suscripción se reactivará.",
+  });
+}
