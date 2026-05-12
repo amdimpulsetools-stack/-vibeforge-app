@@ -29,7 +29,8 @@ export type BillingEmailKind =
   | "access_suspended"
   | "account_deletion_requested"
   | "account_deletion_completed"
-  | "account_deletion_grace_reminder";
+  | "account_deletion_grace_reminder"
+  | "refund_issued";
 
 export interface BillingEmailContext {
   supabase: SupabaseClient;
@@ -160,6 +161,25 @@ Después del {{grace_until}}:
 • El proceso es definitivo y no se puede deshacer
 
 ¿Cambiaste de opinión o tienes dudas? Escríbenos a {{support_email}} hoy.
+
+— Equipo Yenda`,
+      ),
+    };
+  }
+
+  if (kind === "refund_issued") {
+    return {
+      subject: replace("Reembolso procesado — {{amount}}"),
+      body: replace(
+        `Hola {{org_name}},
+
+Procesamos el reembolso de tu pago: {{amount}}. Mercado Pago lo devolverá al método de pago original.
+
+¿Cuándo verás el dinero? Depende del medio de pago:
+• Tarjeta de crédito: 5 a 10 días hábiles
+• Tarjeta de débito o billetera: 1 a 3 días hábiles
+
+Si pasados esos plazos no ves el reembolso, contáctanos a {{support_email}} y te ayudamos a verificar con Mercado Pago.
 
 — Equipo Yenda`,
       ),
@@ -316,6 +336,12 @@ export async function sendAccountDeletionGraceReminderEmail(
   ctx: BillingEmailContext,
 ): Promise<BillingEmailResult> {
   return sendBillingEmail(ctx, "account_deletion_grace_reminder");
+}
+
+export async function sendRefundIssuedEmail(
+  ctx: BillingEmailContext,
+): Promise<BillingEmailResult> {
+  return sendBillingEmail(ctx, "refund_issued");
 }
 
 /**

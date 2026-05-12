@@ -9,6 +9,7 @@ import { mpWebhookBodySchema } from "@/lib/validations/api";
 import {
   resolveBillingEmailContext,
   sendPaymentFailedEmail,
+  sendRefundIssuedEmail,
 } from "@/lib/billing-emails";
 
 // Grace period after the first payment failure. Tuned to overlap
@@ -187,6 +188,49 @@ async function handleSubscriptionEvent(
         `[MP Webhook] Subscription ${preapprovalId} -> ${newStatus} for org ${ref.organization_id}`
       );
     }
+
+    // F11: when MP authorizes a fresh preApproval that was created via
+    // /api/billing/reactivate, close the loop by logging
+    // reactivation_completed. We detect it via the most recent
+    // reactivation_requested event for this org within the last 7 days
+    // (enough to cover slow MP authorization).
+    if (newStatus === "active") {
+      const sevenDaysAgo = new Date(
+        Date.now() - 7 * 24 * 3600 * 1000,
+      ).toISOString();
+      const { data: pendingReactivation } = await supabase
+        .from("billing_events")
+        .select("id, subscription_id")
+        .eq("organization_id", ref.organization_id)
+        .eq("event_type", "reactivation_requested")
+        .gte("created_at", sevenDaysAgo)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (pendingReactivation) {
+        const { data: alreadyCompleted } = await supabase
+          .from("billing_events")
+          .select("id")
+          .eq("organization_id", ref.organization_id)
+          .eq("event_type", "reactivation_completed")
+          .gte("created_at", sevenDaysAgo)
+          .limit(1)
+          .maybeSingle();
+
+        if (!alreadyCompleted) {
+          await supabase.from("billing_events").insert({
+            organization_id: ref.organization_id,
+            subscription_id: pendingReactivation.subscription_id,
+            event_type: "reactivation_completed",
+            metadata: {
+              mp_preapproval_id: preapprovalId,
+              reactivation_request_event_id: pendingReactivation.id,
+            },
+          });
+        }
+      }
+    }
     return;
   }
 
@@ -316,18 +360,78 @@ async function handlePaymentEvent(
 
   const paymentStatus = statusMap[mpPayment.status || ""] || "pending";
 
-  // Record payment in history
-  await supabase.from("payment_history").insert({
-    organization_id: orgId,
-    subscription_id: sub?.id || null,
-    mp_payment_id: paymentId,
-    amount: mpPayment.transaction_amount || 0,
-    currency: mpPayment.currency_id || "PEN",
-    status: paymentStatus,
-    payment_type: "subscription",
-    description: mpPayment.description || `Pago plan - ${mpPayment.status}`,
-    mp_raw_data: mpPayment as unknown as Record<string, unknown>,
-  });
+  // Idempotent record. MP retries the same event multiple times — the
+  // legacy `.insert` was creating N rows per payment. Mig 151 added
+  // UNIQUE(mp_payment_id) so we can upsert. We also read the prior
+  // state first so we can detect transitions (e.g. approved → refunded
+  // initiated from the MP dashboard, not from /api/admin/refund-payment).
+  const { data: prevPayment } = await supabase
+    .from("payment_history")
+    .select("id, status, refund_source, refunded_at")
+    .eq("mp_payment_id", paymentId)
+    .maybeSingle();
+
+  await supabase.from("payment_history").upsert(
+    {
+      organization_id: orgId,
+      subscription_id: sub?.id || null,
+      mp_payment_id: paymentId,
+      amount: mpPayment.transaction_amount || 0,
+      currency: mpPayment.currency_id || "PEN",
+      status: paymentStatus,
+      payment_type: "subscription",
+      description: mpPayment.description || `Pago plan - ${mpPayment.status}`,
+      mp_raw_data: mpPayment as unknown as Record<string, unknown>,
+    },
+    { onConflict: "mp_payment_id" },
+  );
+
+  // Refund detected on the MP side that wasn't started here. /api/admin/
+  // refund-payment already stamps refund_source='founder_app' before MP
+  // fires the webhook, so we skip those — the webhook is then just an
+  // ack. The case we DO want to catch is when the founder refunded via
+  // the MP dashboard directly: stamp refund metadata, log event, email
+  // the owner so they don't get confused by an unexplained refund.
+  if (
+    paymentStatus === "refunded" &&
+    prevPayment?.status !== "refunded" &&
+    prevPayment?.refund_source !== "founder_app"
+  ) {
+    const refundedAmount = mpPayment.transaction_amount || 0;
+    await supabase
+      .from("payment_history")
+      .update({
+        refunded_at: new Date().toISOString(),
+        refund_amount: refundedAmount,
+        refund_source: "mp_dashboard",
+      })
+      .eq("mp_payment_id", paymentId);
+
+    await supabase.from("billing_events").insert({
+      organization_id: orgId,
+      subscription_id: sub?.id || null,
+      event_type: "refund_received",
+      metadata: {
+        mp_payment_id: paymentId,
+        amount: refundedAmount,
+        source: "mp_dashboard",
+      },
+    });
+
+    try {
+      const ctx = await resolveBillingEmailContext(
+        supabase,
+        orgId,
+        sub?.id || null,
+      );
+      if (ctx) {
+        ctx.amount = `S/ ${refundedAmount.toFixed(2)}`;
+        await sendRefundIssuedEmail(ctx);
+      }
+    } catch (err) {
+      console.warn("[MP Webhook] refund email failed:", err);
+    }
+  }
 
   // If payment approved, ensure subscription is active and clear
   // any grace counters that may have been set by previous rejections.
