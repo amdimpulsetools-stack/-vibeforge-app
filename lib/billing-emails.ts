@@ -29,6 +29,7 @@ export type BillingEmailKind =
   | "access_suspended"
   | "account_deletion_requested"
   | "account_deletion_completed"
+  | "account_deletion_grace_reminder"
   | "refund_issued";
 
 export interface BillingEmailContext {
@@ -138,6 +139,28 @@ Después del {{grace_until}}:
 • Las historias clínicas se conservan anónimas por 15 años (NTS 139)
 
 ¿Cambiaste de opinión o tienes dudas? Escríbenos a {{support_email}}.
+
+— Equipo Yenda`,
+      ),
+    };
+  }
+
+  if (kind === "account_deletion_grace_reminder") {
+    return {
+      subject: replace("Tu clínica se eliminará en 7 días — última oportunidad para revertir"),
+      body: replace(
+        `Hola {{org_name}},
+
+Te recordamos que el {{grace_until}} (en 7 días) tu clínica será anonimizada de forma IRREVERSIBLE en Yenda.
+
+Si quieres conservar tu clínica entra ahora a {{billing_url}} y haz clic en "Revertir eliminación". Es un solo clic; tus datos siguen intactos hasta esa fecha.
+
+Después del {{grace_until}}:
+• Los datos personales (nombres, teléfonos, DNI, correos) serán reemplazados por identificadores anónimos
+• Las facturas y historias clínicas se conservan anónimas por ley
+• El proceso es definitivo y no se puede deshacer
+
+¿Cambiaste de opinión o tienes dudas? Escríbenos a {{support_email}} hoy.
 
 — Equipo Yenda`,
       ),
@@ -307,6 +330,12 @@ export async function sendAccountDeletionCompletedEmail(
   ctx: BillingEmailContext,
 ): Promise<BillingEmailResult> {
   return sendBillingEmail(ctx, "account_deletion_completed");
+}
+
+export async function sendAccountDeletionGraceReminderEmail(
+  ctx: BillingEmailContext,
+): Promise<BillingEmailResult> {
+  return sendBillingEmail(ctx, "account_deletion_grace_reminder");
 }
 
 export async function sendRefundIssuedEmail(

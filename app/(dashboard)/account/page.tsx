@@ -84,6 +84,45 @@ export default function AccountPage() {
   const [isFounder, setIsFounder] = useState(false);
   const [platformRole, setPlatformRole] = useState<string | null>(null);
 
+  // Active addons surface in the cancel-subscription confirmation so
+  // the owner sees exactly what they're losing before clicking through.
+  const { billing: billingData } = useBilling();
+
+  // Reactivation state (Sprint 3). When the owner clicks "Reactivar
+  // suscripción" we POST to /api/billing/reactivate and redirect to MP.
+  const [reactivating, setReactivating] = useState(false);
+
+  // Hydrate the cancelled flag on first load — the existing flow only
+  // flipped it during the cancel click. Without this, a user that
+  // cancelled in a previous session lands on /account and sees the
+  // active-state UI by mistake.
+  useEffect(() => {
+    if (!organization?.id) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("organization_subscriptions")
+        .select("status, cancelled_at, expires_at, mp_next_payment_date")
+        .eq("organization_id", organization.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data?.status === "cancelled") {
+        setIsSubscriptionCancelled(true);
+        setCancelledAccessUntil(
+          (data.expires_at as string | null) ??
+            (data.mp_next_payment_date as string | null) ??
+            null,
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [organization?.id]);
+
   // Profile form
   const [saving, setSaving] = useState(false);
   const {
@@ -352,9 +391,42 @@ export default function AccountPage() {
         })
       : "el final del período pagado";
 
+    // Build a breakdown of plan price + active addons so the owner
+    // sees what they're walking away from in soles, not a vague
+    // "tu suscripción" string.
+    const addons = billingData?.addons ?? [];
+    const planPrice = Number(plan?.price_monthly ?? 0);
+    const addonsTotal = addons.reduce(
+      (sum, a) => sum + Number(a.unit_price) * Number(a.quantity),
+      0,
+    );
+    const monthlyTotal = planPrice + addonsTotal;
+
+    const addonLines = addons.length
+      ? "\n\nCupos extra que dejarás de pagar:\n" +
+        addons
+          .map((a) => {
+            const label =
+              a.addon_type === "extra_member"
+                ? "Miembro extra"
+                : "Consultorio extra";
+            const lineTotal = Number(a.unit_price) * Number(a.quantity);
+            return `• ${a.quantity}× ${label} — S/${lineTotal.toFixed(2)}/mes`;
+          })
+          .join("\n")
+      : "";
+
+    const description =
+      `Mantienes acceso hasta ${accessUntilLabel} (lo que ya pagaste).` +
+      ` Tus datos se conservan 90 días y puedes reactivar la cuenta en ese plazo.` +
+      ` Después no se realizarán nuevos cobros.\n\n` +
+      `Total que dejarás de pagar: S/${monthlyTotal.toFixed(2)}/mes` +
+      (planPrice ? ` (plan ${plan?.name ?? ""}: S/${planPrice.toFixed(2)})` : "") +
+      addonLines;
+
     const ok = await confirm({
       title: "¿Cancelar tu suscripción?",
-      description: `Mantienes acceso hasta ${accessUntilLabel}. Tus datos se conservan 90 días y puedes reactivar la cuenta en cualquier momento durante ese plazo. Después de la cancelación no se realizarán nuevos cobros.`,
+      description,
       variant: "destructive",
       confirmText: "Confirmar cancelación",
       cancelText: "Volver",
@@ -383,6 +455,56 @@ export default function AccountPage() {
       toast.error("Error de red. Intenta de nuevo.");
     } finally {
       setCancelling(false);
+    }
+  };
+
+  // ── Reactivate subscription (Sprint 3) ──────────────────────────
+  // POSTs to /api/billing/reactivate. On success we redirect to MP's
+  // init_point so the owner can authorize a fresh preApproval — the
+  // old one was killed on /api/billing/cancel and cannot be revived.
+  // 410 from the API means the 90-day window expired; we tell the
+  // user to pick a plan from scratch.
+  const handleReactivate = async () => {
+    const ok = await confirm({
+      title: "¿Reactivar tu suscripción?",
+      description:
+        "Te llevamos a Mercado Pago para autorizar nuevamente el cobro recurrente. Tus datos siguen donde los dejaste. Si tenías cupos extra, podrás volver a comprarlos desde Mi Cuenta después de la reactivación.",
+      confirmText: "Sí, reactivar",
+      cancelText: "Volver",
+    });
+    if (!ok) return;
+
+    setReactivating(true);
+    try {
+      const res = await fetch("/api/billing/reactivate", { method: "POST" });
+      const body: {
+        ok?: boolean;
+        init_point?: string;
+        message?: string;
+        error?: string;
+      } = await res.json().catch(() => ({}));
+
+      if (!res.ok || !body.ok || !body.init_point) {
+        if (res.status === 410) {
+          toast.error(
+            body.message ||
+              "Pasaron más de 90 días desde tu cancelación. Elige un plan desde /select-plan para volver.",
+            { duration: 8000 },
+          );
+        } else if (body.error === "org_in_deletion") {
+          toast.error(body.message || "Revierte la eliminación primero.");
+        } else {
+          toast.error(body.message || "No pudimos iniciar la reactivación. Intenta de nuevo.");
+        }
+        setReactivating(false);
+        return;
+      }
+
+      window.location.href = body.init_point;
+    } catch (err) {
+      console.error("[account] reactivate failed", err);
+      toast.error("Error de red. Intenta de nuevo.");
+      setReactivating(false);
     }
   };
 
@@ -815,18 +937,38 @@ export default function AccountPage() {
 
         {orgRole === "owner" ? (
           isSubscriptionCancelled ? (
-            <div className="inline-flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm font-medium text-destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <span>
-                Cancelada
-                {cancelledAccessUntil
-                  ? ` — acceso hasta ${new Date(cancelledAccessUntil).toLocaleDateString("es-PE", {
-                      day: "2-digit",
-                      month: "long",
-                      year: "numeric",
-                    })}`
-                  : ""}
-              </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm font-medium text-destructive">
+                <AlertTriangle className="h-4 w-4" />
+                <span>
+                  Cancelada
+                  {cancelledAccessUntil
+                    ? ` — acceso hasta ${new Date(cancelledAccessUntil).toLocaleDateString("es-PE", {
+                        day: "2-digit",
+                        month: "long",
+                        year: "numeric",
+                      })}`
+                    : ""}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleReactivate}
+                disabled={reactivating}
+                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {reactivating ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Redirigiendo a Mercado Pago…
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-4 w-4" />
+                    Reactivar suscripción
+                  </>
+                )}
+              </button>
             </div>
           ) : (
             <button
