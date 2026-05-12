@@ -69,13 +69,20 @@ export async function POST() {
     const isFertilityAdvisor =
       invitation.role === "doctor" && meta.is_fertility_advisor === true;
 
-    // Add to invited org
+    // Add to invited org. professional_title is stored per-org (mig 146)
+    // so two memberships of the same user can hold different titles.
+    const memberTitle =
+      invitation.role === "doctor"
+        ? (invitation.professional_title || "doctor")
+        : null;
+
     await admin.from("organization_members").insert({
       user_id: user.id,
       organization_id: invitation.organization_id,
       role: invitation.role,
       is_active: true,
       is_fertility_advisor: isFertilityAdvisor,
+      professional_title: memberTitle,
     });
 
     // If doctor role, create doctor record (idempotente — chequea si ya
@@ -106,13 +113,6 @@ export async function POST() {
           is_active: true,
           cmp: `PEND-${crypto.randomUUID().slice(0, 8)}`,
         });
-      }
-
-      if (invitation.professional_title) {
-        await admin
-          .from("user_profiles")
-          .update({ professional_title: invitation.professional_title })
-          .eq("id", user.id);
       }
     }
   }

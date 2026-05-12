@@ -101,6 +101,7 @@ export interface Database {
           organization_id: string;
           role: "owner" | "admin" | "member";
           is_active: boolean;
+          professional_title: "doctor" | "especialista" | "licenciada" | null;
           created_at: string;
           updated_at: string;
         };
@@ -110,6 +111,7 @@ export interface Database {
           organization_id: string;
           role?: "owner" | "admin" | "member";
           is_active?: boolean;
+          professional_title?: "doctor" | "especialista" | "licenciada" | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -119,6 +121,7 @@ export interface Database {
           organization_id?: string;
           role?: "owner" | "admin" | "member";
           is_active?: boolean;
+          professional_title?: "doctor" | "especialista" | "licenciada" | null;
           updated_at?: string;
         };
       };

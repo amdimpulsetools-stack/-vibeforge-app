@@ -38,10 +38,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "No organization" }, { status: 403 });
   }
 
-  // Fetch all members in this org
+  // Fetch all members in this org. professional_title lives per-org on
+  // organization_members (mig 146), so a doctor invited into multiple
+  // clinics can hold a different title in each one.
   const { data: members, error } = await supabase
     .from("organization_members")
-    .select("id, user_id, role, is_active, created_at")
+    .select("id, user_id, role, is_active, professional_title, created_at")
     .eq("organization_id", membership.organization_id)
     .order("created_at");
 
@@ -59,7 +61,7 @@ export async function GET(request: NextRequest) {
   const adminClient = createAdminClient();
   const { data: profiles } = await adminClient
     .from("user_profiles")
-    .select("id, full_name, avatar_url, phone, email, professional_title")
+    .select("id, full_name, avatar_url, phone, email")
     .in("id", userIds);
 
   const profileMap = new Map(
@@ -78,7 +80,7 @@ export async function GET(request: NextRequest) {
       avatar_url: profile?.avatar_url ?? null,
       phone: profile?.phone ?? null,
       email: profile?.email ?? null,
-      professional_title: profile?.professional_title ?? null,
+      professional_title: m.professional_title ?? null,
     };
   });
 
@@ -179,7 +181,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Insert member into this org
+    // Insert member into this org. professional_title is per-org now
+    // (mig 146); it only applies when the role is doctor.
+    const memberTitle =
+      role === "doctor" ? (professional_title || "doctor") : null;
+
     const { data: newMember, error } = await supabaseAdmin
       .from("organization_members")
       .insert({
@@ -187,6 +193,7 @@ export async function POST(request: NextRequest) {
         organization_id: callerMembership.organization_id,
         role,
         is_fertility_advisor: fertilityAdvisor,
+        professional_title: memberTitle,
       })
       .select()
       .single();
@@ -196,13 +203,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "member_creation_failed" }, { status: 500 });
     }
 
-    // Set professional_title on the user's profile for doctor/specialist roles
     if (role === "doctor") {
-      await supabaseAdmin
-        .from("user_profiles")
-        .update({ professional_title: professional_title || "doctor" })
-        .eq("id", targetUserId);
-
       // Auto-link or auto-create doctor record for this user in this org
       const { data: existingDoctorRecord } = await supabaseAdmin
         .from("doctors")

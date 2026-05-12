@@ -168,6 +168,14 @@ export async function POST(request: NextRequest) {
     const isFertilityAdvisor =
       invitation.role === "doctor" && meta.is_fertility_advisor === true;
 
+    // professional_title is per-org (mig 146): each membership keeps its
+    // own title, so the same user can be Dr. in one clinic and Lic. in
+    // another. NULL for non-doctor roles.
+    const memberTitle =
+      invitation.role === "doctor"
+        ? (invitation.professional_title || "doctor")
+        : null;
+
     // Insert into organization
     const { error: memberError } = await supabaseAdmin
       .from("organization_members")
@@ -176,6 +184,7 @@ export async function POST(request: NextRequest) {
         organization_id: invitation.organization_id,
         role: invitation.role,
         is_fertility_advisor: isFertilityAdvisor,
+        professional_title: memberTitle,
       });
 
     if (memberError) {
@@ -211,13 +220,6 @@ export async function POST(request: NextRequest) {
 
   // Handle doctor-specific setup
   if (invitation.role === "doctor") {
-    await supabaseAdmin
-      .from("user_profiles")
-      .update({
-        professional_title: invitation.professional_title || "doctor",
-      })
-      .eq("id", userId);
-
     // Auto-link or create doctor record
     const { data: existingDoctor } = await supabaseAdmin
       .from("doctors")
