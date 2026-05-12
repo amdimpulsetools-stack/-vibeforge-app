@@ -7,7 +7,7 @@ export const ITEMS_PER_PAGE = 10;
 // content of /terms or /privacy changes — it is persisted on the user's
 // profile at signup so we have a paper trail of *which* version they
 // accepted. Format is the publication date for the docs (YYYY-MM-DD).
-export const TERMS_VERSION = "2026-04-29";
+export const TERMS_VERSION = "2026-05-12";
 
 export const USER_ROLES = {
   ADMIN: "admin",

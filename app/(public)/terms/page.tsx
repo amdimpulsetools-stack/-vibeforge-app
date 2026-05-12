@@ -28,6 +28,7 @@ const TOC: LegalTocItem[] = [
   { id: "cesion", label: "Cesión" },
   { id: "modificaciones", label: "Modificaciones a los términos" },
   { id: "ley", label: "Ley aplicable y jurisdicción" },
+  { id: "titular-banco", label: "Titular del Banco de Datos" },
   { id: "contacto", label: "Contacto" },
 ];
 
@@ -46,7 +47,7 @@ export default function TermsPage() {
       <header className="mb-10 max-w-3xl">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
           <ScrollText className="h-3.5 w-3.5" aria-hidden />
-          Documento legal · Última actualización: 29 de abril de 2026
+          Documento legal · Última actualización: 12 de mayo de 2026
         </div>
         <h1 className="bg-gradient-to-br from-foreground via-foreground to-emerald-200/90 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
           Términos y Condiciones de Uso
@@ -387,7 +388,46 @@ export default function TermsPage() {
             </p>
           </LegalSection>
 
-          <LegalSection id="contacto" number="14" title="Contacto">
+          <LegalSection
+            id="titular-banco"
+            number="14"
+            title="Titular del Banco de Datos / Responsable del tratamiento"
+          >
+            <div className="not-prose mt-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 text-sm leading-relaxed text-muted-foreground">
+              <p>
+                <strong className="text-foreground">Razón social:</strong>{" "}
+                [PENDIENTE: INSERTAR RAZÓN SOCIAL S.A.C.]
+              </p>
+              <p>
+                <strong className="text-foreground">RUC:</strong>{" "}
+                [PENDIENTE: INSERTAR]
+              </p>
+              <p>
+                <strong className="text-foreground">Domicilio fiscal:</strong>{" "}
+                [PENDIENTE: INSERTAR DIRECCIÓN COMPLETA EN LIMA, PERÚ]
+              </p>
+              <p>
+                <strong className="text-foreground">Correo legal:</strong>{" "}
+                <a
+                  href="mailto:legal@yenda.app"
+                  className="font-medium text-emerald-300 hover:text-emerald-200"
+                >
+                  legal@yenda.app
+                </a>
+              </p>
+              <p>
+                <strong className="text-foreground">Correo de privacidad:</strong>{" "}
+                <a
+                  href="mailto:privacidad@yenda.app"
+                  className="font-medium text-emerald-300 hover:text-emerald-200"
+                >
+                  privacidad@yenda.app
+                </a>
+              </p>
+            </div>
+          </LegalSection>
+
+          <LegalSection id="contacto" number="15" title="Contacto">
             <p>
               Si tienes preguntas sobre estos términos, puedes contactarnos a
               través de los siguientes canales:
