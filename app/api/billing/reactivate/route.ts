@@ -28,14 +28,12 @@ import { paymentLimiter } from "@/lib/rate-limit";
  *    a plan from /select-plan to make sure they accept current pricing)
  *  - The org is NOT in account-deletion flow (deleted_at IS NULL)
  *
- * Add-ons: reactivation re-creates the preApproval with the plan's
- * base price ONLY. The previous addons stay marked is_active=true in
- * `plan_addons` (we never cancelled them on cancel — they're tied to
- * MP, which is dead now). The webhook handler will reconcile them
- * after the new preApproval is authorized: it bumps the new
- * preApproval's transaction_amount to plan + active addons.
- * For Sprint 3 MVP we keep the reactivation amount at plan price and
- * leave addon re-charge to a follow-up (founder can re-add manually).
+ * Add-ons (Sprint 5): we sum still-active `plan_addons` for the org
+ * into the new preApproval's transaction_amount up front. The owner
+ * authorizes the FULL recurring amount once at MP, so MP charges the
+ * correct total from month 1 instead of needing a post-authorization
+ * bump. We log the restored addons in `reactivation_addons_restored`
+ * (when any were present) so the audit trail is intact.
  */
 export async function POST() {
   const supabase = await createClient();
@@ -166,13 +164,31 @@ export async function POST() {
     );
   }
 
-  const price = Number(plan.price_monthly);
-  if (!price || price < 2) {
+  const basePrice = Number(plan.price_monthly);
+  if (!basePrice || basePrice < 2) {
     return NextResponse.json(
       { error: "invalid_plan_price" },
       { status: 400 },
     );
   }
+
+  // F13 — sum the org's still-active addons. plan_addons rows are not
+  // cancelled when the subscription is cancelled (they live in our DB
+  // independent of the dead MP preApproval), so the snapshot of what
+  // the org was paying for is right there.
+  const { data: activeAddons } = await supabase
+    .from("plan_addons")
+    .select("id, addon_type, quantity, unit_price")
+    .eq("organization_id", membership.organization_id)
+    .eq("status", "active");
+
+  const addonsCost = (activeAddons ?? []).reduce(
+    (sum: number, a: { unit_price: number | string; quantity: number }) =>
+      sum + Number(a.unit_price) * Number(a.quantity),
+    0,
+  );
+
+  const price = basePrice + addonsCost;
 
   // Detect test mode to pick the right payer email (matches the
   // initial checkout endpoint).
@@ -257,13 +273,41 @@ export async function POST() {
       new_mp_preapproval_id: result.id?.toString() || null,
       plan_id: plan.id,
       plan_slug: plan.slug,
+      base_price: basePrice,
+      addons_cost: addonsCost,
+      total_monthly: price,
+      addon_count: activeAddons?.length ?? 0,
     },
   });
+
+  if ((activeAddons?.length ?? 0) > 0) {
+    await admin.from("billing_events").insert({
+      organization_id: membership.organization_id,
+      subscription_id: lastSub.id,
+      event_type: "reactivation_addons_restored",
+      metadata: {
+        new_mp_preapproval_id: result.id?.toString() || null,
+        addon_count: activeAddons!.length,
+        addons: activeAddons!.map((a) => ({
+          id: a.id,
+          addon_type: a.addon_type,
+          quantity: a.quantity,
+          unit_price: a.unit_price,
+        })),
+        addons_cost: addonsCost,
+        total_monthly: price,
+      },
+    });
+  }
 
   return NextResponse.json({
     ok: true,
     init_point: result.init_point,
     preapproval_id: result.id,
+    base_price: basePrice,
+    addons_cost: addonsCost,
+    total_monthly: price,
+    restored_addon_count: activeAddons?.length ?? 0,
     message:
       "Vamos a Mercado Pago para confirmar tu método de pago. Apenas autorices, tu suscripción se reactivará.",
   });
