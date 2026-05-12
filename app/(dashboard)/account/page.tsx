@@ -68,7 +68,7 @@ const ORG_ROLE_LABELS: Record<string, { label: string; color: string; icon: type
 export default function AccountPage() {
   const { user, loading: userLoading } = useUser();
   const { t } = useLanguage();
-  const { organization, orgRole, isOrgAdmin } = useOrganization();
+  const { organization, organizationId, orgRole, isOrgAdmin } = useOrganization();
   const { plan, subscription, usage, daysRemaining, getLimit, isNearLimit, isAtLimit, loading: planLoading, refetch } = usePlan();
   const { startTour, resetTour } = useTour();
   const confirm = useConfirm();
@@ -122,27 +122,40 @@ export default function AccountPage() {
 
     const fetchProfile = async () => {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("user_profiles")
-        .select("full_name, phone, whatsapp_phone, avatar_url, avatar_option, professional_title, is_founder, role")
-        .eq("id", user.id)
-        .single();
+      const [{ data: profile }, { data: membership }] = await Promise.all([
+        supabase
+          .from("user_profiles")
+          .select("full_name, phone, whatsapp_phone, avatar_url, avatar_option, is_founder, role")
+          .eq("id", user.id)
+          .single(),
+        // professional_title lives per-org on organization_members (mig 146).
+        // We read it from the user's active membership so the form edits the
+        // title for the current clinic only.
+        organizationId
+          ? supabase
+              .from("organization_members")
+              .select("professional_title")
+              .eq("user_id", user.id)
+              .eq("organization_id", organizationId)
+              .maybeSingle()
+          : Promise.resolve({ data: null as { professional_title: ProfessionalTitle | null } | null }),
+      ]);
 
       reset({
-        full_name: data?.full_name ?? user.user_metadata?.full_name ?? "",
-        phone: data?.phone ?? "",
-        whatsapp_phone: data?.whatsapp_phone ?? "",
-        professional_title: (data?.professional_title as ProfessionalTitle) ?? null,
+        full_name: profile?.full_name ?? user.user_metadata?.full_name ?? "",
+        phone: profile?.phone ?? "",
+        whatsapp_phone: profile?.whatsapp_phone ?? "",
+        professional_title: (membership?.professional_title as ProfessionalTitle) ?? null,
       });
-      setAvatarUrl(data?.avatar_url ?? null);
-      setAvatarOption((data?.avatar_option as AvatarOptionType) ?? null);
-      setIsFounder(data?.is_founder ?? false);
-      setPlatformRole(data?.role ?? null);
+      setAvatarUrl(profile?.avatar_url ?? null);
+      setAvatarOption((profile?.avatar_option as AvatarOptionType) ?? null);
+      setIsFounder(profile?.is_founder ?? false);
+      setPlatformRole(profile?.role ?? null);
       setProfileLoaded(true);
     };
 
     fetchProfile();
-  }, [user, reset]);
+  }, [user, reset, organizationId]);
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -252,8 +265,22 @@ export default function AccountPage() {
       full_name: values.full_name,
       phone: values.phone || null,
       whatsapp_phone: values.whatsapp_phone || null,
-      professional_title: values.professional_title || null,
     });
+
+    // professional_title is per-org (mig 146): a narrow RPC updates the
+    // title on the caller's own doctor membership in the current org. We
+    // can't UPDATE organization_members directly because the table policy
+    // is admin-only (mig 013) and widening it would allow role escalation.
+    if (organizationId && orgRole === "doctor") {
+      const { error: titleErr } = await supabase.rpc(
+        "update_my_professional_title",
+        {
+          p_org_id: organizationId,
+          p_title: values.professional_title || null,
+        },
+      );
+      if (titleErr) console.error("Failed to update professional_title:", titleErr);
+    }
 
     // Sync name to linked doctor record (trigger handles this too,
     // but explicit update ensures it works even without the trigger)

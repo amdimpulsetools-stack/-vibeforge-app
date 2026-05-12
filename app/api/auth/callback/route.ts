@@ -23,14 +23,14 @@ export async function GET(request: Request) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      // If there's an invite token, accept the invitation
+      // Invitation tokens used to be auto-accepted here, but that bypassed
+      // the user's consent: someone receiving an unexpected magic link was
+      // already a member by the time they saw the screen. We now hand them
+      // off to /register?invite=TOKEN, where they can Aceptar or Rechazar.
       if (inviteToken) {
-        const { error: inviteError } = await supabase.rpc("accept_invitation", {
-          invite_token: inviteToken,
-        });
-        if (inviteError) {
-          console.error("Failed to accept invitation:", inviteError.message);
-        }
+        return NextResponse.redirect(
+          `${origin}/register?invite=${encodeURIComponent(inviteToken)}`
+        );
       }
 
       // Backfill terms acceptance on user_profiles from auth metadata, and
