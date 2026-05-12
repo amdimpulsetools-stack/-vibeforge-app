@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
   // new state. On MP failure we revert in step 3.
   const { error: deactErr } = await admin
     .from("plan_addons")
-    .update({ is_active: false })
+    .update({ is_active: false, status: "cancelled" })
     .eq("id", addon.id);
 
   if (deactErr) {
@@ -160,7 +160,7 @@ export async function POST(request: NextRequest) {
       // ── Step 3: revert the local change so DB and MP stay in sync ──
       await admin
         .from("plan_addons")
-        .update({ is_active: true })
+        .update({ is_active: true, status: "active" })
         .eq("id", addon.id);
 
       await admin.from("billing_events").insert({

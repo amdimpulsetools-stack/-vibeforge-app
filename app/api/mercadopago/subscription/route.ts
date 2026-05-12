@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getPreApprovalClient } from "@/lib/mercadopago/client";
+import { updatePreApprovalAmount } from "@/lib/mercadopago/update-preapproval";
 import { NextResponse } from "next/server";
 import { paymentLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
@@ -135,35 +137,33 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "forbidden_owner_only" }, { status: 403 });
   }
 
-  // TODO (Wave 2 Sprint 1.5): the read-then-write below is not
-  // serialised — two parallel PUTs by the same owner could both pass
-  // the limit check and end up double-charging MP for one addon. The
-  // risk is small (single-owner clicking twice in <1s) but it is real.
-  // Plan: wrap the whole flow in a Postgres function with a row-level
-  // lock on organization_subscriptions, or accept an Idempotency-Key
-  // header and dedupe in DB.
+  const orgId = membership.organization_id;
 
-  // Get current subscription with plan
-  const { data: sub } = await supabase
+  // Resolve the unit price from the plan. We still do this in JS
+  // because the price comes from the plans table the caller can read,
+  // and the RPC takes it as a parameter to avoid coupling the lock
+  // function to plan column names.
+  const { data: planRow } = await supabase
     .from("organization_subscriptions")
-    .select("*, plans(id, name, slug, price_monthly, price_yearly, addon_price_per_member, addon_price_per_office)")
-    .eq("organization_id", membership.organization_id)
+    .select("plans(addon_price_per_member, addon_price_per_office)")
+    .eq("organization_id", orgId)
     .in("status", ["active", "trialing"])
     .order("created_at", { ascending: false })
     .limit(1)
     .single();
 
-  if (!sub || !sub.plans) {
+  const plan = (planRow?.plans as unknown as
+    | { addon_price_per_member: number | null; addon_price_per_office: number | null }
+    | null);
+
+  if (!plan) {
     return NextResponse.json({ error: "no_active_subscription" }, { status: 400 });
   }
 
-  const plan = sub.plans as Record<string, unknown>;
-
-  // Calculate addon price
   const unitPrice =
     addon_type === "extra_member"
-      ? (plan.addon_price_per_member as number)
-      : (plan.addon_price_per_office as number);
+      ? plan.addon_price_per_member
+      : plan.addon_price_per_office;
 
   if (!unitPrice) {
     return NextResponse.json(
@@ -172,65 +172,85 @@ export async function PUT(request: Request) {
     );
   }
 
-  const addonTotal = unitPrice * quantity;
-
-  // Require active MP subscription to purchase addons
-  // (trial users cannot buy addons — they must subscribe first)
-  if (!sub.mp_preapproval_id) {
-    return NextResponse.json(
-      {
-        error: "subscription_required",
-        message:
-          "Debes tener una suscripción activa con método de pago para comprar cupos extra. Activa tu suscripción primero.",
-      },
-      { status: 402 }
-    );
-  }
-
-  // Get current total (base plan + existing addons)
-  const { data: existingAddons } = await supabase
-    .from("plan_addons")
-    .select("id, addon_type, quantity, unit_price, is_active")
-    .eq("organization_id", membership.organization_id)
-    .eq("is_active", true);
-
-  const currentAddonCost = (existingAddons || []).reduce(
-    (sum: number, a: Record<string, unknown>) =>
-      sum + (a.unit_price as number) * (a.quantity as number),
-    0
+  // F12 — reserve the addon slot atomically. The RPC locks the
+  // subscription row, recomputes the new total under the lock, and
+  // inserts a plan_addons row with status='pending_mp_sync'. A parallel
+  // call for the same (org, addon_type) blocks on the partial unique
+  // index and gets 'addon_purchase_in_progress'.
+  const admin = createAdminClient();
+  const { data: reservation, error: rpcErr } = await admin.rpc(
+    "purchase_addon_atomic",
+    {
+      p_org_id: orgId,
+      p_user_id: user.id,
+      p_addon_type: addon_type,
+      p_quantity: quantity,
+      p_unit_price: unitPrice,
+    }
   );
 
-  const basePlanPrice = plan.price_monthly as number;
-  const newTotal = basePlanPrice + currentAddonCost + addonTotal;
-
-  // Update MP subscription amount FIRST before registering addon
-  try {
-    const preApproval = getPreApprovalClient();
-    await preApproval.update({
-      id: sub.mp_preapproval_id,
-      body: {
-        auto_recurring: {
-          transaction_amount: newTotal,
-          currency_id: "PEN",
+  if (rpcErr) {
+    const msg = rpcErr.message || "";
+    if (msg.includes("addon_purchase_in_progress")) {
+      return NextResponse.json(
+        {
+          error: "addon_purchase_in_progress",
+          message:
+            "Ya hay otra compra del mismo tipo en proceso. Espera unos segundos y reintenta.",
         },
-      },
-    });
+        { status: 409 }
+      );
+    }
+    if (msg.includes("no_active_subscription")) {
+      return NextResponse.json({ error: "no_active_subscription" }, { status: 400 });
+    }
+    if (msg.includes("subscription_required")) {
+      return NextResponse.json(
+        {
+          error: "subscription_required",
+          message:
+            "Debes tener una suscripción activa con método de pago para comprar cupos extra. Activa tu suscripción primero.",
+        },
+        { status: 402 }
+      );
+    }
+    console.error("[mercadopago/subscription] RPC purchase_addon_atomic error:", msg);
+    return NextResponse.json({ error: "internal_error" }, { status: 500 });
+  }
 
+  const reservationData = reservation as {
+    addon_id: string;
+    subscription_id: string;
+    mp_preapproval_id: string;
+    new_total: number;
+    addon_total: number;
+  };
+
+  // Push the new total to Mercado Pago. On any failure we roll back
+  // the reservation by deleting the pending plan_addons row, then
+  // surface the error to the caller.
+  try {
+    await updatePreApprovalAmount(
+      reservationData.mp_preapproval_id,
+      Number(reservationData.new_total)
+    );
     console.log(
-      `[MP] Updated subscription ${sub.mp_preapproval_id} amount to S/${newTotal}`
+      `[MP] Updated subscription ${reservationData.mp_preapproval_id} amount to S/${reservationData.new_total}`
     );
   } catch (error) {
     console.error("Error updating MP subscription amount:", error);
-    await supabase.from("billing_events").insert({
-      organization_id: membership.organization_id,
-      subscription_id: sub.id,
+    await admin.from("plan_addons").delete().eq("id", reservationData.addon_id);
+    await admin.from("billing_events").insert({
+      organization_id: orgId,
+      subscription_id: reservationData.subscription_id,
       event_type: "addon_mp_sync_failed",
       metadata: {
         operation: "add",
         addon_type,
         quantity,
         unit_price: unitPrice,
-        attempted_total: newTotal,
+        attempted_total: reservationData.new_total,
+        rolled_back_addon_id: reservationData.addon_id,
         error: error instanceof Error ? error.message : String(error),
       },
     });
@@ -244,30 +264,23 @@ export async function PUT(request: Request) {
     );
   }
 
-  // MP update succeeded — now register addon in our DB
-  const { data: newAddon } = await supabase
+  // MP confirmed — flip the reservation to active.
+  await admin
     .from("plan_addons")
-    .insert({
-      organization_id: membership.organization_id,
-      addon_type,
-      quantity,
-      unit_price: unitPrice,
-      is_active: true,
-    })
-    .select("id")
-    .single();
+    .update({ is_active: true, status: "active" })
+    .eq("id", reservationData.addon_id);
 
-  await supabase.from("billing_events").insert({
-    organization_id: membership.organization_id,
-    subscription_id: sub.id,
+  await admin.from("billing_events").insert({
+    organization_id: orgId,
+    subscription_id: reservationData.subscription_id,
     event_type: "addon_added",
     metadata: {
-      addon_id: newAddon?.id,
+      addon_id: reservationData.addon_id,
       addon_type,
       quantity,
       unit_price: unitPrice,
       added_by: user.id,
-      new_monthly_total: newTotal,
+      new_monthly_total: reservationData.new_total,
     },
   });
 
@@ -276,8 +289,8 @@ export async function PUT(request: Request) {
     addon_type,
     quantity,
     unit_price: unitPrice,
-    addon_cost: addonTotal,
-    new_monthly_total: newTotal,
-    message: `Se agregaron ${quantity} ${addon_type === "extra_member" ? "miembros" : "consultorios"} extra. Nuevo total mensual: S/${newTotal}`,
+    addon_cost: reservationData.addon_total,
+    new_monthly_total: reservationData.new_total,
+    message: `Se agregaron ${quantity} ${addon_type === "extra_member" ? "miembros" : "consultorios"} extra. Nuevo total mensual: S/${reservationData.new_total}`,
   });
 }
