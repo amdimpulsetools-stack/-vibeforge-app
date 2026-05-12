@@ -58,6 +58,7 @@ function RegisterPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [acceptingInvite, setAcceptingInvite] = useState(false);
+  const [rejectingInvite, setRejectingInvite] = useState(false);
   const [phraseIndex, setPhraseIndex] = useState(0);
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -293,6 +294,33 @@ function RegisterPage() {
     }
   };
 
+  const handleRejectInvite = async () => {
+    if (!inviteToken) return;
+    setRejectingInvite(true);
+    try {
+      const res = await fetch(`/api/invitations/${inviteToken}/reject`, {
+        method: "POST",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const code = (data?.error as string | undefined) ?? "";
+        const messages: Record<string, string> = {
+          email_mismatch: "Esta invitación no es para tu cuenta. Cierra sesión y vuelve a entrar con el email correcto.",
+          invitation_already_used: "Esta invitación ya no está pendiente.",
+        };
+        toast.error(messages[code] ?? "No pudimos rechazar la invitación. Intenta de nuevo.");
+        setRejectingInvite(false);
+        return;
+      }
+      toast.success("Invitación rechazada.");
+      router.push("/dashboard");
+      router.refresh();
+    } catch {
+      toast.error("Sin conexión. Revisa tu internet e intenta otra vez.");
+      setRejectingInvite(false);
+    }
+  };
+
   const handleSignOut = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
@@ -386,15 +414,23 @@ function RegisterPage() {
               <div className="space-y-2">
                 <button
                   onClick={handleAcceptInviteAuthenticated}
-                  disabled={acceptingInvite}
+                  disabled={acceptingInvite || rejectingInvite}
                   className="flex h-12 w-full items-center justify-center rounded-xl gradient-primary text-sm font-semibold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-50"
                 >
                   {acceptingInvite && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Aceptar invitación y continuar
                 </button>
                 <button
+                  onClick={handleRejectInvite}
+                  disabled={acceptingInvite || rejectingInvite}
+                  className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-red-500/30 bg-red-500/5 px-4 text-sm font-medium text-red-600 transition-all hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  {rejectingInvite && <Loader2 className="h-4 w-4 animate-spin" />}
+                  Rechazar invitación
+                </button>
+                <button
                   onClick={handleSignOut}
-                  disabled={acceptingInvite}
+                  disabled={acceptingInvite || rejectingInvite}
                   className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-card px-4 text-sm font-medium text-muted-foreground transition-all hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
                 >
                   <LogOut className="h-4 w-4" />
