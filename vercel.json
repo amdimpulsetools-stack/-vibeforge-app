@@ -16,6 +16,10 @@
     {
       "path": "/api/cron/budget-pdf-cleanup",
       "schedule": "0 8 1 * *"
+    },
+    {
+      "path": "/api/cron/billing-status",
+      "schedule": "0 14 * * *"
     }
   ]
 }

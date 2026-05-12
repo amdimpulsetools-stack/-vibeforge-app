@@ -6,6 +6,18 @@ import crypto from "crypto";
 import { webhookLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
 import { mpWebhookBodySchema } from "@/lib/validations/api";
+import {
+  resolveBillingEmailContext,
+  sendPaymentFailedEmail,
+} from "@/lib/billing-emails";
+
+// Grace period after the first payment failure. Tuned to overlap
+// with Mercado Pago's default 3-retry window (~7 days).
+const GRACE_DAYS = 7;
+// MP retries 3 times + final settlement attempt = 4 failures before
+// we give up. Anything past this and we flip past_due immediately
+// regardless of the grace window remaining.
+const MAX_FAILURES_BEFORE_PAST_DUE = 4;
 
 /**
  * POST /api/mercadopago/webhook
@@ -123,7 +135,7 @@ async function handleSubscriptionEvent(
 
   const newStatus = statusMap[mpSub.status || ""] || "active";
 
-  const updateData = {
+  const updateData: Record<string, unknown> = {
     status: newStatus,
     mp_preapproval_id: preapprovalId,
     mp_payer_email: mpSub.payer_email || null,
@@ -133,6 +145,13 @@ async function handleSubscriptionEvent(
     payment_provider: "mercadopago",
     updated_at: new Date().toISOString(),
   };
+
+  // If MP confirms cancellation (user cancelled from MP UI or our
+  // own /api/billing/cancel propagated through), stamp cancelled_at
+  // so the middleware grace logic can keep access until period end.
+  if (newStatus === "cancelled") {
+    updateData.cancelled_at = new Date().toISOString();
+  }
 
   // Strategy 1: If external_reference exists (open subscriptions created via API)
   if (mpSub.external_reference) {
@@ -310,31 +329,146 @@ async function handlePaymentEvent(
     mp_raw_data: mpPayment as unknown as Record<string, unknown>,
   });
 
-  // If payment approved, ensure subscription is active
+  // If payment approved, ensure subscription is active and clear
+  // any grace counters that may have been set by previous rejections.
   if (paymentStatus === "approved" && sub) {
+    const { data: prev } = await supabase
+      .from("organization_subscriptions")
+      .select("status, failure_count")
+      .eq("id", sub.id)
+      .single();
+
     await supabase
       .from("organization_subscriptions")
       .update({
         status: "active",
         mp_last_payment_status: "approved",
+        failure_count: 0,
+        grace_period_until: null,
+        past_due_since: null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", sub.id);
+
+    if (prev && (prev.status === "grace" || prev.status === "past_due")) {
+      await supabase.from("billing_events").insert({
+        organization_id: orgId,
+        subscription_id: sub.id,
+        event_type: "recovered_to_active",
+        metadata: { from_status: prev.status, failure_count_before: prev.failure_count },
+      });
+    }
   }
 
-  // If payment rejected/failed, mark subscription past_due
+  // If payment rejected, enter (or extend) the grace period unless
+  // we've burned through MP's retry window — then flip to past_due.
   if (paymentStatus === "rejected" && sub) {
-    await supabase
-      .from("organization_subscriptions")
-      .update({
-        status: "past_due",
-        mp_last_payment_status: "rejected",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", sub.id);
+    await handlePaymentFailure(supabase, sub.id, orgId);
   }
 
   console.log(
     `[MP Webhook] Payment ${paymentId} status=${paymentStatus} amount=${mpPayment.transaction_amount} org=${orgId}`
   );
+}
+
+/**
+ * Reaction to a rejected payment. Implements the grace policy:
+ *
+ *   - First failure on an active/trialing sub
+ *     → status='grace', grace_period_until = NOW() + 7d, failure_count = 1
+ *   - Subsequent failure already in grace
+ *     → failure_count++, keep grace status (window unchanged)
+ *   - failure_count >= 4 (MP's retry budget exhausted)
+ *     → status='past_due', past_due_since = NOW(), grace cleared
+ *   - Failure on an already-cancelled sub → no-op (user wants out)
+ *
+ * Sends the "pago no procesado" email on the FIRST failure only.
+ * Subsequent failures are silent (otherwise we spam — the grace
+ * ending reminder is the cron's job 2 days before expiry).
+ */
+async function handlePaymentFailure(
+  supabase: SupabaseClient,
+  subscriptionId: string,
+  organizationId: string,
+): Promise<void> {
+  const { data: sub } = await supabase
+    .from("organization_subscriptions")
+    .select("id, status, failure_count, grace_period_until")
+    .eq("id", subscriptionId)
+    .single();
+
+  if (!sub) return;
+  if (sub.status === "cancelled") {
+    // User already cancelled; the rejection is MP draining its
+    // retry queue. Don't bother the user.
+    return;
+  }
+
+  const nowIso = new Date().toISOString();
+  const nextFailureCount = (sub.failure_count ?? 0) + 1;
+  const isFirstFailure = (sub.failure_count ?? 0) === 0;
+
+  if (nextFailureCount >= MAX_FAILURES_BEFORE_PAST_DUE) {
+    // MP gave up. Cut access.
+    await supabase
+      .from("organization_subscriptions")
+      .update({
+        status: "past_due",
+        mp_last_payment_status: "rejected",
+        failure_count: nextFailureCount,
+        last_payment_failure_at: nowIso,
+        past_due_since: nowIso,
+        grace_period_until: null,
+        updated_at: nowIso,
+      })
+      .eq("id", subscriptionId);
+
+    await supabase.from("billing_events").insert({
+      organization_id: organizationId,
+      subscription_id: subscriptionId,
+      event_type: "past_due_terminated",
+      metadata: { reason: "max_failures_reached", failure_count: nextFailureCount },
+    });
+    return;
+  }
+
+  // Otherwise enter or extend grace.
+  const graceUntil =
+    sub.grace_period_until && new Date(sub.grace_period_until) > new Date()
+      ? sub.grace_period_until
+      : new Date(Date.now() + GRACE_DAYS * 24 * 3600 * 1000).toISOString();
+
+  await supabase
+    .from("organization_subscriptions")
+    .update({
+      status: "grace",
+      mp_last_payment_status: "rejected",
+      failure_count: nextFailureCount,
+      last_payment_failure_at: nowIso,
+      grace_period_until: graceUntil,
+      updated_at: nowIso,
+    })
+    .eq("id", subscriptionId);
+
+  await supabase.from("billing_events").insert({
+    organization_id: organizationId,
+    subscription_id: subscriptionId,
+    event_type: isFirstFailure ? "entered_grace" : "grace_extended",
+    metadata: {
+      failure_count: nextFailureCount,
+      grace_period_until: graceUntil,
+    },
+  });
+
+  // Email the owner on the first failure only.
+  if (isFirstFailure) {
+    const ctx = await resolveBillingEmailContext(
+      supabase,
+      organizationId,
+      subscriptionId,
+    );
+    if (ctx) {
+      await sendPaymentFailedEmail(ctx);
+    }
+  }
 }
