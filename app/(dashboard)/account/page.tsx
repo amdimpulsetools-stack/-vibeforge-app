@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -773,6 +773,11 @@ export default function AccountPage() {
         </div>
       </div>
 
+      {/* Cupos extra activos — owner-only. Le permite al owner soltar
+          un slot pagado (extra doctor / consultorio) para que MP deje
+          de cobrarlo en el próximo ciclo. */}
+      {orgRole === "owner" && <ActiveAddonsCard />}
+
       {/* Ayuda — tour de bienvenida */}
       <div className="rounded-2xl border border-border/60 bg-card p-6">
         <div className="flex items-center gap-2 mb-2">
@@ -846,6 +851,19 @@ export default function AccountPage() {
           </p>
         )}
       </div>
+
+      {/* Eliminar clínica — Ley 29733 compliance (right to be forgotten).
+          Owner-only. Requires the subscription to be already cancelled.
+          Pre-cron action is soft-delete; after 30 days the cron runs
+          the IRREVERSIBLE anonymization. */}
+      {orgRole === "owner" && (
+        <DeleteOrgCard
+          subscriptionStatus={
+            (subscription?.status as string | undefined) ?? null
+          }
+          isSubscriptionCancelled={isSubscriptionCancelled}
+        />
+      )}
     </div>
   );
 }
@@ -1561,6 +1579,311 @@ function AiQuotaCard() {
           <ArrowRight className="h-3.5 w-3.5" />
         </a>
       )}
+    </div>
+  );
+}
+
+/* ─── Delete-org card ───────────────────────────────────────────────
+   Soft-delete with 30-day grace + IRREVERSIBLE anonymization (mig 149).
+   The owner can revert via /api/account/delete-cancel while the grace
+   window is open. Hard-gated on subscription being cancelled first —
+   the RPC re-checks this server-side. */
+
+function DeleteOrgCard({
+  subscriptionStatus,
+  isSubscriptionCancelled,
+}: {
+  subscriptionStatus: string | null;
+  isSubscriptionCancelled: boolean;
+}) {
+  const { organization } = useOrganization();
+  const confirm = useConfirm();
+  const [loading, setLoading] = useState(true);
+  const [deletionState, setDeletionState] = useState<{
+    deleted_at: string | null;
+    delete_grace_until: string | null;
+    anonymized_at: string | null;
+  } | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const fetchState = useCallback(async () => {
+    if (!organization?.id) {
+      setLoading(false);
+      return;
+    }
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("organizations")
+      .select("deleted_at, delete_grace_until, anonymized_at")
+      .eq("id", organization.id)
+      .maybeSingle();
+    setDeletionState(
+      (data as {
+        deleted_at: string | null;
+        delete_grace_until: string | null;
+        anonymized_at: string | null;
+      } | null) ?? null,
+    );
+    setLoading(false);
+  }, [organization?.id]);
+
+  useEffect(() => {
+    fetchState();
+  }, [fetchState]);
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-destructive/30 bg-card p-6">
+        <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+        <div className="mt-3 h-3 w-full animate-pulse rounded bg-muted" />
+      </div>
+    );
+  }
+
+  // Already anonymized — should be unreachable from /account (the
+  // session-check RPC blocks anonymized orgs) but render defensively.
+  if (deletionState?.anonymized_at) {
+    return null;
+  }
+
+  const inGrace = Boolean(
+    deletionState?.deleted_at && deletionState.delete_grace_until,
+  );
+
+  const handleRequest = async () => {
+    const ok = await confirm({
+      title: "¿Eliminar tu clínica de Yenda?",
+      description:
+        "Esta acción es IRREVERSIBLE después de 30 días. Los nombres, teléfonos, correos y DNI de pacientes, doctores y miembros serán reemplazados por identificadores anónimos. Las facturas y historias clínicas se conservan anónimas por ley (SUNAT 5 años, salud 15 años). Tienes 30 días para revertir antes de que el cambio sea definitivo.",
+      confirmText: "Sí, eliminar mi clínica",
+      cancelText: "Volver",
+      variant: "destructive",
+    });
+    if (!ok) return;
+
+    setWorking(true);
+    try {
+      const res = await fetch("/api/account/delete-request", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const code = (data?.error as string | undefined) ?? "";
+        const messages: Record<string, string> = {
+          subscription_still_active:
+            "Primero cancela tu suscripción desde el botón de arriba.",
+          forbidden_owner_only: "Solo el propietario puede eliminar la clínica.",
+          already_deleted: "Tu clínica ya está marcada para eliminación.",
+        };
+        toast.error(messages[code] ?? data?.message ?? "No pudimos procesar tu solicitud.");
+        setWorking(false);
+        return;
+      }
+      toast.success(data?.message ?? "Solicitud recibida.", { duration: 8000 });
+      await fetchState();
+    } catch {
+      toast.error("Error de red. Intenta de nuevo.");
+    }
+    setWorking(false);
+  };
+
+  const handleCancel = async () => {
+    const ok = await confirm({
+      title: "¿Revertir la eliminación?",
+      description:
+        "Tu clínica volverá a estar completamente activa. No perderás nada.",
+      confirmText: "Sí, revertir",
+      cancelText: "Mantener eliminación",
+    });
+    if (!ok) return;
+
+    setWorking(true);
+    try {
+      const res = await fetch("/api/account/delete-cancel", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.error ?? "No pudimos revertir. Intenta de nuevo.");
+        setWorking(false);
+        return;
+      }
+      toast.success(data?.message ?? "Eliminación revertida.");
+      await fetchState();
+    } catch {
+      toast.error("Error de red. Intenta de nuevo.");
+    }
+    setWorking(false);
+  };
+
+  // ── Render: in-grace state ────────────────────────────────────────
+  if (inGrace) {
+    const graceDate = new Date(deletionState!.delete_grace_until!);
+    const daysLeft = Math.max(
+      0,
+      Math.ceil((graceDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+    );
+    return (
+      <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-6">
+        <div className="flex items-center gap-2 mb-2">
+          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <h2 className="text-lg font-semibold text-destructive">
+            Clínica marcada para eliminación
+          </h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Tu clínica se anonimizará permanentemente el{" "}
+          <span className="font-medium text-foreground">
+            {graceDate.toLocaleDateString("es-PE", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })}
+          </span>{" "}
+          ({daysLeft} {daysLeft === 1 ? "día restante" : "días restantes"}). Puedes revertir hasta esa fecha.
+        </p>
+        <button
+          type="button"
+          onClick={handleCancel}
+          disabled={working}
+          className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
+        >
+          {working && <Loader2 className="h-4 w-4 animate-spin" />}
+          Revertir eliminación
+        </button>
+      </div>
+    );
+  }
+
+  // ── Render: not deleted yet ───────────────────────────────────────
+  // The RPC re-validates this server-side; the UI guard only avoids
+  // showing a button that we know will 400. Blocked: active / trialing
+  // / grace (these are paid or future-paid; user must cancel first).
+  const blockedStatuses = ["active", "trialing", "grace"];
+  const canRequest =
+    isSubscriptionCancelled ||
+    !subscriptionStatus ||
+    !blockedStatuses.includes(subscriptionStatus);
+
+  return (
+    <div className="rounded-2xl border border-destructive/30 bg-card p-6">
+      <h2 className="text-lg font-semibold text-destructive mb-2">
+        Eliminar clínica
+      </h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Solicita la eliminación de los datos personales de tu clínica (Ley 29733). Tienes 30 días para revertir; después del plazo la anonimización es IRREVERSIBLE. Las facturas y historias clínicas se conservan anónimas según retención legal.
+      </p>
+
+      {canRequest ? (
+        <button
+          type="button"
+          onClick={handleRequest}
+          disabled={working}
+          className="inline-flex items-center gap-2 rounded-xl border border-destructive bg-destructive/10 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
+        >
+          {working && <Loader2 className="h-4 w-4 animate-spin" />}
+          Eliminar clínica
+        </button>
+      ) : (
+        <p className="text-xs text-muted-foreground italic">
+          Primero cancela tu suscripción desde el botón de arriba antes de eliminar la clínica.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ─── Active Addons card ───────────────────────────────────────────
+   Lists every plan_addons row with is_active=true and lets the owner
+   release a slot. The cancel button calls /api/addons/cancel which
+   pushes the lower transaction_amount to Mercado Pago — the slot is
+   only billed until the end of the current cycle. */
+
+const ADDON_TYPE_LABEL: Record<"extra_member" | "extra_office", string> = {
+  extra_member: "Miembro extra (doctor/recepcionista)",
+  extra_office: "Consultorio extra",
+};
+
+function ActiveAddonsCard() {
+  const { billing, cancelAddon, loading } = useBilling();
+  const confirm = useConfirm();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  const addons = billing?.addons ?? [];
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-border/60 bg-card p-4">
+        <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+        <div className="mt-3 h-3 w-full animate-pulse rounded bg-muted" />
+      </div>
+    );
+  }
+
+  if (addons.length === 0) {
+    return null;
+  }
+
+  const handleCancel = async (
+    addonId: string,
+    label: string,
+    amount: number,
+  ) => {
+    const ok = await confirm({
+      title: "¿Cancelar este cupo extra?",
+      description: `Al cancelar dejarás de pagar S/${amount.toFixed(2)}/mes por ${label.toLowerCase()}. El cambio aplica en tu próximo ciclo de facturación.`,
+      confirmText: "Sí, cancelar",
+      cancelText: "Volver",
+      variant: "destructive",
+    });
+    if (!ok) return;
+
+    setCancellingId(addonId);
+    const result = await cancelAddon(addonId);
+    setCancellingId(null);
+
+    if (result.success) {
+      toast.success(result.message, { duration: 6000 });
+    } else {
+      toast.error(result.message);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border/60 bg-card p-6">
+      <div className="flex items-center gap-2 mb-2">
+        <ShoppingCart className="h-4 w-4 text-primary" />
+        <h2 className="text-lg font-semibold">Cupos extra activos</h2>
+      </div>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Cada cupo es un slot pagado independiente del personal que lo ocupa. Cancelar un cupo no desactiva a nadie — solo libera el costo en tu próxima factura.
+      </p>
+      <ul className="space-y-2">
+        {addons.map((a) => {
+          const total = Number(a.unit_price) * Number(a.quantity);
+          const label = ADDON_TYPE_LABEL[a.addon_type] ?? a.addon_type;
+          return (
+            <li
+              key={a.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/50 px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {a.quantity}× {label}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  S/{Number(a.unit_price).toFixed(2)} por unidad · {" "}
+                  <span className="font-medium text-foreground">S/{total.toFixed(2)}/mes</span>
+                </p>
+              </div>
+              <button
+                onClick={() => handleCancel(a.id, label, total)}
+                disabled={cancellingId === a.id}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-1.5 text-xs font-medium text-red-600 transition-all hover:bg-red-500/10 disabled:opacity-50"
+              >
+                {cancellingId === a.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                Cancelar cupo
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

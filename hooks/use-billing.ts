@@ -14,9 +14,18 @@ interface PaymentRecord {
   created_at: string;
 }
 
+export interface ActiveAddon {
+  id: string;
+  addon_type: "extra_member" | "extra_office";
+  quantity: number;
+  unit_price: number;
+  created_at: string;
+}
+
 interface BillingInfo {
   subscription: Record<string, unknown> | null;
   payments: PaymentRecord[];
+  addons: ActiveAddon[];
   mp_status: Record<string, unknown> | null;
 }
 
@@ -28,6 +37,10 @@ interface UseBillingReturn {
     addonType: "extra_member" | "extra_office",
     quantity: number
   ) => Promise<{ success: boolean; message: string; new_total?: number; error_code?: string }>;
+  /** Cancel an active addon by id, releases the slot and lowers MP charge */
+  cancelAddon: (
+    addonId: string
+  ) => Promise<{ success: boolean; message: string; new_total?: number | null; error_code?: string }>;
   refetch: () => void;
 }
 
@@ -95,10 +108,44 @@ export function useBilling(): UseBillingReturn {
     }
   };
 
+  const cancelAddon = async (addonId: string) => {
+    try {
+      const res = await fetch("/api/addons/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addon_id: addonId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return {
+          success: false,
+          message: data.message || data.error || "Error al cancelar el cupo extra",
+          error_code: data.error,
+        };
+      }
+
+      await fetchBilling();
+
+      return {
+        success: true,
+        message: data.message,
+        new_total: data.new_monthly_total ?? null,
+      };
+    } catch {
+      return {
+        success: false,
+        message: "Error de conexion",
+      };
+    }
+  };
+
   return {
     billing,
     loading,
     addAddon,
+    cancelAddon,
     refetch: fetchBilling,
   };
 }
