@@ -23,7 +23,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildEmailHtml } from "@/lib/email-template";
 import { sendEmail, isEmailConfigured } from "@/lib/resend";
 
-export type BillingEmailKind = "payment_failed" | "grace_ending" | "access_suspended";
+export type BillingEmailKind =
+  | "payment_failed"
+  | "grace_ending"
+  | "access_suspended"
+  | "account_deletion_requested"
+  | "account_deletion_completed";
 
 export interface BillingEmailContext {
   supabase: SupabaseClient;
@@ -110,6 +115,49 @@ Si no actualizas tu método de pago antes de esa fecha, el acceso a Yenda quedar
 Actualiza tu tarjeta aquí: {{billing_url}}
 
 ¿Problemas con el pago? Escríbenos a {{support_email}} y te ayudamos.
+
+— Equipo Yenda`,
+      ),
+    };
+  }
+
+  if (kind === "account_deletion_requested") {
+    return {
+      subject: replace("Solicitud de eliminación recibida — 30 días para revertir"),
+      body: replace(
+        `Hola {{org_name}},
+
+Recibimos tu solicitud para eliminar tu clínica de Yenda. Lamentamos verte partir.
+
+Tienes hasta el {{grace_until}} (30 días) para cambiar de opinión. Durante este período tu clínica sigue marcada para eliminación pero los datos NO se han tocado todavía. Si quieres revertirlo, entra a {{billing_url}} y haz clic en "Cancelar eliminación".
+
+Después del {{grace_until}}:
+• Los datos personales de pacientes, doctores y miembros serán anonimizados de forma IRREVERSIBLE (nombres, teléfonos, DNI, correos)
+• Las facturas se conservan anónimas por 5 años (requisito SUNAT)
+• Las historias clínicas se conservan anónimas por 15 años (NTS 139)
+
+¿Cambiaste de opinión o tienes dudas? Escríbenos a {{support_email}}.
+
+— Equipo Yenda`,
+      ),
+    };
+  }
+
+  if (kind === "account_deletion_completed") {
+    return {
+      subject: replace("Tu clínica ha sido eliminada de Yenda"),
+      body: replace(
+        `Hola,
+
+El proceso de eliminación de tu clínica se completó. Los datos personales (nombres, teléfonos, correos, DNI) fueron reemplazados por identificadores anónimos de forma IRREVERSIBLE.
+
+Qué se conservó (por ley):
+• Facturas electrónicas: anónimas, por 5 años (SUNAT)
+• Historias clínicas: anónimas, por 15 años (Ley General de Salud)
+
+Tu cuenta de usuario sigue siendo tuya. Si formas parte de otra clínica en Yenda, tu acceso a esa clínica no fue afectado. Si quieres abrir una nueva clínica más adelante, puedes hacerlo con el mismo correo.
+
+¿Dudas? Escríbenos a {{support_email}}.
 
 — Equipo Yenda`,
       ),
@@ -227,6 +275,18 @@ export async function sendAccessSuspendedEmail(
   ctx: BillingEmailContext,
 ): Promise<BillingEmailResult> {
   return sendBillingEmail(ctx, "access_suspended");
+}
+
+export async function sendAccountDeletionRequestedEmail(
+  ctx: BillingEmailContext,
+): Promise<BillingEmailResult> {
+  return sendBillingEmail(ctx, "account_deletion_requested");
+}
+
+export async function sendAccountDeletionCompletedEmail(
+  ctx: BillingEmailContext,
+): Promise<BillingEmailResult> {
+  return sendBillingEmail(ctx, "account_deletion_completed");
 }
 
 /**

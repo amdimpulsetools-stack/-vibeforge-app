@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -824,6 +824,19 @@ export default function AccountPage() {
           </p>
         )}
       </div>
+
+      {/* Eliminar clínica — Ley 29733 compliance (right to be forgotten).
+          Owner-only. Requires the subscription to be already cancelled.
+          Pre-cron action is soft-delete; after 30 days the cron runs
+          the IRREVERSIBLE anonymization. */}
+      {orgRole === "owner" && (
+        <DeleteOrgCard
+          subscriptionStatus={
+            (subscription?.status as string | undefined) ?? null
+          }
+          isSubscriptionCancelled={isSubscriptionCancelled}
+        />
+      )}
     </div>
   );
 }
@@ -1538,6 +1551,212 @@ function AiQuotaCard() {
           Mejorar plan
           <ArrowRight className="h-3.5 w-3.5" />
         </a>
+      )}
+    </div>
+  );
+}
+
+/* ─── Delete-org card ───────────────────────────────────────────────
+   Soft-delete with 30-day grace + IRREVERSIBLE anonymization (mig 149).
+   The owner can revert via /api/account/delete-cancel while the grace
+   window is open. Hard-gated on subscription being cancelled first —
+   the RPC re-checks this server-side. */
+
+function DeleteOrgCard({
+  subscriptionStatus,
+  isSubscriptionCancelled,
+}: {
+  subscriptionStatus: string | null;
+  isSubscriptionCancelled: boolean;
+}) {
+  const { organization } = useOrganization();
+  const confirm = useConfirm();
+  const [loading, setLoading] = useState(true);
+  const [deletionState, setDeletionState] = useState<{
+    deleted_at: string | null;
+    delete_grace_until: string | null;
+    anonymized_at: string | null;
+  } | null>(null);
+  const [working, setWorking] = useState(false);
+
+  const fetchState = useCallback(async () => {
+    if (!organization?.id) {
+      setLoading(false);
+      return;
+    }
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("organizations")
+      .select("deleted_at, delete_grace_until, anonymized_at")
+      .eq("id", organization.id)
+      .maybeSingle();
+    setDeletionState(
+      (data as {
+        deleted_at: string | null;
+        delete_grace_until: string | null;
+        anonymized_at: string | null;
+      } | null) ?? null,
+    );
+    setLoading(false);
+  }, [organization?.id]);
+
+  useEffect(() => {
+    fetchState();
+  }, [fetchState]);
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-destructive/30 bg-card p-6">
+        <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+        <div className="mt-3 h-3 w-full animate-pulse rounded bg-muted" />
+      </div>
+    );
+  }
+
+  // Already anonymized — should be unreachable from /account (the
+  // session-check RPC blocks anonymized orgs) but render defensively.
+  if (deletionState?.anonymized_at) {
+    return null;
+  }
+
+  const inGrace = Boolean(
+    deletionState?.deleted_at && deletionState.delete_grace_until,
+  );
+
+  const handleRequest = async () => {
+    const ok = await confirm({
+      title: "¿Eliminar tu clínica de Yenda?",
+      description:
+        "Esta acción es IRREVERSIBLE después de 30 días. Los nombres, teléfonos, correos y DNI de pacientes, doctores y miembros serán reemplazados por identificadores anónimos. Las facturas y historias clínicas se conservan anónimas por ley (SUNAT 5 años, salud 15 años). Tienes 30 días para revertir antes de que el cambio sea definitivo.",
+      confirmText: "Sí, eliminar mi clínica",
+      cancelText: "Volver",
+      variant: "destructive",
+    });
+    if (!ok) return;
+
+    setWorking(true);
+    try {
+      const res = await fetch("/api/account/delete-request", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const code = (data?.error as string | undefined) ?? "";
+        const messages: Record<string, string> = {
+          subscription_still_active:
+            "Primero cancela tu suscripción desde el botón de arriba.",
+          forbidden_owner_only: "Solo el propietario puede eliminar la clínica.",
+          already_deleted: "Tu clínica ya está marcada para eliminación.",
+        };
+        toast.error(messages[code] ?? data?.message ?? "No pudimos procesar tu solicitud.");
+        setWorking(false);
+        return;
+      }
+      toast.success(data?.message ?? "Solicitud recibida.", { duration: 8000 });
+      await fetchState();
+    } catch {
+      toast.error("Error de red. Intenta de nuevo.");
+    }
+    setWorking(false);
+  };
+
+  const handleCancel = async () => {
+    const ok = await confirm({
+      title: "¿Revertir la eliminación?",
+      description:
+        "Tu clínica volverá a estar completamente activa. No perderás nada.",
+      confirmText: "Sí, revertir",
+      cancelText: "Mantener eliminación",
+    });
+    if (!ok) return;
+
+    setWorking(true);
+    try {
+      const res = await fetch("/api/account/delete-cancel", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data?.error ?? "No pudimos revertir. Intenta de nuevo.");
+        setWorking(false);
+        return;
+      }
+      toast.success(data?.message ?? "Eliminación revertida.");
+      await fetchState();
+    } catch {
+      toast.error("Error de red. Intenta de nuevo.");
+    }
+    setWorking(false);
+  };
+
+  // ── Render: in-grace state ────────────────────────────────────────
+  if (inGrace) {
+    const graceDate = new Date(deletionState!.delete_grace_until!);
+    const daysLeft = Math.max(
+      0,
+      Math.ceil((graceDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+    );
+    return (
+      <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-6">
+        <div className="flex items-center gap-2 mb-2">
+          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <h2 className="text-lg font-semibold text-destructive">
+            Clínica marcada para eliminación
+          </h2>
+        </div>
+        <p className="text-sm text-muted-foreground mb-4">
+          Tu clínica se anonimizará permanentemente el{" "}
+          <span className="font-medium text-foreground">
+            {graceDate.toLocaleDateString("es-PE", {
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })}
+          </span>{" "}
+          ({daysLeft} {daysLeft === 1 ? "día restante" : "días restantes"}). Puedes revertir hasta esa fecha.
+        </p>
+        <button
+          type="button"
+          onClick={handleCancel}
+          disabled={working}
+          className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:bg-accent disabled:opacity-50"
+        >
+          {working && <Loader2 className="h-4 w-4 animate-spin" />}
+          Revertir eliminación
+        </button>
+      </div>
+    );
+  }
+
+  // ── Render: not deleted yet ───────────────────────────────────────
+  // The RPC re-validates this server-side; the UI guard only avoids
+  // showing a button that we know will 400. Blocked: active / trialing
+  // / grace (these are paid or future-paid; user must cancel first).
+  const blockedStatuses = ["active", "trialing", "grace"];
+  const canRequest =
+    isSubscriptionCancelled ||
+    !subscriptionStatus ||
+    !blockedStatuses.includes(subscriptionStatus);
+
+  return (
+    <div className="rounded-2xl border border-destructive/30 bg-card p-6">
+      <h2 className="text-lg font-semibold text-destructive mb-2">
+        Eliminar clínica
+      </h2>
+      <p className="text-sm text-muted-foreground mb-4">
+        Solicita la eliminación de los datos personales de tu clínica (Ley 29733). Tienes 30 días para revertir; después del plazo la anonimización es IRREVERSIBLE. Las facturas y historias clínicas se conservan anónimas según retención legal.
+      </p>
+
+      {canRequest ? (
+        <button
+          type="button"
+          onClick={handleRequest}
+          disabled={working}
+          className="inline-flex items-center gap-2 rounded-xl border border-destructive bg-destructive/10 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
+        >
+          {working && <Loader2 className="h-4 w-4 animate-spin" />}
+          Eliminar clínica
+        </button>
+      ) : (
+        <p className="text-xs text-muted-foreground italic">
+          Primero cancela tu suscripción desde el botón de arriba antes de eliminar la clínica.
+        </p>
       )}
     </div>
   );
