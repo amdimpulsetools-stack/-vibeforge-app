@@ -62,6 +62,16 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .limit(10);
 
+  // Active add-ons the org has purchased (cupos extra de doctores /
+  // recepcionistas / consultorios). Exposed so /account can render the
+  // "cancelar cupo" UI introduced in Wave 2 Sprint 1.
+  const { data: addons } = await supabase
+    .from("plan_addons")
+    .select("id, addon_type, quantity, unit_price, created_at")
+    .eq("organization_id", membership.organization_id)
+    .eq("is_active", true)
+    .order("created_at", { ascending: false });
+
   // If we have a MP preapproval, fetch latest status from MP
   let mpStatus = null;
   if (sub.mp_preapproval_id) {
@@ -76,6 +86,7 @@ export async function GET() {
   return NextResponse.json({
     subscription: sub,
     payments: payments || [],
+    addons: addons || [],
     mp_status: mpStatus,
   });
 }
@@ -117,9 +128,20 @@ export async function PUT(request: Request) {
     .limit(1)
     .single();
 
-  if (!membership || (membership.role !== "owner" && membership.role !== "admin")) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  // OWNER ONLY — adding paid addons increases the monthly bill, so
+  // we deliberately exclude admins. This mirrors /api/billing/cancel
+  // which is also owner-gated.
+  if (!membership || membership.role !== "owner") {
+    return NextResponse.json({ error: "forbidden_owner_only" }, { status: 403 });
   }
+
+  // TODO (Wave 2 Sprint 1.5): the read-then-write below is not
+  // serialised — two parallel PUTs by the same owner could both pass
+  // the limit check and end up double-charging MP for one addon. The
+  // risk is small (single-owner clicking twice in <1s) but it is real.
+  // Plan: wrap the whole flow in a Postgres function with a row-level
+  // lock on organization_subscriptions, or accept an Idempotency-Key
+  // header and dedupe in DB.
 
   // Get current subscription with plan
   const { data: sub } = await supabase
@@ -199,7 +221,19 @@ export async function PUT(request: Request) {
     );
   } catch (error) {
     console.error("Error updating MP subscription amount:", error);
-    // MP update failed — do NOT register addon in DB
+    await supabase.from("billing_events").insert({
+      organization_id: membership.organization_id,
+      subscription_id: sub.id,
+      event_type: "addon_mp_sync_failed",
+      metadata: {
+        operation: "add",
+        addon_type,
+        quantity,
+        unit_price: unitPrice,
+        attempted_total: newTotal,
+        error: error instanceof Error ? error.message : String(error),
+      },
+    });
     return NextResponse.json(
       {
         error: "payment_failed",
@@ -211,12 +245,30 @@ export async function PUT(request: Request) {
   }
 
   // MP update succeeded — now register addon in our DB
-  await supabase.from("plan_addons").insert({
+  const { data: newAddon } = await supabase
+    .from("plan_addons")
+    .insert({
+      organization_id: membership.organization_id,
+      addon_type,
+      quantity,
+      unit_price: unitPrice,
+      is_active: true,
+    })
+    .select("id")
+    .single();
+
+  await supabase.from("billing_events").insert({
     organization_id: membership.organization_id,
-    addon_type,
-    quantity,
-    unit_price: unitPrice,
-    is_active: true,
+    subscription_id: sub.id,
+    event_type: "addon_added",
+    metadata: {
+      addon_id: newAddon?.id,
+      addon_type,
+      quantity,
+      unit_price: unitPrice,
+      added_by: user.id,
+      new_monthly_total: newTotal,
+    },
   });
 
   return NextResponse.json({

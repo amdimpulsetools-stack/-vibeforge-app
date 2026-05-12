@@ -746,6 +746,11 @@ export default function AccountPage() {
         </div>
       </div>
 
+      {/* Cupos extra activos — owner-only. Le permite al owner soltar
+          un slot pagado (extra doctor / consultorio) para que MP deje
+          de cobrarlo en el próximo ciclo. */}
+      {orgRole === "owner" && <ActiveAddonsCard />}
+
       {/* Ayuda — tour de bienvenida */}
       <div className="rounded-2xl border border-border/60 bg-card p-6">
         <div className="flex items-center gap-2 mb-2">
@@ -1534,6 +1539,105 @@ function AiQuotaCard() {
           <ArrowRight className="h-3.5 w-3.5" />
         </a>
       )}
+    </div>
+  );
+}
+
+/* ─── Active Addons card ───────────────────────────────────────────
+   Lists every plan_addons row with is_active=true and lets the owner
+   release a slot. The cancel button calls /api/addons/cancel which
+   pushes the lower transaction_amount to Mercado Pago — the slot is
+   only billed until the end of the current cycle. */
+
+const ADDON_TYPE_LABEL: Record<"extra_member" | "extra_office", string> = {
+  extra_member: "Miembro extra (doctor/recepcionista)",
+  extra_office: "Consultorio extra",
+};
+
+function ActiveAddonsCard() {
+  const { billing, cancelAddon, loading } = useBilling();
+  const confirm = useConfirm();
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+
+  const addons = billing?.addons ?? [];
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-border/60 bg-card p-4">
+        <div className="h-5 w-40 animate-pulse rounded bg-muted" />
+        <div className="mt-3 h-3 w-full animate-pulse rounded bg-muted" />
+      </div>
+    );
+  }
+
+  if (addons.length === 0) {
+    return null;
+  }
+
+  const handleCancel = async (
+    addonId: string,
+    label: string,
+    amount: number,
+  ) => {
+    const ok = await confirm({
+      title: "¿Cancelar este cupo extra?",
+      description: `Al cancelar dejarás de pagar S/${amount.toFixed(2)}/mes por ${label.toLowerCase()}. El cambio aplica en tu próximo ciclo de facturación.`,
+      confirmText: "Sí, cancelar",
+      cancelText: "Volver",
+      variant: "destructive",
+    });
+    if (!ok) return;
+
+    setCancellingId(addonId);
+    const result = await cancelAddon(addonId);
+    setCancellingId(null);
+
+    if (result.success) {
+      toast.success(result.message, { duration: 6000 });
+    } else {
+      toast.error(result.message);
+    }
+  };
+
+  return (
+    <div className="rounded-2xl border border-border/60 bg-card p-6">
+      <div className="flex items-center gap-2 mb-2">
+        <ShoppingCart className="h-4 w-4 text-primary" />
+        <h2 className="text-lg font-semibold">Cupos extra activos</h2>
+      </div>
+      <p className="mb-4 text-sm text-muted-foreground">
+        Cada cupo es un slot pagado independiente del personal que lo ocupa. Cancelar un cupo no desactiva a nadie — solo libera el costo en tu próxima factura.
+      </p>
+      <ul className="space-y-2">
+        {addons.map((a) => {
+          const total = Number(a.unit_price) * Number(a.quantity);
+          const label = ADDON_TYPE_LABEL[a.addon_type] ?? a.addon_type;
+          return (
+            <li
+              key={a.id}
+              className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/50 px-4 py-3"
+            >
+              <div className="min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {a.quantity}× {label}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  S/{Number(a.unit_price).toFixed(2)} por unidad · {" "}
+                  <span className="font-medium text-foreground">S/{total.toFixed(2)}/mes</span>
+                </p>
+              </div>
+              <button
+                onClick={() => handleCancel(a.id, label, total)}
+                disabled={cancellingId === a.id}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-1.5 text-xs font-medium text-red-600 transition-all hover:bg-red-500/10 disabled:opacity-50"
+              >
+                {cancellingId === a.id && <Loader2 className="h-3 w-3 animate-spin" />}
+                Cancelar cupo
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
