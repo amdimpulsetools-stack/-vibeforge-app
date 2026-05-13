@@ -97,14 +97,19 @@ export async function GET(
   // Owner profile — read email directly from user_profiles (populated
   // by handle_new_user). Previous version called
   // admin.auth.admin.getUserById() sequentially, adding ~300ms RTT.
-  let ownerProfile: { full_name: string | null; avatar_url: string | null; email: string | null } | null = null;
+  type OwnerProfileRow = {
+    full_name: string | null;
+    avatar_url: string | null;
+    email: string | null;
+  };
+  let ownerProfile: OwnerProfileRow | null = null;
   if (org.owner_id) {
     const { data: p } = await admin
       .from("user_profiles")
       .select("full_name, avatar_url, email")
       .eq("id", org.owner_id)
       .single();
-    ownerProfile = p as typeof ownerProfile;
+    ownerProfile = (p ?? null) as OwnerProfileRow | null;
   }
 
   // Member profiles. Build a Map for O(1) lookup instead of .find()
