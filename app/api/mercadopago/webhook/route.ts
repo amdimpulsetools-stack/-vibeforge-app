@@ -124,7 +124,25 @@ async function handleSubscriptionEvent(
   preapprovalId: string
 ) {
   const preApproval = getPreApprovalClient();
-  const mpSub = await preApproval.get({ id: preapprovalId });
+  let mpSub;
+  try {
+    mpSub = await preApproval.get({ id: preapprovalId });
+  } catch (err: unknown) {
+    // Same defensive pattern as handlePaymentEvent — MP "Simular
+    // notificación" sends fake preapproval IDs and a 404 here would
+    // crash the whole handler. Treat as a no-op so the dashboard
+    // probe reports success.
+    const status =
+      (err as { status?: number; statusCode?: number })?.status ??
+      (err as { statusCode?: number })?.statusCode;
+    if (status === 404) {
+      console.warn(
+        `[MP Webhook] Preapproval ${preapprovalId} not found in MP (404) — skipping`,
+      );
+      return;
+    }
+    throw err;
+  }
 
   // Map MP status to our status
   const statusMap: Record<string, string> = {
@@ -303,7 +321,28 @@ async function handlePaymentEvent(
   paymentId: string
 ) {
   const paymentClient = getPaymentClient();
-  const mpPayment = await paymentClient.get({ id: paymentId });
+  let mpPayment;
+  try {
+    mpPayment = await paymentClient.get({ id: paymentId });
+  } catch (err: unknown) {
+    // MP returns 404 when the payment doesn't exist. Two real scenarios:
+    //   1. MP "Simular notificación" sends fake ID 123456 — webhook must
+    //      stay reachable so the dashboard probe reports success.
+    //   2. A real webhook fires before the payment is fully indexed in
+    //      MP's read API (rare, but possible). MP retries the webhook up
+    //      to 5 times over ~24h — on retry the payment is queryable.
+    // In both cases returning a no-op 200 is the right move.
+    const status =
+      (err as { status?: number; statusCode?: number })?.status ??
+      (err as { statusCode?: number })?.statusCode;
+    if (status === 404) {
+      console.warn(
+        `[MP Webhook] Payment ${paymentId} not found in MP (404) — skipping`,
+      );
+      return;
+    }
+    throw err;
+  }
 
   let orgId: string | null = null;
 
