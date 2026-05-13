@@ -45,15 +45,21 @@ export function validateEnv() {
     );
   }
 
-  // ── MercadoPago: fail fast if TEST credentials are deployed to
-  //    production. MP test tokens start with "TEST-" and silently
-  //    accept payments that never settle. Catching this at boot is
-  //    way better than discovering it on a real customer's failed
-  //    checkout. We also require MP_WEBHOOK_SECRET in production
-  //    when MP_ACCESS_TOKEN is set — without it, signature
-  //    verification falls back to "warn and accept", which is
-  //    spoof-able.
-  if (process.env.NODE_ENV === "production") {
+  // ── MercadoPago: fail fast if TEST credentials reach the
+  //    *production* Vercel environment. MP test tokens start with
+  //    "TEST-" and silently accept payments that never settle.
+  //
+  //    IMPORTANT: gate on VERCEL_ENV, not NODE_ENV. Vercel sets
+  //    NODE_ENV="production" for BOTH preview deploys and the
+  //    real production deploy, so checking NODE_ENV would falsely
+  //    fire on previews where TEST- tokens are intentional. The
+  //    VERCEL_ENV variable correctly distinguishes
+  //    "production" | "preview" | "development". Outside Vercel
+  //    (self-hosted, local prod build) VERCEL_ENV is undefined
+  //    and we fall back to NODE_ENV.
+  const isVercelProd =
+    (process.env.VERCEL_ENV ?? process.env.NODE_ENV) === "production";
+  if (isVercelProd) {
     const mpToken = process.env.MP_ACCESS_TOKEN ?? "";
     if (mpToken.startsWith("TEST-")) {
       throw new Error(

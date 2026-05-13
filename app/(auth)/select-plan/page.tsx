@@ -268,12 +268,25 @@ function SelectPlanPage() {
             { duration: 8000 },
           );
         } else if (res.status >= 500) {
-          // MP itself is down or our integration threw — give the user
-          // a recovery path: retry now, or contact support.
-          toast.error(
-            "Mercado Pago no está disponible en este momento. Esperá unos minutos e intentá de nuevo, o escribinos a soporte si persiste.",
-            { duration: 10000 },
-          );
+          // Our /api/mercadopago/checkout returns 500 with
+          // `error: "mp_error: <MP detail>"` when MP rejects the
+          // preapproval. Surface that detail in the toast so the
+          // user (or someone reading their bug report) sees the
+          // root cause instead of a generic "MP no está
+          // disponible". Falls back to the friendly message when
+          // the error is anything else (timeouts, unknown 5xx).
+          const errStr = data.error ?? "";
+          if (errStr.startsWith("mp_error:")) {
+            toast.error(
+              `Mercado Pago rechazó la operación: ${errStr.replace(/^mp_error:\s*/, "")}`,
+              { duration: 14000 },
+            );
+          } else {
+            toast.error(
+              "Mercado Pago no está disponible en este momento. Esperá unos minutos e intentá de nuevo, o escribinos a soporte si persiste.",
+              { duration: 10000 },
+            );
+          }
         } else {
           toast.error(data.message ?? data.error ?? "Error al iniciar el pago");
         }

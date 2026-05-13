@@ -77,9 +77,16 @@ export async function POST(request: Request) {
     price = plan.price_monthly;
   }
 
-  // Detect test mode: ACCESS_TOKEN from test accounts use APP_USR- prefix
+  // Detect test mode. MP's prefix convention:
+  //   "TEST-..."     → sandbox / test credentials
+  //   "APP_USR-..."  → real production credentials
+  // The previous code treated both as test, which caused production
+  // checkouts to send MP_TEST_PAYER_EMAIL as payer_email. MP then
+  // rejected with "Both payer and collector must be real or test
+  // users" because the collector (APP_USR-) is real but the payer
+  // was the sandbox test user. Fix: only TEST- counts as test mode.
   const accessToken = process.env.MP_ACCESS_TOKEN || "";
-  const isTestMode = accessToken.startsWith("TEST-") || accessToken.startsWith("APP_USR-");
+  const isTestMode = accessToken.startsWith("TEST-");
 
   console.log("[MP Checkout] Plan:", plan.slug, "| Price:", price, "| Cycle:", billing_cycle, "| TestMode:", isTestMode);
 
