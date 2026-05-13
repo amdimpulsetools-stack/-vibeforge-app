@@ -628,6 +628,7 @@ function isMpNotFoundError(err: unknown): boolean {
     statusCode?: number | string;
     error?: string;
     message?: string;
+    code?: string;
     response?: { status?: number | string };
     cause?: Array<{ code?: number | string; description?: string }>;
   };
@@ -655,6 +656,24 @@ function isMpNotFoundError(err: unknown): boolean {
       if (code === 2000) return true;
       const desc = (c?.description ?? "").toLowerCase();
       if (desc.includes("not found")) return true;
+    }
+  }
+
+  // MP preapproval API returns HTTP 400 with code "Subscription bad
+  // request" for non-existent preapproval IDs (instead of 404 like
+  // the payment API does). Confirmed via the dashboard simulator
+  // log: id=123456 → { status: 400, code: 'Subscription bad request',
+  // message: 'Unknown error' }. Treat as no-op so the simulator
+  // probe + the rare "preapproval got deleted server-side" cases
+  // don't crash the webhook handler.
+  if (numericStatuses.includes(400) && typeof e.code === "string") {
+    const code = e.code.toLowerCase();
+    if (
+      code.includes("subscription bad request") ||
+      code.includes("preapproval bad request") ||
+      code.includes("not found")
+    ) {
+      return true;
     }
   }
 
