@@ -169,17 +169,41 @@ export async function POST(request: Request) {
         currency_id: "PEN",
       },
       back_url: `${appUrl}/select-plan?payment=success`,
+      // Some MP application configurations reject preapproval.create
+      // with a vague 500 if notification_url is omitted, even though
+      // the URL is also configured in the MP dashboard. Sending it
+      // explicitly costs nothing and rules out that failure mode.
+      notification_url: `${appUrl}/api/mercadopago/webhook`,
     };
 
     console.log("[MP Checkout] Request body:", JSON.stringify(body, null, 2));
     result = await preApproval.create({ body });
     console.log("[MP Checkout] Response:", JSON.stringify(result, null, 2));
   } catch (error: unknown) {
+    // Dump every property the SDK gave us — including non-enumerable
+    // ones — so we can see what MP is hiding behind a generic
+    // "Internal server error". Past versions only stringified the
+    // enumerable surface, which left useful keys like `cause` or
+    // `error_code` invisible.
     let msg: string;
     if (error instanceof Error) {
-      msg = error.message;
+      const own = Object.getOwnPropertyNames(error).reduce<Record<string, unknown>>(
+        (acc, key) => {
+          acc[key] = (error as unknown as Record<string, unknown>)[key];
+          return acc;
+        },
+        {},
+      );
+      msg = JSON.stringify({ name: error.name, message: error.message, ...own }, null, 2);
     } else if (typeof error === "object" && error !== null) {
-      msg = JSON.stringify(error, null, 2);
+      const own = Object.getOwnPropertyNames(error).reduce<Record<string, unknown>>(
+        (acc, key) => {
+          acc[key] = (error as Record<string, unknown>)[key];
+          return acc;
+        },
+        {},
+      );
+      msg = JSON.stringify(own, null, 2);
     } else {
       msg = String(error);
     }
