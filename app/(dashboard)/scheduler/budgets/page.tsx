@@ -22,6 +22,7 @@ import {
   type BudgetRecord,
 } from "@/types/fertility";
 import { BudgetRecordModal } from "@/components/clinical/budget-record-modal";
+import { FertilitySetupBanner } from "@/components/addons/fertility/fertility-setup-banner";
 import { BudgetCard } from "./budget-card";
 import { BudgetFiltersSheet, type BudgetFilters } from "./budget-filters-sheet";
 
@@ -176,6 +177,9 @@ export default function BudgetsPage() {
 
   return (
     <div className="space-y-5">
+      {/* Setup banner — visible only if canonical mapping is incomplete */}
+      <FertilitySetupBanner />
+
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>

@@ -292,6 +292,14 @@ export async function POST(
   // 3) Wire whatsapp_template_id into per-org rules. We pick the
   //    'amable' template per rule_key as the default; admin can change
   //    it later via the rule editor.
+  //
+  //    REACTIVATION GUARD: only update rules that don't already have
+  //    a whatsapp_template_id set. Otherwise re-activating the addon
+  //    after the org customized which template a rule uses would
+  //    silently overwrite the customization back to the 'amable'
+  //    default. The `.is("whatsapp_template_id", null)` clause makes
+  //    this a no-op on re-activation when a custom link already
+  //    exists.
   const defaultTemplateByRule = new Map<string, string>();
   for (const seed of FERTILITY_WHATSAPP_TEMPLATE_SEEDS) {
     if (seed.tone !== "amable") continue;
@@ -304,7 +312,8 @@ export async function POST(
       .from("followup_rules")
       .update({ whatsapp_template_id: templateId })
       .eq("organization_id", orgId)
-      .eq("rule_key", ruleKey);
+      .eq("rule_key", ruleKey)
+      .is("whatsapp_template_id", null);
     if (linkErr) {
       warnings.push(
         `No se pudo vincular plantilla WA a regla "${ruleKey}": ${linkErr.message}`

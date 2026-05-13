@@ -251,8 +251,32 @@ function SelectPlanPage() {
       });
 
       if (!res.ok) {
-        const data = await res.json();
-        toast.error(data.error || "Error al iniciar el pago");
+        const data = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          message?: string;
+        };
+        // Surface friendly messages for the well-known failure codes,
+        // and keep the rest as toasts so the user has a clear next
+        // step instead of a cryptic error.
+        if (
+          data.error === "missing_user_email" ||
+          data.error === "invalid_user_email"
+        ) {
+          toast.error(
+            data.message ??
+              "Tu cuenta no tiene email válido. Actualízalo desde tu perfil antes de suscribirte.",
+            { duration: 8000 },
+          );
+        } else if (res.status >= 500) {
+          // MP itself is down or our integration threw — give the user
+          // a recovery path: retry now, or contact support.
+          toast.error(
+            "Mercado Pago no está disponible en este momento. Esperá unos minutos e intentá de nuevo, o escribinos a soporte si persiste.",
+            { duration: 10000 },
+          );
+        } else {
+          toast.error(data.message ?? data.error ?? "Error al iniciar el pago");
+        }
         setSelecting(null);
         return;
       }
@@ -271,7 +295,12 @@ function SelectPlanPage() {
         router.push("/dashboard");
       }
     } catch {
-      toast.error("Sin conexión. Revisa tu internet e intenta otra vez. al procesar el pago");
+      // Network-level failure — could be the user's connectivity OR
+      // a hard outage of our API. Don't blame the user.
+      toast.error(
+        "No pudimos contactar al servidor de pagos. Verificá tu conexión e intentá nuevamente; si persiste, escribinos a soporte.",
+        { duration: 10000 },
+      );
       setSelecting(null);
     }
   };
