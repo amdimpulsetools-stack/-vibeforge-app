@@ -128,19 +128,18 @@ async function handleSubscriptionEvent(
   try {
     mpSub = await preApproval.get({ id: preapprovalId });
   } catch (err: unknown) {
-    // Same defensive pattern as handlePaymentEvent — MP "Simular
-    // notificación" sends fake preapproval IDs and a 404 here would
-    // crash the whole handler. Treat as a no-op so the dashboard
-    // probe reports success.
-    const status =
-      (err as { status?: number; statusCode?: number })?.status ??
-      (err as { statusCode?: number })?.statusCode;
-    if (status === 404) {
+    if (isMpNotFoundError(err)) {
       console.warn(
-        `[MP Webhook] Preapproval ${preapprovalId} not found in MP (404) — skipping`,
+        `[MP Webhook] Preapproval ${preapprovalId} not found in MP — skipping`,
       );
       return;
     }
+    // Surface the full error shape so future unknown failures
+    // produce a useful log line instead of a bare 500.
+    console.error(
+      `[MP Webhook] Preapproval ${preapprovalId} fetch failed:`,
+      safeSerializeError(err),
+    );
     throw err;
   }
 
@@ -325,22 +324,16 @@ async function handlePaymentEvent(
   try {
     mpPayment = await paymentClient.get({ id: paymentId });
   } catch (err: unknown) {
-    // MP returns 404 when the payment doesn't exist. Two real scenarios:
-    //   1. MP "Simular notificación" sends fake ID 123456 — webhook must
-    //      stay reachable so the dashboard probe reports success.
-    //   2. A real webhook fires before the payment is fully indexed in
-    //      MP's read API (rare, but possible). MP retries the webhook up
-    //      to 5 times over ~24h — on retry the payment is queryable.
-    // In both cases returning a no-op 200 is the right move.
-    const status =
-      (err as { status?: number; statusCode?: number })?.status ??
-      (err as { statusCode?: number })?.statusCode;
-    if (status === 404) {
+    if (isMpNotFoundError(err)) {
       console.warn(
-        `[MP Webhook] Payment ${paymentId} not found in MP (404) — skipping`,
+        `[MP Webhook] Payment ${paymentId} not found in MP — skipping`,
       );
       return;
     }
+    console.error(
+      `[MP Webhook] Payment ${paymentId} fetch failed:`,
+      safeSerializeError(err),
+    );
     throw err;
   }
 
@@ -613,5 +606,74 @@ async function handlePaymentFailure(
     if (ctx) {
       await sendPaymentFailedEmail(ctx);
     }
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────
+// MP "not found" detection
+//
+// The mercadopago SDK wraps API errors but the exact shape varies
+// between endpoints and SDK versions. For payment the shape was:
+//   { message: 'Payment not found', error: 'not_found', status: 404,
+//     cause: [{ code: 2000, description: 'Payment not found' }] }
+// For preapproval it can differ. We check every realistic location
+// so the simulator and the real "webhook fired before indexing"
+// case both fall into the no-op path.
+// ──────────────────────────────────────────────────────────────────
+function isMpNotFoundError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+
+  type ErrShape = {
+    status?: number | string;
+    statusCode?: number | string;
+    error?: string;
+    message?: string;
+    response?: { status?: number | string };
+    cause?: Array<{ code?: number | string; description?: string }>;
+  };
+  const e = err as ErrShape;
+
+  const numericStatuses = [
+    e.status,
+    e.statusCode,
+    e.response?.status,
+  ]
+    .map((v) => (typeof v === "string" ? parseInt(v, 10) : v))
+    .filter((v): v is number => typeof v === "number" && !Number.isNaN(v));
+
+  if (numericStatuses.includes(404)) return true;
+
+  if (e.error === "not_found") return true;
+
+  const msg = (e.message ?? "").toLowerCase();
+  if (msg.includes("not found")) return true;
+
+  // MP error code 2000 = "not found" family across MP's API.
+  if (Array.isArray(e.cause)) {
+    for (const c of e.cause) {
+      const code = typeof c?.code === "string" ? parseInt(c.code, 10) : c?.code;
+      if (code === 2000) return true;
+      const desc = (c?.description ?? "").toLowerCase();
+      if (desc.includes("not found")) return true;
+    }
+  }
+
+  return false;
+}
+
+function safeSerializeError(err: unknown): Record<string, unknown> | string {
+  if (!err || typeof err !== "object") return String(err);
+  try {
+    // Spread keeps enumerable properties; manually pull common non-
+    // enumerable ones from native Error.
+    const e = err as { name?: string; message?: string; stack?: string };
+    return {
+      ...(err as object),
+      name: e.name,
+      message: e.message,
+      stack: e.stack,
+    };
+  } catch {
+    return String(err);
   }
 }
