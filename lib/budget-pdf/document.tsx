@@ -48,6 +48,12 @@ export interface BudgetPdfProps {
   currency: "PEN" | "USD";
   includesText: string | null;
   fecha: Date;
+  // Per-org customization (Capa 1). The generator always supplies
+  // these — pulled from `org_budget_pdf_settings` with a hardcoded
+  // fallback for the rare case the row is missing.
+  vigenciaDays: number;
+  terms: string[];
+  footerText: string;
 }
 
 const styles = StyleSheet.create({
@@ -273,13 +279,6 @@ const GENERIC_INCLUDES: Record<string, string[]> = {
   ],
 };
 
-const CONSIDERACIONES: string[] = [
-  "Vigencia del presupuesto: 90 días desde la fecha de emisión.",
-  "Una vez efectuado el pago, el presupuesto mantiene vigencia por 60 días para iniciar el tratamiento.",
-  "En caso de devolución, se aplicará una retención del 10% por gastos administrativos.",
-  "Servicios médicos no contemplados en este presupuesto serán cotizados por separado.",
-];
-
 function formatPeruDate(d: Date): string {
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
@@ -320,12 +319,17 @@ export function BudgetPdfDocument(props: BudgetPdfProps): React.ReactElement {
     currency,
     includesText,
     fecha,
+    vigenciaDays,
+    terms,
+    footerText,
   } = props;
 
   const fechaLabel = formatPeruDate(fecha);
+  const safeVigenciaDays =
+    Number.isFinite(vigenciaDays) && vigenciaDays > 0 ? vigenciaDays : 30;
   const vigenciaDate = new Date(fecha);
-  vigenciaDate.setDate(vigenciaDate.getDate() + 90);
-  const vigenciaLabel = `90 días (hasta ${formatPeruDate(vigenciaDate)})`;
+  vigenciaDate.setDate(vigenciaDate.getDate() + safeVigenciaDays);
+  const vigenciaLabel = `${safeVigenciaDays} días (hasta ${formatPeruDate(vigenciaDate)})`;
 
   const patientName = `${patient.firstName} ${patient.lastName}`.trim();
   const includesItems = deriveIncludesItems(includesText, service.treatmentType);
@@ -401,21 +405,24 @@ export function BudgetPdfDocument(props: BudgetPdfProps): React.ReactElement {
             </Text>
           </View>
 
-          <View style={[styles.card, { backgroundColor: BG_SOFT }]}>
-            <Text style={styles.considHeading}>Consideraciones</Text>
-            {CONSIDERACIONES.map((line, i) => (
-              <Text key={i} style={styles.considItem}>
-                {"• "}
-                {line}
-              </Text>
-            ))}
-          </View>
+          {terms.length > 0 && (
+            <View style={[styles.card, { backgroundColor: BG_SOFT }]}>
+              <Text style={styles.considHeading}>Consideraciones</Text>
+              {terms.map((line, i) => (
+                <Text key={i} style={styles.considItem}>
+                  {"• "}
+                  {line}
+                </Text>
+              ))}
+            </View>
+          )}
         </View>
 
         <View style={styles.footer} fixed>
           <View style={styles.footerLeft}>
             <Text>{org.name}</Text>
             {org.ruc ? <Text>RUC {org.ruc}</Text> : null}
+            {footerText ? <Text>{footerText}</Text> : null}
           </View>
           <View style={styles.footerRight}>
             <Text style={styles.signatureLine}>

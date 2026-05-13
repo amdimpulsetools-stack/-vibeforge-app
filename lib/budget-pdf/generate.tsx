@@ -66,6 +66,48 @@ interface ProfileLite {
   full_name: string | null;
 }
 
+interface OrgBudgetPdfSettingsRow {
+  vigencia_days: number;
+  terms: unknown;
+  footer_text: string | null;
+}
+
+const FALLBACK_VIGENCIA_DAYS = 30;
+const FALLBACK_TERMS: string[] = [
+  "Vigencia del presupuesto: 30 días desde la fecha de emisión.",
+  "Servicios médicos no contemplados en este presupuesto serán cotizados por separado.",
+];
+
+async function loadBudgetPdfSettings(
+  client: SupabaseClient,
+  orgId: string,
+): Promise<{ vigenciaDays: number; terms: string[]; footerText: string }> {
+  const { data } = await client
+    .from("org_budget_pdf_settings")
+    .select("vigencia_days, terms, footer_text")
+    .eq("organization_id", orgId)
+    .maybeSingle();
+
+  const row = data as OrgBudgetPdfSettingsRow | null;
+  if (!row) {
+    return {
+      vigenciaDays: FALLBACK_VIGENCIA_DAYS,
+      terms: FALLBACK_TERMS,
+      footerText: "",
+    };
+  }
+
+  const terms = Array.isArray(row.terms)
+    ? (row.terms.filter((t): t is string => typeof t === "string" && t.trim().length > 0))
+    : FALLBACK_TERMS;
+
+  return {
+    vigenciaDays: row.vigencia_days || FALLBACK_VIGENCIA_DAYS,
+    terms,
+    footerText: row.footer_text ?? "",
+  };
+}
+
 export interface GenerateResult {
   signedUrl: string;
   storagePath: string;
@@ -239,6 +281,11 @@ export async function generateBudgetPdf(
     dni: null,
   };
 
+  const pdfSettings = await loadBudgetPdfSettings(
+    adminClient,
+    budget.organization_id,
+  );
+
   const props: BudgetPdfProps = {
     org: {
       name: org.legal_name ?? org.name,
@@ -263,6 +310,9 @@ export async function generateBudgetPdf(
     currency,
     includesText,
     fecha: new Date(budget.sent_at ?? budget.assigned_at ?? budget.created_at),
+    vigenciaDays: pdfSettings.vigenciaDays,
+    terms: pdfSettings.terms,
+    footerText: pdfSettings.footerText,
   };
 
   const pdfBuffer = (await renderToBuffer(

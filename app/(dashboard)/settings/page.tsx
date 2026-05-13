@@ -10,6 +10,8 @@ import { useTheme } from "@/components/theme-provider";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
+import { useOrgAddons } from "@/hooks/use-org-addons";
+import { FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY } from "@/types/fertility";
 import {
   organizationSchema,
   type OrganizationFormData,
@@ -69,6 +71,7 @@ const WhatsAppClipboardTab = dynamic(() => import("./whatsapp-clipboard-tab"), {
 const WhatsAppConfigTab = dynamic(() => import("./whatsapp-config-tab"), { loading: TabLoader });
 const WhatsAppTemplatesTab = dynamic(() => import("./whatsapp-templates-tab"), { loading: TabLoader });
 const BookingSettingsTab = dynamic(() => import("./booking-settings-tab"), { loading: TabLoader });
+const BudgetPdfSettingsTab = dynamic(() => import("./budget-pdf-settings-tab"), { loading: TabLoader });
 const IntegracionesTab = dynamic(() => import("./integraciones-tab"), { loading: TabLoader });
 const ModulosTab = dynamic(() => import("./modulos-tab"), { loading: TabLoader });
 const ClinicalTemplatesTab = dynamic(() => import("./clinical-templates-tab"), { loading: TabLoader });
@@ -80,7 +83,7 @@ const ClinicHeaderPreviewModal = dynamic(
   { ssr: false }
 );
 
-type Tab = "general" | "agenda" | "reservas" | "correos" | "plantillas-hc" | "whatsapp" | "whatsapp-api" | "integraciones" | "modulos" | "permisos";
+type Tab = "general" | "agenda" | "reservas" | "correos" | "plantillas-hc" | "presupuestos" | "whatsapp" | "whatsapp-api" | "integraciones" | "modulos" | "permisos";
 
 // ── Form helpers (extracted to keep the org-profile form readable) ──
 
@@ -155,10 +158,15 @@ export default function SettingsPage() {
     refetchOrg,
   } = useOrganization();
   const { isAdmin, loading: roleLoading } = useOrgRole();
+  const { hasAnyAddon } = useOrgAddons();
+  const hasFertilityAddon = hasAnyAddon([
+    FERTILITY_BASIC_KEY,
+    FERTILITY_PREMIUM_KEY,
+  ]);
 
   const searchParams = useSearchParams();
   const router = useRouter();
-  const VALID_TABS: Tab[] = ["general", "agenda", "reservas", "correos", "plantillas-hc", "whatsapp", "whatsapp-api", "integraciones", "modulos", "permisos"];
+  const VALID_TABS: Tab[] = ["general", "agenda", "reservas", "correos", "plantillas-hc", "presupuestos", "whatsapp", "whatsapp-api", "integraciones", "modulos", "permisos"];
   const tabParam = searchParams.get("tab") as Tab | null;
   const activeTab: Tab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "general";
   const setActiveTab = (tab: Tab) => {
@@ -516,6 +524,9 @@ export default function SettingsPage() {
     { id: "reservas", label: language === "es" ? "Reservas" : "Booking", icon: <Globe2 className="h-4 w-4" /> },
     { id: "correos", label: language === "es" ? "Correos" : "Emails", icon: <Mail className="h-4 w-4" /> },
     { id: "plantillas-hc", label: language === "es" ? "Plantillas HC" : "Clinical Templates", icon: <FileText className="h-4 w-4" /> },
+    ...(hasFertilityAddon
+      ? [{ id: "presupuestos" as const, label: language === "es" ? "Presupuestos" : "Budgets", icon: <FileSignature className="h-4 w-4" /> }]
+      : []),
     { id: "whatsapp", label: "WhatsApp", icon: <MessageSquare className="h-4 w-4" /> },
     { id: "whatsapp-api", label: "WA Business", icon: <Smartphone className="h-4 w-4" /> },
     { id: "integraciones", label: language === "es" ? "Integraciones" : "Integrations", icon: <Plug className="h-4 w-4" /> },
@@ -1483,6 +1494,8 @@ export default function SettingsPage() {
 
       {/* ── Plantillas HC tab ────────────────────────────────────────────────── */}
       {activeTab === "plantillas-hc" && <ClinicalTemplatesTab />}
+
+      {activeTab === "presupuestos" && hasFertilityAddon && <BudgetPdfSettingsTab />}
 
       {/* ── WhatsApp tab ─────────────────────────────────────────────────────── */}
       {/* Clipboard config NO requiere Business API: es la alternativa para

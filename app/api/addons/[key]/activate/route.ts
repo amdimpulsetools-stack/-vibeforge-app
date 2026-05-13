@@ -185,6 +185,20 @@ export async function POST(
     }
   }
 
+  // Seed org_budget_pdf_settings with neutral defaults so the org's
+  // owner has something to edit from /settings → Presupuestos. The
+  // RPC is idempotent (ON CONFLICT DO NOTHING) — re-activating after
+  // a customization will NOT overwrite the org's edits.
+  const { error: seedPdfErr } = await admin.rpc(
+    "seed_budget_pdf_settings_default",
+    { p_org_id: orgId },
+  );
+  if (seedPdfErr) {
+    warnings.push(
+      `No se pudieron sembrar ajustes del PDF de presupuestos: ${seedPdfErr.message}`,
+    );
+  }
+
   // 1) Clone the 3 global rules (organization_id IS NULL, addon_key='fertility').
   const { data: globalRules, error: globalRulesErr } = await admin
     .from("followup_rules")
