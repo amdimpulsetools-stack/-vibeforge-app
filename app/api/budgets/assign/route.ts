@@ -32,6 +32,13 @@ const bodySchema = z.object({
   appointment_id: z.string().uuid().nullable().optional(),
   followup_id: z.string().uuid().nullable().optional(),
   notes: z.string().max(500).optional(),
+  // Set to true by the UI after the user explicitly confirms they
+  // want to create a budget despite the patient already having one
+  // or more in an active state (pending_acceptance / accepted). The
+  // check below returns 409 when this is false/missing and active
+  // budgets exist — protects against the "doctor in 2nd appointment
+  // doesn't know about the 1st budget" failure mode.
+  acknowledged_existing: z.boolean().optional(),
 });
 
 // ──────────────────────────────────────────────────────────────────
@@ -225,6 +232,35 @@ export async function POST(request: NextRequest) {
   }
 
   const treatmentType = inferTreatmentType(service.name as string);
+
+  // ── DEDUP GUARD ────────────────────────────────────────────────
+  // If the patient already has at least one budget in an active
+  // state (`pending_acceptance` or `accepted`), require the caller
+  // to acknowledge it. This stops a doctor in a follow-up appointment
+  // from silently creating a duplicate when the patient already has
+  // a pending/accepted budget from an earlier visit.
+  if (!payload.acknowledged_existing) {
+    const { data: activeBudgets } = await supabase
+      .from("budget_records")
+      .select(
+        "id, treatment_type, tier, acceptance_status, sent_at, assigned_at, amount",
+      )
+      .eq("patient_id", payload.patient_id)
+      .in("acceptance_status", ["pending_acceptance", "accepted"])
+      .order("assigned_at", { ascending: false });
+
+    if (activeBudgets && activeBudgets.length > 0) {
+      return NextResponse.json(
+        {
+          error: "duplicate_budget",
+          message:
+            "Esta paciente ya tiene presupuestos activos. Confirma que quieres crear uno adicional.",
+          existing: activeBudgets,
+        },
+        { status: 409 },
+      );
+    }
+  }
 
   const insertPayload = {
     organization_id: membership.organization_id,

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Receipt } from "lucide-react";
+import { AlertTriangle, Loader2, Receipt } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -40,6 +40,25 @@ interface BudgetEligibleService {
   name: string;
   duration_minutes: number;
   tiers: ServiceTier[];
+}
+
+interface ExistingActiveBudget {
+  id: string;
+  treatment_type: string;
+  tier: "A" | "B" | "C" | null;
+  acceptance_status: "pending_acceptance" | "accepted";
+  sent_at: string | null;
+  assigned_at: string | null;
+  amount: number | null;
+}
+
+function formatRelativeDays(iso: string | null): string {
+  if (!iso) return "—";
+  const ms = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+  if (days <= 0) return "hoy";
+  if (days === 1) return "ayer";
+  return `hace ${days} días`;
 }
 
 export interface AssignBudgetModalProps {
@@ -81,7 +100,48 @@ function AssignBudgetModalInner({
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  // ── Existing active budgets for this patient ───────────────────
+  // Loaded on open and used to (a) render a warning banner and (b)
+  // require the user to tick "Confirmo que es adicional" before
+  // submitting. The backend enforces the same rule via a 409 on
+  // /api/budgets/assign — this is the UX layer of that contract.
+  const [existingBudgets, setExistingBudgets] = useState<
+    ExistingActiveBudget[]
+  >([]);
+  const [existingLoading, setExistingLoading] = useState(false);
+  const [acknowledgedExisting, setAcknowledgedExisting] = useState(false);
+  const hasExisting = existingBudgets.length > 0;
+
   const { advisors, loading: advisorsLoading } = useOrgFertilityAdvisors();
+
+  const loadExistingBudgets = useCallback(async () => {
+    if (!patientId) return;
+    setExistingLoading(true);
+    try {
+      const res = await fetch(
+        `/api/budgets?limit=20&patient_id=${encodeURIComponent(patientId)}`,
+        { cache: "no-store" },
+      );
+      if (!res.ok) {
+        setExistingBudgets([]);
+        return;
+      }
+      const data = (await res.json()) as {
+        items?: ExistingActiveBudget[];
+      };
+      const items = Array.isArray(data.items) ? data.items : [];
+      const active = items.filter(
+        (b) =>
+          b.acceptance_status === "pending_acceptance" ||
+          b.acceptance_status === "accepted",
+      );
+      setExistingBudgets(active);
+    } catch {
+      setExistingBudgets([]);
+    } finally {
+      setExistingLoading(false);
+    }
+  }, [patientId]);
 
   const loadServices = useCallback(async () => {
     setServicesLoading(true);
@@ -116,9 +176,12 @@ function AssignBudgetModalInner({
       setTier(null);
       setAsesoraId("");
       setNotes("");
+      setAcknowledgedExisting(false);
+      setExistingBudgets([]);
       void loadServices();
+      void loadExistingBudgets();
     }
-  }, [open, loadServices]);
+  }, [open, loadServices, loadExistingBudgets]);
 
   const selectedService = useMemo(
     () => services.find((s) => s.id === serviceId) ?? null,
@@ -131,10 +194,13 @@ function AssignBudgetModalInner({
     setTier(null);
   }, [serviceId]);
 
-  const canSubmit = Boolean(serviceId && tier && !submitting);
+  const canSubmit = Boolean(
+    serviceId && tier && !submitting && (!hasExisting || acknowledgedExisting),
+  );
 
   const handleSubmit = async () => {
     if (!serviceId || !tier) return;
+    if (hasExisting && !acknowledgedExisting) return;
     setSubmitting(true);
     try {
       const res = await fetch("/api/budgets/assign", {
@@ -148,8 +214,29 @@ function AssignBudgetModalInner({
           appointment_id: appointmentId ?? null,
           followup_id: followupId ?? null,
           notes: notes.trim() ? notes.trim() : undefined,
+          acknowledged_existing: hasExisting ? acknowledgedExisting : undefined,
         }),
       });
+      if (res.status === 409) {
+        // Backend caught an active budget we didn't know about
+        // (race condition: another user assigned one while this
+        // modal was open). Re-fetch + force acknowledgment.
+        const err = (await res.json().catch(() => ({}))) as {
+          existing?: ExistingActiveBudget[];
+          message?: string;
+        };
+        if (Array.isArray(err.existing)) {
+          setExistingBudgets(err.existing);
+        } else {
+          await loadExistingBudgets();
+        }
+        setAcknowledgedExisting(false);
+        toast.error(
+          err.message ??
+            "La paciente tiene presupuestos activos. Confirma para continuar.",
+        );
+        return;
+      }
       if (!res.ok) {
         const err = (await res.json().catch(() => ({}))) as {
           error?: string;
@@ -185,6 +272,75 @@ function AssignBudgetModalInner({
               </DialogDescription>
             </div>
           </div>
+
+          {/* Existing-budgets warning ─ shown when this patient already
+              has an active budget. Forces an explicit acknowledgment
+              before submit. */}
+          {existingLoading ? (
+            <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Verificando presupuestos previos…
+            </div>
+          ) : hasExisting ? (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div>
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                      Esta paciente ya tiene{" "}
+                      {existingBudgets.length === 1
+                        ? "un presupuesto activo"
+                        : `${existingBudgets.length} presupuestos activos`}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Revisa antes de crear uno adicional para evitar
+                      duplicados.
+                    </p>
+                  </div>
+                  <ul className="space-y-1">
+                    {existingBudgets.map((b) => (
+                      <li
+                        key={b.id}
+                        className="rounded-md border border-amber-500/30 bg-background/60 px-2 py-1.5 text-[11px]"
+                      >
+                        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span className="font-semibold">
+                            {b.treatment_type}
+                            {b.tier ? ` · Tier ${b.tier}` : ""}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {b.acceptance_status === "accepted"
+                              ? "Aceptado"
+                              : b.sent_at
+                              ? "Esperando respuesta"
+                              : "Sin procesar"}
+                          </span>
+                          <span className="text-muted-foreground">
+                            · asignado {formatRelativeDays(b.assigned_at)}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                  <label className="flex cursor-pointer items-start gap-2 pt-1 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={acknowledgedExisting}
+                      onChange={(e) =>
+                        setAcknowledgedExisting(e.target.checked)
+                      }
+                      className="mt-0.5 h-3.5 w-3.5 cursor-pointer accent-amber-600"
+                    />
+                    <span className="text-amber-700 dark:text-amber-400">
+                      Confirmo que este es un presupuesto{" "}
+                      <strong>adicional</strong>, no un duplicado.
+                    </span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           {/* Service picker */}
           <div className="space-y-1.5">
