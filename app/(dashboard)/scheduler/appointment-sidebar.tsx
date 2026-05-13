@@ -99,6 +99,13 @@ export function AppointmentSidebar({
   // gated by the backend).
   const { active: fertilityActive } = useFertilityAddon();
   const [assignBudgetOpen, setAssignBudgetOpen] = useState(false);
+  // Count of patient's active budgets (pending_acceptance / accepted)
+  // — rendered as a hint next to the "Asignar presupuesto" button so
+  // a doctor in a follow-up appointment can see at a glance that a
+  // previous budget already exists before clicking.
+  const [activeBudgetsCount, setActiveBudgetsCount] = useState<number | null>(
+    null,
+  );
   const { plan } = usePlan();
   const einvoiceConfig = useEInvoiceConfig();
   const [emitDialogOpen, setEmitDialogOpen] = useState(false);
@@ -129,6 +136,45 @@ export function AppointmentSidebar({
     })();
     return () => { cancelled = true; };
   }, [appointment.organization_id]);
+
+  // Fetch count of active budgets for this patient — shown next to
+  // the "Asignar presupuesto" CTA. Only runs when fertility is on
+  // and the appointment has a patient.
+  useEffect(() => {
+    if (!fertilityActive || !appointment.patient_id) {
+      setActiveBudgetsCount(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/budgets?limit=20&patient_id=${encodeURIComponent(appointment.patient_id as string)}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) {
+          if (!cancelled) setActiveBudgetsCount(null);
+          return;
+        }
+        const data = (await res.json()) as {
+          items?: Array<{ acceptance_status?: string | null }>;
+        };
+        const items = Array.isArray(data.items) ? data.items : [];
+        const active = items.filter(
+          (b) =>
+            b.acceptance_status === "pending_acceptance" ||
+            b.acceptance_status === "accepted",
+        ).length;
+        if (!cancelled) setActiveBudgetsCount(active);
+      } catch {
+        if (!cancelled) setActiveBudgetsCount(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [fertilityActive, appointment.patient_id, assignBudgetOpen]);
+
   const [editing, setEditing] = useState(false);
   const [showClinicalNote, setShowClinicalNote] = useState(false);
   const [showCancelReason, setShowCancelReason] = useState(false);
@@ -1145,13 +1191,28 @@ export function AppointmentSidebar({
               fertilityActive &&
               !isReceptionist &&
               appointment.patient_id && (
-                <button
-                  onClick={() => setAssignBudgetOpen(true)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
-                >
-                  <Receipt className="h-4 w-4" />
-                  Asignar presupuesto
-                </button>
+                <div className="space-y-1.5">
+                  {activeBudgetsCount !== null && activeBudgetsCount > 0 && (
+                    <div className="flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700 dark:text-amber-400">
+                      <AlertTriangle className="h-3 w-3 shrink-0" />
+                      <span>
+                        Esta paciente tiene{" "}
+                        <strong>
+                          {activeBudgetsCount === 1
+                            ? "1 presupuesto activo"
+                            : `${activeBudgetsCount} presupuestos activos`}
+                        </strong>
+                      </span>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setAssignBudgetOpen(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                  >
+                    <Receipt className="h-4 w-4" />
+                    Asignar presupuesto
+                  </button>
+                </div>
               )}
           </div>
         )}
