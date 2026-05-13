@@ -61,11 +61,19 @@ export function validateEnv() {
     (process.env.VERCEL_ENV ?? process.env.NODE_ENV) === "production";
   if (isVercelProd) {
     const mpToken = process.env.MP_ACCESS_TOKEN ?? "";
-    if (mpToken.startsWith("TEST-")) {
+    // Explicit override for ops scenarios where we WANT to point
+    // production at sandbox MP credentials temporarily (e.g.
+    // debugging an opaque MP 500, dry-running the integration
+    // before the MP account is approved for production). Has to
+    // be set deliberately — `true` only, anything else is rejected.
+    const allowTestInProd = process.env.MP_ALLOW_TEST_IN_PROD === "true";
+    if (mpToken.startsWith("TEST-") && !allowTestInProd) {
       throw new Error(
         "MP_ACCESS_TOKEN uses TEST- prefix in production. " +
           "Refusing to start — replace it with the production access token " +
-          "from MercadoPago dashboard before deploying.",
+          "from MercadoPago dashboard before deploying. " +
+          "If this is intentional (debugging / pre-launch), set " +
+          "MP_ALLOW_TEST_IN_PROD=true to override.",
       );
     }
     if (mpToken && !process.env.MP_WEBHOOK_SECRET) {
