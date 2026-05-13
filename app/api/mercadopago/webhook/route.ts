@@ -45,7 +45,11 @@ export async function POST(request: Request) {
   // Verify webhook signature
   const mpWebhookSecret = process.env.MP_WEBHOOK_SECRET;
   const accessToken = process.env.MP_ACCESS_TOKEN || "";
-  const isTestMode = accessToken.startsWith("TEST-") || accessToken.startsWith("APP_USR-");
+  // Only TEST- is sandbox. APP_USR- is the production prefix — the
+  // previous check classified production credentials as test mode,
+  // which meant a missing MP_WEBHOOK_SECRET in production would
+  // silently skip signature verification. Big problem.
+  const isTestMode = accessToken.startsWith("TEST-");
 
   if (!mpWebhookSecret) {
     if (isTestMode) {

@@ -191,10 +191,13 @@ export async function POST() {
   const price = basePrice + addonsCost;
 
   // Detect test mode to pick the right payer email (matches the
-  // initial checkout endpoint).
+  // initial checkout endpoint). Only TEST- is sandbox; APP_USR- is
+  // the production prefix. The previous check OR'd both, which
+  // caused reactivations in production to send MP_TEST_PAYER_EMAIL
+  // and MP to reject with "Both payer and collector must be real
+  // or test users".
   const accessToken = process.env.MP_ACCESS_TOKEN || "";
-  const isTestMode =
-    accessToken.startsWith("TEST-") || accessToken.startsWith("APP_USR-");
+  const isTestMode = accessToken.startsWith("TEST-");
   const payerEmail = isTestMode
     ? process.env.MP_TEST_PAYER_EMAIL || ""
     : user.email || lastSub.mp_payer_email || "";
