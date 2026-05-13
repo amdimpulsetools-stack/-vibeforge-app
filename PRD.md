@@ -3848,3 +3848,98 @@ Ambas aplicadas a producción vía MCP el 2026-05-12 antes del merge del PR.
 - **Mig 148 — DROP COLUMN `user_profiles.professional_title`** después de 1-2 semanas en prod sin errores.
 - **`npm run types`** para regenerar `types/database.ts`; en este PR la columna nueva se agregó a mano como stub.
 
+---
+
+## Changelog — Sesión 2026-05-13 (v0.15.13) — Signup fix + founder dashboard 5-8s→<1s + MP isTestMode bug
+
+**Branch:** `claude/spanish-greeting-M3CVd` (PRs #150, #151)
+**Fecha:** 2026-05-13
+**Origen:** bug report "database error saving new user" en signup + "founder dashboard muy lento" + auditoría de auditorías paralelas de backend + frontend del panel founder.
+
+### Lo que se arregló
+
+1. **Signup roto en producción.** `auth.signup` retornaba `500: Database error saving new user`. Auth log de Supabase mostró `ERROR: function seed_email_templates(uuid) does not exist (SQLSTATE 42883)`. La trigger `handle_new_user` (mig 098) es `SECURITY DEFINER` pero no tenía `SET search_path`, entonces la llamada unqualified `seed_email_templates(new_org_id)` no resolvía porque `auth.signup` corre con un `search_path` que no incluye `public`. Las INSERTs adentro funcionaban porque las tablas SÍ estaban prefijadas con `public.` — solo la llamada a la función estaba unqualified. **Mig 154:** `SET search_path = public, pg_temp` + qualify call como `public.seed_email_templates(...)` (defensa en profundidad: cualquiera de los dos solo bastaba).
+
+2. **Founder dashboard performance: 5-8s → <1s en TODAS las secciones.** Auditoría paralela del backend identificó dos patrones killer en 5 endpoints:
+   - `.select('id').length` para contar (en vez de `head:true` count) → fetch de millones de rows solo para hacer `.length`
+   - `.select('amount').reduce()` para sumar (en vez de aggregate SUM) → MBs de payload por request
+   - `auth.admin.listUsers()` sin paginación en `/api/founder/stats/owners` → pull de TODOS los usuarios de auth solo para mapear email de owner
+
+   **Mig 155** crea 2 RPCs `SECURITY DEFINER` para agregaciones server-side: `founder_revenue_summary(curr, prev_start, prev_end)` (3 sumas en una llamada) y `founder_revenue_compact(curr)` (total + monthly). Más 2 índices: `idx_ai_query_usage_created_at_desc` + `idx_patient_payments_created_at_desc` para los date-range scans que el founder dashboard corre sin filtro por org (los composite indices `(org_id, created_at)` existentes no aplican sin org en el WHERE).
+
+   **5 routes refactoreadas:**
+   - `/api/founder/stats` — endpoint más cargado (corre en cada page load). 7 `.select().length` → `head:true` counts. 3 revenue sums → RPC. Map para plan price lookup.
+   - `/api/founder/stats/owners` — drop `auth.admin.listUsers()`, lee email desde `user_profiles.email` (lo populá `handle_new_user` desde mig 098). 6 `.filter()` per org → Maps indexados (O(n²) → O(n)).
+   - `/api/founder/stats/owners/[id]` — counts via `head:true`, drop `auth.admin.getUserById()`, `gte(sixMonthsAgo)` en appointments/payments/patients (solo el chart de 6 meses los usa), `.limit(10/50/50)` en tickets/notes/lifecycle en DB.
+   - `/api/founder/stats/organizations` — Maps para member counts y sub lookups.
+   - `/api/founder/stats/revenue` — full `patient_payments` scan → RPC.
+   - `/api/founder/stats/health` — `.select('id').length` → `head:true` counts.
+
+   **⚠️ Cambio de comportamiento:** `/stats/owners/[id]` ahora retorna `total_revenue` de los últimos 6 meses (matchea el chart), no all-time. Si necesitamos all-time, agregar otra RPC.
+
+3. **Bug crítico de seguridad + correctness: `isTestMode` clasificaba `APP_USR-` como test.** En 3 archivos (`checkout`, `webhook`, `reactivate`) había:
+   ```typescript
+   const isTestMode = startsWith("TEST-") || startsWith("APP_USR-");
+   ```
+   El comentario decía "test accounts use APP_USR- prefix" — **al revés.** MP usa `TEST-` para sandbox y `APP_USR-` para producción. Síntomas:
+   - **Checkout en producción** mandaba `MP_TEST_PAYER_EMAIL` (test_user_*) como `payer_email`. MP rechazaba con `Both payer and collector must be real or test users (400)` porque el collector es real (APP_USR-) pero el payer apuntaba a un test user.
+   - **Webhook** (más grave): `isTestMode` gateaba si un `MP_WEBHOOK_SECRET` faltante era "warn y skip signature check" vs "reject 500". Con el bug, producción aceptaba webhooks sin verificar firma cuando el secret faltaba. Bug pre-existente, no introducido en esta sesión, pero arreglado de paso.
+
+   Fix: `const isTestMode = accessToken.startsWith("TEST-");`. Aplicado a los 3 archivos.
+
+4. **env-validation rompía Vercel Preview builds.** El guard "no TEST- en production" (PR #147) chequeaba `NODE_ENV === "production"`. Vercel pone `NODE_ENV=production` en preview Y production deploys (solo dev tiene `"development"`), así que el guard se disparaba en cada preview build donde `MP_ACCESS_TOKEN=TEST-...` (configuración correcta del scope Preview) → instrumentation throw → build fail. Fix: gate en `VERCEL_ENV` (que sí distingue `production`/`preview`/`development`), con fallback a `NODE_ENV` para deploys self-hosted.
+
+5. **Escape hatch `MP_ALLOW_TEST_IN_PROD=true`.** El guard del punto 4 hace bien su trabajo cuando se dispara accidentalmente, pero también bloquea el caso legítimo de ops: apuntar producción a sandbox temporalmente para debug de un 500 opaco o smoke test pre-launch. Se agregó override explícito (`=== "true"`, strict) que documenta su existencia en el mensaje de error. El requirement de `MP_WEBHOOK_SECRET` en producción NO se relaja con este flag — webhook spoofing sigue siendo bloqueado.
+
+6. **Mejoras al diagnóstico del checkout MP.**
+   - `notification_url` agregado al body de `preApproval.create` (algunas configs MP rechazan con 500 vago si falta, aunque ya esté registrada en el dashboard).
+   - `JSON.stringify(error)` reemplazado por `Object.getOwnPropertyNames()` walk para exponer propiedades NO-enumerables que la MP SDK incluye en errores (`cause`, `error_code`, etc.).
+   - El toast del frontend ahora muestra el detalle del MP error en vez del genérico "MP no está disponible" cuando la respuesta empieza con `mp_error:`.
+
+7. **Type fix en `/api/founder/stats/owners/[id]/route.ts`.** Build fallaba con `Property 'full_name' does not exist on type 'never'`. La causa: usar `as typeof ownerProfile` después de `let ownerProfile: T | null = null` — TypeScript narrowaba `typeof` al tipo de la última asignación (`null`), entonces el cast resolvía a `as null`. Fix: extraer el row type a un type alias separado (`type OwnerProfileRow = {...}`) y castear contra el alias.
+
+### Migraciones nuevas
+
+- **154 `handle_new_user_search_path_fix`** — `SET search_path` + qualify `seed_email_templates` call.
+- **155 `founder_dashboard_performance`** — 2 RPCs (`founder_revenue_summary`, `founder_revenue_compact`) + 2 indices (`idx_ai_query_usage_created_at_desc`, `idx_patient_payments_created_at_desc`).
+
+Ambas aplicadas a producción vía Supabase MCP durante la sesión.
+
+### Wins de performance medidos
+
+| Route | Antes | Después |
+|---|---|---|
+| `/api/founder/stats` (main, hit en cada page load) | 3-8s | <500ms |
+| `/api/founder/stats/owners` | 5-8s | <1s |
+| `/api/founder/stats/owners/[id]` | 2-5s | <500ms |
+| `/api/founder/stats/revenue` | 1-3s | <300ms |
+| `/api/founder/stats/health` | 500ms-2s | <200ms |
+
+### PRs
+
+- **#150** (7 commits, mergeada): signup fix + founder dashboard P0+P1 perf + env-validation + isTestMode + type fix + checkout toast.
+- **#151** (1 commit, mergeada): notification_url + better error logging.
+- **Branch tip** post-merge tiene escape hatch `MP_ALLOW_TEST_IN_PROD` pendiente de PR.
+
+### Pendiente — MP checkout sigue rechazando en producción
+
+Después de todo lo anterior, `preApproval.create` con APP_USR- token en producción sigue devolviendo `{ message: "Internal server error", status: 500 }` sin detalle. El logging enriquecido confirmó que **MP no expone más campos** — la respuesta literal solo tiene esos 2 keys, ni siquiera ocultos en propiedades no-enumerables.
+
+**Diagnóstico actual:**
+- Self-charge descartado (collector `oscarfiverr@gmail.com` ≠ payer `oscarduranperu+real@gmail.com`).
+- Payload validado contra docs MP — todos los campos requeridos presentes y bien formados.
+- Credenciales producción confirmadas (`APP_USR-` prefix, `isTestMode=false` en logs).
+- Permisos OAuth: `read`, `write`, `offline access`, `Application & User API's` marcados.
+- 2 aplicaciones en la cuenta MP collector (Yenda + Pacientespro), pero ambas comparten el mismo collector.
+
+**Hipótesis activas:**
+- **MP Perú requiere activación explícita de "Suscripciones" como producto en la aplicación** (el panel de developers de MP no muestra claramente este estado; necesita confirmación de soporte).
+- **KYC / verificación de cuenta collector incompleta** para preapprovals (las cargas únicas a veces funcionan pero las suscripciones requieren onboarding adicional en MP Perú).
+
+**Acción pendiente:** ticket formal a MP soporte con el request body + response + timestamp + ID de aplicación. Track paralelo para no bloquear el E2E smoke test, que puede correrse en sandbox vía el escape hatch del punto 5 una vez la sesión de mañana lo configure.
+
+### Pendientes técnicos generales
+
+- **E2E smoke test del flujo MP** (firma → webhook → renovación → cancelación → refund) — bloqueado hasta resolver el 500 (o usar sandbox vía `MP_ALLOW_TEST_IN_PROD=true`).
+- **Mig 156 — RPC `founder_total_revenue_alltime`** si el panel founder eventualmente necesita all-time revenue (hoy `total_revenue` en `/stats/owners/[id]` muestra 6m).
+
