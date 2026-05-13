@@ -106,19 +106,38 @@ export async function POST(request: Request) {
     const preApproval = getPreApprovalClient();
 
     // In test mode, payer_email MUST be the test buyer's email (not the seller's).
-    // In production, use the authenticated user's email.
-    const payerEmail = isTestMode
+    // In production, use the authenticated user's email — but validate it
+    // looks like a real email first (anti-corruption for the rare case
+    // where a social-login row or a partially-migrated user ends up here
+    // without one).
+    const rawEmail = isTestMode
       ? (process.env.MP_TEST_PAYER_EMAIL || "")
-      : (user.email || "");
+      : (user.email || "").trim();
+    const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail);
 
-    if (!payerEmail) {
+    if (!rawEmail) {
       return NextResponse.json(
-        { error: isTestMode
-          ? "Falta MP_TEST_PAYER_EMAIL en variables de entorno (email de la cuenta compradora de prueba)"
-          : "El usuario no tiene email configurado" },
-        { status: 400 }
+        {
+          error: isTestMode ? "missing_test_payer_email" : "missing_user_email",
+          message: isTestMode
+            ? "Falta MP_TEST_PAYER_EMAIL en variables de entorno (email de la cuenta compradora de prueba)"
+            : "No encontramos un email asociado a tu cuenta. Actualiza tu perfil antes de suscribirte.",
+        },
+        { status: 400 },
       );
     }
+    if (!emailLooksValid) {
+      return NextResponse.json(
+        {
+          error: "invalid_user_email",
+          message: isTestMode
+            ? "MP_TEST_PAYER_EMAIL no tiene formato válido."
+            : "El email de tu cuenta no tiene formato válido. Actualízalo desde tu perfil antes de suscribirte.",
+        },
+        { status: 400 },
+      );
+    }
+    const payerEmail = rawEmail;
 
     const body: Record<string, unknown> = {
       reason: `Yenda - Plan ${plan.name} (${

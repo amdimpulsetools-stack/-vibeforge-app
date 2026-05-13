@@ -44,4 +44,30 @@ export function validateEnv() {
       "[env] NEXT_PUBLIC_APP_URL not set — falling back to http://localhost:3000. Set this in production!"
     );
   }
+
+  // ── MercadoPago: fail fast if TEST credentials are deployed to
+  //    production. MP test tokens start with "TEST-" and silently
+  //    accept payments that never settle. Catching this at boot is
+  //    way better than discovering it on a real customer's failed
+  //    checkout. We also require MP_WEBHOOK_SECRET in production
+  //    when MP_ACCESS_TOKEN is set — without it, signature
+  //    verification falls back to "warn and accept", which is
+  //    spoof-able.
+  if (process.env.NODE_ENV === "production") {
+    const mpToken = process.env.MP_ACCESS_TOKEN ?? "";
+    if (mpToken.startsWith("TEST-")) {
+      throw new Error(
+        "MP_ACCESS_TOKEN uses TEST- prefix in production. " +
+          "Refusing to start — replace it with the production access token " +
+          "from MercadoPago dashboard before deploying.",
+      );
+    }
+    if (mpToken && !process.env.MP_WEBHOOK_SECRET) {
+      throw new Error(
+        "MP_ACCESS_TOKEN is set in production but MP_WEBHOOK_SECRET is missing. " +
+          "Without the secret, MP webhooks cannot be signature-verified — " +
+          "set MP_WEBHOOK_SECRET to the value from the MercadoPago dashboard.",
+      );
+    }
+  }
 }

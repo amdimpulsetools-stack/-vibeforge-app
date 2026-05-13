@@ -59,9 +59,9 @@ export const FERTILITY_WHATSAPP_TEMPLATE_SEEDS: FertilityWhatsAppTemplateSeed[] 
     },
     sample_values: {
       '1': 'María',
-      '2': 'Dra. Angela Quispe',
-      '3': 'Vitra Fertilidad',
-      '4': '+51 999 123 456',
+      '2': 'Dra. María Pérez',
+      '3': 'Clínica de Fertilidad',
+      '4': '+51 999 888 777',
     },
   },
   {
@@ -83,9 +83,9 @@ export const FERTILITY_WHATSAPP_TEMPLATE_SEEDS: FertilityWhatsAppTemplateSeed[] 
     },
     sample_values: {
       '1': 'María',
-      '2': 'Dra. Angela Quispe',
-      '3': 'Vitra Fertilidad',
-      '4': '+51 999 123 456',
+      '2': 'Dra. María Pérez',
+      '3': 'Clínica de Fertilidad',
+      '4': '+51 999 888 777',
     },
   },
 
@@ -109,9 +109,9 @@ export const FERTILITY_WHATSAPP_TEMPLATE_SEEDS: FertilityWhatsAppTemplateSeed[] 
     },
     sample_values: {
       '1': 'María',
-      '2': 'Dra. Angela Quispe',
-      '3': 'Vitra Fertilidad',
-      '4': '+51 999 123 456',
+      '2': 'Dra. María Pérez',
+      '3': 'Clínica de Fertilidad',
+      '4': '+51 999 888 777',
     },
   },
   {
@@ -133,9 +133,9 @@ export const FERTILITY_WHATSAPP_TEMPLATE_SEEDS: FertilityWhatsAppTemplateSeed[] 
     },
     sample_values: {
       '1': 'María',
-      '2': 'Dra. Angela Quispe',
-      '3': 'Vitra Fertilidad',
-      '4': '+51 999 123 456',
+      '2': 'Dra. María Pérez',
+      '3': 'Clínica de Fertilidad',
+      '4': '+51 999 888 777',
     },
   },
 
@@ -160,9 +160,9 @@ export const FERTILITY_WHATSAPP_TEMPLATE_SEEDS: FertilityWhatsAppTemplateSeed[] 
     },
     sample_values: {
       '1': 'María',
-      '2': 'Dra. Angela Quispe',
-      '3': 'Vitra Fertilidad',
-      '4': '+51 999 123 456',
+      '2': 'Dra. María Pérez',
+      '3': 'Clínica de Fertilidad',
+      '4': '+51 999 888 777',
     },
   },
   {
@@ -184,9 +184,9 @@ export const FERTILITY_WHATSAPP_TEMPLATE_SEEDS: FertilityWhatsAppTemplateSeed[] 
     },
     sample_values: {
       '1': 'María',
-      '2': 'Dra. Angela Quispe',
-      '3': 'Vitra Fertilidad',
-      '4': '+51 999 123 456',
+      '2': 'Dra. María Pérez',
+      '3': 'Clínica de Fertilidad',
+      '4': '+51 999 888 777',
     },
   },
 ];
