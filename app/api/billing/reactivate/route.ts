@@ -209,6 +209,27 @@ export async function POST() {
     );
   }
 
+  // Self-pay guard — same rationale as /api/mercadopago/checkout.
+  // MP rejects (vague 500) any preapproval where payer_email
+  // matches the integrator account. MP_INTEGRATOR_EMAIL env-flag.
+  const integratorEmail = (process.env.MP_INTEGRATOR_EMAIL || "")
+    .trim()
+    .toLowerCase();
+  if (
+    !isTestMode &&
+    integratorEmail &&
+    payerEmail.toLowerCase() === integratorEmail
+  ) {
+    return NextResponse.json(
+      {
+        error: "self_payment_not_allowed",
+        message:
+          "No podés reactivar la suscripción con el mismo email vinculado a la cuenta de Mercado Pago de Yenda. Cambiá el email del owner desde tu perfil antes de reactivar.",
+      },
+      { status: 400 },
+    );
+  }
+
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
   let result;
@@ -233,6 +254,12 @@ export async function POST() {
           currency_id: "PEN",
         },
         back_url: `${appUrl}/account?reactivated=1`,
+        // Required for the no-card-token preapproval model. Without
+        // it MP defaults to status=authorized, which requires
+        // card_token_id and triggers a vague 500 since we don't
+        // collect cards client-side. See full note in
+        // app/api/mercadopago/checkout/route.ts.
+        status: "pending",
       },
     });
   } catch (err) {
