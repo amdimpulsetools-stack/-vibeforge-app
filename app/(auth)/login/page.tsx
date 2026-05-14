@@ -75,6 +75,12 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [authBanner, setAuthBanner] = useState<AuthBanner | null>(null);
   const [resending, setResending] = useState(false);
+  // 2FA step state. When the user has MFA enrolled, signInWithPassword
+  // creates an AAL1 session and we hold them on this page until they
+  // pass the TOTP challenge. mfaFactorId being non-null = show step 2.
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaError, setMfaError] = useState<string | null>(null);
   const router = useRouter();
 
   // Load remembered email on mount
@@ -144,6 +150,50 @@ export default function LoginPage() {
       localStorage.removeItem(REMEMBERED_EMAIL_KEY);
     }
 
+    // 2FA step. If the user has a verified TOTP factor, Supabase
+    // returns an AAL1 session — we hold them here until they pass
+    // the challenge. listFactors works on the AAL1 session.
+    const { data: factors } = await supabase.auth.mfa.listFactors();
+    const totp = (factors?.totp ?? []).find((f) => f.status === "verified");
+    if (totp) {
+      setMfaFactorId(totp.id);
+      setLoading(false);
+      return;
+    }
+
+    toast.success("Sesión iniciada correctamente");
+    router.push("/dashboard");
+    router.refresh();
+  };
+
+  const handleMfaVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!mfaFactorId || mfaCode.length !== 6) return;
+    setLoading(true);
+    setMfaError(null);
+
+    const supabase = createClient();
+    const { data: challenge, error: chErr } = await supabase.auth.mfa.challenge({
+      factorId: mfaFactorId,
+    });
+    if (chErr || !challenge) {
+      setMfaError(chErr?.message ?? "No pudimos generar el desafío. Intentá de nuevo.");
+      setLoading(false);
+      return;
+    }
+
+    const { error: verifyErr } = await supabase.auth.mfa.verify({
+      factorId: mfaFactorId,
+      challengeId: challenge.id,
+      code: mfaCode.trim(),
+    });
+    if (verifyErr) {
+      setMfaError("Código inválido. Revisá los 6 dígitos actuales de tu app.");
+      setMfaCode("");
+      setLoading(false);
+      return;
+    }
+
     toast.success("Sesión iniciada correctamente");
     router.push("/dashboard");
     router.refresh();
@@ -207,6 +257,63 @@ export default function LoginPage() {
 
         {/* Form */}
         <div className="glass-card rounded-2xl p-7 shadow-xl">
+          {mfaFactorId ? (
+            // ── Step 2: TOTP challenge ─────────────────────────
+            <form onSubmit={handleMfaVerify} className="space-y-5">
+              <div className="text-center">
+                <h2 className="text-xl font-semibold mb-1">Verificación en dos pasos</h2>
+                <p className="text-sm text-muted-foreground">
+                  Ingresá el código de 6 dígitos de tu app de autenticación.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <input
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="123456"
+                  value={mfaCode}
+                  onChange={(e) =>
+                    setMfaCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+                  }
+                  autoFocus
+                  className="flex h-14 w-full rounded-xl border border-input bg-background/50 px-4 text-center text-2xl tracking-[0.4em] font-mono placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                />
+                {mfaError && (
+                  <p className="text-xs text-red-500 text-center">{mfaError}</p>
+                )}
+              </div>
+              <button
+                type="submit"
+                disabled={loading || mfaCode.length !== 6}
+                className="flex h-11 w-full items-center justify-center rounded-xl gradient-primary text-sm font-semibold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Verificar"}
+              </button>
+              <div className="pt-2 text-center space-y-2">
+                <Link
+                  href="/auth/mfa-recover"
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors block"
+                >
+                  Perdí mi dispositivo — usar código de recuperación
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Cancel the half-completed login. The AAL1
+                    // session is left behind but is harmless —
+                    // protected routes still gatekeep on AAL2.
+                    setMfaFactorId(null);
+                    setMfaCode("");
+                    setMfaError(null);
+                  }}
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Volver
+                </button>
+              </div>
+            </form>
+          ) : (
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-2">
               <label htmlFor="email" className="text-sm font-semibold">
@@ -265,8 +372,12 @@ export default function LoginPage() {
               Iniciar Sesion
             </button>
           </form>
+          )}
 
-          {/* Divider */}
+          {/* Divider + Google login — hidden when in the MFA step
+              to avoid confusing the user with multiple paths. */}
+          {!mfaFactorId && (
+          <>
           <div className="relative my-7">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t border-border/50" />
@@ -303,14 +414,18 @@ export default function LoginPage() {
             </svg>
             Continuar con Google
           </button>
+          </>
+          )}
         </div>
 
+        {!mfaFactorId && (
         <p className="text-center text-sm text-muted-foreground">
           No tienes cuenta?{" "}
           <Link href="/register" className="text-primary font-medium hover:underline">
             Registrate
           </Link>
         </p>
+        )}
       </div>
     </div>
   );

@@ -794,10 +794,19 @@ Sección transversal a toda la plataforma — aplica a todos los roles, todas la
 
 - [x] **Login alerts por email** — *(commit d357c9e — 2026-05-13)*. `lib/auth/new-device-email.ts` envía email "nuevo inicio de sesión" via Resend cada vez que `registerSession` devuelve `outcome=created`. Body con device label, ubicación (city/country desde Vercel geo headers), fecha en es-PE/Lima TZ, CTA al `/account/devices`. Disparado via `after()` para no bloquear el response.
 
-- [ ] **2FA opcional para owner/admin** — TOTP estándar (Google Authenticator / 1Password / Authy). Hoy founder sí tiene 2FA (`founder_2fa_sessions`), pero owners/admins de clínicas no. Para clínicas con datos sensibles este es un requisito típico.
-  - Setup: QR code + recovery codes + enforcement por org (admin puede forzarlo a todos los miembros).
-  - **Esfuerzo: Medio (~3-4 días).**
-  - **Impacto: Alto.** Vendible como feature de Plan Clínica/Enterprise.
+- [x] **2FA opcional para owner/admin** — *(2026-05-14, mig 158, PR pendiente)*. TOTP via Supabase Auth MFA nativo (no custom — 80% menos código que reinventar). Stack:
+  - Mig 158: tabla `mfa_recovery_codes` (10 códigos single-use, scrypt hashed con per-row salt). RLS users solo ven sus hashes.
+  - Helper `lib/auth/mfa.ts`: `generateRecoveryCodes`, `hashRecoveryCode`, `consumeRecoveryCode`, `regenerateRecoveryCodes`, `clearRecoveryCodes`. scrypt nativo de Node (sin extra dep).
+  - 4 endpoints: `POST /api/auth/mfa/recovery-codes` (genera/regenera, requiere factor verified), `GET` (count), `GET /api/auth/mfa/status` (owner+admin only — devuelve enrolled, factor_id, recovery_codes_active), `POST /api/auth/mfa/recover` (lost-device flow: valida email+password+code → deletes ALL factors → 200).
+  - `<MfaEnrollDialog>` 3-step: enroll (QR + secret) → verify (6-digit input) → backup (10 plaintext codes con Copy + Download).
+  - Página `/account/security` con estado activado/desactivado, contador de códigos restantes (warning bajo 3), botones regenerar/desactivar. Owner/admin only (otros roles ven empty state explicativo).
+  - `/login` modificado: tras `signInWithPassword` exitoso → `listFactors()` → si verified totp → step 2 (TOTP input centrado en pantalla con link "Perdí mi dispositivo" + botón "Volver"). Google OAuth y "Forgot password" se ocultan en step 2 para evitar paths confusos.
+  - Nueva page `/auth/mfa-recover`: form standalone con email + password + recovery_code. POSTea a `/api/auth/mfa/recover`. Rate-limited a 3/min/IP (emailLimiter). Si exitoso → signOut + flash + redirect /login.
+  - Link "Configurar 2FA" en `/account` antes de "Mis dispositivos".
+
+  **Decisiones**: opt-in individual (no force por org en v1), solo owner+admin pueden activar (doctor/recep ven empty state diciendo que pidan al owner), solo se pide TOTP en login (no en acciones sensibles — eso es step-up auth para v2), recovery codes consume + delete-all-factors flow (single use, fuerza re-enroll después).
+
+  **Requisito de activación**: MFA debe estar habilitado en Supabase Auth settings del proyecto. Si no lo está, `mfa.enroll()` tira 422. Verificar antes de mergear.
 
 - [ ] **Audit log de acceso a datos clínicos sensibles** — Tabla `clinical_access_log` con `user_id, organization_id, resource_type (patient|clinical_note|prescription|attachment), resource_id, action (view|edit|export|print), at, ip, user_agent`. RLS solo lectura para owner/admin. Página `/admin/audit-log` con filtros + export CSV.
   - **Compliance:** la NTS 139 exige trazabilidad de acceso a HC. RLS multi-tenant no basta — hay que loggear quién vio qué cuándo.
@@ -846,7 +855,7 @@ Sección transversal a toda la plataforma — aplica a todos los roles, todas la
 | 1 | **Límite de dispositivos simultáneos** (sec. 🔐 Seguridad) | Medio-Alto | Muy alto | Anti account-sharing. Sin esto el ARPU se diluye en cuanto vendamos a clínicas medianas. **Bloqueante para piloto Vitra escalado.** |
 | 2 | **Audit log de acceso a HC** (sec. 🔐 Seguridad) | Medio-Alto | Alto | Compliance NTS 139 — exigible legalmente. Diferenciador frente a Doctoralia/Helisa. |
 | 3 | **Límites de plan: soft-wall UX** | Medio | Alto | Sin enforcement de límites, el upgrade de plan no se gatilla. Monetización rota silenciosa. |
-| 4 | **2FA opcional para owner/admin** (sec. 🔐 Seguridad) | Medio | Alto | Vendible como feature Plan Clínica. Estándar de mercado en SaaS médico. |
+| ~~4~~ | ~~**2FA opcional para owner/admin**~~ | — | — | ✅ Entregado 2026-05-14 (mig 158, PR pendiente) |
 
 ### 🟡 Media — diferencia y crece producto
 
