@@ -39,6 +39,22 @@ export default function ResetPasswordPage() {
       return;
     }
 
+    // After a successful password change, revoke every active
+    // session so an attacker who had access via a leaked/old
+    // credential is kicked out of every device. The current
+    // session (the one that just changed the password) is also
+    // revoked — user has to re-login fresh. That's the safer
+    // default for credential-recovery flows.
+    try {
+      await fetch("/api/auth/session/revoke-all", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+    } catch {
+      // Non-blocking — password change already succeeded.
+    }
+
     setDone(true);
     setLoading(false);
   };

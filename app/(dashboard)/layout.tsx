@@ -6,6 +6,7 @@ import { PlanLimitWarner } from "@/components/plan-limit-warner";
 import { MobileNavProvider } from "@/components/layout/mobile-nav-context";
 import { TourProvider } from "@/components/onboarding/tour-provider";
 import { TourAutostart } from "@/components/onboarding/tour-autostart";
+import { SessionRegister } from "@/components/auth/session-register";
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
@@ -25,6 +26,7 @@ export default async function DashboardLayout({
         <TourProvider>
           <PlanLimitWarner />
           <TourAutostart />
+          <SessionRegister />
           <div className="flex h-screen overflow-hidden">
             <Sidebar />
             <div className="flex flex-1 flex-col overflow-hidden">

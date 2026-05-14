@@ -17,6 +17,19 @@ type AuthBanner = {
 };
 
 function parseAuthError(query: URLSearchParams, hash: URLSearchParams): AuthBanner | null {
+  // Middleware sets ?reason=session_revoked when a user's session
+  // was revoked from another device. Surface it as a friendly
+  // banner so they know it wasn't a glitch.
+  if (query.get("reason") === "session_revoked") {
+    return {
+      title: "Tu sesión se cerró desde otro dispositivo",
+      description:
+        "Alguien cerró esta sesión desde otro dispositivo conectado a tu cuenta. " +
+        "Si fuiste vos, simplemente volvé a iniciar sesión. Si no, cambiá tu contraseña.",
+      canResend: false,
+    };
+  }
+
   const code = query.get("error") || hash.get("error_code") || hash.get("error");
   const desc = hash.get("error_description") || query.get("error_description");
   if (!code) return null;
