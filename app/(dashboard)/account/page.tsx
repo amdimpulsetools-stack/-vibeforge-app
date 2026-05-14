@@ -50,6 +50,7 @@ import {
   X,
   ShoppingCart,
   Bot,
+  Smartphone,
   RefreshCw,
   CreditCard,
   AlertTriangle,
@@ -920,6 +921,25 @@ export default function AccountPage() {
           <Sparkles className="h-4 w-4 text-primary" />
           Ver tour de bienvenida
         </button>
+      </div>
+
+      {/* Mis dispositivos — link to the device-limit management
+          page. Lives between the tour section and the Danger Zone
+          so it's easy to find without putting it in the top fold. */}
+      <div className="rounded-2xl border border-border/60 bg-card p-6">
+        <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+          <Smartphone className="h-4 w-4 text-muted-foreground" />
+          Mis dispositivos
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Revisá en qué dispositivos hay sesiones activas y cerrá las que no reconozcas.
+        </p>
+        <a
+          href="/account/devices"
+          className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          Ver dispositivos
+        </a>
       </div>
 
       {/* Danger Zone — full width at bottom. Owner-only "Cancelar

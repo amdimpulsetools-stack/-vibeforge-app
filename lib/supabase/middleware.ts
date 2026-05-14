@@ -1,6 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { TERMS_VERSION } from "@/lib/constants";
+import {
+  DEVICE_ID_COOKIE,
+  deviceLimitsEnabled,
+  getCachedSessionStatus,
+  setCachedSessionStatus,
+} from "@/lib/auth/session-limits";
+import { isSessionActive, touchSessionLastSeen } from "@/lib/auth/sessions";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -71,6 +78,54 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const pathname = request.nextUrl.pathname;
+
+  // ── Device-limit enforcement ────────────────────────────────────
+  // If the user has a JWT but their (user, device) session was
+  // revoked from another device, force them out. The check is
+  // cached 30s in-memory per instance to avoid hammering the DB
+  // on rapid navigation. Internal API paths and auth callbacks
+  // are exempt — they don't need a session row yet (the very
+  // first /api/auth/session/register call IS where the row is
+  // created).
+  //
+  // Strict failure mode: if the cookie or device_id are missing
+  // we DO NOT revoke — we let the client-side hook on the next
+  // page render create the cookie + register the session. The
+  // worst case is a one-page lag where revocation isn't enforced
+  // yet, which is acceptable for the first navigation post-login.
+  if (
+    deviceLimitsEnabled() &&
+    user &&
+    !pathname.startsWith("/api/auth/") &&
+    !pathname.startsWith("/auth/")
+  ) {
+    const deviceId = request.cookies.get(DEVICE_ID_COOKIE)?.value;
+    if (deviceId) {
+      const cached = getCachedSessionStatus(user.id, deviceId);
+      let revoked: boolean | null = cached;
+      if (revoked === null) {
+        // Cache miss — query the DB.
+        // isSessionActive fails-open on DB errors so a transient
+        // outage doesn't lock everyone out.
+        const active = await isSessionActive(user.id, deviceId);
+        revoked = !active;
+        setCachedSessionStatus(user.id, deviceId, revoked);
+      }
+      if (revoked) {
+        // Sign out so the JWT cookies get cleared, then redirect
+        // to /login with a message the page can surface.
+        await supabase.auth.signOut();
+        const url = request.nextUrl.clone();
+        url.pathname = "/login";
+        url.searchParams.set("reason", "session_revoked");
+        return applySecurityHeaders(NextResponse.redirect(url));
+      }
+      // Bump last_seen_at fire-and-forget. Errors swallowed —
+      // it's purely informational for /account/devices.
+      // No await — must not block the request path.
+      void touchSessionLastSeen(user.id, deviceId);
+    }
+  }
 
   // Rutas públicas que no requieren auth
   const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/api", "/auth", "/book", "/portal", "/producto", "/blog", "/base-conocimientos", "/calculadora-whatsapp", "/contacto", "/socios", "/soporte"];

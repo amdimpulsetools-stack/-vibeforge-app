@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SessionRegister } from "@/components/auth/session-register";
 
 export const metadata: Metadata = {
   title: "Founder Panel — Yenda Platform",
@@ -9,5 +10,10 @@ export default function FounderPanelLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return <>{children}</>;
+  return (
+    <>
+      <SessionRegister />
+      {children}
+    </>
+  );
 }
