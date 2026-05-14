@@ -144,6 +144,34 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+
+    // Self-pay guard. MP rejects (with a vague 500, no useful body)
+    // any preapproval where payer_email matches the email tied to
+    // the integrator account that owns the access token. Confirmed
+    // by MP support 2026-05-14: "no es posible pagarse a sí mismo".
+    //
+    // Surfaces a clear 400 instead of the 500 maze when a founder
+    // tries to test signup with their own real Yenda account in
+    // production. Set MP_INTEGRATOR_EMAIL in env to enable; left
+    // unset disables the guard (no behaviour change).
+    const integratorEmail = (process.env.MP_INTEGRATOR_EMAIL || "")
+      .trim()
+      .toLowerCase();
+    if (
+      !isTestMode &&
+      integratorEmail &&
+      rawEmail.toLowerCase() === integratorEmail
+    ) {
+      return NextResponse.json(
+        {
+          error: "self_payment_not_allowed",
+          message:
+            "No podés suscribirte con el mismo email que está vinculado a la cuenta de Mercado Pago de Yenda. Usá otra cuenta para probar el flow de pago.",
+        },
+        { status: 400 },
+      );
+    }
+
     const payerEmail = rawEmail;
 
     const body: Record<string, unknown> = {
@@ -174,6 +202,16 @@ export async function POST(request: Request) {
       // the URL is also configured in the MP dashboard. Sending it
       // explicitly costs nothing and rules out that failure mode.
       notification_url: `${appUrl}/api/mercadopago/webhook`,
+      // Required for the "subscription without associated plan and
+      // without card_token" model. Without this MP defaults to
+      // status=authorized, which mandates card_token_id — and since
+      // we never collect a card client-side, MP returns a generic
+      // 500 instead of a useful 400. Confirmed root cause by MP
+      // support 2026-05-14, ref docs:
+      //   /developers/es/docs/subscriptions/integration-configuration/subscription-no-associated-plan/pending-payments
+      // Once user redirects to init_point, MP collects the payment
+      // method there and the subscription transitions to authorized.
+      status: "pending",
     };
 
     console.log("[MP Checkout] Request body:", JSON.stringify(body, null, 2));

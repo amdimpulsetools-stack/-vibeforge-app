@@ -267,6 +267,16 @@ function SelectPlanPage() {
               "Tu cuenta no tiene email válido. Actualízalo desde tu perfil antes de suscribirte.",
             { duration: 8000 },
           );
+        } else if (data.error === "self_payment_not_allowed") {
+          // Founder/admin probó signup con la misma cuenta vinculada a la
+          // app de MP. Mensaje específico — esto era el bug "500 fantasma"
+          // que nos costó horas debuggear hasta que MP support nos lo
+          // explicó (2026-05-14).
+          toast.error(
+            data.message ??
+              "Mercado Pago no permite que pagues con el mismo email que tiene la cuenta integradora. Usá una cuenta distinta.",
+            { duration: 12000 },
+          );
         } else if (res.status >= 500) {
           // Our /api/mercadopago/checkout returns 500 with
           // `error: "mp_error: <MP detail>"` when MP rejects the
