@@ -4,6 +4,7 @@ import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import { renderInformedConsentHtml } from "@/lib/pdf/informed-consent-html";
 import { toClinicHeaderData } from "@/lib/pdf/clinic-header-data";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 import type {
   InformedConsentRecord,
   InformedConsentSignatureMethod,
@@ -89,6 +90,17 @@ export async function GET(request: NextRequest) {
       return { ...row, pdf_url: signed?.signedUrl ?? null };
     }),
   );
+
+  if (enriched.length > 0) {
+    logClinicalAccess({
+      organizationId: enriched[0].organization_id,
+      userId: user.id,
+      resourceType: "attachment",
+      action: "list",
+      patientId: patientId,
+      metadata: { kind: "informed_consent", count: enriched.length },
+    });
+  }
 
   return NextResponse.json({ data: enriched });
 }
@@ -259,6 +271,20 @@ export async function POST(request: NextRequest) {
     .from("informed_consents")
     .update({ pdf_url: path })
     .eq("id", consentRow.id);
+
+  logClinicalAccess({
+    organizationId,
+    userId: user.id,
+    resourceType: "attachment",
+    action: "create",
+    patientId: payload.patient_id,
+    resourceId: consentRow.id,
+    metadata: {
+      kind: "informed_consent",
+      consent_type: payload.consent_type,
+      signature_method: payload.signature_method,
+    },
+  });
 
   return NextResponse.json(
     {

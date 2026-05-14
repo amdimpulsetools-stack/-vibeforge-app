@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 const updateSchema = z.object({
   title: z.string().min(1).max(200).optional(),
@@ -39,10 +40,11 @@ export async function PATCH(
     .single();
   if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
 
-  // Verify treatment plan belongs to user's org
+  // Verify treatment plan belongs to user's org. Pull patient_id
+  // too so we can audit without an extra query.
   const { data: plan } = await supabase
     .from("treatment_plans")
-    .select("organization_id")
+    .select("organization_id, patient_id")
     .eq("id", id)
     .single();
   if (!plan || plan.organization_id !== membership.organization_id) {
@@ -79,6 +81,19 @@ export async function PATCH(
       .eq("id", id)
       .single();
 
+    logClinicalAccess({
+      organizationId: membership.organization_id,
+      userId: user.id,
+      resourceType: "treatment_plan",
+      action: "update",
+      patientId: plan.patient_id,
+      resourceId: id,
+      metadata: {
+        session_id,
+        session_status: status,
+      },
+    });
+
     return NextResponse.json({ data });
   }
 
@@ -94,6 +109,16 @@ export async function PATCH(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "treatment_plan",
+    action: "update",
+    patientId: plan.patient_id,
+    resourceId: id,
+  });
+
   return NextResponse.json({ data });
 }
 
@@ -117,7 +142,7 @@ export async function DELETE(
   // Verify treatment plan belongs to user's org
   const { data: plan } = await supabase
     .from("treatment_plans")
-    .select("organization_id")
+    .select("organization_id, patient_id")
     .eq("id", id)
     .single();
   if (!plan || plan.organization_id !== membership.organization_id) {
@@ -126,5 +151,15 @@ export async function DELETE(
 
   const { error } = await supabase.from("treatment_plans").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "treatment_plan",
+    action: "delete",
+    patientId: plan.patient_id,
+    resourceId: id,
+  });
+
   return NextResponse.json({ success: true });
 }

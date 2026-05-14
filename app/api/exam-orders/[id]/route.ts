@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 export async function PATCH(
   request: NextRequest,
@@ -12,6 +13,14 @@ export async function PATCH(
 
   let body: Record<string, unknown>;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "JSON inválido" }, { status: 400 }); }
+
+  // Resolve org + patient FK for the audit row. Fetch upfront —
+  // cheap, and ensures the log fires even if we early-return.
+  const { data: order } = await supabase
+    .from("exam_orders")
+    .select("organization_id, patient_id")
+    .eq("id", id)
+    .maybeSingle();
 
   // Update order status
   if (body.status) {
@@ -56,6 +65,22 @@ export async function PATCH(
         .update({ status: newStatus, updated_at: new Date().toISOString() })
         .eq("id", id);
     }
+  }
+
+  if (order?.organization_id) {
+    logClinicalAccess({
+      organizationId: order.organization_id,
+      userId: user.id,
+      resourceType: "lab_result",
+      action: "update",
+      patientId: order.patient_id ?? null,
+      resourceId: id,
+      metadata: {
+        order_status: body.status ?? null,
+        item_id: body.item_id ?? null,
+        item_status: body.item_status ?? null,
+      },
+    });
   }
 
   return NextResponse.json({ success: true });

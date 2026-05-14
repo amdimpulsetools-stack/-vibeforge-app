@@ -12,6 +12,7 @@ import {
   BookOpen,
   Tag,
   ArrowRight,
+  Activity,
 } from "lucide-react";
 
 interface AdminPageContentProps {
@@ -90,6 +91,12 @@ export function AdminPageContent({
       desc: "Crea cupones reutilizables para aplicar en recepción (Pro)",
       href: "/admin/discount-codes",
       icon: Tag,
+    },
+    {
+      title: "Registro de auditoría",
+      desc: "Quién accedió a qué dato clínico (NTS 139 + Ley 29733)",
+      href: "/admin/audit-log",
+      icon: Activity,
     },
   ];
 

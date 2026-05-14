@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 const examOrderSchema = z.object({
   patient_id: z.string().uuid(),
@@ -39,6 +40,20 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (data && data.length > 0) {
+    logClinicalAccess({
+      organizationId: data[0].organization_id,
+      userId: user.id,
+      resourceType: "lab_result",
+      action: "list",
+      patientId: patientId,
+      metadata: {
+        count: data.length,
+        appointment_id: appointmentId ?? null,
+      },
+    });
+  }
 
   return NextResponse.json({ data: data ?? [] });
 }
@@ -119,6 +134,16 @@ export async function POST(request: NextRequest) {
     .select("*, doctors(full_name), exam_order_items(*)")
     .eq("id", order.id)
     .single();
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "lab_result",
+    action: "create",
+    patientId: orderData.patient_id,
+    resourceId: order.id,
+    metadata: { items_count: items.length },
+  });
 
   return NextResponse.json({ data: complete }, { status: 201 });
 }

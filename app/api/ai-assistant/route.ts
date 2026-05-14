@@ -4,6 +4,7 @@ import { aiLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
 import { aiAssistantSchema } from "@/lib/validations/api";
 import { pseudonymizePHI } from "@/lib/pseudonymize-phi";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 const SCHEMA_CONTEXT = `
 Eres un generador de SQL para una clínica médica multi-tenant. Tu ÚNICA tarea es generar la consulta SQL que responde la pregunta del usuario.
@@ -331,6 +332,19 @@ export async function POST(req: NextRequest) {
     }
 
     const orgId = membership.organization_id;
+
+    // Audit: the AI assistant queries patient/appointment data
+    // (even pseudonymized before hitting the LLM, the org's data
+    // is still touched). One log per request — captures who and
+    // what they asked. Compliance treats this as `view` of patient
+    // data at the aggregate level.
+    logClinicalAccess({
+      organizationId: orgId,
+      userId: user.id,
+      resourceType: "ai_query",
+      action: "view",
+      metadata: { query: message.slice(0, 500) },
+    });
 
     // Get plan info & current usage
     const [planRes, usageRes] = await Promise.all([
