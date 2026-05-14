@@ -784,23 +784,15 @@ Sección transversal a toda la plataforma — aplica a todos los roles, todas la
 
 ### Pendientes (orden de mi recomendación)
 
-- [ ] **Límite de dispositivos simultáneos por user** — Anti account-sharing patrón Netflix/Kommo/Spotify. Una clínica con 8 doctores que comparte 1 cuenta de owner = pierdes 7 ventas. Diseño:
-  - Tabla nueva `auth_sessions` con `user_id, organization_id, device_fingerprint (IP + UA + localStorage device_id), device_label, last_seen_at, revoked_at`.
-  - Límites configurables por org (defaults: Owner 2 / Admin 2 / Doctor 2 / Recepcionista 1).
-  - Enforcement en login (modal "Tienes N dispositivos activos, ¿cerrar la más antigua?") + middleware que verifica `revoked_at` en cada request (con cache 30s para no agregar latencia).
-  - Página `/account/devices` con lista de sesiones activas + ubicación aproximada + botón "Cerrar".
-  - Cron de limpieza diario para sesiones huérfanas (`last_seen_at` > 7 días → revoke).
-  - Complicación: Supabase JWT no tiene revocación nativa — verificar contra tabla en cada request hasta que el JWT expire.
-  - **Esfuerzo: Medio-Alto (~5-7 días).**
-  - **Impacto: Muy alto.** Previene leak de revenue por account-sharing + auditoría real.
+- [x] **Límite de dispositivos simultáneos por user** — *(commit d357c9e — 2026-05-13, PR #152, mig 156)*. Anti account-sharing patrón Netflix/Spotify. Schema: `auth_sessions(user_id, device_id, device_label, ip_*, user_agent, last_seen_at, revoked_at, revoked_reason)` con UNIQUE(user_id, device_id) e indices parciales sobre subset activo. Límites hardcoded en `lib/auth/session-limits.ts` (Owner=3, Admin=2, Doctor=2, Recepción=1). Multi-org user usa el rol más permisivo. 5 endpoints `/api/auth/session/*` (register/list/revoke/revoke-all/rename). Middleware verifica session activa con cache 30s in-memory. UI: `<SessionRegister>` montado en 3 layouts, `<DeviceLimitDialog>` modal bloqueante con multi-select, `/account/devices` con CRUD completo. Email "nuevo dispositivo" via Resend (solo en `outcome=created`, no en refreshes). `/reset-password` ahora llama revoke-all post-update (defense in depth contra credential leak). Banner `?reason=session_revoked` en `/login`. Feature flag `ENABLE_DEVICE_LIMITS=true` requerido para activar enforcement (OFF por default — permite shippear código sin riesgo). Lazy create — no backfill, primer page-load post-deploy registra device. **Pendientes follow-up que NO bloquean activación** (todos low-priority, ver detalle abajo):
+  - Cron de purga `last_seen_at > 90d` — la columna y el index ya existen
+  - Founder override por org (VIP) — solo si Vitra/cliente lo pide
+  - Métrica de modal-hits/semana (señal de account-sharing real en la base instalada)
+  - Endpoint dedicado de recovery — solo si compliance lo exige; hoy `/forgot-password` cubre
 
-- [ ] **Logout from all devices** — Botón en `/account` que invalida todas las sesiones del user. Útil cuando: cambias contraseña, sospechas de acceso no autorizado, dejas un dispositivo en uso público. Reusa la tabla `auth_sessions` del punto anterior.
-  - **Esfuerzo: Bajo (~1 día).** Casi gratis si el item anterior está hecho.
-  - **Impacto: Medio.** Higiene de seguridad estándar.
+- [x] **Logout from all devices** — *(commit d357c9e — 2026-05-13)*. Endpoint `/api/auth/session/revoke-all` con opcional `keep_current_session_id`. Botón "Cerrar las demás" en `/account/devices`. Llamado también desde `/reset-password` post-password-update.
 
-- [ ] **Login alerts por email** — Cuando un user logea desde un dispositivo o IP nueva, email automático: "Hemos detectado un nuevo inicio de sesión desde [Lima, Chrome en Windows]. Si no fuiste tú, [cierra todas las sesiones]". Aprovecha la tabla `auth_sessions`.
-  - **Esfuerzo: Bajo (~1 día).**
-  - **Impacto: Medio-Alto.** Detección temprana de credenciales comprometidas.
+- [x] **Login alerts por email** — *(commit d357c9e — 2026-05-13)*. `lib/auth/new-device-email.ts` envía email "nuevo inicio de sesión" via Resend cada vez que `registerSession` devuelve `outcome=created`. Body con device label, ubicación (city/country desde Vercel geo headers), fecha en es-PE/Lima TZ, CTA al `/account/devices`. Disparado via `after()` para no bloquear el response.
 
 - [ ] **2FA opcional para owner/admin** — TOTP estándar (Google Authenticator / 1Password / Authy). Hoy founder sí tiene 2FA (`founder_2fa_sessions`), pero owners/admins de clínicas no. Para clínicas con datos sensibles este es un requisito típico.
   - Setup: QR code + recovery codes + enforcement por org (admin puede forzarlo a todos los miembros).
