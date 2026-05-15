@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { z } from "zod";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -12,19 +12,51 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .single();
+  // ── Resolve org ────────────────────────────────────────────────
+  // BUG FIX (2026-05-14): previously this only did .limit(1).single()
+  // on organization_members, picking an arbitrary row. For a user
+  // with multi-org access (eg. a doctor invited to two clinics)
+  // that returned the wrong org and the wrong addon state — addons
+  // active in their primary clinic showed as inactive because the
+  // wrong org was queried.
+  //
+  // Fix: accept ?org_id=… and use it after verifying the caller is
+  // an active member. Falls back to the first membership if no
+  // param is provided (preserves callers that haven't been updated
+  // yet, eg. legacy bookmarks).
+  const requestedOrgId = req.nextUrl.searchParams.get("org_id");
 
-  if (!membership) {
-    return NextResponse.json({ error: "No organization" }, { status: 403 });
+  let orgId: string | null = null;
+  if (requestedOrgId) {
+    const { data: explicit } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .eq("organization_id", requestedOrgId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (!explicit) {
+      // User asked for an org they're not a member of (or membership
+      // was deactivated). Don't leak addon state; treat as 403.
+      return NextResponse.json(
+        { error: "not_a_member_of_org" },
+        { status: 403 },
+      );
+    }
+    orgId = explicit.organization_id;
+  } else {
+    const { data: membership } = await supabase
+      .from("organization_members")
+      .select("organization_id")
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .limit(1)
+      .single();
+    if (!membership) {
+      return NextResponse.json({ error: "No organization" }, { status: 403 });
+    }
+    orgId = membership.organization_id;
   }
-
-  const orgId = membership.organization_id;
 
   const [catalogRes, orgAddonsRes, orgSpecRes, orgRes] = await Promise.all([
     supabase

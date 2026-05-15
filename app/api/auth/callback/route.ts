@@ -39,6 +39,13 @@ export async function GET(request: Request) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
+      // Compute the FINAL destination after this callback. If the user
+      // needs to accept terms, that's the target; otherwise it's `next`.
+      // We capture this BEFORE the MFA branch so the post-MFA redirect
+      // hands off to the right place.
+      let finalTarget = next;
+
       if (user) {
         const meta = user.user_metadata ?? {};
         const metaAcceptedAt =
@@ -78,12 +85,34 @@ export async function GET(request: Request) {
           if (!metaAcceptedAt || !metaTermsVer) {
             const acceptUrl = new URL(`${origin}/onboarding/accept-terms`);
             acceptUrl.searchParams.set("next", next);
-            return NextResponse.redirect(acceptUrl.toString());
+            finalTarget = `/onboarding/accept-terms?next=${encodeURIComponent(next)}`;
           }
+        }
+
+        // ── MFA gate ──────────────────────────────────────────
+        // SECURITY: Without this check, Google OAuth (and any
+        // other non-password flow) would bypass 2FA — the email
+        // /password handler in /login does the same check but
+        // OAuth lands here directly. Confirmed bypass 2026-05-14.
+        //
+        // Supabase MFA: signInWithOAuth + exchangeCodeForSession
+        // creates an AAL1 session. If the user has a verified
+        // TOTP factor, we route through /auth/mfa-challenge so
+        // they get the AAL2 token before reaching any protected
+        // route. The challenge page completes the redirect to
+        // `finalTarget` after verification.
+        const { data: factorList } = await supabase.auth.mfa.listFactors();
+        const hasVerifiedTotp = (factorList?.totp ?? []).some(
+          (f) => f.status === "verified",
+        );
+        if (hasVerifiedTotp) {
+          const challengeUrl = new URL(`${origin}/auth/mfa-challenge`);
+          challengeUrl.searchParams.set("next", finalTarget);
+          return NextResponse.redirect(challengeUrl.toString());
         }
       }
 
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(`${origin}${finalTarget}`);
     }
     // exchange failed — forward a descriptive code
     return NextResponse.redirect(`${origin}/login?error=exchange_failed`);

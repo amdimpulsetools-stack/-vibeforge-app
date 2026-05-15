@@ -20,6 +20,25 @@ export default async function DashboardLayout({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
+  // MFA gate — defense in depth against any auth flow that
+  // forgets to route through /auth/mfa-challenge (OAuth used to
+  // do this before the 2026-05-14 callback fix). If the user has
+  // enrolled MFA but their session is still AAL1, force them to
+  // complete the challenge before serving any dashboard page.
+  //
+  // getAuthenticatorAssuranceLevel returns { currentLevel,
+  // nextLevel }. When nextLevel > currentLevel, a step-up is
+  // pending. Specifically: aal2 needed, aal1 active.
+  const { data: aal } =
+    await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+  if (
+    aal &&
+    aal.currentLevel === "aal1" &&
+    aal.nextLevel === "aal2"
+  ) {
+    redirect("/auth/mfa-challenge?next=/dashboard");
+  }
+
   return (
     <OrganizationProvider>
       <MobileNavProvider>
