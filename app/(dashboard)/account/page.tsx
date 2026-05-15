@@ -901,64 +901,69 @@ export default function AccountPage() {
           de cobrarlo en el próximo ciclo. */}
       {orgRole === "owner" && <ActiveAddonsCard />}
 
-      {/* Ayuda — tour de bienvenida */}
-      <div className="rounded-2xl border border-border/60 bg-card p-6">
-        <div className="flex items-center gap-2 mb-2">
-          <HelpCircle className="h-4 w-4 text-primary" />
-          <h2 className="text-lg font-semibold">Ayuda</h2>
+      {/* Secciones "ligeras" — agrupadas en grid 2-col en desktop para
+          aprovechar el ancho. En mobile siguen full-width apiladas.
+          Las 3 comparten el patrón "card chica con un solo CTA". */}
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Ayuda — tour de bienvenida */}
+        <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col">
+          <div className="flex items-center gap-2 mb-2">
+            <HelpCircle className="h-4 w-4 text-primary" />
+            <h2 className="text-lg font-semibold">Ayuda</h2>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4 flex-1">
+            ¿Quieres volver a ver el recorrido inicial por las funciones de Yenda? Te lo mostramos en 10 pasos.
+          </p>
+          <button
+            type="button"
+            onClick={async () => {
+              resetTour();
+              await startTour();
+            }}
+            className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <Sparkles className="h-4 w-4 text-primary" />
+            Ver tour de bienvenida
+          </button>
         </div>
-        <p className="text-sm text-muted-foreground mb-4">
-          ¿Quieres volver a ver el recorrido inicial por las funciones de Yenda? Te lo mostramos en 10 pasos.
-        </p>
-        <button
-          type="button"
-          onClick={async () => {
-            resetTour();
-            await startTour();
-          }}
-          className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <Sparkles className="h-4 w-4 text-primary" />
-          Ver tour de bienvenida
-        </button>
-      </div>
 
-      {/* Seguridad — 2FA + sesiones. Owner/admin only (la page
-          de security devuelve 403 para otros roles, así que el
-          link queda visible pero no rompe nada). */}
-      <div className="rounded-2xl border border-border/60 bg-card p-6">
-        <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-emerald-500" />
-          Seguridad de la cuenta
-        </h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Activá la autenticación de dos factores (2FA) y gestioná tus códigos de recuperación.
-        </p>
-        <a
-          href="/account/security"
-          className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          Configurar 2FA
-        </a>
-      </div>
+        {/* Seguridad — 2FA + sesiones. Owner/admin only (la page
+            de security devuelve 403 para otros roles, así que el
+            link queda visible pero no rompe nada). */}
+        <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col">
+          <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-emerald-500" />
+            Seguridad de la cuenta
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4 flex-1">
+            Activá la autenticación de dos factores (2FA) y gestioná tus códigos de recuperación.
+          </p>
+          <a
+            href="/account/security"
+            className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Configurar 2FA
+          </a>
+        </div>
 
-      {/* Mis dispositivos — link to the device-limit management
-          page. Lives between the tour section and the Danger Zone
-          so it's easy to find without putting it in the top fold. */}
-      <div className="rounded-2xl border border-border/60 bg-card p-6">
-        <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
-          <Smartphone className="h-4 w-4 text-muted-foreground" />
-          Mis dispositivos
-        </h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Revisá en qué dispositivos hay sesiones activas y cerrá las que no reconozcas.
-        </p>
-        <a
-          href="/account/devices"
-          className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          Ver dispositivos
-        </a>
+        {/* Mis dispositivos — link to the device-limit management
+            page. Lives between the tour section and the Danger Zone
+            so it's easy to find without putting it in the top fold. */}
+        <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col">
+          <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+            <Smartphone className="h-4 w-4 text-muted-foreground" />
+            Mis dispositivos
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4 flex-1">
+            Revisá en qué dispositivos hay sesiones activas y cerrá las que no reconozcas.
+          </p>
+          <a
+            href="/account/devices"
+            className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            Ver dispositivos
+          </a>
+        </div>
       </div>
 
       {/* Danger Zone — full width at bottom. Owner-only "Cancelar
