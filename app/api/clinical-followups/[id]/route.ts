@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 const updateSchema = z.object({
   priority: z.enum(["red", "yellow", "green"]).optional(),
@@ -63,6 +64,21 @@ export async function PATCH(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "appointment",
+    action: "update",
+    patientId: data?.patient_id ?? null,
+    resourceId: id,
+    metadata: {
+      kind: "clinical_followup",
+      resolved: !!parsed.data.is_resolved,
+      contacted: !!mark_contacted,
+    },
+  });
+
   return NextResponse.json({ data });
 }
 
@@ -86,7 +102,7 @@ export async function DELETE(
   // Verify followup belongs to user's org
   const { data: followup } = await supabase
     .from("clinical_followups")
-    .select("organization_id")
+    .select("organization_id, patient_id")
     .eq("id", id)
     .single();
   if (!followup || followup.organization_id !== membership.organization_id) {
@@ -95,5 +111,16 @@ export async function DELETE(
 
   const { error } = await supabase.from("clinical_followups").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "appointment",
+    action: "delete",
+    patientId: followup.patient_id ?? null,
+    resourceId: id,
+    metadata: { kind: "clinical_followup" },
+  });
+
   return NextResponse.json({ success: true });
 }

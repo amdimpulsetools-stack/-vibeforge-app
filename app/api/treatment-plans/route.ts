@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import { maybeCreateBudgetPendingFollowup } from "@/lib/fertility/followup-triggers";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 const planItemSchema = z.object({
   service_id: z.string().uuid(),
@@ -48,6 +49,17 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (data && data.length > 0) {
+    logClinicalAccess({
+      organizationId: data[0].organization_id,
+      userId: user.id,
+      resourceType: "treatment_plan",
+      action: "list",
+      patientId: patientId,
+      metadata: { count: data.length },
+    });
+  }
 
   return NextResponse.json({ data: data ?? [] });
 }
@@ -181,6 +193,15 @@ export async function POST(request: NextRequest) {
     organization_id: membership.organization_id,
     patient_id: parsed.data.patient_id,
     doctor_id: parsed.data.doctor_id,
+  });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "treatment_plan",
+    action: "create",
+    patientId: parsed.data.patient_id,
+    resourceId: data?.id ?? null,
   });
 
   return NextResponse.json({ data }, { status: 201 });

@@ -4141,3 +4141,92 @@ curl -X POST $URL/api/offices \
   -d '{"name":"hack-test"}'
 # Debe devolver 402 con el body estándar
 ```
+
+---
+
+## Changelog — Sesión 2026-05-14 (v0.15.15) — Clinical access log (NTS 139 + Ley 29733)
+
+**Branch:** `claude/clinical-access-log`
+**Fecha:** 2026-05-14
+**Origen:** `COMING-UPDATES.md` 🔴 Alta #2. Compliance NTS 139-2018-MINSA/DGIESP (norma de telesalud — el EHR debe poder identificar quién accedió a qué HC) + Ley 29733 (derecho del paciente a saber quién vio sus datos). Diferenciador frente a Doctoralia/Helisa que no tienen audit log granular.
+
+### Schema (mig 157, aplicada a prod vía MCP)
+
+Tabla `clinical_access_log` append-only. 10 resource_types (patient, clinical_note, prescription, attachment, lab_result, treatment_plan, medical_history, appointment, ai_query, other) × 8 actions (view, list, create, update, delete, export, print, download). Metadata jsonb para context (filename, query, batch count, kind, etc.). 4 indices parciales sobre los hot-paths: `(org, at desc)`, `(user, at desc)`, `(patient, at desc) WHERE patient_id IS NOT NULL`, `(org, resource_type, at desc)`. RLS: SELECT solo owner/admin del org (ni siquiera el doctor ve su propio audit trail — defense contra que un actor malicioso verifique si su snooping fue detectado); INSERT no tiene policy → solo service-role puede escribir via el helper.
+
+### Helper (`lib/audit/clinical-access.ts`)
+
+```ts
+logClinicalAccess({ organizationId, userId, resourceType, action, patientId, resourceId, metadata })
+```
+
+3 invariants:
+1. **Nunca tira** — los errores se silencian a `console.error`. Que la auditoría falle no rompe el flujo del request.
+2. **Nunca bloquea** — corre dentro de `after()`, el response sale antes.
+3. **Service-role only** — usa `createAdminClient()`. La RLS bloquea INSERT desde cualquier otro contexto.
+
+Wrapper `logClinicalBatchAccess` para batch creates (prescripciones en lote, etc.) — 1 row con `metadata.batch_count` en vez de N rows.
+
+### Endpoints instrumentados (19 total)
+
+| Recurso | Endpoints | Acciones |
+|---|---|---|
+| Notas clínicas | `/clinical-notes`, `/clinical-notes/[id]`, `/clinical-notes/[id]/versions` | list, view, create, update (incluye sign), delete, view-versions |
+| Prescripciones | `/prescriptions`, `/prescriptions/[id]` | list, create (single+batch), update, delete |
+| Adjuntos | `/clinical-attachments`, `/clinical-attachments/[id]` | list, create, download, delete |
+| Órdenes de examen | `/exam-orders`, `/exam-orders/[id]` | list, create, update (incluye result_notes) |
+| Planes de tratamiento | `/treatment-plans`, `/treatment-plans/[id]` | list, create, update (incluye session-update), delete |
+| Antecedentes | `/patients/[id]/antecedents` | view, create, update, delete (soft) |
+| Biometría | `/patients/[id]/anthropometry` | create, delete |
+| Consentimientos informados | `/informed-consents`, `/informed-consents/[id]` | list, view, create |
+| Seguimientos clínicos | `/clinical-followups`, `/clinical-followups/[id]` | create, update, delete |
+| Asistente IA | `/ai-assistant` | view (1 log/request con el query truncado a 500 chars) |
+
+Para PATCH/DELETE donde el `organization_id` y `patient_id` no estaban en scope, agregué un select previo (cheap, indexed lookup) para resolverlos. Para soft-deletes (antecedentes) y batches (prescriptions) se mantiene un audit row coherente.
+
+### Admin UI (`/admin/audit-log`)
+
+Página client-component con:
+- **Filtros**: rango de fechas (datetime-local), tipo de recurso, acción
+- **Tabla paginada** 50 rows/página con: fecha, usuario (full_name + email), acción (icono+color tone), recurso, paciente, IP
+- **Export CSV** con BOM UTF-8 (para que Excel/Sheets abra los acentos sin corromperse). Cap 10k rows por export — más que eso requiere múltiples queries por rango de fecha. El export se audita a sí mismo (`resource_type=other, action=export, kind=audit_log_csv, filters: {...}`)
+- **Card en /admin** con icon Activity + descripción "Quién accedió a qué dato clínico (NTS 139 + Ley 29733)"
+
+### APIs nuevos
+
+| Endpoint | Función |
+|---|---|
+| `GET /api/admin/audit-log` | Query paginada con filtros. Resuelve nombres de user via 1 lookup paralelo a `user_profiles` (FK directo de `clinical_access_log` es a `auth.users`, embed via Supabase falla — un IN-list con max 100 ids es más simple). Owner/admin only. |
+| `GET /api/admin/audit-log/export` | CSV con los mismos filtros. Self-auditing. Cap 10k rows. |
+
+### Decisiones documentadas
+
+- **Append-only**: ninguna policy de UPDATE/DELETE. Correcciones se hacen insertando otra row, no mutando. Garantiza confiabilidad del audit trail para inspecciones SUSALUD/DIGEMID.
+- **Doctores no ven el log**: solo owner/admin. Un médico que snoopea pacientes no debe poder confirmar si su acceso fue registrado.
+- **AI assistant cuenta**: aunque el data está pseudonimizado antes de ir a Claude, la consulta TOCA datos PHI internamente. Un log por request es suficiente — capturamos el query truncado a 500 chars en metadata.
+- **`after()` para no bloquear**: cualquier request → si el insert al audit log es lento (DB outage parcial, etc.), el user no espera. El response salió antes.
+- **No backfill de history**: el log empieza el día del deploy. Para reconstruir accesos previos a esa fecha hay que usar `clinical_note_versions` y los timestamps de las tablas core, ad-hoc.
+- **No retention policy en v1**: la tabla crece. Cron de archive a cold storage para rows > 5 años queda como follow-up. A 100 accesos/día/clínica × 100 clínicas × 5 años = ~18M rows → ~5GB; manejable.
+
+### Riesgos identificados
+
+- **Latencia agregada por endpoint**: ~0 ms en p50 (corre en `after()`). En p99 si la DB tiene contención, el background insert puede tomar 200-500ms pero NO afecta al user.
+- **Sobre-logueo en listas grandes**: una vista que carga 100 prescripciones inserta UNA row con `count: 100`, no 100 filas separadas. Igual con batch creates.
+- **`ip_address` desde Vercel headers**: en local dev queda null (no hay `x-forwarded-for`). Documentado en el helper.
+
+### Pendientes follow-up (no bloqueantes)
+
+- Cron de archive `at > 5y` a tabla cold (Postgres FDW a S3, o table partition + drop).
+- Filtro por `user_id` y `patient_id` en la UI (la API ya los acepta — falta el combobox en el form de filtros).
+- Vista "actividad reciente sobre paciente X" desde la ficha del paciente (1 click → audit log filtrado).
+- E2E test que verifique que cada endpoint instrumentado inserta exactamente 1 row.
+- Instrumentar `/api/appointments/[id]/complete-followup-trigger` (interno, low priority).
+
+### Cómo verificar en preview
+
+1. Mergear PR.
+2. Como owner: navegar `/admin/audit-log` → tabla vacía (los logs empiezan ahora).
+3. Abrir una nota clínica → recargar `/admin/audit-log` → debe aparecer un row con `action=view, resource_type=clinical_note`.
+4. Editar una receta → otro row.
+5. Filtrar por "Últimos 30 min" + recurso "Receta" → debe traer solo los rows relevantes.
+6. Click "Exportar CSV" → debe descargarse + aparecer un row nuevo con `action=export, kind=audit_log_csv` en la próxima recarga.

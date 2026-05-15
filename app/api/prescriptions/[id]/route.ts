@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 const updateSchema = z.object({
   medication: z.string().min(1).max(200).optional(),
@@ -60,6 +61,16 @@ export async function PATCH(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "prescription",
+    action: "update",
+    patientId: data?.patient_id ?? null,
+    resourceId: id,
+  });
+
   return NextResponse.json({ data });
 }
 
@@ -90,7 +101,24 @@ export async function DELETE(
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Capture patient_id before deletion for audit.
+  const { data: pres } = await supabase
+    .from("prescriptions")
+    .select("patient_id")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await supabase.from("prescriptions").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "prescription",
+    action: "delete",
+    patientId: pres?.patient_id ?? null,
+    resourceId: id,
+  });
+
   return NextResponse.json({ success: true });
 }

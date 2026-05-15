@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 /**
  * GET /api/clinical-notes/[id]/versions
@@ -50,6 +51,15 @@ export async function GET(
     .order("version_number", { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "clinical_note",
+    action: "view",
+    resourceId: id,
+    metadata: { kind: "version_history", count: data?.length ?? 0 },
+  });
 
   return NextResponse.json({ data: data ?? [] });
 }

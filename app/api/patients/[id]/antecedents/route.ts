@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import type { PatientAntecedents } from "@/types/patient-antecedents";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 // GET /api/patients/[id]/antecedents — fetch all antecedents + recent diagnoses
 export async function GET(
@@ -59,6 +60,30 @@ export async function GET(
     })),
   };
 
+  // Antecedents bundle reads everything sensitive on the patient
+  // (allergies, conditions, meds). Always audit. We grab the org
+  // from the first row available — the patient must belong to
+  // exactly one org by schema invariant.
+  const orgId =
+    (allergies.data?.[0] as { organization_id?: string } | undefined)?.organization_id ??
+    (conditions.data?.[0] as { organization_id?: string } | undefined)?.organization_id ??
+    (medications.data?.[0] as { organization_id?: string } | undefined)?.organization_id ??
+    null;
+  if (orgId) {
+    logClinicalAccess({
+      organizationId: orgId,
+      userId: user.id,
+      resourceType: "medical_history",
+      action: "view",
+      patientId: patientId,
+      metadata: {
+        allergies_count: allergies.data?.length ?? 0,
+        conditions_count: conditions.data?.length ?? 0,
+        medications_count: medications.data?.length ?? 0,
+      },
+    });
+  }
+
   return NextResponse.json(result);
 }
 
@@ -116,6 +141,16 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "medical_history",
+    action: "create",
+    patientId: patientId,
+    resourceId: data?.id ?? null,
+    metadata: { kind: type },
+  });
+
   return NextResponse.json(data, { status: 201 });
 }
 
@@ -124,7 +159,7 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  await params;
+  const { id: patientId } = await params;
   const supabase = await createClient();
 
   const {
@@ -159,6 +194,18 @@ export async function PATCH(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  if (data?.organization_id) {
+    logClinicalAccess({
+      organizationId: data.organization_id,
+      userId: user.id,
+      resourceType: "medical_history",
+      action: "update",
+      patientId: patientId,
+      resourceId: entryId,
+      metadata: { kind: type },
+    });
+  }
+
   return NextResponse.json(data);
 }
 
@@ -167,7 +214,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  await params;
+  const { id: patientId } = await params;
   const supabase = await createClient();
 
   const {
@@ -192,6 +239,13 @@ export async function DELETE(
     return NextResponse.json({ error: "invalid_request" }, { status: 400 });
   }
 
+  // Pull org context from the row before we soft-delete it.
+  const { data: row } = await supabase
+    .from(table)
+    .select("organization_id")
+    .eq("id", entryId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from(table)
     .update({ is_active: false, updated_at: new Date().toISOString() })
@@ -199,6 +253,18 @@ export async function DELETE(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (row?.organization_id) {
+    logClinicalAccess({
+      organizationId: row.organization_id,
+      userId: user.id,
+      resourceType: "medical_history",
+      action: "delete",
+      patientId: patientId,
+      resourceId: entryId,
+      metadata: { kind: type, soft_delete: true },
+    });
   }
 
   return NextResponse.json({ ok: true });
