@@ -293,6 +293,35 @@ export async function isSessionActive(
   return !!data;
 }
 
+// Returns true ONLY when a row exists for (user, device) and its
+// revoked_at is NOT NULL. "No row at all" returns false — that's
+// the lazy-create scenario (the client-side <SessionRegister />
+// component will create the row on next render).
+//
+// This is the function the middleware should call, not
+// isSessionActive — the former conflates "missing row" with
+// "explicitly revoked", which would lock out every existing user
+// the moment the feature flag flips on (the auth_sessions table
+// starts empty, so all users would be treated as revoked).
+//
+// Real production bug 2026-05-15: confusion between the two
+// caused a sign-out loop for every authenticated user after
+// ENABLE_DEVICE_LIMITS=true took effect for the first time.
+export async function isSessionRevoked(
+  userId: string,
+  deviceId: string,
+): Promise<boolean> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("auth_sessions")
+    .select("revoked_at")
+    .eq("user_id", userId)
+    .eq("device_id", deviceId)
+    .maybeSingle();
+  if (error) return false; // fail-open — don't lock users out
+  return !!data?.revoked_at;
+}
+
 // Update last_seen_at without blocking the request path. Caller
 // should fire-and-forget. Failure is silent.
 export async function touchSessionLastSeen(
