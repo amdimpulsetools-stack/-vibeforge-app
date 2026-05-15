@@ -11,6 +11,8 @@ import { X, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useOrganization } from "@/components/organization-provider";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
+import { CustomFieldsBlock } from "@/components/custom-fields/custom-fields-block";
+import type { CustomFieldValues } from "@/types/custom-fields";
 
 interface PatientFormModalProps {
   onClose: () => void;
@@ -21,6 +23,7 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
   const { t } = useLanguage();
   const { organizationId } = useOrganization();
   const [saving, setSaving] = useState(false);
+  const [customFields, setCustomFields] = useState<CustomFieldValues>({});
 
   const {
     register,
@@ -89,6 +92,7 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
         custom_field_2: values.custom_field_2 || null,
         referral_source: values.referral_source || null,
         notes: values.notes || null,
+        custom_fields: customFields,
       })
       .select("id")
       .single();
@@ -305,6 +309,12 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
               placeholder="Observaciones..."
             />
           </div>
+
+          <CustomFieldsBlock
+            entityType="patient"
+            values={customFields}
+            onChange={setCustomFields}
+          />
         </form>
 
         {/* Footer */}

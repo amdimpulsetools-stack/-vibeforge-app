@@ -36,6 +36,7 @@ import {
   BookOpen,
   Receipt,
   Wallet,
+  ListPlus,
   type LucideIcon,
 } from "lucide-react";
 
@@ -130,6 +131,7 @@ const navSections: NavSection[] = [
           { titleKey: "nav.admin_treatment_plan_templates", href: "/admin/treatment-plan-templates", icon: ClipboardList },
           { titleKey: "nav.admin_exam_catalog", href: "/admin/exam-catalog", icon: FlaskConical },
           { titleKey: "nav.admin_diagnosis_codes", href: "/admin/diagnosis-codes", icon: BookOpen },
+          { titleKey: "nav.admin_custom_fields", href: "/admin/custom-fields", icon: ListPlus },
         ],
       },
     ],
