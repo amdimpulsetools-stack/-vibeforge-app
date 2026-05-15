@@ -54,7 +54,6 @@ import {
   RefreshCw,
   CreditCard,
   AlertTriangle,
-  HelpCircle,
   Sparkles,
   type LucideIcon,
 } from "lucide-react";
@@ -901,60 +900,63 @@ export default function AccountPage() {
           de cobrarlo en el próximo ciclo. */}
       {orgRole === "owner" && <ActiveAddonsCard />}
 
-      {/* Secciones "ligeras" — agrupadas en grid 2-col en desktop para
-          aprovechar el ancho. En mobile siguen full-width apiladas.
-          Las 3 comparten el patrón "card chica con un solo CTA". */}
-      <div className="grid gap-4 md:grid-cols-2">
-        {/* Ayuda — tour de bienvenida */}
-        <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col">
-          <div className="flex items-center gap-2 mb-2">
-            <HelpCircle className="h-4 w-4 text-primary" />
-            <h2 className="text-lg font-semibold">Ayuda</h2>
-          </div>
-          <p className="text-sm text-muted-foreground mb-4 flex-1">
-            ¿Quieres volver a ver el recorrido inicial por las funciones de Yenda? Te lo mostramos en 10 pasos.
-          </p>
-          <button
-            type="button"
-            onClick={async () => {
-              resetTour();
-              await startTour();
-            }}
-            className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <Sparkles className="h-4 w-4 text-primary" />
-            Ver tour de bienvenida
-          </button>
-        </div>
-
-        {/* Seguridad — 2FA + sesiones. Owner/admin only (la page
-            de security devuelve 403 para otros roles, así que el
-            link queda visible pero no rompe nada). */}
-        <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col">
-          <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+      {/* Secciones "ligeras" — se muestran/agrupan según el role:
+          - Owner/admin: grupo "Seguridad" con 2FA + Dispositivos en grid 2-col
+          - Doctor/recep: solo card "Mis dispositivos" full-width
+          (2FA en v1 es opt-in solo para owner+admin; mostrar la card
+          a otros roles abre /account/security que devuelve 403 y
+          confunde al usuario sin valor).
+      */}
+      {(orgRole === "owner" || orgRole === "admin") ? (
+        <section>
+          <h2 className="text-base font-semibold mb-3 flex items-center gap-2 px-1 text-muted-foreground">
             <ShieldCheck className="h-4 w-4 text-emerald-500" />
-            Seguridad de la cuenta
+            Seguridad
           </h2>
-          <p className="text-sm text-muted-foreground mb-4 flex-1">
-            Activá la autenticación de dos factores (2FA) y gestioná tus códigos de recuperación.
-          </p>
-          <a
-            href="/account/security"
-            className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            Configurar 2FA
-          </a>
-        </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* 2FA */}
+            <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col">
+              <h3 className="text-base font-semibold mb-2">
+                Autenticación en dos pasos (2FA)
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4 flex-1">
+                Protegé tu cuenta con un código de tu app de autenticación cada vez que inicies sesión.
+              </p>
+              <a
+                href="/account/security"
+                className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Configurar 2FA
+              </a>
+            </div>
 
-        {/* Mis dispositivos — link to the device-limit management
-            page. Lives between the tour section and the Danger Zone
-            so it's easy to find without putting it in the top fold. */}
-        <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col">
+            {/* Mis dispositivos */}
+            <div className="rounded-2xl border border-border/60 bg-card p-6 flex flex-col">
+              <h3 className="text-base font-semibold mb-2 flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-muted-foreground" />
+                Mis dispositivos
+              </h3>
+              <p className="text-sm text-muted-foreground mb-4 flex-1">
+                Revisá en qué dispositivos hay sesiones activas y cerrá las que no reconozcas.
+              </p>
+              <a
+                href="/account/devices"
+                className="inline-flex w-fit items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
+              >
+                Ver dispositivos
+              </a>
+            </div>
+          </div>
+        </section>
+      ) : (
+        /* Doctor / recepción: solo dispositivos, full-width. No mostramos
+           2FA porque no está disponible para esos roles. */
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
           <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
             <Smartphone className="h-4 w-4 text-muted-foreground" />
             Mis dispositivos
           </h2>
-          <p className="text-sm text-muted-foreground mb-4 flex-1">
+          <p className="text-sm text-muted-foreground mb-4">
             Revisá en qué dispositivos hay sesiones activas y cerrá las que no reconozcas.
           </p>
           <a
@@ -964,13 +966,28 @@ export default function AccountPage() {
             Ver dispositivos
           </a>
         </div>
+      )}
+
+      {/* Ayuda — link discreto al final, no merece su propia card.
+          Visible para todos los roles. */}
+      <div className="flex justify-center pt-2">
+        <button
+          type="button"
+          onClick={async () => {
+            resetTour();
+            await startTour();
+          }}
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Sparkles className="h-3.5 w-3.5 text-primary" />
+          Ver tour de bienvenida nuevamente
+        </button>
       </div>
 
-      {/* Danger Zone — full width at bottom. Owner-only "Cancelar
-          suscripción" button replaces the legacy "Eliminar cuenta"
-          stub (no handler). Account-deletion is a separate flow
-          (delete the org, not just stop billing) and will land in a
-          later iteration. */}
+      {/* Danger Zone — solo owner. Para otros roles el bloque NO se
+          renderiza (antes mostraba un disclaimer "Solo el propietario
+          puede cancelar..." que era ruido visual frustrante). */}
+      {orgRole === "owner" && (
       <div className="rounded-2xl border border-destructive/30 bg-card p-6">
         <h2 className="text-lg font-semibold text-destructive mb-2">
           Zona peligrosa
@@ -979,64 +996,62 @@ export default function AccountPage() {
           Cancelar tu suscripción detiene los cobros automáticos. Mantienes acceso hasta el fin del período que ya pagaste y tus datos se conservan 90 días.
         </p>
 
-        {orgRole === "owner" ? (
-          isSubscriptionCancelled ? (
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="inline-flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm font-medium text-destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <span>
-                  Cancelada
-                  {cancelledAccessUntil
-                    ? ` — acceso hasta ${new Date(cancelledAccessUntil).toLocaleDateString("es-PE", {
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                      })}`
-                    : ""}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={handleReactivate}
-                disabled={reactivating}
-                className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {reactivating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Redirigiendo a Mercado Pago…
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4" />
-                    Reactivar suscripción
-                  </>
-                )}
-              </button>
+        {/* orgRole === "owner" check at the outer wrap already
+            guarantees we're rendering for owner; the only remaining
+            branch is cancelled vs active subscription. */}
+        {isSubscriptionCancelled ? (
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm font-medium text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <span>
+                Cancelada
+                {cancelledAccessUntil
+                  ? ` — acceso hasta ${new Date(cancelledAccessUntil).toLocaleDateString("es-PE", {
+                      day: "2-digit",
+                      month: "long",
+                      year: "numeric",
+                    })}`
+                  : ""}
+              </span>
             </div>
-          ) : (
             <button
               type="button"
-              onClick={handleCancelSubscription}
-              disabled={cancelling || !subscription}
-              className="inline-flex items-center gap-2 rounded-xl border border-destructive/30 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleReactivate}
+              disabled={reactivating}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {cancelling ? (
+              {reactivating ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Cancelando…
+                  Redirigiendo a Mercado Pago…
                 </>
               ) : (
-                "Cancelar suscripción"
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Reactivar suscripción
+                </>
               )}
             </button>
-          )
+          </div>
         ) : (
-          <p className="text-xs text-muted-foreground italic">
-            Solo el propietario de la organización puede cancelar la suscripción.
-          </p>
+          <button
+            type="button"
+            onClick={handleCancelSubscription}
+            disabled={cancelling || !subscription}
+            className="inline-flex items-center gap-2 rounded-xl border border-destructive/30 px-4 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {cancelling ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Cancelando…
+              </>
+            ) : (
+              "Cancelar suscripción"
+            )}
+          </button>
         )}
       </div>
+      )}
 
       {/* Eliminar clínica — Ley 29733 compliance (right to be forgotten).
           Owner-only. Requires the subscription to be already cancelled.
