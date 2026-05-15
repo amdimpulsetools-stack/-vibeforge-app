@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 const followupSchema = z.object({
   patient_id: z.string().uuid(),
@@ -71,6 +72,19 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "appointment",
+    action: "create",
+    patientId: parsed.data.patient_id,
+    resourceId: data?.id ?? null,
+    metadata: {
+      kind: "clinical_followup",
+      priority: parsed.data.priority,
+    },
+  });
 
   return NextResponse.json({ data }, { status: 201 });
 }

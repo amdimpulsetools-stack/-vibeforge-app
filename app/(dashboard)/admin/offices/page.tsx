@@ -25,6 +25,11 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { usePlan } from "@/hooks/use-plan";
+import {
+  UpgradeRequiredDialog,
+  parsePlanLimitError,
+  type PlanLimitInfo,
+} from "@/components/plan/upgrade-required-dialog";
 
 export default function OfficesPage() {
   const { t, language } = useLanguage();
@@ -38,6 +43,7 @@ export default function OfficesPage() {
 
   const officeLimitReached = isAtLimit("offices");
   const isIndependientePlan = plan?.target_audience === "independiente";
+  const [planLimitInfo, setPlanLimitInfo] = useState<PlanLimitInfo | null>(null);
 
   const fetchOffices = async () => {
     const supabase = createClient();
@@ -215,6 +221,12 @@ export default function OfficesPage() {
             fetchOffices();
           }}
           onCancel={() => setShowAddForm(false)}
+          onLimitReached={(info) => {
+            // Close the inline form so the modal isn't stacked on
+            // top of a half-filled form the user can't see.
+            setShowAddForm(false);
+            setPlanLimitInfo(info);
+          }}
         />
       )}
 
@@ -292,6 +304,16 @@ export default function OfficesPage() {
           </div>
         ))}
       </div>
+
+      {planLimitInfo && (
+        <UpgradeRequiredDialog
+          open={!!planLimitInfo}
+          onOpenChange={(open) => {
+            if (!open) setPlanLimitInfo(null);
+          }}
+          info={planLimitInfo}
+        />
+      )}
     </div>
   );
 }
@@ -300,10 +322,14 @@ function OfficeForm({
   office,
   onSave,
   onCancel,
+  onLimitReached,
 }: {
   office?: Office;
   onSave: () => void;
   onCancel: () => void;
+  // Called when create returns 402 plan_limit_reached. Parent
+  // surfaces the upgrade modal.
+  onLimitReached?: (info: PlanLimitInfo) => void;
 }) {
   const { t } = useLanguage();
   const { organizationId } = useOrganization();
@@ -328,9 +354,12 @@ function OfficeForm({
       return;
     }
     setSaving(true);
-    const supabase = createClient();
 
     if (office) {
+      // Updates still go through the supabase client — RLS gates
+      // them and there's no plan-limit check on update (only on
+      // create). Keep the existing path unchanged.
+      const supabase = createClient();
       const { error } = await supabase
         .from("offices")
         .update({
@@ -346,15 +375,33 @@ function OfficeForm({
         return;
       }
     } else {
-      const { error } = await supabase.from("offices").insert({
-        name: values.name,
-        description: values.description || null,
-        is_active: values.is_active,
-        organization_id: organizationId,
+      // Create goes through /api/offices so plan-limits are
+      // enforced server-side. The previous client-side insert
+      // bypassed any limit (RLS doesn't gate it).
+      const res = await fetch("/api/offices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: values.name,
+          description: values.description || null,
+          is_active: values.is_active,
+        }),
       });
 
-      if (error) {
-        toast.error(t("offices.save_error") + ": " + error.message);
+      const body = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (res.status === 402) {
+          const info = parsePlanLimitError(body);
+          if (info && onLimitReached) {
+            onLimitReached(info);
+            setSaving(false);
+            return;
+          }
+        }
+        toast.error(
+          t("offices.save_error") + ": " + (body.error ?? `HTTP ${res.status}`),
+        );
         setSaving(false);
         return;
       }

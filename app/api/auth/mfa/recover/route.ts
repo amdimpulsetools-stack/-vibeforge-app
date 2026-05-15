@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
             value,
           }));
         },
-        setAll(cookies) {
+        setAll(cookies: { name: string; value: string }[]) {
           for (const c of cookies) ephemeralCookies.set(c.name, c.value);
         },
       },

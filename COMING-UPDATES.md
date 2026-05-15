@@ -514,7 +514,15 @@ CREATE TABLE ai_benchmarks (
 
 ## 📏 Límites y Storage
 
-- [ ] **Límites de plan: UX de soft-wall** — ¿Qué pasa cuando la org pasa de 500, 1000 o 3000 pacientes activos? Definir mensajes de bloqueo suave (modal "Has alcanzado el límite de tu plan"), CTA de upgrade, y comportamiento: ¿bloquear creación de nuevos pacientes o solo advertir? Aplicar para cada recurso con límite (pacientes, citas/mes, miembros, doctores, consultorios, storage).
+- [x] **Límites de plan: soft-wall (parcial — los que defienden revenue)** — *(2026-05-14, PR pendiente)*. Decisión post-análisis económico: enforcement solo en lo que mueve revenue real. Hecho:
+  - **Server-side enforcement** en `POST /api/members` (rol-aware: members + admins/doctors/receptionists buckets) y nuevo `POST /api/offices` (cierra el agujero del client-side `supabase.from("offices").insert()` que burlaba límites).
+  - Helper `lib/plan/check-limit.ts` reusa los RPCs `get_org_plan` + `get_org_usage` y respeta addons (`extra_offices`, `extra_members`).
+  - Respuesta estándar **402 Payment Required** con shape `{ error: "plan_limit_reached", resource, current, max, plan_name, addon_available, upgrade_url, addon_url }`.
+  - Componente `<UpgradeRequiredDialog>` con doble CTA: "Subir de plan" → `/plans` + "Comprar cupo extra" → `/account` (este último solo aparece si el plan soporta addon para ese recurso).
+  - `parsePlanLimitError(body)` helper para que cualquier endpoint pueda gatillar el modal con el mismo shape.
+
+  **NO se hizo (decisión consciente)**: límite de pacientes y citas/mes — son hostiles al usuario sin defender revenue (un paciente que ya viene a la clínica se va a registrar igual; bloquear citas le rompe la operación al cliente).
+  **Pendientes documentados como Phase 2**: AI queries enforcement (la columna `max_ai_queries` y la tabla `ai_query_usage` ya existen — falta agregar 1 check en `/api/ai-assistant`), storage tracking (junto con módulo Dermatología que va a generar muchas fotos).
 
 - [ ] **Storage: límites y mensajes de espacio** — Auditar dónde se pueden subir imágenes (avatares, logos, adjuntos clínicos, fotos antes/después). Al acercarse o agotar el storage del plan, mostrar alerta con uso actual vs límite y CTA de upgrade. Mensaje claro: "Has alcanzado tu límite de almacenamiento (X MB/GB). Mejora tu plan para seguir subiendo archivos."
 
@@ -808,10 +816,7 @@ Sección transversal a toda la plataforma — aplica a todos los roles, todas la
 
   **Requisito de activación**: MFA debe estar habilitado en Supabase Auth settings del proyecto. Si no lo está, `mfa.enroll()` tira 422. Verificar antes de mergear.
 
-- [ ] **Audit log de acceso a datos clínicos sensibles** — Tabla `clinical_access_log` con `user_id, organization_id, resource_type (patient|clinical_note|prescription|attachment), resource_id, action (view|edit|export|print), at, ip, user_agent`. RLS solo lectura para owner/admin. Página `/admin/audit-log` con filtros + export CSV.
-  - **Compliance:** la NTS 139 exige trazabilidad de acceso a HC. RLS multi-tenant no basta — hay que loggear quién vio qué cuándo.
-  - **Esfuerzo: Medio-Alto (~4-5 días).** El loggeo es liviano (insert async); la complejidad está en cubrir todos los puntos de acceso sin perder eventos.
-  - **Impacto: Alto.** Diferenciador legal frente a competidores que no lo tienen + protección legal de la clínica frente a denuncias de pacientes.
+- [x] **Audit log de acceso a datos clínicos sensibles** — *(2026-05-14, mig 157, PR pendiente)*. Tabla `clinical_access_log` con `organization_id, user_id, patient_id, resource_id, resource_type (10 enums), action (8 enums: view/list/create/update/delete/export/print/download), at, ip_address, user_agent, metadata jsonb`. 4 indices parciales (org+at, user+at, patient+at, org+resource_type+at). RLS: solo owner/admin del org pueden SELECT — ni siquiera el doctor ve su propio audit trail (anti-snooping verification). INSERT solo service-role via `lib/audit/clinical-access.ts` (admin client). Helper `logClinicalAccess()` corre dentro de `after()` — nunca bloquea ni rompe el request. 19 endpoints instrumentados: clinical-notes (CRUD+sign+versions), prescriptions (CRUD), clinical-attachments (list/upload/download/delete), exam-orders (list/create/update), treatment-plans (CRUD+session-update), antecedents (CRUD), anthropometry (GET/POST/DELETE), informed-consents (list/view/create), clinical-followups (POST/PATCH/DELETE), ai-assistant (POST). Página `/admin/audit-log` con filtros (rango fecha, tipo recurso, acción), tabla paginada (50/pág), export CSV con BOM UTF-8. El export se audita a sí mismo (`resource_type=other, action=export, kind=audit_log_csv`).
 
 - [ ] **Rate limiting + captcha en login después de N intentos fallidos** — Hoy `lib/rate-limit.ts` es in-memory básico. Falta enforcement específico en login (5 intentos fallidos → captcha o bloqueo de 15 min de la IP). Previene brute force.
   - **Esfuerzo: Bajo-Medio (~2 días).** Reusa `lib/rate-limit.ts` + Cloudflare Turnstile o reCAPTCHA v3.
@@ -852,10 +857,10 @@ Sección transversal a toda la plataforma — aplica a todos los roles, todas la
 
 | # | Feature | Esfuerzo | Impacto | Razón estratégica |
 |---|---|---|---|---|
-| 1 | **Límite de dispositivos simultáneos** (sec. 🔐 Seguridad) | Medio-Alto | Muy alto | Anti account-sharing. Sin esto el ARPU se diluye en cuanto vendamos a clínicas medianas. **Bloqueante para piloto Vitra escalado.** |
-| 2 | **Audit log de acceso a HC** (sec. 🔐 Seguridad) | Medio-Alto | Alto | Compliance NTS 139 — exigible legalmente. Diferenciador frente a Doctoralia/Helisa. |
-| 3 | **Límites de plan: soft-wall UX** | Medio | Alto | Sin enforcement de límites, el upgrade de plan no se gatilla. Monetización rota silenciosa. |
-| ~~4~~ | ~~**2FA opcional para owner/admin**~~ | — | — | ✅ Entregado 2026-05-14 (mig 158, PR pendiente) |
+| ~~1~~ | ~~**Límite de dispositivos simultáneos**~~ | — | — | ✅ Entregado PR #152 (2026-05-13) |
+| ~~2~~ | ~~**Audit log de acceso a HC**~~ | — | — | ✅ Entregado PR #155 (2026-05-14, mig 157) |
+| ~~3~~ | ~~**Límites de plan: soft-wall UX**~~ | — | — | ✅ Entregado PR #156 (2026-05-14, members + offices; pacientes/citas decisión consciente de NO enforzar) |
+| ~~4~~ | ~~**2FA opcional para owner/admin**~~ | — | — | ✅ Entregado PR #157 (2026-05-14, mig 158) |
 
 ### 🟡 Media — diferencia y crece producto
 

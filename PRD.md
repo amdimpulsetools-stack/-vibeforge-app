@@ -4161,3 +4161,177 @@ Tabla `mfa_recovery_codes(id, user_id, code_hash, used_at, created_at)`. Index p
 - **AAL1 session colgada tras step 2 incompleto**: si user pasa password pero abandona el TOTP step, queda con session AAL1. Las rutas dashboard exigen AAL2 si hay factor → middleware redirect a /login. OK.
 - **Recovery code phishing**: un atacante podría intentar phishing del recovery code. Mitigación: emailLimiter 3/min/IP en el endpoint + lockout natural por wrong code después de 3 intentos.
 
+---
+
+## Changelog — Sesión 2026-05-14 noche (v0.15.16) — Plan soft-wall (members + offices)
+
+**Branch:** `claude/plan-soft-wall`
+**Fecha:** 2026-05-14
+**Origen:** `COMING-UPDATES.md` 🔴 Alta #3. Hasta ahora la UI de members/offices bloqueaba cosméticamente (botón disabled) pero la API no enforzaba — un POST directo con curl saltaba el límite. Soft-wall = cierra el agujero + UX clara para upgrade.
+
+### Decisión: scope reducido (no es bug, es decisión)
+
+Análisis pre-código mostró que el "soft-wall completo" (8 entidades del schema: members, doctors, offices, patients, appointments_per_month, storage, AI queries, etc.) era over-engineering para MVP. Razones:
+
+| Recurso | ¿Defiende revenue? | ¿Bloquearlo molesta al cliente? | Decisión |
+|---|---|---|---|
+| Members / Doctors / Recepción | 🟢 Alto (modelo de seats) | Bajo | ✅ Enforce |
+| Offices | 🟢 Medio (addon claro) | Bajo | ✅ Enforce |
+| Pacientes | 🔴 Cero | **Alto** (paciente ya viene, igual lo registran) | ❌ NO enforce |
+| Appointments/mes | 🔴 Cero | **Muy alto** (rompe operación) | ❌ NO enforce |
+| AI queries | 🟡 Medio (cuesta $ a Claude) | Medio | 🟡 Phase 2 |
+| Storage | 🟡 Medio | Medio | 🟡 Phase 2 con Dermatología |
+
+### Lo que se construyó
+
+**Helper server-side** (`lib/plan/check-limit.ts`): `checkPlanLimit(orgId, resource)` reusa los RPCs `get_org_plan` + `get_org_usage` y aplica la misma fórmula que `hooks/use-plan.ts` (effective limit = base + addons). Fail-open en errores de DB para no bloquear owners durante outages.
+
+**Endpoints**:
+- `POST /api/members` — agregado check rol-aware: además del bucket global `members`, valida el bucket específico (`admins` / `doctor_members` / `receptionists`) según el `role` del invite.
+- `POST /api/offices` — **endpoint nuevo**. Antes el client-side hacía `supabase.from("offices").insert()` directo, lo que significaba que la RLS dejaba pasar (no validaba límite) y un curl burlaba todo. Ahora todo el insert pasa por el endpoint con check + admin client.
+
+**Response estándar 402 Payment Required**:
+```json
+{
+  "error": "plan_limit_reached",
+  "resource": "doctors",
+  "current": 5,
+  "max": 5,
+  "plan_name": "Plan Esencial",
+  "addon_available": true,
+  "upgrade_url": "/plans",
+  "addon_url": "/account"
+}
+```
+
+**Componente `<UpgradeRequiredDialog>`** (`components/plan/upgrade-required-dialog.tsx`):
+- Modal centrado con icon Lock amber + título "Alcanzaste el límite de tu plan"
+- Surface concreto: "Tu **Plan Esencial** permite hasta **5 doctores**. Ya tenés 5 en uso."
+- Doble CTA primary: "Subir de plan" → `/plans` + "Comprar cupo extra" → `/account` (segundo solo si `addon_available`)
+- Helper `parsePlanLimitError(body)` para que cualquier fetch handler pueda extraer el `PlanLimitInfo` de la response sin re-parsear
+
+**Frontend wiring**:
+- `/admin/members/page.tsx`: intercepta el 402 en el handler `handleInvite`, cierra el modal de invite, abre el `<UpgradeRequiredDialog>` con la info parseada
+- `/admin/offices/page.tsx`: el `OfficeForm` ahora hace fetch a `/api/offices` (en vez de insert directo). Recibe callback `onLimitReached` que el parent usa para abrir el modal
+
+### Decisiones documentadas
+
+- **Doble CTA en el modal** (no solo "Subir plan"): el cliente que necesita 1 doctor extra prefiere comprar cupo barato a saltar a Plan Pro; bloquear esa opción te hace perder el upsell pequeño AND el cliente se frustra. La opción "Subir plan" sigue ahí para los que quieren todo el paquete.
+- **Solo enforce en el `POST` de create**, no en updates: cambiar el rol de un member existente no genera un nuevo seat, no necesita check.
+- **Fail-open en DB errors**: si `get_org_plan` falla, dejamos pasar el insert. Cero impacto si la DB está caída — preferimos sobre-permitir un par de seats vs lockear toda la org.
+- **`/api/offices` nuevo**: hubiera sido más ergonómico mantener client-side y agregar un trigger de PG, pero los triggers son más difíciles de debuggear y rompen el patrón de la app (todo lo demás va por endpoints).
+
+### Pendientes (Phase 2, documentados en COMING-UPDATES)
+
+- AI queries enforcement (1 línea más en `/api/ai-assistant` cuando tengamos métricas de costo)
+- Storage tracking (junto con Dermatología, mucha foto pesada)
+- Pacientes / appointments NO se van a hacer (decisión consciente de no molestar al cliente)
+- Refetch de `usePlan()` automático tras compra de addon — hoy hay que recargar la página
+
+### Test plan (cuando vuelvas del gym)
+
+Necesitás una cuenta de testing con un plan que tenga `max_doctors=2` (Plan Esencial monorole, por ejemplo).
+
+1. Login → `/admin/members`
+2. Invitar 2 doctores hasta llegar al límite
+3. Click "Invitar" e intentar agregar el 3er doctor → debe aparecer el `<UpgradeRequiredDialog>` con copy "Tu Plan Esencial permite hasta 2 doctores. Ya tenés 2 en uso."
+4. Click "Subir de plan" → debe ir a `/plans`
+5. Si el plan tiene addon de members: click "Comprar cupo extra" → debe ir a `/account`
+6. Repetir con offices: `/admin/offices` → crear hasta el límite → form submit del siguiente debe gatillar el mismo modal
+7. Verificar via curl que el endpoint también bloquea (no solo el frontend):
+```bash
+curl -X POST $URL/api/offices \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"hack-test"}'
+# Debe devolver 402 con el body estándar
+```
+
+---
+
+## Changelog — Sesión 2026-05-14 (v0.15.15) — Clinical access log (NTS 139 + Ley 29733)
+
+**Branch:** `claude/clinical-access-log`
+**Fecha:** 2026-05-14
+**Origen:** `COMING-UPDATES.md` 🔴 Alta #2. Compliance NTS 139-2018-MINSA/DGIESP (norma de telesalud — el EHR debe poder identificar quién accedió a qué HC) + Ley 29733 (derecho del paciente a saber quién vio sus datos). Diferenciador frente a Doctoralia/Helisa que no tienen audit log granular.
+
+### Schema (mig 157, aplicada a prod vía MCP)
+
+Tabla `clinical_access_log` append-only. 10 resource_types (patient, clinical_note, prescription, attachment, lab_result, treatment_plan, medical_history, appointment, ai_query, other) × 8 actions (view, list, create, update, delete, export, print, download). Metadata jsonb para context (filename, query, batch count, kind, etc.). 4 indices parciales sobre los hot-paths: `(org, at desc)`, `(user, at desc)`, `(patient, at desc) WHERE patient_id IS NOT NULL`, `(org, resource_type, at desc)`. RLS: SELECT solo owner/admin del org (ni siquiera el doctor ve su propio audit trail — defense contra que un actor malicioso verifique si su snooping fue detectado); INSERT no tiene policy → solo service-role puede escribir via el helper.
+
+### Helper (`lib/audit/clinical-access.ts`)
+
+```ts
+logClinicalAccess({ organizationId, userId, resourceType, action, patientId, resourceId, metadata })
+```
+
+3 invariants:
+1. **Nunca tira** — los errores se silencian a `console.error`. Que la auditoría falle no rompe el flujo del request.
+2. **Nunca bloquea** — corre dentro de `after()`, el response sale antes.
+3. **Service-role only** — usa `createAdminClient()`. La RLS bloquea INSERT desde cualquier otro contexto.
+
+Wrapper `logClinicalBatchAccess` para batch creates (prescripciones en lote, etc.) — 1 row con `metadata.batch_count` en vez de N rows.
+
+### Endpoints instrumentados (19 total)
+
+| Recurso | Endpoints | Acciones |
+|---|---|---|
+| Notas clínicas | `/clinical-notes`, `/clinical-notes/[id]`, `/clinical-notes/[id]/versions` | list, view, create, update (incluye sign), delete, view-versions |
+| Prescripciones | `/prescriptions`, `/prescriptions/[id]` | list, create (single+batch), update, delete |
+| Adjuntos | `/clinical-attachments`, `/clinical-attachments/[id]` | list, create, download, delete |
+| Órdenes de examen | `/exam-orders`, `/exam-orders/[id]` | list, create, update (incluye result_notes) |
+| Planes de tratamiento | `/treatment-plans`, `/treatment-plans/[id]` | list, create, update (incluye session-update), delete |
+| Antecedentes | `/patients/[id]/antecedents` | view, create, update, delete (soft) |
+| Biometría | `/patients/[id]/anthropometry` | create, delete |
+| Consentimientos informados | `/informed-consents`, `/informed-consents/[id]` | list, view, create |
+| Seguimientos clínicos | `/clinical-followups`, `/clinical-followups/[id]` | create, update, delete |
+| Asistente IA | `/ai-assistant` | view (1 log/request con el query truncado a 500 chars) |
+
+Para PATCH/DELETE donde el `organization_id` y `patient_id` no estaban en scope, agregué un select previo (cheap, indexed lookup) para resolverlos. Para soft-deletes (antecedentes) y batches (prescriptions) se mantiene un audit row coherente.
+
+### Admin UI (`/admin/audit-log`)
+
+Página client-component con:
+- **Filtros**: rango de fechas (datetime-local), tipo de recurso, acción
+- **Tabla paginada** 50 rows/página con: fecha, usuario (full_name + email), acción (icono+color tone), recurso, paciente, IP
+- **Export CSV** con BOM UTF-8 (para que Excel/Sheets abra los acentos sin corromperse). Cap 10k rows por export — más que eso requiere múltiples queries por rango de fecha. El export se audita a sí mismo (`resource_type=other, action=export, kind=audit_log_csv, filters: {...}`)
+- **Card en /admin** con icon Activity + descripción "Quién accedió a qué dato clínico (NTS 139 + Ley 29733)"
+
+### APIs nuevos
+
+| Endpoint | Función |
+|---|---|
+| `GET /api/admin/audit-log` | Query paginada con filtros. Resuelve nombres de user via 1 lookup paralelo a `user_profiles` (FK directo de `clinical_access_log` es a `auth.users`, embed via Supabase falla — un IN-list con max 100 ids es más simple). Owner/admin only. |
+| `GET /api/admin/audit-log/export` | CSV con los mismos filtros. Self-auditing. Cap 10k rows. |
+
+### Decisiones documentadas
+
+- **Append-only**: ninguna policy de UPDATE/DELETE. Correcciones se hacen insertando otra row, no mutando. Garantiza confiabilidad del audit trail para inspecciones SUSALUD/DIGEMID.
+- **Doctores no ven el log**: solo owner/admin. Un médico que snoopea pacientes no debe poder confirmar si su acceso fue registrado.
+- **AI assistant cuenta**: aunque el data está pseudonimizado antes de ir a Claude, la consulta TOCA datos PHI internamente. Un log por request es suficiente — capturamos el query truncado a 500 chars en metadata.
+- **`after()` para no bloquear**: cualquier request → si el insert al audit log es lento (DB outage parcial, etc.), el user no espera. El response salió antes.
+- **No backfill de history**: el log empieza el día del deploy. Para reconstruir accesos previos a esa fecha hay que usar `clinical_note_versions` y los timestamps de las tablas core, ad-hoc.
+- **No retention policy en v1**: la tabla crece. Cron de archive a cold storage para rows > 5 años queda como follow-up. A 100 accesos/día/clínica × 100 clínicas × 5 años = ~18M rows → ~5GB; manejable.
+
+### Riesgos identificados
+
+- **Latencia agregada por endpoint**: ~0 ms en p50 (corre en `after()`). En p99 si la DB tiene contención, el background insert puede tomar 200-500ms pero NO afecta al user.
+- **Sobre-logueo en listas grandes**: una vista que carga 100 prescripciones inserta UNA row con `count: 100`, no 100 filas separadas. Igual con batch creates.
+- **`ip_address` desde Vercel headers**: en local dev queda null (no hay `x-forwarded-for`). Documentado en el helper.
+
+### Pendientes follow-up (no bloqueantes)
+
+- Cron de archive `at > 5y` a tabla cold (Postgres FDW a S3, o table partition + drop).
+- Filtro por `user_id` y `patient_id` en la UI (la API ya los acepta — falta el combobox en el form de filtros).
+- Vista "actividad reciente sobre paciente X" desde la ficha del paciente (1 click → audit log filtrado).
+- E2E test que verifique que cada endpoint instrumentado inserta exactamente 1 row.
+- Instrumentar `/api/appointments/[id]/complete-followup-trigger` (interno, low priority).
+
+### Cómo verificar en preview
+
+1. Mergear PR.
+2. Como owner: navegar `/admin/audit-log` → tabla vacía (los logs empiezan ahora).
+3. Abrir una nota clínica → recargar `/admin/audit-log` → debe aparecer un row con `action=view, resource_type=clinical_note`.
+4. Editar una receta → otro row.
+5. Filtrar por "Últimos 30 min" + recurso "Receta" → debe traer solo los rows relevantes.
+6. Click "Exportar CSV" → debe descargarse + aparecer un row nuevo con `action=export, kind=audit_log_csv` en la próxima recarga.

@@ -73,8 +73,13 @@ export function MfaEnrollDialog({ open, onOpenChange, onCompleted }: Props) {
     // enroll was abandoned the call would 422.
     try {
       const { data: factors } = await supabase.auth.mfa.listFactors();
+      // factors.totp is typed by Supabase as containing only "verified"
+      // factors, but in practice unverified factors from abandoned
+      // enrolls also appear here at runtime. Cast to string for the
+      // comparison — losing the literal type union doesn't matter for
+      // a string equality check.
       for (const f of factors?.totp ?? []) {
-        if (f.status === "unverified") {
+        if ((f.status as string) === "unverified") {
           await supabase.auth.mfa.unenroll({ factorId: f.id });
         }
       }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 import type { InformedConsentRecord } from "@/types/informed-consent";
 
 interface RouteParams {
@@ -27,7 +28,18 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
 
-  return NextResponse.json({ data: data as InformedConsentRecord });
+  const row = data as InformedConsentRecord;
+  logClinicalAccess({
+    organizationId: row.organization_id,
+    userId: user.id,
+    resourceType: "attachment",
+    action: "view",
+    patientId: row.patient_id,
+    resourceId: row.id,
+    metadata: { kind: "informed_consent" },
+  });
+
+  return NextResponse.json({ data: row });
 }
 
 // Intentionally NO DELETE handler. Informed consents are append-only.

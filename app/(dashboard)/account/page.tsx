@@ -51,7 +51,6 @@ import {
   ShoppingCart,
   Bot,
   Smartphone,
-  ShieldCheck,
   RefreshCw,
   CreditCard,
   AlertTriangle,

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
 import { clinicalNoteSchema } from "@/lib/validations/api";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 // GET /api/clinical-notes?appointment_id=xxx
 // Returns the clinical note for a given appointment
@@ -47,6 +48,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Error al obtener nota clínica" }, { status: 500 });
     }
 
+    if (data?.organization_id) {
+      logClinicalAccess({
+        organizationId: data.organization_id,
+        userId: user.id,
+        resourceType: "clinical_note",
+        action: "view",
+        patientId: data.patient_id ?? null,
+        resourceId: data.id,
+        metadata: { appointment_id: appointmentId },
+      });
+    }
+
     return NextResponse.json({ data });
   }
 
@@ -60,6 +73,17 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error("Clinical notes fetch error:", error);
     return NextResponse.json({ error: "Error al obtener notas clínicas" }, { status: 500 });
+  }
+
+  if (data && data.length > 0) {
+    logClinicalAccess({
+      organizationId: data[0].organization_id,
+      userId: user.id,
+      resourceType: "clinical_note",
+      action: "list",
+      patientId: patientId,
+      metadata: { count: data.length },
+    });
   }
 
   return NextResponse.json({ data: data ?? [] });
@@ -157,6 +181,16 @@ export async function POST(request: NextRequest) {
     .select("*, doctors(full_name, color), diagnoses:clinical_note_diagnoses(*)")
     .eq("id", inserted.id)
     .single();
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "clinical_note",
+    action: "create",
+    patientId: inserted.patient_id ?? null,
+    resourceId: inserted.id,
+    metadata: { appointment_id: inserted.appointment_id ?? null },
+  });
 
   return NextResponse.json({ data: full ?? inserted }, { status: 201 });
 }

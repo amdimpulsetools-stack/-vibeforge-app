@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 // GET /api/patients/[id]/anthropometry — chronological measurements
 export async function GET(
@@ -102,6 +103,16 @@ export async function POST(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "medical_history",
+    action: "create",
+    patientId: patientId,
+    resourceId: data?.id ?? null,
+    metadata: { kind: "anthropometry" },
+  });
+
   return NextResponse.json(data, { status: 201 });
 }
 
@@ -110,7 +121,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  await params;
+  const { id: patientId } = await params;
   const supabase = await createClient();
 
   const {
@@ -126,6 +137,12 @@ export async function DELETE(
     return NextResponse.json({ error: "missing_entry_id" }, { status: 400 });
   }
 
+  const { data: row } = await supabase
+    .from("patient_anthropometry")
+    .select("organization_id")
+    .eq("id", entryId)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("patient_anthropometry")
     .delete()
@@ -133,6 +150,18 @@ export async function DELETE(
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (row?.organization_id) {
+    logClinicalAccess({
+      organizationId: row.organization_id,
+      userId: user.id,
+      resourceType: "medical_history",
+      action: "delete",
+      patientId: patientId,
+      resourceId: entryId,
+      metadata: { kind: "anthropometry" },
+    });
   }
 
   return NextResponse.json({ ok: true });

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -23,6 +24,20 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (data && data.length > 0) {
+    logClinicalAccess({
+      organizationId: data[0].organization_id,
+      userId: user.id,
+      resourceType: "attachment",
+      action: "list",
+      patientId: patientId,
+      metadata: {
+        count: data.length,
+        clinical_note_id: noteId ?? null,
+      },
+    });
+  }
 
   return NextResponse.json({ data: data ?? [] });
 }
@@ -104,6 +119,21 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "attachment",
+    action: "create",
+    patientId: patientId,
+    resourceId: data.id,
+    metadata: {
+      file_name: file.name,
+      file_type: file.type,
+      file_size: file.size,
+      category,
+    },
+  });
 
   return NextResponse.json({ data }, { status: 201 });
 }
