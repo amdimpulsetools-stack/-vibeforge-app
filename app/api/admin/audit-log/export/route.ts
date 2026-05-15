@@ -133,7 +133,13 @@ interface Row {
   ip_address: string | null;
   user_agent: string | null;
   metadata: Record<string, unknown> | null;
-  patients: { first_name: string | null; last_name: string | null } | null;
+  // Supabase PostgREST returns FK embeds as arrays even for
+  // many-to-one relationships. Type both shapes so we can handle
+  // either at runtime.
+  patients:
+    | { first_name: string | null; last_name: string | null }
+    | { first_name: string | null; last_name: string | null }[]
+    | null;
 }
 
 function buildCsv(
@@ -157,8 +163,11 @@ function buildCsv(
   const lines = [headers.join(",")];
   for (const r of rows) {
     const u = userMap.get(r.user_id);
-    const patientName = r.patients
-      ? `${r.patients.first_name ?? ""} ${r.patients.last_name ?? ""}`.trim()
+    // Supabase embed may return either object or single-element
+    // array for many-to-one FKs. Normalize.
+    const patientObj = Array.isArray(r.patients) ? r.patients[0] : r.patients;
+    const patientName = patientObj
+      ? `${patientObj.first_name ?? ""} ${patientObj.last_name ?? ""}`.trim()
       : "";
     lines.push(
       [

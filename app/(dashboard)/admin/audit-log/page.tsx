@@ -31,7 +31,12 @@ interface AuditRow {
   user_id: string;
   user: { full_name: string | null; email: string | null } | null;
   patient_id: string | null;
-  patients: { first_name: string | null; last_name: string | null } | null;
+  // Supabase embed for many-to-one FK can come back as object OR
+  // single-element array depending on PostgREST inference.
+  patients:
+    | { first_name: string | null; last_name: string | null }
+    | { first_name: string | null; last_name: string | null }[]
+    | null;
   resource_id: string | null;
   resource_type: string;
   action: string;
@@ -332,11 +337,12 @@ export default function AuditLogPage() {
                         {RESOURCE_LABELS[r.resource_type] ?? r.resource_type}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-xs">
-                        {r.patients
-                          ? `${r.patients.first_name ?? ""} ${r.patients.last_name ?? ""}`.trim() || "—"
-                          : r.patient_id
-                          ? r.patient_id.slice(0, 8)
-                          : "—"}
+                        {(() => {
+                          // Supabase embed returns array or object depending on PostgREST cardinality inference.
+                          const p = Array.isArray(r.patients) ? r.patients[0] : r.patients;
+                          if (p) return `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "—";
+                          return r.patient_id ? r.patient_id.slice(0, 8) : "—";
+                        })()}
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-[10px] text-muted-foreground font-mono">
                         {r.ip_address ?? "—"}
