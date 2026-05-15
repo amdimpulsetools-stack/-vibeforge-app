@@ -4058,6 +4058,92 @@ Si se necesita rollback: `ENABLE_DEVICE_LIMITS=false` + redeploy. Cero state ens
 
 ---
 
+## Changelog — Sesión 2026-05-14 noche (v0.15.16) — Plan soft-wall (members + offices)
+
+**Branch:** `claude/plan-soft-wall`
+**Fecha:** 2026-05-14
+**Origen:** `COMING-UPDATES.md` 🔴 Alta #3. Hasta ahora la UI de members/offices bloqueaba cosméticamente (botón disabled) pero la API no enforzaba — un POST directo con curl saltaba el límite. Soft-wall = cierra el agujero + UX clara para upgrade.
+
+### Decisión: scope reducido (no es bug, es decisión)
+
+Análisis pre-código mostró que el "soft-wall completo" (8 entidades del schema: members, doctors, offices, patients, appointments_per_month, storage, AI queries, etc.) era over-engineering para MVP. Razones:
+
+| Recurso | ¿Defiende revenue? | ¿Bloquearlo molesta al cliente? | Decisión |
+|---|---|---|---|
+| Members / Doctors / Recepción | 🟢 Alto (modelo de seats) | Bajo | ✅ Enforce |
+| Offices | 🟢 Medio (addon claro) | Bajo | ✅ Enforce |
+| Pacientes | 🔴 Cero | **Alto** (paciente ya viene, igual lo registran) | ❌ NO enforce |
+| Appointments/mes | 🔴 Cero | **Muy alto** (rompe operación) | ❌ NO enforce |
+| AI queries | 🟡 Medio (cuesta $ a Claude) | Medio | 🟡 Phase 2 |
+| Storage | 🟡 Medio | Medio | 🟡 Phase 2 con Dermatología |
+
+### Lo que se construyó
+
+**Helper server-side** (`lib/plan/check-limit.ts`): `checkPlanLimit(orgId, resource)` reusa los RPCs `get_org_plan` + `get_org_usage` y aplica la misma fórmula que `hooks/use-plan.ts` (effective limit = base + addons). Fail-open en errores de DB para no bloquear owners durante outages.
+
+**Endpoints**:
+- `POST /api/members` — agregado check rol-aware: además del bucket global `members`, valida el bucket específico (`admins` / `doctor_members` / `receptionists`) según el `role` del invite.
+- `POST /api/offices` — **endpoint nuevo**. Antes el client-side hacía `supabase.from("offices").insert()` directo, lo que significaba que la RLS dejaba pasar (no validaba límite) y un curl burlaba todo. Ahora todo el insert pasa por el endpoint con check + admin client.
+
+**Response estándar 402 Payment Required**:
+```json
+{
+  "error": "plan_limit_reached",
+  "resource": "doctors",
+  "current": 5,
+  "max": 5,
+  "plan_name": "Plan Esencial",
+  "addon_available": true,
+  "upgrade_url": "/plans",
+  "addon_url": "/account"
+}
+```
+
+**Componente `<UpgradeRequiredDialog>`** (`components/plan/upgrade-required-dialog.tsx`):
+- Modal centrado con icon Lock amber + título "Alcanzaste el límite de tu plan"
+- Surface concreto: "Tu **Plan Esencial** permite hasta **5 doctores**. Ya tenés 5 en uso."
+- Doble CTA primary: "Subir de plan" → `/plans` + "Comprar cupo extra" → `/account` (segundo solo si `addon_available`)
+- Helper `parsePlanLimitError(body)` para que cualquier fetch handler pueda extraer el `PlanLimitInfo` de la response sin re-parsear
+
+**Frontend wiring**:
+- `/admin/members/page.tsx`: intercepta el 402 en el handler `handleInvite`, cierra el modal de invite, abre el `<UpgradeRequiredDialog>` con la info parseada
+- `/admin/offices/page.tsx`: el `OfficeForm` ahora hace fetch a `/api/offices` (en vez de insert directo). Recibe callback `onLimitReached` que el parent usa para abrir el modal
+
+### Decisiones documentadas
+
+- **Doble CTA en el modal** (no solo "Subir plan"): el cliente que necesita 1 doctor extra prefiere comprar cupo barato a saltar a Plan Pro; bloquear esa opción te hace perder el upsell pequeño AND el cliente se frustra. La opción "Subir plan" sigue ahí para los que quieren todo el paquete.
+- **Solo enforce en el `POST` de create**, no en updates: cambiar el rol de un member existente no genera un nuevo seat, no necesita check.
+- **Fail-open en DB errors**: si `get_org_plan` falla, dejamos pasar el insert. Cero impacto si la DB está caída — preferimos sobre-permitir un par de seats vs lockear toda la org.
+- **`/api/offices` nuevo**: hubiera sido más ergonómico mantener client-side y agregar un trigger de PG, pero los triggers son más difíciles de debuggear y rompen el patrón de la app (todo lo demás va por endpoints).
+
+### Pendientes (Phase 2, documentados en COMING-UPDATES)
+
+- AI queries enforcement (1 línea más en `/api/ai-assistant` cuando tengamos métricas de costo)
+- Storage tracking (junto con Dermatología, mucha foto pesada)
+- Pacientes / appointments NO se van a hacer (decisión consciente de no molestar al cliente)
+- Refetch de `usePlan()` automático tras compra de addon — hoy hay que recargar la página
+
+### Test plan (cuando vuelvas del gym)
+
+Necesitás una cuenta de testing con un plan que tenga `max_doctors=2` (Plan Esencial monorole, por ejemplo).
+
+1. Login → `/admin/members`
+2. Invitar 2 doctores hasta llegar al límite
+3. Click "Invitar" e intentar agregar el 3er doctor → debe aparecer el `<UpgradeRequiredDialog>` con copy "Tu Plan Esencial permite hasta 2 doctores. Ya tenés 2 en uso."
+4. Click "Subir de plan" → debe ir a `/plans`
+5. Si el plan tiene addon de members: click "Comprar cupo extra" → debe ir a `/account`
+6. Repetir con offices: `/admin/offices` → crear hasta el límite → form submit del siguiente debe gatillar el mismo modal
+7. Verificar via curl que el endpoint también bloquea (no solo el frontend):
+```bash
+curl -X POST $URL/api/offices \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"hack-test"}'
+# Debe devolver 402 con el body estándar
+```
+
+---
+
 ## Changelog — Sesión 2026-05-14 (v0.15.15) — Clinical access log (NTS 139 + Ley 29733)
 
 **Branch:** `claude/clinical-access-log`

@@ -514,7 +514,15 @@ CREATE TABLE ai_benchmarks (
 
 ## 📏 Límites y Storage
 
-- [ ] **Límites de plan: UX de soft-wall** — ¿Qué pasa cuando la org pasa de 500, 1000 o 3000 pacientes activos? Definir mensajes de bloqueo suave (modal "Has alcanzado el límite de tu plan"), CTA de upgrade, y comportamiento: ¿bloquear creación de nuevos pacientes o solo advertir? Aplicar para cada recurso con límite (pacientes, citas/mes, miembros, doctores, consultorios, storage).
+- [x] **Límites de plan: soft-wall (parcial — los que defienden revenue)** — *(2026-05-14, PR pendiente)*. Decisión post-análisis económico: enforcement solo en lo que mueve revenue real. Hecho:
+  - **Server-side enforcement** en `POST /api/members` (rol-aware: members + admins/doctors/receptionists buckets) y nuevo `POST /api/offices` (cierra el agujero del client-side `supabase.from("offices").insert()` que burlaba límites).
+  - Helper `lib/plan/check-limit.ts` reusa los RPCs `get_org_plan` + `get_org_usage` y respeta addons (`extra_offices`, `extra_members`).
+  - Respuesta estándar **402 Payment Required** con shape `{ error: "plan_limit_reached", resource, current, max, plan_name, addon_available, upgrade_url, addon_url }`.
+  - Componente `<UpgradeRequiredDialog>` con doble CTA: "Subir de plan" → `/plans` + "Comprar cupo extra" → `/account` (este último solo aparece si el plan soporta addon para ese recurso).
+  - `parsePlanLimitError(body)` helper para que cualquier endpoint pueda gatillar el modal con el mismo shape.
+
+  **NO se hizo (decisión consciente)**: límite de pacientes y citas/mes — son hostiles al usuario sin defender revenue (un paciente que ya viene a la clínica se va a registrar igual; bloquear citas le rompe la operación al cliente).
+  **Pendientes documentados como Phase 2**: AI queries enforcement (la columna `max_ai_queries` y la tabla `ai_query_usage` ya existen — falta agregar 1 check en `/api/ai-assistant`), storage tracking (junto con módulo Dermatología que va a generar muchas fotos).
 
 - [ ] **Storage: límites y mensajes de espacio** — Auditar dónde se pueden subir imágenes (avatares, logos, adjuntos clínicos, fotos antes/después). Al acercarse o agotar el storage del plan, mostrar alerta con uso actual vs límite y CTA de upgrade. Mensaje claro: "Has alcanzado tu límite de almacenamiento (X MB/GB). Mejora tu plan para seguir subiendo archivos."
 
@@ -841,8 +849,8 @@ Sección transversal a toda la plataforma — aplica a todos los roles, todas la
 | # | Feature | Esfuerzo | Impacto | Razón estratégica |
 |---|---|---|---|---|
 | ~~1~~ | ~~**Límite de dispositivos simultáneos**~~ | — | — | ✅ Entregado PR #152 (2026-05-13) |
-| ~~2~~ | ~~**Audit log de acceso a HC**~~ | — | — | ✅ Entregado 2026-05-14 (mig 157, PR pendiente) |
-| 3 | **Límites de plan: soft-wall UX** | Medio | Alto | Sin enforcement de límites, el upgrade de plan no se gatilla. Monetización rota silenciosa. |
+| ~~2~~ | ~~**Audit log de acceso a HC**~~ | — | — | ✅ Entregado PR #155 (2026-05-14, mig 157) |
+| ~~3~~ | ~~**Límites de plan: soft-wall UX**~~ | — | — | ✅ Entregado PR #156 (2026-05-14, members + offices; pacientes/citas decisión consciente de NO enforzar) |
 | 4 | **2FA opcional para owner/admin** (sec. 🔐 Seguridad) | Medio | Alto | Vendible como feature Plan Clínica. Estándar de mercado en SaaS médico. |
 
 ### 🟡 Media — diferencia y crece producto

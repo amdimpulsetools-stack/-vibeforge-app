@@ -33,6 +33,11 @@ import { usePlan } from "@/hooks/use-plan";
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { Sparkles } from "lucide-react";
 import { FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY } from "@/types/fertility";
+import {
+  UpgradeRequiredDialog,
+  parsePlanLimitError,
+  type PlanLimitInfo,
+} from "@/components/plan/upgrade-required-dialog";
 
 type ProfessionalTitle = "doctor" | "especialista" | "licenciada" | null;
 
@@ -156,6 +161,7 @@ export default function MembersPage() {
   const [inviteOptionIdx, setInviteOptionIdx] = useState(0);
   const [inviting, setInviting] = useState(false);
   const [inviteFertilityAdvisor, setInviteFertilityAdvisor] = useState(false);
+  const [planLimitInfo, setPlanLimitInfo] = useState<PlanLimitInfo | null>(null);
   const { hasAnyAddon } = useOrgAddons();
   const fertilityActive = hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY]);
   const isAdmin = orgRole === "owner" || orgRole === "admin";
@@ -204,6 +210,17 @@ export default function MembersPage() {
       const data = await res.json();
 
       if (!res.ok) {
+        // Soft-wall: 402 + plan_limit_reached → show upgrade modal
+        // instead of a generic error toast. The modal surfaces the
+        // current/max counts and routes to /plans or /account.
+        if (res.status === 402) {
+          const info = parsePlanLimitError(data);
+          if (info) {
+            setPlanLimitInfo(info);
+            setShowInvite(false);
+            return;
+          }
+        }
         if (data.error === "already_member") {
           toast.error(t("members.already_member"));
         } else if (data.error === "already_invited") {
@@ -703,6 +720,16 @@ export default function MembersPage() {
             </div>
         </DialogContent>
       </Dialog>
+
+      {planLimitInfo && (
+        <UpgradeRequiredDialog
+          open={!!planLimitInfo}
+          onOpenChange={(open) => {
+            if (!open) setPlanLimitInfo(null);
+          }}
+          info={planLimitInfo}
+        />
+      )}
     </div>
   );
 }

@@ -5,6 +5,11 @@ import { generalLimiter } from "@/lib/rate-limit";
 import { APP_URL } from "@/lib/constants";
 import { parseBody } from "@/lib/api-utils";
 import { inviteMemberSchema } from "@/lib/validations/api";
+import {
+  checkPlanLimit,
+  planLimitErrorBody,
+  type PlanLimitResource,
+} from "@/lib/plan/check-limit";
 
 // GET /api/members — list organization members
 export async function GET(request: NextRequest) {
@@ -131,6 +136,36 @@ export async function POST(request: NextRequest) {
   const { email: rawEmail, role, professional_title, is_fertility_advisor } = parsed.data;
   const email = rawEmail.trim().toLowerCase();
   const fertilityAdvisor = role === "doctor" && is_fertility_advisor === true;
+
+  // ── Plan-limit enforcement ──────────────────────────────────
+  // Soft-wall: API blocks the invite with a 402 + structured
+  // body that the frontend turns into the upgrade modal.
+  // We check BOTH the role-specific bucket (admins/doctors/
+  // receptionists) AND the org-wide bucket (members) — newer
+  // plans use the role-specific caps, older ones may only set
+  // max_members. checkPlanLimit returns ok:true for unlimited
+  // (null/0) or unset columns, so this is conservative.
+  const roleResource: PlanLimitResource =
+    role === "admin"
+      ? "admins"
+      : role === "doctor"
+        ? "doctor_members"
+        : role === "receptionist"
+          ? "receptionists"
+          : "members";
+
+  const orgId = callerMembership.organization_id;
+  // Check role bucket first (more specific). If it's defined and
+  // exceeded, return that — the modal copy is more relevant.
+  const roleCheck = await checkPlanLimit(orgId, roleResource);
+  if (!roleCheck.ok) {
+    return NextResponse.json(planLimitErrorBody(roleCheck), { status: 402 });
+  }
+  // Then the global members cap.
+  const memberCheck = await checkPlanLimit(orgId, "members");
+  if (!memberCheck.ok) {
+    return NextResponse.json(planLimitErrorBody(memberCheck), { status: 402 });
+  }
 
   // Try to find existing user by email
   const { data: targetUserId } = await supabase.rpc(
