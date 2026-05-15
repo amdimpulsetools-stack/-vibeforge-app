@@ -27,7 +27,12 @@ export function useOrgAddons() {
   const refetch = useCallback(() => {
     if (!organizationId) return;
     setLoading(true);
-    fetch("/api/addons")
+    // BUG FIX (2026-05-14): we used to call /api/addons without
+    // org_id. The endpoint then fell back to .limit(1).single() and
+    // picked an arbitrary membership — for a doctor with multi-org
+    // access, that could resolve to the wrong org and report the
+    // wrong addon state. Pass the active org explicitly.
+    fetch(`/api/addons?org_id=${encodeURIComponent(organizationId)}`)
       .then((r) => (r.ok ? r.json() : []))
       .then((data: Addon[]) => {
         setAddons(data);
