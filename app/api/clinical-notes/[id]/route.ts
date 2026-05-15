@@ -5,6 +5,7 @@ import { generalLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
 import { clinicalNoteUpdateSchema, signNoteSchema } from "@/lib/validations/api";
 import { replaceDiagnoses } from "../route";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 // PATCH /api/clinical-notes/[id] — Update a clinical note
 export async function PATCH(
@@ -86,6 +87,16 @@ export async function PATCH(
       console.error("Clinical note sign error:", error);
       return NextResponse.json({ error: "Error al firmar nota clínica" }, { status: 500 });
     }
+
+    logClinicalAccess({
+      organizationId: noteCheck.organization_id,
+      userId: user.id,
+      resourceType: "clinical_note",
+      action: "update",
+      patientId: data?.patient_id ?? null,
+      resourceId: id,
+      metadata: { signed: true },
+    });
 
     return NextResponse.json({ data });
   }
@@ -178,6 +189,15 @@ export async function PATCH(
     .eq("id", id)
     .single();
 
+  logClinicalAccess({
+    organizationId: updated.organization_id,
+    userId: user.id,
+    resourceType: "clinical_note",
+    action: "update",
+    patientId: full?.patient_id ?? null,
+    resourceId: id,
+  });
+
   return NextResponse.json({ data: full });
 }
 
@@ -204,6 +224,13 @@ export async function DELETE(
     );
   }
 
+  // Fetch FK context before delete so we can audit it after.
+  const { data: noteToDelete } = await supabase
+    .from("clinical_notes")
+    .select("organization_id, patient_id")
+    .eq("id", id)
+    .maybeSingle();
+
   const { error } = await supabase
     .from("clinical_notes")
     .delete()
@@ -212,6 +239,17 @@ export async function DELETE(
   if (error) {
     console.error("Clinical note delete error:", error);
     return NextResponse.json({ error: "Error al eliminar nota clínica" }, { status: 500 });
+  }
+
+  if (noteToDelete?.organization_id) {
+    logClinicalAccess({
+      organizationId: noteToDelete.organization_id,
+      userId: user.id,
+      resourceType: "clinical_note",
+      action: "delete",
+      patientId: noteToDelete.patient_id ?? null,
+      resourceId: id,
+    });
   }
 
   return NextResponse.json({ success: true });

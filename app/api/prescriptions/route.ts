@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
+import { logClinicalAccess, logClinicalBatchAccess } from "@/lib/audit/clinical-access";
 
 const prescriptionSchema = z.object({
   patient_id: z.string().uuid(),
@@ -40,6 +41,20 @@ export async function GET(request: NextRequest) {
 
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (data && data.length > 0) {
+    logClinicalAccess({
+      organizationId: data[0].organization_id,
+      userId: user.id,
+      resourceType: "prescription",
+      action: "list",
+      patientId: patientId,
+      metadata: {
+        count: data.length,
+        appointment_id: appointmentId ?? null,
+      },
+    });
+  }
 
   return NextResponse.json({ data: data ?? [] });
 }
@@ -101,6 +116,27 @@ export async function POST(request: NextRequest) {
     .select("*, doctors(full_name)");
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (isBatch) {
+    logClinicalBatchAccess({
+      organizationId: membership.organization_id,
+      userId: user.id,
+      resourceType: "prescription",
+      action: "create",
+      patientId: firstItem.patient_id,
+      batchCount: data?.length ?? 0,
+      metadata: { appointment_id: firstItem.appointment_id ?? null },
+    });
+  } else if (data?.[0]) {
+    logClinicalAccess({
+      organizationId: membership.organization_id,
+      userId: user.id,
+      resourceType: "prescription",
+      action: "create",
+      patientId: firstItem.patient_id,
+      resourceId: data[0].id,
+    });
+  }
 
   return NextResponse.json({ data: isBatch ? data : data?.[0] }, { status: 201 });
 }

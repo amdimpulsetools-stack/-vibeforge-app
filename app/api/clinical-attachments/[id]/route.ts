@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 export async function DELETE(
   request: NextRequest,
@@ -21,7 +22,7 @@ export async function DELETE(
   // Get attachment to know storage path and verify org ownership
   const { data: attachment } = await supabase
     .from("clinical_attachments")
-    .select("storage_path, organization_id")
+    .select("storage_path, organization_id, patient_id, file_name")
     .eq("id", id)
     .single();
 
@@ -37,6 +38,16 @@ export async function DELETE(
   // Delete DB record
   const { error } = await supabase.from("clinical_attachments").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "attachment",
+    action: "delete",
+    patientId: attachment.patient_id,
+    resourceId: id,
+    metadata: { file_name: attachment.file_name },
+  });
 
   return NextResponse.json({ success: true });
 }
@@ -66,7 +77,7 @@ export async function GET(
 
   const { data: attachment } = await supabase
     .from("clinical_attachments")
-    .select("storage_path, file_name, file_type, organization_id")
+    .select("storage_path, file_name, file_type, organization_id, patient_id")
     .eq("id", id)
     .eq("organization_id", membership.organization_id)
     .single();
@@ -79,6 +90,18 @@ export async function GET(
     .createSignedUrl(attachment.storage_path, 300); // 5 min expiry
 
   if (!signedUrl) return NextResponse.json({ error: "Error generating URL" }, { status: 500 });
+
+  // download = the most sensitive action for attachments (the
+  // file leaves our infrastructure). Always log.
+  logClinicalAccess({
+    organizationId: membership.organization_id,
+    userId: user.id,
+    resourceType: "attachment",
+    action: "download",
+    patientId: attachment.patient_id,
+    resourceId: id,
+    metadata: { file_name: attachment.file_name, file_type: attachment.file_type },
+  });
 
   return NextResponse.json({ url: signedUrl.signedUrl, file_name: attachment.file_name });
 }
