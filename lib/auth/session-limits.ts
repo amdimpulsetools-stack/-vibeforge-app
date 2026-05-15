@@ -45,8 +45,13 @@ export const DEVICE_ID_COOKIE = "yenda_device_id";
 // Feature flag — set to "true" in Vercel env to enable the
 // whole device-limit enforcement. Default OFF in prod until
 // we're confident no breakage.
+//
+// Case-insensitive on purpose: humans typo-set "TRUE" or "True"
+// in dashboards (real bug 2026-05-14, where strict lowercase
+// compare made the feature silently off for hours despite the
+// env being set).
 export function deviceLimitsEnabled(): boolean {
-  return process.env.ENABLE_DEVICE_LIMITS === "true";
+  return process.env.ENABLE_DEVICE_LIMITS?.toLowerCase() === "true";
 }
 
 // In-memory cache for "is this session revoked?" check.
