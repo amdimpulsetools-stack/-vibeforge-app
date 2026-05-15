@@ -4058,6 +4058,111 @@ Si se necesita rollback: `ENABLE_DEVICE_LIMITS=false` + redeploy. Cero state ens
 
 ---
 
+## Changelog — Sesión 2026-05-14 tarde (v0.15.17) — 2FA opcional (Supabase MFA + recovery codes)
+
+**Branch:** `claude/mfa-2fa`
+**Fecha:** 2026-05-14
+**Origen:** `COMING-UPDATES.md` 🔴 Alta #4. Último item de la lista de prioridad alta. Después de este, todos los #1-#4 (device-limits, audit-log, soft-wall, 2FA) están entregados.
+
+### Decisión clave: Supabase Auth MFA nativo, no custom
+
+El founder ya tiene 2FA custom (`founder_2fa_sessions`, mig 104). Para owners/admins evaluamos custom vs Supabase MFA built-in y ganó Supabase:
+
+- ~80% menos código (no implementamos TOTP gen, ni storage, ni validate, ni AAL handling)
+- Battle-tested (Supabase usa otpauth + base32 estándar)
+- Integración nativa con sesiones (claim AAL2 en el JWT)
+- Compatible con device-limits (PR #152) sin coordinación
+
+**Lo que sí construimos**: la capa de **recovery codes** porque Supabase MFA no las trae. Sin ellas, lost-device = lockout total = soporte manual.
+
+### Schema (mig 158, aplicada a prod vía MCP)
+
+Tabla `mfa_recovery_codes(id, user_id, code_hash, used_at, created_at)`. Index parcial sobre `(user_id) WHERE used_at IS NULL`. RLS users-only-select-own. Inserts/updates service-role only via helper.
+
+### Helper `lib/auth/mfa.ts`
+
+- `generateRecoveryCodes(count=10)` → 10 strings `abcd-1234-ef56` (3 grupos × 4 hex chars = 144 bits entropy)
+- `hashRecoveryCode(code)` → `scrypt(normalize(code), randomSalt16, 32)` → `${saltHex}:${hashHex}`
+- `verifyRecoveryCodeHash(code, stored)` → `timingSafeEqual` para evitar timing attacks
+- `regenerateRecoveryCodes(userId)` → delete all + insert 10 nuevos
+- `consumeRecoveryCode(userId, attempt)` → O(N≤10) scrypt scan, mark used
+- `clearRecoveryCodes(userId)` → wipe all (usado tras recovery flow)
+
+### Endpoints
+
+| Endpoint | Función |
+|---|---|
+| `POST /api/auth/mfa/recovery-codes` | Genera/regenera. Requiere factor verified. Plaintext devuelto ONE-TIME. |
+| `GET /api/auth/mfa/recovery-codes` | Count de unused codes (sin plaintext) |
+| `GET /api/auth/mfa/status` | Owner/admin only. Devuelve `{enrolled, factor_id, recovery_codes_active}` |
+| `POST /api/auth/mfa/recover` | Lost-device. Email+password+code → delete all factors → wipe codes → 200. Rate-limit emailLimiter (3/min/IP). |
+
+### UI
+
+**`<MfaEnrollDialog>`** (3 steps):
+1. `enroll` — call `supabase.auth.mfa.enroll({factorType:"totp", friendlyName:"Yenda"})`. Limpia primero factores `unverified` previos (sino Supabase 422). Render QR + secret.
+2. `verify` — input 6 dígitos, `challenge` + `verify`. En éxito llama POST `/recovery-codes` para generar los 10.
+3. `backup` — muestra los códigos UNA VEZ con Copy + Download. Block close on overlay/ESC para que no se pierdan.
+
+**`/account/security`**:
+- Estado loading / forbidden (no owner/admin) / no-enrolled / enrolled
+- Si no-enrolled: card explicativa + "Activar 2FA" → abre dialog
+- Si enrolled: card emerald con "2FA activado" + count de códigos (warning bajo 3) + botones "Regenerar códigos" / "Desactivar 2FA"
+- Regenerate inline con dialog confirm + muestra códigos nuevos al lado
+
+**`/login` step 2**:
+- Tras password exitoso → `listFactors()` → si hay verified totp → muestra UI step 2 en mismo card
+- Input grande centrado de 6 dígitos
+- Link "Perdí mi dispositivo — usar código de recuperación" → `/auth/mfa-recover`
+- Botón "Volver" cancela y vuelve al form de credenciales
+- Google OAuth + "Forgot password" se ocultan en step 2
+
+**`/auth/mfa-recover`** page standalone:
+- Form: email + password + recovery_code
+- POST `/api/auth/mfa/recover` → si OK → signOut + success screen → "Ir al login"
+- Errors específicos: invalid_credentials, invalid_recovery_code, 429
+
+### Decisiones documentadas
+
+- **Opt-in individual, no force por org en v1**. Cada user decide. Si una org pide enforce-by-policy, agregamos un flag a `organizations` después con coordinación de UX.
+- **Owner+admin only en v1**. Doctor/recep ven empty state diciéndoles que pidan al owner si necesitan. Simplifica testing y la mayoría del riesgo está en los roles con power.
+- **Solo se pide TOTP en login**, no en cada acción. Standard Google/GitHub/Stripe. Step-up para acciones sensibles (cancelar suscripción, delete org, revoke session ajena) es follow-up.
+- **Recovery flow = delete ALL factors**. No "verificar este código y dejar pasar". Es un escape válve, no un bypass permanente — fuerza al user a re-enroll después. Más seguro contra códigos comprometidos.
+- **scrypt en vez de bcrypt** para hashing — nativo de Node, sin dep extra. Recovery codes son high-entropy (144 bits) así que la velocidad de scrypt es secundaria a la simplicidad.
+- **Normalización en hash + verify** (`trim().toLowerCase().replace(/\s+/g, "")`). User puede pegar el código con espacios extra o cualquier casing.
+
+### Pendientes (Phase 2)
+
+- Force-by-org policy (toggle en `organizations` + middleware que bloquea login de owner/admin sin MFA)
+- Step-up auth para acciones sensibles (cancelar suscripción, revoke sessions, delete org)
+- 2FA opcional para doctor/recepción (probablemente cuando una clínica grande lo pida)
+- Hardware keys (WebAuthn) — Supabase también lo soporta nativo
+
+### Pre-merge checklist
+
+⚠️ **Verificar antes de mergear**: MFA debe estar habilitado en Supabase Auth → Settings del proyecto. Si está OFF, `mfa.enroll()` retorna 422 y el dialog falla silencioso en el step 1. (Por default en proyectos nuevos: ON. Pero confirmar.)
+
+### Test plan
+
+1. Login como owner. Ir a `/account/security` → debería decir "2FA no está activado".
+2. Click "Activar 2FA" → modal abre con QR + secret + input de 6 dígitos.
+3. Escanear con Google Authenticator / 1Password → escribir el código → debe avanzar al step de backup codes.
+4. Verificar que se muestran 10 códigos. Copy + Download deben funcionar. Cerrar el modal.
+5. `/account/security` ahora debe mostrar "2FA activado" + "10 / 10 códigos restantes".
+6. Logout → login con email+password → debe pedir el TOTP de 6 dígitos.
+7. Escribir el código actual → debe entrar a /dashboard.
+8. **Recovery test**: logout. Ir a `/auth/mfa-recover`. Email + password + 1 de los códigos guardados → debe redirigir a /login con flash "2FA removido".
+9. Login con email+password (sin código) → debe entrar normal. `/account/security` debe estar de vuelta en "no activado".
+10. **Re-enroll** funciona repitiendo desde paso 2.
+
+### Riesgos
+
+- **MFA off en Supabase project** → `enroll` 422 silente. Mitigación: verificar pre-merge.
+- **AAL1 session colgada tras step 2 incompleto**: si user pasa password pero abandona el TOTP step, queda con session AAL1. Las rutas dashboard exigen AAL2 si hay factor → middleware redirect a /login. OK.
+- **Recovery code phishing**: un atacante podría intentar phishing del recovery code. Mitigación: emailLimiter 3/min/IP en el endpoint + lockout natural por wrong code después de 3 intentos.
+
+---
+
 ## Changelog — Sesión 2026-05-14 noche (v0.15.16) — Plan soft-wall (members + offices)
 
 **Branch:** `claude/plan-soft-wall`

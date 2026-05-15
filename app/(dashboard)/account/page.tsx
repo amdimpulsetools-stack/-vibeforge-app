@@ -923,6 +923,25 @@ export default function AccountPage() {
         </button>
       </div>
 
+      {/* Seguridad — 2FA + sesiones. Owner/admin only (la page
+          de security devuelve 403 para otros roles, así que el
+          link queda visible pero no rompe nada). */}
+      <div className="rounded-2xl border border-border/60 bg-card p-6">
+        <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
+          <ShieldCheck className="h-4 w-4 text-emerald-500" />
+          Seguridad de la cuenta
+        </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Activá la autenticación de dos factores (2FA) y gestioná tus códigos de recuperación.
+        </p>
+        <a
+          href="/account/security"
+          className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          Configurar 2FA
+        </a>
+      </div>
+
       {/* Mis dispositivos — link to the device-limit management
           page. Lives between the tour section and the Danger Zone
           so it's easy to find without putting it in the top fold. */}

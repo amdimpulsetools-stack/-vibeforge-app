@@ -802,10 +802,19 @@ Sección transversal a toda la plataforma — aplica a todos los roles, todas la
 
 - [x] **Login alerts por email** — *(commit d357c9e — 2026-05-13)*. `lib/auth/new-device-email.ts` envía email "nuevo inicio de sesión" via Resend cada vez que `registerSession` devuelve `outcome=created`. Body con device label, ubicación (city/country desde Vercel geo headers), fecha en es-PE/Lima TZ, CTA al `/account/devices`. Disparado via `after()` para no bloquear el response.
 
-- [ ] **2FA opcional para owner/admin** — TOTP estándar (Google Authenticator / 1Password / Authy). Hoy founder sí tiene 2FA (`founder_2fa_sessions`), pero owners/admins de clínicas no. Para clínicas con datos sensibles este es un requisito típico.
-  - Setup: QR code + recovery codes + enforcement por org (admin puede forzarlo a todos los miembros).
-  - **Esfuerzo: Medio (~3-4 días).**
-  - **Impacto: Alto.** Vendible como feature de Plan Clínica/Enterprise.
+- [x] **2FA opcional para owner/admin** — *(2026-05-14, mig 158, PR pendiente)*. TOTP via Supabase Auth MFA nativo (no custom — 80% menos código que reinventar). Stack:
+  - Mig 158: tabla `mfa_recovery_codes` (10 códigos single-use, scrypt hashed con per-row salt). RLS users solo ven sus hashes.
+  - Helper `lib/auth/mfa.ts`: `generateRecoveryCodes`, `hashRecoveryCode`, `consumeRecoveryCode`, `regenerateRecoveryCodes`, `clearRecoveryCodes`. scrypt nativo de Node (sin extra dep).
+  - 4 endpoints: `POST /api/auth/mfa/recovery-codes` (genera/regenera, requiere factor verified), `GET` (count), `GET /api/auth/mfa/status` (owner+admin only — devuelve enrolled, factor_id, recovery_codes_active), `POST /api/auth/mfa/recover` (lost-device flow: valida email+password+code → deletes ALL factors → 200).
+  - `<MfaEnrollDialog>` 3-step: enroll (QR + secret) → verify (6-digit input) → backup (10 plaintext codes con Copy + Download).
+  - Página `/account/security` con estado activado/desactivado, contador de códigos restantes (warning bajo 3), botones regenerar/desactivar. Owner/admin only (otros roles ven empty state explicativo).
+  - `/login` modificado: tras `signInWithPassword` exitoso → `listFactors()` → si verified totp → step 2 (TOTP input centrado en pantalla con link "Perdí mi dispositivo" + botón "Volver"). Google OAuth y "Forgot password" se ocultan en step 2 para evitar paths confusos.
+  - Nueva page `/auth/mfa-recover`: form standalone con email + password + recovery_code. POSTea a `/api/auth/mfa/recover`. Rate-limited a 3/min/IP (emailLimiter). Si exitoso → signOut + flash + redirect /login.
+  - Link "Configurar 2FA" en `/account` antes de "Mis dispositivos".
+
+  **Decisiones**: opt-in individual (no force por org en v1), solo owner+admin pueden activar (doctor/recep ven empty state diciendo que pidan al owner), solo se pide TOTP en login (no en acciones sensibles — eso es step-up auth para v2), recovery codes consume + delete-all-factors flow (single use, fuerza re-enroll después).
+
+  **Requisito de activación**: MFA debe estar habilitado en Supabase Auth settings del proyecto. Si no lo está, `mfa.enroll()` tira 422. Verificar antes de mergear.
 
 - [x] **Audit log de acceso a datos clínicos sensibles** — *(2026-05-14, mig 157, PR pendiente)*. Tabla `clinical_access_log` con `organization_id, user_id, patient_id, resource_id, resource_type (10 enums), action (8 enums: view/list/create/update/delete/export/print/download), at, ip_address, user_agent, metadata jsonb`. 4 indices parciales (org+at, user+at, patient+at, org+resource_type+at). RLS: solo owner/admin del org pueden SELECT — ni siquiera el doctor ve su propio audit trail (anti-snooping verification). INSERT solo service-role via `lib/audit/clinical-access.ts` (admin client). Helper `logClinicalAccess()` corre dentro de `after()` — nunca bloquea ni rompe el request. 19 endpoints instrumentados: clinical-notes (CRUD+sign+versions), prescriptions (CRUD), clinical-attachments (list/upload/download/delete), exam-orders (list/create/update), treatment-plans (CRUD+session-update), antecedents (CRUD), anthropometry (GET/POST/DELETE), informed-consents (list/view/create), clinical-followups (POST/PATCH/DELETE), ai-assistant (POST). Página `/admin/audit-log` con filtros (rango fecha, tipo recurso, acción), tabla paginada (50/pág), export CSV con BOM UTF-8. El export se audita a sí mismo (`resource_type=other, action=export, kind=audit_log_csv`).
 
@@ -851,7 +860,7 @@ Sección transversal a toda la plataforma — aplica a todos los roles, todas la
 | ~~1~~ | ~~**Límite de dispositivos simultáneos**~~ | — | — | ✅ Entregado PR #152 (2026-05-13) |
 | ~~2~~ | ~~**Audit log de acceso a HC**~~ | — | — | ✅ Entregado PR #155 (2026-05-14, mig 157) |
 | ~~3~~ | ~~**Límites de plan: soft-wall UX**~~ | — | — | ✅ Entregado PR #156 (2026-05-14, members + offices; pacientes/citas decisión consciente de NO enforzar) |
-| 4 | **2FA opcional para owner/admin** (sec. 🔐 Seguridad) | Medio | Alto | Vendible como feature Plan Clínica. Estándar de mercado en SaaS médico. |
+| ~~4~~ | ~~**2FA opcional para owner/admin**~~ | — | — | ✅ Entregado PR #157 (2026-05-14, mig 158) |
 
 ### 🟡 Media — diferencia y crece producto
 
