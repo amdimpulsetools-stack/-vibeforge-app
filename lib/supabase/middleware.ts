@@ -7,7 +7,7 @@ import {
   getCachedSessionStatus,
   setCachedSessionStatus,
 } from "@/lib/auth/session-limits";
-import { isSessionActive, touchSessionLastSeen } from "@/lib/auth/sessions";
+import { isSessionRevoked, touchSessionLastSeen } from "@/lib/auth/sessions";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -105,10 +105,18 @@ export async function updateSession(request: NextRequest) {
       let revoked: boolean | null = cached;
       if (revoked === null) {
         // Cache miss — query the DB.
-        // isSessionActive fails-open on DB errors so a transient
-        // outage doesn't lock everyone out.
-        const active = await isSessionActive(user.id, deviceId);
-        revoked = !active;
+        //
+        // CRITICAL: use isSessionRevoked, NOT isSessionActive. The
+        // former returns true ONLY when the row exists with a
+        // revoked_at value. The latter conflates "no row yet"
+        // (lazy-create scenario) with "explicitly revoked", which
+        // would lock out every authenticated user the moment the
+        // feature flag flips ON for the first time (the
+        // auth_sessions table starts empty). Real prod incident
+        // 2026-05-15: sign-out loop for every user after the
+        // env var case-insensitive fix activated the feature
+        // for the first time.
+        revoked = await isSessionRevoked(user.id, deviceId);
         setCachedSessionStatus(user.id, deviceId, revoked);
       }
       if (revoked) {
