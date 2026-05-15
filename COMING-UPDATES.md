@@ -1,7 +1,24 @@
 # Coming Updates — Yenda
 
-> **Última actualización:** 2026-05-02 (v0.14.x — fertility addon entregado)
+> **Última actualización:** 2026-05-15 (v0.16.0 — Sprint 1: Custom Fields entregado)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
+
+---
+
+## 🛣️ Roadmap — Seguros (próximos sprints)
+
+Sprint 2 (en marcha): catálogo de aseguradoras a nivel de organización + % de cobertura por aseguradora + selección de servicios cubiertos por seguro (modal + toggle individual desde servicio) + override manual de precio en cita (Particular vs Seguro elegible).
+
+Niveles posteriores diferidos:
+
+- [ ] **Nivel C — Convenios granulares por servicio**: tarifas específicas por aseguradora-servicio (no solo % de cobertura plano), permitiendo que Rimac pague S/95 por una consulta de S/120 sin aplicar 80% global. Útil para clínicas con convenios negociados.
+- [ ] **Nivel D — Facturación automática a aseguradoras**: workflow de autorización previa, generación de comprobantes electrónicos diferenciados (boleta paciente + factura aseguradora), reconciliación de reembolsos, estado de cobranza por póliza. Requiere integración con e-invoice avanzado.
+
+---
+
+## ✅ Sprint 1 entregado (v0.16.0 — 2026-05-15)
+
+- [x] **Custom Fields — campos personalizados por organización** — Sistema para que centros médicos y clínicas definan campos extra en citas y pacientes (texto, número, fecha, lista desplegable, casilla, texto largo). Migración 157 con tabla `custom_field_definitions` (RLS owner/admin para mutación, todos los miembros para lectura) + columnas `custom_fields jsonb` en `appointments` y `patients` + flag `feature_custom_fields` en plans (activa en `professional` y `enterprise`). Página `/admin/custom-fields` con tabs Citas/Pacientes, CRUD completo, reordenamiento por posición, validación de field_key snake_case, opciones de select editables como chips, gate de plan con upsell card a `/plans`. Hook `useCustomFieldDefinitions(entityType)` y componente reusable `<CustomFieldsBlock>` que renderiza los campos dinámicamente en cualquier formulario; integrado en `patient-form-modal` y `appointment-form-modal`. Si la organización no define campos, el bloque no renderiza nada (degradación elegante: la desactivación no afecta el funcionamiento normal). Helper server-side `lib/plan/check-feature.ts` para gating en server actions y API routes.
 
 ---
 

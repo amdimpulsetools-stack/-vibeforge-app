@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/send-notification";
 import { appointmentSchema, type AppointmentFormData } from "@/lib/validations/appointment";
+import { CustomFieldsBlock } from "@/components/custom-fields/custom-fields-block";
+import type { CustomFieldValues } from "@/types/custom-fields";
 import type {
   Office,
   Doctor,
@@ -158,6 +160,7 @@ export function AppointmentFormModal({
     treatment_plan_item_id: string | null;
   }>>([]);
   const [selectedPlanSessionId, setSelectedPlanSessionId] = useState<string | null>(null);
+  const [customFields, setCustomFields] = useState<CustomFieldValues>({});
 
   const {
     register,
@@ -606,6 +609,7 @@ export function AppointmentFormModal({
           : null,
         treatment_session_id: planSession?.session_id ?? null,
         organization_id: organizationId,
+        custom_fields: customFields,
       } as Record<string, unknown>)
       .select("id")
       .single();
@@ -1494,6 +1498,12 @@ export function AppointmentFormModal({
               placeholder="Observaciones..."
             />
           </div>
+
+          <CustomFieldsBlock
+            entityType="appointment"
+            values={customFields}
+            onChange={setCustomFields}
+          />
         </form>
 
         {/* Footer */}
