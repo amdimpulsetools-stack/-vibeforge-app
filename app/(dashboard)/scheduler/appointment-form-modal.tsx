@@ -42,6 +42,12 @@ import { RecurringBadge } from "@/components/patients/recurring-badge";
 import { loadWaClipboardConfig, type AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import { WhatsAppClipboardModal } from "./whatsapp-clipboard-modal";
+import { calculateCoverageQuotes } from "@/lib/insurance/calculate-coverage";
+import type {
+  AppointmentPaymentMode,
+  InsuranceCoverageQuote,
+  OrganizationInsuranceCarrierWithName,
+} from "@/types/insurance";
 
 interface DoctorServiceEntry {
   doctor_id: string;
@@ -162,6 +168,10 @@ export function AppointmentFormModal({
   const [selectedPlanSessionId, setSelectedPlanSessionId] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<CustomFieldValues>({});
 
+  const [patientInsuranceQuotes, setPatientInsuranceQuotes] = useState<InsuranceCoverageQuote[]>([]);
+  const [paymentMode, setPaymentMode] = useState<AppointmentPaymentMode>("particular");
+  const [selectedInsuranceCarrierId, setSelectedInsuranceCarrierId] = useState<string | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -280,6 +290,97 @@ export function AppointmentFormModal({
       prevDoctorRef.current = watchedDoctor;
     }
   }, [watchedDoctor, setValue]);
+
+  // ─── Load patient insurance coverage quotes ────────────────────────────────
+  const watchedPatientId = watch("patient_id");
+  useEffect(() => {
+    let cancelled = false;
+    setPaymentMode("particular");
+    setSelectedInsuranceCarrierId(null);
+
+    if (!watchedPatientId || !selectedServiceId || servicePrice <= 0) {
+      setPatientInsuranceQuotes([]);
+      return;
+    }
+
+    (async () => {
+      const supabase = createClient();
+      const { data: piRows } = await supabase
+        .from("patient_insurances")
+        .select(
+          "id, organization_insurance_carrier_id, active, organization_insurance_carriers(*, insurance_carriers(name, default_ruc))"
+        )
+        .eq("patient_id", watchedPatientId)
+        .eq("active", true);
+
+      if (cancelled) return;
+
+      const carriers: OrganizationInsuranceCarrierWithName[] = [];
+      for (const row of (piRows as unknown as Array<{
+        organization_insurance_carriers: {
+          id: string;
+          organization_id: string;
+          carrier_id: string | null;
+          custom_name: string | null;
+          custom_ruc: string | null;
+          coverage_percent: number;
+          enabled: boolean;
+          created_at: string;
+          updated_at: string;
+          insurance_carriers: { name: string; default_ruc: string | null } | null;
+        } | null;
+      }> | null) ?? []) {
+        const oic = row.organization_insurance_carriers;
+        if (!oic || !oic.enabled) continue;
+        carriers.push({
+          id: oic.id,
+          organization_id: oic.organization_id,
+          carrier_id: oic.carrier_id,
+          custom_name: oic.custom_name,
+          custom_ruc: oic.custom_ruc,
+          coverage_percent: Number(oic.coverage_percent),
+          enabled: oic.enabled,
+          created_at: oic.created_at,
+          updated_at: oic.updated_at,
+          display_name: oic.insurance_carriers?.name ?? oic.custom_name ?? "Seguro",
+          display_ruc: oic.custom_ruc ?? oic.insurance_carriers?.default_ruc ?? null,
+        });
+      }
+
+      if (carriers.length === 0) {
+        setPatientInsuranceQuotes([]);
+        return;
+      }
+
+      const { data: covRows } = await supabase
+        .from("insurance_covered_services")
+        .select("organization_insurance_carrier_id, service_id")
+        .in("organization_insurance_carrier_id", carriers.map((c) => c.id))
+        .eq("service_id", selectedServiceId);
+
+      if (cancelled) return;
+
+      const coverageMap: Record<string, Set<string>> = {};
+      for (const r of (covRows as Array<{ organization_insurance_carrier_id: string; service_id: string }> | null) ?? []) {
+        if (!coverageMap[r.organization_insurance_carrier_id]) {
+          coverageMap[r.organization_insurance_carrier_id] = new Set();
+        }
+        coverageMap[r.organization_insurance_carrier_id].add(r.service_id);
+      }
+
+      const quotes = calculateCoverageQuotes({
+        basePrice: servicePrice,
+        serviceId: selectedServiceId,
+        patientCarriers: carriers,
+        coverageMap,
+      });
+      setPatientInsuranceQuotes(quotes);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [watchedPatientId, selectedServiceId, servicePrice]);
 
   // ─── Service filter by doctor ─────────────────────────────────────────────
   const doctorServiceIds = useMemo(() => {
@@ -610,6 +711,14 @@ export function AppointmentFormModal({
         treatment_session_id: planSession?.session_id ?? null,
         organization_id: organizationId,
         custom_fields: customFields,
+        payment_mode: paymentMode,
+        insurance_carrier_id: paymentMode === "insurance" ? selectedInsuranceCarrierId : null,
+        insurance_coverage_amount: paymentMode === "insurance"
+          ? (patientInsuranceQuotes.find((q) => q.carrier.id === selectedInsuranceCarrierId)?.insurance_amount ?? 0)
+          : 0,
+        patient_copay: paymentMode === "insurance"
+          ? (patientInsuranceQuotes.find((q) => q.carrier.id === selectedInsuranceCarrierId)?.patient_copay ?? 0)
+          : (priceSnapshot ?? 0),
       } as Record<string, unknown>)
       .select("id")
       .single();
@@ -1487,6 +1596,97 @@ export function AppointmentFormModal({
               </select>
             </div>
           </div>
+
+          {/* Forma de pago de la cita (insurance / particular) */}
+          {watchedPatientId && selectedServiceId && servicePrice > 0 && (
+            <fieldset className="space-y-2 rounded-lg border border-border/60 bg-muted/30 p-3">
+              <legend className="px-1 text-sm font-medium">Forma de pago de la cita</legend>
+              <div className="space-y-1.5">
+                <label
+                  className={cn(
+                    "flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors",
+                    paymentMode === "particular"
+                      ? "border-primary bg-primary/10"
+                      : "border-border/60 hover:border-border"
+                  )}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="payment_mode"
+                      checked={paymentMode === "particular"}
+                      onChange={() => {
+                        setPaymentMode("particular");
+                        setSelectedInsuranceCarrierId(null);
+                      }}
+                      className="accent-primary"
+                    />
+                    <span className="font-medium">Particular</span>
+                  </span>
+                  <span className="font-semibold">S/. {servicePrice.toFixed(2)}</span>
+                </label>
+
+                {patientInsuranceQuotes
+                  .filter((q) => q.covered)
+                  .map((q) => {
+                    const isSelected =
+                      paymentMode === "insurance" && selectedInsuranceCarrierId === q.carrier.id;
+                    return (
+                      <label
+                        key={q.carrier.id}
+                        className={cn(
+                          "flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors",
+                          isSelected
+                            ? "border-primary bg-primary/10"
+                            : "border-border/60 hover:border-border"
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="payment_mode"
+                            checked={isSelected}
+                            onChange={() => {
+                              setPaymentMode("insurance");
+                              setSelectedInsuranceCarrierId(q.carrier.id);
+                            }}
+                            className="accent-primary"
+                          />
+                          <span className="font-medium">
+                            Seguro: {q.carrier.display_name}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            copago S/. {q.patient_copay.toFixed(2)}
+                          </span>
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          Aseguradora S/. {q.insurance_amount.toFixed(2)}
+                        </span>
+                      </label>
+                    );
+                  })}
+              </div>
+
+              {paymentMode === "insurance" && selectedInsuranceCarrierId && (() => {
+                const q = patientInsuranceQuotes.find(
+                  (x) => x.carrier.id === selectedInsuranceCarrierId
+                );
+                if (!q) return null;
+                return (
+                  <div className="rounded-md bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs text-emerald-700 dark:text-emerald-400">
+                    Aseguradora paga: S/. {q.insurance_amount.toFixed(2)} · Paciente paga: S/. {q.patient_copay.toFixed(2)}
+                  </div>
+                );
+              })()}
+
+              {patientInsuranceQuotes.length > 0 &&
+                patientInsuranceQuotes.some((q) => !q.covered) && (
+                  <p className="text-[11px] text-muted-foreground px-1">
+                    Solo se muestran seguros que cubren el servicio seleccionado.
+                  </p>
+                )}
+            </fieldset>
+          )}
 
           {/* Notes */}
           <div className="space-y-1.5">

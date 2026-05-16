@@ -29,6 +29,7 @@ export interface PlanInfo {
   feature_priority_support: boolean;
   feature_ai_assistant: boolean;
   feature_custom_fields: boolean;
+  feature_insurance: boolean;
   max_ai_queries: number | null;
 }
 
@@ -130,6 +131,7 @@ export function usePlan(): UsePlanReturn {
         feature_priority_support: !!d.feature_priority_support,
         feature_ai_assistant: !!d.feature_ai_assistant,
         feature_custom_fields: !!d.feature_custom_fields,
+        feature_insurance: !!d.feature_insurance,
         max_ai_queries: (d.max_ai_queries as number) ?? null,
       });
       setSubscription({

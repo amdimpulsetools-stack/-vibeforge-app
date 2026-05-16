@@ -1,5 +1,5 @@
 -- ============================================
--- Migration 157: Custom Fields
+-- Migration 159: Custom Fields
 -- Per-org definitions of custom fields for appointments and patients.
 -- Gated behind feature_custom_fields plan flag (professional + enterprise).
 -- Legacy patients.custom_field_1 / custom_field_2 are left untouched.

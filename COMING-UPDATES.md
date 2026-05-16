@@ -1,24 +1,33 @@
 # Coming Updates — Yenda
 
-> **Última actualización:** 2026-05-15 (v0.16.0 — Sprint 1: Custom Fields entregado)
+> **Última actualización:** 2026-05-16 (v0.17.0 — Sprint 2: Seguros entregado)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
 
-## 🛣️ Roadmap — Seguros (próximos sprints)
+## 🛣️ Roadmap — Seguros (próximos niveles)
 
-Sprint 2 (en marcha): catálogo de aseguradoras a nivel de organización + % de cobertura por aseguradora + selección de servicios cubiertos por seguro (modal + toggle individual desde servicio) + override manual de precio en cita (Particular vs Seguro elegible).
+Lo entregado en Sprint 2 cubre el nivel B (cobertura % por aseguradora + selección de servicios). Lo que sigue está diferido:
 
-Niveles posteriores diferidos:
-
-- [ ] **Nivel C — Convenios granulares por servicio**: tarifas específicas por aseguradora-servicio (no solo % de cobertura plano), permitiendo que Rimac pague S/95 por una consulta de S/120 sin aplicar 80% global. Útil para clínicas con convenios negociados.
+- [ ] **Nivel C — Convenios granulares por servicio**: tarifas específicas por aseguradora-servicio (no solo % de cobertura plano), permitiendo que Rimac pague S/95 por una consulta de S/120 sin aplicar 80% global. Útil para clínicas con convenios negociados con tarifa fija por procedimiento.
 - [ ] **Nivel D — Facturación automática a aseguradoras**: workflow de autorización previa, generación de comprobantes electrónicos diferenciados (boleta paciente + factura aseguradora), reconciliación de reembolsos, estado de cobranza por póliza. Requiere integración con e-invoice avanzado.
+
+---
+
+## ✅ Sprint 2 entregado (v0.17.0 — 2026-05-16)
+
+- [x] **Seguros médicos — Nivel B (cobertura por % + servicios cubiertos)** — Migración 160 con catálogo global `insurance_carriers` (seed: Rimac, Pacífico, Mapfre, La Positiva, Sanitas, Oncosalud + RUCs Perú) + tablas `organization_insurance_settings` (toggle global), `organization_insurance_carriers` (aseguradoras activas por org con % cobertura y opción de aseguradora custom), `insurance_covered_services` (matriz cobertura × servicio) y `patient_insurances` (afiliación del paciente con n° de afiliado). Columnas nuevas en `appointments`: `payment_mode` ('particular'|'insurance'), `insurance_carrier_id`, `insurance_coverage_amount`, `patient_copay`. Flag `feature_insurance` en plans (activa en `professional`+`enterprise`). RPC `get_org_plan` actualizada.
+  - Página `/admin/seguros` con toggle global "Trabajar con seguros" (gris-out de carriers si está off), CRUD de aseguradoras (desde catálogo o personalizadas), edición inline del % cobertura, modal "Configurar servicios" con checkbox por servicio y contador "X de Y cubiertos".
+  - Tab "Seguros" en el drawer del paciente (gated por `org_insurance_settings.enabled`) con CRUD de afiliaciones (aseguradora + n° afiliado + activo).
+  - Modal de nueva cita detecta automáticamente las aseguradoras del paciente que cubren el servicio seleccionado y muestra sección "Forma de pago" con radios (Particular siempre disponible + una opción por seguro elegible con copago calculado). Override manual: el operador puede elegir Particular aún cuando el paciente tiene seguro elegible. Persiste split (`insurance_coverage_amount` + `patient_copay`) al guardar.
+  - Helper puro `lib/insurance/calculate-coverage.ts` para el cálculo del split. Hook `useOrgInsurance()` y componente `<PatientInsurancesPanel>` reusable.
+  - Degradación elegante: si el toggle global está off o el plan no incluye `feature_insurance`, los formularios siguen funcionando normalmente como software particular sin tocar datos existentes.
 
 ---
 
 ## ✅ Sprint 1 entregado (v0.16.0 — 2026-05-15)
 
-- [x] **Custom Fields — campos personalizados por organización** — Sistema para que centros médicos y clínicas definan campos extra en citas y pacientes (texto, número, fecha, lista desplegable, casilla, texto largo). Migración 157 con tabla `custom_field_definitions` (RLS owner/admin para mutación, todos los miembros para lectura) + columnas `custom_fields jsonb` en `appointments` y `patients` + flag `feature_custom_fields` en plans (activa en `professional` y `enterprise`). Página `/admin/custom-fields` con tabs Citas/Pacientes, CRUD completo, reordenamiento por posición, validación de field_key snake_case, opciones de select editables como chips, gate de plan con upsell card a `/plans`. Hook `useCustomFieldDefinitions(entityType)` y componente reusable `<CustomFieldsBlock>` que renderiza los campos dinámicamente en cualquier formulario; integrado en `patient-form-modal` y `appointment-form-modal`. Si la organización no define campos, el bloque no renderiza nada (degradación elegante: la desactivación no afecta el funcionamiento normal). Helper server-side `lib/plan/check-feature.ts` para gating en server actions y API routes.
+- [x] **Custom Fields — campos personalizados por organización** — Sistema para que centros médicos y clínicas definan campos extra en citas y pacientes (texto, número, fecha, lista desplegable, casilla, texto largo). Migración 159 con tabla `custom_field_definitions` (RLS owner/admin para mutación, todos los miembros para lectura) + columnas `custom_fields jsonb` en `appointments` y `patients` + flag `feature_custom_fields` en plans (activa en `professional` y `enterprise`). Página `/admin/custom-fields` con tabs Citas/Pacientes, CRUD completo, reordenamiento por posición, validación de field_key snake_case, opciones de select editables como chips, gate de plan con upsell card a `/plans`. Hook `useCustomFieldDefinitions(entityType)` y componente reusable `<CustomFieldsBlock>` que renderiza los campos dinámicamente en cualquier formulario; integrado en `patient-form-modal` y `appointment-form-modal`. Si la organización no define campos, el bloque no renderiza nada (degradación elegante: la desactivación no afecta el funcionamiento normal). Helper server-side `lib/plan/check-feature.ts` para gating en server actions y API routes.
 
 ---
 

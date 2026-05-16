@@ -39,6 +39,7 @@ import {
   Stethoscope,
   Lock,
   Receipt,
+  ShieldCheck,
   Heart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,8 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
+import { useOrgInsurance } from "@/hooks/use-org-insurance";
+import { PatientInsurancesPanel } from "@/components/insurance/patient-insurances-panel";
 import { PatientFiscalSection } from "./patient-fiscal-section";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
 import { calculateAge } from "@/lib/export";
@@ -74,7 +77,7 @@ interface PatientDrawerProps {
   onUpdate: () => void;
 }
 
-type DrawerTab = "info" | "history" | "clinical" | "growth" | "budgets" | "finances" | "marketing" | "fiscal";
+type DrawerTab = "info" | "history" | "clinical" | "growth" | "budgets" | "finances" | "marketing" | "fiscal" | "insurance";
 
 type PatientWithSex = PatientWithTags & { sex?: Sex | null };
 
@@ -90,6 +93,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const { isAdmin, isDoctor } = useOrgRole();
   const { hasAddon } = useOrgAddons();
   const einvoiceConfig = useEInvoiceConfig();
+  const { enabled: insuranceEnabled } = useOrgInsurance();
   const { doctorId: currentDoctorId } = useCurrentDoctor();
   const [activeTab, setActiveTab] = useState<DrawerTab>("info");
   const patientSex = (patient as PatientWithSex).sex ?? null;
@@ -346,6 +350,9 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     { key: "budgets", label: "Presupuestos", icon: Wallet },
     { key: "finances", label: t("patients.tab_finances"), icon: DollarSign },
     { key: "marketing", label: t("patients.tab_marketing"), icon: Megaphone },
+    ...(insuranceEnabled
+      ? [{ key: "insurance" as DrawerTab, label: "Seguros", icon: ShieldCheck }]
+      : []),
     // Tab fiscal solo aparece si la org activó facturación electrónica.
     // El rol doctor no lo ve — los datos fiscales son administrativos
     // (necesarios para emitir comprobantes), fuera del scope clínico.
@@ -1212,6 +1219,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           </div>
         )}
 
+        {/* ===== INSURANCE TAB ===== */}
+        {activeTab === "insurance" && insuranceEnabled && (
+          <PatientInsurancesPanel patientId={patient.id} canEdit={isAdmin} />
+        )}
+
         {/* ===== FISCAL TAB (gated by einvoice connection) ===== */}
         {activeTab === "fiscal" && einvoiceConfig.connected && !isDoctor && (
           <PatientFiscalSection patient={patient} onUpdate={onUpdate} />
@@ -1529,6 +1541,10 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     </div>
                   </div>
                 </div>
+              )}
+
+              {activeTab === "insurance" && insuranceEnabled && (
+                <PatientInsurancesPanel patientId={patient.id} canEdit={isAdmin} />
               )}
 
               {activeTab === "fiscal" && einvoiceConfig.connected && !isDoctor && (
