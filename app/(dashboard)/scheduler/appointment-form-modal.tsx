@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useOrgInsurance } from "@/hooks/use-org-insurance";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/send-notification";
@@ -113,6 +114,7 @@ export function AppointmentFormModal({
   onShowWhatsAppFollowup,
 }: AppointmentFormModalProps) {
   const { t, language } = useLanguage();
+  const { enabled: insuranceEnabled, carriers: orgInsuranceCarriers } = useOrgInsurance();
 
   // If current user is a doctor and restricted, only show their own record
   const availableDoctors = currentDoctorId && restrictToDoctor
@@ -171,6 +173,11 @@ export function AppointmentFormModal({
   const [patientInsuranceQuotes, setPatientInsuranceQuotes] = useState<InsuranceCoverageQuote[]>([]);
   const [paymentMode, setPaymentMode] = useState<AppointmentPaymentMode>("particular");
   const [selectedInsuranceCarrierId, setSelectedInsuranceCarrierId] = useState<string | null>(null);
+  const [showQuickAddInsurance, setShowQuickAddInsurance] = useState(false);
+  const [quickAddCarrierId, setQuickAddCarrierId] = useState("");
+  const [quickAddAffiliate, setQuickAddAffiliate] = useState("");
+  const [quickAddSaving, setQuickAddSaving] = useState(false);
+  const [insuranceRefetchKey, setInsuranceRefetchKey] = useState(0);
 
   const {
     register,
@@ -380,7 +387,7 @@ export function AppointmentFormModal({
     return () => {
       cancelled = true;
     };
-  }, [watchedPatientId, selectedServiceId, servicePrice]);
+  }, [watchedPatientId, selectedServiceId, servicePrice, insuranceRefetchKey]);
 
   // ─── Service filter by doctor ─────────────────────────────────────────────
   const doctorServiceIds = useMemo(() => {
@@ -718,7 +725,7 @@ export function AppointmentFormModal({
           : 0,
         patient_copay: paymentMode === "insurance"
           ? (patientInsuranceQuotes.find((q) => q.carrier.id === selectedInsuranceCarrierId)?.patient_copay ?? 0)
-          : (priceSnapshot ?? 0),
+          : Math.max(0, (priceSnapshot ?? 0) - (discountEnabled ? discountAmountComputed : 0)),
       } as Record<string, unknown>)
       .select("id")
       .single();
@@ -1622,8 +1629,13 @@ export function AppointmentFormModal({
                       className="accent-primary"
                     />
                     <span className="font-medium">Particular</span>
+                    {depositEnabled && Number(depositAmount) > 0 && (
+                      <span className="text-[11px] text-muted-foreground">
+                        · pendiente S/. {Math.max(0, totalAfterDiscount - Number(depositAmount)).toFixed(2)}
+                      </span>
+                    )}
                   </span>
-                  <span className="font-semibold">S/. {servicePrice.toFixed(2)}</span>
+                  <span className="font-semibold">S/. {totalAfterDiscount.toFixed(2)}</span>
                 </label>
 
                 {patientInsuranceQuotes
@@ -1685,6 +1697,115 @@ export function AppointmentFormModal({
                     Solo se muestran seguros que cubren el servicio seleccionado.
                   </p>
                 )}
+
+              {insuranceEnabled && (() => {
+                const availableForPatient = orgInsuranceCarriers.filter(
+                  (c) =>
+                    c.enabled &&
+                    !patientInsuranceQuotes.some((q) => q.carrier.id === c.id),
+                );
+                if (availableForPatient.length === 0) return null;
+
+                const noQuotes = patientInsuranceQuotes.length === 0;
+
+                return (
+                  <div className="pt-1">
+                    {noQuotes && !showQuickAddInsurance && (
+                      <p className="text-[11px] text-muted-foreground px-1 mb-1.5">
+                        Este paciente no tiene seguros registrados.
+                      </p>
+                    )}
+
+                    {!showQuickAddInsurance && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowQuickAddInsurance(true);
+                          setQuickAddCarrierId(availableForPatient[0]?.id ?? "");
+                          setQuickAddAffiliate("");
+                        }}
+                        className="text-xs font-medium text-primary hover:underline px-1"
+                      >
+                        + Agregar seguro a este paciente
+                      </button>
+                    )}
+
+                    {showQuickAddInsurance && (
+                      <div className="mt-2 rounded-md border border-border bg-card p-3 space-y-2">
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-medium text-muted-foreground">
+                            Aseguradora
+                          </label>
+                          <select
+                            value={quickAddCarrierId}
+                            onChange={(e) => setQuickAddCarrierId(e.target.value)}
+                            className="flex h-8 w-full rounded-md border border-input bg-card px-2 py-1 text-xs"
+                          >
+                            {availableForPatient.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.display_name} ({c.coverage_percent}%)
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[11px] font-medium text-muted-foreground">
+                            N° de afiliado <span className="text-muted-foreground/60">(opcional)</span>
+                          </label>
+                          <input
+                            value={quickAddAffiliate}
+                            onChange={(e) => setQuickAddAffiliate(e.target.value)}
+                            placeholder="123-456-789"
+                            className="flex h-8 w-full rounded-md border border-input bg-card px-2 py-1 text-xs"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowQuickAddInsurance(false);
+                              setQuickAddCarrierId("");
+                              setQuickAddAffiliate("");
+                            }}
+                            className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-accent"
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            type="button"
+                            disabled={quickAddSaving || !quickAddCarrierId || !watchedPatientId}
+                            onClick={async () => {
+                              if (!quickAddCarrierId || !watchedPatientId) return;
+                              setQuickAddSaving(true);
+                              const supabase = createClient();
+                              const { error } = await supabase.from("patient_insurances").insert({
+                                patient_id: watchedPatientId,
+                                organization_insurance_carrier_id: quickAddCarrierId,
+                                affiliate_number: quickAddAffiliate.trim() || null,
+                                active: true,
+                              });
+                              setQuickAddSaving(false);
+                              if (error) {
+                                toast.error("No se pudo agregar: " + error.message);
+                                return;
+                              }
+                              toast.success("Seguro agregado al paciente");
+                              setShowQuickAddInsurance(false);
+                              setQuickAddCarrierId("");
+                              setQuickAddAffiliate("");
+                              setInsuranceRefetchKey((k) => k + 1);
+                            }}
+                            className="flex items-center gap-1 rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+                          >
+                            {quickAddSaving && <Loader2 className="h-3 w-3 animate-spin" />}
+                            Guardar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </fieldset>
           )}
 
