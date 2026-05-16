@@ -7,7 +7,8 @@ export type PlanFeature =
   | "feature_api_access"
   | "feature_priority_support"
   | "feature_ai_assistant"
-  | "feature_custom_fields";
+  | "feature_custom_fields"
+  | "feature_insurance";
 
 export async function hasFeature(
   organizationId: string,
