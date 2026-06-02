@@ -10,6 +10,7 @@ import {
   Loader2,
   Sparkles,
   AlertTriangle,
+  ArrowRight,
 } from "lucide-react";
 import { YendaLogo } from "@/components/icons/yenda-logo";
 import { cn } from "@/lib/utils";
@@ -434,14 +435,14 @@ function SelectPlanPage() {
               <div
                 key={plan.id}
                 className={cn(
-                  "relative flex flex-col rounded-2xl border p-6 transition-all",
+                  "relative flex flex-col rounded-2xl p-6 transition-all",
                   isPopular
-                    ? "border-emerald-300 dark:border-emerald-500/40 bg-card shadow-xl shadow-emerald-100/40 dark:shadow-emerald-900/20 md:scale-105 md:-my-2 z-10"
-                    : "border-border bg-card shadow-sm hover:shadow-md"
+                    ? "pricing-popular border border-transparent bg-card md:scale-105 md:-my-2 z-10"
+                    : "border border-border bg-card shadow-sm hover:shadow-md"
                 )}
               >
                 {isPopular && (
-                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-emerald-500 px-3 py-0.5 text-[11px] font-semibold text-white shadow-sm">
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 rounded-full bg-gradient-to-r from-emerald-500 to-violet-600 px-3 py-0.5 text-[11px] font-semibold text-white shadow-sm">
                     Recomendado
                   </span>
                 )}
@@ -508,37 +509,20 @@ function SelectPlanPage() {
                   ))}
                 </ul>
 
-                {/* CTA buttons */}
-                {/* Trial deactivated for Clinica (enterprise). Other plans
-                     keep the 14-day trial as before. */}
+                {/* CTA buttons — paid is the primary revenue action and
+                     gets the gradient + ArrowRight (matches the landing
+                     `btn-popular-cta` style). Trial is demoted to a
+                     ghost secondary on plans that offer it. Enterprise
+                     has no trial, so only the paid CTA renders. */}
                 <div className="mt-6 space-y-2">
-                  {plan.slug !== "enterprise" && (
-                    <button
-                      onClick={() => handleStartTrial(plan.id)}
-                      disabled={selecting !== null}
-                      className={cn(
-                        "flex w-full h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50",
-                        isPopular
-                          ? "gradient-primary text-white shadow-md hover:opacity-90 hover:shadow-lg"
-                          : "border border-border bg-card text-foreground hover:bg-accent/50 hover:border-emerald-300 dark:hover:border-emerald-500/40"
-                      )}
-                    >
-                      {selecting === plan.id ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : null}
-                      Iniciar prueba de 14 días
-                    </button>
-                  )}
                   <button
                     onClick={() => handleSelect(plan.id)}
                     disabled={selecting !== null}
-                    className={cn(
-                      "flex w-full items-center justify-center gap-2 rounded-xl transition-all disabled:opacity-50",
-                      plan.slug === "enterprise"
-                        ? "h-11 gradient-primary text-sm font-semibold text-white shadow-md hover:opacity-90 hover:shadow-lg"
-                        : "h-10 border border-border bg-card/50 text-xs font-medium text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                    )}
+                    className="btn-popular-cta flex w-full h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
                   >
+                    {selecting === plan.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : null}
                     {(() => {
                       const upfrontLabel =
                         cadence === "annual" && plan.price_yearly != null
@@ -550,7 +534,20 @@ function SelectPlanPage() {
                         ? `Contratar Clínica — ${upfrontLabel}`
                         : `Pagar suscripción — ${upfrontLabel}`;
                     })()}
+                    <ArrowRight className="h-3.5 w-3.5" />
                   </button>
+                  {plan.slug !== "enterprise" && (
+                    <button
+                      onClick={() => handleStartTrial(plan.id)}
+                      disabled={selecting !== null}
+                      className="flex w-full h-10 items-center justify-center gap-2 rounded-xl border border-border bg-transparent text-xs font-medium text-muted-foreground transition-all hover:bg-accent/40 hover:text-foreground hover:border-emerald-300 dark:hover:border-emerald-500/40 disabled:opacity-50"
+                    >
+                      {selecting === plan.id ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      Iniciar prueba de 14 días
+                    </button>
+                  )}
                 </div>
               </div>
             );
