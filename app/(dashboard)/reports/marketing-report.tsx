@@ -412,8 +412,8 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
                 <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-                <Bar dataKey="total" name="Agendados" fill="#3b82f6" radius={999} animationDuration={800} animationEasing="ease-out" />
-                <Bar dataKey="completed" name="Atendidos" fill="#22c55e" radius={999} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
+                <Bar dataKey="total" name="Agendados" fill="#3b82f6" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" />
+                <Bar dataKey="completed" name="Atendidos" fill="#22c55e" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
               </BarChart>
             </ResponsiveContainer>
           ) : (

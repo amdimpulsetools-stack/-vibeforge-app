@@ -192,9 +192,9 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
                   <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip content={<CustomTooltip />} cursor={false} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="Atendidos" fill="#22c55e" radius={999} animationDuration={800} animationEasing="ease-out" />
-                  <Bar dataKey="Confirmados" fill="#3b82f6" radius={999} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
-                  <Bar dataKey="Cancelados" fill="#ef4444" radius={999} animationDuration={800} animationEasing="ease-out" animationBegin={400} />
+                  <Bar dataKey="Atendidos" fill="#22c55e" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" />
+                  <Bar dataKey="Confirmados" fill="#3b82f6" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
+                  <Bar dataKey="Cancelados" fill="#ef4444" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" animationBegin={400} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -209,7 +209,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")} />
                   <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                   <Tooltip content={<RevenueTooltip />} cursor={false} />
-                  <Bar dataKey="Facturado" fill="#10b981" radius={999} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={1000} animationEasing="ease-out" />
+                  <Bar dataKey="Facturado" fill="#10b981" radius={999} maxBarSize={56} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={1000} animationEasing="ease-out" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

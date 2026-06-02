@@ -291,8 +291,8 @@ export const RetentionReport = forwardRef<ReportExportHandle, RetentionReportPro
                   <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip content={<ChartTooltip />} cursor={false} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey={t("retention.returning")} fill="#22c55e" radius={999} animationDuration={800} animationEasing="ease-out" />
-                  <Bar dataKey={t("retention.new")} fill="#3b82f6" radius={999} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
+                  <Bar dataKey={t("retention.returning")} fill="#22c55e" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" />
+                  <Bar dataKey={t("retention.new")} fill="#3b82f6" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
