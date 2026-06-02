@@ -4489,3 +4489,17 @@ El plan no se conoce en el signup, así que el trigger sigue sembrando **1** con
 - `handleReorder(fromIndex, toPosition)` mueve el ítem y renormaliza todos los `display_order` a una secuencia contigua 1..n; solo escribe las filas que cambiaron. No hay constraint único en `display_order` (solo en `value`), así que los updates secuenciales no colisionan.
 - El input "Orden" del formulario se quitó (redundante con el dropdown); `display_order` queda como hidden y sigue defaulteando a `nextOrder` para ítems nuevos.
 - `GripVertical` removido (ya no se usa). Aplica a las 3 listas (Orígenes, Métodos de Pago, Estados de Cita), incluidos los ítems del sistema — reordenar es cosmético y no toca `value`.
+
+#### Sexta revisión: bug de seguimientos de fertilidad no creados (root cause + fix sistémico)
+
+> *Dra. Patricia: vinculó 1era + 2da consulta a los mapeos pero al completar una 1era consulta no se añade a seguimientos.*
+
+**Root cause:** había **dos** rutas que habilitan el addon fertility y solo **una** sembraba las `followup_rules` per-org:
+- ✅ `POST /api/addons/[key]/activate` — clona las 3 reglas globales + servicios TRA + plantillas WhatsApp/email.
+- ❌ `POST /api/onboarding/complete` (líneas 81-96) — el wizard auto-activa addons por especialidad (`medicina-reproductiva` → `fertility_basic`) con un `upsert` pelado a `organization_addons` y **nunca** sembraba nada más.
+
+Resultado: las orgs onboarded por el wizard quedaban con el addon `enabled=true` pero **0 `followup_rules`**, así que `maybeCreateAppointmentCompletedFollowup` (lib/fertility/followup-triggers.ts:140) encontraba `rules=[]` y hacía no-op **silencioso** (fire-and-forget, sin feedback al usuario). Afectaba a 2 de 3 orgs con el addon activo (Patricia `fd4c150b…` y `c1785176…`); la tercera funcionaba porque activó vía el endpoint correcto.
+
+**Fix #1 (data, aplicado en prod):** clonadas las 3 reglas globales a las 2 orgs afectadas vía `INSERT … SELECT … ON CONFLICT DO NOTHING`. Verificado end-to-end: el query exacto del trigger ahora devuelve `fertility.first_consultation_lapse` para el `service_id` de la 1era consulta de Patricia → al completar la cita se creará el seguimiento hacia segunda consulta (delay 21d). Deliberadamente **no** se sembraron servicios TRA (Patricia ya tiene los suyos; inyectarle 6 más sería ruido).
+
+**Fix #2 (código):** extraído todo el bloque de seed a `lib/fertility/seed-fertility-addon.ts` (`seedFertilityAddon(admin, orgId)`, extracción verbatim, idempotente, best-effort). Ahora lo llaman **ambas** rutas: `activate` (refactor 1:1) y `onboarding/complete` (cuando auto-activa un tier de fertilidad). Así el wizard ya no deja orgs a medio sembrar.
