@@ -20,7 +20,6 @@ import {
   Loader2,
   X,
   Check,
-  GripVertical,
   Lock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -148,6 +147,44 @@ function LookupValueList({
   const confirm = useConfirm();
   const [showForm, setShowForm] = useState(false);
   const [editingValue, setEditingValue] = useState<LookupValue | null>(null);
+  const [reordering, setReordering] = useState(false);
+
+  /**
+   * Move the item at `fromIndex` to 1-based `toPosition`, then renormalize
+   * every display_order to a contiguous 1..n sequence. Only the rows whose
+   * order actually changed are written back. There is no unique constraint on
+   * display_order, so the sequential updates can't collide.
+   */
+  const handleReorder = async (fromIndex: number, toPosition: number) => {
+    const items = category.lookup_values;
+    const toIndex = toPosition - 1;
+    if (toIndex === fromIndex || toIndex < 0 || toIndex >= items.length) return;
+
+    const reordered = [...items];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+
+    const updates = reordered
+      .map((v, i) => ({ id: v.id, display_order: i + 1 }))
+      .filter((u) => items.find((c) => c.id === u.id)?.display_order !== u.display_order);
+
+    if (updates.length === 0) return;
+
+    setReordering(true);
+    const supabase = createClient();
+    const results = await Promise.all(
+      updates.map((u) =>
+        supabase.from("lookup_values").update({ display_order: u.display_order }).eq("id", u.id)
+      )
+    );
+    setReordering(false);
+
+    if (results.some((r) => r.error)) {
+      toast.error(t("lookups.save_error"));
+      return;
+    }
+    onUpdate();
+  };
 
   const handleDelete = async (id: string) => {
     const ok = await confirm({
@@ -227,7 +264,7 @@ function LookupValueList({
       )}
 
       <div className="space-y-2">
-        {category.lookup_values.map((item) => {
+        {category.lookup_values.map((item, index) => {
           const isProtected = isSystemProtected(item, categorySlug);
           return (
             <div
@@ -238,9 +275,26 @@ function LookupValueList({
               )}
             >
               <div className="flex items-center gap-3">
-                <span className="text-xs text-muted-foreground w-6 text-center">
-                  {item.display_order}
-                </span>
+                {isAdmin ? (
+                  <select
+                    value={index + 1}
+                    disabled={reordering}
+                    onChange={(e) => handleReorder(index, Number(e.target.value))}
+                    aria-label={t("lookups.order")}
+                    title={t("lookups.order")}
+                    className="rounded-lg border border-input bg-background py-1 pl-2 pr-1 text-xs text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors disabled:opacity-50 cursor-pointer"
+                  >
+                    {category.lookup_values.map((_, i) => (
+                      <option key={i} value={i + 1}>
+                        {i + 1}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <span className="text-xs text-muted-foreground w-6 text-center">
+                    {item.display_order}
+                  </span>
+                )}
                 {showColor && item.color && (
                   <div
                     className="h-5 w-5 rounded-full border border-border"
@@ -374,7 +428,11 @@ function LookupValueForm({
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* display_order is managed via the per-row position dropdown in the
+          list; keep it in the payload (defaults to nextOrder for new items)
+          but out of the visible form to avoid two competing controls. */}
+      <input type="hidden" {...register("display_order")} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <div className="space-y-1.5">
           <label className="text-sm font-medium">{t("lookups.label")}</label>
           <input
@@ -417,17 +475,6 @@ function LookupValueForm({
             )}
           </div>
         )}
-        <div className="space-y-1.5">
-          <label className="text-sm font-medium">{t("lookups.order")}</label>
-          <input
-            type="number"
-            {...register("display_order")}
-            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-          />
-          {errors.display_order && (
-            <p className="text-xs text-destructive">{errors.display_order.message}</p>
-          )}
-        </div>
       </div>
       <div className="flex gap-2">
         <button

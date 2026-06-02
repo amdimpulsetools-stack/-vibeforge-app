@@ -11,6 +11,7 @@ import {
   sendPaymentFailedEmail,
   sendRefundIssuedEmail,
 } from "@/lib/billing-emails";
+import { seedSecondOfficeIfNeeded } from "@/lib/onboarding/seed-default-offices";
 
 // Grace period after the first payment failure. Tuned to overlap
 // with Mercado Pago's default 3-retry window (~7 days).
@@ -216,6 +217,10 @@ async function handleSubscriptionEvent(
     // reactivation_requested event for this org within the last 7 days
     // (enough to cover slow MP authorization).
     if (newStatus === "active") {
+      // Centro Médico / Clínica onboard with 2 default offices; signup seeds 1
+      // (mig 164). Top up on first paid activation. Idempotent + non-fatal.
+      await seedSecondOfficeIfNeeded(supabase, ref.organization_id, ref.plan_slug);
+
       const sevenDaysAgo = new Date(
         Date.now() - 7 * 24 * 3600 * 1000,
       ).toISOString();
@@ -290,7 +295,7 @@ async function handleSubscriptionEvent(
   const { data: updated, error } = await query
     .order("created_at", { ascending: false })
     .limit(1)
-    .select("id, organization_id");
+    .select("id, organization_id, plan_id");
 
   if (error) {
     console.error("[MP Webhook] Error updating plan-based subscription:", error);
@@ -301,6 +306,18 @@ async function handleSubscriptionEvent(
   if (newStatus === "active" && updated && updated.length > 0) {
     const orgId = updated[0].organization_id;
     const newSubId = updated[0].id;
+
+    // Seed the 2nd default office for multi-office plans on first paid
+    // activation (idempotent + non-fatal). Strategy 2 only carries plan_id, so
+    // resolve the slug before delegating.
+    const { data: activatedPlan } = await supabase
+      .from("plans")
+      .select("slug")
+      .eq("id", updated[0].plan_id)
+      .single();
+    if (activatedPlan?.slug) {
+      await seedSecondOfficeIfNeeded(supabase, orgId, activatedPlan.slug);
+    }
 
     await supabase
       .from("organization_subscriptions")

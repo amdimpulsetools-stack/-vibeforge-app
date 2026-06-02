@@ -3,6 +3,7 @@ import { NextResponse, after } from "next/server";
 import { parseBody } from "@/lib/api-utils";
 import { startTrialSchema } from "@/lib/validations/api";
 import { sendTrialWelcomeEmail } from "@/lib/trial-welcome-email";
+import { seedSecondOfficeIfNeeded } from "@/lib/onboarding/seed-default-offices";
 
 export const runtime = "nodejs";
 
@@ -139,6 +140,11 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
+
+  // Centro Médico (professional) onboards with 2 default offices; the signup
+  // only seeds 1 (mig 164). Top it up now that we know the plan. Idempotent and
+  // non-fatal — never blocks the trial.
+  await seedSecondOfficeIfNeeded(supabase, membership.organization_id, plan.slug);
 
   // Send welcome email AFTER the response is sent, so it never blocks the
   // client. `after` runs in a post-response phase in Vercel's runtime and
