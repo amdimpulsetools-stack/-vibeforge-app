@@ -134,7 +134,7 @@ export default function OfficesPage() {
               </p>
               <p className="text-sm">1 {language === "es" ? "consultorio" : "office"}</p>
               <p className="text-sm">1 {language === "es" ? "doctor" : "doctor"}</p>
-              <p className="text-sm">100 {language === "es" ? "citas/mes" : "appointments/mo"}</p>
+              <p className="text-sm">{language === "es" ? "Citas ilimitadas" : "Unlimited appointments"}</p>
             </div>
             <div className="hidden sm:flex items-center justify-center self-center">
               <ArrowRight className="h-5 w-5 text-muted-foreground" />
@@ -143,7 +143,7 @@ export default function OfficesPage() {
               <p className="text-sm font-medium text-emerald-500 mb-2">Centro Médico</p>
               <p className="text-sm font-medium">3 {language === "es" ? "consultorios" : "offices"}</p>
               <p className="text-sm font-medium">3 {language === "es" ? "doctores" : "doctors"}</p>
-              <p className="text-sm font-medium">500 {language === "es" ? "citas/mes" : "appointments/mo"}</p>
+              <p className="text-sm font-medium">{language === "es" ? "Citas ilimitadas" : "Unlimited appointments"}</p>
             </div>
           </div>
           <div className="mt-5">

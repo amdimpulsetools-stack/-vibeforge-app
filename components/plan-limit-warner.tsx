@@ -9,7 +9,6 @@ const RESOURCE_LABELS: Partial<Record<keyof OrgUsage, string>> = {
   doctors: "especialistas",
   offices: "consultorios",
   patients: "pacientes",
-  appointments_this_month: "citas este mes",
   admins: "administradores",
   receptionists: "recepcionistas",
   doctor_members: "especialistas (miembros)",
@@ -28,7 +27,6 @@ export function PlanLimitWarner() {
       "doctors",
       "offices",
       "patients",
-      "appointments_this_month",
     ];
 
     for (const resource of resources) {

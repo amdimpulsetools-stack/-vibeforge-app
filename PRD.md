@@ -4377,12 +4377,53 @@ La § 5 contradecía la decisión real que ya se había tomado en v0.15.16. Esta
 - § 5 línea 90: `500 citas/mes` → `citas ilimitadas` (Centro Médico).
 - § 5 nuevo callout "Decisiones canónicas (sticky)" arriba de la tabla de planes, con 4 puntos: citas ilimitadas, diferenciadores reales, Clínica = 15 miembros, scope vigente del soft-wall.
 
-### Pendientes follow-up (no hechos en esta sesión)
+### Aplicado en la misma sesión (decisión de avanzar a fondo)
 
-- **Migración DB**: `UPDATE plans SET max_appointments_per_month = NULL WHERE code IN ('independiente', 'centro_medico');` y confirmar Clínica ya en NULL. Verificar también `max_members` y `max_doctor_members` de Clínica vs PRD (15/10).
-- **Sync landing y `/select-plan`**: como leen de DB, se arreglan automáticamente al aplicar la migración. Verificar visualmente post-migración.
-- **`hooks/use-plan.ts` / `lib/plan/check-limit.ts`**: confirmar que tratan `null` como ilimitado en el bucket `appointments` (debería ser ya el comportamiento, dado que appointments NO está en el soft-wall enforced).
+Tras un segundo round de revisión y a pedido del founder ("vamos a hacer toda la modificación"), se completó el alineamiento end-to-end en la misma sesión:
 
-### Por qué no se aplicó todo en esta sesión
+**Migración aplicada** (`supabase/migrations/162_unlimited_appointments_and_clinica_seats.sql`):
 
-Antes del demo con clientes reales conviene una pasada de revisión humana sobre la migración SQL — un `UPDATE` a `plans` afecta a cualquier organización viva. Se separa en dos commits para que la migración tenga su propio diff revisable.
+```sql
+-- Citas ilimitadas en Independiente y Centro Médico (Clínica ya estaba en NULL)
+UPDATE plans
+SET max_appointments_per_month = NULL
+WHERE slug IN ('independiente', 'professional');
+
+-- Clínica: asientos totales y bucket de doctores alineados al PRD
+UPDATE plans
+SET max_members = 15,
+    max_doctor_members = 10
+WHERE slug = 'enterprise';
+```
+
+Los `UPDATE` solo aflojan límites (NULL = ilimitado, o suben el tope), por lo que ninguna organización viva queda por encima de su límite tras la migración.
+
+**Hallazgos adicionales durante la auditoría**:
+
+| Campo | DB antes | PRD | Acción |
+|---|---|---|---|
+| `max_appointments_per_month` (Independiente) | 100 | ilimitado | → `NULL` |
+| `max_appointments_per_month` (Centro Médico) | 500 | ilimitado | → `NULL` |
+| `max_members` (Clínica) | **14** | 15 | → 15 (faltaba contar al owner) |
+| `max_doctor_members` (Clínica) | **3** ⚠️ | 10 | → 10 (era copy-paste de Centro; bug visible: `/select-plan` y `/plans` mostraban "3 doctores" en Clínica vía `buildFeatures(plan) = max_doctor_members ?? max_doctors`) |
+
+**Sync de superficies frontend**:
+
+- `/select-plan` y `/plans` (dashboard): leen de DB vía `usePlan()` / `/api/plans`. Ya manejaban `null → "Citas ilimitadas"`. Sin cambio de código requerido — el efecto se observa al recargar.
+- **Landing (`components/landing/pricing.tsx`)**: hardcodeada. Tres ajustes:
+  - Bullet "Citas ilimitadas" agregado a los 3 planes (Independiente, Centro Médico, Clínica) — antes no se mencionaban citas en ningún plan.
+  - Clínica: "10 doctores · 7 consultorios" → "10 doctores · 10 consultorios" (la DB siempre dijo 10, era error en la landing).
+  - Clínica: "Recepcionistas ilimitadas" → "Hasta 3 recepcionistas (15 miembros totales)" (la DB siempre dijo 3 recepcionistas + 15 miembros máx, era error en la landing).
+- **Upgrade banners hardcodeados** (`/admin/members`, `/admin/offices`): los rótulos "100 citas/mes" y "500 citas/mes" en las comparativas Indep→Centro Médico se reemplazaron por "Citas ilimitadas" en ambos lados (también las que decían "500" en el banner del lado destino).
+- **`components/plan-limit-warner.tsx`**: removido `appointments_this_month` de la lista de recursos evaluados. Antes ya hacía skip cuando `limit === null` (era defensivo), pero queda explícito que las citas no se warneean.
+- **Account page `/account`**: el medidor de "Citas este mes" sigue mostrando uso (ej. `42/∞`) sin barra amenazante. Se mantiene como métrica informativa, no como countdown.
+
+**Por qué se decidió aplicar todo junto**:
+
+El análisis de la DB reveló que las inconsistencias eran más profundas que solo el cap de citas (los `max_members=14` y `max_doctor_members=3` de Clínica son bugs serios que ya rompían la UI de `/select-plan` y `/plans` mostrando "3 doctores" en el plan que cobra "10 doctores"). Antes de demos con clientes reales, dejar esos bugs visibles era un riesgo mayor que el de aplicar una migración con scope reducido y reversible.
+
+**Verificación post-aplicación**:
+
+- `SELECT slug, max_appointments_per_month, max_members, max_doctor_members FROM plans` retorna NULL en citas para los 3 planes, y 15/10 para Clínica.
+- `/select-plan` debería mostrar "Citas ilimitadas" en los 3 planes y "10 doctores" en Clínica.
+- Landing `/` (sección `#pricing`) debería mostrar "Citas ilimitadas" como nuevo bullet en los 3 planes.
