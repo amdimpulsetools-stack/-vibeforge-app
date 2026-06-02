@@ -4458,3 +4458,13 @@ UPDATE plans SET max_members = 2, max_receptionists = 1
 - `/admin/members` upgrade banner: Indep "0 recepcionistas" → "1 recepcionista".
 - `plan-limit-warner.tsx`: `patients` removido de `RESOURCE_LABELS` y del array de recursos chequeados — ya no emite toasts cuando los pacientes acumulados se acercan al "cap" (que ahora es NULL de todas formas).
 - `/select-plan` y `/plans`: leen de DB, se reflejan automáticamente al recargar.
+
+#### Tercera revisión: 1 consultorio por defecto al crear org (migración 164)
+
+> *"Al crear la organización de Independiente, por defecto se añaden 2 consultorios, debería ser 1 solo en plan Independiente."*
+
+El trigger `handle_new_user` (mig 154, sección 8) sembraba 2 consultorios fijos (`Consultorio 1` + `Consultorio 2`) para TODA org nueva. Como Independiente permite `max_offices = 1` y los consultorios SÍ están enforced (`app/api/offices/route.ts:79`), una org Independiente nacía en 2/1 — ya sobre el límite — y el upgrade-warner la marcaba desde el día uno.
+
+El plan no se conoce en el signup (se elige luego en `/select-plan`), así que el trigger no puede ser plan-aware. Fix en `supabase/migrations/164_seed_single_default_office.sql`: `CREATE OR REPLACE` del trigger sembrando **1 solo consultorio** (`Consultorio principal`). Todos los planes permiten ≥1; el usuario crea más si su plan lo admite.
+
+> ⚠️ **Pendiente (no aplicado):** 9 orgs creadas bajo el trigger viejo ya tienen 2+ consultorios. No se hizo backfill automático porque el segundo consultorio puede tener citas/bloqueos asociados (borrado destructivo) y no todas son plan Independiente. Requiere decisión del founder si se quiere limpiar selectivamente.
