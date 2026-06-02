@@ -137,11 +137,15 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
   function MarketingReport({ appointments, patients, dateFrom, dateTo }, ref) {
   const { t } = useLanguage();
 
-  // Origin distribution (from appointments)
+  // Origin distribution. The canonical source is patients.origin — the
+  // marketing channel belongs to the patient (how they found the clinic),
+  // not to a single appointment. Fall back to appointments.origin only for
+  // legacy rows where the patient has none yet (no link to patient, or
+  // patient was created before we started capturing origin).
   const originData = useMemo(() => {
     const map = new Map<string, number>();
     appointments.forEach((a) => {
-      const origin = a.origin || "Sin origen";
+      const origin = a.patients?.origin || a.origin || "Sin origen";
       map.set(origin, (map.get(origin) ?? 0) + 1);
     });
     return Array.from(map.entries())
@@ -177,11 +181,12 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
     };
   }, [appointments]);
 
-  // Conversion by origin
+  // Conversion by origin — same patients.origin > appointments.origin
+  // precedence as originData so both charts agree.
   const conversionByOrigin = useMemo(() => {
     const map = new Map<string, { total: number; completed: number }>();
     appointments.forEach((a) => {
-      const origin = a.origin || "Sin origen";
+      const origin = a.patients?.origin || a.origin || "Sin origen";
       if (!map.has(origin)) map.set(origin, { total: 0, completed: 0 });
       const entry = map.get(origin)!;
       if (a.status !== "cancelled") entry.total++;

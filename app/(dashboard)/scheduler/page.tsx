@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import { useLanguage } from "@/components/language-provider";
@@ -441,6 +441,23 @@ export default function SchedulerPage() {
     services.length === 0 &&
     totalApptCount === 0;
 
+  // Measure the scrollable grid container so DayView/WeekView can stretch
+  // rows to fill the viewport on short schedules (e.g. 7am–2pm) instead of
+  // leaving a blank gap. Long schedules keep scrolling as before. Declared
+  // before the early-return below per the rules of hooks.
+  const gridScrollRef = useRef<HTMLDivElement | null>(null);
+  const [gridContainerHeight, setGridContainerHeight] = useState(0);
+  useEffect(() => {
+    const el = gridScrollRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      const e = entries[0];
+      if (e) setGridContainerHeight(e.contentRect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   if (showFirstTimeEmpty) {
     return <EmptyStateScheduler />;
   }
@@ -470,7 +487,7 @@ export default function SchedulerPage() {
           onOfficeFilterChange={handleOfficeFilterChange}
         />
 
-        <div className="flex-1 overflow-auto">
+        <div ref={gridScrollRef} className="flex-1 overflow-auto">
           {viewMode === "day" ? (
             <DayView
               date={currentDate}
@@ -484,6 +501,7 @@ export default function SchedulerPage() {
               onAppointmentClick={handleAppointmentClick}
               onAppointmentDrop={handleAppointmentDrop}
               onUnblock={handleUnblock}
+              containerHeight={gridContainerHeight}
             />
           ) : (
             <WeekView
@@ -496,6 +514,7 @@ export default function SchedulerPage() {
               currentDoctorId={isDoctor ? currentDoctorId : null}
               onSlotClick={handleSlotClick}
               onAppointmentClick={handleAppointmentClick}
+              containerHeight={gridContainerHeight}
             />
           )}
         </div>

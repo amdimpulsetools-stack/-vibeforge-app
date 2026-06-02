@@ -125,6 +125,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [customField1, setCustomField1] = useState(patient.custom_field_1 ?? "");
   const [customField2, setCustomField2] = useState(patient.custom_field_2 ?? "");
   const [referralSource, setReferralSource] = useState(patient.referral_source ?? "");
+  // patient.origin is the structured marketing channel (lookup-backed: TikTok,
+  // Instagram, …). Lives next to the free-text referral_source in the
+  // Marketing tab so the recepcionista can capture both — the channel for
+  // reports + the detail for context. Lookup options are fetched on mount.
+  const [marketingOrigin, setMarketingOrigin] = useState(patient.origin ?? "");
+  const [originOptions, setOriginOptions] = useState<{ label: string }[]>([]);
   const [savingMarketing, setSavingMarketing] = useState(false);
 
   // Clinical notes
@@ -206,7 +212,27 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     setCustomField1(patient.custom_field_1 ?? "");
     setCustomField2(patient.custom_field_2 ?? "");
     setReferralSource(patient.referral_source ?? "");
+    setMarketingOrigin(patient.origin ?? "");
   }, [patient]);
+
+  // Fetch active 'origin' lookup values (org-scoped) once for the Marketing
+  // tab dropdown. Matches the convention used by the appointment form: the
+  // select binds value={label} and stores the label string into patients.origin.
+  useEffect(() => {
+    const supabase = createClient();
+    supabase
+      .from("lookup_values")
+      .select("label, display_order, lookup_categories!inner(slug)")
+      .eq("lookup_categories.slug", "origin")
+      .eq("is_active", true)
+      .or(`organization_id.is.null,organization_id.eq.${patient.organization_id}`)
+      .order("display_order")
+      .then(({ data }) => {
+        setOriginOptions(
+          (data ?? []).map((v: { label: string }) => ({ label: v.label }))
+        );
+      });
+  }, [patient.organization_id]);
 
   // Financial calculations
   const totalServiceCost = appointments
@@ -300,6 +326,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         custom_field_1: customField1 || null,
         custom_field_2: customField2 || null,
         referral_source: referralSource || null,
+        origin: marketingOrigin || null,
       })
       .eq("id", patient.id);
 
@@ -1194,12 +1221,27 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                 />
               </div>
               <div className="space-y-1.5">
+                <label className="text-xs font-medium">{t("scheduler.origin")}</label>
+                <select
+                  value={marketingOrigin}
+                  onChange={(e) => setMarketingOrigin(e.target.value)}
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                >
+                  <option value="">--</option>
+                  {originOptions.map((o) => (
+                    <option key={o.label} value={o.label}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5">
                 <label className="text-xs font-medium">{t("patients.referral_source")}</label>
                 <input
                   value={referralSource}
                   onChange={(e) => setReferralSource(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-                  placeholder="TikTok, Instagram, Referido..."
+                  placeholder="Recomendación de Dra. X, paciente recurrente..."
                 />
               </div>
             </div>
