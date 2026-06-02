@@ -461,7 +461,7 @@ export function AppointmentFormModal({
     const supabase = createClient();
     const { data } = await supabase
       .from("patients")
-      .select("id, first_name, last_name, phone, email, birth_date, document_type, departamento, distrito, dni, is_recurring, organization_id")
+      .select("id, first_name, last_name, phone, email, birth_date, document_type, departamento, distrito, dni, is_recurring, origin, organization_id")
       .eq("dni", dni.trim())
       .single();
 
@@ -474,6 +474,11 @@ export function AppointmentFormModal({
       setValue("patient_name", data.first_name);
       setValue("patient_last_name", data.last_name);
       setValue("patient_phone", data.phone ?? "");
+      // Prefill the appointment's origin from the patient's registered origin
+      // so we don't lose/overwrite how the clinic acquired this patient. The
+      // value matches a lookup option (e.g. 'tiktok'); if the patient has no
+      // origin on file, leave the field untouched ("").
+      if (data.origin) setValue("origin", data.origin);
       setPatientEmail(data.email ?? "");
       setPatientBirthDate(data.birth_date ?? "");
       if (data.document_type) setDocType(data.document_type as "DNI" | "CE" | "Pasaporte");
@@ -663,11 +668,15 @@ export function AppointmentFormModal({
         .eq("id", patientId);
     }
 
-    // Update departamento/distrito for found patient if they didn't have them
+    // Backfill departamento/distrito/origin for a found patient if they didn't
+    // have them yet. "Fill if missing, never overwrite" — the patient record is
+    // the source of truth, so once an origin is on file we leave it alone. This
+    // is what lets the next appointment prefill the Origen instead of losing it.
     if (patientId && foundPatient) {
       const updates: Record<string, string> = {};
       if (patientDepartamento && !foundPatient.departamento) updates.departamento = patientDepartamento;
       if (patientDistrito && !foundPatient.distrito) updates.distrito = patientDistrito;
+      if (values.origin && !foundPatient.origin) updates.origin = values.origin;
       if (Object.keys(updates).length > 0) {
         await supabase.from("patients").update(updates).eq("id", patientId);
       }

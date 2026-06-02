@@ -4507,3 +4507,20 @@ Resultado: las orgs onboarded por el wizard quedaban con el addon `enabled=true`
 **Fix #3 (red de seguridad):** como el seed es best-effort (los warnings se tragan), agregado un health-check visible. Nuevo `POST /api/admin/fertility/repair-seed` (owner/admin, gateado a orgs con el addon activo) que re-corre `seedFertilityAddon` idempotente y devuelve el conteo de reglas. La pantalla "Configuración inicial" (`canonical-mapping/mapping-form.tsx`) ahora consulta `GET /api/admin/fertility/rules` al cargar y, si hay **0 reglas activas**, muestra un banner rojo "El motor de seguimientos no tiene reglas configuradas" con botón "Reparar ahora". Así cualquier org futura que caiga en un edge case (seed falló parcialmente) tiene auto-reparación sin soporte.
 
 **Aclaración de alcance (servicios vs. seguimientos):** `seed_fertility_services` siembra los **6 servicios TRA de tratamiento** (FIV/IIU/ROPA/Crio/Ovodonación/TED) + tiers — NO siembra servicios de consulta ni crea mapeos canónicos. Las reglas de seguimiento disparan sobre `fertility.first_consultation`/`second_consultation`, que el owner debe mapear manualmente en la pantalla "Configuración inicial" a sus propios servicios de consulta. Es decir: con el fix las reglas ya existen, pero seguimientos sigue requiriendo (a) servicios de consulta y (b) su mapeo — paso manual **por diseño** (el sistema no puede adivinar cuál de los servicios de la org es "primera consulta").
+
+#### Séptima revisión: Origen del paciente no se prellenaba en la ficha de cita
+
+> *Dra. Patricia: en la ficha de la cita no se carga el Origen del paciente ya registrado; debe mostrarse para no sobreescribir información.*
+
+**Root cause (dos capas):**
+1. Al buscar un paciente por DNI en el form de cita, se prellenaban nombre/teléfono/email/nacimiento/ubicación pero **no `origin`** — el SELECT ni lo traía.
+2. Más de fondo: `patients.origin` casi nunca se poblaba. El form de registro de paciente no tiene campo Origen, y el submit de cita escribía `origin` solo en la cita (`appointments.origin`), nunca de vuelta al paciente — a diferencia de `birth_date`/`departamento`/`distrito`, que sí se backfillean al paciente si le faltan.
+
+**Fixes (appointment-form-modal.tsx):**
+- **Prefill:** el SELECT del paciente ahora incluye `origin` y hace `setValue("origin", data.origin)` al encontrarlo.
+- **Backfill:** al crear una cita para un paciente existente sin origen, se persiste `values.origin` a `patients.origin` (mismo idiom "fill if missing, never overwrite" de los otros campos). Así el origen se establece una vez y se prellena en todas las citas siguientes.
+- **Consistencia:** el sistema guarda el **label** como valor de origen (`appointments.origin = 'TikTok'`, no `'tiktok'`, porque el `<option value={o.label}>`); prefill y backfill respetan esa convención, así que la opción matchea.
+
+**Data fix (prod, org de Patricia):** backfill retroactivo de `patients.origin` desde la **primera cita** con origen de cada paciente (solo donde era null). 5 pacientes poblados — el prefill funciona de inmediato, sin esperar una cita nueva.
+
+**Pendiente ofrecido (no aplicado):** el form de registro de paciente sigue sin campo Origen (la página de pacientes ya fetchea los lookups pero no los pasa al modal). Hoy el origen se captura en la primera cita, que es un punto natural; agregar el campo al registro es un enhancement aparte. También se detectó que la página de pacientes mapea origins como `{label, value: label}` (usa label como value) — consistente con la convención label-as-value pero vale la pena unificar a futuro.
