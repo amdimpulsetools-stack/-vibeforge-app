@@ -751,6 +751,18 @@ export function AppointmentSidebar({
       return;
     }
 
+    // Propagate the edited origin back to the patient. Use case: recepcionista
+    // asks "¿cómo nos conoció?" when the patient checks in and types the
+    // answer here. The origin lives on the patient record so it stays attached
+    // to all their future visits and to /reports analytics. Always overwrite —
+    // the user just typed this in an explicit edit, so it's the freshest signal.
+    if (appointment.patient_id && editOrigin && editOrigin !== (appointment.origin ?? "")) {
+      await supabase
+        .from("patients")
+        .update({ origin: editOrigin })
+        .eq("id", appointment.patient_id);
+    }
+
     // Send "meeting link changed" notification if URL was updated
     if (newMeetingUrl && newMeetingUrl !== oldMeetingUrl) {
       sendNotification({

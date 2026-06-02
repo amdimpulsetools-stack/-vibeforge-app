@@ -160,6 +160,33 @@ export function generateTimeSlots(startHour: number, endHour: number, interval: 
   return slots;
 }
 
+/**
+ * Returns how many pixels each time slot should occupy in the calendar grid.
+ *
+ * Orgs with short business hours (e.g. 7am–2pm) used to render with a big
+ * blank gap below the last appointment because the grid had a fixed
+ * `baseSlotHeight` per slot regardless of viewport. This helper expands the
+ * slot height to fill the available container when the natural content
+ * (totalSlots × baseSlotHeight) is shorter than the viewport, and otherwise
+ * keeps the base so a long schedule still scrolls.
+ *
+ * `headerHeight` is the calendar's sticky header (office/day names) that
+ * lives inside the same scroll container and must be subtracted from the
+ * available space.
+ */
+export function computeSlotHeight(
+  containerHeight: number,
+  totalSlots: number,
+  baseSlotHeight: number,
+  headerHeight: number
+): number {
+  if (totalSlots <= 0 || containerHeight <= 0) return baseSlotHeight;
+  const available = containerHeight - headerHeight;
+  const natural = totalSlots * baseSlotHeight;
+  if (available <= natural) return baseSlotHeight;
+  return available / totalSlots;
+}
+
 // Hour options for selects (0–23)
 export function getHourOptions(from = 0, to = 23) {
   return Array.from({ length: to - from + 1 }, (_, i) => {

@@ -53,7 +53,7 @@ export default function ReportsPage() {
     const [apptRes, payRes, patRes] = await Promise.all([
       supabase
         .from("appointments")
-        .select("*, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)")
+        .select("*, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price), patients(id, origin)")
         .gte("appointment_date", dateFrom)
         .lte("appointment_date", dateTo)
         .order("appointment_date"),

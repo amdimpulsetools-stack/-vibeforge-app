@@ -7,7 +7,13 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Lock, LockOpen, Coffee, CircleDollarSign, CheckCircle2, Video, AlertTriangle } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
+
+/** Minimum px per slot in the day view. */
+const DAY_BASE_SLOT_HEIGHT = 40;
+/** Sticky office-name header rendered inside the scroll container (must be
+ * subtracted from container height when distributing rows). py-3 + text-sm. */
+const DAY_HEADER_HEIGHT = 44;
 import { RecurringDot } from "@/components/patients/recurring-badge";
 
 interface DayViewProps {
@@ -23,6 +29,9 @@ interface DayViewProps {
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
   onAppointmentDrop?: (appointmentId: string, date: Date, time: string, officeId: string) => void;
   onUnblock?: (blockId: string) => void;
+  /** Height of the scroll container the view lives in. When set, rows grow
+   * to fill it for short schedules; falsy → falls back to base slot height. */
+  containerHeight?: number;
 }
 
 
@@ -154,6 +163,7 @@ export function DayView({
   onAppointmentClick,
   onAppointmentDrop,
   onUnblock,
+  containerHeight,
 }: DayViewProps) {
   const { t } = useLanguage();
   const dateStr = format(date, "yyyy-MM-dd");
@@ -170,6 +180,14 @@ export function DayView({
   const TIME_SLOTS = useMemo(
     () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, getActiveInterval(schedulerConfig)),
     [schedulerConfig]
+  );
+
+  // Auto-size rows so short schedules (e.g. 7am–2pm) fill the viewport
+  // instead of leaving a big blank gap below. Long schedules keep the base
+  // height and scroll as before.
+  const slotHeight = useMemo(
+    () => computeSlotHeight(containerHeight ?? 0, TIME_SLOTS.length, DAY_BASE_SLOT_HEIGHT, DAY_HEADER_HEIGHT),
+    [containerHeight, TIME_SLOTS.length]
   );
 
   // PERF: pre-built indices for O(1) per-cell appointment/occupied lookups.
@@ -196,8 +214,7 @@ export function DayView({
   const gridEndMinutes = schedulerConfig.endHour * 60;
   const timeLineVisible =
     showTimeIndicator && isToday && currentMinutes >= gridStartMinutes && currentMinutes < gridEndMinutes;
-  // Each slot is 40px tall; interval defines minutes-per-slot
-  const timeLineTop = ((currentMinutes - gridStartMinutes) / getActiveInterval(schedulerConfig)) * 40;
+  const timeLineTop = ((currentMinutes - gridStartMinutes) / getActiveInterval(schedulerConfig)) * slotHeight;
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -291,7 +308,7 @@ export function DayView({
                   const [slotH, slotM] = time.split(":").map(Number);
                   const slotStartMin = slotH * 60 + slotM;
                   const offsetMinutes = startMinutes - slotStartMin;
-                  const offsetPx = (offsetMinutes / interval) * 40;
+                  const offsetPx = (offsetMinutes / interval) * slotHeight;
 
                   // Doctor role: other doctors' appointments are desaturated & non-interactive
                   const isOtherDoctorAppt = currentDoctorId != null && startAppt.doctor_id !== currentDoctorId;
@@ -300,7 +317,7 @@ export function DayView({
                     <div
                       key={office.id}
                       className="relative flex-1 border-r border-border p-0.5"
-                      style={{ height: `${40}px` }}
+                      style={{ height: `${slotHeight}px` }}
                       onDragOver={(e) => {
                         e.preventDefault();
                         setDragOverSlot({ time, officeId: office.id });
@@ -333,7 +350,7 @@ export function DayView({
                         )}
                         style={{
                           top: `${offsetPx + 2}px`,
-                          height: `${durationSlots * 40 - 4}px`,
+                          height: `${durationSlots * slotHeight - 4}px`,
                           backgroundColor: hexToPastel(doctorColor, 0.18),
                           borderLeft: `4px solid ${doctorColor}`,
                           ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
@@ -387,7 +404,7 @@ export function DayView({
                     <div
                       key={office.id}
                       className="flex-1 border-r border-border"
-                      style={{ height: "40px" }}
+                      style={{ height: `${slotHeight}px` }}
                     />
                   );
                 }
@@ -406,7 +423,7 @@ export function DayView({
                     <div
                       key={office.id}
                       className="relative flex-1 border-r border-border"
-                      style={{ height: "40px" }}
+                      style={{ height: `${slotHeight}px` }}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         setContextMenu({ x: e.clientX, y: e.clientY, blockId: block.id, reason: block.reason });
@@ -474,7 +491,7 @@ export function DayView({
                         ? "bg-primary/20 ring-1 ring-inset ring-primary"
                         : "hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
                     )}
-                    style={{ height: "40px" }}
+                    style={{ height: `${slotHeight}px` }}
                     onClick={() => onSlotClick(date, time, office.id)}
                     onDragOver={(e) => {
                       e.preventDefault();

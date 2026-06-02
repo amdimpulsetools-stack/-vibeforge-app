@@ -4507,3 +4507,49 @@ Resultado: las orgs onboarded por el wizard quedaban con el addon `enabled=true`
 **Fix #3 (red de seguridad):** como el seed es best-effort (los warnings se tragan), agregado un health-check visible. Nuevo `POST /api/admin/fertility/repair-seed` (owner/admin, gateado a orgs con el addon activo) que re-corre `seedFertilityAddon` idempotente y devuelve el conteo de reglas. La pantalla "Configuración inicial" (`canonical-mapping/mapping-form.tsx`) ahora consulta `GET /api/admin/fertility/rules` al cargar y, si hay **0 reglas activas**, muestra un banner rojo "El motor de seguimientos no tiene reglas configuradas" con botón "Reparar ahora". Así cualquier org futura que caiga en un edge case (seed falló parcialmente) tiene auto-reparación sin soporte.
 
 **Aclaración de alcance (servicios vs. seguimientos):** `seed_fertility_services` siembra los **6 servicios TRA de tratamiento** (FIV/IIU/ROPA/Crio/Ovodonación/TED) + tiers — NO siembra servicios de consulta ni crea mapeos canónicos. Las reglas de seguimiento disparan sobre `fertility.first_consultation`/`second_consultation`, que el owner debe mapear manualmente en la pantalla "Configuración inicial" a sus propios servicios de consulta. Es decir: con el fix las reglas ya existen, pero seguimientos sigue requiriendo (a) servicios de consulta y (b) su mapeo — paso manual **por diseño** (el sistema no puede adivinar cuál de los servicios de la org es "primera consulta").
+
+#### Séptima revisión: Origen del paciente no se prellenaba en la ficha de cita
+
+> *Dra. Patricia: en la ficha de la cita no se carga el Origen del paciente ya registrado; debe mostrarse para no sobreescribir información.*
+
+**Root cause (dos capas):**
+1. Al buscar un paciente por DNI en el form de cita, se prellenaban nombre/teléfono/email/nacimiento/ubicación pero **no `origin`** — el SELECT ni lo traía.
+2. Más de fondo: `patients.origin` casi nunca se poblaba. El form de registro de paciente no tiene campo Origen, y el submit de cita escribía `origin` solo en la cita (`appointments.origin`), nunca de vuelta al paciente — a diferencia de `birth_date`/`departamento`/`distrito`, que sí se backfillean al paciente si le faltan.
+
+**Fixes (appointment-form-modal.tsx):**
+- **Prefill:** el SELECT del paciente ahora incluye `origin` y hace `setValue("origin", data.origin)` al encontrarlo.
+- **Backfill:** al crear una cita para un paciente existente sin origen, se persiste `values.origin` a `patients.origin` (mismo idiom "fill if missing, never overwrite" de los otros campos). Así el origen se establece una vez y se prellena en todas las citas siguientes.
+- **Consistencia:** el sistema guarda el **label** como valor de origen (`appointments.origin = 'TikTok'`, no `'tiktok'`, porque el `<option value={o.label}>`); prefill y backfill respetan esa convención, así que la opción matchea.
+
+**Data fix (prod, org de Patricia):** backfill retroactivo de `patients.origin` desde la **primera cita** con origen de cada paciente (solo donde era null). 5 pacientes poblados — el prefill funciona de inmediato, sin esperar una cita nueva.
+
+**Pendiente ofrecido (no aplicado):** el form de registro de paciente sigue sin campo Origen (la página de pacientes ya fetchea los lookups pero no los pasa al modal). Hoy el origen se captura en la primera cita, que es un punto natural; agregar el campo al registro es un enhancement aparte. También se detectó que la página de pacientes mapea origins como `{label, value: label}` (usa label como value) — consistente con la convención label-as-value pero vale la pena unificar a futuro.
+
+#### Octava revisión: scheduler auto-size + Origen editable en ficha de paciente + reports por patient.origin
+
+Tres pedidos del founder en un solo bloque, todos enraizados en consistencia del campo "Origen" y UX del calendario.
+
+**(1) Scheduler auto-size de filas (`lib/scheduler-config.ts` + `day-view.tsx` + `week-view.tsx` + `page.tsx`)**
+
+Orgs con horarios cortos (ej. Dra. Patricia atiende 7am–2pm) veían un espacio en blanco enorme bajo el calendario porque las filas tenían altura fija (40px en day view, 32px en week view) sin importar el rango configurado. Fix:
+
+- Nuevo helper `computeSlotHeight(containerHeight, totalSlots, baseSlotHeight, headerHeight)` en `lib/scheduler-config.ts`: si el contenido natural (`totalSlots × base`) cabe en el viewport, expande las filas para llenarlo; si no cabe, conserva la base y deja que haga scroll (horarios largos siguen funcionando igual).
+- `page.tsx` mide el container scrollable con `ResizeObserver` (hooks declarados antes del early-return por la regla de hooks) y pasa `containerHeight` a `DayView` / `WeekView`.
+- Cada vista derive su propio `slotHeight` con sus constantes (`DAY_BASE_SLOT_HEIGHT=40` + `DAY_HEADER_HEIGHT=44`; `WEEK_BASE_SLOT_HEIGHT=32` + `WEEK_HEADER_HEIGHT=56`) y reemplaza los hardcoded — incluyendo el indicador de hora actual, los offsets de citas no alineadas y la altura de los event blocks (que escalan proporcionalmente con `durationSlots * slotHeight - 4`, así una cita de 1h sigue ocupando 1h visual).
+
+**(2) Origen editable desde la ficha del paciente y propagación desde la sidebar de cita**
+
+`patients.origin` (canal de marketing estructurado, lookup-backed) y `patients.referral_source` (texto libre "viene desde") son campos **distintos** pero hasta hoy solo `referral_source` era editable post-registro (en el tab Marketing del drawer); `origin` solo se mostraba read-only en la sección Info y se editaba en `appointments.origin` por cita. Resultado: el founder no podía actualizar el canal de origen del paciente desde la ficha. Cambios:
+
+- **Patient drawer / Marketing tab** (`app/(dashboard)/patients/patient-drawer.tsx`): nuevo `<select>` "Origen" cargado con `lookup_values` activos (org-scoped, `slug='origin'`), respeta la convención label-as-value del sistema. Persiste en `handleSaveMarketing` junto con `referral_source` y los custom fields. Placeholder de "Viene desde" reescrito a "Recomendación de Dra. X, paciente recurrente..." para reforzar la separación semántica (canal estructurado vs nota libre).
+- **Appointment sidebar / botón editar** (`app/(dashboard)/scheduler/appointment-sidebar.tsx`): `handleSaveEdit` ahora propaga `editOrigin` a `patients.origin` cuando el paciente está vinculado y el valor cambió. Use case del founder: la recepcionista pregunta "¿cómo nos conoció?" al check-in y lo registra ahí mismo. **Siempre sobreescribe** (a diferencia del backfill silencioso del scheduler, que sí respeta "fill if missing") porque es una edición explícita.
+
+**(3) Reports agrupan por `patients.origin` con fallback a `appointments.origin`**
+
+El origen es **del paciente** (cómo nos conoció), no de la cita. Pero `marketing-report.tsx` (líneas 141-150 y 181-199) y el RPC `get_report_metrics_for_ai` (mig 056, bloque `'origins'`) agrupaban por `appointments.origin`, dando estadísticas inconsistentes cuando una misma persona registraba diferentes orígenes en sus citas o cuando el origen estaba poblado en el paciente pero no en algunas citas. Cambios:
+
+- **`app/(dashboard)/reports/page.tsx`**: el SELECT de appointments incluye ahora `patients(id, origin)`.
+- **`app/(dashboard)/reports/marketing-report.tsx`**: `originData` y `conversionByOrigin` agrupan por `a.patients?.origin || a.origin || "Sin origen"`. El fallback cubre citas legacy donde el patient aún no tiene origen sembrado.
+- **Migración 165** (`get_report_metrics_for_ai`): `CREATE OR REPLACE` con `LEFT JOIN patients` y `GROUP BY COALESCE(p.origin, a.origin, 'Sin origen')` en el bloque `'origins'`. Resto de la función verbatim. Verificado end-to-end con datos reales de la org de Patricia: el RPC ahora reporta `Google=2 / Instagram=2 / TikTok=2` (alineado con el backfill retroactivo del paciente), mientras que antes reportaba conteos basados en `appointments.origin` que estaban desbalanceados respecto al canal real.
+
+Convención respetada en los 3 cambios: el sistema guarda el **label** del lookup como valor de origen (`patients.origin = 'TikTok'`, no `'tiktok'`), así que el select del drawer y el dropdown del scheduler funcionan con el mismo dataset.

@@ -8,7 +8,12 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign, Video } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
-import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
+
+/** Minimum px per slot in the week view (denser than day view). */
+const WEEK_BASE_SLOT_HEIGHT = 32;
+/** Sticky day-of-week header inside the scroll container. py-2 + 2 text rows + badge. */
+const WEEK_HEADER_HEIGHT = 56;
 import { RecurringDot } from "@/components/patients/recurring-badge";
 
 interface WeekViewProps {
@@ -22,6 +27,9 @@ interface WeekViewProps {
   currentDoctorId?: string | null;
   onSlotClick: (date: Date, time: string, officeId: string) => void;
   onAppointmentClick: (appointment: AppointmentWithRelations) => void;
+  /** Height of the scroll container the view lives in. When set, rows grow
+   * to fill it for short schedules; falsy → falls back to base slot height. */
+  containerHeight?: number;
 }
 
 /** Create a light pastel by blending a hex color with white. */
@@ -68,6 +76,7 @@ export function WeekView({
   currentDoctorId,
   onSlotClick,
   onAppointmentClick,
+  containerHeight,
 }: WeekViewProps) {
   const { t } = useLanguage();
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -81,6 +90,13 @@ export function WeekView({
   const TIME_SLOTS = useMemo(
     () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, getActiveInterval(schedulerConfig)),
     [schedulerConfig]
+  );
+
+  // Auto-size rows so short schedules fill the viewport instead of leaving a
+  // blank gap below. Long schedules keep base height + scroll.
+  const slotHeight = useMemo(
+    () => computeSlotHeight(containerHeight ?? 0, TIME_SLOTS.length, WEEK_BASE_SLOT_HEIGHT, WEEK_HEADER_HEIGHT),
+    [containerHeight, TIME_SLOTS.length]
   );
 
   const getAppointmentsForDay = (date: Date) => {
@@ -173,7 +189,7 @@ export function WeekView({
                     <div
                       key={day.toISOString()}
                       className="relative flex-1 border-r border-border bg-muted/40"
-                      style={{ height: "32px" }}
+                      style={{ height: `${slotHeight}px` }}
                     >
                       <div
                         className="absolute inset-0"
@@ -199,7 +215,7 @@ export function WeekView({
                     <div
                       key={day.toISOString()}
                       className="relative flex-1 border-r border-border"
-                      style={{ height: "32px" }}
+                      style={{ height: `${slotHeight}px` }}
                     >
                       <div
                         className="absolute inset-0 flex items-center justify-center"
@@ -269,7 +285,7 @@ export function WeekView({
                         "relative flex-1 border-r border-border p-0.5",
                         today && "bg-primary/5"
                       )}
-                      style={{ height: "32px" }}
+                      style={{ height: `${slotHeight}px` }}
                     >
                       <button
                         onClick={() => onAppointmentClick(startAppt)}
@@ -281,7 +297,7 @@ export function WeekView({
                           selectedAppointmentId === startAppt.id && !isOtherDoctorAppt && "ring-2 ring-primary shadow-lg z-[6]"
                         )}
                         style={{
-                          height: `${durationSlots * 32 - 4}px`,
+                          height: `${durationSlots * slotHeight - 4}px`,
                           backgroundColor: hexToPastel(doctorColor, 0.18),
                           borderLeft: `4px solid ${doctorColor}`,
                           ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
@@ -341,7 +357,7 @@ export function WeekView({
                         "flex-1 border-r border-border",
                         today && "bg-primary/5"
                       )}
-                      style={{ height: "32px" }}
+                      style={{ height: `${slotHeight}px` }}
                     />
                   );
                 }
@@ -353,7 +369,7 @@ export function WeekView({
                       "group relative flex-1 cursor-pointer border-r border-border transition-colors hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10",
                       today && "bg-primary/5"
                     )}
-                    style={{ height: "32px" }}
+                    style={{ height: `${slotHeight}px` }}
                     onClick={() =>
                       onSlotClick(day, time, offices[0]?.id ?? "")
                     }
