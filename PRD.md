@@ -79,21 +79,23 @@
 
 > **Decisiones canónicas (sticky — leer antes de la tabla):**
 > 1. **Citas: ilimitadas en los 3 planes.** Documentado en el soft-wall scope (v0.15.16, líneas ~4174-4184): el cap de citas defiende cero revenue y rompe operación al cliente; no se enforced. Cualquier número que aparezca en landing, `/select-plan` o DB (`plans.max_appointments_per_month`) debe alinearse a `NULL`/ilimitado. Si una versión histórica del PRD decía "100/mes" o "500/mes", queda obsoleta.
-> 2. **Diferenciadores reales entre planes:** seats (miembros/doctores/recepción), pacientes, consultorios, storage, AI queries, módulo Seguros (solo Clínica), reportes/export, soporte. No appointments.
-> 3. **Clínica = 15 miembros totales** (10 doctores + 3 recepción + 1 admin + 1 owner). Si la DB difiere, la DB se alinea al PRD vía migración aparte — no al revés.
-> 4. **Soft-wall actualmente enforced (v0.15.16):** members (rol-aware: admins/doctor_members/receptionists), offices. NO enforced: patients, appointments, AI queries (Phase 2), storage (Phase 2 con Dermatología).
+> 2. **Pacientes: ilimitados en los 3 planes** (2026-06-02). El cap `max_patients` era acumulado total (`count(*) FROM patients`, sin reset mensual), penalizaba a los clientes con más antigüedad sin defender ningún costo real (las filas de pacientes son baratísimas). Hoy solo emitía toasts molestos — `plan-limit-warner` ya no lo evalúa. Si una versión histórica del PRD decía "150 pacientes" o "1.000 pacientes", queda obsoleta.
+> 3. **Diferenciadores reales entre planes:** seats (miembros/doctores/recepción), consultorios, storage, AI queries, módulo Seguros (solo Clínica), reportes/export, soporte. No appointments, no patients.
+> 4. **Clínica = 15 miembros totales** (10 doctores + 3 recepción + 1 admin + 1 owner). **Centro Médico = 6 totales** (3 doctores + 2 recepción + 1 admin + 0/1 owner-as-doctor). **Independiente = 2 totales** (1 doctor + 1 recepcionista, el doctor es el owner). Si la DB difiere, la DB se alinea al PRD vía migración aparte — no al revés.
+> 5. **Soft-wall actualmente enforced (v0.15.16+):** members (rol-aware: admins/doctor_members/receptionists), offices. NO enforced: patients (cap removido), appointments, AI queries (Phase 2), storage (Phase 2 con Dermatología).
 
 ### Plan Independiente (Starter) — S/129/mes (S/1,290/año con 2 meses gratis)
-- 1 miembro, 1 doctor, 1 consultorio
-- 150 pacientes, citas ilimitadas, 100MB storage
-- Sin recepcionistas ni admins adicionales
+- 2 miembros totales: 1 doctor (owner) + 1 recepcionista
+- 1 consultorio
+- Pacientes y citas ilimitados, 100MB storage
+- Sin admins adicionales
 - Reportes básicos, AI Assistant (30 consultas/mes), sin exportación
 - Owner actúa simultáneamente como doctor (rol dual)
 - **Trial 14 días disponible**
 
 ### Plan Centro Médico (Professional) — S/349/mes (S/3,490/año con 2 meses gratis)
 - 6 miembros totales, 3 doctores, 3 consultorios, 2 recepcionistas
-- 1,000 pacientes, citas ilimitadas, 2GB storage
+- Pacientes y citas ilimitados, 2GB storage
 - 1 admin
 - Reportes + exportación + AI Assistant
 - Add-ons: S/15/consultorio extra, S/10/miembro extra
@@ -105,7 +107,7 @@
 - 10 consultorios
 - 3 recepcionistas
 - 1 admin
-- Pacientes y citas ilimitadas, 10GB storage
+- Pacientes y citas ilimitados, 10GB storage
 - Todas las features (reportes, export, AI, API, soporte prioritario)
 - Add-ons: S/12/consultorio extra, S/8/miembro extra
 - **Trial desactivado** — contratación directa (decisión 2026-04-26 para reservar el plan a clientes calificados; reactivar cuando el feature de "Reporte IA avanzado" esté listo y justifique el upgrade)
@@ -4427,3 +4429,32 @@ El análisis de la DB reveló que las inconsistencias eran más profundas que so
 - `SELECT slug, max_appointments_per_month, max_members, max_doctor_members FROM plans` retorna NULL en citas para los 3 planes, y 15/10 para Clínica.
 - `/select-plan` debería mostrar "Citas ilimitadas" en los 3 planes y "10 doctores" en Clínica.
 - Landing `/` (sección `#pricing`) debería mostrar "Citas ilimitadas" como nuevo bullet en los 3 planes.
+
+#### Segunda revisión: pacientes ilimitados + Independiente con recepción (migración 163)
+
+A pedido del founder, dos preguntas más exploradas en la misma sesión llevaron a una segunda migración:
+
+> *"Cuando dice pacientes se refiere a pacientes nuevos por mes? Porque si es total no tiene sentido. Y el plan Independiente debería tener para una recepcionista no? (caso Dra. Patricia)."*
+
+**Hallazgo sobre pacientes**: `get_org_usage` (mig 063 línea 22) cuenta `count(*) FROM patients WHERE organization_id = org_id` — total histórico sin reset. Los caps 150/1.000 penalizaban a clientes con más antigüedad sin defender ningún costo real (las filas de pacientes son baratísimas). El insert de pacientes (`patient-form-modal.tsx:73`) jamás chequea el límite — solo `plan-limit-warner` emitía toasts. PRD §5 ya documentaba "NO enforced: patients".
+
+**Hallazgo sobre recepción Independiente**: el caso del doctor independiente con secretaria es la configuración más común de consultorio individual en LATAM. Forzar el salto a Centro Médico (S/349) solo para sumar recepción era fricción innecesaria. Centro Médico sigue diferenciado por 3 doctores + reportes/export + consultorios.
+
+**Migración aplicada** (`supabase/migrations/163_unlimited_patients_and_indep_receptionist.sql`):
+
+```sql
+UPDATE plans SET max_patients = NULL
+  WHERE slug IN ('independiente', 'professional');   -- Clínica ya estaba NULL
+
+UPDATE plans SET max_members = 2, max_receptionists = 1
+  WHERE slug = 'independiente';                      -- 1 doctor + 1 recepción
+```
+
+**Sync de superficies**:
+
+- Sticky decisions del PRD §5: nuevo punto #2 "Pacientes ilimitados", #4 ampliado con totales por plan (Indep=2 / Centro=6 / Clínica=15), #5 con cap de pacientes removido.
+- Bloques de planes en PRD: Indep "1 miembro / 150 pacientes / Sin recepcionistas" → "2 miembros (1 doctor + 1 recepcionista) / Pacientes ilimitados". Centro "1.000 pacientes" → "Pacientes ilimitados".
+- Landing: bullet "Pacientes y citas ilimitados" agregado a los 3 planes (reemplaza al anterior "Citas ilimitadas" que solo cubría una mitad). Indep gana bullet "1 recepcionista / asistente".
+- `/admin/members` upgrade banner: Indep "0 recepcionistas" → "1 recepcionista".
+- `plan-limit-warner.tsx`: `patients` removido de `RESOURCE_LABELS` y del array de recursos chequeados — ya no emite toasts cuando los pacientes acumulados se acercan al "cap" (que ahora es NULL de todas formas).
+- `/select-plan` y `/plans`: leen de DB, se reflejan automáticamente al recargar.

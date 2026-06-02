@@ -19,7 +19,8 @@ const plans = [
     anchorAnnual: "Ahorra S/258 al año — 2 meses gratis",
     features: [
       "1 doctor · 1 consultorio",
-      "Citas ilimitadas",
+      "1 recepcionista / asistente",
+      "Pacientes y citas ilimitados",
       "Historia clínica SOAP + recetas",
       "Órdenes de exámenes imprimibles",
       "Recordatorios WhatsApp y email",
@@ -42,8 +43,8 @@ const plans = [
     anchorAnnual: "Ahorra S/698 al año — 2 meses gratis",
     features: [
       "3 doctores · 3 consultorios",
-      "Citas ilimitadas",
       "2 recepcionistas / asistentes",
+      "Pacientes y citas ilimitados",
       "Todo lo de Independiente, más:",
       "Reportes completos + exportación CSV",
       "Resumen diario del equipo por email",
@@ -65,8 +66,8 @@ const plans = [
     anchorAnnual: "Ahorra S/1,298 al año — 2 meses gratis",
     features: [
       "10 doctores · 10 consultorios",
-      "Citas ilimitadas",
       "Hasta 3 recepcionistas (15 miembros totales)",
+      "Pacientes y citas ilimitados",
       "Todo lo de Centro Médico, más:",
       "Todos los módulos de especialidad",
       "Onboarding personalizado 1-on-1",
