@@ -60,6 +60,48 @@ export function MappingForm() {
   const [saving, setSaving] = useState(false);
   const [mappingState, setMappingState] = useState<Record<string, string[]>>({});
   const dirtyRef = useRef(false);
+  // Health check: number of active followup_rules in the org. 0 means the
+  // seguimientos engine has no rules and will silently no-op on completed
+  // appointments — the historical onboarding-seed bug. null = unknown yet.
+  const [rulesCount, setRulesCount] = useState<number | null>(null);
+  const [repairing, setRepairing] = useState(false);
+
+  const refreshRulesCount = async () => {
+    try {
+      const res = await fetch("/api/admin/fertility/rules", { cache: "no-store" });
+      if (!res.ok) return;
+      const json = (await res.json()) as { rules?: unknown[] };
+      setRulesCount(Array.isArray(json.rules) ? json.rules.length : 0);
+    } catch {
+      // Non-fatal: leave as-is, the banner just won't render.
+    }
+  };
+
+  const handleRepair = async () => {
+    setRepairing(true);
+    try {
+      const res = await fetch("/api/admin/fertility/repair-seed", {
+        method: "POST",
+      });
+      const json = (await res.json()) as {
+        rules_count?: number;
+        error?: string;
+      };
+      if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+      setRulesCount(json.rules_count ?? null);
+      if ((json.rules_count ?? 0) > 0) {
+        toast.success("Configuración reparada. El motor de seguimientos ya tiene sus reglas.");
+      } else {
+        toast.warning("No se pudieron sembrar las reglas. Contacta a soporte.");
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Error al reparar la configuración"
+      );
+    } finally {
+      setRepairing(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -78,6 +120,8 @@ export function MappingForm() {
             .eq("is_active", true)
             .order("display_order"),
         ]);
+        // Health check runs in parallel; failure is non-fatal.
+        void refreshRulesCount();
         if (!apiRes.ok) throw new Error(`HTTP ${apiRes.status}`);
         const json = (await apiRes.json()) as CanonicalMappingApiResponse;
         if (cancelled) return;
@@ -226,6 +270,34 @@ export function MappingForm() {
 
   return (
     <div className="space-y-6">
+      {rulesCount === 0 && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+            <div className="flex-1 space-y-1">
+              <h3 className="text-sm font-semibold text-destructive">
+                El motor de seguimientos no tiene reglas configuradas
+              </h3>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Tu organización tiene el Pack Fertilidad activo, pero le faltan
+                las reglas internas que crean los seguimientos automáticos. Sin
+                ellas, completar una consulta no genera ningún seguimiento —
+                aunque tengas los servicios mapeados. Repáralo con un clic.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleRepair}
+              disabled={repairing}
+              className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-destructive px-3 py-2 text-xs font-semibold text-white hover:bg-destructive/90 disabled:opacity-50"
+            >
+              {repairing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              Reparar ahora
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.2fr_1fr] md:items-start">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">

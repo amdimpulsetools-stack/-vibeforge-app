@@ -4489,3 +4489,21 @@ El plan no se conoce en el signup, así que el trigger sigue sembrando **1** con
 - `handleReorder(fromIndex, toPosition)` mueve el ítem y renormaliza todos los `display_order` a una secuencia contigua 1..n; solo escribe las filas que cambiaron. No hay constraint único en `display_order` (solo en `value`), así que los updates secuenciales no colisionan.
 - El input "Orden" del formulario se quitó (redundante con el dropdown); `display_order` queda como hidden y sigue defaulteando a `nextOrder` para ítems nuevos.
 - `GripVertical` removido (ya no se usa). Aplica a las 3 listas (Orígenes, Métodos de Pago, Estados de Cita), incluidos los ítems del sistema — reordenar es cosmético y no toca `value`.
+
+#### Sexta revisión: bug de seguimientos de fertilidad no creados (root cause + fix sistémico)
+
+> *Dra. Patricia: vinculó 1era + 2da consulta a los mapeos pero al completar una 1era consulta no se añade a seguimientos.*
+
+**Root cause:** había **dos** rutas que habilitan el addon fertility y solo **una** sembraba las `followup_rules` per-org:
+- ✅ `POST /api/addons/[key]/activate` — clona las 3 reglas globales + servicios TRA + plantillas WhatsApp/email.
+- ❌ `POST /api/onboarding/complete` (líneas 81-96) — el wizard auto-activa addons por especialidad (`medicina-reproductiva` → `fertility_basic`) con un `upsert` pelado a `organization_addons` y **nunca** sembraba nada más.
+
+Resultado: las orgs onboarded por el wizard quedaban con el addon `enabled=true` pero **0 `followup_rules`**, así que `maybeCreateAppointmentCompletedFollowup` (lib/fertility/followup-triggers.ts:140) encontraba `rules=[]` y hacía no-op **silencioso** (fire-and-forget, sin feedback al usuario). Afectaba a 2 de 3 orgs con el addon activo (Patricia `fd4c150b…` y `c1785176…`); la tercera funcionaba porque activó vía el endpoint correcto.
+
+**Fix #1 (data, aplicado en prod):** clonadas las 3 reglas globales a las 2 orgs afectadas vía `INSERT … SELECT … ON CONFLICT DO NOTHING`. Verificado end-to-end: el query exacto del trigger ahora devuelve `fertility.first_consultation_lapse` para el `service_id` de la 1era consulta de Patricia → al completar la cita se creará el seguimiento hacia segunda consulta (delay 21d). Deliberadamente **no** se sembraron servicios TRA (Patricia ya tiene los suyos; inyectarle 6 más sería ruido).
+
+**Fix #2 (código):** extraído todo el bloque de seed a `lib/fertility/seed-fertility-addon.ts` (`seedFertilityAddon(admin, orgId)`, extracción verbatim, idempotente, best-effort). Ahora lo llaman **ambas** rutas: `activate` (refactor 1:1) y `onboarding/complete` (cuando auto-activa un tier de fertilidad). Así el wizard ya no deja orgs a medio sembrar.
+
+**Fix #3 (red de seguridad):** como el seed es best-effort (los warnings se tragan), agregado un health-check visible. Nuevo `POST /api/admin/fertility/repair-seed` (owner/admin, gateado a orgs con el addon activo) que re-corre `seedFertilityAddon` idempotente y devuelve el conteo de reglas. La pantalla "Configuración inicial" (`canonical-mapping/mapping-form.tsx`) ahora consulta `GET /api/admin/fertility/rules` al cargar y, si hay **0 reglas activas**, muestra un banner rojo "El motor de seguimientos no tiene reglas configuradas" con botón "Reparar ahora". Así cualquier org futura que caiga en un edge case (seed falló parcialmente) tiene auto-reparación sin soporte.
+
+**Aclaración de alcance (servicios vs. seguimientos):** `seed_fertility_services` siembra los **6 servicios TRA de tratamiento** (FIV/IIU/ROPA/Crio/Ovodonación/TED) + tiers — NO siembra servicios de consulta ni crea mapeos canónicos. Las reglas de seguimiento disparan sobre `fertility.first_consultation`/`second_consultation`, que el owner debe mapear manualmente en la pantalla "Configuración inicial" a sus propios servicios de consulta. Es decir: con el fix las reglas ya existen, pero seguimientos sigue requiriendo (a) servicios de consulta y (b) su mapeo — paso manual **por diseño** (el sistema no puede adivinar cuál de los servicios de la org es "primera consulta").

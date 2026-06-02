@@ -1,6 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
+import { seedFertilityAddon } from "@/lib/fertility/seed-fertility-addon";
+import { FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY } from "@/types/fertility";
 
 // POST /api/onboarding/complete — marks the user's organization as onboarded.
 // Used by:
@@ -93,6 +96,24 @@ export async function POST() {
           })),
           { onConflict: "organization_id,addon_key" }
         );
+
+        // If a fertility tier was auto-activated, run the SAME seed the
+        // /api/addons/[key]/activate endpoint runs (followup_rules clones,
+        // TRA services, whatsapp + email templates). Without this, orgs
+        // onboarded through the wizard get the addon enabled but zero
+        // followup_rules, so no seguimientos are ever created on completed
+        // appointments. Best-effort — never blocks finishing onboarding.
+        const seededFertility = toActivate.some(
+          (a) => a.key === FERTILITY_BASIC_KEY || a.key === FERTILITY_PREMIUM_KEY
+        );
+        if (seededFertility) {
+          try {
+            const admin = createAdminClient();
+            await seedFertilityAddon(admin, orgId);
+          } catch (seedErr) {
+            console.error("Fertility seed during onboarding failed:", seedErr);
+          }
+        }
       }
     }
   } catch (addonErr) {
