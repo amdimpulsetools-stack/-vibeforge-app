@@ -353,7 +353,7 @@ export default function MembersPage() {
                 {language === "es" ? "Tu plan actual" : "Your current plan"}
               </p>
               <p className="text-sm">1 {language === "es" ? "doctor" : "doctor"}</p>
-              <p className="text-sm">0 {language === "es" ? "recepcionistas" : "receptionists"}</p>
+              <p className="text-sm">1 {language === "es" ? "recepcionista" : "receptionist"}</p>
               <p className="text-sm">1 {language === "es" ? "consultorio" : "office"}</p>
               <p className="text-sm">{language === "es" ? "Citas ilimitadas" : "Unlimited appointments"}</p>
               <p className="text-sm">30 {language === "es" ? "consultas IA" : "AI queries"}</p>
