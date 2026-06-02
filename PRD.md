@@ -4458,3 +4458,34 @@ UPDATE plans SET max_members = 2, max_receptionists = 1
 - `/admin/members` upgrade banner: Indep "0 recepcionistas" → "1 recepcionista".
 - `plan-limit-warner.tsx`: `patients` removido de `RESOURCE_LABELS` y del array de recursos chequeados — ya no emite toasts cuando los pacientes acumulados se acercan al "cap" (que ahora es NULL de todas formas).
 - `/select-plan` y `/plans`: leen de DB, se reflejan automáticamente al recargar.
+
+#### Tercera revisión: 1 consultorio por defecto al crear org (migración 164)
+
+> *"Al crear la organización de Independiente, por defecto se añaden 2 consultorios, debería ser 1 solo en plan Independiente."*
+
+El trigger `handle_new_user` (mig 154, sección 8) sembraba 2 consultorios fijos (`Consultorio 1` + `Consultorio 2`) para TODA org nueva. Como Independiente permite `max_offices = 1` y los consultorios SÍ están enforced (`app/api/offices/route.ts:79`), una org Independiente nacía en 2/1 — ya sobre el límite — y el upgrade-warner la marcaba desde el día uno.
+
+El plan no se conoce en el signup (se elige luego en `/select-plan`), así que el trigger no puede ser plan-aware. Fix en `supabase/migrations/164_seed_single_default_office.sql`: `CREATE OR REPLACE` del trigger sembrando **1 solo consultorio** (`Consultorio principal`). Todos los planes permiten ≥1; el usuario crea más si su plan lo admite.
+
+> ✅ **Decisión del founder (no backfill):** las orgs Independiente existentes con 2 consultorios se dejan como están; el cambio aplica solo de aquí en adelante.
+
+#### Cuarta revisión: seeding de consultorios plan-aware (Indep=1, Centro Médico+=2)
+
+> *"Para Independiente 1 solo consultorio sembrado y a partir del Centro Médico 2."*
+
+El plan no se conoce en el signup, así que el trigger sigue sembrando **1** consultorio para todos (mig 164). El **segundo** consultorio se siembra al **activarse** un plan multi-consultorio, vía helper idempotente `lib/onboarding/seed-default-offices.ts` (`seedSecondOfficeIfNeeded`):
+
+- Solo actúa si `plan.slug ∈ {professional, enterprise}` **y** la org tiene exactamente 1 consultorio → inserta `Consultorio 2`. En renovaciones (ya con 2+) no hace nada. Ambos planes permiten `max_offices ≥ 2`, así que nunca empuja sobre el límite. Errores tragados — sembrar nunca bloquea la activación.
+- Enganchado en los puntos de activación:
+  - `app/api/plans/start-trial/route.ts` — trial de Centro Médico (path principal de onboarding).
+  - `app/api/mercadopago/webhook/route.ts` — activación pagada (Strategy 1 con `ref.plan_slug`; Strategy 2 resolviendo el slug desde `plan_id`). Cubre Clínica (enterprise, sin trial / venta manual) y Centro Médico pagado directo.
+
+#### Quinta revisión: reordenar Variables Globales con dropdown (sin migración)
+
+> *"En el core, que se pueda editar la posición de los ítems de Variables con dropdown para que no sea tedioso."*
+
+`app/(dashboard)/admin/lookups/page.tsx` ya importaba `GripVertical` (drag-drop previsto, nunca implementado); reordenar exigía editar el número de orden a mano. Reemplazado por un **dropdown de posición por fila** (1..n) visible solo para admins:
+
+- `handleReorder(fromIndex, toPosition)` mueve el ítem y renormaliza todos los `display_order` a una secuencia contigua 1..n; solo escribe las filas que cambiaron. No hay constraint único en `display_order` (solo en `value`), así que los updates secuenciales no colisionan.
+- El input "Orden" del formulario se quitó (redundante con el dropdown); `display_order` queda como hidden y sigue defaulteando a `nextOrder` para ítems nuevos.
+- `GripVertical` removido (ya no se usa). Aplica a las 3 listas (Orígenes, Métodos de Pago, Estados de Cita), incluidos los ítems del sistema — reordenar es cosmético y no toca `value`.
