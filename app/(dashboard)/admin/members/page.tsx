@@ -355,7 +355,7 @@ export default function MembersPage() {
               <p className="text-sm">1 {language === "es" ? "doctor" : "doctor"}</p>
               <p className="text-sm">0 {language === "es" ? "recepcionistas" : "receptionists"}</p>
               <p className="text-sm">1 {language === "es" ? "consultorio" : "office"}</p>
-              <p className="text-sm">100 {language === "es" ? "citas/mes" : "appointments/mo"}</p>
+              <p className="text-sm">{language === "es" ? "Citas ilimitadas" : "Unlimited appointments"}</p>
               <p className="text-sm">30 {language === "es" ? "consultas IA" : "AI queries"}</p>
             </div>
             <div className="hidden sm:flex items-center justify-center self-center">
@@ -366,7 +366,7 @@ export default function MembersPage() {
               <p className="text-sm font-medium">3 {language === "es" ? "doctores" : "doctors"}</p>
               <p className="text-sm font-medium">2 {language === "es" ? "recepcionistas" : "receptionists"}</p>
               <p className="text-sm font-medium">3 {language === "es" ? "consultorios" : "offices"}</p>
-              <p className="text-sm font-medium">500 {language === "es" ? "citas/mes" : "appointments/mo"}</p>
+              <p className="text-sm font-medium">{language === "es" ? "Citas ilimitadas" : "Unlimited appointments"}</p>
               <p className="text-sm font-medium">120 {language === "es" ? "consultas IA" : "AI queries"}</p>
             </div>
           </div>
