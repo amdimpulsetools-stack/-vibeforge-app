@@ -77,9 +77,15 @@
 
 ## 5. Planes y Suscripciones
 
+> **Decisiones canónicas (sticky — leer antes de la tabla):**
+> 1. **Citas: ilimitadas en los 3 planes.** Documentado en el soft-wall scope (v0.15.16, líneas ~4174-4184): el cap de citas defiende cero revenue y rompe operación al cliente; no se enforced. Cualquier número que aparezca en landing, `/select-plan` o DB (`plans.max_appointments_per_month`) debe alinearse a `NULL`/ilimitado. Si una versión histórica del PRD decía "100/mes" o "500/mes", queda obsoleta.
+> 2. **Diferenciadores reales entre planes:** seats (miembros/doctores/recepción), pacientes, consultorios, storage, AI queries, módulo Seguros (solo Clínica), reportes/export, soporte. No appointments.
+> 3. **Clínica = 15 miembros totales** (10 doctores + 3 recepción + 1 admin + 1 owner). Si la DB difiere, la DB se alinea al PRD vía migración aparte — no al revés.
+> 4. **Soft-wall actualmente enforced (v0.15.16):** members (rol-aware: admins/doctor_members/receptionists), offices. NO enforced: patients, appointments, AI queries (Phase 2), storage (Phase 2 con Dermatología).
+
 ### Plan Independiente (Starter) — S/129/mes (S/1,290/año con 2 meses gratis)
 - 1 miembro, 1 doctor, 1 consultorio
-- 150 pacientes, 100 citas/mes, 100MB storage
+- 150 pacientes, citas ilimitadas, 100MB storage
 - Sin recepcionistas ni admins adicionales
 - Reportes básicos, AI Assistant (30 consultas/mes), sin exportación
 - Owner actúa simultáneamente como doctor (rol dual)
@@ -87,7 +93,7 @@
 
 ### Plan Centro Médico (Professional) — S/349/mes (S/3,490/año con 2 meses gratis)
 - 6 miembros totales, 3 doctores, 3 consultorios, 2 recepcionistas
-- 1,000 pacientes, 500 citas/mes, 2GB storage
+- 1,000 pacientes, citas ilimitadas, 2GB storage
 - 1 admin
 - Reportes + exportación + AI Assistant
 - Add-ons: S/15/consultorio extra, S/10/miembro extra
@@ -4335,3 +4341,48 @@ Página client-component con:
 4. Editar una receta → otro row.
 5. Filtrar por "Últimos 30 min" + recurso "Receta" → debe traer solo los rows relevantes.
 6. Click "Exportar CSV" → debe descargarse + aparecer un row nuevo con `action=export, kind=audit_log_csv` en la próxima recarga.
+
+---
+
+## Changelog — Sesión 2026-06-02 — Alineación canónica de planes (citas ilimitadas)
+
+**Branch:** `claude/spanish-greeting-M3CVd`
+**Fecha:** 2026-06-02
+**Tipo:** Solo PRD (no toca código, DB ni landing).
+
+### Contexto
+
+Antes del primer demo con clientes reales se detectó inconsistencia entre tres fuentes que describen los planes:
+
+- **PRD § 5** (canónica): decía "100 citas/mes" en Independiente y "500 citas/mes" en Centro Médico.
+- **Soft-wall v0.15.16** (PRD § Changelog): ya documentaba que appointments NO se enforced — defiende cero revenue y rompe operación.
+- **DB (`plans`)**: campo `max_appointments_per_month` con valores numéricos en los dos primeros planes.
+- **Landing y `/select-plan`**: leen de DB → muestran los caps al visitante.
+
+La § 5 contradecía la decisión real que ya se había tomado en v0.15.16. Esta sesión sólo alinea la § 5 — la DB y la landing se sincronizarán en una migración aparte.
+
+### Decisión
+
+**Citas ilimitadas en los 3 planes.** Razones (validadas con análisis SaaS pricing):
+
+1. **Centro Médico 500/mes está roto matemáticamente:** 3 doctores × 8 citas/día × 22 días = 528. El cliente promedio rompe el cap → señal de "producto roto", no de upsell.
+2. **Independiente 100/mes ahuyenta al cliente más sano:** un doctor solo con agenda llena hace ~132/mes. Cuando topa el límite no upgradea a Centro (sigue siendo solo); cancela.
+3. **Marginal cost = ~0:** appointments son rows en Postgres, sin per-call externo. El cap defiende cero revenue.
+4. **Belt-and-suspenders innecesario:** ya hay 7+ ejes de diferenciación reales (seats, pacientes, consultorios, storage, AI quota, módulo Seguros, soporte). El cap de citas es ruido encima de un ladder que ya funciona.
+5. **Benchmark industria:** SimplePractice, Jane App, Doctoralia, Calendly — ninguno cobra por número de citas. Cobran por seats y features. Cap por uso en producto de calendario se percibe arbitrario.
+
+### Cambios en el PRD
+
+- § 5 línea 82: `100 citas/mes` → `citas ilimitadas` (Independiente).
+- § 5 línea 90: `500 citas/mes` → `citas ilimitadas` (Centro Médico).
+- § 5 nuevo callout "Decisiones canónicas (sticky)" arriba de la tabla de planes, con 4 puntos: citas ilimitadas, diferenciadores reales, Clínica = 15 miembros, scope vigente del soft-wall.
+
+### Pendientes follow-up (no hechos en esta sesión)
+
+- **Migración DB**: `UPDATE plans SET max_appointments_per_month = NULL WHERE code IN ('independiente', 'centro_medico');` y confirmar Clínica ya en NULL. Verificar también `max_members` y `max_doctor_members` de Clínica vs PRD (15/10).
+- **Sync landing y `/select-plan`**: como leen de DB, se arreglan automáticamente al aplicar la migración. Verificar visualmente post-migración.
+- **`hooks/use-plan.ts` / `lib/plan/check-limit.ts`**: confirmar que tratan `null` como ilimitado en el bucket `appointments` (debería ser ya el comportamiento, dado que appointments NO está en el soft-wall enforced).
+
+### Por qué no se aplicó todo en esta sesión
+
+Antes del demo con clientes reales conviene una pasada de revisión humana sobre la migración SQL — un `UPDATE` a `plans` afecta a cualquier organización viva. Se separa en dos commits para que la migración tenga su propio diff revisable.
