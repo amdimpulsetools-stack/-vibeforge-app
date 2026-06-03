@@ -41,7 +41,9 @@ import {
   Receipt,
   ShieldCheck,
   Heart,
+  Camera,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
@@ -71,13 +73,19 @@ import { GrowthCurvesPanel } from "./growth-curves-panel";
 import type { Sex } from "@/lib/growth-curves";
 import { TrendingUp, Maximize2 } from "lucide-react";
 
+// Lazy: keeps browser-image-compression out of the drawer's initial bundle.
+const BeforeAfterPhotosPanel = dynamic(
+  () => import("@/components/dermatology/before-after-photos-panel").then((m) => m.BeforeAfterPhotosPanel),
+  { ssr: false }
+);
+
 interface PatientDrawerProps {
   patient: PatientWithTags;
   onClose: () => void;
   onUpdate: () => void;
 }
 
-type DrawerTab = "info" | "history" | "clinical" | "growth" | "budgets" | "finances" | "marketing" | "fiscal" | "insurance";
+type DrawerTab = "info" | "history" | "clinical" | "growth" | "budgets" | "finances" | "marketing" | "fiscal" | "insurance" | "dermatology_photos";
 
 type PatientWithSex = PatientWithTags & { sex?: Sex | null };
 
@@ -368,12 +376,17 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   };
 
   const showGrowthTab = hasAddon("growth_curves") && (isAdmin || !!currentDoctorId);
+  // Dermatology "Antes y Después" gallery — read-only here (uploads happen
+  // from the appointment's clinical-history modal). Visible to clinical
+  // roles only, same as the clinical tab.
+  const showDermatologyTab = hasAddon("dermatology") && (isAdmin || !!currentDoctorId);
   const tabs: { key: DrawerTab; label: string; icon: typeof Clock }[] = [
     { key: "info", label: "Datos", icon: Edit2 },
     { key: "history", label: t("patients.tab_history"), icon: Clock },
     // Clinical tab only visible for doctors and admins, not receptionists
     ...(isAdmin || currentDoctorId ? [{ key: "clinical" as DrawerTab, label: "Clínico", icon: Stethoscope }] : []),
     ...(showGrowthTab ? [{ key: "growth" as DrawerTab, label: "Crecimiento", icon: TrendingUp }] : []),
+    ...(showDermatologyTab ? [{ key: "dermatology_photos" as DrawerTab, label: "Antes y Después", icon: Camera }] : []),
     { key: "budgets", label: "Presupuestos", icon: Wallet },
     { key: "finances", label: t("patients.tab_finances"), icon: DollarSign },
     { key: "marketing", label: t("patients.tab_marketing"), icon: Megaphone },
@@ -1266,6 +1279,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           <PatientInsurancesPanel patientId={patient.id} canEdit={isAdmin} />
         )}
 
+        {/* ===== DERMATOLOGY BEFORE/AFTER (read-only gallery) ===== */}
+        {activeTab === "dermatology_photos" && showDermatologyTab && (
+          <BeforeAfterPhotosPanel patientId={patient.id} canEdit={false} />
+        )}
+
         {/* ===== FISCAL TAB (gated by einvoice connection) ===== */}
         {activeTab === "fiscal" && einvoiceConfig.connected && !isDoctor && (
           <PatientFiscalSection patient={patient} onUpdate={onUpdate} />
@@ -1587,6 +1605,10 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
               {activeTab === "insurance" && insuranceEnabled && (
                 <PatientInsurancesPanel patientId={patient.id} canEdit={isAdmin} />
+              )}
+
+              {activeTab === "dermatology_photos" && showDermatologyTab && (
+                <BeforeAfterPhotosPanel patientId={patient.id} canEdit={false} />
               )}
 
               {activeTab === "fiscal" && einvoiceConfig.connected && !isDoctor && (
