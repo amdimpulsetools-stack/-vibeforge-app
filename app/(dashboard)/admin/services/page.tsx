@@ -28,10 +28,12 @@ import { DURATION_OPTIONS, SERVICE_MODALITY_LABELS } from "@/types/admin";
 import type { Service, ServiceCategory } from "@/types/admin";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
+import { BulkImportModal } from "./bulk-import-modal";
 import Link from "next/link";
 import {
   ClipboardList,
   Plus,
+  Upload,
   Pencil,
   Trash2,
   Loader2,
@@ -58,6 +60,7 @@ export default function ServicesPage() {
   const [categories, setCategories] = useState<ServiceCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showServiceForm, setShowServiceForm] = useState(false);
+  const [showBulkImport, setShowBulkImport] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
 
@@ -235,7 +238,15 @@ export default function ServicesPage() {
       {activeTab === "services" && (
         <div className="space-y-4">
           {isAdmin && (
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setShowBulkImport(true)}
+                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                title={t("services.bulk_import")}
+              >
+                <Upload className="h-4 w-4" />
+                {t("services.bulk_import")}
+              </button>
               <button
                 onClick={() => {
                   setShowServiceForm(true);
@@ -372,6 +383,17 @@ export default function ServicesPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Bulk import modal */}
+      {showBulkImport && (
+        <BulkImportModal
+          onClose={() => setShowBulkImport(false)}
+          onSuccess={() => {
+            setShowBulkImport(false);
+            fetchData();
+          }}
+        />
       )}
 
       {/* Categories Tab */}
