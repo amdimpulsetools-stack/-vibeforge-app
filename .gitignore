@@ -5,3 +5,6 @@ node_modules/
 !.env.local.example
 tsconfig.tsbuildinfo
 supabase/.temp/
+
+# Claude Code agent worktrees (transient, auto-cleaned)
+.claude/worktrees/
