@@ -95,7 +95,10 @@ export interface RegisterSessionResult {
   // "created" — first time we see this (user, device)
   // "refreshed" — already exists, last_seen_at bumped
   // "limit_exceeded" — caller must prompt user to revoke one
-  outcome: "created" | "refreshed" | "limit_exceeded";
+  // "error" — a DB write failed. NOT a real limit hit; the caller
+  //   should fail-open (let the user through) and log, never show
+  //   the device-limit dialog (which would render empty + trap them).
+  outcome: "created" | "refreshed" | "limit_exceeded" | "error";
   session?: AuthSessionRow;
   // When limit_exceeded, the existing active sessions for the user
   // so the UI can let them pick which to close.
@@ -142,7 +145,13 @@ export async function registerSession(
       .eq("id", existing.id)
       .select()
       .single();
-    if (error) return { ok: false, outcome: "limit_exceeded" };
+    if (error) {
+      // A DB write failed — this is NOT the user hitting their device
+      // limit. Surface it as "error" so the caller fails open instead of
+      // showing an empty, inescapable device-limit dialog.
+      console.error("[registerSession] session write failed:", error.message);
+      return { ok: false, outcome: "error" };
+    }
     return {
       ok: true,
       outcome: "refreshed",
@@ -184,7 +193,13 @@ export async function registerSession(
       .eq("id", existing.id)
       .select()
       .single();
-    if (error) return { ok: false, outcome: "limit_exceeded" };
+    if (error) {
+      // A DB write failed — this is NOT the user hitting their device
+      // limit. Surface it as "error" so the caller fails open instead of
+      // showing an empty, inescapable device-limit dialog.
+      console.error("[registerSession] session write failed:", error.message);
+      return { ok: false, outcome: "error" };
+    }
     return {
       ok: true,
       outcome: "created", // reactivated counts as "created" for email-trigger logic
