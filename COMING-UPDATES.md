@@ -896,7 +896,7 @@ Sección transversal a toda la plataforma — aplica a todos los roles, todas la
 | 6 | **Reporte IA Avanzado capa 1+2** (Brief Ejecutivo + Insights proactivos) | Alto | Alto | Diferenciador Plan Centro Médico/Clínica. Capa 1 mínima ya entregada en v0.13.5. |
 | 7 | **Storage: límites y mensajes** | Medio | Alto | Necesario antes de Dermatología antes/después (que sube fotos pesadas). |
 | 8 | **CRM multi-canal Fase 1** (WhatsApp bidireccional) | Alto | Muy alto | Diferenciador real frente a Doctoralia/Helisa. Empezar solo con WhatsApp; IG y FB en fase 2. |
-| 9 | **Login alerts por email + Logout from all devices** (sec. 🔐 Seguridad) | Bajo | Medio-Alto | Casi gratis si #1 está hecho. Higiene de seguridad estándar. |
+| ~~9~~ | ~~**Login alerts por email + Logout from all devices**~~ (sec. 🔐 Seguridad) | — | — | ✅ Entregado commit d357c9e (2026-05-13, junto con PR #152). Login alerts en `lib/auth/new-device-email.ts` (Resend, solo en `outcome=created`). Logout-all en `/api/auth/session/revoke-all` + botón "Cerrar las demás" en `/account/devices`. También invocado desde `/reset-password`. |
 | 10 | **Consentimiento informado Tier 2** (templates + PDF pre-llenado) | Medio | Alto | Ahorra ~10 min/procedimiento. Vendible Professional/Enterprise. |
 | 11 | **Módulo Dermatología antes/después** | Alto | Alto | Vertical clave junto con Fertilidad. Esperar feedback Dermosalud para definir scope final. |
 | 12 | **Bundle Consulta + Tratamiento** | Medio | Alto | Billing + UX. Útil para fertilidad/estética. |
