@@ -85,6 +85,20 @@ Auditoría multi-agente (diseño visual + neurocopy + UX) del 2026-04-24. Lo apl
   - Permite retomar conversaciones, exportar reportes y auditar uso.
   - Ventaja: análisis posterior de qué preguntan los usuarios, mejora del prompt.
 
+## 🏢 Multi-org / Switcher de organización
+
+- [ ] **Selector de organización en la UI** — Descubierto 2026-06-03 cuando se creó una org de prueba para un mismo user y quedó inalcanzable. `components/organization-provider.tsx` resuelve la org con `.from('organization_members').limit(1).single()` sin `ORDER BY` — agarra una membresía arbitraria y no hay UI para cambiar a otra. Today funciona porque el modelo asumido es 1 user = 1 org, pero hay tres casos reales que ya están en producción:
+  - Owner founder con varias clínicas piloto (Oscar tiene varias).
+  - Doctor que atiende en 2 clínicas (caso explícitamente soportado por session-limits / device-limits con `maxLimitFromRoles`).
+  - Recepcionista de una franquicia con varias sedes.
+  - Síntomas que el bug provoca hoy: si un user con 2 orgs tiene una con trial vencido y otra vigente, el `limit(1)` puede dar la vencida → middleware lo manda a `/select-plan` aunque tenga otra org sana → loop sin salida desde la UI.
+  - **Scope MVP del switcher:**
+    - Dropdown en el topbar (al lado del avatar) con lista de orgs activas del user (`organization_members WHERE is_active=true`).
+    - Persistir la org seleccionada en cookie `yenda_active_org_id` + leer en el provider antes del `.limit(1)`.
+    - Middleware/RLS no cambian (siguen usando `get_user_org_ids()`), solo cambia qué org se considera "activa" en el contexto cliente.
+    - Refrescar `usePlan`, `useOrgAddons`, `useOrgInsurance`, `useOrgRole` al cambiar de org (todos ya leen de `useOrganization`, así que con un re-render alcanza).
+  - **Esfuerzo: Bajo-Medio (~1 día).** No bloquea features nuevas. Prioridad: hacerlo *antes* del próximo cliente multi-sede o de soltar el switcher de la cuenta founder.
+
 ---
 
 ## 🧠 Reporte IA Avanzado — diferenciador para Centro Médico y Clínica (aprobado v0.13.4)
