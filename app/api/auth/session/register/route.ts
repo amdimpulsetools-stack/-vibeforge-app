@@ -129,7 +129,16 @@ export async function POST(request: NextRequest) {
   }
 
   // ── 409 limit exceeded ──────────────────────────────────────
-  if (result.outcome === "limit_exceeded") {
+  // Defense-in-depth: only show the device-limit dialog when we
+  // actually have the limit + the existing sessions to offer. A
+  // malformed limit_exceeded (no limit/sessions) would render an
+  // empty dialog whose "close a session" button is disabled — i.e.
+  // it would trap the user. If that data is missing, fail open.
+  if (
+    result.outcome === "limit_exceeded" &&
+    result.limit != null &&
+    (result.existingSessions?.length ?? 0) > 0
+  ) {
     return NextResponse.json(
       {
         outcome: "limit_exceeded",
@@ -147,5 +156,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  return NextResponse.json({ error: "register_failed" }, { status: 500 });
+  // ── Fail open ────────────────────────────────────────────────
+  // A DB write failed (outcome "error") or a degenerate
+  // limit_exceeded slipped through. Session tracking is a soft
+  // anti-account-sharing measure — a tracking failure must never
+  // lock a legitimate user out of the app. Return 200 so the
+  // client proceeds; the next page load retries registration.
+  // The real DB error is already logged in registerSession().
+  return NextResponse.json({ outcome: "error" }, { status: 200 });
 }
