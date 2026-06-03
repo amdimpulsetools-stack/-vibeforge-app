@@ -1,24 +1,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import dynamic from "next/dynamic";
-import { Pill, FlaskConical, ClipboardList, Flag, Camera } from "lucide-react";
+import { Pill, FlaskConical, ClipboardList, Flag } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
-import { useDermatologyAddon } from "@/hooks/use-dermatology-addon";
 import { PrescriptionsPanel } from "@/app/(dashboard)/patients/prescriptions-panel";
 import { ExamOrdersPanel } from "@/app/(dashboard)/patients/exam-orders-panel";
 import { TreatmentPlansPanel } from "@/app/(dashboard)/patients/treatment-plans-panel";
 import { ClinicalFollowupsPanel } from "@/app/(dashboard)/patients/clinical-followups-panel";
 
-// Lazy-loaded: the dermatology panel pulls in browser-image-compression,
-// so we only ship that code to the client when the tab is actually opened.
-const BeforeAfterPhotosPanel = dynamic(
-  () => import("@/components/dermatology/before-after-photos-panel").then((m) => m.BeforeAfterPhotosPanel),
-  { ssr: false }
-);
-
-type TabKey = "rx" | "exam" | "plan" | "followup" | "photos";
+type TabKey = "rx" | "exam" | "plan" | "followup";
 
 interface Counts {
   rx: number;
@@ -35,20 +26,15 @@ interface TabDef {
   accent: string; // tailwind text-* class for active underline accent
 }
 
+// "Antes y Después" no vive acá: es una galería a nivel paciente (cruza todas
+// las consultas), así que cuelga del switcher Nota | Timeline | Antes y Después
+// en clinical-note-modal.tsx — no de estas tabs, que son por-consulta.
 const BASE_TABS: TabDef[] = [
   { key: "rx", label: "Recetas", shortLabel: "Recetas", icon: Pill, accent: "text-violet-500" },
   { key: "exam", label: "Exámenes", shortLabel: "Exámenes", icon: FlaskConical, accent: "text-cyan-500" },
   { key: "plan", label: "Tratamientos", shortLabel: "Plan", icon: ClipboardList, accent: "text-blue-500" },
   { key: "followup", label: "Seguimientos", shortLabel: "Seguir", icon: Flag, accent: "text-red-500" },
 ];
-
-const PHOTOS_TAB: TabDef = {
-  key: "photos",
-  label: "Antes y Después",
-  shortLabel: "Fotos",
-  icon: Camera,
-  accent: "text-pink-500",
-};
 
 interface ClinicalSidePanelsProps {
   patientId: string;
@@ -85,10 +71,8 @@ export function ClinicalSidePanels({
 }: ClinicalSidePanelsProps) {
   const [active, setActive] = useState<TabKey>("rx");
   const [counts, setCounts] = useState<Counts>({ rx: 0, exam: 0, plan: 0, followup: 0 });
-  const { active: dermActive } = useDermatologyAddon();
 
-  // The "Antes y Después" tab only exists when the dermatology addon is on.
-  const TABS = dermActive ? [...BASE_TABS, PHOTOS_TAB] : BASE_TABS;
+  const TABS = BASE_TABS;
 
   // Lightweight count fetch so tab badges feel "live" without mounting all 4
   // panels at once. The panels themselves still own the source of truth.
@@ -140,7 +124,7 @@ export function ClinicalSidePanels({
         {TABS.map((t) => {
           const Icon = t.icon;
           const isActive = active === t.key;
-          const count = t.key === "photos" ? 0 : counts[t.key];
+          const count = counts[t.key];
           return (
             <button
               key={t.key}
@@ -250,23 +234,6 @@ export function ClinicalSidePanels({
             />
           )}
         </div>
-        {dermActive && (
-          <div
-            role="tabpanel"
-            id="clinical-tab-photos"
-            aria-labelledby="clinical-tab-trigger-photos"
-            hidden={active !== "photos"}
-          >
-            {active === "photos" && (
-              <BeforeAfterPhotosPanel
-                patientId={patientId}
-                doctorId={doctorId}
-                appointmentId={appointmentId}
-                canEdit={canEdit}
-              />
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

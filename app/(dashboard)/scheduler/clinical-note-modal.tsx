@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +17,7 @@ import {
 import { ClinicalSidePanels } from "./clinical-side-panels";
 import { ClinicalNotePrintButton } from "./clinical-note-print";
 import { NotesTimeline } from "./notes-timeline";
+import { useDermatologyAddon } from "@/hooks/use-dermatology-addon";
 import {
   User,
   CalendarDays,
@@ -28,8 +30,16 @@ import {
   CloudOff,
   FileText,
   History,
+  Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Lazy-loaded: el panel de derma arrastra browser-image-compression, así que
+// solo enviamos ese código al cliente cuando se abre la vista de fotos.
+const BeforeAfterPhotosPanel = dynamic(
+  () => import("@/components/dermatology/before-after-photos-panel").then((m) => m.BeforeAfterPhotosPanel),
+  { ssr: false }
+);
 import { calculateAge } from "@/lib/export";
 import {
   CLINICAL_PRIMARY_CTA,
@@ -84,15 +94,29 @@ export function ClinicalNoteModal({
     autoSaveStatus: "idle",
   });
 
+  // El addon de dermatología habilita la galería "Antes y Después", que es a
+  // nivel paciente (cruza todas las consultas) — por eso cuelga del switcher
+  // junto a Timeline, no de las tabs por-consulta del panel lateral.
+  const { active: dermActive } = useDermatologyAddon();
+
   // View toggle: "note" = editor de la consulta actual, "timeline" =
-  // historial de notas anteriores del paciente. Mantenemos el panel de Nota
-  // siempre montado para preservar estado del editor; el Timeline se monta
-  // la primera vez que se abre y permanece montado para cachear datos.
-  const [view, setView] = useState<"note" | "timeline">("note");
+  // historial de notas anteriores del paciente, "photos" = galería antes/
+  // después del paciente. Mantenemos el panel de Nota siempre montado para
+  // preservar estado del editor; Timeline y fotos se montan la primera vez que
+  // se abren y permanecen montados para cachear datos.
+  const [view, setView] = useState<"note" | "timeline" | "photos">("note");
   const [hasOpenedTimeline, setHasOpenedTimeline] = useState(false);
+  const [hasOpenedPhotos, setHasOpenedPhotos] = useState(false);
   useEffect(() => {
     if (view === "timeline") setHasOpenedTimeline(true);
+    if (view === "photos") setHasOpenedPhotos(true);
   }, [view]);
+
+  // Si el addon se apaga mientras estamos en la vista de fotos, volver a Nota
+  // para no quedar en una vista sin botón que la represente.
+  useEffect(() => {
+    if (!dermActive && view === "photos") setView("note");
+  }, [dermActive, view]);
 
   // Reset al cerrar el modal — la próxima apertura empieza siempre en Nota.
   useEffect(() => {
@@ -308,6 +332,23 @@ export function ClinicalNoteModal({
                 <History className="h-3.5 w-3.5" />
                 Timeline
               </button>
+              {dermActive && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={view === "photos"}
+                  onClick={() => setView("photos")}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                    view === "photos"
+                      ? "bg-card text-foreground shadow-sm"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Camera className="h-3.5 w-3.5" />
+                  Antes y Después
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -372,6 +413,20 @@ export function ClinicalNoteModal({
               <NotesTimeline
                 patientId={patientId}
                 currentNoteId={panelState.note?.id ?? null}
+              />
+            </div>
+          )}
+
+          {/* Modo Antes y Después — galería a nivel paciente, full-width para
+              que la comparación de fotos tenga aire. Lazy-mounted y persistido
+              igual que el Timeline. Solo con addon de derma + paciente. */}
+          {dermActive && patientId && hasOpenedPhotos && (
+            <div className={cn(view !== "photos" && "hidden")}>
+              <BeforeAfterPhotosPanel
+                patientId={patientId}
+                doctorId={doctorId}
+                appointmentId={appointmentId}
+                canEdit={canEdit}
               />
             </div>
           )}
