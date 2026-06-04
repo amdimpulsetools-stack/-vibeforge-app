@@ -33,12 +33,13 @@ function sanitizeUrl(url: string): string {
 export function buildEmailHtml({
   body,
   bodyHtml,
+  trustedBodyHtml,
   brandColor = "#10b981",
   logoUrl,
   clinicName,
   footerText,
 }: {
-  /** Plain-text body. Used when `bodyHtml` is not provided. */
+  /** Plain-text body. Used when `bodyHtml` and `trustedBodyHtml` are not provided. */
   body: string;
   /**
    * Optional pre-rendered HTML body (from the rich-text editor). When
@@ -47,6 +48,14 @@ export function buildEmailHtml({
    * HTML that reaches the email is what the allow-list permits.
    */
   bodyHtml?: string | null;
+  /**
+   * Optional HTML body fully controlled by server-side code (e.g. system
+   * emails like new-device-login). Inserted verbatim — NO sanitize, NO
+   * escape — so inline styles needed for email-client rendering survive.
+   * Highest precedence. NEVER pass user input here; only string literals
+   * or values that have already been HTML-escaped at the call site.
+   */
+  trustedBodyHtml?: string | null;
   brandColor?: string;
   logoUrl?: string | null;
   clinicName?: string | null;
@@ -57,7 +66,9 @@ export function buildEmailHtml({
   const safeClinicName = clinicName ? escapeHtml(clinicName) : "";
   const safeFooterText = footerText ? escapeHtml(footerText) : "";
   const safeLogoUrl = logoUrl ? sanitizeUrl(logoUrl) : "";
-  const safeBody = bodyHtml
+  const safeBody = trustedBodyHtml
+    ? trustedBodyHtml
+    : bodyHtml
     ? sanitizeEmailHtml(bodyHtml)
     : escapeHtml(body).replace(/\n/g, "<br/>");
 
