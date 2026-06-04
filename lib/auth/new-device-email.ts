@@ -96,8 +96,14 @@ export async function sendNewDeviceEmail(
     </p>
   `;
 
+  // `body` está armado server-side con inline styles que el sanitizer del
+  // editor de email descartaría (background, padding, color, font-weight,
+  // border-radius, text-decoration). Los únicos inputs externos —
+  // deviceLabel, location, formattedDate — pasan por escapeHtml() arriba,
+  // así que es seguro inyectarlo verbatim por trustedBodyHtml.
   const html = buildEmailHtml({
-    body,
+    body: "",
+    trustedBodyHtml: body,
     brandColor: "#10b981",
     logoUrl: null,
     clinicName: "Yenda",
