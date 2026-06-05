@@ -9,11 +9,12 @@
  * Rendering pipeline: Handlebars (template + data) → HTML string →
  * Puppeteer headless chromium → PDF buffer.
  *
- * IMPORTANT: this uses `puppeteer` (full, with bundled chromium). It
- * works locally and in any environment that can run a full chromium
- * binary, but it will NOT work on Vercel serverless out-of-the-box —
- * the bundle exceeds the 50MB function size limit. When we deploy to
- * Vercel: switch to `puppeteer-core` + `@sparticuz/chromium`.
+ * Uses `puppeteer-core` + `@sparticuz/chromium` so the chromium binary
+ * fits within Vercel's serverless function size limits. The sparticuz
+ * package ships a brotli-compressed chromium-headless-shell that only
+ * runs on linux x86_64 — perfect for Vercel/AWS Lambda, but it will
+ * fail on macOS local dev. For local dev on Mac, point CHROME_PATH at
+ * a local Chrome install, or run `npm run dev` from a linux container.
  */
 
 import fs from "fs/promises";
@@ -21,7 +22,8 @@ import path from "path";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import Handlebars from "handlebars";
-import puppeteer from "puppeteer";
+import chromium from "@sparticuz/chromium";
+import puppeteer from "puppeteer-core";
 import type { BudgetPdfProps } from "./document";
 import { FIV_NGS_PRICES, FIV_TIER_BREAKDOWNS } from "./data/fiv-tiers";
 import { getOrgPdfOverrides } from "./data/vitra-overrides";
@@ -144,9 +146,15 @@ export async function renderFivHtmlPdf(
   const data = buildFivData(props);
   const html = template(data);
 
+  // On Vercel we let @sparticuz/chromium provide the executable. For
+  // local dev set CHROME_PATH=/Applications/Google Chrome.app/... (Mac)
+  // or /usr/bin/google-chrome (Linux).
+  const executablePath =
+    process.env.CHROME_PATH || (await chromium.executablePath());
   const browser = await puppeteer.launch({
+    args: chromium.args,
+    executablePath,
     headless: true,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
   try {
     const page = await browser.newPage();
