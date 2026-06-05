@@ -1219,7 +1219,7 @@ export function AppointmentSidebar({
                   )}
                   <button
                     onClick={() => setAssignBudgetOpen(true)}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
+                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 transition-colors"
                   >
                     <Receipt className="h-4 w-4" />
                     Asignar presupuesto
