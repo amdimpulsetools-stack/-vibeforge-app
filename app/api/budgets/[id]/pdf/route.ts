@@ -9,6 +9,9 @@ import {
 } from "@/types/fertility";
 
 export const runtime = "nodejs"; // @react-pdf/renderer is not edge-safe.
+// Puppeteer cold-start + chromium decompress + render typically lands at
+// 8–15 s on Vercel. Default 10 s is too tight; 30 s gives headroom.
+export const maxDuration = 30;
 
 // ──────────────────────────────────────────────────────────────────
 // POST /api/budgets/[id]/pdf
