@@ -149,6 +149,13 @@ export async function renderFivHtmlPdf(
   // On Vercel we let @sparticuz/chromium provide the executable. For
   // local dev set CHROME_PATH=/Applications/Google Chrome.app/... (Mac)
   // or /usr/bin/google-chrome (Linux).
+  //
+  // setGraphicsMode must be set BEFORE executablePath() — sparticuz
+  // reads it during binary resolution. With it left at the default
+  // (true), cold-start extracts swiftshader libs into /tmp, which
+  // frequently fails on serverless filesystems. PDF rendering doesn't
+  // need WebGL, so we disable.
+  chromium.setGraphicsMode = false;
   const executablePath =
     process.env.CHROME_PATH || (await chromium.executablePath());
   const browser = await puppeteer.launch({

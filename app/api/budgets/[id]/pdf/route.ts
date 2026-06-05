@@ -77,7 +77,23 @@ export async function POST(
   }
 
   const admin = createAdminClient();
-  const result = await generateBudgetPdf(supabase, admin, id);
+
+  // The orchestrator returns `{ok: false, error}` for *handled* errors,
+  // but uncaught throws (e.g. chromium launch failure, missing template
+  // file, Supabase storage outage) bubble up as opaque 500s — the
+  // client shows a generic "No se pudo generar el PDF" toast with no
+  // hint of the real cause. Catch here, log the full error server-side
+  // (Vercel function logs + Sentry pick it up), and surface the
+  // message in the response body so the network tab gives a usable
+  // signal during incidents.
+  let result;
+  try {
+    result = await generateBudgetPdf(supabase, admin, id);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[budget-pdf] orchestrator threw:", err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
