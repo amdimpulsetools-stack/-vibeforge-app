@@ -161,15 +161,25 @@ function SelectPlanPage() {
       }
 
       if (members && members.length > 0) {
-        // Check for active/trialing subscription
+        // Check for active/valid-trial subscription. We MUST match the
+        // middleware's `get_user_session_check` definition exactly:
+        // `trialing` only counts while trial_ends_at > now(). Without
+        // the expiry filter, an expired-trial row would push us to
+        // /dashboard, the middleware would bounce us back here, and
+        // the page would spin forever in a redirect loop.
+        const nowIso = new Date().toISOString();
         const { data: subs } = await supabase
           .from("organization_subscriptions")
-          .select("id, status")
+          .select("id, status, trial_ends_at")
           .eq("organization_id", members[0].organization_id)
           .in("status", ["active", "trialing"])
-          .limit(1);
+          .limit(5);
 
-        if (subs && subs.length > 0) {
+        const hasValid = (subs ?? []).some(
+          (s) => s.status === "active" || (s.status === "trialing" && s.trial_ends_at && s.trial_ends_at > nowIso),
+        );
+
+        if (hasValid) {
           setHasSubscription(true);
           router.push("/dashboard");
           return;
