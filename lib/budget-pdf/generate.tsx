@@ -21,6 +21,7 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BudgetPdfDocument, type BudgetPdfProps } from "./document";
+import { renderFivHtmlPdf, shouldUseHtmlPdfPath } from "./render-html";
 import {
   buildBudgetPdfPath,
   getBudgetPdfSignedUrl,
@@ -315,9 +316,15 @@ export async function generateBudgetPdf(
     footerText: pdfSettings.footerText,
   };
 
-  const pdfBuffer = (await renderToBuffer(
-    <BudgetPdfDocument {...props} />,
-  )) as Buffer;
+  // Per-org PDF pipeline switch. Today only NATURVITRA's FIV budget
+  // uses the new HTML+Handlebars+Puppeteer path; everything else
+  // continues to render with @react-pdf/renderer.
+  const orgLegalName = org.legal_name ?? org.name;
+  const pdfBuffer = shouldUseHtmlPdfPath(orgLegalName, props.service.treatmentType)
+    ? await renderFivHtmlPdf({ ...props, budgetId: budget.id })
+    : ((await renderToBuffer(
+        <BudgetPdfDocument {...props} />,
+      )) as Buffer);
 
   const { path, sizeBytes } = await uploadBudgetPdf(
     adminClient,
