@@ -50,10 +50,10 @@ interface BudgetForPdf {
   assigned_doctor_id: string | null;
   assigned_asesora_member_id: string | null;
   assigned_doctor: { full_name: string | null } | null;
-  assigned_asesora: {
-    user_id: string | null;
-    profile: { full_name: string | null } | null;
-  } | null;
+  // Asesora can NOT be embedded in the budget SELECT: there is no FK
+  // between organization_members and user_profiles (both reference
+  // auth.users(id) independently). Resolved separately via
+  // loadAsesoraName().
   patient: {
     first_name: string | null;
     last_name: string | null;
@@ -157,7 +157,6 @@ async function loadBudgetForPdf(
         "assigned_doctor_id",
         "assigned_asesora_member_id",
         "assigned_doctor:doctors(full_name)",
-        "assigned_asesora:organization_members!budget_records_assigned_asesora_member_id_fkey(user_id, profile:profiles(full_name))",
         "patient:patients(first_name, last_name, dni)",
         "service:services(name, organization_id)",
       ].join(","),
@@ -165,7 +164,13 @@ async function loadBudgetForPdf(
     .eq("id", budgetId)
     .maybeSingle();
 
-  if (error || !data) return null;
+  if (error) {
+    // Log the actual PostgREST error so future SELECT regressions
+    // surface as a real diagnosis instead of a generic 404.
+    console.error("[budget-pdf] loadBudgetForPdf error:", error);
+    return null;
+  }
+  if (!data) return null;
   return data as unknown as BudgetForPdf;
 }
 
@@ -186,12 +191,40 @@ async function loadProfile(
   userId: string | null,
 ): Promise<ProfileLite | null> {
   if (!userId) return null;
+  // The table is `user_profiles`, NOT `profiles`. The original
+  // generator queried the wrong name, which silently returned null
+  // for every PDF's doctor/asesora lookup — why "Médico tratante"
+  // and "Asesora" rendered as "—" for budgets going back to mig 136.
   const { data } = await client
-    .from("profiles")
+    .from("user_profiles")
     .select("id, full_name")
     .eq("id", userId)
     .maybeSingle();
   return (data as ProfileLite | null) ?? null;
+}
+
+/**
+ * Resolve an asesora's display name from an `organization_members.id`.
+ * Two-step lookup because there is no direct FK between
+ * `organization_members` and `user_profiles` — both reference
+ * `auth.users(id)` independently, so PostgREST cannot embed across
+ * the gap. Returns null when either the member or profile row is
+ * missing.
+ */
+async function loadAsesoraName(
+  client: SupabaseClient,
+  memberId: string | null,
+): Promise<string | null> {
+  if (!memberId) return null;
+  const { data: member } = await client
+    .from("organization_members")
+    .select("user_id")
+    .eq("id", memberId)
+    .maybeSingle();
+  const userId = (member as { user_id: string | null } | null)?.user_id;
+  if (!userId) return null;
+  const profile = await loadProfile(client, userId);
+  return profile?.full_name ?? null;
 }
 
 /**
@@ -272,11 +305,15 @@ export async function generateBudgetPdf(
     null;
   const doctor = doctorName ? { id: "", full_name: doctorName } : null;
 
-  // Asesora comes from the chained join member → user → profile.
-  // No legacy fallback: sent_by_user_id was a wrong proxy that left
-  // the PDF blank for un-sent budgets, so we'd rather show "—" than
-  // surface the wrong person.
-  const asesoraName = budget.assigned_asesora?.profile?.full_name ?? null;
+  // Asesora — two separate queries because there is no FK between
+  // organization_members and user_profiles (both reference
+  // auth.users(id) independently, so PostgREST cannot embed them).
+  // No legacy fallback to sent_by_user_id: that mapping was wrong
+  // and left the PDF blank for un-sent budgets — rather show "—".
+  const asesoraName = await loadAsesoraName(
+    adminClient,
+    budget.assigned_asesora_member_id,
+  );
   const asesora = asesoraName ? { id: "", full_name: asesoraName } : null;
 
   // Tier metadata (currency + includes_text). Optional — fallbacks
