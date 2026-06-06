@@ -43,6 +43,17 @@ interface BudgetForPdf {
   updated_at: string;
   pdf_storage_path: string | null;
   pdf_generated_at: string | null;
+  // mig 167 — Phase 4 fields. Nullable in the DB so historical rows
+  // (created before the migration) keep working; the PDF gracefully
+  // falls back to "—" when missing.
+  appointment_id: string | null;
+  assigned_doctor_id: string | null;
+  assigned_asesora_member_id: string | null;
+  assigned_doctor: { full_name: string | null } | null;
+  assigned_asesora: {
+    user_id: string | null;
+    profile: { full_name: string | null } | null;
+  } | null;
   patient: {
     first_name: string | null;
     last_name: string | null;
@@ -142,6 +153,11 @@ async function loadBudgetForPdf(
         "updated_at",
         "pdf_storage_path",
         "pdf_generated_at",
+        "appointment_id",
+        "assigned_doctor_id",
+        "assigned_asesora_member_id",
+        "assigned_doctor:doctors(full_name)",
+        "assigned_asesora:organization_members!budget_records_assigned_asesora_member_id_fkey(user_id, profile:profiles(full_name))",
         "patient:patients(first_name, last_name, dni)",
         "service:services(name, organization_id)",
       ].join(","),
@@ -237,14 +253,31 @@ export async function generateBudgetPdf(
     }
   }
 
-  // Load org + people. Use admin client for org/profiles so we never
-  // 404 on a perfectly valid budget because of an RLS quirk.
+  // Load org. Use admin client so we never 404 on a perfectly valid
+  // budget because of an RLS quirk.
   const org = await loadOrg(adminClient, budget.organization_id);
   if (!org) {
     return { ok: false, status: 500, error: "Organización no encontrada" };
   }
-  const doctor = await loadProfile(adminClient, budget.assigned_by_user_id);
-  const asesora = await loadProfile(adminClient, budget.sent_by_user_id);
+
+  // Doctor (médico tratante) comes from the embedded join on
+  // `assigned_doctor_id` (mig 167). For rows created before the
+  // migration the field is NULL and we fall back to the assigner's
+  // profile so the PDF doesn't blow up — that legacy fallback used
+  // to be the primary path, which was the root of the "wrong doctor"
+  // bug we're fixing here.
+  const doctorName =
+    budget.assigned_doctor?.full_name ??
+    (await loadProfile(adminClient, budget.assigned_by_user_id))?.full_name ??
+    null;
+  const doctor = doctorName ? { id: "", full_name: doctorName } : null;
+
+  // Asesora comes from the chained join member → user → profile.
+  // No legacy fallback: sent_by_user_id was a wrong proxy that left
+  // the PDF blank for un-sent budgets, so we'd rather show "—" than
+  // surface the wrong person.
+  const asesoraName = budget.assigned_asesora?.profile?.full_name ?? null;
+  const asesora = asesoraName ? { id: "", full_name: asesoraName } : null;
 
   // Tier metadata (currency + includes_text). Optional — fallbacks
   // exist downstream.

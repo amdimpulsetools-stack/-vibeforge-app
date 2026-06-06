@@ -17,9 +17,18 @@ import {
 //
 // The `sent_at`/`sent_by_user_id` columns stay NULL — they are filled
 // in later when the obstetra clicks "Enviar al paciente" (see the
-// `[id]/send` route). The schema does NOT have a dedicated column to
-// store the assigned advisor (asesora) — see "ASESORA SCHEMA NOTE"
-// below.
+// `[id]/send` route).
+//
+// Phase 4 (mig 167) — three new fields are now persisted so the PDF
+// renders the right people:
+//   • doctor_id              — required. Doctor who actually saw the
+//                              patient. From the cita's doctor in
+//                              flow A, manually picked in flow B.
+//   • asesora_id             — required. Obstetra/asesora coordinating
+//                              the budget (organization_members.id
+//                              flagged is_fertility_advisor=true).
+//   • appointment_id         — optional. Only set when the budget is
+//                              created from the cita sidebar.
 // ──────────────────────────────────────────────────────────────────
 
 const tierEnum = z.enum(["A", "B", "C"]);
@@ -28,7 +37,8 @@ const bodySchema = z.object({
   patient_id: z.string().uuid(),
   service_id: z.string().uuid(),
   tier: tierEnum,
-  asesora_id: z.string().uuid().nullable().optional(),
+  doctor_id: z.string().uuid(),
+  asesora_id: z.string().uuid(),
   appointment_id: z.string().uuid().nullable().optional(),
   followup_id: z.string().uuid().nullable().optional(),
   notes: z.string().max(500).optional(),
@@ -192,40 +202,62 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // ── ASESORA SCHEMA NOTE ────────────────────────────────────────
-  // The body accepts `asesora_id` (an organization_members.id flagged
-  // as `is_fertility_advisor=true`) but `budget_records` does not
-  // currently have a dedicated column to store the assigned advisor.
-  //
-  // `sent_by_user_id` represents the user who SENT the budget to the
-  // patient (i.e. the obstetra "of turn" that clicked Enviar). It is
-  // explicitly LEFT NULL here and filled in by `[id]/send`. We do
-  // NOT overload it with the asesora — that would conflate "assigned
-  // to advisor" with "actually sent", breaking the Sin procesar /
-  // Enviado sub-bucket logic introduced in this same phase.
-  //
-  // The asesora_id from the body is therefore ACCEPTED at the API
-  // boundary (and validated against the org) but currently NOT
-  // PERSISTED. A follow-up migration in Phase 4 should add
-  // `budget_records.assigned_asesora_member_id UUID REFERENCES
-  // organization_members(id) ON DELETE SET NULL`. Until then this
-  // field is best-effort soft-validated and the asesora dropdown in
-  // the modal is informational only.
-  // ───────────────────────────────────────────────────────────────
-  if (payload.asesora_id) {
-    const { data: advisorRow } = await supabase
-      .from("organization_members")
-      .select("id, organization_id, is_fertility_advisor, is_active")
-      .eq("id", payload.asesora_id)
-      .limit(1)
+  // Validate the doctor belongs to the caller's org. `assigned_doctor_id`
+  // is required at the API level — a budget without a treating doctor
+  // doesn't make medical sense and the PDF needs the name to fill the
+  // "Médico tratante" cell.
+  const { data: doctorRow } = await supabase
+    .from("doctors")
+    .select("id, organization_id, is_active")
+    .eq("id", payload.doctor_id)
+    .maybeSingle();
+  if (
+    !doctorRow ||
+    doctorRow.organization_id !== membership.organization_id ||
+    !doctorRow.is_active
+  ) {
+    return NextResponse.json(
+      { error: "Doctor inválido para esta organización" },
+      { status: 422 },
+    );
+  }
+
+  // Validate the asesora is a member of the org AND flagged as
+  // fertility advisor. The select dropdown in the modal pre-filters to
+  // these members, so this is a defense-in-depth check.
+  const { data: advisorRow } = await supabase
+    .from("organization_members")
+    .select("id, organization_id, is_fertility_advisor, is_active")
+    .eq("id", payload.asesora_id)
+    .maybeSingle();
+  if (
+    !advisorRow ||
+    advisorRow.organization_id !== membership.organization_id ||
+    !advisorRow.is_active ||
+    !advisorRow.is_fertility_advisor
+  ) {
+    return NextResponse.json(
+      { error: "Asesora inválida para esta organización" },
+      { status: 422 },
+    );
+  }
+
+  // If an appointment_id was provided (flow A — cita sidebar), confirm
+  // it belongs to the org and to the same patient. Prevents a crafted
+  // request from cross-linking a budget to an unrelated cita.
+  if (payload.appointment_id) {
+    const { data: apptRow } = await supabase
+      .from("appointments")
+      .select("id, organization_id, patient_id")
+      .eq("id", payload.appointment_id)
       .maybeSingle();
     if (
-      !advisorRow ||
-      advisorRow.organization_id !== membership.organization_id ||
-      !advisorRow.is_active
+      !apptRow ||
+      apptRow.organization_id !== membership.organization_id ||
+      (apptRow.patient_id && apptRow.patient_id !== payload.patient_id)
     ) {
       return NextResponse.json(
-        { error: "Asesora inválida para esta organización" },
+        { error: "Cita inválida para este paciente" },
         { status: 422 },
       );
     }
@@ -276,6 +308,11 @@ export async function POST(request: NextRequest) {
     sent_at: null,
     sent_by_user_id: null,
     followup_id: payload.followup_id ?? null,
+    // mig 167 — Phase 4 fields that the PDF generator reads to fill
+    // the "Médico tratante" and "Asesora de fertilidad" cells.
+    assigned_doctor_id: payload.doctor_id,
+    assigned_asesora_member_id: payload.asesora_id,
+    appointment_id: payload.appointment_id ?? null,
   };
 
   const { data: inserted, error: insertErr } = await supabase
