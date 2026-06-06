@@ -21,7 +21,8 @@
 import { renderToBuffer } from "@react-pdf/renderer";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { BudgetPdfDocument, type BudgetPdfProps } from "./document";
-import { renderFivHtmlPdf, shouldUseHtmlPdfPath } from "./render-html";
+import { getActiveBudgetPdfPlugin } from "@/lib/plugins/active";
+import type { BudgetTreatmentType } from "@/lib/plugins/types";
 import {
   buildBudgetPdfPath,
   getBudgetPdfSignedUrl,
@@ -386,12 +387,18 @@ export async function generateBudgetPdf(
     footerText: pdfSettings.footerText,
   };
 
-  // Per-org PDF pipeline switch. Today only NATURVITRA's FIV budget
-  // uses the new HTML+Handlebars+Puppeteer path; everything else
-  // continues to render with @react-pdf/renderer.
-  const orgLegalName = org.legal_name ?? org.name;
-  const pdfBuffer = shouldUseHtmlPdfPath(orgLegalName, props.service.treatmentType)
-    ? await renderFivHtmlPdf({ ...props, budgetId: budget.id })
+  // Plugin-based routing (mig 169). If the org has an installed
+  // Capa-2 plugin that applies to this treatment, use it; otherwise
+  // fall back to the Capa-1 React-PDF document. The legacy hardcoded
+  // "if NATURVITRA + FIV" switch lived here pre-plugin and is gone.
+  const treatmentType = props.service.treatmentType as BudgetTreatmentType;
+  const active = await getActiveBudgetPdfPlugin(
+    adminClient,
+    budget.organization_id,
+    treatmentType,
+  );
+  const pdfBuffer = active
+    ? await active.plugin.render({ ...props, budgetId: budget.id }, active.config)
     : ((await renderToBuffer(
         <BudgetPdfDocument {...props} />,
       )) as Buffer);
