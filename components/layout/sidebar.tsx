@@ -327,9 +327,13 @@ export function Sidebar() {
       <div className="relative flex h-16 items-center border-b border-border/40 px-3">
         {!collapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
-            {organization?.logo_url ? (
+            {/* Prefer icon_url (mig 168 — compact square optimized
+                for tile slots) when the org has uploaded one. Falls
+                back to logo_url so existing orgs without an icon
+                configured keep working unchanged. */}
+            {(organization?.icon_url ?? organization?.logo_url) ? (
               <img
-                src={organization.logo_url}
+                src={(organization?.icon_url ?? organization?.logo_url) as string}
                 alt=""
                 width={32}
                 height={32}

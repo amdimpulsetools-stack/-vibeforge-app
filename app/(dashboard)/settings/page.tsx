@@ -179,8 +179,16 @@ export default function SettingsPage() {
     organization?.logo_url ?? null
   );
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  // Separate compact icon (mig 168) — used in topbar/sidebar/favicon
+  // slots where the wide logo_url crops badly. Falls back to logo_url
+  // in consumers when null.
+  const [iconUrl, setIconUrl] = useState<string | null>(
+    organization?.icon_url ?? null
+  );
+  const [uploadingIcon, setUploadingIcon] = useState(false);
   const [showHeaderPreview, setShowHeaderPreview] = useState(false);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const iconInputRef = useRef<HTMLInputElement>(null);
 
   // ── WhatsApp integration status ──────────────────────────────────────────
   const [waConnected, setWaConnected] = useState(false);
@@ -379,6 +387,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (organization) {
       setLogoUrl(organization.logo_url ?? null);
+      setIconUrl(organization.icon_url ?? null);
     }
   }, [organization]);
 
@@ -458,6 +467,88 @@ export default function SettingsPage() {
     }
 
     setLogoUrl(null);
+    refetchOrg();
+    toast.success(t("settings.org_save_success"));
+  };
+
+  // Icon (compact square) — separate from logo. Uploaded to its own
+  // path under the same `org-assets` bucket so it doesn't collide
+  // with the logo upload.
+  const handleIconUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !organizationId) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Max 2MB");
+      return;
+    }
+
+    setUploadingIcon(true);
+    const supabase = createClient();
+    const ext = file.name.split(".").pop();
+    const path = `${organizationId}/icon.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("org-assets")
+      .upload(path, file, { cacheControl: "3600", upsert: true });
+
+    if (uploadError) {
+      toast.error(uploadError.message);
+      setUploadingIcon(false);
+      return;
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("org-assets").getPublicUrl(path);
+
+    const url = `${publicUrl}?t=${Date.now()}`;
+
+    const { error: updateError } = await supabase
+      .from("organizations")
+      .update({ icon_url: url })
+      .eq("id", organizationId);
+
+    setUploadingIcon(false);
+
+    if (updateError) {
+      toast.error(updateError.message);
+      return;
+    }
+
+    setIconUrl(url);
+    refetchOrg();
+    toast.success(t("settings.org_save_success"));
+  };
+
+  const handleIconRemove = async () => {
+    if (!organizationId) return;
+
+    setUploadingIcon(true);
+    const supabase = createClient();
+
+    const pathsToRemove: string[] = [];
+    if (iconUrl) {
+      const match = iconUrl.match(new RegExp(`${organizationId}/icon\\.[a-z]+`));
+      if (match) pathsToRemove.push(match[0]);
+    }
+    if (pathsToRemove.length > 0) {
+      await supabase.storage.from("org-assets").remove(pathsToRemove);
+    }
+
+    const { error } = await supabase
+      .from("organizations")
+      .update({ icon_url: null })
+      .eq("id", organizationId);
+
+    setUploadingIcon(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    setIconUrl(null);
     refetchOrg();
     toast.success(t("settings.org_save_success"));
   };
@@ -640,11 +731,15 @@ export default function SettingsPage() {
               </div>
             )}
 
-            {/* Logo */}
+            {/* Logo (lockup horizontal — usado en PDF, emails, portal) */}
             <div className="space-y-2">
               <label className="text-sm font-medium">
                 {t("settings.org_logo")}
               </label>
+              <p className="text-[11px] text-muted-foreground -mt-1">
+                Lockup completo. Aparece en documentos PDF, emails y el
+                portal del paciente. Recomendado: PNG/SVG horizontal.
+              </p>
               <div className="flex items-center gap-4">
                 <div className="relative group">
                   {logoUrl ? (
@@ -704,6 +799,81 @@ export default function SettingsPage() {
                           className="text-xs text-destructive hover:underline"
                         >
                           {t("settings.org_remove_logo")}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Icon (cuadrado compacto — topbar/sidebar/favicon) */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Ícono compacto</label>
+              <p className="text-[11px] text-muted-foreground -mt-1">
+                Cuadrado para slots chicos (topbar, sidebar, favicon).
+                Si lo dejás vacío, se usa el logo. Recomendado: 256×256
+                PNG/SVG.
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="relative group">
+                  {iconUrl ? (
+                    <img
+                      src={iconUrl}
+                      alt="Ícono"
+                      width={56}
+                      height={56}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-14 w-14 rounded-lg object-cover border border-border"
+                    />
+                  ) : (
+                    <div className="flex h-14 w-14 items-center justify-center rounded-lg bg-muted/30 text-muted-foreground border border-dashed border-border">
+                      <Building2 className="h-6 w-6" />
+                    </div>
+                  )}
+                  {isOrgAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => iconInputRef.current?.click()}
+                      disabled={uploadingIcon}
+                      className="absolute inset-0 flex items-center justify-center rounded-lg bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      {uploadingIcon ? (
+                        <Loader2 className="h-5 w-5 animate-spin text-white" />
+                      ) : (
+                        <Camera className="h-5 w-5 text-white" />
+                      )}
+                    </button>
+                  )}
+                  <input
+                    ref={iconInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/svg+xml"
+                    onChange={handleIconUpload}
+                    className="hidden"
+                  />
+                </div>
+                {isOrgAdmin && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => iconInputRef.current?.click()}
+                      disabled={uploadingIcon}
+                      className="text-xs text-primary hover:underline"
+                    >
+                      Subir ícono
+                    </button>
+                    {iconUrl && (
+                      <>
+                        <span className="text-muted-foreground">·</span>
+                        <button
+                          type="button"
+                          onClick={handleIconRemove}
+                          disabled={uploadingIcon}
+                          className="text-xs text-destructive hover:underline"
+                        >
+                          Quitar ícono
                         </button>
                       </>
                     )}

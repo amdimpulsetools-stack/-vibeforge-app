@@ -10,6 +10,7 @@ export interface Database {
           name: string;
           slug: string;
           logo_url: string | null;
+          icon_url: string | null;
           address: string | null;
           google_maps_url: string | null;
           primary_specialty_id: string | null;
@@ -41,6 +42,7 @@ export interface Database {
           name: string;
           slug: string;
           logo_url?: string | null;
+          icon_url?: string | null;
           address?: string | null;
           google_maps_url?: string | null;
           primary_specialty_id?: string | null;
@@ -70,6 +72,7 @@ export interface Database {
           name?: string;
           slug?: string;
           logo_url?: string | null;
+          icon_url?: string | null;
           address?: string | null;
           google_maps_url?: string | null;
           primary_specialty_id?: string | null;
