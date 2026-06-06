@@ -11,7 +11,13 @@ import {
 } from "@/components/ui/dialog";
 import { FertilityAddonGate } from "@/components/addons/fertility-addon-gate";
 import { useOrgFertilityAdvisors } from "@/hooks/use-org-fertility-advisors";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+
+interface OrgDoctor {
+  id: string;
+  full_name: string;
+}
 
 // ──────────────────────────────────────────────────────────────────
 // AssignBudgetModal
@@ -96,9 +102,26 @@ function AssignBudgetModalInner({
 
   const [serviceId, setServiceId] = useState<string>("");
   const [tier, setTier] = useState<"A" | "B" | "C" | null>(null);
-  const [asesoraId, setAsesoraId] = useState<string>(""); // "" = sin asignar
+  const [asesoraId, setAsesoraId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Doctor (médico tratante). In flow A (modal opened with
+  // `appointmentId`) we auto-fill from the cita's `doctor_id` and
+  // render it read-only — the user can't pick a different one because
+  // the budget is conceptually tied to that visit. In flow A' (no
+  // appointmentId — opened from a followup card or the patient
+  // drawer) we render a dropdown of all active org doctors.
+  const [doctorId, setDoctorId] = useState<string>("");
+  const [doctorName, setDoctorName] = useState<string | null>(null);
+  // Set when the linked appointment has NO doctor — we block the
+  // submit and surface a friendly error so the user goes to the cita
+  // and assigns one first.
+  const [appointmentDoctorMissing, setAppointmentDoctorMissing] =
+    useState(false);
+  // List for the dropdown — only populated when there's no appointment.
+  const [orgDoctors, setOrgDoctors] = useState<OrgDoctor[]>([]);
+  const [doctorLoading, setDoctorLoading] = useState(false);
 
   // ── Existing active budgets for this patient ───────────────────
   // Loaded on open and used to (a) render a warning banner and (b)
@@ -143,6 +166,57 @@ function AssignBudgetModalInner({
     }
   }, [patientId]);
 
+  // Doctor loader: pre-fill from the cita's doctor when appointmentId
+  // is set, otherwise fetch the list of org doctors for the dropdown.
+  // Both branches use the supabase client directly (doctors + appts
+  // have org-scoped RLS, so the user can only ever see their org).
+  const loadDoctorContext = useCallback(async () => {
+    setDoctorLoading(true);
+    setAppointmentDoctorMissing(false);
+    try {
+      const supabase = createClient();
+      if (appointmentId) {
+        const { data: appt } = await supabase
+          .from("appointments")
+          .select("doctor_id, doctor:doctors(id, full_name)")
+          .eq("id", appointmentId)
+          .maybeSingle();
+        // PostgREST embeds the related row as a single object for
+        // many-to-one FKs at runtime, but its generated types model
+        // it as an array. Normalize to a scalar.
+        const rawDoc = appt?.doctor as unknown;
+        const doc = (Array.isArray(rawDoc) ? rawDoc[0] : rawDoc) as
+          | { id: string; full_name: string }
+          | null
+          | undefined;
+        if (!appt?.doctor_id || !doc) {
+          // Empty doctor on the cita — make it clear in the UI and
+          // disable submit. The user has to assign a doctor to the
+          // cita first.
+          setAppointmentDoctorMissing(true);
+          setDoctorId("");
+          setDoctorName(null);
+          setOrgDoctors([]);
+          return;
+        }
+        setDoctorId(doc.id);
+        setDoctorName(doc.full_name);
+        setOrgDoctors([]);
+      } else {
+        const { data } = await supabase
+          .from("doctors")
+          .select("id, full_name")
+          .eq("is_active", true)
+          .order("full_name");
+        setOrgDoctors((data as OrgDoctor[] | null) ?? []);
+        setDoctorId("");
+        setDoctorName(null);
+      }
+    } finally {
+      setDoctorLoading(false);
+    }
+  }, [appointmentId]);
+
   const loadServices = useCallback(async () => {
     setServicesLoading(true);
     setServicesError(null);
@@ -178,10 +252,15 @@ function AssignBudgetModalInner({
       setNotes("");
       setAcknowledgedExisting(false);
       setExistingBudgets([]);
+      setDoctorId("");
+      setDoctorName(null);
+      setOrgDoctors([]);
+      setAppointmentDoctorMissing(false);
       void loadServices();
       void loadExistingBudgets();
+      void loadDoctorContext();
     }
-  }, [open, loadServices, loadExistingBudgets]);
+  }, [open, loadServices, loadExistingBudgets, loadDoctorContext]);
 
   const selectedService = useMemo(
     () => services.find((s) => s.id === serviceId) ?? null,
@@ -195,11 +274,18 @@ function AssignBudgetModalInner({
   }, [serviceId]);
 
   const canSubmit = Boolean(
-    serviceId && tier && !submitting && (!hasExisting || acknowledgedExisting),
+    serviceId &&
+      tier &&
+      doctorId &&
+      asesoraId &&
+      !submitting &&
+      !appointmentDoctorMissing &&
+      (!hasExisting || acknowledgedExisting),
   );
 
   const handleSubmit = async () => {
-    if (!serviceId || !tier) return;
+    if (!serviceId || !tier || !doctorId || !asesoraId) return;
+    if (appointmentDoctorMissing) return;
     if (hasExisting && !acknowledgedExisting) return;
     setSubmitting(true);
     try {
@@ -210,7 +296,8 @@ function AssignBudgetModalInner({
           patient_id: patientId,
           service_id: serviceId,
           tier,
-          asesora_id: asesoraId === "" ? null : asesoraId,
+          doctor_id: doctorId,
+          asesora_id: asesoraId,
           appointment_id: appointmentId ?? null,
           followup_id: followupId ?? null,
           notes: notes.trim() ? notes.trim() : undefined,
@@ -266,9 +353,9 @@ function AssignBudgetModalInner({
                 Asignar presupuesto
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Elige el servicio, el tier (paquete) y opcionalmente la
-                asesora. La obstetra de turno enviará el presupuesto
-                después.
+                Elige el servicio, el tier (paquete), el médico
+                tratante y la asesora. La obstetra de turno enviará el
+                presupuesto a la paciente después.
               </DialogDescription>
             </div>
           </div>
@@ -459,28 +546,81 @@ function AssignBudgetModalInner({
             </div>
           )}
 
-          {/* Asesora dropdown */}
+          {/* Doctor (médico tratante). Read-only when sourced from a
+              cita, dropdown otherwise. Both required — a budget needs
+              a treating doctor to render the PDF properly. */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Asesora (opcional)
+              Médico tratante
+            </label>
+            {doctorLoading ? (
+              <div className="flex h-10 items-center justify-center rounded-lg border border-input bg-background text-xs text-muted-foreground">
+                <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                Cargando…
+              </div>
+            ) : appointmentId ? (
+              appointmentDoctorMissing ? (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/[0.08] p-3 text-xs text-amber-700 dark:text-amber-400">
+                  Esta cita no tiene doctor asignado. Asígnale un doctor
+                  desde la ficha de la cita antes de generar el
+                  presupuesto.
+                </div>
+              ) : (
+                <div className="rounded-lg border border-input bg-muted/30 px-3 py-2 text-sm">
+                  {doctorName ?? "—"}
+                  <span className="ml-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    desde la cita
+                  </span>
+                </div>
+              )
+            ) : (
+              <select
+                value={doctorId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  setDoctorId(id);
+                  setDoctorName(
+                    orgDoctors.find((d) => d.id === id)?.full_name ?? null,
+                  );
+                }}
+                disabled={orgDoctors.length === 0}
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-60"
+              >
+                <option value="">Selecciona un doctor…</option>
+                {orgDoctors.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.full_name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Asesora dropdown — required. Filters to org members
+              flagged is_fertility_advisor (mig 137). */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Asesora de fertilidad
             </label>
             <select
               value={asesoraId}
               onChange={(e) => setAsesoraId(e.target.value)}
-              disabled={advisorsLoading}
+              disabled={advisorsLoading || advisors.length === 0}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-60"
             >
-              <option value="">Sin asignar</option>
+              <option value="">Selecciona una asesora…</option>
               {advisors.map((a) => (
                 <option key={a.id} value={a.id}>
                   {a.full_name}
                 </option>
               ))}
             </select>
-            <p className="text-[11px] text-muted-foreground">
-              Si lo dejas en blanco, la obstetra de turno la asignará al
-              enviar.
-            </p>
+            {!advisorsLoading && advisors.length === 0 && (
+              <p className="text-[11px] text-amber-600">
+                No hay asesoras configuradas. Activa el flag de asesora
+                en Admin → Miembros.
+              </p>
+            )}
           </div>
 
           {/* Notes */}
