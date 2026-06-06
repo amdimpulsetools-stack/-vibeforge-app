@@ -18,8 +18,19 @@ const nextConfig: NextConfig = {
   // Vercel's file tracer only follows static imports — our budget PDF route
   // reads templates from disk at runtime, so we have to declare them
   // explicitly or the .hbs file won't be shipped to the function.
+  //
+  // The @sparticuz/chromium `bin/` directory holds brotli-compressed
+  // chromium archives that sparticuz inflates into /tmp at request time.
+  // Those binaries are NOT referenced via JS imports, so the tracer skips
+  // them even with serverExternalPackages set — the runtime then fails
+  // with: "The input directory '/var/task/node_modules/@sparticuz/chromium/bin'
+  // does not exist". Force them into the bundle here.
+  // ref: https://github.com/Sparticuz/chromium#bundler-configuration
   outputFileTracingIncludes: {
-    "/api/budgets/[id]/pdf": ["./lib/budget-pdf/templates/**/*.hbs"],
+    "/api/budgets/[id]/pdf": [
+      "./lib/budget-pdf/templates/**/*.hbs",
+      "./node_modules/@sparticuz/chromium/bin/**",
+    ],
   },
 };
 
