@@ -205,7 +205,7 @@ export default function SchedulerPage() {
     // transfer and JSON parse time at 500+ appointments/day.
     const apptRes = await supabase
       .from("appointments")
-      .select("id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price), patients(is_recurring, dni, birth_date)")
+      .select("id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price), patients(is_recurring, dni, birth_date)")
       .gte("appointment_date", startDate)
       .lte("appointment_date", endDate)
       .neq("status", "cancelled")
@@ -256,6 +256,60 @@ export default function SchedulerPage() {
     fetchAppointments();
     fetchBlocks();
   }, [fetchAppointments, fetchBlocks]);
+
+  // ── Live status lean poll (Part E) ────────────────────────────────
+  // Every 30 s, fetch ONLY the live-status columns for the visible
+  // date range (~5 KB vs the 100+ KB full join) and merge them into
+  // the existing appointments state. State is only replaced when at
+  // least one row actually changed (compared via updated_at), so the
+  // memoized cards skip repainting on no-op polls. Paused while the
+  // tab is hidden and gated on the org's master toggle.
+  const liveStatusEnabled = schedulerConfig.liveStatus;
+  useEffect(() => {
+    if (!liveStatusEnabled) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      if (document.hidden || cancelled) return;
+      const supabase = createClient();
+      const { startDate, endDate } = getDateRange();
+      const { data } = await supabase
+        .from("appointments")
+        .select(
+          "id, arrived_at, consultation_started_at, consultation_ended_at, updated_at",
+        )
+        .gte("appointment_date", startDate)
+        .lte("appointment_date", endDate)
+        .neq("status", "cancelled");
+      if (cancelled || !data) return;
+
+      const byId = new Map(
+        data.map((r) => [r.id as string, r] as const),
+      );
+      setAppointments((prev) => {
+        let changed = false;
+        const next = prev.map((a) => {
+          const fresh = byId.get(a.id);
+          if (!fresh || fresh.updated_at === a.updated_at) return a;
+          changed = true;
+          return {
+            ...a,
+            arrived_at: fresh.arrived_at,
+            consultation_started_at: fresh.consultation_started_at,
+            consultation_ended_at: fresh.consultation_ended_at,
+            updated_at: fresh.updated_at,
+          };
+        });
+        return changed ? next : prev;
+      });
+    };
+
+    const interval = setInterval(() => void poll(), 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [liveStatusEnabled, getDateRange]);
 
   // Lightweight org-wide appointments count — used only to decide whether to
   // show the first-time empty state. Runs once per mount.
@@ -507,6 +561,8 @@ export default function SchedulerPage() {
                 onAppointmentDrop={handleAppointmentDrop}
                 onUnblock={handleUnblock}
                 containerHeight={gridContainerHeight}
+                canEndReopen={isOwner || isAdmin || isDoctor}
+                onLiveChanged={fetchAppointments}
               />
             ) : (
               <WeekView

@@ -6,6 +6,8 @@ export const SCHEDULER_CONFIG_KEYS = {
   interval: "vibeforge_scheduler_interval",
   timeIndicator: "vibeforge_time_indicator",
   disabledWeekdays: "vibeforge_disabled_weekdays",
+  liveStatus: "vibeforge_live_status",
+  liveStatusAutoClose: "vibeforge_live_status_auto_close",
 };
 
 export type IntervalOption = 15 | 20 | 30 | 45 | 60;
@@ -20,6 +22,10 @@ export interface SchedulerConfig {
   timeIndicator: boolean;
   /** Permanently disabled weekdays (e.g. [0] = Sunday off) */
   disabledWeekdays: Weekday[];
+  /** Master toggle for the live appointment status layer (mig 170/171). */
+  liveStatus: boolean;
+  /** Sub-toggle: starting a consultation auto-closes the doctor's previous open one. */
+  liveStatusAutoClose: boolean;
 }
 
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
@@ -28,6 +34,8 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   intervals: [15],
   timeIndicator: true,
   disabledWeekdays: [0], // Sunday disabled by default
+  liveStatus: true,
+  liveStatusAutoClose: true,
 };
 
 /** Returns the smallest selected interval (used for the grid resolution). */
@@ -70,7 +78,9 @@ export function loadSchedulerConfig(): SchedulerConfig {
         }
       }
     } catch { /* keep default */ }
-    return { startHour, endHour, intervals, timeIndicator, disabledWeekdays };
+    const liveStatus = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.liveStatus) ?? "true") === "true";
+    const liveStatusAutoClose = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.liveStatusAutoClose) ?? "true") === "true";
+    return { startHour, endHour, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose };
   } catch {
     return DEFAULT_SCHEDULER_CONFIG;
   }
@@ -84,6 +94,8 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
   if (config.intervals !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.interval, JSON.stringify(config.intervals));
   if (config.timeIndicator !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.timeIndicator, String(config.timeIndicator));
   if (config.disabledWeekdays !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.disabledWeekdays, JSON.stringify(config.disabledWeekdays));
+  if (config.liveStatus !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.liveStatus, String(config.liveStatus));
+  if (config.liveStatusAutoClose !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.liveStatusAutoClose, String(config.liveStatusAutoClose));
 }
 
 // ─── Database-backed functions ───────────────────────────────────
@@ -95,6 +107,8 @@ function dbRowToConfig(row: {
   intervals: unknown;
   time_indicator: boolean;
   disabled_weekdays: unknown;
+  live_status?: boolean | null;
+  live_status_auto_close?: boolean | null;
 }): SchedulerConfig {
   const intervals = (Array.isArray(row.intervals) ? row.intervals : [15]).filter(
     (v: number) => [15, 20, 30, 45, 60].includes(v)
@@ -108,6 +122,8 @@ function dbRowToConfig(row: {
     intervals: intervals.length > 0 ? intervals : [15],
     timeIndicator: row.time_indicator,
     disabledWeekdays,
+    liveStatus: row.live_status ?? true,
+    liveStatusAutoClose: row.live_status_auto_close ?? true,
   };
 }
 
@@ -138,6 +154,8 @@ export async function saveSchedulerConfigToDb(config: Partial<SchedulerConfig>):
     if (config.intervals !== undefined) body.intervals = config.intervals;
     if (config.timeIndicator !== undefined) body.time_indicator = config.timeIndicator;
     if (config.disabledWeekdays !== undefined) body.disabled_weekdays = config.disabledWeekdays;
+    if (config.liveStatus !== undefined) body.live_status = config.liveStatus;
+    if (config.liveStatusAutoClose !== undefined) body.live_status_auto_close = config.liveStatusAutoClose;
 
     const res = await fetch("/api/scheduler-settings", {
       method: "PUT",

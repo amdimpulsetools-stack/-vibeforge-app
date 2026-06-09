@@ -139,9 +139,8 @@ export async function POST(
     }
 
     case "start": {
-      // The org's auto-close sub-toggle (Part F) lives in the
-      // scheduler config global_variables row. Until Part F ships the
-      // settings UI, default ON — matches the agreed behavior.
+      // The org's auto-close sub-toggle (mig 171, Settings → Agenda).
+      // Absent row → default ON, the agreed behavior.
       const autoClose = await readAutoCloseSetting(
         supabase,
         membership.organization_id,
@@ -203,21 +202,20 @@ export async function POST(
 }
 
 /**
- * Reads the org's "auto-close on next start" sub-toggle. Stored in
- * `global_variables` under key `live_status_auto_close` ("true" /
- * "false"); absent row → default ON, matching the agreed default.
- * Part F ships the Settings → Agenda UI that writes this key.
+ * Reads the org's "auto-close on next start" sub-toggle from
+ * scheduler_settings (mig 171). Absent row → default ON, matching
+ * the agreed default. Settings → Agenda writes this column.
  */
 async function readAutoCloseSetting(
   supabase: Awaited<ReturnType<typeof createClient>>,
   organizationId: string,
 ): Promise<boolean> {
   const { data } = await supabase
-    .from("global_variables")
-    .select("value")
+    .from("scheduler_settings")
+    .select("live_status_auto_close")
     .eq("organization_id", organizationId)
-    .eq("key", "live_status_auto_close")
     .maybeSingle();
-  const value = (data as { value: string | null } | null)?.value;
-  return value !== "false";
+  const value = (data as { live_status_auto_close: boolean | null } | null)
+    ?.live_status_auto_close;
+  return value !== false;
 }
