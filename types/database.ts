@@ -552,6 +552,12 @@ export interface Database {
           organization_id: string;
           created_at: string;
           updated_at: string;
+          // Live status (migration 170) — parallel optional layer,
+          // independent of `status`. See mig comments.
+          arrived_at: string | null;
+          consultation_started_at: string | null;
+          consultation_ended_at: string | null;
+          consultation_closed_reason: "manual" | "auto_next_started" | "auto_eod" | null;
         };
         Insert: {
           id?: string;
@@ -597,6 +603,10 @@ export interface Database {
           price_snapshot?: number | null;
           organization_id?: string;
           updated_at?: string;
+          arrived_at?: string | null;
+          consultation_started_at?: string | null;
+          consultation_ended_at?: string | null;
+          consultation_closed_reason?: "manual" | "auto_next_started" | "auto_eod" | null;
         };
       };
       patients: {
