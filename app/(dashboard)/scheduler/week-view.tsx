@@ -9,6 +9,9 @@ import { cn } from "@/lib/utils";
 import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign, Video } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
+// Color helpers shared with the day view — single source of truth in
+// appointment-card.tsx so the palettes can't drift apart.
+import { hexToPastel, hexToDark } from "./appointment-card";
 
 /** Minimum px per slot in the week view (denser than day view). */
 const WEEK_BASE_SLOT_HEIGHT = 32;
@@ -30,23 +33,6 @@ interface WeekViewProps {
   /** Height of the scroll container the view lives in. When set, rows grow
    * to fill it for short schedules; falsy → falls back to base slot height. */
   containerHeight?: number;
-}
-
-/** Create a light pastel by blending a hex color with white. */
-function hexToPastel(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const bg = 255; // white
-  return `rgb(${Math.round(r * alpha + bg * (1 - alpha))}, ${Math.round(g * alpha + bg * (1 - alpha))}, ${Math.round(b * alpha + bg * (1 - alpha))})`;
-}
-
-/** Create a darkened version of a hex color for text on pastel bg. */
-function hexToDark(hex: string, factor = 0.45): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgb(${Math.round(r * factor)}, ${Math.round(g * factor)}, ${Math.round(b * factor)})`;
 }
 
 function getBlockForDay(
