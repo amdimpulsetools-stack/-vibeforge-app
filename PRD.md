@@ -926,6 +926,53 @@ MP_TEST_PAYER_EMAIL=      # Email del comprador de prueba MP (solo test mode)
 - **Planes con soft limits** — Los límites se verifican en frontend/API, no con constraints de DB
 - **Mercado Pago como gateway único** — Sin soporte para Stripe por ahora
 - **Español como idioma principal** — Interfaz y seeds en español, con soporte i18n para inglés
+- **Plugins per-org (mig 169)** — Capa 2 de features ultra-específicos (templates de PDF custom, etc.) se activa por org desde el Founder Panel. No expuesto al admin de la clínica. Cada plugin declara sus `requires_addons` y se valida en runtime contra `organization_addons`.
+
+## 17.5. Roadmap — Visual Builder de Templates de Presupuesto
+
+**Estado**: planificado, sin fecha. Foundation lista (sistema de plugins per-org + Capa 2 con HTML+Handlebars+Puppeteer ya en producción para Vitra).
+
+### Problema que resuelve
+
+Hoy cada org que necesita un PDF de presupuesto custom (estilo Vitra) requiere:
+1. Diseñador externo (Claude Design / nosotros) que arma el `.hbs`
+2. Push de código + redeploy
+3. Vitra/Patricia no puede ajustar nada visualmente — solo strings en el JSONB de `org_plugins.config`
+
+Eso no escala más allá de ~10 clínicas premium.
+
+### Visión
+
+Un constructor visual **simple** — explícitamente **no estilo Elementor**. Un entorno básico donde la org pueda:
+
+- **Agregar secciones** de texto, tablas, separadores, imágenes
+- **Editar estilos** desde un panel lateral con valores CSS predefinidos (color, padding, font-size, alignment) sin tocar código
+- **Insertar variables** del sistema desde un dropdown (`{{paciente.nombre}}`, `{{tier.fase2.subtotal}}`, etc.) — autocomplete con las columnas disponibles según el contexto del PDF
+- **Fórmulas simples** para totales (suma/resta de campos) sin expresiones arbitrarias
+- **Preview en vivo** mientras edita
+- **Persistencia** de la plantilla como JSON estructurado en `org_plugins.config` (o tabla propia si crece)
+
+### Decisión deliberada de NO incluir (para que esto sea construible)
+
+- Drag-and-drop de bloques con posicionamiento libre (`Elementor`)
+- Múltiples plantillas por tier con variantes condicionales
+- Versionado / undo histórico
+- Diseño responsivo
+- Custom CSS arbitrario
+- JavaScript ejecutable en la plantilla
+
+Mantener el alcance acotado a "secciones lineales + variables + fórmulas básicas" es lo que diferencia 1-2 meses de trabajo vs 6+ meses.
+
+### Cuándo construirlo
+
+Cuando lleguen 30-40 orgs distintas pidiendo templates custom y vos (founder) te estés volviendo el cuello de botella diseñando `.hbs` a mano. Antes de eso, **mantener el flujo actual** (founder instala plugin con HTML pre-hecho + edita JSONB) escala perfectamente.
+
+### Prerequisitos arquitectónicos (ya cumplidos)
+
+- ✅ Sistema de plugins per-org con config JSONB editable (mig 169, esta sesión)
+- ✅ Pipeline HTML+Handlebars+Puppeteer en Vercel (sparticuz/chromium, sesión previa)
+- ✅ Capa 2 desacoplada del addon de fertilidad
+
 
 ---
 

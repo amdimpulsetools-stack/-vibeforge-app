@@ -26,7 +26,7 @@ import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 import type { BudgetPdfProps } from "./document";
 import { FIV_NGS_PRICES, FIV_TIER_BREAKDOWNS } from "./data/fiv-tiers";
-import { getOrgPdfOverrides } from "./data/vitra-overrides";
+import type { OrgPdfOverrides } from "./data/vitra-overrides";
 
 let cachedTemplate: HandlebarsTemplateDelegate | null = null;
 
@@ -70,14 +70,8 @@ function synthBudgetCode(budgetId: string, issuedAt: Date): string {
  */
 function buildFivData(
   props: BudgetPdfProps & { budgetId: string },
+  overrides: OrgPdfOverrides,
 ): Record<string, unknown> {
-  const overrides = getOrgPdfOverrides(props.org.name);
-  if (!overrides) {
-    throw new Error(
-      `[render-html] No org overrides registered for "${props.org.name}". ` +
-        `Add an entry to lib/budget-pdf/data/vitra-overrides.ts.`,
-    );
-  }
   const tier = props.tier ?? "A";
   const breakdown = FIV_TIER_BREAKDOWNS[tier];
 
@@ -138,12 +132,18 @@ function buildFivData(
 
 /**
  * Render the FIV template + data into a final PDF buffer (A4).
+ *
+ * `overrides` is the plugin's resolved config (defaults merged with
+ * the org's row from `org_plugins.config`). Passed by the plugin
+ * `render()` wrapper in lib/plugins/registry.ts so this function
+ * stays decoupled from where the data came from.
  */
 export async function renderFivHtmlPdf(
   props: BudgetPdfProps & { budgetId: string },
+  overrides: OrgPdfOverrides,
 ): Promise<Buffer> {
   const template = await loadFivTemplate();
-  const data = buildFivData(props);
+  const data = buildFivData(props, overrides);
   const html = template(data);
 
   // On Vercel we let @sparticuz/chromium provide the executable. For
@@ -180,15 +180,8 @@ export async function renderFivHtmlPdf(
   }
 }
 
-/**
- * Decides whether a given budget should be rendered via the new
- * HTML+Handlebars path or fall back to the legacy React-PDF document.
- */
-export function shouldUseHtmlPdfPath(
-  orgLegalName: string,
-  treatmentType: string,
-): boolean {
-  const overrides = getOrgPdfOverrides(orgLegalName);
-  if (!overrides) return false;
-  return treatmentType === "FIV";
-}
+// Routing is now done by the plugin resolver
+// (`lib/plugins/active.ts:getActiveBudgetPdfPlugin`). Generator code
+// no longer asks "is this a Vitra FIV budget?" — it asks "is there
+// an installed plugin for this (org, treatment)?" and the registry
+// answers.

@@ -1,16 +1,17 @@
 /**
- * Hardcoded data for NATURVITRA S.A.C. that the template needs but
- * doesn't yet live in DB (brand color, address, phones, footer HTML,
- * advisor phone, etc.).
+ * Default config for the `budget_pdf_vitra` plugin (mig 169).
  *
- * Detection: matched by `organizations.legal_name` containing
- * "NATURVITRA" (case-insensitive). See `generate.tsx` switch.
+ * Lives in code as the source of truth for the shape (the TS type
+ * + the baseline values). Each Vitra-onboarded org gets a row in
+ * `org_plugins` whose `config` JSONB starts as `{}` (use everything
+ * from defaults) and can be overridden field-by-field as the clinic
+ * iterates on header copy, phones, brand color, etc. — without a
+ * code deploy.
  *
- * Next step (post-test): migrate these to `org_budget_pdf_settings`
- * so every org can self-configure.
- *
- * TODO confirmar con Vitra: header address/phones/email/website.
- * Footer está copiado tal cual del .docx original.
+ * If you need to onboard a SECOND clinic with the same template but
+ * a different brand (e.g. "Reproducción Lima"), install the same
+ * plugin key on that org and override the relevant fields in the
+ * JSONB config. No code change needed.
  */
 
 export interface OrgPdfOverrides {
@@ -26,7 +27,7 @@ export interface OrgPdfOverrides {
   advisor_phone_fallback: string;
 }
 
-export const VITRA_OVERRIDES: OrgPdfOverrides = {
+export const VITRA_DEFAULT_CONFIG: OrgPdfOverrides = {
   brand_color: "#d2644f",
   address: "Av. Javier Prado Este 1010 · Clínica Ricardo Palma, San Isidro — Lima",
   phones: "+51 977 597 501 / +51 936 094 214",
@@ -39,19 +40,21 @@ export const VITRA_OVERRIDES: OrgPdfOverrides = {
   advisor_phone_fallback: "+51 987 654 321",
 };
 
-const VITRA_LEGAL_NAME_NEEDLE = "naturvitra";
-
 /**
- * Returns the per-org overrides bundle for a given org legal_name, or
- * `null` if the org is not yet onboarded to the HTML template pipeline.
- *
- * Today only NATURVITRA is wired. Add more clinics here as they sign on.
+ * Merge a plugin row's `config` JSONB on top of the defaults. Field
+ * by field — anything missing or null in the row falls through to
+ * the default. Lets an org override only the bits that differ
+ * (e.g. just `brand_color`) without re-supplying every field.
  */
-export function getOrgPdfOverrides(
-  legalName: string | null,
-): OrgPdfOverrides | null {
-  if (!legalName) return null;
-  const needle = legalName.toLowerCase();
-  if (needle.includes(VITRA_LEGAL_NAME_NEEDLE)) return VITRA_OVERRIDES;
-  return null;
+export function mergeVitraConfig(
+  rowConfig: Record<string, unknown>,
+): OrgPdfOverrides {
+  const out: OrgPdfOverrides = { ...VITRA_DEFAULT_CONFIG };
+  for (const key of Object.keys(out) as (keyof OrgPdfOverrides)[]) {
+    const v = rowConfig[key];
+    if (typeof v === "string" && v.length > 0) {
+      out[key] = v;
+    }
+  }
+  return out;
 }
