@@ -20,6 +20,7 @@ import { useSchedulerMasterData } from "@/hooks/use-scheduler-master-data";
 import { SchedulerHeader } from "./scheduler-header";
 import { DayView } from "./day-view";
 import { WeekView } from "./week-view";
+import { NowProvider } from "./now-provider";
 import { WhatsAppClipboardModal } from "./whatsapp-clipboard-modal";
 import type { AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
 import {
@@ -488,35 +489,40 @@ export default function SchedulerPage() {
         />
 
         <div ref={gridScrollRef} className="flex-1 overflow-auto">
-          {viewMode === "day" ? (
-            <DayView
-              date={currentDate}
-              appointments={appointments}
-              offices={filteredOffices}
-              blocks={allBlocks}
-              paymentTotals={paymentTotals}
-              selectedAppointmentId={selectedAppointment?.id}
-              currentDoctorId={isDoctor ? currentDoctorId : null}
-              onSlotClick={handleSlotClick}
-              onAppointmentClick={handleAppointmentClick}
-              onAppointmentDrop={handleAppointmentDrop}
-              onUnblock={handleUnblock}
-              containerHeight={gridContainerHeight}
-            />
-          ) : (
-            <WeekView
-              currentDate={currentDate}
-              appointments={appointments}
-              offices={filteredOffices}
-              blocks={allBlocks}
-              paymentTotals={paymentTotals}
-              selectedAppointmentId={selectedAppointment?.id}
-              currentDoctorId={isDoctor ? currentDoctorId : null}
-              onSlotClick={handleSlotClick}
-              onAppointmentClick={handleAppointmentClick}
-              containerHeight={gridContainerHeight}
-            />
-          )}
+          {/* NowProvider: single per-minute ticker shared by the views.
+              Memoized AppointmentCards don't re-render on the tick —
+              only components calling useNow() do. */}
+          <NowProvider>
+            {viewMode === "day" ? (
+              <DayView
+                date={currentDate}
+                appointments={appointments}
+                offices={filteredOffices}
+                blocks={allBlocks}
+                paymentTotals={paymentTotals}
+                selectedAppointmentId={selectedAppointment?.id}
+                currentDoctorId={isDoctor ? currentDoctorId : null}
+                onSlotClick={handleSlotClick}
+                onAppointmentClick={handleAppointmentClick}
+                onAppointmentDrop={handleAppointmentDrop}
+                onUnblock={handleUnblock}
+                containerHeight={gridContainerHeight}
+              />
+            ) : (
+              <WeekView
+                currentDate={currentDate}
+                appointments={appointments}
+                offices={filteredOffices}
+                blocks={allBlocks}
+                paymentTotals={paymentTotals}
+                selectedAppointmentId={selectedAppointment?.id}
+                currentDoctorId={isDoctor ? currentDoctorId : null}
+                onSlotClick={handleSlotClick}
+                onAppointmentClick={handleAppointmentClick}
+                containerHeight={gridContainerHeight}
+              />
+            )}
+          </NowProvider>
         </div>
       </div>
 

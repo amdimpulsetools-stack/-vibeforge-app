@@ -5,16 +5,17 @@ import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
-import { Plus, Lock, LockOpen, Coffee, CircleDollarSign, CheckCircle2, Video, AlertTriangle } from "lucide-react";
+import { Plus, Lock, LockOpen, Coffee } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
+import { AppointmentCard } from "./appointment-card";
+import { useNow } from "./now-provider";
 
 /** Minimum px per slot in the day view. */
 const DAY_BASE_SLOT_HEIGHT = 40;
 /** Sticky office-name header rendered inside the scroll container (must be
  * subtracted from container height when distributing rows). py-3 + text-sm. */
 const DAY_HEADER_HEIGHT = 44;
-import { RecurringDot } from "@/components/patients/recurring-badge";
 
 interface DayViewProps {
   date: Date;
@@ -134,22 +135,8 @@ function getBlockForSlot(
 
 type ContextMenu = { x: number; y: number; blockId: string; reason?: string | null };
 
-/** Create a light pastel by blending a hex color with white. */
-function hexToPastel(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  const bg = 255; // white
-  return `rgb(${Math.round(r * alpha + bg * (1 - alpha))}, ${Math.round(g * alpha + bg * (1 - alpha))}, ${Math.round(b * alpha + bg * (1 - alpha))})`;
-}
-
-/** Create a darkened version of a hex color for text on pastel bg. */
-function hexToDark(hex: string, factor = 0.45): string {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
-  return `rgb(${Math.round(r * factor)}, ${Math.round(g * factor)}, ${Math.round(b * factor)})`;
-}
+// Color helpers (hexToPastel / hexToDark) moved to appointment-card.tsx
+// together with the card markup they styled.
 
 export function DayView({
   date,
@@ -198,15 +185,12 @@ export function DayView({
     [appointments, dateStr, activeInterval]
   );
 
-  // Current time indicator
-  const [now, setNow] = useState(() => new Date());
+  // Current time indicator — uses the shared NowProvider ticker.
+  // The per-minute re-render this triggers on DayView is cheap now:
+  // all AppointmentCards are memoized, so the tick only repaints the
+  // time line, not the card subtrees.
+  const now = useNow();
   const showTimeIndicator = schedulerConfig.timeIndicator;
-
-  useEffect(() => {
-    if (!showTimeIndicator) return;
-    const interval = setInterval(() => setNow(new Date()), 60_000);
-    return () => clearInterval(interval);
-  }, [showTimeIndicator]);
 
   const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -302,7 +286,6 @@ export function DayView({
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
                   const durationSlots = (endMinutes - startMinutes) / interval;
-                  const doctorColor = startAppt.doctors?.color ?? "#9ca3af";
 
                   // Visual offset for appointments not aligned with grid
                   const [slotH, slotM] = time.split(":").map(Number);
@@ -332,68 +315,22 @@ export function DayView({
                         dragApptId.current = null;
                       }}
                     >
-                      <button
-                        draggable={!isOtherDoctorAppt}
-                        onDragStart={(e) => {
-                          if (isOtherDoctorAppt) { e.preventDefault(); return; }
-                          dragApptId.current = startAppt.id;
-                          e.dataTransfer.effectAllowed = "move";
-                        }}
-                        onDragEnd={() => { dragApptId.current = null; setDragOverSlot(null); }}
+                      <AppointmentCard
+                        appointment={startAppt}
+                        topPx={offsetPx + 2}
+                        heightPx={durationSlots * slotHeight - 4}
+                        isSelected={selectedAppointmentId === startAppt.id}
+                        isOtherDoctor={isOtherDoctorAppt}
+                        paymentTotal={paymentTotals[startAppt.id] ?? 0}
                         onClick={() => onAppointmentClick(startAppt)}
-                        className={cn(
-                          "absolute inset-x-1.5 z-[5] rounded-lg px-2 py-0.5 text-left transition-all overflow-hidden flex flex-col justify-center",
-                          isOtherDoctorAppt
-                            ? "cursor-default"
-                            : "cursor-grab active:cursor-grabbing hover:shadow-md",
-                          selectedAppointmentId === startAppt.id && !isOtherDoctorAppt && "ring-2 ring-primary shadow-lg z-[6]"
-                        )}
-                        style={{
-                          top: `${offsetPx + 2}px`,
-                          height: `${durationSlots * slotHeight - 4}px`,
-                          backgroundColor: hexToPastel(doctorColor, 0.18),
-                          borderLeft: `4px solid ${doctorColor}`,
-                          ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
+                        onDragStartCard={(id) => {
+                          dragApptId.current = id;
                         }}
-                      >
-                        <div className="flex items-center gap-1">
-                          {startAppt.patients?.is_recurring && (
-                            <RecurringDot className="shrink-0" />
-                          )}
-                          <p className="text-xs font-bold truncate leading-tight flex-1" style={{ color: hexToDark(doctorColor) }}>
-                            {startAppt.patient_name}
-                          </p>
-                          {/* Virtual indicator */}
-                          {!isOtherDoctorAppt && (startAppt as any).meeting_url && (
-                            <Video className="h-3 w-3 shrink-0 text-blue-500" />
-                          )}
-                          {/* Payment / Debt indicator */}
-                          {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (() => {
-                            const gross = Number(startAppt.price_snapshot);
-                            const discount = Number(
-                              (startAppt as { discount_amount?: number | null }).discount_amount ?? 0
-                            );
-                            const price = Math.max(0, gross - discount);
-                            const paid = paymentTotals[startAppt.id] ?? 0;
-                            const pending = price - paid;
-                            if (price === 0 || paid >= price) {
-                              return <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />;
-                            }
-                            if (pending > 0) {
-                              return (
-                                <span className="flex items-center gap-0.5 shrink-0 rounded-full bg-red-500/15 px-1 py-0.5 text-[9px] font-bold text-red-600 leading-none" title={`Deuda: S/. ${pending.toFixed(2)}`}>
-                                  <AlertTriangle className="h-2.5 w-2.5" />
-                                  S/{pending.toFixed(0)}
-                                </span>
-                              );
-                            }
-                            return <CircleDollarSign className="h-3 w-3 shrink-0 text-gray-400" />;
-                          })()}
-                        </div>
-                        <p className="text-[11px] truncate leading-tight" style={{ color: hexToDark(doctorColor, 0.55) }}>
-                          {startAppt.doctors?.full_name ?? "—"} · {startAppt.services?.name ?? "—"}
-                        </p>
-                      </button>
+                        onDragEndCard={() => {
+                          dragApptId.current = null;
+                          setDragOverSlot(null);
+                        }}
+                      />
                     </div>
                   );
                 }
