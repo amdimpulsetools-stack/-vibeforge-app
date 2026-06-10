@@ -225,17 +225,19 @@ export function LiveStatusPill({
   const interactive = !readOnly && actions.length > 0;
 
   const pill = compact ? (
-    // Dot-only: zero height impact on 15-min cards. The wrapper keeps
-    // a generous-enough hit area for the tap.
+    // Dot-only: zero height impact on single-slot cards. h-3 keeps
+    // the wrapper no taller than the 11px name text so it doesn't
+    // inflate the first row (the perceived "line gap" came from the
+    // previous 14px wrapper driving the row height).
     <span
       title={time ? `${meta.label} · ${time}` : meta.label}
       className={cn(
-        "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full",
+        "inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full",
         interactive && "cursor-pointer hover:ring-1 hover:ring-current/40",
         meta.bg,
       )}
     >
-      <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
+      <span className={cn("h-1.5 w-1.5 rounded-full", meta.dot)} />
     </span>
   ) : (
     <span
@@ -267,7 +269,11 @@ export function LiveStatusPill({
           // the pill must not bubble into it.
           onClick={(e) => e.stopPropagation()}
           onDragStart={(e) => e.preventDefault()}
-          className="appearance-none"
+          // Full reset: `appearance-none` alone keeps the UA focus
+          // outline, which rendered as a dark blob around the
+          // dot-only pill when the popover opened. Replace it with a
+          // subtle ring.
+          className="appearance-none inline-flex bg-transparent p-0 border-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           {pill}
         </button>

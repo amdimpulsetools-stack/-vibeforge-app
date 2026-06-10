@@ -223,8 +223,11 @@ function AppointmentCardInner({
       <p
         className={cn(
           "truncate",
+          // mt-px (1px) keeps the two lines reading as a single unit;
+          // the previous mt-0.5 plus the old 14px dot wrapper made
+          // the gap look airy on single-slot cards.
           isCompact
-            ? "text-[10px] leading-none mt-0.5"
+            ? "text-[10px] leading-none mt-px"
             : "text-[11px] leading-tight",
         )}
         style={{ color: hexToDark(doctorColor, 0.55) }}
