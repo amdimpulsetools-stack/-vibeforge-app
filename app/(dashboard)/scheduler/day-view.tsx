@@ -11,8 +11,12 @@ import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActive
 import { AppointmentCard } from "./appointment-card";
 import { useNow } from "./now-provider";
 
-/** Minimum px per slot in the day view. */
-const DAY_BASE_SLOT_HEIGHT = 40;
+/** Minimum px per slot in the day view. Raised 40 → 44 so single-slot
+ * cards get ~40 px of content box (two text lines + pill breathe
+ * comfortably). computeSlotHeight already grows rows for short
+ * schedules, so this floor only affects 12 h+ schedules — the cost is
+ * one extra scroll notch on a 24-row day. */
+const DAY_BASE_SLOT_HEIGHT = 44;
 /** Sticky office-name header rendered inside the scroll container (must be
  * subtracted from container height when distributing rows). py-3 + text-sm. */
 const DAY_HEADER_HEIGHT = 44;
