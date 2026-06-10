@@ -144,6 +144,14 @@ export interface LiveStatusPillProps {
   canEndReopen: boolean;
   /** Read-only render (e.g. doctor viewing another doctor's card). */
   readOnly?: boolean;
+  /**
+   * Dot-only render for short cards (15-min slots are ~36 px tall —
+   * the full label pushed the doctor·service line out of the
+   * overflow-hidden card). The colored dot still signals the state
+   * at a glance; the label moves to the title tooltip and the
+   * popover remains fully functional.
+   */
+  compact?: boolean;
   /** Called after any successful transition so the parent refreshes. */
   onChanged: () => void;
 }
@@ -154,6 +162,7 @@ export function LiveStatusPill({
   size,
   canEndReopen,
   readOnly = false,
+  compact = false,
   onChanged,
 }: LiveStatusPillProps) {
   const [open, setOpen] = useState(false);
@@ -215,7 +224,20 @@ export function LiveStatusPill({
   const actions = actionsFor(state, canEndReopen);
   const interactive = !readOnly && actions.length > 0;
 
-  const pill = (
+  const pill = compact ? (
+    // Dot-only: zero height impact on 15-min cards. The wrapper keeps
+    // a generous-enough hit area for the tap.
+    <span
+      title={time ? `${meta.label} · ${time}` : meta.label}
+      className={cn(
+        "inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full",
+        interactive && "cursor-pointer hover:ring-1 hover:ring-current/40",
+        meta.bg,
+      )}
+    >
+      <span className={cn("h-2 w-2 rounded-full", meta.dot)} />
+    </span>
+  ) : (
     <span
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-full font-semibold leading-none",

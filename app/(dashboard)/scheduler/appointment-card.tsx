@@ -151,7 +151,9 @@ function AppointmentCardInner({
         </p>
         {/* Live status pill — visible to everyone, interactive only
             for the org's own flows (other-doctor cards are read-only
-            for doctor users). */}
+            for doctor users). Short cards (15-min slots ≈ 36 px) get
+            the dot-only variant so the doctor·service line below
+            never gets pushed out of the overflow-hidden card. */}
         {liveStatusEnabled && liveState && (
           <LiveStatusPill
             appointmentId={appointment.id}
@@ -163,6 +165,7 @@ function AppointmentCardInner({
                 appointment.consultation_ended_at ?? null,
             }}
             size="card"
+            compact={heightPx < 52}
             canEndReopen={canEndReopen}
             readOnly={isOtherDoctor}
             onChanged={() => onLiveChanged?.()}
