@@ -1,7 +1,30 @@
 # Coming Updates — Yenda
 
-> **Última actualización:** 2026-05-16 (v0.17.0 — Sprint 2: Seguros entregado)
+> **Última actualización:** 2026-06-10 (Presupuestos FIV PDF + Plugins per-org + Estado de cita en vivo entregados)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
+
+---
+
+## 🧬 Fertilidad / Presupuestos — pendientes post-pipeline FIV (2026-06-10)
+
+Lo entregado: pipeline completo de PDF FIV para Vitra (template HTML + puppeteer en Vercel), doctor/asesora reales en el presupuesto (mig 167), arquitectura de plugins per-org (mig 169, Founder Panel → Plugins). Lo que quedó:
+
+- [ ] **Templates TRA restantes para Vitra**: IIU, Ovodonación+NGS, ROPA, Crio de óvulos, TED, DuoStim. Los `.docx` fuente están en `docs/Budgets/`. Cada uno = un `.hbs` nuevo (pedir a Claude Design siguiendo el patrón de `FIV.hbs`) + breakdown en `lib/budget-pdf/data/` + ampliar `applies_to.treatment_types` del plugin `budget_pdf_vitra` en `lib/plugins/registry.ts`. La fila de `org_plugins` de Vitra NO se toca.
+- [ ] **Sincronía precios admin ↔ PDF**: hoy el PDF muestra el total del breakdown hardcoded e ignora `service_budget_tiers.amount` editado en `/admin/services`. Decisión pendiente con feedback de Vitra: opción B = tabla `service_budget_phase_breakdowns` (tier × fase editable desde admin) para que total y desglose siempre cuadren. Mientras los precios sean estables, el hardcoded escala bien.
+- [ ] **Toggle `is_fertility_advisor` en editar miembro**: hoy el flag solo se setea al invitar. Si una doctora existente "asciende" a asesora coordinadora, el workaround es borrar + reinvitar (destructivo). Discutido y diferido por baja frecuencia (~1-2×/año). Agregar el mismo checkbox del modal de invitación al form de edición en `/admin/members`. ~30 min.
+- [ ] **Datos de Vitra hardcoded → confirmar con la clínica**: header (dirección/teléfonos/email/web) y footer del PDF salen de `VITRA_DEFAULT_CONFIG` con valores "best guess". Confirmar con Vitra y ajustar vía JSONB en Founder Panel → Plugins (sin deploy).
+
+## 🎨 Branding org — pendientes (2026-06-10)
+
+- [ ] **Favicon dinámico desde `icon_url`** (mig 168): el topbar/sidebar ya usan el ícono compacto con fallback a `logo_url`; falta inyectarlo como favicon del browser. Requiere dynamic metadata en el root layout (server-side necesita el contexto de la org) o manipulación client-side de `document.head`. Diferido por invasivo.
+
+## 📅 Agenda — Estado de cita en vivo: fast-follows (2026-06-10)
+
+Entregado completo (migs 170-171, PRs #188-#194): pill llegó/en-consulta/finalizada, undo 8s, auto-close por doctor, stale fade lunch-aware, lean poll 30s, toggles en Settings → Agenda, cron EOD 02:00 Lima. Fast-follows posibles:
+
+- [ ] **Pill en la vista semanal**: hoy solo la vista día lo muestra (la celda semanal tiene layout distinto y sin ticker). Evaluar si recepción lo necesita ahí.
+- [ ] **Reportes de tiempos**: los timestamps ya capturan espera real (`arrived_at` → `consultation_started_at`) y duración real de consulta. KPI cards en `/reports`: espera promedio, duración promedio por servicio, puntualidad por doctor. Filtrar `closed_reason='auto_eod'` (duración estimada, no real).
+- [ ] **Realtime en vez de poll**: si alguna clínica pide latencia <30s entre recepción y consultorio, migrar el lean poll a Supabase realtime channels filtrado por org+fecha. Hoy 30s es suficiente.
 
 ---
 

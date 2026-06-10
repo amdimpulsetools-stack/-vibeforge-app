@@ -4716,3 +4716,58 @@ Sin `ORDER BY`. Postgres devuelve **una membresía arbitraria** de las que el us
 **Verificación:** `tsc --noEmit` ✅ limpio, `next lint` ✅ limpio en los archivos tocados.
 
 Convención respetada en los 3 cambios: el sistema guarda el **label** del lookup como valor de origen (`patients.origin = 'TikTok'`, no `'tiktok'`), así que el select del drawer y el dropdown del scheduler funcionan con el mismo dataset.
+## Changelog — Sesiones 2026-06-05 a 2026-06-10 — Presupuestos FIV PDF + Plugins per-org + Estado de cita en vivo
+
+Tres features mayores entregados en cadena, todos en producción.
+
+### 1. Pipeline de PDF de presupuestos FIV para Vitra (PRs #182–#187)
+
+**Objetivo:** el botón "Descargar PDF" de un presupuesto FIV de NATURVITRA genera el template HTML profesional (Claude Design) en vez del React-PDF genérico.
+
+- **Render**: Handlebars (`lib/budget-pdf/templates/FIV.hbs`) + `puppeteer-core` + `@sparticuz/chromium` (el puppeteer full excede los límites de Vercel serverless). Gotchas resueltos y documentados en `next.config.ts`: `serverExternalPackages` + `outputFileTracingIncludes` para el `.hbs` Y para `@sparticuz/chromium/bin/**` (el tracer de Vercel no sigue los `.br` cargados por fs), `setGraphicsMode = false` antes de `executablePath()`, `maxDuration = 30`.
+- **Datos por tier**: breakdowns A/B/C hardcoded en `lib/budget-pdf/data/fiv-tiers.ts` desde los `.docx` revisión 2026-06-04 (A=18,450 / B=17,020 / C=16,260). El PDF muestra siempre el total del breakdown (ignora `budget_records.amount` para evitar drift visual con los renglones).
+- **Error surfacing**: try/catch en el route con el mensaje real en el body — el toast genérico "No se pudo generar el PDF" costó horas de triage hasta que se agregó.
+
+### 2. Doctor + asesora reales en el presupuesto (mig 167, PR #185/186)
+
+**Bug de origen:** "Médico tratante" y "Asesora" salían vacíos/incorrectos en el PDF. Dos causas: (a) el endpoint assign descartaba `asesora_id` (Phase 4 nunca aterrizada), y (b) `loadProfile` consultaba la tabla `profiles` que **no existe** (es `user_profiles`) — silenciosamente null desde el día 1.
+
+- `budget_records` ganó `appointment_id` + `assigned_doctor_id` + `assigned_asesora_member_id` (mig 167). Required en API, nullable en DB (rows legacy muestran "—").
+- `AssignBudgetModal` (sidebar de cita): doctor auto-llenado desde la cita (read-only, "desde la cita"); si la cita no tiene doctor → submit bloqueado. Asesora required (filtra `is_fertility_advisor=true`).
+- `BudgetRecordModal` (flujo standalone) reescrito: eliminado "Monto aproximado" libre → tier A/B/C + selects de doctor y asesora. Mismo endpoint que el flujo de cita.
+- Nota PostgREST: no hay FK entre `organization_members` y `user_profiles` (ambas referencian `auth.users`), así que la asesora se resuelve con 2 queries (`loadAsesoraName`), no con embed.
+
+### 3. organizations.icon_url (mig 168, PR #186)
+
+Ícono cuadrado compacto separado del `logo_url` (lockup horizontal para documentos). Topbar/sidebar lo prefieren con fallback al logo. Upload en Settings → Organización ("Ícono compacto"). Favicon dinámico quedó como pendiente.
+
+### 4. Arquitectura de plugins per-org (mig 169, PR #187)
+
+Reemplaza el switch hardcoded "if NATURVITRA + FIV" por un sistema instalable:
+
+- **`org_plugins`** (org_id, plugin_key, enabled, config JSONB). RLS: SELECT para miembros, writes solo founders.
+- **`lib/plugins/registry.ts`**: source of truth de los keys. Primer plugin: `budget_pdf_vitra` (requiere addon fertility, aplica a FIV; ampliar `applies_to.treatment_types` cuando lleguen los demás templates TRA).
+- **`lib/plugins/active.ts`**: resolver runtime — devuelve el primer plugin aplicable o null → Capa 1 (React-PDF default).
+- **Founder Panel → Plugins**: instalar/configurar/apagar/desinstalar por org, con editor JSONB inline. Vitra instalada con `config={}` (usa defaults de `VITRA_DEFAULT_CONFIG`).
+- Onboardear otra clínica con el mismo template = INSERT + override de JSONB, cero código. Template distinto = nueva entrada en registry.
+
+### 5. Estado de cita en vivo (migs 170-171, PRs #188-#194)
+
+Capa visual paralela e independiente de `appointment.status`, activable por org:
+
+- **Parte A (perf groundwork, PR #188)**: `AppointmentCard` extraído del JSX inline del day-view + `React.memo` con comparador custom (id + updated_at + geometría + selección + paymentTotal). `NowProvider` = ticker único por minuto via Context. Sin esto, la feature habría multiplicado el re-render avalanche que ya existía.
+- **Partes B+C (PR #189)**: `appointments` ganó `arrived_at` / `consultation_started_at` / `consultation_ended_at` / `consultation_closed_reason` (timestamps, no enum — el estado se deriva y los valores alimentan reportes futuros de espera/duración real). RPC `start_consultation` atómico: cierra la consulta abierta previa del MISMO doctor (race-safe con tabs paralelas). Endpoint `POST /api/appointments/[id]/live-status` con acciones arrive/unarrive/start/end/reopen; recepción puede arrive+start pero no end/reopen.
+- **Partes D+E+F (PRs #190-192)**: `<LiveStatusPill>` — pill clickeable que abre popover con las transiciones válidas (gris Programada → azul Llegó → esmeralda pulsante En consulta → gris muted Finalizada). Undo via toast 8s, sin modales. En cards de 1 slot se reduce a dot-only. Lean poll cada 30s (solo 4 columnas, ~5 KB, pausado con pestaña oculta, skip si nada cambió). Stale fade lunch-aware: consulta abierta >1h se atenúa SOLO si el doctor ya está en su siguiente cita. Settings → Agenda: toggle maestro + sub-toggle de cierre automático (`scheduler_settings.live_status*`, mig 171).
+- **Polish (PR #193)**: tipografía compacta en cards de 1 slot (el clipping de la 2da línea era preexistente), celdas 40→44px, fix del focus outline del browser que se veía como blob oscuro en el dot.
+- **Parte G (PR #194)**: cron EOD diario (02:00 Lima) que cierra consultas huérfanas con la hora de fin programada de la cita (`closed_reason='auto_eod'`); si la consulta empezó después de su fin programado, `inicio + 30 min`.
+
+### Lecciones de la sesión
+
+- **PostgREST embeds**: no se puede embeder a través de dos FKs que apuntan a la misma tabla destino (`organization_members.user_id` y `user_profiles.id` → `auth.users`). Resolver con queries separadas.
+- **Errores opacos**: `loadBudgetForPdf` tragaba el error de PostgREST y devolvía 404 genérico. Loggear SIEMPRE el error antes de colapsar a null.
+- **Vercel + sparticuz**: los binarios `.br` de chromium no son seguidos por el file tracer; declararlos en `outputFileTracingIncludes` o falla con "input directory does not exist".
+- **Working tree de sesión**: el checkout local puede resetearse entre sesiones de Claude Code web — verificar `git log` antes de auditar con agentes.
+
+### Pendientes que dejó la sesión (ver COMING-UPDATES.md)
+
+Toggle `is_fertility_advisor` en editar miembro · favicon dinámico desde `icon_url` · templates TRA restantes para Vitra (IIU/Ovodon/ROPA/Crio/TED/DuoStim) · sincronía precios admin↔PDF (opción B: `service_budget_phase_breakdowns`) · visual builder (§17.5).
