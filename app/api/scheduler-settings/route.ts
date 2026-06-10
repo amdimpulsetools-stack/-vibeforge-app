@@ -8,6 +8,9 @@ const schedulerSettingsSchema = z.object({
   intervals: z.array(z.union([z.literal(15), z.literal(20), z.literal(30), z.literal(45), z.literal(60)])).min(1),
   time_indicator: z.boolean(),
   disabled_weekdays: z.array(z.number().int().min(0).max(6)),
+  // Live status toggles (mig 171)
+  live_status: z.boolean(),
+  live_status_auto_close: z.boolean(),
 }).partial();
 
 // GET /api/scheduler-settings — load org's scheduler config

@@ -1586,6 +1586,62 @@ export default function SettingsPage() {
             </label>
           </div>
 
+          {/* Live appointment status (mig 170/171) */}
+          <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
+            <label className="flex items-center justify-between select-none cursor-pointer">
+              <div>
+                <p className="text-sm font-semibold">
+                  {language === "es" ? "Estado de cita en vivo" : "Live appointment status"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {language === "es"
+                    ? "Permite marcar cuándo el paciente llegó a recepción y cuándo está en consulta. Los cards de la agenda muestran el estado con un indicador de color. No afecta el estado de la cita (confirmada, completada, etc.)."
+                    : "Lets you mark when the patient arrived at reception and when they're in consultation. Agenda cards show the state with a color indicator. Does not affect the appointment status (confirmed, completed, etc.)."}
+                </p>
+              </div>
+              <div className="relative ml-4 shrink-0">
+                <input
+                  type="checkbox"
+                  checked={schedulerConfig.liveStatus}
+                  onChange={(e) =>
+                    updateSchedulerConfig({ liveStatus: e.target.checked })
+                  }
+                  className="sr-only peer"
+                />
+                <div className="h-6 w-11 rounded-full bg-muted peer-checked:bg-primary transition-colors" />
+                <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+              </div>
+            </label>
+            {schedulerConfig.liveStatus && (
+              <label className="flex items-center justify-between select-none cursor-pointer border-t border-border/40 pt-4">
+                <div>
+                  <p className="text-sm font-medium">
+                    {language === "es"
+                      ? "Cierre automático de consulta"
+                      : "Auto-close consultation"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === "es"
+                      ? "Al iniciar una consulta, la anterior consulta abierta del mismo doctor se finaliza automáticamente. Desactívalo para cerrar siempre de forma manual."
+                      : "Starting a consultation automatically ends the doctor's previous open one. Turn off to always close manually."}
+                  </p>
+                </div>
+                <div className="relative ml-4 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={schedulerConfig.liveStatusAutoClose}
+                    onChange={(e) =>
+                      updateSchedulerConfig({ liveStatusAutoClose: e.target.checked })
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="h-6 w-11 rounded-full bg-muted peer-checked:bg-primary transition-colors" />
+                  <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+                </div>
+              </label>
+            )}
+          </div>
+
           {/* Disabled weekdays */}
           <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
             <div>

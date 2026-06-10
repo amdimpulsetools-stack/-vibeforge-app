@@ -44,6 +44,8 @@ import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { usePlan } from "@/hooks/use-plan";
+import { loadSchedulerConfig } from "@/lib/scheduler-config";
+import { LiveStatusPill } from "./live-status-pill";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
@@ -92,6 +94,9 @@ export function AppointmentSidebar({
   const { t } = useLanguage();
   const { profile } = useUserProfile();
   const { isAdmin, isDoctor: isDoctorRole, isReceptionist } = useOrgRole();
+  // Live status master toggle — instant from the localStorage cache;
+  // the scheduler page keeps it fresh via fetchSchedulerConfig().
+  const liveStatusEnabled = useMemo(() => loadSchedulerConfig().liveStatus, []);
   // Phase 3 (Budget Tiers): only show the "Asignar presupuesto" CTA on
   // completed appointments and only for orgs with the fertility addon
   // active. Receptionists are excluded (advisors with non-receptionist
@@ -815,7 +820,10 @@ export function AppointmentSidebar({
       </div>
 
       <div className="p-4 space-y-5">
-        {/* Status badge */}
+        {/* Status badge + live status pill. Two parallel systems on
+            purpose: `status` is the booking lifecycle (confirmada /
+            completada / …); the live pill is the in-clinic flow
+            (llegó / en consulta) — mig 170. */}
         <div className="flex items-center gap-2">
           <StatusIcon className="h-4 w-4" style={{ color: statusColor }} />
           <span
@@ -827,6 +835,21 @@ export function AppointmentSidebar({
           >
             {t(`scheduler.status_${appointment.status}`)}
           </span>
+          {liveStatusEnabled && !readOnly && (
+            <LiveStatusPill
+              appointmentId={appointment.id}
+              live={{
+                arrived_at: appointment.arrived_at ?? null,
+                consultation_started_at:
+                  appointment.consultation_started_at ?? null,
+                consultation_ended_at:
+                  appointment.consultation_ended_at ?? null,
+              }}
+              size="sidebar"
+              canEndReopen={!isReceptionist}
+              onChanged={() => onUpdate()}
+            />
+          )}
           {editing && (
             <span className="ml-auto rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
               {t("scheduler.editing")}

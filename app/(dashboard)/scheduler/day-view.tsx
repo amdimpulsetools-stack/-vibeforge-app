@@ -33,6 +33,10 @@ interface DayViewProps {
   /** Height of the scroll container the view lives in. When set, rows grow
    * to fill it for short schedules; falsy → falls back to base slot height. */
   containerHeight?: number;
+  /** Live status (Part E) — receptionists can't end/reopen. */
+  canEndReopen?: boolean;
+  /** Refetch hook fired after a live-status transition. */
+  onLiveChanged?: () => void;
 }
 
 
@@ -151,6 +155,8 @@ export function DayView({
   onAppointmentDrop,
   onUnblock,
   containerHeight,
+  canEndReopen = false,
+  onLiveChanged,
 }: DayViewProps) {
   const { t } = useLanguage();
   const dateStr = format(date, "yyyy-MM-dd");
@@ -199,6 +205,37 @@ export function DayView({
   const timeLineVisible =
     showTimeIndicator && isToday && currentMinutes >= gridStartMinutes && currentMinutes < gridEndMinutes;
   const timeLineTop = ((currentMinutes - gridStartMinutes) / getActiveInterval(schedulerConfig)) * slotHeight;
+
+  // Live status — stale detection, computed HERE (the view owns the
+  // minute tick) so the memoized cards don't subscribe to the ticker.
+  // A consultation is "stale" (visually faded) when it's been open
+  // for >1h AND the doctor's NEXT cita of the day has already passed
+  // its start time. The second condition is the lunch-break guard:
+  // a long consultation right before a schedule gap stays green —
+  // only when the doctor visibly moved on does the old card fade.
+  const liveStatusEnabled = schedulerConfig.liveStatus;
+  const staleApptIds = useMemo(() => {
+    if (!liveStatusEnabled || !isToday) return new Set<string>();
+    const out = new Set<string>();
+    const nowMs = now.getTime();
+    const nowHHMM = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
+    for (const a of appointments) {
+      if (a.appointment_date !== dateStr) continue;
+      if (!a.consultation_started_at || a.consultation_ended_at) continue;
+      const openMs = nowMs - new Date(a.consultation_started_at).getTime();
+      if (openMs <= 60 * 60 * 1000) continue;
+      const hasNextAlreadyDue = appointments.some(
+        (b) =>
+          b.id !== a.id &&
+          b.doctor_id === a.doctor_id &&
+          b.appointment_date === dateStr &&
+          b.start_time.slice(0, 5) > a.start_time.slice(0, 5) &&
+          b.start_time.slice(0, 5) <= nowHHMM,
+      );
+      if (hasNextAlreadyDue) out.add(a.id);
+    }
+    return out;
+  }, [liveStatusEnabled, isToday, appointments, dateStr, now]);
 
   useEffect(() => {
     if (!contextMenu) return;
@@ -330,6 +367,10 @@ export function DayView({
                           dragApptId.current = null;
                           setDragOverSlot(null);
                         }}
+                        liveStatusEnabled={liveStatusEnabled}
+                        canEndReopen={canEndReopen}
+                        isStale={staleApptIds.has(startAppt.id)}
+                        onLiveChanged={onLiveChanged}
                       />
                     </div>
                   );

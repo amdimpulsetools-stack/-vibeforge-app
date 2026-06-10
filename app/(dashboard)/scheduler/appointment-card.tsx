@@ -23,6 +23,7 @@ import { CheckCircle2, CircleDollarSign, Video, AlertTriangle } from "lucide-rea
 import type { AppointmentWithRelations } from "@/types/admin";
 import { RecurringDot } from "@/components/patients/recurring-badge";
 import { cn } from "@/lib/utils";
+import { LiveStatusPill, deriveLiveState } from "./live-status-pill";
 
 /**
  * Color helpers — verbatim copies of the ones that lived in
@@ -61,6 +62,20 @@ export interface AppointmentCardProps {
   onClick: () => void;
   onDragStartCard?: (appointmentId: string) => void;
   onDragEndCard?: () => void;
+  // ── Live status (Part E) ─────────────────────────────────────────
+  /** Master toggle (Settings → Agenda). Off = pill never renders. */
+  liveStatusEnabled?: boolean;
+  /** Receptionists can arrive/start but not end/reopen. */
+  canEndReopen?: boolean;
+  /**
+   * Computed by the parent grid (which owns the shared minute tick):
+   * consultation open >1h AND the doctor's next cita already started.
+   * The card itself does NOT subscribe to the ticker — keeps memo
+   * effective for the other 49 cards.
+   */
+  isStale?: boolean;
+  /** Refetch hook fired after a live-status transition. */
+  onLiveChanged?: () => void;
 }
 
 function AppointmentCardInner({
@@ -73,8 +88,25 @@ function AppointmentCardInner({
   onClick,
   onDragStartCard,
   onDragEndCard,
+  liveStatusEnabled = false,
+  canEndReopen = false,
+  isStale = false,
+  onLiveChanged,
 }: AppointmentCardProps) {
   const doctorColor = appointment.doctors?.color ?? "#9ca3af";
+
+  const liveState = liveStatusEnabled
+    ? deriveLiveState({
+        arrived_at: appointment.arrived_at ?? null,
+        consultation_started_at: appointment.consultation_started_at ?? null,
+        consultation_ended_at: appointment.consultation_ended_at ?? null,
+      })
+    : null;
+  // "Done" visual: ended consultations and stale ones (open >1h with
+  // the doctor already in their next cita) fade to muted gray. The
+  // 4px doctor-color left border stays so identity remains legible
+  // across the grid — exactly the separator the user asked for.
+  const isDone = liveState === "ended" || isStale;
 
   return (
     <button
@@ -99,9 +131,12 @@ function AppointmentCardInner({
       style={{
         top: `${topPx}px`,
         height: `${heightPx}px`,
-        backgroundColor: hexToPastel(doctorColor, 0.18),
+        backgroundColor: isDone
+          ? "hsl(var(--muted))"
+          : hexToPastel(doctorColor, 0.18),
         borderLeft: `4px solid ${doctorColor}`,
         ...(isOtherDoctor ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
+        ...(isDone && !isOtherDoctor ? { opacity: 0.75 } : {}),
       }}
     >
       <div className="flex items-center gap-1">
@@ -114,6 +149,25 @@ function AppointmentCardInner({
         >
           {appointment.patient_name}
         </p>
+        {/* Live status pill — visible to everyone, interactive only
+            for the org's own flows (other-doctor cards are read-only
+            for doctor users). */}
+        {liveStatusEnabled && liveState && (
+          <LiveStatusPill
+            appointmentId={appointment.id}
+            live={{
+              arrived_at: appointment.arrived_at ?? null,
+              consultation_started_at:
+                appointment.consultation_started_at ?? null,
+              consultation_ended_at:
+                appointment.consultation_ended_at ?? null,
+            }}
+            size="card"
+            canEndReopen={canEndReopen}
+            readOnly={isOtherDoctor}
+            onChanged={() => onLiveChanged?.()}
+          />
+        )}
         {/* Virtual indicator */}
         {!isOtherDoctor &&
           (appointment as { meeting_url?: string | null }).meeting_url && (
@@ -174,10 +228,16 @@ export const AppointmentCard = memo(
   AppointmentCardInner,
   (prev, next) =>
     prev.appointment.id === next.appointment.id &&
+    // updated_at covers the live-status timestamps too: appointments
+    // has a set_updated_at trigger (mig 007), so any arrive/start/end
+    // bumps it and busts this memo for exactly the touched card.
     prev.appointment.updated_at === next.appointment.updated_at &&
     prev.topPx === next.topPx &&
     prev.heightPx === next.heightPx &&
     prev.isSelected === next.isSelected &&
     prev.isOtherDoctor === next.isOtherDoctor &&
-    prev.paymentTotal === next.paymentTotal,
+    prev.paymentTotal === next.paymentTotal &&
+    prev.liveStatusEnabled === next.liveStatusEnabled &&
+    prev.canEndReopen === next.canEndReopen &&
+    prev.isStale === next.isStale,
 );
