@@ -136,10 +136,17 @@ export function WeekView({
 
       {/* Time grid */}
       <div className="relative">
-        {/* NOTE: the redundant z-8 "column separator overlay" was
-            removed here too — same sub-pixel doubling bug as the day
-            view (see day-view.tsx for the full explanation). Per-cell
-            border-r is the single source of truth. */}
+        {/* Column separators: ONE full-height layer behind content
+            (z-0). Cells draw no vertical borders — see day-view.tsx
+            for the full history of why (per-row borders fragment at
+            fractional widths; the old z-8 overlay doubled lines). */}
+        <div className="pointer-events-none absolute inset-0 z-0 flex">
+          <div className="w-16 shrink-0 border-r border-border" />
+          {weekDays.map((day) => (
+            <div key={day.toISOString()} className="flex-1 border-r border-border" />
+          ))}
+        </div>
+
         {TIME_SLOTS.map((time) => {
           const isHour = time.endsWith(":00");
           return (
@@ -151,7 +158,7 @@ export function WeekView({
               )}
             >
               {/* Time label */}
-              <div className="w-16 shrink-0 border-r border-border px-1 py-1 text-right">
+              <div className="w-16 shrink-0 px-1 py-1 text-right">
                 {isHour && (
                   <span className="text-xs text-muted-foreground">{time}</span>
                 )}
@@ -169,7 +176,7 @@ export function WeekView({
                   return (
                     <div
                       key={day.toISOString()}
-                      className="relative flex-1 border-r border-border bg-muted/40"
+                      className="relative flex-1 bg-muted/40"
                       style={{ height: `${slotHeight}px` }}
                     >
                       <div
@@ -195,7 +202,7 @@ export function WeekView({
                   return (
                     <div
                       key={day.toISOString()}
-                      className="relative flex-1 border-r border-border"
+                      className="relative flex-1"
                       style={{ height: `${slotHeight}px` }}
                     >
                       <div
@@ -263,7 +270,7 @@ export function WeekView({
                     <div
                       key={day.toISOString()}
                       className={cn(
-                        "relative flex-1 border-r border-border p-0.5",
+                        "relative flex-1 p-0.5",
                         today && "bg-primary/5"
                       )}
                       style={{ height: `${slotHeight}px` }}
@@ -335,7 +342,7 @@ export function WeekView({
                     <div
                       key={day.toISOString()}
                       className={cn(
-                        "flex-1 border-r border-border",
+                        "flex-1",
                         today && "bg-primary/5"
                       )}
                       style={{ height: `${slotHeight}px` }}
@@ -347,7 +354,7 @@ export function WeekView({
                   <div
                     key={day.toISOString()}
                     className={cn(
-                      "group relative flex-1 cursor-pointer border-r border-border transition-colors hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10",
+                      "group relative flex-1 cursor-pointer transition-colors hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10",
                       today && "bg-primary/5"
                     )}
                     style={{ height: `${slotHeight}px` }}
