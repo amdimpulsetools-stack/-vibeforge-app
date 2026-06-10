@@ -285,15 +285,15 @@ export function DayView({
 
       {/* Time grid */}
       <div className="relative">
-        {/* Column separator overlay — renders above cards (z-8 > z-5) so
-            vertical lines are never hidden by overflowing appointment cards */}
-        <div className="pointer-events-none absolute inset-0 z-[8] flex">
-          <div className="w-20 shrink-0 border-r border-border" />
-          {offices.map((office) => (
-            <div key={office.id} className="flex-1 border-r border-border" />
-          ))}
-        </div>
-
+        {/* NOTE: there used to be a full-height "column separator
+            overlay" here (z-8, a parallel flex re-drawing border-r per
+            column). It was redundant — cards are inset-x-1.5 and never
+            reach the cell borders — and actively harmful: its flex
+            columns rasterized independently from the row flexes, so
+            sub-pixel width rounding made the two 1px borders land on
+            adjacent device pixels → the "doubled/rolled" separator
+            users saw whenever cards sat side by side. The per-cell
+            border-r is now the single source of truth. */}
         {TIME_SLOTS.map((time) => {
           const isHour = time.endsWith(":00");
           return (
