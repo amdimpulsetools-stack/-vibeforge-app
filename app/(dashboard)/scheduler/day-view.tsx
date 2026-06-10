@@ -285,15 +285,26 @@ export function DayView({
 
       {/* Time grid */}
       <div className="relative">
-        {/* NOTE: there used to be a full-height "column separator
-            overlay" here (z-8, a parallel flex re-drawing border-r per
-            column). It was redundant — cards are inset-x-1.5 and never
-            reach the cell borders — and actively harmful: its flex
-            columns rasterized independently from the row flexes, so
-            sub-pixel width rounding made the two 1px borders land on
-            adjacent device pixels → the "doubled/rolled" separator
-            users saw whenever cards sat side by side. The per-cell
-            border-r is now the single source of truth. */}
+        {/* ── Column separators: ONE full-height layer BEHIND content ──
+            History: v1 drew border-r on every cell + a duplicate
+            overlay ABOVE cards (z-8) → two flex trees rounding
+            fractional column widths independently → doubled/offset
+            lines (removed in #196). v2 (per-cell borders only) still
+            fragmented: every ROW is its own flex tree, so adjacent
+            rows could rasterize their border one device-pixel apart →
+            broken/jagged lines beside cards.
+            v3 (this): cells draw NO vertical borders at all. This
+            single layer at z-0 draws each column line as ONE
+            continuous element — structurally impossible to fragment —
+            and sits BEHIND cards (z-5) so it never cuts their chrome.
+            Verified in a chromium lab at DPR 1 / 1.25 / 4. */}
+        <div className="pointer-events-none absolute inset-0 z-0 flex">
+          <div className="w-20 shrink-0 border-r border-border" />
+          {offices.map((office) => (
+            <div key={office.id} className="flex-1 border-r border-border" />
+          ))}
+        </div>
+
         {TIME_SLOTS.map((time) => {
           const isHour = time.endsWith(":00");
           return (
@@ -305,7 +316,7 @@ export function DayView({
               )}
             >
               {/* Time label */}
-              <div className="w-20 shrink-0 border-r border-border px-2 py-2 text-right">
+              <div className="w-20 shrink-0 px-2 py-2 text-right">
                 {isHour && (
                   <span className="text-xs text-muted-foreground">{time}</span>
                 )}
@@ -340,7 +351,7 @@ export function DayView({
                   return (
                     <div
                       key={office.id}
-                      className="relative flex-1 border-r border-border p-0.5"
+                      className="relative flex-1 p-0.5"
                       style={{ height: `${slotHeight}px` }}
                       onDragOver={(e) => {
                         e.preventDefault();
@@ -385,7 +396,7 @@ export function DayView({
                   return (
                     <div
                       key={office.id}
-                      className="flex-1 border-r border-border"
+                      className="flex-1"
                       style={{ height: `${slotHeight}px` }}
                     />
                   );
@@ -404,7 +415,7 @@ export function DayView({
                   return (
                     <div
                       key={office.id}
-                      className="relative flex-1 border-r border-border"
+                      className="relative flex-1"
                       style={{ height: `${slotHeight}px` }}
                       onContextMenu={(e) => {
                         e.preventDefault();
@@ -468,7 +479,7 @@ export function DayView({
                   <div
                     key={office.id}
                     className={cn(
-                      "group relative flex-1 cursor-pointer border-r border-border transition-colors",
+                      "group relative flex-1 cursor-pointer transition-colors",
                       isDropTarget
                         ? "bg-primary/20 ring-1 ring-inset ring-primary"
                         : "hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
