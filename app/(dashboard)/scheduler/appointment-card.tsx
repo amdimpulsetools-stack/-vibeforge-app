@@ -95,6 +95,12 @@ function AppointmentCardInner({
 }: AppointmentCardProps) {
   const doctorColor = appointment.doctors?.color ?? "#9ca3af";
 
+  // Single-slot cards (15-min @ 40 px base = ~36 px tall) can't fit
+  // the default two-line typography (≈40 px with paddings/leading).
+  // Compact mode tightens type + padding so both lines always render
+  // inside the overflow-hidden card.
+  const isCompact = heightPx < 52;
+
   const liveState = liveStatusEnabled
     ? deriveLiveState({
         arrived_at: appointment.arrived_at ?? null,
@@ -122,7 +128,8 @@ function AppointmentCardInner({
       onDragEnd={() => onDragEndCard?.()}
       onClick={onClick}
       className={cn(
-        "absolute inset-x-1.5 z-[5] rounded-lg px-2 py-0.5 text-left transition-all overflow-hidden flex flex-col justify-center",
+        "absolute inset-x-1.5 z-[5] rounded-lg px-2 text-left transition-all overflow-hidden flex flex-col justify-center",
+        isCompact ? "py-0" : "py-0.5",
         isOtherDoctor
           ? "cursor-default"
           : "cursor-grab active:cursor-grabbing hover:shadow-md",
@@ -144,7 +151,10 @@ function AppointmentCardInner({
           <RecurringDot className="shrink-0" />
         )}
         <p
-          className="text-xs font-bold truncate leading-tight flex-1"
+          className={cn(
+            "font-bold truncate flex-1",
+            isCompact ? "text-[11px] leading-none" : "text-xs leading-tight",
+          )}
           style={{ color: hexToDark(doctorColor) }}
         >
           {appointment.patient_name}
@@ -165,7 +175,7 @@ function AppointmentCardInner({
                 appointment.consultation_ended_at ?? null,
             }}
             size="card"
-            compact={heightPx < 52}
+            compact={isCompact}
             canEndReopen={canEndReopen}
             readOnly={isOtherDoctor}
             onChanged={() => onLiveChanged?.()}
@@ -211,7 +221,12 @@ function AppointmentCardInner({
           })()}
       </div>
       <p
-        className="text-[11px] truncate leading-tight"
+        className={cn(
+          "truncate",
+          isCompact
+            ? "text-[10px] leading-none mt-0.5"
+            : "text-[11px] leading-tight",
+        )}
         style={{ color: hexToDark(doctorColor, 0.55) }}
       >
         {appointment.doctors?.full_name ?? "—"} ·{" "}
