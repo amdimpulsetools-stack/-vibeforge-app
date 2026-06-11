@@ -201,6 +201,12 @@ export async function GET(request: NextRequest) {
 
     // Cohort view: firsts in the 12-month window with ≥60d maturity →
     // % that have ANY later second.
+    //
+    // Young-org fallback: a clinic whose oldest data is <60 days old
+    // has an EMPTY matured cohort — showing "—" for their first two
+    // months reads as broken. When that happens we compute a
+    // PRELIMINARY rate over all firsts in the window (no maturity
+    // filter) and flag it so the UI labels it as still maturing.
     const maturityCutoff = new Date(Date.now() - COHORT_MATURITY_DAYS * 24 * 3600 * 1000)
       .toISOString()
       .slice(0, 10);
@@ -213,6 +219,17 @@ export async function GET(request: NextRequest) {
       if (seconds.some((d) => d >= firstDate)) cohortConverted++;
     }
 
+    let preliminary = false;
+    if (cohortTotal === 0) {
+      preliminary = true;
+      for (const [patientId, firstDate] of firstByPatient) {
+        if (firstDate < cohortStartStr) continue;
+        cohortTotal++;
+        const seconds = secondsByPatient.get(patientId) ?? [];
+        if (seconds.some((d) => d >= firstDate)) cohortConverted++;
+      }
+    }
+
     consultations = {
       mapped: true,
       firsts_in_range: firstsInRange,
@@ -222,6 +239,7 @@ export async function GET(request: NextRequest) {
       cohort: {
         window_months: COHORT_WINDOW_MONTHS,
         maturity_days: COHORT_MATURITY_DAYS,
+        preliminary,
         total: cohortTotal,
         converted: cohortConverted,
         rate_pct: cohortTotal > 0 ? Math.round((cohortConverted / cohortTotal) * 100) : null,
