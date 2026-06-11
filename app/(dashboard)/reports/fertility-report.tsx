@@ -46,6 +46,9 @@ interface FertilityReportData {
         cohort: {
           window_months: number;
           maturity_days: number;
+          /** True when the matured cohort was empty (young org) and
+           * the rate was computed without the maturity filter. */
+          preliminary: boolean;
           total: number;
           converted: number;
           rate_pct: number | null;
@@ -191,18 +194,27 @@ export function FertilityReport({
                 icon={Users}
                 label="Primeras consultas (rango)"
                 value={String(c.firsts_in_range)}
+                subtitle="Solo consultas completadas"
               />
               <KpiCard
                 icon={CalendarCheck2}
                 label="Segundas consultas (rango)"
                 value={String(c.seconds_in_range)}
-                subtitle="Cuentan en el mes en que ocurren, aunque la 1ª fuera anterior"
+                subtitle="Solo completadas. Cuentan en el mes en que ocurren, aunque la 1ª fuera anterior"
               />
               <KpiCard
                 icon={TrendingUp}
-                label="Conversión 1ª → 2ª"
+                label={
+                  c.cohort.preliminary
+                    ? "Conversión 1ª → 2ª (preliminar)"
+                    : "Conversión 1ª → 2ª"
+                }
                 value={c.cohort.rate_pct != null ? `${c.cohort.rate_pct}%` : "—"}
-                subtitle={`Cohorte: ${c.cohort.converted} de ${c.cohort.total} pacientes (últimos ${c.cohort.window_months} meses, con ${c.cohort.maturity_days}+ días de maduración)`}
+                subtitle={
+                  c.cohort.preliminary
+                    ? `${c.cohort.converted} de ${c.cohort.total} pacientes. Cohorte aún madurando: las 1as consultas tienen menos de ${c.cohort.maturity_days} días — el % puede subir a medida que las pacientes recientes concreten su 2ª.`
+                    : `Cohorte: ${c.cohort.converted} de ${c.cohort.total} pacientes (últimos ${c.cohort.window_months} meses, con ${c.cohort.maturity_days}+ días de maduración)`
+                }
                 accent
               />
               <KpiCard
@@ -298,39 +310,42 @@ export function FertilityReport({
               Por paquete (enviados → aceptados)
             </h3>
             <ul className="mt-3 space-y-2">
-              {b.by_tier.map((row) => (
-                <li key={row.tier} className="flex items-center gap-3">
-                  <span className="w-14 shrink-0 text-xs font-semibold">
-                    Tier {row.tier}
-                  </span>
-                  <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="absolute inset-y-0 left-0 rounded-full bg-sky-300/70"
-                      style={{
-                        width: `${
-                          (row.sent / Math.max(1, ...b.by_tier.map((t) => t.sent))) * 100
-                        }%`,
-                      }}
-                    />
-                    <div
-                      className="absolute inset-y-0 left-0 rounded-full bg-emerald-500"
-                      style={{
-                        width: `${
-                          (row.accepted /
-                            Math.max(1, ...b.by_tier.map((t) => t.sent))) *
-                          100
-                        }%`,
-                      }}
-                    />
-                  </div>
-                  <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-                    {row.accepted}/{row.sent}
-                  </span>
-                </li>
-              ))}
+              {(() => {
+                // Scale against the max of BOTH metrics: "accepted in
+                // range" can exceed "sent in range" (a budget sent last
+                // month and accepted this month counts in accepted but
+                // not in sent), so scaling by sent alone overflowed the
+                // bar — the Tier A 3/1 case from user testing.
+                const scaleMax = Math.max(
+                  1,
+                  ...b.by_tier.flatMap((t) => [t.sent, t.accepted]),
+                );
+                return b.by_tier.map((row) => (
+                  <li key={row.tier} className="flex items-center gap-3">
+                    <span className="w-14 shrink-0 text-xs font-semibold">
+                      Tier {row.tier}
+                    </span>
+                    <div className="relative h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full bg-sky-300/70"
+                        style={{ width: `${(row.sent / scaleMax) * 100}%` }}
+                      />
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full bg-emerald-500"
+                        style={{ width: `${(row.accepted / scaleMax) * 100}%` }}
+                      />
+                    </div>
+                    <span className="w-16 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
+                      {row.sent} → {row.accepted}
+                    </span>
+                  </li>
+                ));
+              })()}
             </ul>
             <p className="mt-2 text-[10px] text-muted-foreground">
-              Celeste = enviados · Verde = aceptados
+              Celeste = enviados en el rango · Verde = aceptados en el
+              rango (pueden superar a los enviados: un presupuesto
+              enviado en un mes anterior puede aceptarse en este).
             </p>
           </div>
         </div>
