@@ -16,15 +16,19 @@ import {
   CalendarRange,
   Loader2,
   HeartPulse,
+  Baby,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FinancialReport } from "./financial-report";
 import { MarketingReport } from "./marketing-report";
 import { OperationalReport } from "./operational-report";
 import { RetentionReport } from "./retention-report";
+import { FertilityReport } from "./fertility-report";
 import { AiReportProvider, AiSummaryButton, AiSummaryPanel } from "./ai-summary-panel";
+import { useOrgAddons } from "@/hooks/use-org-addons";
+import { FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY } from "@/types/fertility";
 
-type ReportTab = "financial" | "marketing" | "operational" | "retention";
+type ReportTab = "financial" | "marketing" | "operational" | "retention" | "fertility";
 
 const DATE_PRESETS = [
   { key: "today", days: 0 },
@@ -36,6 +40,8 @@ const DATE_PRESETS = [
 
 export default function ReportsPage() {
   const { t } = useLanguage();
+  const { hasAnyAddon } = useOrgAddons();
+  const fertilityActive = hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY]);
   const [activeTab, setActiveTab] = useState<ReportTab>("financial");
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
@@ -101,6 +107,10 @@ export default function ReportsPage() {
     { key: "marketing", label: t("reports.tab_marketing"), icon: Megaphone },
     { key: "operational", label: t("reports.tab_operational"), icon: TrendingUp },
     { key: "retention", label: t("reports.tab_retention"), icon: HeartPulse },
+    // Addon-gated: only orgs with the fertility pack see this tab.
+    ...(fertilityActive
+      ? [{ key: "fertility" as const, label: "Fertilidad", icon: Baby }]
+      : []),
   ];
 
   return (
@@ -199,6 +209,10 @@ export default function ReportsPage() {
               dateFrom={dateFrom}
               dateTo={dateTo}
             />
+          ) : activeTab === "fertility" ? (
+            // Self-contained: fetches its own server-side aggregates,
+            // doesn't depend on the shared raw-row fetch above.
+            <FertilityReport dateFrom={dateFrom} dateTo={dateTo} />
           ) : (
             <RetentionReport
               dateFrom={dateFrom}
