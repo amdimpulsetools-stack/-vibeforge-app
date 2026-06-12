@@ -10,8 +10,11 @@ import {
   Clock,
   FileDown,
   Loader2,
+  Mail,
+  MessageCircle,
   Play,
   Send,
+  Share2,
   X,
 } from "lucide-react";
 import {
@@ -75,6 +78,11 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
   const [completeLoading, setCompleteLoading] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  // mig 172 — send modal picks the channel before stamping sent_at.
+  // The previous "click = silent stamp + open PDF tab" behavior made
+  // "presupuestos enviados" measure intent, not delivery.
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendChannel, setSendChannel] = useState<"email" | "whatsapp" | "other" | null>(null);
 
   // Phase 5 prep — admin/owner gating for the "Marcar completado"
   // action. Doctors and advisors can /start, but only admin/owner
@@ -114,32 +122,54 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
     onChanged();
   };
 
-  const sendToPatient = async () => {
+  const sendViaChannel = async (via: "email" | "whatsapp" | "other") => {
+    setSendChannel(via);
     setSendLoading(true);
     const res = await fetch(`/api/budgets/${budget.id}/send`, {
       method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ via }),
     });
     setSendLoading(false);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error ?? "No se pudo enviar el presupuesto");
-      return;
-    }
-    // Phase 4 — `send` now also returns a `pdf_signed_url`. If we got
-    // one, open it in a new tab so the obstetra can immediately
-    // download/forward the PDF.
+    setSendChannel(null);
     const json = (await res.json().catch(() => ({}))) as {
       pdf_signed_url?: string | null;
       pdf_error?: string | null;
+      email_sent?: boolean;
+      email_error?: string | null;
+      whatsapp_url?: string | null;
+      error?: string;
     };
-    if (json.pdf_signed_url) {
-      window.open(json.pdf_signed_url, "_blank", "noopener,noreferrer");
-    } else if (json.pdf_error) {
-      toast.warning(`Enviado, pero no se pudo generar el PDF: ${json.pdf_error}`);
+    if (!res.ok) {
+      toast.error(json.error ?? "No se pudo enviar el presupuesto");
+      return;
     }
-    toast.success("Presupuesto marcado como enviado");
+    if (via === "email") {
+      if (json.email_sent) {
+        toast.success("Presupuesto enviado por email a la paciente");
+      } else {
+        toast.warning(
+          `Presupuesto marcado como enviado, pero el email no salió: ${json.email_error ?? "error desconocido"}`,
+        );
+      }
+    } else if (via === "whatsapp" && json.whatsapp_url) {
+      // Open wa.me in a new tab so staff can review/send the message
+      // from their own WhatsApp.
+      window.open(json.whatsapp_url, "_blank", "noopener,noreferrer");
+      toast.success("Abriendo WhatsApp con el mensaje listo");
+    } else {
+      toast.success("Presupuesto marcado como enviado");
+    }
+    if (json.pdf_error) {
+      toast.warning(`PDF no generado: ${json.pdf_error}`);
+    }
+    setSendOpen(false);
     onChanged();
   };
+
+  const patientEmail =
+    ((budget.patient as { email?: string | null } | null | undefined)?.email) ?? null;
+  const patientPhone = budget.patient?.phone ?? null;
 
   const downloadPdf = async () => {
     setPdfLoading(true);
@@ -443,15 +473,11 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
               signed URL, opened in a new tab. */}
           {isUnsent && (
             <button
-              onClick={sendToPatient}
+              onClick={() => setSendOpen(true)}
               disabled={sendLoading || actionLoading}
               className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
             >
-              {sendLoading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <Send className="h-3 w-3" />
-              )}
+              <Send className="h-3 w-3" />
               Enviar al paciente
             </button>
           )}
@@ -477,6 +503,115 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
           </button>
         </div>
       )}
+
+      {/* mig 172 — Send modal: pick the channel before stamping
+          sent_at. This makes "presupuestos enviados" measure real
+          outbound contact, not just clicks. */}
+      <Dialog open={sendOpen} onOpenChange={setSendOpen}>
+        <DialogContent className="w-full max-w-md p-5 [&>button]:top-4 [&>button]:right-4">
+          <DialogTitle className="text-base font-bold">
+            Enviar presupuesto a la paciente
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            Elegí el canal por el que querés enviarlo. Esto define cómo
+            queda registrado en los reportes.
+          </DialogDescription>
+
+          <div className="mt-4 space-y-2">
+            {/* Email */}
+            <button
+              type="button"
+              onClick={() => sendViaChannel("email")}
+              disabled={sendLoading || !patientEmail}
+              className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:border-emerald-500/40 hover:bg-emerald-500/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:bg-transparent"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600">
+                {sendLoading && sendChannel === "email" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Mail className="h-4 w-4" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">Enviar por email</p>
+                {patientEmail ? (
+                  <p className="truncate text-xs text-muted-foreground">
+                    A {patientEmail}
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-600">
+                    Sin email registrado. Editá la ficha de la paciente
+                    para usar este canal.
+                  </p>
+                )}
+              </div>
+            </button>
+
+            {/* WhatsApp */}
+            <button
+              type="button"
+              onClick={() => sendViaChannel("whatsapp")}
+              disabled={sendLoading || !patientPhone}
+              className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:border-emerald-500/40 hover:bg-emerald-500/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:bg-transparent"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600">
+                {sendLoading && sendChannel === "whatsapp" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <MessageCircle className="h-4 w-4" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">Enviar por WhatsApp</p>
+                {patientPhone ? (
+                  <p className="text-xs text-muted-foreground">
+                    Abre WhatsApp con el mensaje y el link al PDF listo
+                    para enviar desde tu cuenta.
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-600">
+                    Sin teléfono registrado. Editá la ficha de la paciente
+                    para usar este canal.
+                  </p>
+                )}
+              </div>
+            </button>
+
+            {/* Other */}
+            <button
+              type="button"
+              onClick={() => sendViaChannel("other")}
+              disabled={sendLoading}
+              className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:border-emerald-500/40 hover:bg-emerald-500/5 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                {sendLoading && sendChannel === "other" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Share2 className="h-4 w-4" />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold">Marcar enviado por otro medio</p>
+                <p className="text-xs text-muted-foreground">
+                  Si ya lo entregaste impreso, en persona o por otro canal.
+                </p>
+              </div>
+            </button>
+          </div>
+
+          <div className="mt-4 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setSendOpen(false)}
+              disabled={sendLoading}
+              className="rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground hover:bg-accent disabled:opacity-60"
+            >
+              Cancelar
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
         <DialogContent className="w-full max-w-md p-5 [&>button]:top-4 [&>button]:right-4">
