@@ -218,21 +218,26 @@ export async function POST(
     );
   }
 
-  // Render (or reuse) the PDF — needed for the signed URL in all
-  // three channels. Failures non-fatal: the budget IS sent.
+  // Render (or reuse) the PDF — needed para incrustar el link firmado
+  // en email y whatsapp. Para via=other (impreso, en persona, familiar)
+  // no se necesita: el staff ya entregó por otro medio. Saltearlo evita
+  // arrastrar chromium en un caso de uso que no lo pide. Failures non-
+  // fatales: el budget IS sent aunque el render falle.
   let signedUrl: string | null = null;
   let storagePath: string | null = null;
   let pdfError: string | null = null;
-  try {
-    const pdfResult = await generateBudgetPdf(supabase, admin, id);
-    if (pdfResult.ok) {
-      signedUrl = pdfResult.result.signedUrl;
-      storagePath = pdfResult.result.storagePath;
-    } else {
-      pdfError = pdfResult.error;
+  if (via === "email" || via === "whatsapp") {
+    try {
+      const pdfResult = await generateBudgetPdf(supabase, admin, id);
+      if (pdfResult.ok) {
+        signedUrl = pdfResult.result.signedUrl;
+        storagePath = pdfResult.result.storagePath;
+      } else {
+        pdfError = pdfResult.error;
+      }
+    } catch (e) {
+      pdfError = e instanceof Error ? e.message : "PDF render failed";
     }
-  } catch (e) {
-    pdfError = e instanceof Error ? e.message : "PDF render failed";
   }
 
   // Channel-specific delivery
