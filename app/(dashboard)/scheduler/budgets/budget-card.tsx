@@ -38,6 +38,7 @@ export interface BudgetCardProps {
       first_name: string | null;
       last_name: string | null;
       phone: string | null;
+      email: string | null;
     } | null;
     followup?: { id: string; expected_by: string | null; status: string | null } | null;
     sent_by?: { id: string; full_name: string | null } | null;
@@ -167,8 +168,7 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
     onChanged();
   };
 
-  const patientEmail =
-    ((budget.patient as { email?: string | null } | null | undefined)?.email) ?? null;
+  const patientEmail = budget.patient?.email ?? null;
   const patientPhone = budget.patient?.phone ?? null;
 
   const downloadPdf = async () => {
