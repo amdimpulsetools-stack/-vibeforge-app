@@ -32,6 +32,7 @@ interface BudgetWithJoins extends BudgetRecord {
     first_name: string | null;
     last_name: string | null;
     phone: string | null;
+    email: string | null;
   } | null;
   followup?: { id: string; expected_by: string | null; status: string | null } | null;
   sent_by?: { id: string; full_name: string | null } | null;

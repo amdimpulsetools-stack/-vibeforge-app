@@ -304,7 +304,9 @@ export async function GET(request: NextRequest) {
     "started_at, started_by_user_id, completed_at, " +
     "created_at, updated_at";
   const BUDGET_SELECT =
-    `${BUDGET_COLUMNS}, patient:patients(id, first_name, last_name, phone), followup:clinical_followups!followup_id(id, expected_by, status)`;
+    // `email` feeds the send-channel modal (shows it next to the Email
+    // button and disables the channel when missing).
+    `${BUDGET_COLUMNS}, patient:patients(id, first_name, last_name, phone, email), followup:clinical_followups!followup_id(id, expected_by, status)`;
 
   // Fetch limit+1 so we can detect `has_more` without a separate
   // `count: "exact"` round-trip on the listing — the per-bucket counts
