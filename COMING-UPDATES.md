@@ -1,9 +1,19 @@
 # Coming Updates — Yenda
 
-> **Última actualización:** 2026-06-10 (Presupuestos FIV PDF + Plugins per-org + Estado de cita en vivo entregados)
+> **Última actualización:** 2026-06-12 (Tab Fertilidad en /reports + Grid separator v3 + Canales reales de envío de presupuestos entregados)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
+
+## 📊 /reports/fertility — fast-follows post-launch (2026-06-12)
+
+Tab Fertilidad ya en producción (PRs #198/#199): embudo 1ª→2ª con doble vista (eventos y cohorte), KPIs de presupuestos, ranking por asesora, breakdown por tier A/B/C. Lo que sigue:
+
+- [ ] **Cortar "presupuestos enviados" por canal `sent_via`** (mig 172 ya en prod): mostrar mix email / whatsapp / other en el card de Presupuestos. Detecta clínicas que dependen demasiado de WhatsApp manual y permite proyectar el ahorro operativo de empujar email.
+- [ ] **Estados de delivery del email**: hoy contamos "enviado" cuando Resend acepta el request, no cuando el correo llega. Webhooks de Resend → columnas nuevas en `budget_records` (`email_delivered_at`, `email_bounced_at`, `email_opened_at` opcional) + chip de estado en `BudgetCard`. Cierra el hueco de "envié pero rebotó".
+- [ ] **Tracking de respuesta de WhatsApp**: hoy el `wa.me` es one-way (no sabemos si la paciente abrió/respondió). Opcional: contador "Sin respuesta tras N días" para que la asesora reenvíe por otro canal.
+- [ ] **Filtro por asesora en el embudo**: el ranking ya está, pero el embudo 1ª→2ª no se cruza con `is_fertility_advisor`. Vitra quiere ver el funnel por asesora individual para coaching.
+- [ ] **Export del tab Fertilidad a Excel/PDF**: hoy es read-only en la web. Reuniones de management piden screenshot; un export con timestamp eliminaría screenshots.
 
 ## 🧬 Fertilidad / Presupuestos — pendientes post-pipeline FIV (2026-06-10)
 
