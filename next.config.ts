@@ -31,6 +31,12 @@ const nextConfig: NextConfig = {
       "./lib/budget-pdf/templates/**/*.hbs",
       "./node_modules/@sparticuz/chromium/bin/**",
     ],
+    // Same as above — /send genera el PDF cuando el canal es email o
+    // whatsapp (necesita el link firmado para el cuerpo del mensaje).
+    "/api/budgets/[id]/send": [
+      "./lib/budget-pdf/templates/**/*.hbs",
+      "./node_modules/@sparticuz/chromium/bin/**",
+    ],
   },
 };
 
