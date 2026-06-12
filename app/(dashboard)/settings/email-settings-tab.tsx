@@ -110,6 +110,8 @@ const TEMPLATE_VARIABLES = [
   { key: "{{link_reagendar}}", label: "Link para reagendar" },
   { key: "{{link_reunion}}", label: "Link de reunión (Zoom)" },
   { key: "{{monto_pagado}}", label: "Monto pagado" },
+  { key: "{{tratamiento}}", label: "Tratamiento (presupuestos)" },
+  { key: "{{vigencia_dias}}", label: "Vigencia del presupuesto en días" },
 ];
 
 const PREVIEW_DATA: Record<string, string> = {
@@ -129,6 +131,8 @@ const PREVIEW_DATA: Record<string, string> = {
   "{{link_reagendar}}": "https://app.ejemplo.com/reagendar/abc123",
   "{{link_reunion}}": "https://zoom.us/j/1234567890",
   "{{monto_pagado}}": "S/. 150.00",
+  "{{tratamiento}}": "Fecundación in Vitro (FIV)",
+  "{{vigencia_dias}}": "90",
 };
 
 // ── Main Component ───────────────────────────────────────────────────────────
@@ -286,6 +290,7 @@ export default function EmailSettingsTab() {
                   "fertility_first_consultation_lapse",
                   "fertility_second_consultation_lapse",
                   "fertility_budget_pending_acceptance",
+                  "fertility_budget_to_patient",
                 ]),
           ]);
           const hasAny = templates.some((tpl) => !HIDDEN_SLUGS.has(tpl.slug));
@@ -355,6 +360,7 @@ export default function EmailSettingsTab() {
                   "fertility_first_consultation_lapse",
                   "fertility_second_consultation_lapse",
                   "fertility_budget_pending_acceptance",
+                  "fertility_budget_to_patient",
                 ]),
           ]);
           const categoryTemplates = templates.filter(

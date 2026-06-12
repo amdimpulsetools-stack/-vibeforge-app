@@ -243,32 +243,18 @@ export async function POST(
   if (via === "email" && signedUrl && storagePath && patientEmail) {
     // Re-mint a long-lived signed URL for the email (the generator's
     // default URL is short-lived; the patient may open it days later).
+    // Branding + subject/body live in the helper: it reads the per-org
+    // template fertility_budget_to_patient (mig 173) with fallback.
     try {
       const longUrl = await getBudgetPdfSignedUrl(
         admin,
         storagePath,
         PATIENT_PDF_SIGNED_URL_TTL_SECONDS,
       );
-      // Load org branding for the email header.
-      const { data: org } = await admin
-        .from("organizations")
-        .select("name, legal_name, icon_url, logo_url")
-        .eq("id", budget.organization_id)
-        .maybeSingle();
-      const clinicName =
-        ((org?.legal_name as string | null) ??
-          (org?.name as string | null) ??
-          "Tu clínica") as string;
-      const result = await sendBudgetEmailToPatient({
+      const result = await sendBudgetEmailToPatient(admin, {
+        organizationId: budget.organization_id,
         patientEmail,
-        patientGreeting: patientFirstName
-          ? `Hola ${patientFirstName}`
-          : "Hola",
-        clinicName,
-        clinicLogoUrl:
-          ((org?.icon_url as string | null) ??
-            (org?.logo_url as string | null)) ||
-          null,
+        patientFirstName,
         treatmentLabel: budget.treatment_type,
         pdfSignedUrl: longUrl,
         vigencyDays: 90,
