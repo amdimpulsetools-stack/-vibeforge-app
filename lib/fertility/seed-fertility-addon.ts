@@ -31,6 +31,7 @@ const FERTILITY_EMAIL_SLUGS = [
   "fertility_first_consultation_lapse",
   "fertility_second_consultation_lapse",
   "fertility_budget_pending_acceptance",
+  "fertility_budget_to_patient",
 ];
 
 export async function seedFertilityAddon(
