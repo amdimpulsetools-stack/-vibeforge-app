@@ -4923,3 +4923,11 @@ Auditoría de la home contra estándares de copywriting, UI/UX y neuromarketing,
 - `Pricing`: micro-fade (250–350ms) del bloque de precio al alternar Mensual/Semestral/Anual — feedback de cambio de estado, no decoración.
 
 Verificado: `tsc` 0 errores + `next build` completo.
+
+### Extensión de la misma sesión — /producto y /blog
+
+- **Placeholder "REPLACE" → "Yenda"** en TODAS las páginas públicas donde quedó sin sustituir (41 menciones en 9 archivos de `/producto` + 5 en `/blog`): title tags SEO ("… | REPLACE" era lo que veía Google), headings ("Cuaderno vs. REPLACE"), body copy ("Bienvenido al blog de REPLACE") y schemas JSON-LD.
+- **Cuaderno/libreta → Excel** también en `/producto` (pedido del usuario: "el tema de cuadernos es muy antiguo"): hero y sección de dolor de `agenda-medica-online`, la "trampa del Excel" reencuadrada (Excel como statu quo, ya sin salto cuaderno→Excel), comparativa renombrada "Excel vs. Yenda", y stat de `asistente-ia-consultorio`.
+- **6 testimonios placeholder eliminados** (`agenda-medica-online`, `gestion-pacientes`, `asistente-ia-consultorio`, `historia-clinica-electronica`, `reportes-clinica-medica`, `comunicacion-automatizada`): citas inventadas firmadas por "Nombre del doctor / Especialidad — Ciudad, País" con avatar gris, visibles en producción. Un testimonio fabricado es pasivo legal y de confianza; recuperables de git cuando existan testimonios reales de los pilotos (Vitra / Dra. Quispe).
+
+Verificado: `tsc` 0 errores + `next build` completo (warnings pre-existentes de Sentry/handlebars, no relacionados).

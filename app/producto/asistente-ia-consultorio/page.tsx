@@ -23,9 +23,9 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Asistente IA para Consultorio Médico — Toma Decisiones con Datos | REPLACE",
+  title: "Asistente IA para Consultorio Médico — Toma Decisiones con Datos | Yenda",
   description:
-    "Tu clínica genera datos todos los días. El asistente IA de REPLACE los convierte en decisiones inteligentes: pregúntale en español sobre tus ingresos, pacientes, ocupación y más.",
+    "Tu clínica genera datos todos los días. El asistente IA de Yenda los convierte en decisiones inteligentes: pregúntale en español sobre tus ingresos, pacientes, ocupación y más.",
   keywords: [
     "asistente IA consultorio médico",
     "inteligencia artificial clínica",
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     "chatbot médico",
   ],
   openGraph: {
-    title: "Asistente IA para Consultorio Médico | REPLACE",
+    title: "Asistente IA para Consultorio Médico | Yenda",
     description: "Pregúntale a tu clínica. Ella te responde.",
     type: "website",
   },
@@ -408,7 +408,7 @@ export default function AsistenteIAPage() {
               {
                 stat: "2h",
                 label: "cada semana",
-                desc: "se pierden revisando Excel o cuadernos para sacar reportes",
+                desc: "se pierden revisando hojas de Excel para sacar reportes",
               },
               {
                 stat: "35%",
@@ -654,28 +654,6 @@ export default function AsistenteIAPage() {
       </section>
 
       {/* ════════════════════════════════════════════════ */}
-      {/* TESTIMONIAL placeholder                         */}
-      {/* ════════════════════════════════════════════════ */}
-      <section className="py-20 px-4 md:px-6">
-        <div className="mx-auto max-w-3xl">
-          <div className="rounded-2xl bg-gradient-to-br from-violet-50 to-purple-50 border border-violet-200 p-8 md:p-12 text-center">
-            {/* Placeholder avatar */}
-            <div className="mx-auto h-16 w-16 rounded-full bg-slate-200 mb-6" />
-            <blockquote className="text-lg md:text-xl font-medium text-slate-800 leading-relaxed italic">
-              &ldquo;Antes cerraba el mes sin saber realmente cuánto gané.
-              Ahora le pregunto a la IA y en 5 segundos tengo todo:
-              ingresos, pacientes nuevos, deudas pendientes.
-              Es como tener un contador y un analista trabajando gratis.&rdquo;
-            </blockquote>
-            <div className="mt-6">
-              <p className="text-sm font-bold text-slate-900">Nombre del doctor</p>
-              <p className="text-xs text-slate-500">Especialidad — Ciudad, País</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ════════════════════════════════════════════════ */}
       {/* FINAL CTA                                       */}
       {/* ════════════════════════════════════════════════ */}
       <section className="py-20 px-4 md:px-6 bg-slate-900">
@@ -716,7 +694,7 @@ export default function AsistenteIAPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: "REPLACE — Asistente IA para Consultorio Médico",
+            name: "Yenda — Asistente IA para Consultorio Médico",
             applicationCategory: "MedicalApplication",
             operatingSystem: "Web",
             description: "Asistente de inteligencia artificial para clínicas médicas. Pregúntale sobre ingresos, pacientes, ocupación y tendencias en lenguaje natural.",
@@ -731,9 +709,9 @@ export default function AsistenteIAPage() {
             "@context": "https://schema.org",
             "@type": "BreadcrumbList",
             itemListElement: [
-              { "@type": "ListItem", position: 1, name: "Inicio", item: "https://REPLACE.com/" },
-              { "@type": "ListItem", position: 2, name: "Producto", item: "https://REPLACE.com/producto" },
-              { "@type": "ListItem", position: 3, name: "Asistente IA", item: "https://REPLACE.com/producto/asistente-ia-consultorio" },
+              { "@type": "ListItem", position: 1, name: "Inicio", item: "https://Yenda.com/" },
+              { "@type": "ListItem", position: 2, name: "Producto", item: "https://Yenda.com/producto" },
+              { "@type": "ListItem", position: 3, name: "Asistente IA", item: "https://Yenda.com/producto/asistente-ia-consultorio" },
             ],
           }),
         }}

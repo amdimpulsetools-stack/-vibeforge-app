@@ -84,7 +84,7 @@ export default function BlogPage() {
       <section className="pt-28 pb-8 px-4 md:px-6">
         <div className="mx-auto max-w-4xl text-center">
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
-            Bienvenido al blog de REPLACE
+            Bienvenido al blog de Yenda
           </h1>
 
           {/* Search bar */}
@@ -278,7 +278,7 @@ export default function BlogPage() {
           <div className="mx-auto max-w-6xl">
             <div className="flex items-center justify-between mb-10">
               <h2 className="text-2xl md:text-3xl font-bold text-slate-900">
-                Lo mejor del Blog de REPLACE
+                Lo mejor del Blog de Yenda
               </h2>
               {/* Decorative placeholder */}
               <div className="hidden md:flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100">
@@ -319,10 +319,10 @@ export default function BlogPage() {
         <div className="mx-auto max-w-4xl">
           <div className="rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 px-8 py-12 md:px-16 md:py-14 text-center text-white shadow-xl">
             <h2 className="text-2xl md:text-3xl font-bold">
-              Prueba REPLACE gratis durante 14 días
+              Prueba Yenda gratis durante 14 días
             </h2>
             <p className="mt-3 text-emerald-100 max-w-xl mx-auto">
-              Prueba REPLACE por ti mismo o agenda una demo gratuita.
+              Prueba Yenda por ti mismo o agenda una demo gratuita.
             </p>
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link
@@ -349,9 +349,9 @@ export default function BlogPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Blog",
-            name: "Blog de REPLACE",
+            name: "Blog de Yenda",
             description: "Artículos sobre gestión de clínicas médicas, agenda online, historia clínica electrónica, marketing médico e inteligencia artificial para consultorios.",
-            url: "https://REPLACE.com/blog",
+            url: "https://Yenda.com/blog",
           }),
         }}
       />

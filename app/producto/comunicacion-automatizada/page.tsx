@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Recordatorios WhatsApp y Email para Clínicas — Automatización | REPLACE",
+  title: "Recordatorios WhatsApp y Email para Clínicas — Automatización | Yenda",
   description:
     "Envía recordatorios automáticos por WhatsApp y email antes de cada cita. Confirmaciones, cancelaciones, recibos, bienvenida, cumpleaños y seguimiento de pacientes inactivos.",
   keywords: [
@@ -80,7 +80,7 @@ export default function ComunicacionPage() {
                   <Zap className="h-4 w-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-white text-sm font-bold">Clínica REPLACE</p>
+                  <p className="text-white text-sm font-bold">Clínica Yenda</p>
                   <p className="text-green-200 text-[10px]">Mensaje automático</p>
                 </div>
               </div>
@@ -130,7 +130,7 @@ export default function ComunicacionPage() {
                     </svg>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <p className="text-[11px] font-bold text-slate-900 truncate">Clínica REPLACE</p>
+                        <p className="text-[11px] font-bold text-slate-900 truncate">Clínica Yenda</p>
                         <span className="text-[9px] text-slate-400">3:00 p.m.</span>
                       </div>
                       <p className="text-[11px] font-semibold text-slate-800 mt-0.5 leading-tight">
@@ -259,7 +259,7 @@ export default function ComunicacionPage() {
                 </ul>
               </div>
               <div className="bg-emerald-50/50 p-8">
-                <div className="flex items-center gap-2 mb-6"><CheckCircle2 className="h-5 w-5 text-emerald-600" /><h3 className="text-lg font-bold text-emerald-700">Con REPLACE</h3></div>
+                <div className="flex items-center gap-2 mb-6"><CheckCircle2 className="h-5 w-5 text-emerald-600" /><h3 className="text-lg font-bold text-emerald-700">Con Yenda</h3></div>
                 <ul className="space-y-4">
                   {["Recordatorios automáticos 24h y 2h antes", "WhatsApp + email se envían juntos", "Funciona aunque tu equipo esté ocupado", "Dashboard con tasa de confirmación", "Recepcionista libre para atender pacientes"].map((item, idx) => (
                     <li key={idx} className="flex items-start gap-2.5 text-sm text-emerald-800"><Check className="h-4 w-4 shrink-0 text-emerald-500 mt-0.5" />{item}</li>
@@ -305,24 +305,6 @@ export default function ComunicacionPage() {
         </div>
       </section>
 
-      {/* TESTIMONIAL */}
-      <section className="py-20 px-4 md:px-6 bg-slate-50">
-        <div className="mx-auto max-w-3xl">
-          <div className="rounded-2xl bg-white border border-slate-200 p-8 md:p-12 text-center shadow-sm">
-            <div className="mx-auto h-16 w-16 rounded-full bg-slate-200 mb-6" />
-            <blockquote className="text-lg md:text-xl font-medium text-slate-800 leading-relaxed italic">
-              &ldquo;Mi recepcionista pasaba 3 horas al día confirmando citas por teléfono.
-              Ahora los mensajes salen solos y ella se dedica a atender bien a quienes llegan.
-              Las inasistencias bajaron de 22% a 7% en el primer mes.&rdquo;
-            </blockquote>
-            <div className="mt-6">
-              <p className="text-sm font-bold text-slate-900">Nombre del doctor</p>
-              <p className="text-xs text-slate-500">Especialidad — Ciudad, País</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* FINAL CTA */}
       <section className="py-20 px-4 md:px-6 bg-slate-900">
         <div className="mx-auto max-w-3xl text-center">
@@ -339,7 +321,7 @@ export default function ComunicacionPage() {
         </div>
       </section>
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "REPLACE — Comunicación Automatizada", applicationCategory: "MedicalApplication", operatingSystem: "Web", offers: { "@type": "Offer", price: "0", priceCurrency: "PEN" } }) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Yenda — Comunicación Automatizada", applicationCategory: "MedicalApplication", operatingSystem: "Web", offers: { "@type": "Offer", price: "0", priceCurrency: "PEN" } }) }} />
     </div>
   );
 }

@@ -195,7 +195,7 @@ export default async function FeaturePage({ params }: PageProps) {
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700 mb-4">
                 <Icon className="h-3.5 w-3.5" />
-                REPLACE
+                Yenda
               </div>
               <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
                 {feature.title}
@@ -358,7 +358,7 @@ export default async function FeaturePage({ params }: PageProps) {
             Empieza con {feature.title} hoy
           </h2>
           <p className="mt-4 text-lg text-slate-600">
-            Prueba REPLACE gratis por 14 días. Sin tarjeta de crédito.
+            Prueba Yenda gratis por 14 días. Sin tarjeta de crédito.
           </p>
           <div className="mt-8 flex items-center justify-center gap-3">
             <Link
@@ -390,19 +390,19 @@ export default async function FeaturePage({ params }: PageProps) {
                 "@type": "ListItem",
                 position: 1,
                 name: "Inicio",
-                item: "https://REPLACE.com/",
+                item: "https://Yenda.com/",
               },
               {
                 "@type": "ListItem",
                 position: 2,
                 name: "Producto",
-                item: "https://REPLACE.com/producto",
+                item: "https://Yenda.com/producto",
               },
               {
                 "@type": "ListItem",
                 position: 3,
                 name: feature.title,
-                item: `https://REPLACE.com/producto/${feature.slug}`,
+                item: `https://Yenda.com/producto/${feature.slug}`,
               },
             ],
           }),
@@ -414,7 +414,7 @@ export default async function FeaturePage({ params }: PageProps) {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: `$REPLACE — ${feature.title}`,
+            name: `$Yenda — ${feature.title}`,
             applicationCategory: "MedicalApplication",
             operatingSystem: "Web",
             description: feature.metaDescription,
