@@ -42,6 +42,11 @@ const bodySchema = z.object({
   appointment_id: z.string().uuid().nullable().optional(),
   followup_id: z.string().uuid().nullable().optional(),
   notes: z.string().max(500).optional(),
+  // Sobreprecio de honorarios médicos (delta ≥ 0, mig 174). Se suma al
+  // snapshot `amount` y en el PDF se integra a la línea de honorarios.
+  // Solo positivo: bajar el precio es competencia del módulo Descuentos.
+  // Cap holgado dentro de NUMERIC(10,2) para evitar overflow.
+  honorarios_adjustment: z.number().min(0).max(1_000_000).optional(),
   // Set to true by the UI after the user explicitly confirms they
   // want to create a budget despite the patient already having one
   // or more in an active state (pending_acceptance / accepted). The
@@ -265,6 +270,11 @@ export async function POST(request: NextRequest) {
 
   const treatmentType = inferTreatmentType(service.name as string);
 
+  // Honorarios surcharge (mig 174). Rounded to cents to match the
+  // NUMERIC(10,2) column and folded into the snapshot amount below.
+  const honorariosAdjustment =
+    Math.round((payload.honorarios_adjustment ?? 0) * 100) / 100;
+
   // ── DEDUP GUARD ────────────────────────────────────────────────
   // If the patient already has at least one budget in an active
   // state (`pending_acceptance` or `accepted`), require the caller
@@ -300,7 +310,11 @@ export async function POST(request: NextRequest) {
     service_id: payload.service_id,
     tier: payload.tier,
     treatment_type: treatmentType,
-    amount: Number(tierRow.amount),
+    // Snapshot = precio base del tier + sobreprecio de honorarios. El
+    // delta se guarda además por separado para que el PDF pueda
+    // integrarlo en la línea de honorarios y para auditoría comercial.
+    amount: Number(tierRow.amount) + honorariosAdjustment,
+    honorarios_adjustment: honorariosAdjustment,
     notes: payload.notes ?? null,
     acceptance_status: "pending_acceptance" as const,
     assigned_at: new Date().toISOString(),

@@ -34,6 +34,7 @@ interface BudgetForPdf {
   organization_id: string;
   treatment_type: string;
   amount: number | null;
+  honorarios_adjustment: number | null;
   tier: "A" | "B" | "C" | null;
   service_id: string | null;
   assigned_by_user_id: string | null;
@@ -144,6 +145,7 @@ async function loadBudgetForPdf(
         "organization_id",
         "treatment_type",
         "amount",
+        "honorarios_adjustment",
         "tier",
         "service_id",
         "assigned_by_user_id",
@@ -379,6 +381,7 @@ export async function generateBudgetPdf(
     },
     tier: budget.tier,
     amount,
+    honorariosAdjustment: Number(budget.honorarios_adjustment ?? 0),
     currency,
     includesText,
     fecha: new Date(budget.sent_at ?? budget.assigned_at ?? budget.created_at),

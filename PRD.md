@@ -4873,3 +4873,28 @@ Al intentar entrar a la org de prueba de Vitra, el login redirigía a `?reason=s
 ### Pendientes que deja la sesión
 
 Mecanismo de "2 meses gratis" y precio fundador S/250×6 para la fase de cobro (Wave 2 MP) · separación visual on-demand vs automáticas en Settings → Correos · completar la configuración de la org de la Dra. Quispe con el checklist.
+
+## Changelog — Sesión 2026-07-07 — Ajuste de honorarios por presupuesto (mig 174)
+
+Los tiers A/B/C de un presupuesto de fertilidad solo se diferencian por los honorarios del médico; el precio más alto (Tier A) puede quedarse corto para una paciente high-ticket sin que exista un 4.º tier. Se agrega un **sobreprecio de honorarios opcional por presupuesto** que el especialista fija al asignarlo.
+
+### Qué se implementó
+
+- **mig 174** — `budget_records.honorarios_adjustment NUMERIC(10,2) NOT NULL DEFAULT 0` con CHECK `>= 0` (solo sube; para bajar el precio existe el módulo Descuentos). Inerte para presupuestos existentes (default 0).
+- **Modal de asignación** (`components/addons/fertility/assign-budget-modal.tsx`): campo "Ajuste de honorarios (opcional)" visible tras elegir el tier, con preview en vivo del total (`Tier X + ajuste = Total`). Solo dígitos y un decimal, sin negativos.
+- **`POST /api/budgets/assign`**: acepta `honorarios_adjustment` (`z.number().min(0).max(1_000_000)`), lo redondea a céntimos, lo persiste y suma al snapshot `amount` (`amount = tier.amount + ajuste`).
+- **PDF Vitra FIV** (`lib/budget-pdf/render-html.ts`): nuevo helper `applyHonorariosAdjustment` integra el delta **dentro de la línea de honorarios médicos de la fase de aspiración** + su subtotal + el total, sin línea de "ajuste" visible para la paciente (decisión de UX: integrado, no separado). Todas las columnas siguen reconciliando (subtotal = honorarios + procedimiento; total = Σ subtotales). El delta viaja por `BudgetPdfProps.honorariosAdjustment` desde `generate.tsx`.
+
+### Decisiones de diseño (confirmadas con el usuario)
+
+- **Delta, no honorario absoluto**: el tier base queda intacto y es claro cuánto es el extra.
+- **Integrado en honorarios, no línea separada**: discreto para casos particulares.
+- **Solo positivo**: para descuentos ya existe mig 100.
+
+### Pendiente operativo
+
+Aplicar **mig 174** en producción (SQL Editor de Supabase) — mismo patrón que mig 173. Hasta entonces el campo del modal no debe usarse en prod (la columna no existe aún y el insert fallaría).
+
+### Nota (pre-existente, fuera de alcance)
+
+El total del PDF de Vitra (breakdown hardcoded, ej. FIV Tier A = S/18,450) ya diverge del `service_budget_tiers.amount` de la BD (ej. S/16,260); el preview del modal usa el monto de la BD. El ajuste suma el mismo delta a ambos, así que es consistente dentro de cada vista. La sincronía base admin ↔ PDF sigue siendo el pendiente ya listado en `COMING-UPDATES.md`.

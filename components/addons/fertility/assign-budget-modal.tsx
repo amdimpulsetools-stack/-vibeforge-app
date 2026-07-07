@@ -58,6 +58,14 @@ interface ExistingActiveBudget {
   amount: number | null;
 }
 
+function formatMoney(n: number, currency: "PEN" | "USD"): string {
+  const prefix = currency === "USD" ? "USD" : "S/";
+  return `${prefix} ${n.toLocaleString("es-PE", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
 function formatRelativeDays(iso: string | null): string {
   if (!iso) return "—";
   const ms = Date.now() - new Date(iso).getTime();
@@ -102,6 +110,9 @@ function AssignBudgetModalInner({
 
   const [serviceId, setServiceId] = useState<string>("");
   const [tier, setTier] = useState<"A" | "B" | "C" | null>(null);
+  // Sobreprecio de honorarios (mig 174). String para permitir edición
+  // libre; se parsea a número al enviar. "" / 0 = sin ajuste.
+  const [honorariosAdjustment, setHonorariosAdjustment] = useState<string>("");
   const [asesoraId, setAsesoraId] = useState<string>("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -248,6 +259,7 @@ function AssignBudgetModalInner({
     if (open) {
       setServiceId("");
       setTier(null);
+      setHonorariosAdjustment("");
       setAsesoraId("");
       setNotes("");
       setAcknowledgedExisting(false);
@@ -267,10 +279,29 @@ function AssignBudgetModalInner({
     [services, serviceId],
   );
 
+  // Currently-selected tier row (for base amount + currency of the
+  // live total preview). Null until a tier is picked.
+  const selectedTier = useMemo(
+    () =>
+      selectedService && tier
+        ? selectedService.tiers.find((t) => t.tier === tier) ?? null
+        : null,
+    [selectedService, tier],
+  );
+
+  // Parsed, non-negative, cents-rounded honorarios surcharge. 0 when
+  // the field is empty or invalid.
+  const adjustmentValue = useMemo(() => {
+    const n = Number.parseFloat(honorariosAdjustment);
+    return Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : 0;
+  }, [honorariosAdjustment]);
+
   // When the picked service changes, reset the tier (the new service
-  // may not even have a tier with the previously-selected letter).
+  // may not even have a tier with the previously-selected letter) and
+  // any honorarios surcharge tied to the previous selection.
   useEffect(() => {
     setTier(null);
+    setHonorariosAdjustment("");
   }, [serviceId]);
 
   const canSubmit = Boolean(
@@ -300,6 +331,7 @@ function AssignBudgetModalInner({
           asesora_id: asesoraId,
           appointment_id: appointmentId ?? null,
           followup_id: followupId ?? null,
+          honorarios_adjustment: adjustmentValue > 0 ? adjustmentValue : undefined,
           notes: notes.trim() ? notes.trim() : undefined,
           acknowledged_existing: hasExisting ? acknowledgedExisting : undefined,
         }),
@@ -541,6 +573,57 @@ function AssignBudgetModalInner({
                       </button>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Ajuste de honorarios (opcional). Solo visible con un tier
+              elegido. Sobreprecio ≥ 0 sobre el precio base del tier; se
+              integra en el total (y, en plantillas que itemizan
+              honorarios, dentro de la línea de honorarios médicos). */}
+          {selectedTier && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Ajuste de honorarios (opcional)
+              </label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                  {selectedTier.currency === "USD" ? "USD" : "S/"}
+                </span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={honorariosAdjustment}
+                  onChange={(e) => {
+                    // Solo dígitos y un punto decimal; sin negativos.
+                    const cleaned = e.target.value
+                      .replace(/[^0-9.]/g, "")
+                      .replace(/(\..*)\./g, "$1");
+                    setHonorariosAdjustment(cleaned);
+                  }}
+                  placeholder="0.00"
+                  className="w-full rounded-lg border border-input bg-background py-2 pl-11 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Sobreprecio sobre los honorarios del tier para casos
+                particulares. Se suma al total; la paciente no ve una
+                línea de “ajuste”.
+              </p>
+              {adjustmentValue > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-2 text-xs">
+                  <span className="text-muted-foreground">
+                    Tier {tier} {formatMoney(selectedTier.amount, selectedTier.currency)}
+                    {" + "}ajuste {formatMoney(adjustmentValue, selectedTier.currency)}
+                  </span>
+                  <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                    Total{" "}
+                    {formatMoney(
+                      selectedTier.amount + adjustmentValue,
+                      selectedTier.currency,
+                    )}
+                  </span>
                 </div>
               )}
             </div>

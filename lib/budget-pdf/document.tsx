@@ -45,6 +45,11 @@ export interface BudgetPdfProps {
   service: { name: string; treatmentType: string };
   tier: "A" | "B" | "C" | null;
   amount: number;
+  // Sobreprecio de honorarios médicos (mig 174). Ya está incluido en
+  // `amount`; se expone por separado para las plantillas que itemizan
+  // honorarios (Vitra FIV) y necesitan integrarlo en esa línea + total.
+  // Ausente/0 = sin ajuste.
+  honorariosAdjustment?: number;
   currency: "PEN" | "USD";
   includesText: string | null;
   fecha: Date;
