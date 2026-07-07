@@ -25,7 +25,11 @@ import Handlebars from "handlebars";
 import chromium from "@sparticuz/chromium";
 import puppeteer from "puppeteer-core";
 import type { BudgetPdfProps } from "./document";
-import { FIV_NGS_PRICES, FIV_TIER_BREAKDOWNS } from "./data/fiv-tiers";
+import {
+  FIV_NGS_PRICES,
+  FIV_TIER_BREAKDOWNS,
+  type FivPhaseBreakdown,
+} from "./data/fiv-tiers";
 import type { OrgPdfOverrides } from "./data/vitra-overrides";
 
 let cachedTemplate: HandlebarsTemplateDelegate | null = null;
@@ -54,6 +58,42 @@ function formatPen(n: number): string {
 }
 
 /**
+ * Parse a Peruvian-formatted "11,200.00" string back into a number.
+ * Inverse of `formatPen` — needed to fold a per-budget honorarios
+ * surcharge into the otherwise-hardcoded FIV breakdown strings.
+ */
+function parsePen(s: string): number {
+  return Number(s.replace(/,/g, "")) || 0;
+}
+
+/**
+ * Fold a honorarios surcharge (mig 174) into a FIV breakdown. The
+ * whole delta lands on the aspiración phase — the main procedure fee —
+ * so the patient sees a single, higher "Honorarios médicos" figure
+ * with no separate "ajuste" line (per the chosen UX). The phase
+ * subtotal and the grand total move by the same delta so every column
+ * still reconciles: subtotal = honorarios + procedimiento, and
+ * total = Σ subtotales. Returns the breakdown untouched when delta ≤ 0.
+ */
+function applyHonorariosAdjustment(
+  breakdown: FivPhaseBreakdown,
+  delta: number,
+): FivPhaseBreakdown {
+  if (!delta || delta <= 0) return breakdown;
+  return {
+    ...breakdown,
+    aspiracion: {
+      ...breakdown.aspiracion,
+      honorarios_medicos: formatPen(
+        parsePen(breakdown.aspiracion.honorarios_medicos) + delta,
+      ),
+      subtotal: formatPen(parsePen(breakdown.aspiracion.subtotal) + delta),
+    },
+    total_formatted: formatPen(parsePen(breakdown.total_formatted) + delta),
+  };
+}
+
+/**
  * Generate a human-friendly budget code. The DB doesn't yet store
  * one, so we synthesize from year + last 6 chars of the UUID. Stable
  * across renders of the same budget.
@@ -73,7 +113,10 @@ function buildFivData(
   overrides: OrgPdfOverrides,
 ): Record<string, unknown> {
   const tier = props.tier ?? "A";
-  const breakdown = FIV_TIER_BREAKDOWNS[tier];
+  const breakdown = applyHonorariosAdjustment(
+    FIV_TIER_BREAKDOWNS[tier],
+    props.honorariosAdjustment ?? 0,
+  );
 
   const issuedAt = props.fecha;
   const validUntil = new Date(issuedAt);
@@ -117,7 +160,9 @@ function buildFivData(
       // Always use the breakdown total — the per-line subtotals must
       // match the displayed total exactly, so we ignore `props.amount`
       // (which may be stale if the DB tier prices haven't been
-      // updated to match the 2026-06-04 .docx revision).
+      // updated to match the 2026-06-04 .docx revision). The honorarios
+      // surcharge (mig 174) is already folded into `breakdown` above,
+      // so total + aspiración line + subtotal all move together.
       total_formatted: breakdown.total_formatted,
     },
     phases: {
