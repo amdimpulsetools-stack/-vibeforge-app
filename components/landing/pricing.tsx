@@ -185,20 +185,23 @@ export function Pricing() {
 
               <h3 className="text-lg font-bold text-slate-900">{plan.name}</h3>
 
-              <div className="mt-4">
-                <div className="flex items-baseline gap-1">
+              {/* key={cadence} remonta el bloque al cambiar la cadencia:
+                  un fadeUp corto (250ms) señala que el precio cambió.
+                  prefers-reduced-motion lo anula vía la media query global. */}
+              <div className="mt-4" key={cadence}>
+                <div className="flex items-baseline gap-1 motion-safe:animate-[fadeUp_0.25s_ease-out]">
                   <span className="text-sm text-slate-400">S/</span>
-                  <span className="text-4xl font-extrabold text-slate-900 tabular-nums transition-all">
+                  <span className="text-4xl font-extrabold text-slate-900 tabular-nums">
                     {priceFor(plan, cadence)}
                   </span>
                   <span className="text-sm text-slate-400">/mes</span>
                 </div>
                 {cadence !== "monthly" && (
-                  <p className="text-xs text-slate-400 mt-0.5 line-through">
+                  <p className="text-xs text-slate-400 mt-0.5 line-through motion-safe:animate-[fadeUp_0.3s_ease-out]">
                     S/{plan.priceMonthly}/mes
                   </p>
                 )}
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="text-xs text-slate-400 mt-1 motion-safe:animate-[fadeUp_0.35s_ease-out]">
                   {anchorFor(plan, cadence)}
                 </p>
               </div>
@@ -226,7 +229,7 @@ export function Pricing() {
                     : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                 }`}
               >
-                Empezar ahora
+                Probar gratis 14 días
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>

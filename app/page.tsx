@@ -16,7 +16,6 @@ import { SocialProof } from "@/components/landing/social-proof";
 import { FAQ } from "@/components/landing/faq";
 import { FinalCTA } from "@/components/landing/final-cta";
 import { Footer } from "@/components/landing/footer";
-import { ComingUpdates } from "@/components/landing/coming-updates";
 
 export default function LandingPage() {
   return (
@@ -34,7 +33,6 @@ export default function LandingPage() {
       <RevenueImpact />
       <Pricing />
       <SocialProof />
-      <ComingUpdates />
       <FAQ />
       <FinalCTA />
       <Footer />

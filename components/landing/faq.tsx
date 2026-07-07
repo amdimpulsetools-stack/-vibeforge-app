@@ -6,6 +6,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { Reveal } from "@/components/landing/reveal";
 
 const faqs = [
   {
@@ -16,7 +17,7 @@ const faqs = [
   {
     question: "¿Hay algún periodo de prueba?",
     answer:
-      "No tenemos trial porque no lo necesitas. Pagas mes a mes, sin contrato. Si en el primer mes no te convence, simplemente cancelas.",
+      "Sí. Pruebas gratis 14 días, sin tarjeta y con todas las funciones de tu plan. Después pagas mes a mes, sin contrato: si no te convence, simplemente cancelas.",
   },
   {
     question: "¿Puedo migrar mis datos desde otro sistema?",
@@ -38,32 +39,41 @@ const faqs = [
     answer:
       "No. Nuestro asistente IA es exclusivamente para gestión administrativa. No hace diagnósticos ni accede a información clínica.",
   },
+  {
+    question: "¿Y si algún día quiero irme? ¿Mis datos quedan atrapados?",
+    answer:
+      "No. Tus datos son tuyos: exportas tus reportes a CSV cuando quieras y, si decides irte, nuestro equipo te entrega tu información completa. Sin penalidades ni letra chica.",
+  },
 ];
 
 export function FAQ() {
   return (
     <section id="faq" className="py-20 sm:py-28 bg-white">
       <div className="mx-auto max-w-2xl px-6">
-        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 text-center mb-10">
-          Preguntas frecuentes
-        </h2>
+        <Reveal>
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 text-center mb-10">
+            Preguntas frecuentes
+          </h2>
+        </Reveal>
 
-        <Accordion type="single" collapsible className="w-full">
-          {faqs.map((faq, i) => (
-            <AccordionItem
-              key={i}
-              value={`item-${i}`}
-              className="border-slate-200"
-            >
-              <AccordionTrigger className="text-left text-sm font-semibold text-slate-800 hover:text-emerald-600 hover:no-underline py-5">
-                {faq.question}
-              </AccordionTrigger>
-              <AccordionContent className="text-sm text-slate-600 leading-relaxed">
-                {faq.answer}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+        <Reveal delay={100}>
+          <Accordion type="single" collapsible className="w-full">
+            {faqs.map((faq, i) => (
+              <AccordionItem
+                key={i}
+                value={`item-${i}`}
+                className="border-slate-200"
+              >
+                <AccordionTrigger className="text-left text-sm font-semibold text-slate-800 hover:text-emerald-600 hover:no-underline py-5">
+                  {faq.question}
+                </AccordionTrigger>
+                <AccordionContent className="text-sm text-slate-600 leading-relaxed">
+                  {faq.answer}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </Reveal>
       </div>
     </section>
   );

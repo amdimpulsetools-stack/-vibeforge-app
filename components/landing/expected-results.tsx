@@ -27,7 +27,7 @@ const metrics: Metric[] = [
     suffix: "%",
     label: "Menos tiempo agendando",
     description:
-      "Recepcionistas agendan en 3 clicks en lugar de alternar entre WhatsApp, cuadernos y Excel.",
+      "Recepcionistas agendan en 3 clicks en lugar de alternar entre WhatsApp, Excel y Google Calendar.",
     color: "text-blue-600",
     iconBg: "bg-blue-100 text-blue-600",
   },

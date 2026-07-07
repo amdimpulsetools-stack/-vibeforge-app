@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Agenda Médica Online — Citas y Reservas para Consultorios | REPLACE",
+  title: "Agenda Médica Online — Citas y Reservas para Consultorios | Yenda",
   description:
     "Agenda médica online con calendario visual drag-and-drop, múltiples doctores y consultorios, reserva online 24/7 y detección automática de conflictos. Software de citas para clínicas.",
   keywords: [
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     "software agenda consultorio", "calendario médico digital", "agenda para clínica",
   ],
   openGraph: {
-    title: "Agenda Médica Online — Citas y Reservas | REPLACE",
+    title: "Agenda Médica Online — Citas y Reservas | Yenda",
     description: "Tu agenda llena. Tus pacientes puntuales. Cero conflictos.",
   },
   alternates: { canonical: "/producto/agenda-medica-online" },
@@ -87,7 +87,7 @@ export default function AgendaMedicaPage() {
 
             <p className="mt-6 text-lg md:text-xl text-slate-600 leading-relaxed max-w-2xl mx-auto">
               Deja de perseguir pacientes por WhatsApp para confirmar citas.
-              Deja de anotar en cuadernos que se pierden.
+              Deja de cuadrar horarios en Excel.
               <strong className="text-slate-900"> Deja que la agenda trabaje por ti.</strong>
             </p>
 
@@ -270,7 +270,7 @@ export default function AgendaMedicaPage() {
             <span className="text-red-400"> dinero que no regresa.</span>
           </h2>
           <p className="mt-6 text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
-            Citas duplicadas. Pacientes que no llegan. Horarios en cuadernos que se pierden.
+            Citas duplicadas. Pacientes que no llegan. Horarios en un Excel que nadie actualiza.
             Llamadas interminables para confirmar. ¿Te suena familiar?
           </p>
 
@@ -309,8 +309,8 @@ export default function AgendaMedicaPage() {
               <span className="text-green-700"> no te protege.</span>
             </h2>
             <p className="mt-4 text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed">
-              Muchos consultorios dan el salto del cuaderno a Excel creyendo que resolvieron el problema.
-              La realidad: solo cambiaron un riesgo por otro.
+              Muchos consultorios confían su agenda a un Excel creyendo que con eso basta.
+              La realidad: es un riesgo disfrazado de orden.
             </p>
           </div>
 
@@ -400,7 +400,7 @@ export default function AgendaMedicaPage() {
                 ))}
               </ul>
               <p className="mt-4 text-xs text-slate-500 italic">
-                REPLACE captura automáticamente estos datos en cada registro, convirtiendo cada cita en inteligencia para tu negocio.
+                Yenda captura automáticamente estos datos en cada registro, convirtiendo cada cita en inteligencia para tu negocio.
               </p>
             </div>
 
@@ -506,7 +506,7 @@ export default function AgendaMedicaPage() {
         <div className="mx-auto max-w-4xl">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-slate-900">
-              Cuaderno vs. REPLACE
+              Excel vs. Yenda
             </h2>
           </div>
 
@@ -520,7 +520,7 @@ export default function AgendaMedicaPage() {
                 </div>
                 <ul className="space-y-4">
                   {[
-                    "Cuaderno con tachones y correcciones",
+                    "Un Excel que solo tu recepcionista entiende",
                     "Llamar uno por uno para confirmar",
                     "Doble agenda: un paciente, dos horarios",
                     "No sabes cuántas citas perdiste este mes",
@@ -539,7 +539,7 @@ export default function AgendaMedicaPage() {
               <div className="bg-emerald-50/50 p-8">
                 <div className="flex items-center gap-2 mb-6">
                   <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-                  <h3 className="text-lg font-bold text-emerald-700">Con REPLACE</h3>
+                  <h3 className="text-lg font-bold text-emerald-700">Con Yenda</h3>
                 </div>
                 <ul className="space-y-4">
                   {[
@@ -632,26 +632,6 @@ export default function AgendaMedicaPage() {
       </section>
 
       {/* ════════════════════════════════════════════════ */}
-      {/* TESTIMONIAL                                     */}
-      {/* ════════════════════════════════════════════════ */}
-      <section className="py-20 px-4 md:px-6 bg-slate-50">
-        <div className="mx-auto max-w-3xl">
-          <div className="rounded-2xl bg-white border border-slate-200 p-8 md:p-12 text-center shadow-sm">
-            <div className="mx-auto h-16 w-16 rounded-full bg-slate-200 mb-6" />
-            <blockquote className="text-lg md:text-xl font-medium text-slate-800 leading-relaxed italic">
-              &ldquo;Pasé de un cuaderno con tachones a una agenda que se llena sola.
-              Mis pacientes reservan por Instagram y yo solo llego a atender.
-              En 3 meses reduje las inasistencias de 25% a 8%.&rdquo;
-            </blockquote>
-            <div className="mt-6">
-              <p className="text-sm font-bold text-slate-900">Nombre del doctor</p>
-              <p className="text-xs text-slate-500">Especialidad — Ciudad, País</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ════════════════════════════════════════════════ */}
       {/* FINAL CTA                                       */}
       {/* ════════════════════════════════════════════════ */}
       <section className="py-20 px-4 md:px-6 bg-slate-900">
@@ -691,7 +671,7 @@ export default function AgendaMedicaPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: "REPLACE — Agenda Médica Online",
+            name: "Yenda — Agenda Médica Online",
             applicationCategory: "MedicalApplication",
             operatingSystem: "Web",
             description: "Agenda médica online con calendario visual, múltiples doctores, reserva online 24/7 y detección de conflictos.",

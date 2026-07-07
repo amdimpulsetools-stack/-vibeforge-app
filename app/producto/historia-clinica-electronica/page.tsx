@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Historia Clínica Electrónica — SOAP, Recetas, Exámenes | REPLACE",
+  title: "Historia Clínica Electrónica — SOAP, Recetas, Exámenes | Yenda",
   description:
     "Historia clínica electrónica con notas SOAP, diagnósticos CIE-10, recetas digitales imprimibles, órdenes de exámenes de laboratorio e imagenología, firma digital y plantillas reutilizables.",
   keywords: [
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     "CIE-10", "firma digital médica",
   ],
   openGraph: {
-    title: "Historia Clínica Electrónica | REPLACE",
+    title: "Historia Clínica Electrónica | Yenda",
     description: "Todo el expediente de tu paciente en un solo lugar. Digital, seguro y siempre accesible.",
   },
   alternates: { canonical: "/producto/historia-clinica-electronica" },
@@ -440,27 +440,6 @@ export default function HistoriaClinicaPage() {
       </section>
 
       {/* ════════════════════════════════════════════════ */}
-      {/* TESTIMONIAL                                     */}
-      {/* ════════════════════════════════════════════════ */}
-      <section className="py-20 px-4 md:px-6">
-        <div className="mx-auto max-w-3xl">
-          <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 p-8 md:p-12 text-center">
-            <div className="mx-auto h-16 w-16 rounded-full bg-slate-200 mb-6" />
-            <blockquote className="text-lg md:text-xl font-medium text-slate-800 leading-relaxed italic">
-              &ldquo;Antes mis notas eran ilegibles hasta para mí.
-              Ahora cada paciente tiene un expediente completo que puedo revisar
-              desde mi celular antes de que entre al consultorio.
-              Las recetas se imprimen perfectas y los exámenes los rastreo uno por uno.&rdquo;
-            </blockquote>
-            <div className="mt-6">
-              <p className="text-sm font-bold text-slate-900">Nombre del doctor</p>
-              <p className="text-xs text-slate-500">Especialidad — Ciudad, País</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ════════════════════════════════════════════════ */}
       {/* FINAL CTA                                       */}
       {/* ════════════════════════════════════════════════ */}
       <section className="py-20 px-4 md:px-6 bg-slate-900">
@@ -494,7 +473,7 @@ export default function HistoriaClinicaPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: "REPLACE — Historia Clínica Electrónica",
+            name: "Yenda — Historia Clínica Electrónica",
             applicationCategory: "MedicalApplication",
             operatingSystem: "Web",
             description: "Historia clínica electrónica con notas SOAP, recetas digitales, órdenes de exámenes y firma digital.",

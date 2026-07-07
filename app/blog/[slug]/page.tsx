@@ -194,7 +194,7 @@ export default async function BlogArticlePage({ params }: PageProps) {
       <section className="py-12 px-4 md:px-6">
         <div className="mx-auto max-w-4xl">
           <div className="rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 p-8 md:p-12 text-center text-white shadow-xl">
-            <h2 className="text-2xl md:text-3xl font-bold">Prueba REPLACE gratis 14 días</h2>
+            <h2 className="text-2xl md:text-3xl font-bold">Prueba Yenda gratis 14 días</h2>
             <p className="mt-2 text-emerald-100">Agenda, historia clínica, recetas, reportes y más.</p>
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link href="/register" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-colors w-full sm:w-auto">
@@ -205,7 +205,7 @@ export default async function BlogArticlePage({ params }: PageProps) {
         </div>
       </section>
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "Article", headline: article.title, description: article.excerpt, datePublished: article.date, author: { "@type": "Organization", name: "REPLACE" }, publisher: { "@type": "Organization", name: "REPLACE" } }) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "Article", headline: article.title, description: article.excerpt, datePublished: article.date, author: { "@type": "Organization", name: "Yenda" }, publisher: { "@type": "Organization", name: "Yenda" } }) }} />
     </div>
   );
 }

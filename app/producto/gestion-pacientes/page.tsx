@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Gestión de Pacientes Médicos — Expedientes y Seguimientos | REPLACE",
+  title: "Gestión de Pacientes Médicos — Expedientes y Seguimientos | Yenda",
   description:
     "Gestiona pacientes con fichas completas, historial médico unificado, planes de tratamiento multi-sesión, seguimientos clínicos con prioridad y adjuntos. Software para consultorios.",
   keywords: [
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     "seguimiento clínico", "tratamiento multi-sesión", "software gestión pacientes",
   ],
   openGraph: {
-    title: "Gestión de Pacientes Médicos | REPLACE",
+    title: "Gestión de Pacientes Médicos | Yenda",
     description: "Conoce a cada paciente como si fuera el único.",
   },
   alternates: { canonical: "/producto/gestion-pacientes" },
@@ -216,7 +216,7 @@ export default function GestionPacientesPage() {
               El viaje del paciente — de principio a fin
             </h2>
             <p className="mt-3 text-lg text-slate-600">
-              REPLACE te acompaña en cada etapa de la relación con tu paciente.
+              Yenda te acompaña en cada etapa de la relación con tu paciente.
             </p>
           </div>
 
@@ -257,27 +257,6 @@ export default function GestionPacientesPage() {
       </section>
 
       {/* ════════════════════════════════════════════════ */}
-      {/* TESTIMONIAL                                     */}
-      {/* ════════════════════════════════════════════════ */}
-      <section className="py-20 px-4 md:px-6">
-        <div className="mx-auto max-w-3xl">
-          <div className="rounded-2xl bg-gradient-to-br from-teal-50 to-emerald-50 border border-teal-200 p-8 md:p-12 text-center">
-            <div className="mx-auto h-16 w-16 rounded-full bg-slate-200 mb-6" />
-            <blockquote className="text-lg md:text-xl font-medium text-slate-800 leading-relaxed italic">
-              &ldquo;Tengo 400 pacientes activos y recuerdo el caso de cada uno —
-              no porque tenga memoria fotográfica, sino porque su expediente
-              me lo dice todo en 5 segundos. El seguimiento automático me ha
-              traído de vuelta pacientes que ya daba por perdidos.&rdquo;
-            </blockquote>
-            <div className="mt-6">
-              <p className="text-sm font-bold text-slate-900">Nombre del doctor</p>
-              <p className="text-xs text-slate-500">Especialidad — Ciudad, País</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ════════════════════════════════════════════════ */}
       {/* FINAL CTA                                       */}
       {/* ════════════════════════════════════════════════ */}
       <section className="py-20 px-4 md:px-6 bg-slate-900">
@@ -310,7 +289,7 @@ export default function GestionPacientesPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: "REPLACE — Gestión de Pacientes Médicos",
+            name: "Yenda — Gestión de Pacientes Médicos",
             applicationCategory: "MedicalApplication",
             operatingSystem: "Web",
             description: "Gestión completa de pacientes con expedientes, seguimientos clínicos, tratamientos multi-sesión y etiquetas personalizables.",

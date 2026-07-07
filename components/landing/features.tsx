@@ -96,11 +96,6 @@ export function Features() {
                 <span className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wider">Ahora</span>
                 <p className="text-sm text-slate-700 mt-1">{feat.after}</p>
               </div>
-
-              {/* Screenshot placeholder */}
-              <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/50 h-32 flex items-center justify-center">
-                <p className="text-xs text-slate-300">Screenshot — {feat.title}</p>
-              </div>
             </div>
           ))}
         </div>

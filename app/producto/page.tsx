@@ -6,9 +6,9 @@ import { PRODUCT_FEATURES } from "@/lib/product-features";
 import { Reveal } from "@/components/landing/reveal";
 
 export const metadata: Metadata = {
-  title: `Producto — Software Médico Todo en Uno | REPLACE`,
+  title: `Producto — Software Médico Todo en Uno | Yenda`,
   description:
-    "Descubre todas las funcionalidades de REPLACE: agenda médica online, historia clínica electrónica, recetas digitales, recordatorios por WhatsApp, reportes, asistente IA y más. Software para clínicas y consultorios.",
+    "Descubre todas las funcionalidades de Yenda: agenda médica online, historia clínica electrónica, recetas digitales, recordatorios por WhatsApp, reportes, asistente IA y más. Software para clínicas y consultorios.",
   keywords: [
     "software para consultorio médico",
     "software para clínica",
@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     "sistema de gestión médica",
   ],
   openGraph: {
-    title: `Producto — Software Médico Todo en Uno | REPLACE`,
+    title: `Producto — Software Médico Todo en Uno | Yenda`,
     description:
       "Todas las herramientas que necesita tu clínica en un solo lugar: agenda, historia clínica, recetas, reportes y más.",
     type: "website",
@@ -45,7 +45,7 @@ export default function ProductOverviewPage() {
             <span className="gradient-text-emerald"> en un solo lugar</span>
           </h1>
           <p className="mt-6 text-lg md:text-xl text-slate-600 max-w-2xl mx-auto leading-relaxed">
-            Desde la primera cita hasta la retención de pacientes: REPLACE unifica
+            Desde la primera cita hasta la retención de pacientes: Yenda unifica
             agenda, historia clínica, recetas, cobros y reportes en una plataforma
             diseñada para médicos latinoamericanos.
           </p>
@@ -149,7 +149,7 @@ export default function ProductOverviewPage() {
             Listo para modernizar tu clínica?
           </h2>
           <p className="mt-4 text-lg text-slate-600">
-            Prueba REPLACE gratis por 14 días. Sin tarjeta de crédito.
+            Prueba Yenda gratis por 14 días. Sin tarjeta de crédito.
           </p>
           <div className="mt-8 flex items-center justify-center gap-3">
             <Link
@@ -170,7 +170,7 @@ export default function ProductOverviewPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "SoftwareApplication",
-            name: "REPLACE",
+            name: "Yenda",
             applicationCategory: "MedicalApplication",
             operatingSystem: "Web",
             offers: {

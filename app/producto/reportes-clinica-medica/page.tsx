@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Reportes para Clínica Médica — Dashboards, KPIs y Analítica | REPLACE",
+  title: "Reportes para Clínica Médica — Dashboards, KPIs y Analítica | Yenda",
   description:
     "Reportes visuales para tu clínica: ingresos vs metas, retención de pacientes, cobros pendientes, origen de pacientes, demografía y KPIs en tiempo real. Toma decisiones con datos.",
   keywords: [
@@ -438,24 +438,6 @@ export default function ReportesPage() {
         </div>
       </section>
 
-      {/* TESTIMONIAL */}
-      <section className="py-20 px-4 md:px-6 bg-slate-50">
-        <div className="mx-auto max-w-3xl">
-          <div className="rounded-2xl bg-white border border-slate-200 p-8 md:p-12 text-center shadow-sm">
-            <div className="mx-auto h-16 w-16 rounded-full bg-slate-200 mb-6" />
-            <blockquote className="text-lg md:text-xl font-medium text-slate-800 leading-relaxed italic">
-              &ldquo;Antes cerraba el mes sin saber si fue bueno o malo hasta que miraba mi cuenta.
-              Ahora abro el dashboard y en 5 segundos sé: cuánto facturé, quién me debe,
-              y qué pacientes están a punto de irse. Eso cambió cómo tomo decisiones.&rdquo;
-            </blockquote>
-            <div className="mt-6">
-              <p className="text-sm font-bold text-slate-900">Nombre del doctor</p>
-              <p className="text-xs text-slate-500">Especialidad — Ciudad, País</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* FINAL CTA */}
       <section className="py-20 px-4 md:px-6 bg-slate-900">
         <div className="mx-auto max-w-3xl text-center">
@@ -472,7 +454,7 @@ export default function ReportesPage() {
         </div>
       </section>
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "REPLACE — Reportes para Clínica Médica", applicationCategory: "MedicalApplication", operatingSystem: "Web", offers: { "@type": "Offer", price: "0", priceCurrency: "PEN" } }) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Yenda — Reportes para Clínica Médica", applicationCategory: "MedicalApplication", operatingSystem: "Web", offers: { "@type": "Offer", price: "0", priceCurrency: "PEN" } }) }} />
     </div>
   );
 }

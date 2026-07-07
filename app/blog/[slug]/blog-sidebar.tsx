@@ -18,7 +18,7 @@ export function BlogSidebar({ headings, slug }: BlogSidebarProps) {
             R
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-900">Equipo REPLACE</p>
+            <p className="text-sm font-bold text-slate-900">Equipo Yenda</p>
             <p className="text-xs text-slate-500">Software médico para clínicas</p>
           </div>
         </div>
@@ -54,7 +54,7 @@ export function BlogSidebar({ headings, slug }: BlogSidebarProps) {
           Genera más pacientes
         </h3>
         <p className="text-xs text-emerald-100 mb-4 leading-relaxed">
-          Prueba REPLACE gratis y automatiza tu consultorio en minutos.
+          Prueba Yenda gratis y automatiza tu consultorio en minutos.
         </p>
         <Link
           href="/register"

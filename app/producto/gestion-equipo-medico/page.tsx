@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Gestión de Equipo Médico — Roles y Permisos para Clínicas | REPLACE",
+  title: "Gestión de Equipo Médico — Roles y Permisos para Clínicas | Yenda",
   description:
     "Administra tu equipo médico con roles y permisos granulares: doctores, recepcionistas, administradores. Horarios individuales, invitaciones por email y auditoría completa.",
   keywords: [
@@ -220,7 +220,7 @@ export default function GestionEquipoPage() {
         </div>
       </section>
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "REPLACE — Gestión de Equipo Médico", applicationCategory: "MedicalApplication", operatingSystem: "Web", offers: { "@type": "Offer", price: "0", priceCurrency: "PEN" } }) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify({ "@context": "https://schema.org", "@type": "SoftwareApplication", name: "Yenda — Gestión de Equipo Médico", applicationCategory: "MedicalApplication", operatingSystem: "Web", offers: { "@type": "Offer", price: "0", priceCurrency: "PEN" } }) }} />
     </div>
   );
 }

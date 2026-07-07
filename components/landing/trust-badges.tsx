@@ -1,4 +1,5 @@
 import { Lock, Globe, Hospital, BrainCircuit } from "lucide-react";
+import { Reveal } from "@/components/landing/reveal";
 
 const badges = [
   { icon: Lock, label: "Datos encriptados" },
@@ -12,14 +13,15 @@ export function TrustBadges() {
     <section className="relative border-y border-slate-100 bg-slate-50/50">
       <div className="mx-auto max-w-7xl px-6 py-6">
         <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
-          {badges.map((b) => (
-            <div
+          {badges.map((b, i) => (
+            <Reveal
               key={b.label}
+              delay={i * 60}
               className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-600 shadow-sm"
             >
               <b.icon className="h-4 w-4 text-emerald-600 shrink-0" />
               <span className="text-xs sm:text-sm font-medium">{b.label}</span>
-            </div>
+            </Reveal>
           ))}
         </div>
       </div>

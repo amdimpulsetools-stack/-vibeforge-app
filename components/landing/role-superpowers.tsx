@@ -57,9 +57,9 @@ const roles: RoleData[] = [
     iconBg: "bg-blue-100 text-blue-600",
     headline: "Cero caos en la agenda",
     subline:
-      "Todo lo que tu recepcionista necesita en una sola pantalla. Sin WhatsApp, sin cuadernos, sin Excel.",
+      "Todo lo que tu recepcionista necesita en una sola pantalla. Sin WhatsApp, sin Excel, sin caos.",
     painKiller:
-      "Ya no necesita WhatsApp + cuaderno + Excel para manejar el día",
+      "Ya no necesita WhatsApp + Excel + Google Calendar para manejar el día",
     features: [
       {
         icon: CalendarCheck,
