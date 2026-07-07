@@ -6,6 +6,7 @@ import {
   Quote,
   Stethoscope,
 } from "lucide-react";
+import { Reveal } from "@/components/landing/reveal";
 
 const signals = [
   { icon: Lock, label: "Datos encriptados" },
@@ -47,7 +48,7 @@ export function SocialProof() {
     <section className="py-20 sm:py-28 bg-slate-50/50">
       <div className="mx-auto max-w-6xl px-6">
         {/* Header */}
-        <div className="mx-auto max-w-2xl text-center">
+        <Reveal className="mx-auto max-w-2xl text-center">
           <div className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
             <Stethoscope className="h-3.5 w-3.5" />
             Clínicas reales, no demos
@@ -60,10 +61,10 @@ export function SocialProof() {
             administrador o una recepcionista que nos dijo qué les frenaba
             en su día a día.
           </p>
-        </div>
+        </Reveal>
 
         {/* Pilot testimonial + early-access badge */}
-        <div className="mt-12 grid gap-6 lg:grid-cols-5">
+        <Reveal delay={100} className="mt-12 grid gap-6 lg:grid-cols-5">
           {/* Testimonial (spans 3) */}
           {pilots.map((p) => (
             <figure
@@ -108,8 +109,9 @@ export function SocialProof() {
                 Sé de los primeros 100 en probarlo.
               </h3>
               <p className="mt-3 text-sm text-slate-600 leading-relaxed">
-                Tu feedback durante los primeros 3 meses moldea el roadmap.
-                Recibes features que pides, no lo que se nos ocurre.
+                Tu feedback durante los primeros 3 meses define qué
+                construimos primero. Recibes features que pides, no lo
+                que se nos ocurre.
               </p>
             </div>
             <a
@@ -119,10 +121,10 @@ export function SocialProof() {
               Ver planes y empezar
             </a>
           </div>
-        </div>
+        </Reveal>
 
         {/* Trust signals */}
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+        <Reveal delay={200} className="mt-10 flex flex-wrap items-center justify-center gap-3">
           {signals.map((s) => (
             <div
               key={s.label}
@@ -134,7 +136,7 @@ export function SocialProof() {
               </span>
             </div>
           ))}
-        </div>
+        </Reveal>
       </div>
     </section>
   );

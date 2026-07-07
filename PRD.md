@@ -4898,3 +4898,28 @@ Aplicar **mig 174** en producción (SQL Editor de Supabase) — mismo patrón qu
 ### Nota (pre-existente, fuera de alcance)
 
 El total del PDF de Vitra (breakdown hardcoded, ej. FIV Tier A = S/18,450) ya diverge del `service_budget_tiers.amount` de la BD (ej. S/16,260); el preview del modal usa el monto de la BD. El ajuste suma el mismo delta a ambos, así que es consistente dentro de cada vista. La sincronía base admin ↔ PDF sigue siendo el pendiente ya listado en `COMING-UPDATES.md`.
+
+## Changelog — Sesión 2026-07-07 (tarde) — Auditoría y pulido de la landing (home)
+
+Auditoría de la home contra estándares de copywriting, UI/UX y neuromarketing, con los fixes aplicados en la misma sesión.
+
+### Eliminado
+
+- **Sección "Roadmap público" (`ComingUpdates`)** fuera de la home y componente `coming-updates.tsx` borrado (decisión de negocio: no anticipar el roadmap a la competencia). Referencia verbal al "roadmap" en `social-proof.tsx` reescrita ("define qué construimos primero").
+- **Placeholders de screenshots** en `features.tsx` (cajas punteadas "Screenshot — X" visibles en producción; transmitían producto sin terminar).
+- **Referencias a cuaderno/libreta** en la home, sustituidas por Excel/Google Calendar como el statu quo a vencer (`pain-points`, `role-superpowers` ×2, `expected-results`). Nota: las páginas `/producto/*` aún usan "cuaderno" en copy SEO — fuera de alcance de esta sesión, decidir aparte.
+
+### Copy / neuromarketing
+
+- **Contradicción crítica corregida**: el Hero promete "Probar gratis 14 días" pero el FAQ decía "No tenemos trial". FAQ actualizado (14 días, sin tarjeta) — la inconsistencia erosionaba confianza justo antes de la conversión.
+- **FAQ nuevo de reversibilidad**: "¿Y si quiero irme? ¿Mis datos quedan atrapados?" (objeción #1 en salud; reduce el miedo al lock-in sin sobre-prometer: reportes a CSV + entrega asistida).
+- **`GrowthPath` des-precificada**: mostraba los 3 precios completos a mitad de página duplicando a Pricing; ahora es sección de auto-identificación ("Empiezo solo…" / "Ya somos un equipo…") con link "Ver mi plan →" a `#pricing`, que conserva el monopolio del anclaje de precio.
+- **CTAs consistentes**: "Probar gratis 14 días" unificado en Hero, Pricing y FinalCTA (mismo compromiso en todo el recorrido). Secundario del Hero: ícono Play→Calculator y copy "Calcula cuánto pierdes hoy" (aversión a la pérdida, alineado con la sección de fugas).
+- FinalCTA con reassurance honesto: "Sin tarjeta. Planes desde S/129/mes cuando decidas quedarte."
+
+### Animaciones (sistema `Reveal` + `fadeUp` existente, respeta `prefers-reduced-motion`)
+
+- Entrada al scroll para las únicas secciones que aparecían "en seco": `TrustBadges` (stagger 60ms), `FAQ`, `SocialProof` (header → grid → señales).
+- `Pricing`: micro-fade (250–350ms) del bloque de precio al alternar Mensual/Semestral/Anual — feedback de cambio de estado, no decoración.
+
+Verificado: `tsc` 0 errores + `next build` completo.

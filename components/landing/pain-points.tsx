@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Check, ArrowRight, Hand } from "lucide-react";
 
 const pains = [
-  "Manejas las citas entre WhatsApp, un cuaderno y Google Calendar",
+  "Manejas las citas entre WhatsApp, Excel y Google Calendar",
   "Tu recepcionista es la única que entiende el Excel de pacientes",
   "No sabes cuánto facturaste esta semana sin hacer cuentas a mano",
   "Pierdes pacientes porque nadie les dio seguimiento",

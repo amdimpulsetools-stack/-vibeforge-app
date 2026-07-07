@@ -9,7 +9,6 @@ const tiers = [
     title: "Consultorio independiente",
     capacity: "1 doctor, 1 consultorio",
     quote: "Empiezo solo con mi consultorio",
-    price: "S/129",
     highlight: false,
   },
   {
@@ -17,7 +16,6 @@ const tiers = [
     title: "Centro médico",
     capacity: "2 doctores, 4 consultorios",
     quote: "Ya somos un equipo pequeño",
-    price: "S/349",
     highlight: true,
   },
   {
@@ -25,7 +23,6 @@ const tiers = [
     title: "Clínica mediana",
     capacity: "10 doctores, 10 consultorios",
     quote: "Gestionamos una operación real",
-    price: "S/649",
     highlight: false,
   },
 ];
@@ -102,11 +99,17 @@ export function GrowthPath() {
                 &ldquo;{tier.quote}&rdquo;
               </p>
               <div className="mt-4 pt-4 border-t border-slate-100">
-                <span className="text-xs text-slate-400">Desde</span>
-                <p className="text-2xl font-extrabold text-slate-900">
-                  {tier.price}
-                  <span className="text-sm font-normal text-slate-400">/mes</span>
-                </p>
+                <a
+                  href="#pricing"
+                  className={`inline-flex items-center gap-1.5 text-sm font-semibold transition-colors ${
+                    tier.highlight
+                      ? "text-emerald-600 hover:text-emerald-700"
+                      : "text-slate-500 hover:text-emerald-600"
+                  }`}
+                >
+                  Ver mi plan
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </a>
               </div>
             </div>
           ))}

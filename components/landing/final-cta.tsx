@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import { Reveal } from "@/components/landing/reveal";
 
 export function FinalCTA() {
   return (
@@ -11,27 +12,31 @@ export function FinalCTA() {
       </div>
 
       <div className="relative mx-auto max-w-2xl px-6 text-center">
-        <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-          Tu clínica merece herramientas del 2026.
-        </h2>
-        <p className="mt-4 text-base text-slate-600 leading-relaxed">
-          Configura tu clínica en minutos. Sin contratos. Cancela cuando quieras.
-          IA incluida desde el primer día.
-        </p>
+        <Reveal>
+          <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
+            Tu clínica merece herramientas del 2026.
+          </h2>
+          <p className="mt-4 text-base text-slate-600 leading-relaxed">
+            Configura tu clínica en minutos. Sin contratos. Cancela cuando quieras.
+            IA incluida desde el primer día.
+          </p>
+        </Reveal>
 
-        <div className="mt-8">
-          <Link
-            href="/register"
-            className="inline-flex h-14 items-center justify-center gap-2.5 rounded-xl gradient-primary px-10 text-base font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-          >
-            Empezar ahora
-            <ArrowRight className="h-5 w-5" />
-          </Link>
-        </div>
+        <Reveal delay={120}>
+          <div className="mt-8">
+            <Link
+              href="/register"
+              className="inline-flex h-14 items-center justify-center gap-2.5 rounded-xl gradient-primary px-10 text-base font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Probar gratis 14 días
+              <ArrowRight className="h-5 w-5" />
+            </Link>
+          </div>
 
-        <p className="mt-4 text-sm text-slate-400">
-          Planes desde S/129/mes. Todos incluyen asistente IA y addons flexibles.
-        </p>
+          <p className="mt-4 text-sm text-slate-400">
+            Sin tarjeta. Planes desde S/129/mes cuando decidas quedarte.
+          </p>
+        </Reveal>
       </div>
     </section>
   );

@@ -5,7 +5,7 @@ import { useEffect, useRef } from "react";
 import { APP_NAME } from "@/lib/constants";
 import {
   ArrowRight,
-  Play,
+  Calculator,
   Calendar,
   Users,
   Shield,
@@ -116,8 +116,8 @@ export function Hero() {
               href="#revenue-impact"
               className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-8 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
             >
-              <Play className="h-4 w-4 mr-2 text-emerald-600" />
-              Calcula tu impacto
+              <Calculator className="h-4 w-4 mr-2 text-emerald-600" />
+              Calcula cuánto pierdes hoy
             </a>
           </div>
 
