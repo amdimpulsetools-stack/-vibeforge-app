@@ -40,7 +40,7 @@ import {
   X,
   Check,
   Clock,
-  DollarSign,
+  Coins,
   Tag,
   ChevronDown,
   Building2,
@@ -333,7 +333,7 @@ export default function ServicesPage() {
                           </div>
                           <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
-                              <DollarSign className="h-3 w-3" />
+                              <Coins className="h-3 w-3" />
                               S/. {Number(service.base_price).toFixed(2)}
                             </span>
                             <span className="flex items-center gap-1">
