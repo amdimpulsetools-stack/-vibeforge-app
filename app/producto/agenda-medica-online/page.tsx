@@ -28,7 +28,7 @@ import {
   Brain,
   Rocket,
   CreditCard,
-  CircleDollarSign,
+  Coins,
   CalendarClock,
   ShieldAlert,
   Plus,
@@ -203,7 +203,7 @@ export default function AgendaMedicaPage() {
             >
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100">
-                  <CircleDollarSign className="h-5 w-5 text-emerald-600" />
+                  <Coins className="h-5 w-5 text-emerald-600" />
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-900">Añadir pago</p>

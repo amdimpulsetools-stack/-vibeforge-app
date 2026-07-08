@@ -27,7 +27,7 @@ import {
   User as UserIcon,
   Check,
   Pencil,
-  DollarSign,
+  Coins,
   CalendarPlus,
   StickyNote,
   MessageSquare,
@@ -1808,7 +1808,7 @@ function AppointmentDetailSheet({
             {appointment.price_snapshot != null && (
               <div className="border-t border-black/5">
                 <DetailRow
-                  icon={DollarSign}
+                  icon={Coins}
                   iconColor="#34C759"
                   title={`S/ ${Number(appointment.price_snapshot).toFixed(2)}`}
                   subtitle="Precio"

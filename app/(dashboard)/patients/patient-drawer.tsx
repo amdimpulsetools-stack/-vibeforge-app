@@ -28,6 +28,7 @@ import {
   Plus,
   Tag,
   DollarSign,
+  Coins,
   Wallet,
   Calendar,
   AlertCircle,
@@ -1201,7 +1202,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                             <p className="text-[10px] text-muted-foreground">{p.notes}</p>
                           )}
                         </div>
-                        <DollarSign className="h-4 w-4 text-emerald-500" />
+                        <Coins className="h-4 w-4 text-emerald-500" />
                       </div>
                     ))}
                   </div>
