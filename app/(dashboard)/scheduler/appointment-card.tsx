@@ -114,6 +114,19 @@ function AppointmentCardInner({
   // across the grid — exactly the separator the user asked for.
   const isDone = liveState === "ended" || isStale;
 
+  // Live-state tint: while the patient is in the clinic the WHOLE card
+  // adopts the pill's color (arrived = blue-500, in consultation =
+  // emerald-500) so the doctor can scan who's waiting without reading
+  // chips. Ends with the consultation (isDone wins → muted gray) and
+  // falls back to the doctor pastel when merely scheduled. The doctor
+  // color stays on the left border for identity.
+  const liveTint =
+    !isDone && liveState === "arrived"
+      ? hexToPastel("#3b82f6", 0.22)
+      : !isDone && liveState === "in_consultation"
+        ? hexToPastel("#10b981", 0.22)
+        : null;
+
   return (
     <button
       draggable={!isOtherDoctor}
@@ -140,7 +153,7 @@ function AppointmentCardInner({
         height: `${heightPx}px`,
         backgroundColor: isDone
           ? "hsl(var(--muted))"
-          : hexToPastel(doctorColor, 0.18),
+          : liveTint ?? hexToPastel(doctorColor, 0.18),
         borderLeft: `4px solid ${doctorColor}`,
         ...(isOtherDoctor ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
         ...(isDone && !isOtherDoctor ? { opacity: 0.75 } : {}),
