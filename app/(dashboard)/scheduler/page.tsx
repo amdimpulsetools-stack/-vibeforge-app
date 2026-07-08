@@ -654,6 +654,8 @@ export default function SchedulerPage() {
           defaultDate={blockDialogDefaultDate}
           offices={offices}
           organizationId={organizationId ?? ""}
+          scheduleStartHour={schedulerConfig.startHour}
+          scheduleEndHour={schedulerConfig.endHour}
           onClose={() => setShowBlockDialog(false)}
           onSaved={() => {
             setShowBlockDialog(false);
@@ -665,6 +667,8 @@ export default function SchedulerPage() {
       {/* Break time dialog */}
       {showBreakTimeDialog && (
         <BreakTimeDialog
+          scheduleStartHour={schedulerConfig.startHour}
+          scheduleEndHour={schedulerConfig.endHour}
           onClose={() => setShowBreakTimeDialog(false)}
           onSaved={(config) => {
             setBreakTimeConfig(config);
