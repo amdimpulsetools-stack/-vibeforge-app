@@ -8,6 +8,7 @@ import {
   Sparkles,
   TrendingUp,
   DollarSign,
+  Coins,
   Users,
   CalendarDays,
   MessageCircle,
@@ -192,7 +193,7 @@ export default function AsistenteIAPage() {
                     <div className="space-y-1.5 text-xs">
                       <p className="flex items-center gap-2">
                         <span className="flex h-5 w-5 items-center justify-center rounded bg-emerald-100 text-emerald-600">
-                          <DollarSign className="h-3 w-3" />
+                          <Coins className="h-3 w-3" />
                         </span>
                         <span><strong>S/. 18,450</strong> facturados (87% cobrado)</span>
                       </p>
