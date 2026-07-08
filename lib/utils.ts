@@ -37,6 +37,25 @@ export function formatCurrency(amount: number) {
   }).format(amount)}`;
 }
 
+/**
+ * Nombre corto para saludos ("Bienvenida, Dra. Patricia").
+ *
+ * `full_name.split(" ")[0]` rompía con títulos honoríficos: para
+ * "Dra. Patricia Quispe" saludaba "Bienvenida, Dra." — el título solo,
+ * sin nombre. Si la primera palabra es un honorífico toma dos palabras;
+ * si no, una. Sin configuración por usuario.
+ */
+const HONORIFICS = /^(dr|dra|lic|mg|mgtr|msc|ing|prof|obst|od|psic|qf|tec|tm|enf)\.?$/i;
+
+export function greetingName(fullName: string | null | undefined): string {
+  const words = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "";
+  if (words.length > 1 && HONORIFICS.test(words[0])) {
+    return `${words[0]} ${words[1]}`;
+  }
+  return words[0];
+}
+
 export function getInitials(name: string) {
   return name
     .split(" ")

@@ -12,7 +12,7 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import { useNotifications, type Notification } from "@/hooks/use-notifications";
 import { useLanguage } from "@/components/language-provider";
 import { createClient } from "@/lib/supabase/client";
-import { getInitials } from "@/lib/utils";
+import { getInitials, greetingName } from "@/lib/utils";
 import { BorderAvatar } from "@/components/ui/avatar-border";
 import {
   Bell,
@@ -164,9 +164,9 @@ export function Topbar() {
 
   const displayName = (() => {
     const full = profile?.full_name?.trim();
-    if (full) return full.split(" ")[0];
+    if (full) return greetingName(full);
     const metaFull = (user?.user_metadata?.full_name as string | undefined)?.trim();
-    if (metaFull) return metaFull.split(" ")[0];
+    if (metaFull) return greetingName(metaFull);
     return null;
   })();
 

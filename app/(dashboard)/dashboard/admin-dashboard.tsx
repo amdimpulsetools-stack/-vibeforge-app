@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useLanguage } from "@/components/language-provider";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, greetingName } from "@/lib/utils";
 import {
   TrendingUp,
   TrendingDown,
@@ -170,7 +170,7 @@ export function AdminDashboard({
             {isEs ? "Escritorio" : "Dashboard"}
           </h1>
           <p className="mt-1 text-muted-foreground">
-            {isEs ? "Bienvenido de vuelta" : "Welcome back"}, {userName.split(" ")[0] || userName}
+            {isEs ? "Bienvenido de vuelta" : "Welcome back"}, {greetingName(userName) || userName}
           </p>
         </div>
         <div className="flex items-center gap-3">
