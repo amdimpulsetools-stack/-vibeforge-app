@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { usePlan, type OrgUsage } from "@/hooks/use-plan";
+import { useOrgRole } from "@/hooks/use-org-role";
 
 const RESOURCE_LABELS: Partial<Record<keyof OrgUsage, string>> = {
   members: "miembros",
@@ -15,10 +16,16 @@ const RESOURCE_LABELS: Partial<Record<keyof OrgUsage, string>> = {
 
 export function PlanLimitWarner() {
   const { plan, usage, loading, isNearLimit, isAtLimit, getLimit } = usePlan();
+  // Plan-limit warnings are only actionable by owners/admins (they
+  // control the subscription). Doctors/receptionists can't upgrade
+  // or buy addons, so surfacing these toasts to them is just noise.
+  const { isAdmin, loading: roleLoading } = useOrgRole();
   const warned = useRef(false);
 
   useEffect(() => {
-    if (loading || !plan || !usage || warned.current) return;
+    if (loading || roleLoading || !plan || !usage || warned.current) return;
+    // Suppress the notification for non-admin/owner roles.
+    if (!isAdmin) return;
     warned.current = true;
 
     const resources: (keyof OrgUsage)[] = [
@@ -46,7 +53,7 @@ export function PlanLimitWarner() {
         });
       }
     }
-  }, [loading, plan, usage, isNearLimit, isAtLimit, getLimit]);
+  }, [loading, roleLoading, isAdmin, plan, usage, isNearLimit, isAtLimit, getLimit]);
 
   return null;
 }
