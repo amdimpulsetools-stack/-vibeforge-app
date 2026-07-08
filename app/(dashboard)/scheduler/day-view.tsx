@@ -7,7 +7,7 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Lock, LockOpen, Coffee } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
-import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, getScheduleStartMinutes, getScheduleEndMinutes, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
 import { AppointmentCard } from "./appointment-card";
 import { useNow } from "./now-provider";
 
@@ -175,15 +175,16 @@ export function DayView({
     fetchSchedulerConfig().then(setSchedulerConfig).catch(() => {});
   }, []);
   const TIME_SLOTS = useMemo(
-    () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, getActiveInterval(schedulerConfig)),
+    () => generateTimeSlots(getScheduleStartMinutes(schedulerConfig), getScheduleEndMinutes(schedulerConfig), getActiveInterval(schedulerConfig)),
     [schedulerConfig]
   );
 
   const activeInterval = getActiveInterval(schedulerConfig);
-  // Divisors of 60 (15/30/60) land every row back on :00 → keep the classic
-  // per-hour labels/borders. Non-divisors (e.g. 45) never hit :00, so we label
-  // every row instead (see the row render below).
-  const hourAligned = 60 % activeInterval === 0;
+  // Rows label/border on :00 only when the stride divides 60 (15/30/60) AND the
+  // window opens on a whole hour (startMinute 0). A :15/:30/:45 offset (mig 175)
+  // means no row ever lands on :00, so we must label every row — same rule as a
+  // non-divisor interval like 45 (see the row render below).
+  const hourAligned = 60 % activeInterval === 0 && getScheduleStartMinutes(schedulerConfig) % 60 === 0;
 
   // Real per-row minute geometry. The grid is a UNIFORM STRIDE, but the last
   // row's real span can be shorter than one interval: with interval 45 the
@@ -195,7 +196,7 @@ export function DayView({
   // the stride divides the day evenly). The geometry reads these REAL
   // boundaries, which is what keeps this uniform-stride change safe.
   const { slotMins, spanMin, slotUnits } = useMemo(() => {
-    const endMin = schedulerConfig.endHour * 60;
+    const endMin = getScheduleEndMinutes(schedulerConfig);
     const slotMins = TIME_SLOTS.map((s) => {
       const [h, m] = s.split(":").map(Number);
       return h * 60 + m;
@@ -207,7 +208,7 @@ export function DayView({
     );
     const totalMin = spanMin.reduce((a, b) => a + b, 0);
     return { slotMins, spanMin, slotUnits: totalMin / activeInterval };
-  }, [TIME_SLOTS, activeInterval, schedulerConfig.endHour]);
+  }, [TIME_SLOTS, activeInterval, schedulerConfig]);
 
   // Auto-size rows so short schedules (e.g. 7am–2pm) fill the viewport
   // instead of leaving a big blank gap below. Long schedules keep the base
@@ -262,8 +263,8 @@ export function DayView({
 
   const isToday = dateStr === format(new Date(), "yyyy-MM-dd");
   const currentMinutes = now.getHours() * 60 + now.getMinutes();
-  const gridStartMinutes = schedulerConfig.startHour * 60;
-  const gridEndMinutes = schedulerConfig.endHour * 60;
+  const gridStartMinutes = getScheduleStartMinutes(schedulerConfig);
+  const gridEndMinutes = getScheduleEndMinutes(schedulerConfig);
   const timeLineVisible =
     showTimeIndicator && isToday && currentMinutes >= gridStartMinutes && currentMinutes < gridEndMinutes;
   // Non-uniform grid: a uniform (currentMinutes − gridStart) × pxPerMin stride

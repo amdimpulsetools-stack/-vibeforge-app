@@ -12,22 +12,24 @@ interface BlockDialogProps {
   defaultDate?: string;
   offices: Office[];
   organizationId: string;
-  /** Horario configurado de la agenda (Configuración → Agenda). Las
+  /** Horario configurado de la agenda (Configuración → Agenda), como minutos
+   *  desde medianoche (incluye los offsets de minutos de mig 175). Las
    *  opciones de hora deben cubrir el mismo rango que la grilla — antes
    *  se usaban las constantes de fábrica (8-20) e ignoraban la config. */
-  scheduleStartHour?: number;
-  scheduleEndHour?: number;
+  scheduleStartMinutes?: number;
+  scheduleEndMinutes?: number;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function generateTimeOptions(startHour: number, endHour: number) {
+function formatMinutes(mins: number): string {
+  return `${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60).toString().padStart(2, "0")}`;
+}
+
+function generateTimeOptions(startMin: number, endMin: number) {
   const opts: string[] = [];
-  for (let h = startHour; h <= endHour; h++) {
-    for (let m = 0; m < 60; m += SCHEDULER_INTERVAL) {
-      if (h === endHour && m > 0) break;
-      opts.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
-    }
+  for (let mins = startMin; mins <= endMin; mins += SCHEDULER_INTERVAL) {
+    opts.push(formatMinutes(mins));
   }
   return opts;
 }
@@ -36,23 +38,21 @@ export function BlockDialog({
   defaultDate,
   offices,
   organizationId,
-  scheduleStartHour = SCHEDULER_START_HOUR,
-  scheduleEndHour = SCHEDULER_END_HOUR,
+  scheduleStartMinutes = SCHEDULER_START_HOUR * 60,
+  scheduleEndMinutes = SCHEDULER_END_HOUR * 60,
   onClose,
   onSaved,
 }: BlockDialogProps) {
   const timeOptions = useMemo(
-    () => generateTimeOptions(scheduleStartHour, scheduleEndHour),
-    [scheduleStartHour, scheduleEndHour],
+    () => generateTimeOptions(scheduleStartMinutes, scheduleEndMinutes),
+    [scheduleStartMinutes, scheduleEndMinutes],
   );
   const today = new Date().toISOString().split("T")[0];
   const [blockDate, setBlockDate] = useState(defaultDate ?? today);
   const [allDay, setAllDay] = useState(false);
-  const [startTime, setStartTime] = useState(
-    `${scheduleStartHour.toString().padStart(2, "0")}:00`,
-  );
+  const [startTime, setStartTime] = useState(formatMinutes(scheduleStartMinutes));
   const [endTime, setEndTime] = useState(
-    `${Math.min(scheduleStartHour + 1, scheduleEndHour).toString().padStart(2, "0")}:00`,
+    formatMinutes(Math.min(scheduleStartMinutes + 60, scheduleEndMinutes)),
   );
   const [officeId, setOfficeId] = useState<string>("all");
   const [reason, setReason] = useState("");

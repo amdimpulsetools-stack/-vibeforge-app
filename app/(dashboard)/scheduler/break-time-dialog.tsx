@@ -50,13 +50,10 @@ const DAY_LABELS: Record<number, string> = {
   6: "Sáb",
 };
 
-function generateTimeOptions(startHour: number, endHour: number): string[] {
+function generateTimeOptions(startMin: number, endMin: number): string[] {
   const opts: string[] = [];
-  for (let h = startHour; h <= endHour; h++) {
-    for (let m = 0; m < 60; m += 30) {
-      if (h === endHour && m > 0) break;
-      opts.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
-    }
+  for (let mins = startMin; mins <= endMin; mins += 30) {
+    opts.push(`${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60).toString().padStart(2, "0")}`);
   }
   return opts;
 }
@@ -67,23 +64,24 @@ function timeToMinutes(t: string): number {
 }
 
 interface BreakTimeDialogProps {
-  /** Horario configurado de la agenda (Configuración → Agenda), mismo
-   *  rango que la grilla. Fallback a las constantes de fábrica. */
-  scheduleStartHour?: number;
-  scheduleEndHour?: number;
+  /** Horario configurado de la agenda (Configuración → Agenda), como minutos
+   *  desde medianoche (incluye offsets de mig 175). Fallback a las constantes
+   *  de fábrica. */
+  scheduleStartMinutes?: number;
+  scheduleEndMinutes?: number;
   onClose: () => void;
   onSaved: (config: BreakTimeConfig) => void;
 }
 
 export function BreakTimeDialog({
-  scheduleStartHour = SCHEDULER_START_HOUR,
-  scheduleEndHour = SCHEDULER_END_HOUR,
+  scheduleStartMinutes = SCHEDULER_START_HOUR * 60,
+  scheduleEndMinutes = SCHEDULER_END_HOUR * 60,
   onClose,
   onSaved,
 }: BreakTimeDialogProps) {
   const timeOptions = useMemo(
-    () => generateTimeOptions(scheduleStartHour, scheduleEndHour),
-    [scheduleStartHour, scheduleEndHour],
+    () => generateTimeOptions(scheduleStartMinutes, scheduleEndMinutes),
+    [scheduleStartMinutes, scheduleEndMinutes],
   );
   const [config, setConfig] = useState<BreakTimeConfig>(() => loadBreakTimeConfig());
 
