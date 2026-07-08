@@ -168,12 +168,26 @@ export async function saveSchedulerConfigToDb(config: Partial<SchedulerConfig>):
   }
 }
 
+/**
+ * Build the grid's row start-times as a UNIFORM STRIDE: from `startHour`
+ * (inclusive) up to — but not including — `endHour`, stepping by `interval`
+ * minutes and carrying over the hour. With interval 45 this yields
+ * 07:00, 07:45, 08:30, 09:15, 10:00… (every block one real interval wide),
+ * NOT the old per-hour reset (07:00, 07:45, 08:00…). For divisors of 60
+ * (15/30/60) the stride lands back on :00 each hour, so the list is byte-for-
+ * byte identical to the previous nested-loop output — zero change there.
+ *
+ * When `interval` does not divide 60 the final row can start less than one
+ * interval before `endHour` (e.g. 7→20h at 45' ends at 19:45, whose full span
+ * would run to 20:30). Callers clamp that LAST row's real span to `endHour`
+ * so the grid closes exactly at closing time; see the views' `spanMin` memos.
+ */
 export function generateTimeSlots(startHour: number, endHour: number, interval: number): string[] {
   const slots: string[] = [];
-  for (let h = startHour; h < endHour; h++) {
-    for (let m = 0; m < 60; m += interval) {
-      slots.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
-    }
+  for (let mins = startHour * 60; mins < endHour * 60; mins += interval) {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    slots.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
   }
   return slots;
 }
@@ -182,9 +196,10 @@ export function generateTimeSlots(startHour: number, endHour: number, interval: 
  * Returns the pixel height of ONE full interval (`slotHeight`) in the
  * calendar grid. Rows are painted PROPORTIONALLY to their real minute
  * span (`spanMin × slotHeight/interval`), so a full-interval row is
- * `slotHeight` px and the compressed 15-min rows (interval 45 resets to
- * :00 each hour → …08:00, 08:45, 09:00…) are shorter — a linear pixel↔
- * minute axis.
+ * `slotHeight` px. The grid is a uniform stride (interval 45 → 07:00,
+ * 07:45, 08:30…), so every row is one full interval except the last, which
+ * may be clamped shorter to close at `endHour`; the geometry reads the real
+ * `spanMin` either way — a linear pixel↔minute axis.
  *
  * Orgs with short business hours (e.g. 7am–2pm) used to render with a big
  * blank gap below the last appointment because the grid had a fixed

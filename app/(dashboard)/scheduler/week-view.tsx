@@ -79,23 +79,30 @@ export function WeekView({
   );
 
   const activeInterval = getActiveInterval(schedulerConfig);
+  // Divisors of 60 (15/30/60) land every row on :00 → classic per-hour
+  // labels/borders. Non-divisors (45) never hit :00 → label every row.
+  const hourAligned = 60 % activeInterval === 0;
 
-  // Real per-row minute geometry — same non-uniform grid as day-view
-  // (generateTimeSlots resets to :00 each hour, so interval 45 → rows of real
-  // span 45/15). spanMin = minutes each row occupies (last = one interval);
-  // slotUnits = Σ spanMin / interval = full-interval count (= row count when
-  // uniform).
+  // Real per-row minute geometry — same uniform-stride grid as day-view
+  // (interval 45 → 07:00, 07:45, 08:30…). spanMin = minutes each row occupies;
+  // the LAST row is clamped to endHour so the grid closes exactly at closing
+  // time. slotUnits = Σ spanMin / interval = full-interval count (= row count
+  // when the stride divides the day evenly). The geometry reads these REAL
+  // boundaries, which is what makes the uniform-stride change safe.
   const { spanMin, slotUnits } = useMemo(() => {
+    const endMin = schedulerConfig.endHour * 60;
     const slotMins = TIME_SLOTS.map((s) => {
       const [h, m] = s.split(":").map(Number);
       return h * 60 + m;
     });
     const spanMin = slotMins.map((m, i) =>
-      i + 1 < slotMins.length ? slotMins[i + 1] - m : activeInterval
+      i + 1 < slotMins.length
+        ? slotMins[i + 1] - m
+        : Math.max(1, Math.min(activeInterval, endMin - m))
     );
     const totalMin = spanMin.reduce((a, b) => a + b, 0);
     return { spanMin, slotUnits: totalMin / activeInterval };
-  }, [TIME_SLOTS, activeInterval]);
+  }, [TIME_SLOTS, activeInterval, schedulerConfig.endHour]);
 
   // Auto-size rows so short schedules fill the viewport instead of leaving a
   // blank gap below. Long schedules keep base height + scroll.
@@ -177,18 +184,23 @@ export function WeekView({
 
         {TIME_SLOTS.map((time, slotIndex) => {
           const isHour = time.endsWith(":00");
+          // hourAligned (15/30/60): classic :00-only labels + solid border.
+          // Non-divisor (45): no :00 rows, so label every row + shared weight.
+          const showLabel = hourAligned ? isHour : true;
+          const rowBorder = hourAligned
+            ? isHour
+              ? "border-t border-border"
+              : "border-t border-border/30"
+            : "border-t border-border/60";
           const rowHeight = rowHeights[slotIndex];
           return (
             <div
               key={time}
-              className={cn(
-                "flex",
-                isHour ? "border-t border-border" : "border-t border-border/30"
-              )}
+              className={cn("flex", rowBorder)}
             >
               {/* Time label */}
               <div className="w-16 shrink-0 px-1 py-1 text-right">
-                {isHour && (
+                {showLabel && (
                   <span className="text-xs text-muted-foreground">{time}</span>
                 )}
               </div>
@@ -241,7 +253,10 @@ export function WeekView({
                           backgroundColor: bgColor,
                         }}
                       >
-                        {isHour && (
+                        {/* Same label cadence as the time gutter: once per
+                            :00 when hour-aligned, else every (blocked) row so
+                            the label isn't lost when no row ends in :00. */}
+                        {showLabel && (
                           <span
                             className={`flex items-center gap-0.5 text-[9px] pointer-events-none ${
                               isBreakTime ? "text-blue-500/60" : "text-muted-foreground/50"
@@ -300,6 +315,11 @@ export function WeekView({
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
                   const durationSlots = (endMinutes - startMinutes) / getActiveInterval(schedulerConfig);
+                  // Offset real dentro de la fila (paridad con day-view):
+                  // con stride 45, una cita de 08:00 vive dentro de la fila
+                  // 07:45 y debe dibujarse 15 min más abajo, no en el tope.
+                  const [slH2, slM2] = time.split(":").map(Number);
+                  const offsetPx = (startMinutes - (slH2 * 60 + slM2)) * pxPerMin;
                   const doctorColor = startAppt.doctors?.color ?? "#9ca3af";
 
                   // Doctor role: other doctors' appointments are desaturated & non-interactive
@@ -317,13 +337,14 @@ export function WeekView({
                       <button
                         onClick={() => onAppointmentClick(startAppt)}
                         className={cn(
-                          "absolute inset-x-1.5 top-0.5 z-[5] rounded px-1 py-0.5 text-left transition-all overflow-hidden",
+                          "absolute inset-x-1.5 z-[5] rounded px-1 py-0.5 text-left transition-all overflow-hidden",
                           isOtherDoctorAppt
                             ? "cursor-default"
                             : "hover:shadow-md",
                           selectedAppointmentId === startAppt.id && !isOtherDoctorAppt && "ring-2 ring-primary shadow-lg z-[6]"
                         )}
                         style={{
+                          top: `${offsetPx + 2}px`,
                           height: `${(endMinutes - startMinutes) * pxPerMin - 4}px`,
                           backgroundColor: hexToPastel(doctorColor, 0.18),
                           borderLeft: `4px solid ${doctorColor}`,

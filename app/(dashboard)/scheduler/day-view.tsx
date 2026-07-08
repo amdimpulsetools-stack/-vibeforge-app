@@ -67,12 +67,13 @@ function buildAppointmentIndices(
   const byAnchorSlot = new Map<string, AppointmentWithRelations>();
   const occupiedSlots = new Set<string>();
 
-  // Real grid boundaries in minutes. The grid is NOT a uniform stride:
-  // generateTimeSlots resets to :00 at each hour, so with interval 45 the rows
-  // are 07:00, 07:45, 08:00, 08:45… An 08:00 start therefore lands ON a row.
-  // We must read boundaries from timeSlots — assuming slotStart + interval
-  // (→ 08:30) is exactly what made 07:45's range wrongly swallow the 08:00
-  // appointment while 08:00 also matched it, double-rendering the card.
+  // Real grid boundaries in minutes. The grid is a uniform stride, but rows
+  // do NOT generally fall on interval boundaries relative to an appointment:
+  // with interval 45 the rows are 07:00, 07:45, 08:30, 09:15… so an 08:00
+  // start lands INSIDE row 07:45's span, not on a row. The geometry reads
+  // real boundaries from timeSlots (never slotStart + interval), so an
+  // appointment anchors to exactly the one row whose half-open range holds
+  // its start — never double-rendering across two rows.
   const slotMins = timeSlots.map((s) => {
     const [h, m] = s.split(":").map(Number);
     return h * 60 + m;
@@ -179,24 +180,34 @@ export function DayView({
   );
 
   const activeInterval = getActiveInterval(schedulerConfig);
+  // Divisors of 60 (15/30/60) land every row back on :00 → keep the classic
+  // per-hour labels/borders. Non-divisors (e.g. 45) never hit :00, so we label
+  // every row instead (see the row render below).
+  const hourAligned = 60 % activeInterval === 0;
 
-  // Real per-row minute geometry. The grid is NON-uniform: generateTimeSlots
-  // resets minutes to :00 at each hour, so with interval 45 the rows are
-  // 07:00, 07:45, 08:00, 08:45… i.e. real spans alternate 45/15. slotMins =
-  // each row's start (minutes-since-midnight); spanMin = minutes until the
-  // next row (last row = one full interval). slotUnits = Σ spanMin / interval
-  // = the number of full intervals the grid spans (= row count when uniform).
+  // Real per-row minute geometry. The grid is a UNIFORM STRIDE, but the last
+  // row's real span can be shorter than one interval: with interval 45 the
+  // rows are 07:00, 07:45, 08:30… and the final row (e.g. 19:45 for a 20:00
+  // close) is clamped so the grid ends exactly at endHour. slotMins = each
+  // row's start (minutes-since-midnight); spanMin = minutes until the next
+  // row, with the last row clamped to endHour. slotUnits = Σ spanMin /
+  // interval = the number of full intervals the grid spans (= row count when
+  // the stride divides the day evenly). The geometry reads these REAL
+  // boundaries, which is what keeps this uniform-stride change safe.
   const { slotMins, spanMin, slotUnits } = useMemo(() => {
+    const endMin = schedulerConfig.endHour * 60;
     const slotMins = TIME_SLOTS.map((s) => {
       const [h, m] = s.split(":").map(Number);
       return h * 60 + m;
     });
     const spanMin = slotMins.map((m, i) =>
-      i + 1 < slotMins.length ? slotMins[i + 1] - m : activeInterval
+      i + 1 < slotMins.length
+        ? slotMins[i + 1] - m
+        : Math.max(1, Math.min(activeInterval, endMin - m))
     );
     const totalMin = spanMin.reduce((a, b) => a + b, 0);
     return { slotMins, spanMin, slotUnits: totalMin / activeInterval };
-  }, [TIME_SLOTS, activeInterval]);
+  }, [TIME_SLOTS, activeInterval, schedulerConfig.endHour]);
 
   // Auto-size rows so short schedules (e.g. 7am–2pm) fill the viewport
   // instead of leaving a big blank gap below. Long schedules keep the base
@@ -358,20 +369,26 @@ export function DayView({
 
         {TIME_SLOTS.map((time, slotIndex) => {
           const isHour = time.endsWith(":00");
-          // Proportional row height: full-interval rows = slotHeight, the
-          // compressed 15-min rows are 1/3 of that at interval 45.
+          // hourAligned (15/30/60): classic behavior — label + solid border on
+          // :00 rows only, lighter border elsewhere. Non-divisor (45): no row
+          // is :00, so label EVERY row and give every row one shared weight.
+          const showLabel = hourAligned ? isHour : true;
+          const rowBorder = hourAligned
+            ? isHour
+              ? "border-t border-border"
+              : "border-t border-border/30"
+            : "border-t border-border/60";
+          // Proportional row height (linear axis): full-interval rows =
+          // slotHeight; a clamped final row is proportionally shorter.
           const rowHeight = rowHeights[slotIndex];
           return (
             <div
               key={time}
-              className={cn(
-                "flex",
-                isHour ? "border-t border-border" : "border-t border-border/30"
-              )}
+              className={cn("flex", rowBorder)}
             >
               {/* Time label */}
               <div className="w-20 shrink-0 px-2 py-2 text-right">
-                {isHour && (
+                {showLabel && (
                   <span className="text-xs text-muted-foreground">{time}</span>
                 )}
               </div>
@@ -484,8 +501,10 @@ export function DayView({
                           backgroundColor: bgColor,
                         }}
                       >
-                        {/* Label — only on :00 marks to avoid clutter */}
-                        {time.endsWith(":00") ? (
+                        {/* Label cadence matches the time gutter: :00-only
+                            when hour-aligned, else every (blocked) row so the
+                            label survives non-divisor intervals like 45. */}
+                        {showLabel ? (
                           <span
                             className={`flex items-center gap-1 text-[10px] pointer-events-none ${
                               isBreakTime
