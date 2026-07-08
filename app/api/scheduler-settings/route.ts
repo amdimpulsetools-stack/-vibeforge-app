@@ -2,16 +2,32 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
+const minuteOffset = z.union([z.literal(0), z.literal(15), z.literal(30), z.literal(45)]);
+
 const schedulerSettingsSchema = z.object({
   start_hour: z.number().int().min(0).max(23),
   end_hour: z.number().int().min(1).max(24),
+  // Additive minute offsets on the hours (mig 175). Default 0 = whole-hour.
+  start_minute: minuteOffset,
+  end_minute: minuteOffset,
   intervals: z.array(z.union([z.literal(15), z.literal(20), z.literal(30), z.literal(45), z.literal(60)])).min(1),
   time_indicator: z.boolean(),
   disabled_weekdays: z.array(z.number().int().min(0).max(6)),
   // Live status toggles (mig 171)
   live_status: z.boolean(),
   live_status_auto_close: z.boolean(),
-}).partial();
+}).partial().refine(
+  (d) => {
+    // Cross-field: closing must be strictly after opening, at minute level.
+    // Only enforceable when both hours are present in the patch; otherwise the
+    // DB CHECK (scheduler_settings_window_valid) is the final guard.
+    if (d.start_hour === undefined || d.end_hour === undefined) return true;
+    const start = d.start_hour * 60 + (d.start_minute ?? 0);
+    const end = d.end_hour * 60 + (d.end_minute ?? 0);
+    return end > start;
+  },
+  { message: "end time must be after start time" },
+);
 
 // GET /api/scheduler-settings — load org's scheduler config
 export async function GET() {
@@ -105,12 +121,9 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "no_valid_fields" }, { status: 400 });
   }
 
-  // Ensure start < end
-  if (update.start_hour !== undefined && update.end_hour !== undefined) {
-    if ((update.start_hour as number) >= (update.end_hour as number)) {
-      return NextResponse.json({ error: "start_hour must be less than end_hour" }, { status: 400 });
-    }
-  }
+  // Window validity (closing strictly after opening, at minute level) is
+  // enforced by the schema's cross-field refine above and the DB CHECK
+  // constraint scheduler_settings_window_valid (mig 175).
 
   // Upsert
   const { data: existing } = await supabase

@@ -8,7 +8,7 @@ import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import type { AppointmentWithRelations, Office, Doctor, ScheduleBlock } from "@/types/admin";
 import { X, Loader2, CalendarDays, Clock, RefreshCw } from "lucide-react";
 import { loadBreakTimeConfig } from "./break-time-dialog";
-import { loadSchedulerConfig } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, getScheduleStartMinutes, getScheduleEndMinutes } from "@/lib/scheduler-config";
 
 interface RescheduleModalProps {
   appointment: AppointmentWithRelations;
@@ -39,11 +39,11 @@ export function RescheduleModal({
   // (independent of the visual grid interval configured in settings)
   const timeOptions = useMemo(() => {
     const config = loadSchedulerConfig();
+    const startMin = getScheduleStartMinutes(config);
+    const endMin = getScheduleEndMinutes(config);
     const opts: string[] = [];
-    for (let h = config.startHour; h < config.endHour; h++) {
-      for (let m = 0; m < 60; m += 15) {
-        opts.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
-      }
+    for (let mins = startMin; mins < endMin; mins += 15) {
+      opts.push(`${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60).toString().padStart(2, "0")}`);
     }
     return opts;
   }, []);

@@ -3,6 +3,8 @@
 export const SCHEDULER_CONFIG_KEYS = {
   startHour: "vibeforge_scheduler_start",
   endHour: "vibeforge_scheduler_end",
+  startMinute: "vibeforge_scheduler_start_minute",
+  endMinute: "vibeforge_scheduler_end_minute",
   interval: "vibeforge_scheduler_interval",
   timeIndicator: "vibeforge_time_indicator",
   disabledWeekdays: "vibeforge_disabled_weekdays",
@@ -18,6 +20,10 @@ export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export interface SchedulerConfig {
   startHour: number;
   endHour: number;
+  /** Additive minute offset (0/15/30/45) on startHour — mig 175. Default 0. */
+  startMinute: number;
+  /** Additive minute offset (0/15/30/45) on endHour — mig 175. Default 0. */
+  endMinute: number;
   intervals: IntervalOption[];
   timeIndicator: boolean;
   /** Permanently disabled weekdays (e.g. [0] = Sunday off) */
@@ -31,6 +37,8 @@ export interface SchedulerConfig {
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   startHour: 8,
   endHour: 20,
+  startMinute: 0,
+  endMinute: 0,
   intervals: [15],
   timeIndicator: true,
   disabledWeekdays: [0], // Sunday disabled by default
@@ -43,11 +51,32 @@ export function getActiveInterval(config: SchedulerConfig): IntervalOption {
   return Math.min(...config.intervals) as IntervalOption;
 }
 
+/**
+ * Schedule window boundaries as minutes-since-midnight, folding in the
+ * additive minute offsets (mig 175). Consumers use these instead of
+ * open-coding `startHour * 60` so the :15/:30/:45 offsets are respected
+ * everywhere. Default minute=0 → `startHour * 60` exactly (byte-identical
+ * to the pre-offset behavior).
+ */
+export function getScheduleStartMinutes(config: SchedulerConfig): number {
+  return config.startHour * 60 + config.startMinute;
+}
+export function getScheduleEndMinutes(config: SchedulerConfig): number {
+  return config.endHour * 60 + config.endMinute;
+}
+
 export function loadSchedulerConfig(): SchedulerConfig {
   if (typeof window === "undefined") return DEFAULT_SCHEDULER_CONFIG;
   try {
     const startHour = parseInt(localStorage.getItem(SCHEDULER_CONFIG_KEYS.startHour) ?? "") || DEFAULT_SCHEDULER_CONFIG.startHour;
     const endHour = parseInt(localStorage.getItem(SCHEDULER_CONFIG_KEYS.endHour) ?? "") || DEFAULT_SCHEDULER_CONFIG.endHour;
+    // Minute offsets (mig 175): missing/invalid → 0 (whole-hour, back-compat).
+    const parseMinute = (raw: string | null) => {
+      const n = parseInt(raw ?? "");
+      return n === 15 || n === 30 || n === 45 ? n : 0;
+    };
+    const startMinute = parseMinute(localStorage.getItem(SCHEDULER_CONFIG_KEYS.startMinute));
+    const endMinute = parseMinute(localStorage.getItem(SCHEDULER_CONFIG_KEYS.endMinute));
     const rawInterval = localStorage.getItem(SCHEDULER_CONFIG_KEYS.interval) ?? "";
     let intervals: IntervalOption[];
     try {
@@ -80,7 +109,7 @@ export function loadSchedulerConfig(): SchedulerConfig {
     } catch { /* keep default */ }
     const liveStatus = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.liveStatus) ?? "true") === "true";
     const liveStatusAutoClose = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.liveStatusAutoClose) ?? "true") === "true";
-    return { startHour, endHour, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose };
+    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose };
   } catch {
     return DEFAULT_SCHEDULER_CONFIG;
   }
@@ -91,6 +120,8 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
   // Save to localStorage as cache
   if (config.startHour !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.startHour, String(config.startHour));
   if (config.endHour !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.endHour, String(config.endHour));
+  if (config.startMinute !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.startMinute, String(config.startMinute));
+  if (config.endMinute !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.endMinute, String(config.endMinute));
   if (config.intervals !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.interval, JSON.stringify(config.intervals));
   if (config.timeIndicator !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.timeIndicator, String(config.timeIndicator));
   if (config.disabledWeekdays !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.disabledWeekdays, JSON.stringify(config.disabledWeekdays));
@@ -104,6 +135,8 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
 function dbRowToConfig(row: {
   start_hour: number;
   end_hour: number;
+  start_minute?: number | null;
+  end_minute?: number | null;
   intervals: unknown;
   time_indicator: boolean;
   disabled_weekdays: unknown;
@@ -119,6 +152,8 @@ function dbRowToConfig(row: {
   return {
     startHour: row.start_hour,
     endHour: row.end_hour,
+    startMinute: row.start_minute ?? 0,
+    endMinute: row.end_minute ?? 0,
     intervals: intervals.length > 0 ? intervals : [15],
     timeIndicator: row.time_indicator,
     disabledWeekdays,
@@ -151,6 +186,8 @@ export async function saveSchedulerConfigToDb(config: Partial<SchedulerConfig>):
     const body: Record<string, unknown> = {};
     if (config.startHour !== undefined) body.start_hour = config.startHour;
     if (config.endHour !== undefined) body.end_hour = config.endHour;
+    if (config.startMinute !== undefined) body.start_minute = config.startMinute;
+    if (config.endMinute !== undefined) body.end_minute = config.endMinute;
     if (config.intervals !== undefined) body.intervals = config.intervals;
     if (config.timeIndicator !== undefined) body.time_indicator = config.timeIndicator;
     if (config.disabledWeekdays !== undefined) body.disabled_weekdays = config.disabledWeekdays;
@@ -169,22 +206,27 @@ export async function saveSchedulerConfigToDb(config: Partial<SchedulerConfig>):
 }
 
 /**
- * Build the grid's row start-times as a UNIFORM STRIDE: from `startHour`
- * (inclusive) up to — but not including — `endHour`, stepping by `interval`
- * minutes and carrying over the hour. With interval 45 this yields
- * 07:00, 07:45, 08:30, 09:15, 10:00… (every block one real interval wide),
- * NOT the old per-hour reset (07:00, 07:45, 08:00…). For divisors of 60
- * (15/30/60) the stride lands back on :00 each hour, so the list is byte-for-
- * byte identical to the previous nested-loop output — zero change there.
+ * Build the grid's row start-times as a UNIFORM STRIDE: from `startMin`
+ * (inclusive, minutes-since-midnight) up to — but not including — `endMin`,
+ * stepping by `interval` minutes and carrying over the hour. With interval 45
+ * and startMin 435 (07:15) this yields 07:15, 08:00, 08:45, 09:30…, NOT the
+ * old per-hour reset. For divisors of 60 (15/30/60) with a whole-hour start
+ * (startMin % 60 === 0) the stride lands back on :00 each hour, so the list is
+ * byte-for-byte identical to the previous output — zero change there.
  *
- * When `interval` does not divide 60 the final row can start less than one
- * interval before `endHour` (e.g. 7→20h at 45' ends at 19:45, whose full span
- * would run to 20:30). Callers clamp that LAST row's real span to `endHour`
- * so the grid closes exactly at closing time; see the views' `spanMin` memos.
+ * The window bounds are in MINUTES (mig 175 minute offsets); callers pass
+ * `getScheduleStartMinutes`/`getScheduleEndMinutes`. (Note: app/book/[slug]
+ * has its own local generateTimeSlots — unrelated to this one.)
+ *
+ * When `interval` does not divide the window evenly the final row can start
+ * less than one interval before `endMin` (e.g. 07:15→14:00 at 45' ends at
+ * 13:15, whose full span would run to 14:00). Callers clamp that LAST row's
+ * real span to `endMin` so the grid closes exactly at closing time; see the
+ * views' `spanMin` memos.
  */
-export function generateTimeSlots(startHour: number, endHour: number, interval: number): string[] {
+export function generateTimeSlots(startMin: number, endMin: number, interval: number): string[] {
   const slots: string[] = [];
-  for (let mins = startHour * 60; mins < endHour * 60; mins += interval) {
+  for (let mins = startMin; mins < endMin; mins += interval) {
     const h = Math.floor(mins / 60);
     const m = mins % 60;
     slots.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);

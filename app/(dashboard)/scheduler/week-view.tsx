@@ -8,7 +8,7 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign, Video } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
-import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, getScheduleStartMinutes, getScheduleEndMinutes, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
 // Color helpers shared with the day view — single source of truth in
 // appointment-card.tsx so the palettes can't drift apart.
 import { hexToPastel, hexToDark } from "./appointment-card";
@@ -74,14 +74,15 @@ export function WeekView({
     fetchSchedulerConfig().then(setSchedulerConfig).catch(() => {});
   }, []);
   const TIME_SLOTS = useMemo(
-    () => generateTimeSlots(schedulerConfig.startHour, schedulerConfig.endHour, getActiveInterval(schedulerConfig)),
+    () => generateTimeSlots(getScheduleStartMinutes(schedulerConfig), getScheduleEndMinutes(schedulerConfig), getActiveInterval(schedulerConfig)),
     [schedulerConfig]
   );
 
   const activeInterval = getActiveInterval(schedulerConfig);
-  // Divisors of 60 (15/30/60) land every row on :00 → classic per-hour
-  // labels/borders. Non-divisors (45) never hit :00 → label every row.
-  const hourAligned = 60 % activeInterval === 0;
+  // :00-only labels/borders require a 60-divisor stride (15/30/60) AND a
+  // whole-hour start (startMinute 0). A :15/:30/:45 offset (mig 175) means no
+  // row lands on :00 → label every row, same as a non-divisor interval (45).
+  const hourAligned = 60 % activeInterval === 0 && getScheduleStartMinutes(schedulerConfig) % 60 === 0;
 
   // Real per-row minute geometry — same uniform-stride grid as day-view
   // (interval 45 → 07:00, 07:45, 08:30…). spanMin = minutes each row occupies;
@@ -90,7 +91,7 @@ export function WeekView({
   // when the stride divides the day evenly). The geometry reads these REAL
   // boundaries, which is what makes the uniform-stride change safe.
   const { spanMin, slotUnits } = useMemo(() => {
-    const endMin = schedulerConfig.endHour * 60;
+    const endMin = getScheduleEndMinutes(schedulerConfig);
     const slotMins = TIME_SLOTS.map((s) => {
       const [h, m] = s.split(":").map(Number);
       return h * 60 + m;
@@ -102,7 +103,7 @@ export function WeekView({
     );
     const totalMin = spanMin.reduce((a, b) => a + b, 0);
     return { spanMin, slotUnits: totalMin / activeInterval };
-  }, [TIME_SLOTS, activeInterval, schedulerConfig.endHour]);
+  }, [TIME_SLOTS, activeInterval, schedulerConfig]);
 
   // Auto-size rows so short schedules fill the viewport instead of leaving a
   // blank gap below. Long schedules keep base height + scroll.

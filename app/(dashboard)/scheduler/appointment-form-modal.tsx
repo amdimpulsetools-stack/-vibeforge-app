@@ -71,9 +71,10 @@ interface AppointmentFormModalProps {
   lookupResponsibles: { id: string; user_id?: string; label: string }[];
   existingAppointments: AppointmentWithRelations[];
   blocks?: { block_date: string; start_time: string | null; end_time: string | null; all_day: boolean; office_id: string | null }[];
-  /** Org schedule hours — appointments outside this range are rejected */
-  scheduleStartHour?: number;
-  scheduleEndHour?: number;
+  /** Org schedule window as minutes-since-midnight (folds in mig-175 minute
+   *  offsets) — appointments outside this range are rejected. */
+  scheduleStartMinutes?: number;
+  scheduleEndMinutes?: number;
   organizationId: string;
   organizationName: string;
   organizationAddress: string;
@@ -102,8 +103,8 @@ export function AppointmentFormModal({
   lookupResponsibles,
   existingAppointments,
   blocks = [],
-  scheduleStartHour = 8,
-  scheduleEndHour = 20,
+  scheduleStartMinutes = 8 * 60,
+  scheduleEndMinutes = 20 * 60,
   organizationId,
   organizationName,
   organizationAddress,
@@ -537,13 +538,19 @@ export function AppointmentFormModal({
   const checkConflicts = () => {
     if (!watchedDate || !watchedStartTime || !endTime) return null;
 
-    // Check if appointment is outside org schedule hours
-    const startHourStr = `${String(scheduleStartHour).padStart(2, "0")}:00`;
-    const endHourStr = `${String(scheduleEndHour).padStart(2, "0")}:00`;
-    if (watchedStartTime < startHourStr || endTime > endHourStr) {
+    // Check if appointment is outside org schedule window (minute precision).
+    const toMin = (t: string) => {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+    const fmt = (mins: number) =>
+      `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+    const startStr = fmt(scheduleStartMinutes);
+    const endStr = fmt(scheduleEndMinutes);
+    if (toMin(watchedStartTime) < scheduleStartMinutes || toMin(endTime) > scheduleEndMinutes) {
       return language === "es"
-        ? `Fuera del horario de atención (${startHourStr} - ${endHourStr}). Ajusta la hora.`
-        : `Outside business hours (${startHourStr} - ${endHourStr}). Adjust the time.`;
+        ? `Fuera del horario de atención (${startStr} - ${endStr}). Ajusta la hora.`
+        : `Outside business hours (${startStr} - ${endStr}). Adjust the time.`;
     }
 
     // Check schedule blocks (time blocks that prevent appointments)

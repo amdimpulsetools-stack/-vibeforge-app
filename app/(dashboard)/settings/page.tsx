@@ -52,7 +52,8 @@ import {
   loadSchedulerConfig,
   fetchSchedulerConfig,
   saveSchedulerConfigToDb,
-  getHourOptions,
+  getScheduleStartMinutes,
+  getScheduleEndMinutes,
   type SchedulerConfig,
   type IntervalOption,
   type Weekday,
@@ -1457,15 +1458,20 @@ export default function SettingsPage() {
                       {language === "es" ? "Inicio" : "Start"}
                     </label>
                     <select
-                      value={schedulerConfig.startHour}
-                      onChange={(e) =>
-                        updateSchedulerConfig({ startHour: Number(e.target.value) })
-                      }
+                      value={getScheduleStartMinutes(schedulerConfig)}
+                      onChange={(e) => {
+                        const total = Number(e.target.value);
+                        updateSchedulerConfig({
+                          startHour: Math.floor(total / 60),
+                          startMinute: total % 60,
+                        });
+                      }}
                       className={selectClass + " w-full"}
                     >
-                      {getHourOptions(0, 12).map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
+                      {/* 00:00 → 23:45 stepping 15 min; value = minutes-since-midnight */}
+                      {Array.from({ length: (23 * 60 + 45) / 15 + 1 }, (_, i) => i * 15).map((total) => (
+                        <option key={total} value={total}>
+                          {`${Math.floor(total / 60).toString().padStart(2, "0")}:${(total % 60).toString().padStart(2, "0")}`}
                         </option>
                       ))}
                     </select>
@@ -1475,30 +1481,43 @@ export default function SettingsPage() {
                       {language === "es" ? "Fin" : "End"}
                     </label>
                     <select
-                      value={schedulerConfig.endHour}
-                      onChange={(e) =>
-                        updateSchedulerConfig({ endHour: Number(e.target.value) })
-                      }
+                      value={getScheduleEndMinutes(schedulerConfig)}
+                      onChange={(e) => {
+                        const total = Number(e.target.value);
+                        updateSchedulerConfig({
+                          endHour: Math.floor(total / 60),
+                          endMinute: total % 60,
+                        });
+                      }}
                       className={selectClass + " w-full"}
                     >
-                      {getHourOptions(13, 24).map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
+                      {/* 01:00 → 24:00 stepping 15 min; value = minutes-since-midnight */}
+                      {Array.from({ length: (24 * 60 - 60) / 15 + 1 }, (_, i) => 60 + i * 15).map((total) => (
+                        <option key={total} value={total}>
+                          {`${Math.floor(total / 60).toString().padStart(2, "0")}:${(total % 60).toString().padStart(2, "0")}`}
                         </option>
                       ))}
                     </select>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">
-                    {schedulerConfig.startHour.toString().padStart(2, "0")}:00 —{" "}
-                    {schedulerConfig.endHour === 24
-                      ? "24:00"
-                      : `${schedulerConfig.endHour.toString().padStart(2, "0")}:00`}
-                  </span>{" "}
-                  ({schedulerConfig.endHour - schedulerConfig.startHour}{" "}
-                  {language === "es" ? "horas" : "hours"})
-                </p>
+                {(() => {
+                  const startMin = getScheduleStartMinutes(schedulerConfig);
+                  const endMin = getScheduleEndMinutes(schedulerConfig);
+                  const fmt = (m: number) =>
+                    `${Math.floor(m / 60).toString().padStart(2, "0")}:${(m % 60).toString().padStart(2, "0")}`;
+                  const dur = Math.max(0, endMin - startMin);
+                  const h = Math.floor(dur / 60);
+                  const mn = dur % 60;
+                  const durStr = mn === 0 ? `${h} h` : `${h} h ${mn} min`;
+                  return (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground">
+                        {fmt(startMin)} — {fmt(endMin)}
+                      </span>{" "}
+                      ({durStr})
+                    </p>
+                  );
+                })()}
               </div>
 
               {/* Right: Slot size */}

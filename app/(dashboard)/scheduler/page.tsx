@@ -29,7 +29,7 @@ import {
   DEFAULT_BREAK_TIME_CONFIG,
   type BreakTimeConfig,
 } from "./break-time-dialog";
-import { loadOfficeFilter, saveOfficeFilter, loadSchedulerConfig } from "@/lib/scheduler-config";
+import { loadOfficeFilter, saveOfficeFilter, loadSchedulerConfig, getScheduleStartMinutes, getScheduleEndMinutes } from "@/lib/scheduler-config";
 
 // Lazy-load heavy modal/sidebar components (only downloaded when opened)
 const ModalLoader = () => (
@@ -620,8 +620,8 @@ export default function SchedulerPage() {
           lookupResponsibles={lookupResponsibles}
           existingAppointments={appointments}
           blocks={allBlocks}
-          scheduleStartHour={schedulerConfig.startHour}
-          scheduleEndHour={schedulerConfig.endHour}
+          scheduleStartMinutes={getScheduleStartMinutes(schedulerConfig)}
+          scheduleEndMinutes={getScheduleEndMinutes(schedulerConfig)}
           organizationId={organizationId ?? ""}
           organizationName={organization?.name ?? ""}
           organizationAddress={organization?.address || ""}
@@ -654,8 +654,8 @@ export default function SchedulerPage() {
           defaultDate={blockDialogDefaultDate}
           offices={offices}
           organizationId={organizationId ?? ""}
-          scheduleStartHour={schedulerConfig.startHour}
-          scheduleEndHour={schedulerConfig.endHour}
+          scheduleStartMinutes={getScheduleStartMinutes(schedulerConfig)}
+          scheduleEndMinutes={getScheduleEndMinutes(schedulerConfig)}
           onClose={() => setShowBlockDialog(false)}
           onSaved={() => {
             setShowBlockDialog(false);
@@ -667,8 +667,8 @@ export default function SchedulerPage() {
       {/* Break time dialog */}
       {showBreakTimeDialog && (
         <BreakTimeDialog
-          scheduleStartHour={schedulerConfig.startHour}
-          scheduleEndHour={schedulerConfig.endHour}
+          scheduleStartMinutes={getScheduleStartMinutes(schedulerConfig)}
+          scheduleEndMinutes={getScheduleEndMinutes(schedulerConfig)}
           onClose={() => setShowBreakTimeDialog(false)}
           onSaved={(config) => {
             setBreakTimeConfig(config);
