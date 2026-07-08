@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
@@ -9,35 +10,100 @@ import type { Doctor } from "@/types/admin";
 import Link from "next/link";
 import { getInitials } from "@/lib/utils";
 import {
+  UpgradeRequiredDialog,
+  parsePlanLimitError,
+  type PlanLimitInfo,
+} from "@/components/plan/upgrade-required-dialog";
+import {
   Stethoscope,
   Pencil,
   Search,
   Users,
   Info,
   Plus,
+  Loader2,
+  UserPlus,
 } from "lucide-react";
 
 export default function DoctorsPage() {
   const { t, language } = useLanguage();
   const { isAdmin } = useOrgRole();
+  const router = useRouter();
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [creatingSelf, setCreatingSelf] = useState(false);
+  const [planLimitInfo, setPlanLimitInfo] = useState<PlanLimitInfo | null>(null);
 
   const fetchDoctors = async () => {
     const supabase = createClient();
-    const { data } = await supabase
-      .from("doctors")
-      .select("*, doctor_schedules(day_of_week, start_time, end_time, is_active)")
-      .not("user_id", "is", null)
-      .order("full_name");
+    const [{ data }, { data: auth }] = await Promise.all([
+      supabase
+        .from("doctors")
+        .select("*, doctor_schedules(day_of_week, start_time, end_time, is_active)")
+        .not("user_id", "is", null)
+        .order("full_name"),
+      supabase.auth.getUser(),
+    ]);
     setDoctors(data ?? []);
+    setCurrentUserId(auth.user?.id ?? null);
     setLoading(false);
   };
 
   useEffect(() => {
     fetchDoctors();
   }, []);
+
+  // ¿El owner/admin actual ya tiene su propio perfil de doctor?
+  // Separa rol de cuenta (permisos) de perfil de profesional
+  // (recurso agendable): el dueño-doctor del plan Independiente
+  // crea aquí su perfil sin tener que invitarse con otro email.
+  const hasOwnProfile = doctors.some(
+    (d) => (d as unknown as { user_id: string | null }).user_id === currentUserId,
+  );
+
+  const handleCreateSelf = async () => {
+    if (creatingSelf) return;
+    setCreatingSelf(true);
+    try {
+      const res = await fetch("/api/doctors/self", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.status === 402) {
+        const info = parsePlanLimitError(data);
+        if (info) {
+          setPlanLimitInfo(info);
+          return;
+        }
+      }
+      if (res.status === 409 && data.error === "already_doctor") {
+        toast.info(
+          language === "es"
+            ? "Ya tienes un perfil de doctor en esta organización."
+            : "You already have a doctor profile in this organization.",
+        );
+        await fetchDoctors();
+        return;
+      }
+      if (!res.ok) {
+        toast.error(
+          data.error ??
+            (language === "es"
+              ? "No se pudo crear tu perfil de doctor"
+              : "Could not create your doctor profile"),
+        );
+        return;
+      }
+      toast.success(
+        language === "es"
+          ? "Perfil creado. Completa tu CMP, especialidad y horarios."
+          : "Profile created. Complete your license, specialty and schedule.",
+      );
+      router.push(`/admin/doctors/${data.id}`);
+    } finally {
+      setCreatingSelf(false);
+    }
+  };
 
   const handleToggleActive = async (doctor: Doctor) => {
     const supabase = createClient();
@@ -68,7 +134,21 @@ export default function DoctorsPage() {
   }
 
   if (isAdmin && doctors.length === 0) {
-    return <EmptyStateDoctors />;
+    return (
+      <>
+        <EmptyStateDoctors
+          onCreateSelf={handleCreateSelf}
+          creating={creatingSelf}
+        />
+        {planLimitInfo && (
+          <UpgradeRequiredDialog
+            open={!!planLimitInfo}
+            onOpenChange={(open) => !open && setPlanLimitInfo(null)}
+            info={planLimitInfo}
+          />
+        )}
+      </>
+    );
   }
 
   return (
@@ -100,6 +180,34 @@ export default function DoctorsPage() {
           )}
         </div>
       </div>
+
+      {/* "Yo también atiendo" — visible para owner/admin sin perfil
+          de doctor propio. Su perfil consume un cupo de doctor del
+          plan (soft-wall 402 → modal de upgrade si no hay cupo). */}
+      {isAdmin && !hasOwnProfile && (
+        <div className="flex flex-col gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <UserPlus className="mt-0.5 h-5 w-5 shrink-0 text-emerald-500" />
+            <p className="text-sm text-muted-foreground">
+              {language === "es"
+                ? "¿Tú también atiendes pacientes? Crea tu propio perfil de doctor para aparecer en la agenda y ser asignable a citas."
+                : "Do you see patients too? Create your own doctor profile to appear in the schedule and be assignable to appointments."}
+            </p>
+          </div>
+          <button
+            onClick={handleCreateSelf}
+            disabled={creatingSelf}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-600 disabled:opacity-60"
+          >
+            {creatingSelf ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Stethoscope className="h-4 w-4" />
+            )}
+            {language === "es" ? "Crear mi perfil de doctor" : "Create my doctor profile"}
+          </button>
+        </div>
+      )}
 
       {doctors.length > 0 && (
         <div className="relative">
@@ -216,11 +324,25 @@ export default function DoctorsPage() {
           </Link>
         )}
       </div>
+
+      {planLimitInfo && (
+        <UpgradeRequiredDialog
+          open={!!planLimitInfo}
+          onOpenChange={(open) => !open && setPlanLimitInfo(null)}
+          info={planLimitInfo}
+        />
+      )}
     </div>
   );
 }
 
-function EmptyStateDoctors() {
+function EmptyStateDoctors({
+  onCreateSelf,
+  creating,
+}: {
+  onCreateSelf: () => void;
+  creating: boolean;
+}) {
   return (
     <div className="flex min-h-[60vh] items-center justify-center">
       <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-10 text-center shadow-sm">
@@ -231,21 +353,34 @@ function EmptyStateDoctors() {
           Agrega al primer doctor de tu clínica
         </h2>
         <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
-          Los doctores son quienes atienden las citas. Cada uno puede tener su
-          propio horario, consultorios autorizados y especialidades.
+          Los doctores son quienes atienden las citas. Si tú mismo/a atiendes,
+          crea tu perfil con un click. Si el doctor es otra persona, invítala
+          desde miembros.
         </p>
-        <div className="mt-7 flex justify-center">
+        <div className="mt-7 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <button
+            onClick={onCreateSelf}
+            disabled={creating}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 transition-colors disabled:opacity-60"
+          >
+            {creating ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Stethoscope className="h-4 w-4" />
+            )}
+            Yo atiendo — crear mi perfil
+          </button>
           <Link
-            href="/admin/doctors/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-600 transition-colors"
+            href="/admin/members"
+            className="inline-flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-background px-5 py-2.5 text-sm font-semibold text-emerald-600 hover:bg-emerald-500/10 transition-colors"
           >
             <Plus className="h-4 w-4" />
-            Agregar primer doctor
+            Invitar a un doctor
           </Link>
         </div>
         <div className="mt-5 flex justify-center">
           <span className="rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
-            Después podrás invitar al doctor por email a Yenda para que él mismo gestione su agenda.
+            Cada doctor cuenta un cupo del plan. Tu perfil propio también podrá gestionar su agenda y horarios.
           </span>
         </div>
       </div>
