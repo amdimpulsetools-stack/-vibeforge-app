@@ -49,70 +49,69 @@ interface DayViewProps {
 // linear scans ran 50,000+ comparisons per render; now it's ~250 Map
 // lookups. See buildAppointmentIndices below.
 interface AppointmentIndices {
-  /** Exact-start lookup by `${officeId}|${slotTime}`. */
-  byExactStart: Map<string, AppointmentWithRelations>;
-  /** "Is this slot occupied by ANY appointment (including continuation)" — keyed `${officeId}|${slotTime}`. */
+  /** The appointment that renders its CARD at this slot, keyed `${officeId}|${slotTime}`.
+   *  The anchor is the single grid slot whose half-open range contains the
+   *  appointment's start time (last slot with slotStart ≤ apptStart < nextSlotStart).
+   *  Exactly one slot per appointment, so a card can never render twice. */
+  byAnchorSlot: Map<string, AppointmentWithRelations>;
+  /** "Is this slot occupied by ANY appointment (start or continuation)" — keyed `${officeId}|${slotTime}`. */
   occupiedSlots: Set<string>;
-  /** Appointments sorted by start_time, for range-fallback lookups. */
-  sorted: AppointmentWithRelations[];
 }
 
 function buildAppointmentIndices(
   appointments: AppointmentWithRelations[],
   dateStr: string,
+  timeSlots: string[],
   slotMinutes: number
 ): AppointmentIndices {
-  const byExactStart = new Map<string, AppointmentWithRelations>();
+  const byAnchorSlot = new Map<string, AppointmentWithRelations>();
   const occupiedSlots = new Set<string>();
-  const sorted: AppointmentWithRelations[] = [];
+
+  // Real grid boundaries in minutes. The grid is NOT a uniform stride:
+  // generateTimeSlots resets to :00 at each hour, so with interval 45 the rows
+  // are 07:00, 07:45, 08:00, 08:45… An 08:00 start therefore lands ON a row.
+  // We must read boundaries from timeSlots — assuming slotStart + interval
+  // (→ 08:30) is exactly what made 07:45's range wrongly swallow the 08:00
+  // appointment while 08:00 also matched it, double-rendering the card.
+  const slotMins = timeSlots.map((s) => {
+    const [h, m] = s.split(":").map(Number);
+    return h * 60 + m;
+  });
 
   for (const a of appointments) {
     if (a.appointment_date !== dateStr) continue;
-    sorted.push(a);
 
-    const start = a.start_time.slice(0, 5);
-    byExactStart.set(`${a.office_id}|${start}`, a);
-
-    // Mark every grid slot covered by this appointment as occupied.
     const [sh, sm] = a.start_time.slice(0, 5).split(":").map(Number);
     const [eh, em] = a.end_time.slice(0, 5).split(":").map(Number);
     const startMin = sh * 60 + sm;
     const endMin = eh * 60 + em;
-    for (let m = startMin; m < endMin; m += slotMinutes) {
-      const hh = Math.floor(m / 60).toString().padStart(2, "0");
-      const mm = (m % 60).toString().padStart(2, "0");
-      occupiedSlots.add(`${a.office_id}|${hh}:${mm}`);
+
+    let anchorIdx = -1;
+    for (let i = 0; i < timeSlots.length; i++) {
+      const cellStart = slotMins[i];
+      const cellEnd = i + 1 < slotMins.length ? slotMins[i + 1] : cellStart + slotMinutes;
+      // Anchor: the one slot whose half-open range [cellStart, cellEnd) holds
+      // the start. Contiguous non-overlapping ranges ⇒ at most one match.
+      if (cellStart <= startMin && startMin < cellEnd) anchorIdx = i;
+      // Occupied: any slot whose range overlaps the appointment [startMin, endMin).
+      if (cellStart < endMin && cellEnd > startMin) {
+        occupiedSlots.add(`${a.office_id}|${timeSlots[i]}`);
+      }
+    }
+    if (anchorIdx >= 0) {
+      byAnchorSlot.set(`${a.office_id}|${timeSlots[anchorIdx]}`, a);
     }
   }
 
-  sorted.sort((a, b) => a.start_time.localeCompare(b.start_time));
-  return { byExactStart, occupiedSlots, sorted };
+  return { byAnchorSlot, occupiedSlots };
 }
 
 function getAppointmentForSlot(
   indices: AppointmentIndices,
   officeId: string,
-  slotTime: string,
-  intervalMinutes: number
+  slotTime: string
 ): AppointmentWithRelations | null {
-  const exact = indices.byExactStart.get(`${officeId}|${slotTime}`);
-  if (exact) return exact;
-
-  // Fallback for appointments whose start_time doesn't align with grid slots.
-  // Rare; O(N) scan of pre-filtered sorted list is acceptable.
-  const [sh, sm] = slotTime.split(":").map(Number);
-  const slotStartMin = sh * 60 + sm;
-  const slotEndMin = slotStartMin + intervalMinutes;
-  const nextSlot = `${Math.floor(slotEndMin / 60).toString().padStart(2, "0")}:${(slotEndMin % 60).toString().padStart(2, "0")}`;
-
-  return (
-    indices.sorted.find(
-      (a) =>
-        a.office_id === officeId &&
-        a.start_time.slice(0, 5) > slotTime &&
-        a.start_time.slice(0, 5) < nextSlot
-    ) ?? null
-  );
+  return indices.byAnchorSlot.get(`${officeId}|${slotTime}`) ?? null;
 }
 
 function isSlotOccupied(
@@ -191,8 +190,8 @@ export function DayView({
   // Rebuilds only when appointments array, dateStr, or slot interval change.
   const activeInterval = getActiveInterval(schedulerConfig);
   const apptIndices = useMemo(
-    () => buildAppointmentIndices(appointments, dateStr, activeInterval),
-    [appointments, dateStr, activeInterval]
+    () => buildAppointmentIndices(appointments, dateStr, TIME_SLOTS, activeInterval),
+    [appointments, dateStr, TIME_SLOTS, activeInterval]
   );
 
   // Current time indicator — uses the shared NowProvider ticker.
@@ -324,7 +323,7 @@ export function DayView({
 
               {/* Office columns */}
               {offices.map((office) => {
-                const startAppt = getAppointmentForSlot(apptIndices, office.id, time, activeInterval);
+                const startAppt = getAppointmentForSlot(apptIndices, office.id, time);
                 const occupied = isSlotOccupied(apptIndices, office.id, time);
                 const block = getBlockForSlot(blocks, dateStr, office.id, time);
 

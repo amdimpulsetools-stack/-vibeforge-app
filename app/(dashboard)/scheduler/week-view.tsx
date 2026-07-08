@@ -147,7 +147,7 @@ export function WeekView({
           ))}
         </div>
 
-        {TIME_SLOTS.map((time) => {
+        {TIME_SLOTS.map((time, slotIndex) => {
           const isHour = time.endsWith(":00");
           return (
             <div
@@ -231,16 +231,26 @@ export function WeekView({
                   );
                 }
 
-                // Find ALL appointments starting at this slot (exact match + non-aligned fallback)
+                // Find ALL appointments whose start falls in this slot. The grid
+                // resets to :00 each hour (interval 45 → …07:45, 08:00…), so the
+                // next boundary is NOT always start+interval — read it from
+                // TIME_SLOTS. Assuming 07:45+45=08:30 previously made row 07:45's
+                // range swallow the 08:00 appointment while row 08:00 matched it
+                // too, rendering the same card twice (one misplaced at 07:45).
+                // Half-open [time, nextSlot) ⇒ every appointment lands in exactly
+                // one slot.
                 const interval = getActiveInterval(schedulerConfig);
                 const [slH, slM] = time.split(":").map(Number);
                 const slotEndMin = slH * 60 + slM + interval;
-                const nextSlot = `${Math.floor(slotEndMin / 60).toString().padStart(2, "0")}:${(slotEndMin % 60).toString().padStart(2, "0")}`;
+                const nextSlot =
+                  slotIndex + 1 < TIME_SLOTS.length
+                    ? TIME_SLOTS[slotIndex + 1]
+                    : `${Math.floor(slotEndMin / 60).toString().padStart(2, "0")}:${(slotEndMin % 60).toString().padStart(2, "0")}`;
                 const slotAppts = appointments.filter(
                   (a) =>
                     a.appointment_date === dateStr &&
-                    (a.start_time.slice(0, 5) === time ||
-                     (a.start_time.slice(0, 5) > time && a.start_time.slice(0, 5) < nextSlot))
+                    a.start_time.slice(0, 5) >= time &&
+                    a.start_time.slice(0, 5) < nextSlot
                 );
                 const startAppt = slotAppts[0] ?? null;
                 const extraCount = slotAppts.length - 1;
