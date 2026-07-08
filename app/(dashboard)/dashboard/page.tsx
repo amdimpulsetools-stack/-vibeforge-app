@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { AdminDashboard } from "./admin-dashboard";
 import { DoctorDashboardWrapper } from "./doctor-dashboard-wrapper";
+import { AdvisorDashboard } from "./advisor-dashboard";
 import { OwnerDoctorSection } from "./owner-doctor-section";
 import { WelcomeInvitedToast } from "./welcome-invited-toast";
 import {
@@ -24,7 +25,7 @@ export default async function DashboardPage() {
 
   const { data: membership } = await supabase
     .from("organization_members")
-    .select("role, organization_id")
+    .select("role, organization_id, is_fertility_advisor")
     .eq("user_id", user.id)
     .limit(1)
     .single();
@@ -41,6 +42,22 @@ export default async function DashboardPage() {
   const displayName = profile?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "";
 
   const role = membership.role as "owner" | "admin" | "receptionist" | "doctor";
+
+  // Asesoras de fertilidad (obstetras coordinadoras, mig 137): su rol
+  // base es doctor o receptionist, pero su trabajo es el embudo
+  // (seguimientos + presupuestos + agendar para cualquier doctor).
+  // El dashboard de doctor les mostraba KPIs de médico tratante en
+  // cero; el de asesora refleja su cola real. Owner/admin asesoras
+  // conservan el dashboard admin (visión completa de la clínica).
+  const isAdvisor = Boolean(membership.is_fertility_advisor);
+  if (isAdvisor && (role === "doctor" || role === "receptionist")) {
+    return (
+      <>
+        <WelcomeInvitedToast role={role} />
+        <AdvisorDashboard userName={displayName} />
+      </>
+    );
+  }
 
   // Doctor role: show personal dashboard
   if (role === "doctor") {

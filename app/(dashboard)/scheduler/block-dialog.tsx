@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import type { Office } from "@/types/admin";
@@ -12,29 +12,48 @@ interface BlockDialogProps {
   defaultDate?: string;
   offices: Office[];
   organizationId: string;
+  /** Horario configurado de la agenda (Configuración → Agenda). Las
+   *  opciones de hora deben cubrir el mismo rango que la grilla — antes
+   *  se usaban las constantes de fábrica (8-20) e ignoraban la config. */
+  scheduleStartHour?: number;
+  scheduleEndHour?: number;
   onClose: () => void;
   onSaved: () => void;
 }
 
-function generateTimeOptions() {
+function generateTimeOptions(startHour: number, endHour: number) {
   const opts: string[] = [];
-  for (let h = SCHEDULER_START_HOUR; h <= SCHEDULER_END_HOUR; h++) {
+  for (let h = startHour; h <= endHour; h++) {
     for (let m = 0; m < 60; m += SCHEDULER_INTERVAL) {
-      if (h === SCHEDULER_END_HOUR && m > 0) break;
+      if (h === endHour && m > 0) break;
       opts.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
     }
   }
   return opts;
 }
 
-const TIME_OPTIONS = generateTimeOptions();
-
-export function BlockDialog({ defaultDate, offices, organizationId, onClose, onSaved }: BlockDialogProps) {
+export function BlockDialog({
+  defaultDate,
+  offices,
+  organizationId,
+  scheduleStartHour = SCHEDULER_START_HOUR,
+  scheduleEndHour = SCHEDULER_END_HOUR,
+  onClose,
+  onSaved,
+}: BlockDialogProps) {
+  const timeOptions = useMemo(
+    () => generateTimeOptions(scheduleStartHour, scheduleEndHour),
+    [scheduleStartHour, scheduleEndHour],
+  );
   const today = new Date().toISOString().split("T")[0];
   const [blockDate, setBlockDate] = useState(defaultDate ?? today);
   const [allDay, setAllDay] = useState(false);
-  const [startTime, setStartTime] = useState("08:00");
-  const [endTime, setEndTime] = useState("09:00");
+  const [startTime, setStartTime] = useState(
+    `${scheduleStartHour.toString().padStart(2, "0")}:00`,
+  );
+  const [endTime, setEndTime] = useState(
+    `${Math.min(scheduleStartHour + 1, scheduleEndHour).toString().padStart(2, "0")}:00`,
+  );
   const [officeId, setOfficeId] = useState<string>("all");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -120,7 +139,7 @@ export function BlockDialog({ defaultDate, offices, organizationId, onClose, onS
                   onChange={(e) => setStartTime(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                 >
-                  {TIME_OPTIONS.map((t) => (
+                  {timeOptions.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>
@@ -132,7 +151,7 @@ export function BlockDialog({ defaultDate, offices, organizationId, onClose, onS
                   onChange={(e) => setEndTime(e.target.value)}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                 >
-                  {TIME_OPTIONS.map((t) => (
+                  {timeOptions.map((t) => (
                     <option key={t} value={t}>{t}</option>
                   ))}
                 </select>

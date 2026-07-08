@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { X, Coffee, Check } from "lucide-react";
 import { SCHEDULER_START_HOUR, SCHEDULER_END_HOUR } from "@/types/admin";
 
@@ -50,18 +50,16 @@ const DAY_LABELS: Record<number, string> = {
   6: "Sáb",
 };
 
-function generateTimeOptions(): string[] {
+function generateTimeOptions(startHour: number, endHour: number): string[] {
   const opts: string[] = [];
-  for (let h = SCHEDULER_START_HOUR; h <= SCHEDULER_END_HOUR; h++) {
+  for (let h = startHour; h <= endHour; h++) {
     for (let m = 0; m < 60; m += 30) {
-      if (h === SCHEDULER_END_HOUR && m > 0) break;
+      if (h === endHour && m > 0) break;
       opts.push(`${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`);
     }
   }
   return opts;
 }
-
-const TIME_OPTIONS = generateTimeOptions();
 
 function timeToMinutes(t: string): number {
   const [h, m] = t.split(":").map(Number);
@@ -69,11 +67,24 @@ function timeToMinutes(t: string): number {
 }
 
 interface BreakTimeDialogProps {
+  /** Horario configurado de la agenda (Configuración → Agenda), mismo
+   *  rango que la grilla. Fallback a las constantes de fábrica. */
+  scheduleStartHour?: number;
+  scheduleEndHour?: number;
   onClose: () => void;
   onSaved: (config: BreakTimeConfig) => void;
 }
 
-export function BreakTimeDialog({ onClose, onSaved }: BreakTimeDialogProps) {
+export function BreakTimeDialog({
+  scheduleStartHour = SCHEDULER_START_HOUR,
+  scheduleEndHour = SCHEDULER_END_HOUR,
+  onClose,
+  onSaved,
+}: BreakTimeDialogProps) {
+  const timeOptions = useMemo(
+    () => generateTimeOptions(scheduleStartHour, scheduleEndHour),
+    [scheduleStartHour, scheduleEndHour],
+  );
   const [config, setConfig] = useState<BreakTimeConfig>(() => loadBreakTimeConfig());
 
   const durationMinutes =
@@ -179,7 +190,7 @@ export function BreakTimeDialog({ onClose, onSaved }: BreakTimeDialogProps) {
                     }
                     className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
                   >
-                    {TIME_OPTIONS.map((t) => (
+                    {timeOptions.map((t) => (
                       <option key={t} value={t}>
                         {t}
                       </option>
@@ -195,7 +206,7 @@ export function BreakTimeDialog({ onClose, onSaved }: BreakTimeDialogProps) {
                     }
                     className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
                   >
-                    {TIME_OPTIONS.map((t) => (
+                    {timeOptions.map((t) => (
                       <option key={t} value={t}>
                         {t}
                       </option>
