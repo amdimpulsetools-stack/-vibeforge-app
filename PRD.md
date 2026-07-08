@@ -4931,3 +4931,20 @@ Verificado: `tsc` 0 errores + `next build` completo.
 - **6 testimonios placeholder eliminados** (`agenda-medica-online`, `gestion-pacientes`, `asistente-ia-consultorio`, `historia-clinica-electronica`, `reportes-clinica-medica`, `comunicacion-automatizada`): citas inventadas firmadas por "Nombre del doctor / Especialidad — Ciudad, País" con avatar gris, visibles en producción. Un testimonio fabricado es pasivo legal y de confianza; recuperables de git cuando existan testimonios reales de los pilotos (Vitra / Dra. Quispe).
 
 Verificado: `tsc` 0 errores + `next build` completo (warnings pre-existentes de Sentry/handlebars, no relacionados).
+
+## Changelog — Sesión 2026-07-08 — Owner-doctor + Dashboard de Asesora + fixes de rol
+
+PR #209. Contexto: onboarding de los pilotos (Dra. Quispe) destapó tres huecos del modelo de roles.
+
+### 1. Owner/admin puede crear su propio perfil de doctor
+- La única vía para crear un doctor era invitar a un miembro con rol doctor → el dueño-doctor (persona del plan Independiente) no podía asignarse citas. Nuevo `POST /api/doctors/self` + CTA "Yo atiendo — crear mi perfil" en `/admin/doctors` (empty-state y banner). El perfil propio consume cupo de `max_doctors` (soft-wall 402 igual que invitar) → pricing intacto en todos los planes. Separación conceptual: rol de cuenta (permisos) vs perfil profesional (recurso agendable).
+- Operativo: fila de doctor de la Dra. Quispe creada a mano en prod (desbloqueo inmediato); addon `extra_member` ×2 a S/10 insertado en `plan_addons` para sus 2 usuarios del piloto (gratis hasta la fase de cobro).
+
+### 2. Dashboard de Asesora (`is_fertility_advisor`)
+- Las asesoras/obstetras (rol base doctor o receptionist + flag mig 137) veían el dashboard de médico tratante con KPIs en cero. Nuevo `advisor-dashboard.tsx` enrutado desde `dashboard/page.tsx`: KPIs del embudo (seguimientos pendientes, presupuestos sin procesar / esperando respuesta, tasa de aceptación) + agenda de hoy org-wide (citas propias marcadas "Mía") + colas de seguimientos y presupuestos. Reusa `/api/clinical-followups/dashboard?bucket=pending` y `/api/budgets?bucket=pending`. Owner/admin asesoras conservan el dashboard admin. Escala directo a Vitra.
+
+### 3. Asesora agenda para cualquier doctor
+- El rol doctor restringía el selector de citas a "solo yo" (`restrictToDoctor`), así que la obstetra no podía reservarle citas a la Dra. Quispe. Nuevo hook `useIsFertilityAdvisor` y en el scheduler las asesoras quedan exentas de todas las restricciones "solo mis citas" (abrir sidebar, mover, editar, selector del form, fade del day-view) — operan la agenda como recepción, manteniendo su propia ficha preseleccionada al crear.
+
+### 4. Saludo consciente de honoríficos
+- `greetingName()` en lib/utils: "Dra. Patricia Quispe" saluda "Dra. Patricia" (antes "Dra."). Aplicado en dashboards y topbar.

@@ -15,6 +15,7 @@ import type {
   ScheduleBlock,
 } from "@/types/admin";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
+import { useIsFertilityAdvisor } from "@/hooks/use-is-fertility-advisor";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useSchedulerMasterData } from "@/hooks/use-scheduler-master-data";
 import { SchedulerHeader } from "./scheduler-header";
@@ -100,6 +101,11 @@ export default function SchedulerPage() {
   const { organizationId, organization } = useOrganization();
   const { doctorId: currentDoctorId, isDoctor } = useCurrentDoctor();
   const { isOwner, isAdmin } = useOrgRole();
+  // Asesoras de fertilidad (obstetras coordinadoras) operan la agenda
+  // como recepción: agendan y gestionan citas de cualquier doctor,
+  // aunque su rol base sea `doctor`. Relaja los "solo mis citas".
+  const { isAdvisor } = useIsFertilityAdvisor();
+  const restrictedDoctor = isDoctor && !isAdvisor;
   const schedulerConfig = useMemo(() => loadSchedulerConfig(), []);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
@@ -352,12 +358,13 @@ export default function SchedulerPage() {
 
   const handleAppointmentClick = useCallback((appointment: AppointmentWithRelations) => {
     // Doctors cannot view sidebar details of other doctors' appointments
-    if (isDoctor && currentDoctorId && appointment.doctor_id !== currentDoctorId) {
+    // (fertility advisors are exempt — they assist any doctor).
+    if (restrictedDoctor && currentDoctorId && appointment.doctor_id !== currentDoctorId) {
       return;
     }
     setSelectedAppointment(appointment);
     setShowForm(false);
-  }, [isDoctor, currentDoctorId]);
+  }, [restrictedDoctor, currentDoctorId]);
 
   const handleCloseSidebar = useCallback(() => {
     setSelectedAppointment(null);
@@ -387,7 +394,8 @@ export default function SchedulerPage() {
     if (!appt) return;
 
     // Doctors cannot move other doctors' appointments
-    if (isDoctor && currentDoctorId && appt.doctor_id !== currentDoctorId) {
+    // (fertility advisors are exempt — they assist any doctor).
+    if (restrictedDoctor && currentDoctorId && appt.doctor_id !== currentDoctorId) {
       toast.error("No puedes mover citas de otros doctores");
       return;
     }
@@ -555,7 +563,7 @@ export default function SchedulerPage() {
                 blocks={allBlocks}
                 paymentTotals={paymentTotals}
                 selectedAppointmentId={selectedAppointment?.id}
-                currentDoctorId={isDoctor ? currentDoctorId : null}
+                currentDoctorId={restrictedDoctor ? currentDoctorId : null}
                 onSlotClick={handleSlotClick}
                 onAppointmentClick={handleAppointmentClick}
                 onAppointmentDrop={handleAppointmentDrop}
@@ -572,7 +580,7 @@ export default function SchedulerPage() {
                 blocks={allBlocks}
                 paymentTotals={paymentTotals}
                 selectedAppointmentId={selectedAppointment?.id}
-                currentDoctorId={isDoctor ? currentDoctorId : null}
+                currentDoctorId={restrictedDoctor ? currentDoctorId : null}
                 onSlotClick={handleSlotClick}
                 onAppointmentClick={handleAppointmentClick}
                 containerHeight={gridContainerHeight}
@@ -594,7 +602,7 @@ export default function SchedulerPage() {
           lookupOrigins={lookupOrigins}
           lookupPayments={lookupPayments}
           lookupResponsibles={lookupResponsibles}
-          readOnly={isDoctor && currentDoctorId !== null && selectedAppointment.doctor_id !== currentDoctorId}
+          readOnly={restrictedDoctor && currentDoctorId !== null && selectedAppointment.doctor_id !== currentDoctorId}
         />
       )}
 
@@ -618,7 +626,7 @@ export default function SchedulerPage() {
           organizationName={organization?.name ?? ""}
           organizationAddress={organization?.address || ""}
           currentDoctorId={(isDoctor || (isOwner && currentDoctorId)) ? currentDoctorId : null}
-          restrictToDoctor={isDoctor && !isOwner}
+          restrictToDoctor={restrictedDoctor && !isOwner}
           onClose={handleFormClose}
           onSaved={handleSaved}
           onShowWhatsAppFollowup={(variables, phone) =>
