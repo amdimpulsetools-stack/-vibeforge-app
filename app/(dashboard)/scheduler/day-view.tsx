@@ -178,17 +178,65 @@ export function DayView({
     [schedulerConfig]
   );
 
+  const activeInterval = getActiveInterval(schedulerConfig);
+
+  // Real per-row minute geometry. The grid is NON-uniform: generateTimeSlots
+  // resets minutes to :00 at each hour, so with interval 45 the rows are
+  // 07:00, 07:45, 08:00, 08:45… i.e. real spans alternate 45/15. slotMins =
+  // each row's start (minutes-since-midnight); spanMin = minutes until the
+  // next row (last row = one full interval). slotUnits = Σ spanMin / interval
+  // = the number of full intervals the grid spans (= row count when uniform).
+  const { slotMins, spanMin, slotUnits } = useMemo(() => {
+    const slotMins = TIME_SLOTS.map((s) => {
+      const [h, m] = s.split(":").map(Number);
+      return h * 60 + m;
+    });
+    const spanMin = slotMins.map((m, i) =>
+      i + 1 < slotMins.length ? slotMins[i + 1] - m : activeInterval
+    );
+    const totalMin = spanMin.reduce((a, b) => a + b, 0);
+    return { slotMins, spanMin, slotUnits: totalMin / activeInterval };
+  }, [TIME_SLOTS, activeInterval]);
+
   // Auto-size rows so short schedules (e.g. 7am–2pm) fill the viewport
   // instead of leaving a big blank gap below. Long schedules keep the base
-  // height and scroll as before.
+  // height and scroll as before. slotHeight = pixels of ONE full interval.
   const slotHeight = useMemo(
-    () => computeSlotHeight(containerHeight ?? 0, TIME_SLOTS.length, DAY_BASE_SLOT_HEIGHT, DAY_HEADER_HEIGHT),
-    [containerHeight, TIME_SLOTS.length]
+    () => computeSlotHeight(containerHeight ?? 0, slotUnits, DAY_BASE_SLOT_HEIGHT, DAY_HEADER_HEIGHT),
+    [containerHeight, slotUnits]
   );
+
+  // Linear pixel↔minute mapping. Because slotHeight is "pixels of one full
+  // interval", pxPerMin is constant across the whole grid; the compressed
+  // 15-min rows simply get proportionally fewer pixels. Row heights/tops and
+  // minutesToY() all derive from the real spanMin so the axis stays linear.
+  const { pxPerMin, rowHeights, minutesToY } = useMemo(() => {
+    const pxPerMin = slotHeight / activeInterval;
+    const rowHeights = spanMin.map((s) => s * pxPerMin);
+    const rowTop: number[] = [];
+    let acc = 0;
+    for (const h of rowHeights) {
+      rowTop.push(acc);
+      acc += h;
+    }
+    const totalHeight = acc;
+    // Find the row containing `min` and return its top + the linear delta.
+    // Clamp before the first row / after the last row.
+    const minutesToY = (min: number): number => {
+      if (slotMins.length === 0) return 0;
+      if (min <= slotMins[0]) return 0;
+      for (let i = 0; i < slotMins.length; i++) {
+        const start = slotMins[i];
+        const end = i + 1 < slotMins.length ? slotMins[i + 1] : start + spanMin[i];
+        if (min < end) return rowTop[i] + (min - start) * pxPerMin;
+      }
+      return totalHeight;
+    };
+    return { pxPerMin, rowHeights, minutesToY };
+  }, [slotHeight, activeInterval, spanMin, slotMins]);
 
   // PERF: pre-built indices for O(1) per-cell appointment/occupied lookups.
   // Rebuilds only when appointments array, dateStr, or slot interval change.
-  const activeInterval = getActiveInterval(schedulerConfig);
   const apptIndices = useMemo(
     () => buildAppointmentIndices(appointments, dateStr, TIME_SLOTS, activeInterval),
     [appointments, dateStr, TIME_SLOTS, activeInterval]
@@ -207,7 +255,11 @@ export function DayView({
   const gridEndMinutes = schedulerConfig.endHour * 60;
   const timeLineVisible =
     showTimeIndicator && isToday && currentMinutes >= gridStartMinutes && currentMinutes < gridEndMinutes;
-  const timeLineTop = ((currentMinutes - gridStartMinutes) / getActiveInterval(schedulerConfig)) * slotHeight;
+  // Non-uniform grid: a uniform (currentMinutes − gridStart) × pxPerMin stride
+  // is WRONG (it ignores the compressed 15-min rows). minutesToY walks to the
+  // row that actually contains the current minute, so the ticker lands inside
+  // the correct (possibly short) row.
+  const timeLineTop = minutesToY(currentMinutes);
 
   // Live status — stale detection, computed HERE (the view owns the
   // minute tick) so the memoized cards don't subscribe to the ticker.
@@ -304,8 +356,11 @@ export function DayView({
           ))}
         </div>
 
-        {TIME_SLOTS.map((time) => {
+        {TIME_SLOTS.map((time, slotIndex) => {
           const isHour = time.endsWith(":00");
+          // Proportional row height: full-interval rows = slotHeight, the
+          // compressed 15-min rows are 1/3 of that at interval 45.
+          const rowHeight = rowHeights[slotIndex];
           return (
             <div
               key={time}
@@ -329,20 +384,21 @@ export function DayView({
 
                 // ---- APPOINTMENT starting here ----
                 if (startAppt) {
-                  const interval = getActiveInterval(schedulerConfig);
                   const startMinutes =
                     parseInt(startAppt.start_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.start_time.slice(3, 5));
                   const endMinutes =
                     parseInt(startAppt.end_time.slice(0, 2)) * 60 +
                     parseInt(startAppt.end_time.slice(3, 5));
-                  const durationSlots = (endMinutes - startMinutes) / interval;
 
-                  // Visual offset for appointments not aligned with grid
+                  // Linear geometry: offset & height are pure minutes × pxPerMin,
+                  // so a 45-min card is exactly slotHeight tall regardless of
+                  // which (compressed or full) row it anchors to.
                   const [slotH, slotM] = time.split(":").map(Number);
                   const slotStartMin = slotH * 60 + slotM;
                   const offsetMinutes = startMinutes - slotStartMin;
-                  const offsetPx = (offsetMinutes / interval) * slotHeight;
+                  const offsetPx = offsetMinutes * pxPerMin;
+                  const heightPx = (endMinutes - startMinutes) * pxPerMin - 4;
 
                   // Doctor role: other doctors' appointments are desaturated & non-interactive
                   const isOtherDoctorAppt = currentDoctorId != null && startAppt.doctor_id !== currentDoctorId;
@@ -351,7 +407,7 @@ export function DayView({
                     <div
                       key={office.id}
                       className="relative flex-1 p-0.5"
-                      style={{ height: `${slotHeight}px` }}
+                      style={{ height: `${rowHeight}px` }}
                       onDragOver={(e) => {
                         e.preventDefault();
                         setDragOverSlot({ time, officeId: office.id });
@@ -369,7 +425,7 @@ export function DayView({
                       <AppointmentCard
                         appointment={startAppt}
                         topPx={offsetPx + 2}
-                        heightPx={durationSlots * slotHeight - 4}
+                        heightPx={heightPx}
                         isSelected={selectedAppointmentId === startAppt.id}
                         isOtherDoctor={isOtherDoctorAppt}
                         paymentTotal={paymentTotals[startAppt.id] ?? 0}
@@ -396,7 +452,7 @@ export function DayView({
                     <div
                       key={office.id}
                       className="flex-1"
-                      style={{ height: `${slotHeight}px` }}
+                      style={{ height: `${rowHeight}px` }}
                     />
                   );
                 }
@@ -415,7 +471,7 @@ export function DayView({
                     <div
                       key={office.id}
                       className="relative flex-1"
-                      style={{ height: `${slotHeight}px` }}
+                      style={{ height: `${rowHeight}px` }}
                       onContextMenu={(e) => {
                         e.preventDefault();
                         setContextMenu({ x: e.clientX, y: e.clientY, blockId: block.id, reason: block.reason });
@@ -483,7 +539,7 @@ export function DayView({
                         ? "bg-primary/20 ring-1 ring-inset ring-primary"
                         : "hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
                     )}
-                    style={{ height: `${slotHeight}px` }}
+                    style={{ height: `${rowHeight}px` }}
                     onClick={() => onSlotClick(date, time, office.id)}
                     onDragOver={(e) => {
                       e.preventDefault();
