@@ -179,14 +179,24 @@ export function generateTimeSlots(startHour: number, endHour: number, interval: 
 }
 
 /**
- * Returns how many pixels each time slot should occupy in the calendar grid.
+ * Returns the pixel height of ONE full interval (`slotHeight`) in the
+ * calendar grid. Rows are painted PROPORTIONALLY to their real minute
+ * span (`spanMin × slotHeight/interval`), so a full-interval row is
+ * `slotHeight` px and the compressed 15-min rows (interval 45 resets to
+ * :00 each hour → …08:00, 08:45, 09:00…) are shorter — a linear pixel↔
+ * minute axis.
  *
  * Orgs with short business hours (e.g. 7am–2pm) used to render with a big
  * blank gap below the last appointment because the grid had a fixed
  * `baseSlotHeight` per slot regardless of viewport. This helper expands the
  * slot height to fill the available container when the natural content
- * (totalSlots × baseSlotHeight) is shorter than the viewport, and otherwise
+ * (`slotUnits × baseSlotHeight`) is shorter than the viewport, and otherwise
  * keeps the base so a long schedule still scrolls.
+ *
+ * `slotUnits` = total grid minutes / interval = Σ spanMin / interval. For a
+ * uniform grid this equals the row count (identical to the old behavior);
+ * for a non-uniform grid it is the true "number of full intervals" the grid
+ * spans, so dividing by it fills the container exactly.
  *
  * `headerHeight` is the calendar's sticky header (office/day names) that
  * lives inside the same scroll container and must be subtracted from the
@@ -194,15 +204,15 @@ export function generateTimeSlots(startHour: number, endHour: number, interval: 
  */
 export function computeSlotHeight(
   containerHeight: number,
-  totalSlots: number,
+  slotUnits: number,
   baseSlotHeight: number,
   headerHeight: number
 ): number {
-  if (totalSlots <= 0 || containerHeight <= 0) return baseSlotHeight;
+  if (slotUnits <= 0 || containerHeight <= 0) return baseSlotHeight;
   const available = containerHeight - headerHeight;
-  const natural = totalSlots * baseSlotHeight;
+  const natural = slotUnits * baseSlotHeight;
   if (available <= natural) return baseSlotHeight;
-  return available / totalSlots;
+  return available / slotUnits;
 }
 
 // Hour options for selects (0–23)

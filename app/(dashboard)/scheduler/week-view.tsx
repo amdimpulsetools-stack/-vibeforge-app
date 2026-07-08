@@ -78,12 +78,40 @@ export function WeekView({
     [schedulerConfig]
   );
 
+  const activeInterval = getActiveInterval(schedulerConfig);
+
+  // Real per-row minute geometry — same non-uniform grid as day-view
+  // (generateTimeSlots resets to :00 each hour, so interval 45 → rows of real
+  // span 45/15). spanMin = minutes each row occupies (last = one interval);
+  // slotUnits = Σ spanMin / interval = full-interval count (= row count when
+  // uniform).
+  const { spanMin, slotUnits } = useMemo(() => {
+    const slotMins = TIME_SLOTS.map((s) => {
+      const [h, m] = s.split(":").map(Number);
+      return h * 60 + m;
+    });
+    const spanMin = slotMins.map((m, i) =>
+      i + 1 < slotMins.length ? slotMins[i + 1] - m : activeInterval
+    );
+    const totalMin = spanMin.reduce((a, b) => a + b, 0);
+    return { spanMin, slotUnits: totalMin / activeInterval };
+  }, [TIME_SLOTS, activeInterval]);
+
   // Auto-size rows so short schedules fill the viewport instead of leaving a
   // blank gap below. Long schedules keep base height + scroll.
   const slotHeight = useMemo(
-    () => computeSlotHeight(containerHeight ?? 0, TIME_SLOTS.length, WEEK_BASE_SLOT_HEIGHT, WEEK_HEADER_HEIGHT),
-    [containerHeight, TIME_SLOTS.length]
+    () => computeSlotHeight(containerHeight ?? 0, slotUnits, WEEK_BASE_SLOT_HEIGHT, WEEK_HEADER_HEIGHT),
+    [containerHeight, slotUnits]
   );
+
+  // Linear pixel↔minute mapping: proportional row heights + duration-based
+  // card heights so a 45-min card fills 75% of its visual hour band, exactly
+  // like day-view.
+  const { pxPerMin, rowHeights } = useMemo(() => {
+    const pxPerMin = slotHeight / activeInterval;
+    const rowHeights = spanMin.map((s) => s * pxPerMin);
+    return { pxPerMin, rowHeights };
+  }, [slotHeight, activeInterval, spanMin]);
 
   const getAppointmentsForDay = (date: Date) => {
     const dateStr = format(date, "yyyy-MM-dd");
@@ -149,6 +177,7 @@ export function WeekView({
 
         {TIME_SLOTS.map((time, slotIndex) => {
           const isHour = time.endsWith(":00");
+          const rowHeight = rowHeights[slotIndex];
           return (
             <div
               key={time}
@@ -177,7 +206,7 @@ export function WeekView({
                     <div
                       key={day.toISOString()}
                       className="relative flex-1 bg-muted/40"
-                      style={{ height: `${slotHeight}px` }}
+                      style={{ height: `${rowHeight}px` }}
                     >
                       <div
                         className="absolute inset-0"
@@ -203,7 +232,7 @@ export function WeekView({
                     <div
                       key={day.toISOString()}
                       className="relative flex-1"
-                      style={{ height: `${slotHeight}px` }}
+                      style={{ height: `${rowHeight}px` }}
                     >
                       <div
                         className="absolute inset-0 flex items-center justify-center"
@@ -283,7 +312,7 @@ export function WeekView({
                         "relative flex-1 p-0.5",
                         today && "bg-primary/5"
                       )}
-                      style={{ height: `${slotHeight}px` }}
+                      style={{ height: `${rowHeight}px` }}
                     >
                       <button
                         onClick={() => onAppointmentClick(startAppt)}
@@ -295,7 +324,7 @@ export function WeekView({
                           selectedAppointmentId === startAppt.id && !isOtherDoctorAppt && "ring-2 ring-primary shadow-lg z-[6]"
                         )}
                         style={{
-                          height: `${durationSlots * slotHeight - 4}px`,
+                          height: `${(endMinutes - startMinutes) * pxPerMin - 4}px`,
                           backgroundColor: hexToPastel(doctorColor, 0.18),
                           borderLeft: `4px solid ${doctorColor}`,
                           ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
@@ -355,7 +384,7 @@ export function WeekView({
                         "flex-1",
                         today && "bg-primary/5"
                       )}
-                      style={{ height: `${slotHeight}px` }}
+                      style={{ height: `${rowHeight}px` }}
                     />
                   );
                 }
@@ -367,7 +396,7 @@ export function WeekView({
                       "group relative flex-1 cursor-pointer transition-colors hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10",
                       today && "bg-primary/5"
                     )}
-                    style={{ height: `${slotHeight}px` }}
+                    style={{ height: `${rowHeight}px` }}
                     onClick={() =>
                       onSlotClick(day, time, offices[0]?.id ?? "")
                     }
