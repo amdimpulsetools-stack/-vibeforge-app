@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
 import { useUser } from "@/hooks/use-user";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, greetingName } from "@/lib/utils";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -218,7 +218,7 @@ export function DoctorDashboard({ userName }: { userName: string }) {
   }
 
   const stats = data.stats;
-  const firstName = userName.split(" ")[0] || userName;
+  const firstName = greetingName(userName) || userName;
   const completionRateMonth =
     (stats.month_total ?? 0) > 0
       ? Math.round((stats.month_completed / (stats.month_total ?? 1)) * 100)
@@ -898,7 +898,7 @@ function UnlinkedState({ userName }: { userName: string }) {
         <div>
           <h1 className="text-3xl font-extrabold tracking-tight">Mi Dashboard</h1>
           <p className="text-muted-foreground">
-            Bienvenido, {userName.split(" ")[0] || userName}
+            Bienvenido, {greetingName(userName) || userName}
           </p>
         </div>
       </div>
