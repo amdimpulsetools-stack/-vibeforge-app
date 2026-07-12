@@ -36,6 +36,7 @@ import {
   Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST } from "@/lib/peru-locations";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
@@ -1120,11 +1121,10 @@ export function AppointmentFormModal({
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Fecha de nacimiento</label>
-              <input
-                type="date"
+              <DatePicker
                 value={patientBirthDate}
-                onChange={(e) => setPatientBirthDate(e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                onChange={setPatientBirthDate}
+                withYearDropdown
               />
             </div>
           </div>
@@ -1170,10 +1170,14 @@ export function AppointmentFormModal({
           <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
             <div className="space-y-1.5 col-span-2 md:col-span-1">
               <label className="text-sm font-medium">{t("scheduler.date")} *</label>
-              <input
-                type="date"
-                {...register("appointment_date")}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              <DatePicker
+                value={watchedDate ?? ""}
+                onChange={(v) =>
+                  setValue("appointment_date", v, {
+                    shouldValidate: true,
+                    shouldDirty: true,
+                  })
+                }
               />
               {errors.appointment_date && (
                 <p className="text-xs text-destructive">{errors.appointment_date.message}</p>
