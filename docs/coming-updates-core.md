@@ -1,7 +1,7 @@
 # Coming Updates — Yenda Core (no addon)
 
 > **Estado:** roadmap activo
-> **Última actualización:** 2026-05-12
+> **Última actualización:** 2026-07-09
 > **Doc fertilidad separado:** `docs/coming-updates-fertility-addon.md`
 > **Owner:** Oscar (Founder, Yenda)
 
@@ -124,6 +124,26 @@ Para `/scheduler/budgets` y `/scheduler/follow-ups`, dashboard avanzado con:
 **Plan**: `GET /api/dev/preview-billing-email?kind=payment_failed&org=<id>` que renderiza el HTML completo en el browser con datos reales del org. Gateado por `NODE_ENV !== 'production' || authorized_dev_user`.
 
 **Estimado**: 30 min.
+
+---
+
+#### Dos atenciones en el mismo bloque de horario (scheduler)
+
+**Estado**: analizado 2026-07-09 con Claude. **Decisión pendiente — Oscar decide 2026-07-10.**
+
+Caso raro pero real en la clínica: la ventana dice "1 bloque de 45 min = 1 paciente", pero a veces se necesitan 2 atenciones en el mismo bloque (control que termina rápido + otra paciente aprovecha el hueco, o la misma paciente agrega un servicio corto).
+
+**Hallazgo clave del análisis**: el modelo de datos YA lo soporta — cada cita guarda `start_time`/`end_time` propios (la grilla de bloques es solo visual) y cada servicio tiene `duration_minutes`. Lo que lo impide hoy es (a) la validación de conflictos del form, que bloquea duro cualquier solape, y (b) que los cards se dibujan a ancho completo (dos solapados se taparían).
+
+**Las 3 opciones sobre la mesa** (no excluyentes, ordenadas por esfuerzo):
+
+1. **Citas secuenciales cortas dentro del bloque** (Caso B — misma paciente agrega servicio): dos citas que no se solapan (07:15–07:35 control + 07:35–08:00 eco) ya pasan la validación actual. Solo falta que el selector de hora del modal ofrezca inicios finos (cada 15 min) además de los bloques de la grilla. **Esfuerzo: chico (UI del picker).**
+2. **"Finalizar temprano libera el bloque"** (Caso A — termina rápido, entra otra): al marcar "finalizar consulta" antes de hora (live status ya registra `consultation_ended_at`), recortar el `end_time` de la cita al momento real → el resto del bloque queda libre y agendable sin tocar la validación. **Esfuerzo: chico. Sinergia directa con el estado en vivo.**
+3. **Sobreagenda controlada** (Caso C — 2 pacientes al mismo bloque a propósito): cambiar el bloqueo duro por advertencia + confirmación ("¿Sobreagendar de todas formas?") y renderizar cards solapados lado a lado (medio ancho, estilo Google Calendar). Es el estándar en software médico: el sistema advierte, la doctora decide. **Esfuerzo: medio (algoritmo de lanes en vista día). Esperar a que el piloto lo pida ≥2 veces.**
+
+**Descartado**: consultorio "fantasma" para duplicar slots — la validación bloquea (con razón) a la misma doctora en 2 consultorios a la vez, corrompe reportes de ocupación por consultorio y confunde al estado en vivo.
+
+**Relación**: la opción 1 conecta con "Atención combinada (multi-servicio por cita)" de abajo — si esa se hace, cubre el Caso B por otra vía (1 cita, N servicios).
 
 ---
 

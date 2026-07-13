@@ -12,6 +12,7 @@ import { AIAssistant } from "@/components/landing/ai-assistant";
 import { ExpectedResults } from "@/components/landing/expected-results";
 import { RevenueImpact } from "@/components/landing/revenue-impact";
 import { Pricing } from "@/components/landing/pricing";
+import { AlwaysImproving } from "@/components/landing/always-improving";
 import { SocialProof } from "@/components/landing/social-proof";
 import { FAQ } from "@/components/landing/faq";
 import { FinalCTA } from "@/components/landing/final-cta";
@@ -32,6 +33,7 @@ export default function LandingPage() {
       <ExpectedResults />
       <RevenueImpact />
       <Pricing />
+      <AlwaysImproving />
       <SocialProof />
       <FAQ />
       <FinalCTA />

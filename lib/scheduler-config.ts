@@ -10,9 +10,64 @@ export const SCHEDULER_CONFIG_KEYS = {
   disabledWeekdays: "vibeforge_disabled_weekdays",
   liveStatus: "vibeforge_live_status",
   liveStatusAutoClose: "vibeforge_live_status_auto_close",
+  requiredFields: "vibeforge_scheduler_required_fields",
 };
 
 export type IntervalOption = 15 | 20 | 30 | 45 | 60;
+
+// ─── Configurable required fields for the New Appointment modal (mig 176) ───
+
+/**
+ * Single source of truth for the whitelist of appointment fields an admin
+ * can mark as mandatory. Keep this in sync with:
+ *   - the DB CHECK / comment in mig 176,
+ *   - the PUT Zod enum in app/api/scheduler-settings/route.ts,
+ *   - buildAppointmentSchema in lib/validations/appointment.ts,
+ *   - the toggles in settings/agenda-required-fields-section.tsx.
+ *
+ * meeting_url is intentionally EXCLUDED from v1 — it is conditional on a
+ * virtual service and would add branching complexity; it keeps its current
+ * (optional) behavior.
+ */
+export const REQUIRED_FIELD_KEYS = [
+  "patient_dni",
+  "patient_phone",
+  "patient_email",
+  "patient_birth_date",
+  "patient_location",
+  "origin",
+  "payment_method",
+  "responsible",
+  "notes",
+] as const;
+
+export type RequiredFieldKey = (typeof REQUIRED_FIELD_KEYS)[number];
+
+/**
+ * Sparse override map: a present key set to true makes that field mandatory,
+ * a present false makes it optional, an ABSENT key falls back to the code
+ * default. The empty map ({}) is byte-identical to the pre-176 behavior.
+ */
+export type AppointmentRequiredFields = Partial<Record<RequiredFieldKey, boolean>>;
+
+export const DEFAULT_REQUIRED_FIELDS: AppointmentRequiredFields = {};
+
+/**
+ * Coerce arbitrary JSON (DB column / localStorage cache) into a safe
+ * AppointmentRequiredFields: only whitelisted keys with boolean values
+ * survive. Anything else (old/foreign/corrupt shapes) collapses to {},
+ * which preserves the byte-identical default behavior.
+ */
+export function sanitizeRequiredFields(raw: unknown): AppointmentRequiredFields {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const src = raw as Record<string, unknown>;
+  const out: AppointmentRequiredFields = {};
+  for (const key of REQUIRED_FIELD_KEYS) {
+    const v = src[key];
+    if (typeof v === "boolean") out[key] = v;
+  }
+  return out;
+}
 
 /** Weekday numbers: 0=Sunday, 1=Monday, …, 6=Saturday */
 export type Weekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
@@ -32,6 +87,11 @@ export interface SchedulerConfig {
   liveStatus: boolean;
   /** Sub-toggle: starting a consultation auto-closes the doctor's previous open one. */
   liveStatusAutoClose: boolean;
+  /**
+   * Sparse map of which configurable New-Appointment fields are mandatory
+   * (mig 176). Default {} = code defaults (byte-identical to pre-176).
+   */
+  requiredFields: AppointmentRequiredFields;
 }
 
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
@@ -44,6 +104,7 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   disabledWeekdays: [0], // Sunday disabled by default
   liveStatus: true,
   liveStatusAutoClose: true,
+  requiredFields: {}, // mig 176 — empty = code defaults (back-compat)
 };
 
 /** Returns the smallest selected interval (used for the grid resolution). */
@@ -109,7 +170,15 @@ export function loadSchedulerConfig(): SchedulerConfig {
     } catch { /* keep default */ }
     const liveStatus = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.liveStatus) ?? "true") === "true";
     const liveStatusAutoClose = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.liveStatusAutoClose) ?? "true") === "true";
-    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose };
+    // Required fields (mig 176): missing/invalid cache → {} (back-compat).
+    // Orgs cached under the pre-176 shape simply have no key here, so the
+    // JSON.parse falls through to {} and behavior is unchanged.
+    let requiredFields: AppointmentRequiredFields = {};
+    try {
+      const rawReq = localStorage.getItem(SCHEDULER_CONFIG_KEYS.requiredFields);
+      if (rawReq) requiredFields = sanitizeRequiredFields(JSON.parse(rawReq));
+    } catch { /* keep {} */ }
+    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose, requiredFields };
   } catch {
     return DEFAULT_SCHEDULER_CONFIG;
   }
@@ -127,6 +196,7 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
   if (config.disabledWeekdays !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.disabledWeekdays, JSON.stringify(config.disabledWeekdays));
   if (config.liveStatus !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.liveStatus, String(config.liveStatus));
   if (config.liveStatusAutoClose !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.liveStatusAutoClose, String(config.liveStatusAutoClose));
+  if (config.requiredFields !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.requiredFields, JSON.stringify(config.requiredFields));
 }
 
 // ─── Database-backed functions ───────────────────────────────────
@@ -142,6 +212,7 @@ function dbRowToConfig(row: {
   disabled_weekdays: unknown;
   live_status?: boolean | null;
   live_status_auto_close?: boolean | null;
+  required_fields?: unknown;
 }): SchedulerConfig {
   const intervals = (Array.isArray(row.intervals) ? row.intervals : [15]).filter(
     (v: number) => [15, 20, 30, 45, 60].includes(v)
@@ -159,6 +230,8 @@ function dbRowToConfig(row: {
     disabledWeekdays,
     liveStatus: row.live_status ?? true,
     liveStatusAutoClose: row.live_status_auto_close ?? true,
+    // mig 176 — undefined column (pre-migration cache/row) → {} default.
+    requiredFields: sanitizeRequiredFields(row.required_fields),
   };
 }
 
@@ -193,6 +266,7 @@ export async function saveSchedulerConfigToDb(config: Partial<SchedulerConfig>):
     if (config.disabledWeekdays !== undefined) body.disabled_weekdays = config.disabledWeekdays;
     if (config.liveStatus !== undefined) body.live_status = config.liveStatus;
     if (config.liveStatusAutoClose !== undefined) body.live_status_auto_close = config.liveStatusAutoClose;
+    if (config.requiredFields !== undefined) body.required_fields = config.requiredFields;
 
     const res = await fetch("/api/scheduler-settings", {
       method: "PUT",

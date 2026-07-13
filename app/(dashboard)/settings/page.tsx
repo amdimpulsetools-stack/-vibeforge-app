@@ -77,6 +77,7 @@ const IntegracionesTab = dynamic(() => import("./integraciones-tab"), { loading:
 const ModulosTab = dynamic(() => import("./modulos-tab"), { loading: TabLoader });
 const ClinicalTemplatesTab = dynamic(() => import("./clinical-templates-tab"), { loading: TabLoader });
 const OrgSpecialtySection = dynamic(() => import("./org-specialty-section"), { loading: TabLoader });
+const AgendaRequiredFieldsSection = dynamic(() => import("./agenda-required-fields-section"), { loading: TabLoader });
 // Header preview modal lazy-loaded — only mounted when the user clicks
 // "Vista previa del membrete". Keeps the first paint of /settings small.
 const ClinicHeaderPreviewModal = dynamic(
@@ -1576,6 +1577,13 @@ export default function SettingsPage() {
               </div>
             </div>
           </div>
+
+          {/* Configurable required fields for the New Appointment modal (mig 176) */}
+          <AgendaRequiredFieldsSection
+            value={schedulerConfig.requiredFields}
+            onChange={(next) => updateSchedulerConfig({ requiredFields: next })}
+            language={language === "es" ? "es" : "en"}
+          />
 
           {/* Time indicator toggle */}
           <div className="rounded-2xl border border-border/60 bg-card p-6">
