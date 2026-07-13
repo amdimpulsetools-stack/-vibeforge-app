@@ -9,8 +9,10 @@ import { useOrgInsurance } from "@/hooks/use-org-insurance";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/send-notification";
-import { appointmentSchema, type AppointmentFormData } from "@/lib/validations/appointment";
+import { buildAppointmentSchema, type AppointmentFormData } from "@/lib/validations/appointment";
+import type { AppointmentRequiredFields } from "@/lib/scheduler-config";
 import { CustomFieldsBlock } from "@/components/custom-fields/custom-fields-block";
+import { useCustomFieldDefinitions } from "@/hooks/use-custom-field-definitions";
 import type { CustomFieldValues } from "@/types/custom-fields";
 import type {
   Office,
@@ -76,6 +78,9 @@ interface AppointmentFormModalProps {
    *  offsets) — appointments outside this range are rejected. */
   scheduleStartMinutes?: number;
   scheduleEndMinutes?: number;
+  /** Per-org configurable mandatory fields (mig 176). Default {} = code
+   *  defaults (byte-identical to the pre-176 behavior). */
+  requiredFields?: AppointmentRequiredFields;
   organizationId: string;
   organizationName: string;
   organizationAddress: string;
@@ -106,6 +111,7 @@ export function AppointmentFormModal({
   blocks = [],
   scheduleStartMinutes = 8 * 60,
   scheduleEndMinutes = 20 * 60,
+  requiredFields = {},
   organizationId,
   organizationName,
   organizationAddress,
@@ -117,6 +123,20 @@ export function AppointmentFormModal({
 }: AppointmentFormModalProps) {
   const { t, language } = useLanguage();
   const { enabled: insuranceEnabled, carriers: orgInsuranceCarriers } = useOrgInsurance();
+
+  // Definitions of the org's custom appointment fields — needed so we can
+  // enforce their `required` flag at submit time (the CustomFieldsBlock only
+  // paints the asterisk; mig 159 bug fix).
+  const { definitions: customFieldDefs } = useCustomFieldDefinitions("appointment");
+
+  // Zod resolver rebuilt from the per-org required-fields map (mig 176). The
+  // modal is mounted conditionally by scheduler/page.tsx (`showForm && …`), so
+  // useForm is recreated on every open and the resolver is always fresh; the
+  // memo only avoids rebuilding on unrelated re-renders within one open.
+  const resolver = useMemo(
+    () => zodResolver(buildAppointmentSchema(requiredFields)),
+    [requiredFields]
+  );
 
   // If current user is a doctor and restricted, only show their own record
   const availableDoctors = currentDoctorId && restrictToDoctor
@@ -188,7 +208,7 @@ export function AppointmentFormModal({
     setValue,
     formState: { errors },
   } = useForm<AppointmentFormData>({
-    resolver: zodResolver(appointmentSchema),
+    resolver,
     defaultValues: {
       patient_name: "",
       patient_last_name: "",
@@ -612,6 +632,48 @@ export function AppointmentFormModal({
       return;
     }
 
+    // ── Required fields that live OUTSIDE React Hook Form (mig 176) ──────────
+    // email / birth date / location are plain useState, so Zod can't see them;
+    // validate them manually here. RHF-backed configurable fields (phone, dni,
+    // origin, payment_method, responsible, notes) are already enforced by the
+    // dynamic Zod schema and block submit before reaching onSubmit.
+    if (requiredFields.patient_email && !patientEmail.trim()) {
+      toast.error("El email es obligatorio");
+      return;
+    }
+    if (requiredFields.patient_birth_date && !patientBirthDate.trim()) {
+      toast.error("La fecha de nacimiento es obligatoria");
+      return;
+    }
+    if (
+      requiredFields.patient_location &&
+      (!patientDepartamento.trim() || !patientDistrito.trim())
+    ) {
+      toast.error("El departamento y distrito son obligatorios");
+      return;
+    }
+
+    // ── Required CUSTOM fields (mig 159) — enforce the `required` flag that
+    // CustomFieldsBlock only rendered as an asterisk until now. Booleans
+    // (checkbox: false is a valid value) and numbers (0 is valid) are handled
+    // per type so we don't spuriously block them.
+    for (const def of customFieldDefs) {
+      if (!def.required) continue;
+      if (def.field_type === "checkbox") continue; // false/unchecked is valid
+      const v = customFields[def.field_key];
+      if (def.field_type === "number") {
+        if (v === null || v === undefined) {
+          toast.error(`Completa el campo "${def.label}"`);
+          return;
+        }
+        continue; // 0 is a valid value
+      }
+      if (v === null || v === undefined || String(v).trim() === "") {
+        toast.error(`Completa el campo "${def.label}"`);
+        return;
+      }
+    }
+
     const officeConflict = existingAppointments.find(
       (a) =>
         a.appointment_date === values.appointment_date &&
@@ -895,7 +957,7 @@ export function AppointmentFormModal({
 
           {/* DNI Search with document type */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">{t("scheduler.patient_dni")}</label>
+            <label className="text-sm font-medium">{t("scheduler.patient_dni")}{requiredFields.patient_dni ? " *" : ""}</label>
             <div className="flex gap-2">
               <select
                 value={docType}
@@ -930,6 +992,9 @@ export function AppointmentFormModal({
                 )}
               </button>
             </div>
+            {errors.patient_dni && (
+              <p className="text-xs text-destructive">{errors.patient_dni.message}</p>
+            )}
             {/* Patient search result indicator */}
             {patientSearched && (
               <div className={`flex items-center gap-1.5 text-xs ${foundPatient ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400"}`}>
@@ -1099,18 +1164,21 @@ export function AppointmentFormModal({
 
           {/* Phone */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">{t("scheduler.patient_phone")}</label>
+            <label className="text-sm font-medium">{t("scheduler.patient_phone")}{requiredFields.patient_phone ? " *" : ""}</label>
             <input
               {...register("patient_phone")}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               placeholder="+51 999 999 999"
             />
+            {errors.patient_phone && (
+              <p className="text-xs text-destructive">{errors.patient_phone.message}</p>
+            )}
           </div>
 
           {/* Email & Fecha de nacimiento */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">Email{requiredFields.patient_email ? " *" : ""}</label>
               <input
                 type="email"
                 value={patientEmail}
@@ -1120,7 +1188,7 @@ export function AppointmentFormModal({
               />
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Fecha de nacimiento</label>
+              <label className="text-sm font-medium">Fecha de nacimiento{requiredFields.patient_birth_date ? " *" : ""}</label>
               <DatePicker
                 value={patientBirthDate}
                 onChange={setPatientBirthDate}
@@ -1132,7 +1200,7 @@ export function AppointmentFormModal({
           {/* Departamento & Distrito */}
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Departamento</label>
+              <label className="text-sm font-medium">Departamento{requiredFields.patient_location ? " *" : ""}</label>
               <select
                 value={patientDepartamento}
                 onChange={(e) => {
@@ -1148,7 +1216,7 @@ export function AppointmentFormModal({
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">Distrito</label>
+              <label className="text-sm font-medium">Distrito{requiredFields.patient_location ? " *" : ""}</label>
               <select
                 value={patientDistrito}
                 onChange={(e) => setPatientDistrito(e.target.value)}
@@ -1581,7 +1649,7 @@ export function AppointmentFormModal({
           {/* Lookups: Origin, Payment, Responsible */}
           <div className="grid gap-4 sm:grid-cols-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">{t("scheduler.origin")}</label>
+              <label className="text-sm font-medium">{t("scheduler.origin")}{requiredFields.origin ? " *" : ""}</label>
               <select
                 {...register("origin")}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
@@ -1593,9 +1661,12 @@ export function AppointmentFormModal({
                   </option>
                 ))}
               </select>
+              {errors.origin && (
+                <p className="text-xs text-destructive">{errors.origin.message}</p>
+              )}
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">{t("scheduler.payment_method")}</label>
+              <label className="text-sm font-medium">{t("scheduler.payment_method")}{requiredFields.payment_method ? " *" : ""}</label>
               <select
                 {...register("payment_method")}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
@@ -1607,9 +1678,12 @@ export function AppointmentFormModal({
                   </option>
                 ))}
               </select>
+              {errors.payment_method && (
+                <p className="text-xs text-destructive">{errors.payment_method.message}</p>
+              )}
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium">{t("scheduler.responsible")}</label>
+              <label className="text-sm font-medium">{t("scheduler.responsible")}{requiredFields.responsible ? " *" : ""}</label>
               <select
                 {...register("responsible")}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
@@ -1621,6 +1695,9 @@ export function AppointmentFormModal({
                   </option>
                 ))}
               </select>
+              {errors.responsible && (
+                <p className="text-xs text-destructive">{errors.responsible.message}</p>
+              )}
             </div>
           </div>
 
@@ -1831,13 +1908,16 @@ export function AppointmentFormModal({
 
           {/* Notes */}
           <div className="space-y-1.5">
-            <label className="text-sm font-medium">{t("scheduler.notes")}</label>
+            <label className="text-sm font-medium">{t("scheduler.notes")}{requiredFields.notes ? " *" : ""}</label>
             <textarea
               {...register("notes")}
               rows={2}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
               placeholder="Observaciones..."
             />
+            {errors.notes && (
+              <p className="text-xs text-destructive">{errors.notes.message}</p>
+            )}
           </div>
 
           <CustomFieldsBlock

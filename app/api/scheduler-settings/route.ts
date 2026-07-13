@@ -1,8 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { REQUIRED_FIELD_KEYS } from "@/lib/scheduler-config";
 
 const minuteOffset = z.union([z.literal(0), z.literal(15), z.literal(30), z.literal(45)]);
+
+// Sparse override map (mig 176). Keys are whitelisted from the single source
+// of truth in lib/scheduler-config; unknown keys are rejected.
+const requiredFieldsSchema = z.record(z.enum(REQUIRED_FIELD_KEYS), z.boolean());
 
 const schedulerSettingsSchema = z.object({
   start_hour: z.number().int().min(0).max(23),
@@ -16,6 +21,8 @@ const schedulerSettingsSchema = z.object({
   // Live status toggles (mig 171)
   live_status: z.boolean(),
   live_status_auto_close: z.boolean(),
+  // Configurable required fields for the New Appointment modal (mig 176)
+  required_fields: requiredFieldsSchema,
 }).partial().refine(
   (d) => {
     // Cross-field: closing must be strictly after opening, at minute level.
