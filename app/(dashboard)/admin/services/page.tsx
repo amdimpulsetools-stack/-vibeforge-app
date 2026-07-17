@@ -9,6 +9,20 @@ import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { RoleGate } from "@/components/role-gate";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
 import { FertilityAddonGate } from "@/components/addons/fertility-addon-gate";
@@ -49,6 +63,12 @@ import {
   Stethoscope,
   ArrowRight,
   Sparkles,
+  ListChecks,
+  FolderInput,
+  Power,
+  PowerOff,
+  AlertTriangle,
+  Info,
 } from "lucide-react";
 
 export default function ServicesPage() {
@@ -73,6 +93,177 @@ export default function ServicesPage() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ServiceCategory | null>(null);
   const [activeTab, setActiveTab] = useState<"services" | "categories">("services");
+
+  // ── Multi-select del catálogo ──────────────────────────────────
+  type ServiceRow = Service & { service_categories: ServiceCategory };
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [actionLoading, setActionLoading] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState<{
+    clean: ServiceRow[];
+    inUse: ServiceRow[];
+    addon: ServiceRow[];
+  } | null>(null);
+
+  const isAddonManagedService = (s: Service) =>
+    Boolean((s as { created_by_addon?: string | null }).created_by_addon);
+
+  const exitSelection = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleCategorySelect = (catServices: ServiceRow[]) => {
+    const ids = catServices.map((s) => s.id);
+    const allSelected = ids.length > 0 && ids.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) ids.forEach((id) => next.delete(id));
+      else ids.forEach((id) => next.add(id));
+      return next;
+    });
+  };
+
+  const handleBatchMove = async (categoryId: string) => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setActionLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("services")
+      .update({ category_id: categoryId })
+      .in("id", ids);
+    setActionLoading(false);
+    if (error) {
+      toast.error(t("services.save_error"));
+      return;
+    }
+    toast.success(t("services.move_success"));
+    await fetchData();
+    // La selección sobrevive: los ids siguen siendo válidos tras re-agrupar.
+  };
+
+  const handleBatchActive = async (active: boolean) => {
+    const ids = [...selectedIds];
+    if (ids.length === 0) return;
+    setActionLoading(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("services")
+      .update({ is_active: active })
+      .in("id", ids);
+    setActionLoading(false);
+    if (error) {
+      toast.error(t("services.save_error"));
+      return;
+    }
+    toast.success(active ? t("services.activate_success") : t("services.deactivate_success"));
+    await fetchData();
+  };
+
+  const openDeleteDialog = async () => {
+    const selected = services.filter((s) => selectedIds.has(s.id));
+    if (selected.length === 0) return;
+    setActionLoading(true);
+    // addon: ya está en el state, no hace falta query.
+    const addon = selected.filter((s) => isAddonManagedService(s));
+    const candidates = selected.filter((s) => !isAddonManagedService(s));
+    const candidateIds = candidates.map((s) => s.id);
+
+    // en_uso: FKs RESTRICT hacia services(id) → appointments (citas) +
+    // treatment_plan_items (planes de tratamiento). Dos queries baratas.
+    const blocked = new Set<string>();
+    if (candidateIds.length > 0) {
+      const supabase = createClient();
+      const [apptRes, tpiRes] = await Promise.all([
+        supabase.from("appointments").select("service_id").in("service_id", candidateIds),
+        supabase
+          .from("treatment_plan_items")
+          .select("service_id")
+          .in("service_id", candidateIds),
+      ]);
+      for (const r of (apptRes.data ?? []) as { service_id: string }[]) {
+        if (r.service_id) blocked.add(r.service_id);
+      }
+      for (const r of (tpiRes.data ?? []) as { service_id: string }[]) {
+        if (r.service_id) blocked.add(r.service_id);
+      }
+    }
+
+    const inUse = candidates.filter((s) => blocked.has(s.id));
+    const clean = candidates.filter((s) => !blocked.has(s.id));
+    setActionLoading(false);
+    setDeleteDialog({ clean, inUse, addon });
+  };
+
+  const executeDelete = async () => {
+    if (!deleteDialog) return;
+    const { clean, inUse, addon } = deleteDialog;
+    const cleanIds = clean.map((s) => s.id);
+    const inUseIds = inUse.map((s) => s.id);
+    setActionLoading(true);
+    const supabase = createClient();
+
+    let deleted = 0;
+    let deactivated = 0;
+
+    // 1) Desactivar los que están en uso (no se pueden borrar).
+    if (inUseIds.length > 0) {
+      const { error } = await supabase
+        .from("services")
+        .update({ is_active: false })
+        .in("id", inUseIds);
+      if (!error) deactivated += inUseIds.length;
+    }
+
+    // 2) Borrar los limpios en batch. Red de seguridad ante FK 23503
+    //    que no anticipamos: degradar a per-id y desactivar los que fallen.
+    if (cleanIds.length > 0) {
+      const { error } = await supabase.from("services").delete().in("id", cleanIds);
+      if (!error) {
+        deleted += cleanIds.length;
+      } else if ((error as { code?: string }).code === "23503") {
+        for (const id of cleanIds) {
+          const { error: eDel } = await supabase.from("services").delete().eq("id", id);
+          if (!eDel) {
+            deleted += 1;
+          } else {
+            const { error: eUpd } = await supabase
+              .from("services")
+              .update({ is_active: false })
+              .eq("id", id);
+            if (!eUpd) deactivated += 1;
+          }
+        }
+      } else {
+        setActionLoading(false);
+        toast.error(t("services.save_error"));
+        return;
+      }
+    }
+
+    const omitted = addon.length;
+    const parts: string[] = [];
+    if (deleted > 0) parts.push(`${deleted} eliminado${deleted !== 1 ? "s" : ""}`);
+    if (deactivated > 0)
+      parts.push(`${deactivated} desactivado${deactivated !== 1 ? "s" : ""} (tenían citas)`);
+    if (omitted > 0) parts.push(`${omitted} omitido${omitted !== 1 ? "s" : ""} (addon)`);
+    toast.success(parts.length > 0 ? parts.join(" · ") : t("services.delete_success"));
+
+    setActionLoading(false);
+    setDeleteDialog(null);
+    await fetchData();
+    exitSelection();
+  };
 
   const fetchData = async () => {
     const supabase = createClient();
@@ -239,24 +430,47 @@ export default function ServicesPage() {
         <div className="space-y-4">
           {isAdmin && (
             <div className="flex justify-end gap-2">
-              <button
-                onClick={() => setShowBulkImport(true)}
-                className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-                title={t("services.bulk_import")}
-              >
-                <Upload className="h-4 w-4" />
-                {t("services.bulk_import")}
-              </button>
-              <button
-                onClick={() => {
-                  setShowServiceForm(true);
-                  setEditingService(null);
-                }}
-                className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-              >
-                <Plus className="h-4 w-4" />
-                {t("services.add")}
-              </button>
+              {selectionMode ? (
+                <button
+                  onClick={exitSelection}
+                  className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                >
+                  <X className="h-4 w-4" />
+                  {t("services.select_cancel")}
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowBulkImport(true)}
+                    className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                    title={t("services.bulk_import")}
+                  >
+                    <Upload className="h-4 w-4" />
+                    {t("services.bulk_import")}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowServiceForm(false);
+                      setEditingService(null);
+                      setSelectionMode(true);
+                    }}
+                    className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                  >
+                    <ListChecks className="h-4 w-4" />
+                    {t("services.select_mode")}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowServiceForm(true);
+                      setEditingService(null);
+                    }}
+                    className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+                  >
+                    <Plus className="h-4 w-4" />
+                    {t("services.add")}
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -288,6 +502,13 @@ export default function ServicesPage() {
           {servicesByCategory.map(({ category, services: catServices }) => (
             <div key={category.id} className="space-y-2">
               <div className="flex items-center gap-2 px-1">
+                {selectionMode && catServices.length > 0 && (
+                  <Checkbox
+                    aria-label={t("services.select_category")}
+                    checked={catServices.every((s) => selectedIds.has(s.id))}
+                    onCheckedChange={() => toggleCategorySelect(catServices)}
+                  />
+                )}
                 <Tag className="h-4 w-4 text-primary" />
                 <h3 className="text-sm font-semibold text-primary">{category.name}</h3>
                 <span className="text-xs text-muted-foreground">({catServices.length})</span>
@@ -306,9 +527,24 @@ export default function ServicesPage() {
                     return (
                     <div
                       key={service.id}
-                      className="flex items-center justify-between rounded-xl border border-border bg-card p-4"
+                      onClick={selectionMode ? () => toggleSelect(service.id) : undefined}
+                      className={`flex items-center justify-between rounded-xl border bg-card p-4 transition-colors ${
+                        selectionMode
+                          ? selectedIds.has(service.id)
+                            ? "border-primary ring-1 ring-primary/40 cursor-pointer"
+                            : "border-border hover:border-muted-foreground/40 cursor-pointer"
+                          : "border-border"
+                      }`}
                     >
                       <div className="flex items-center gap-4">
+                        {selectionMode && (
+                          <Checkbox
+                            aria-label={service.name}
+                            checked={selectedIds.has(service.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            onCheckedChange={() => toggleSelect(service.id)}
+                          />
+                        )}
                         <div>
                           <div className="flex items-center gap-2">
                             <h4 className="font-medium">{service.name}</h4>
@@ -344,35 +580,51 @@ export default function ServicesPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <button
-                          onClick={() => isAdmin && handleToggleServiceActive(service)}
-                          disabled={!isAdmin}
-                          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                            service.is_active
-                              ? "bg-emerald-500/10 text-emerald-500"
-                              : "bg-muted text-muted-foreground"
-                          } ${!isAdmin ? "cursor-default" : ""}`}
-                        >
-                          {service.is_active ? t("common.active") : t("common.inactive")}
-                        </button>
-                        {isAdmin && (
-                          <button
-                            onClick={() => {
-                              setEditingService(service);
-                              setShowServiceForm(true);
-                            }}
-                            className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                        {selectionMode ? (
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-medium ${
+                              service.is_active
+                                ? "bg-emerald-500/10 text-emerald-500"
+                                : "bg-muted text-muted-foreground"
+                            }`}
                           >
-                            <Pencil className="h-4 w-4" />
+                            {service.is_active ? t("common.active") : t("common.inactive")}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => isAdmin && handleToggleServiceActive(service)}
+                            disabled={!isAdmin}
+                            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                              service.is_active
+                                ? "bg-emerald-500/10 text-emerald-500"
+                                : "bg-muted text-muted-foreground"
+                            } ${!isAdmin ? "cursor-default" : ""}`}
+                          >
+                            {service.is_active ? t("common.active") : t("common.inactive")}
                           </button>
                         )}
-                        {isAdmin && !isAddonManaged && (
-                          <button
-                            onClick={() => handleDeleteService(service.id)}
-                            className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                        {!selectionMode && (
+                          <>
+                            {isAdmin && (
+                              <button
+                                onClick={() => {
+                                  setEditingService(service);
+                                  setShowServiceForm(true);
+                                }}
+                                className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                            )}
+                            {isAdmin && !isAddonManaged && (
+                              <button
+                                onClick={() => handleDeleteService(service.id)}
+                                className="rounded-lg p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -474,6 +726,184 @@ export default function ServicesPage() {
           </div>
         </div>
       )}
+
+      {/* Barra de acciones flotante — modo selección */}
+      {isAdmin && activeTab === "services" && selectionMode && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-40 flex justify-center px-4">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-2xl border border-border bg-card/95 px-4 py-3 shadow-xl backdrop-blur">
+            <span className="text-sm font-medium">
+              {selectedIds.size} {t("services.selected_suffix")}
+            </span>
+            <div className="mx-1 h-6 w-px bg-border" />
+
+            {/* 1. Mover a categoría */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  disabled={selectedIds.size === 0 || actionLoading}
+                  className="flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 disabled:pointer-events-none transition-colors"
+                >
+                  <FolderInput className="h-4 w-4" />
+                  {t("services.move_to_category")}
+                  <ChevronDown className="h-3.5 w-3.5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="center" className="max-h-64 overflow-y-auto">
+                {categories.map((cat) => (
+                  <DropdownMenuItem key={cat.id} onSelect={() => handleBatchMove(cat.id)}>
+                    <Tag className="mr-2 h-3.5 w-3.5 text-primary" />
+                    {cat.name}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 2. Activar / Desactivar */}
+            <div className="flex overflow-hidden rounded-lg border border-border">
+              <button
+                disabled={selectedIds.size === 0 || actionLoading}
+                onClick={() => handleBatchActive(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-emerald-600 hover:bg-emerald-500/10 disabled:opacity-40 disabled:pointer-events-none transition-colors dark:text-emerald-400"
+              >
+                <Power className="h-4 w-4" />
+                {t("services.batch_activate")}
+              </button>
+              <div className="w-px bg-border" />
+              <button
+                disabled={selectedIds.size === 0 || actionLoading}
+                onClick={() => handleBatchActive(false)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40 disabled:pointer-events-none transition-colors"
+              >
+                <PowerOff className="h-4 w-4" />
+                {t("services.batch_deactivate")}
+              </button>
+            </div>
+
+            {/* 3. Eliminar */}
+            <button
+              disabled={selectedIds.size === 0 || actionLoading}
+              onClick={openDeleteDialog}
+              className="flex items-center gap-2 rounded-lg bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-40 disabled:pointer-events-none transition-opacity"
+            >
+              {actionLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              {t("services.batch_delete")}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog inteligente de eliminación */}
+      <Dialog
+        open={deleteDialog !== null}
+        onOpenChange={(v) => {
+          if (!v && !actionLoading) setDeleteDialog(null);
+        }}
+      >
+        {deleteDialog &&
+          (() => {
+            const { clean, inUse, addon } = deleteDialog;
+            const onlyAddon =
+              clean.length === 0 && inUse.length === 0 && addon.length > 0;
+            return (
+              <DialogContent className="max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle>{t("services.delete_selected_title")}</DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4 text-sm">
+                  {clean.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="font-medium text-foreground">
+                        {t("services.delete_will_remove")} ({clean.length}):
+                      </p>
+                      <ul className="space-y-1 rounded-lg border border-border bg-muted/30 p-3">
+                        {clean.map((s) => (
+                          <li key={s.id} className="flex items-center gap-2">
+                            <Trash2 className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                            <span>{s.name}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-xs text-muted-foreground">
+                        {t("services.delete_irreversible")}
+                      </p>
+                    </div>
+                  )}
+
+                  {inUse.length > 0 && (
+                    <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                      <p className="flex items-start gap-2 font-medium text-amber-700 dark:text-amber-400">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        {t("services.delete_in_use_title")}
+                      </p>
+                      <ul className="space-y-1 pl-6">
+                        {inUse.map((s) => (
+                          <li key={s.id} className="list-disc text-foreground">
+                            {s.name}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="pl-6 text-xs text-amber-700/90 dark:text-amber-300/90">
+                        {t("services.delete_in_use_solution")}
+                      </p>
+                    </div>
+                  )}
+
+                  {addon.length > 0 && (
+                    <p className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      {addon.length}{" "}
+                      {t("services.delete_addon_note_suffix")}
+                    </p>
+                  )}
+                </div>
+
+                <DialogFooter>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteDialog(null)}
+                    disabled={actionLoading}
+                    className="flex items-center justify-center gap-2 rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent disabled:opacity-50 transition-colors"
+                  >
+                    {t("common.cancel")}
+                  </button>
+
+                  {onlyAddon ? (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteDialog(null)}
+                      className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+                    >
+                      {t("services.understood")}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={executeDelete}
+                      disabled={actionLoading}
+                      className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 transition-opacity ${
+                        clean.length > 0
+                          ? "bg-destructive text-destructive-foreground hover:opacity-90"
+                          : "bg-primary text-primary-foreground hover:opacity-90"
+                      }`}
+                    >
+                      {actionLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                      {clean.length > 0 && inUse.length > 0
+                        ? `Eliminar ${clean.length} y desactivar ${inUse.length}`
+                        : clean.length > 0
+                        ? `Eliminar ${clean.length} servicio${clean.length !== 1 ? "s" : ""}`
+                        : `Desactivar ${inUse.length} servicio${inUse.length !== 1 ? "s" : ""}`}
+                    </button>
+                  )}
+                </DialogFooter>
+              </DialogContent>
+            );
+          })()}
+      </Dialog>
     </div>
   );
 }
