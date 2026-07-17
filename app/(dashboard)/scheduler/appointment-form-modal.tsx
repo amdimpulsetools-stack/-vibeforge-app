@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrgInsurance } from "@/hooks/use-org-insurance";
+import { useUser } from "@/hooks/use-user";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/send-notification";
@@ -71,7 +72,7 @@ interface AppointmentFormModalProps {
   doctorSchedules: Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time" | "office_id">[];
   lookupOrigins: LookupValue[];
   lookupPayments: LookupValue[];
-  lookupResponsibles: { id: string; user_id?: string; label: string }[];
+  lookupResponsibles: { id: string; user_id?: string; label: string; role?: string | null; is_fertility_advisor?: boolean }[];
   existingAppointments: AppointmentWithRelations[];
   blocks?: { block_date: string; start_time: string | null; end_time: string | null; all_day: boolean; office_id: string | null }[];
   /** Org schedule window as minutes-since-midnight (folds in mig-175 minute
@@ -123,6 +124,9 @@ export function AppointmentFormModal({
 }: AppointmentFormModalProps) {
   const { t, language } = useLanguage();
   const { enabled: insuranceEnabled, carriers: orgInsuranceCarriers } = useOrgInsurance();
+  // Current auth user — used to preselect the "Responsable" field with the
+  // logged-in member when creating a new appointment.
+  const { user: currentAuthUser } = useUser();
 
   // Definitions of the org's custom appointment fields — needed so we can
   // enforce their `required` flag at submit time (the CustomFieldsBlock only
@@ -319,6 +323,30 @@ export function AppointmentFormModal({
       prevDoctorRef.current = watchedDoctor;
     }
   }, [watchedDoctor, setValue]);
+
+  // ─── Preselect "Responsable" with the current user (create mode) ──────────
+  // The modal is only ever used to CREATE a cita, so we default the field to
+  // the logged-in member IF they are among the assignable responsibles. Timing:
+  // both the auth user and lookupResponsibles load async, so we run in an effect
+  // and only set the value while the field is still empty — never clobbering a
+  // value the user (or a future prefill) already put there. A ref makes the
+  // auto-preselect fire at most once per open.
+  const responsiblePreselectedRef = useRef(false);
+  const watchedResponsible = watch("responsible");
+  useEffect(() => {
+    if (responsiblePreselectedRef.current) return;
+    if (!currentAuthUser || lookupResponsibles.length === 0) return;
+    if (watchedResponsible) {
+      // Field already has a value — respect it and stop trying.
+      responsiblePreselectedRef.current = true;
+      return;
+    }
+    const me = lookupResponsibles.find((r) => r.user_id === currentAuthUser.id);
+    if (me?.user_id) {
+      setValue("responsible", me.user_id);
+    }
+    responsiblePreselectedRef.current = true;
+  }, [currentAuthUser, lookupResponsibles, watchedResponsible, setValue]);
 
   // ─── Load patient insurance coverage quotes ────────────────────────────────
   const watchedPatientId = watch("patient_id");
@@ -781,8 +809,11 @@ export function AppointmentFormModal({
         status: values.status,
         origin: values.origin || null,
         payment_method: values.payment_method || null,
-        responsible: values.responsible || null,
-        responsible_user_id: lookupResponsibles.find((r) => r.label === values.responsible)?.user_id || null,
+        // `responsible` (TEXT) is a label snapshot; `responsible_user_id` is the
+        // real FK. The RHF field now holds the selected member's user_id, so we
+        // resolve the label from it (no more fragile match-by-name).
+        responsible: lookupResponsibles.find((r) => r.user_id === values.responsible)?.label || null,
+        responsible_user_id: values.responsible || null,
         notes: values.notes || null,
         meeting_url: values.meeting_url || null,
         price_snapshot: priceSnapshot,
@@ -1690,7 +1721,7 @@ export function AppointmentFormModal({
               >
                 <option value="">--</option>
                 {lookupResponsibles.map((r) => (
-                  <option key={r.id} value={r.label}>
+                  <option key={r.id} value={r.user_id ?? ""}>
                     {r.label}
                   </option>
                 ))}
