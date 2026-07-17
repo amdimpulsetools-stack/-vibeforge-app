@@ -1,4 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
+import {
+  DEFAULT_SCHEDULER_CONFIG,
+  getScheduleStartMinutes,
+  getScheduleEndMinutes,
+} from "@/lib/scheduler-config";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -27,12 +32,17 @@ function formatDateISO(d: Date): string {
  * Params:
  *   - doctor_id (required)
  *   - days (default 7, max 14)
- *   - duration (default 30, allowed 15/20/30/45/60)
  *   - start_date (YYYY-MM-DD, default today)
  *
- * Returns slots that are free given doctor_schedules, existing
- * non-cancelled appointments and schedule_blocks. Past slots for today
- * are excluded. Runs only on demand (lazy) — no cron, no polling.
+ * Slot anchoring/stride come from the org's scheduler_settings (start/end
+ * hour+minute and the smallest configured interval), NOT from a caller
+ * param — so the offered slots always line up with the real reservable rows
+ * of the scheduler grid. The doctor_schedules window is applied as an
+ * INTERSECTION filter (a slot must fit fully inside both the org window and
+ * that day's schedule). Slots that overlap existing non-cancelled
+ * appointments or schedule_blocks, and past slots for today, are excluded.
+ * The org interval is echoed back as `duration`. Runs only on demand
+ * (lazy) — no cron, no polling.
  */
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -56,14 +66,45 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "no_organization" }, { status: 400 });
   }
 
+  // Org scheduler config drives the slot anchor + stride so the offered
+  // slots line up with the real reservable rows of the grid. Absent row →
+  // DEFAULT_SCHEDULER_CONFIG (no crash). See app/api/appointments/[id]/
+  // live-status/route.ts for the same maybeSingle() read pattern.
+  const { data: settingsRow } = await supabase
+    .from("scheduler_settings")
+    .select("start_hour, end_hour, start_minute, end_minute, intervals")
+    .eq("organization_id", membership.organization_id)
+    .maybeSingle();
+
+  const settings = settingsRow as {
+    start_hour: number | null;
+    end_hour: number | null;
+    start_minute: number | null;
+    end_minute: number | null;
+    intervals: unknown;
+  } | null;
+
+  const orgConfig = {
+    ...DEFAULT_SCHEDULER_CONFIG,
+    startHour: settings?.start_hour ?? DEFAULT_SCHEDULER_CONFIG.startHour,
+    endHour: settings?.end_hour ?? DEFAULT_SCHEDULER_CONFIG.endHour,
+    startMinute: settings?.start_minute ?? DEFAULT_SCHEDULER_CONFIG.startMinute,
+    endMinute: settings?.end_minute ?? DEFAULT_SCHEDULER_CONFIG.endMinute,
+  };
+  const orgStartMin = getScheduleStartMinutes(orgConfig);
+  const orgEndMin = getScheduleEndMinutes(orgConfig);
+
+  // Smallest configured interval — same normalization as dbRowToConfig in
+  // lib/scheduler-config.ts (filter to allowed set, fallback 15).
+  const sanitizedIntervals = (
+    Array.isArray(settings?.intervals) ? settings.intervals : [15]
+  ).filter((v: number) => [15, 20, 30, 45, 60].includes(v)) as number[];
+  const interval =
+    sanitizedIntervals.length > 0 ? Math.min(...sanitizedIntervals) : 15;
+
   const { searchParams } = new URL(request.url);
   const doctorId = searchParams.get("doctor_id");
   const days = Math.min(parseInt(searchParams.get("days") || "7", 10) || 7, 14);
-  const duration = [15, 20, 30, 45, 60].includes(
-    parseInt(searchParams.get("duration") || "30", 10)
-  )
-    ? parseInt(searchParams.get("duration") || "30", 10)
-    : 30;
   const startDateParam = searchParams.get("start_date");
   const startDate = startDateParam ? new Date(startDateParam + "T00:00:00") : new Date();
 
@@ -149,16 +190,16 @@ export async function GET(request: Request) {
       const schStart = toMinutes(sch.start_time);
       const schEnd = toMinutes(sch.end_time);
 
-      let cursor = schStart;
-      while (cursor + duration <= schEnd) {
+      // Anchor + stride come from the org config; the doctor schedule is an
+      // intersection filter (the slot must fit fully inside both windows).
+      for (let cursor = orgStartMin; cursor + interval <= orgEndMin; cursor += interval) {
+        if (cursor < schStart || cursor + interval > schEnd) continue;
+
         const slotStart = minutesToHHMM(cursor);
-        const slotEndMin = cursor + duration;
+        const slotEndMin = cursor + interval;
 
         // Skip past slots for today
-        if (dateStr === todayStr && cursor <= nowMinutes) {
-          cursor += duration;
-          continue;
-        }
+        if (dateStr === todayStr && cursor <= nowMinutes) continue;
 
         // Check overlap with appointments (doctor-level, any office)
         const overlapsAppt = dayAppts.some((a) => {
@@ -166,10 +207,7 @@ export async function GET(request: Request) {
           const aEnd = toMinutes(a.end_time);
           return cursor < aEnd && slotEndMin > aStart;
         });
-        if (overlapsAppt) {
-          cursor += duration;
-          continue;
-        }
+        if (overlapsAppt) continue;
 
         // Check overlap with blocks. Office-specific blocks only affect that office.
         const overlapsBlock = dayBlocks.some((b) => {
@@ -180,13 +218,9 @@ export async function GET(request: Request) {
           const bEnd = toMinutes(b.end_time);
           return cursor < bEnd && slotEndMin > bStart;
         });
-        if (overlapsBlock) {
-          cursor += duration;
-          continue;
-        }
+        if (overlapsBlock) continue;
 
         slotTimes.add(slotStart);
-        cursor += duration;
       }
     }
 
@@ -196,7 +230,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     doctor: { id: doctor.id, full_name: doctor.full_name },
-    duration,
+    duration: interval,
     days: daysOut,
   });
 }

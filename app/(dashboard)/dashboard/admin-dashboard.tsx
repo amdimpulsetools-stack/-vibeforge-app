@@ -344,7 +344,7 @@ export function AdminDashboard({
                 <Headset className="h-4 w-4 text-sky-500" />
               </div>
               <span className="text-xs font-semibold text-sky-500">
-                {isEs ? "Rendimiento por recepcionista" : "Receptionist performance"}
+                {isEs ? "Citas por responsable" : "Appointments by responsible"}
               </span>
             </div>
             <div className="space-y-2.5">

@@ -783,7 +783,7 @@ export default function ServicesPage() {
             <button
               disabled={selectedIds.size === 0 || actionLoading}
               onClick={openDeleteDialog}
-              className="flex items-center gap-2 rounded-lg bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:opacity-90 disabled:opacity-40 disabled:pointer-events-none transition-opacity"
+              className="flex items-center gap-2 rounded-lg bg-destructive px-3 py-1.5 text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 disabled:pointer-events-none transition-opacity"
             >
               {actionLoading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -887,7 +887,7 @@ export default function ServicesPage() {
                       disabled={actionLoading}
                       className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50 transition-opacity ${
                         clean.length > 0
-                          ? "bg-destructive text-destructive-foreground hover:opacity-90"
+                          ? "bg-destructive text-white hover:opacity-90"
                           : "bg-primary text-primary-foreground hover:opacity-90"
                       }`}
                     >

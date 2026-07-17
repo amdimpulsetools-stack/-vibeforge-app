@@ -66,10 +66,15 @@ interface AppointmentSidebarProps {
   services?: Service[];
   lookupOrigins?: LookupValue[];
   lookupPayments?: LookupValue[];
-  lookupResponsibles?: { id: string; label: string }[];
+  lookupResponsibles?: { id: string; user_id?: string; label: string; role?: string | null; is_fertility_advisor?: boolean }[];
   /** When true, hides all edit/delete/status actions (doctor viewing own appointment sidebar is fine; this blocks other doctors) */
   readOnly?: boolean;
 }
+
+// Sentinel value for the edit "Responsable" select when the appointment carries
+// a historical label that no longer maps to any current org member. We keep it
+// selected (as a disabled option) so the data isn't silently lost on screen.
+const STALE_RESPONSIBLE_VALUE = "__stale_responsible__";
 
 const STATUS_ICONS: Record<string, typeof AlertCircle> = {
   scheduled: AlertCircle,
@@ -576,7 +581,28 @@ export function AppointmentSidebar({
   const [editService, setEditService] = useState(appointment.service_id);
   const [editOrigin, setEditOrigin] = useState(appointment.origin ?? "");
   const [editPayment, setEditPayment] = useState(appointment.payment_method ?? "");
-  const [editResponsible, setEditResponsible] = useState(appointment.responsible ?? "");
+  // The edit select now works on user_id (the option values), not the label.
+  // Resolve the initial value: prefer responsible_user_id; else match the
+  // historical label to a current member; else keep the label as a stale,
+  // disabled option so the info stays visible without a matching member.
+  const resolveResponsibleInit = (): { value: string; staleLabel: string | null } => {
+    const rid = (appointment as { responsible_user_id?: string | null }).responsible_user_id ?? null;
+    if (rid && lookupResponsibles.some((r) => r.user_id === rid)) {
+      return { value: rid, staleLabel: null };
+    }
+    const label = appointment.responsible ?? "";
+    if (label) {
+      const byLabel = lookupResponsibles.find((r) => r.label === label);
+      if (byLabel?.user_id) return { value: byLabel.user_id, staleLabel: null };
+      return { value: STALE_RESPONSIBLE_VALUE, staleLabel: label };
+    }
+    return { value: "", staleLabel: null };
+  };
+  const responsibleInit = resolveResponsibleInit();
+  const [editResponsible, setEditResponsible] = useState(responsibleInit.value);
+  const [staleResponsibleLabel, setStaleResponsibleLabel] = useState<string | null>(
+    responsibleInit.staleLabel
+  );
   const [editNotes, setEditNotes] = useState(appointment.notes ?? "");
   const [editMeetingUrl, setEditMeetingUrl] = useState((appointment as any).meeting_url ?? "");
 
@@ -706,7 +732,9 @@ export function AppointmentSidebar({
     setEditService(appointment.service_id);
     setEditOrigin(appointment.origin ?? "");
     setEditPayment(appointment.payment_method ?? "");
-    setEditResponsible(appointment.responsible ?? "");
+    const r = resolveResponsibleInit();
+    setEditResponsible(r.value);
+    setStaleResponsibleLabel(r.staleLabel);
     setEditNotes(appointment.notes ?? "");
     setEditMeetingUrl((appointment as any).meeting_url ?? "");
     setEditing(true);
@@ -733,6 +761,27 @@ export function AppointmentSidebar({
     const oldMeetingUrl = (appointment as any).meeting_url ?? "";
     const newMeetingUrl = editMeetingUrl || null;
 
+    // Resolve BOTH responsible columns from the selected value. This fixes the
+    // stale bug where the label was updated but responsible_user_id kept
+    // pointing at the previous member.
+    //  - "" (Sin asignar)        → clear both columns
+    //  - STALE sentinel          → preserve the historical label + existing FK
+    //  - a real user_id          → label snapshot + FK both from that member
+    let responsibleLabel: string | null;
+    let responsibleUserId: string | null;
+    if (editResponsible === STALE_RESPONSIBLE_VALUE) {
+      responsibleLabel = staleResponsibleLabel;
+      responsibleUserId =
+        (appointment as { responsible_user_id?: string | null }).responsible_user_id ?? null;
+    } else if (editResponsible) {
+      responsibleLabel =
+        lookupResponsibles.find((r) => r.user_id === editResponsible)?.label ?? null;
+      responsibleUserId = editResponsible;
+    } else {
+      responsibleLabel = null;
+      responsibleUserId = null;
+    }
+
     const { error } = await supabase
       .from("appointments")
       .update({
@@ -741,12 +790,15 @@ export function AppointmentSidebar({
         end_time: newEndTime,
         origin: editOrigin || null,
         payment_method: editPayment || null,
-        responsible: editResponsible || null,
+        responsible: responsibleLabel,
+        responsible_user_id: responsibleUserId,
         notes: editNotes || null,
         meeting_url: newMeetingUrl,
         edited_by_name: userName,
         edited_at: new Date().toISOString(),
-      })
+        // responsible_user_id lives outside the generated Update type (mig 073),
+        // so we widen the payload — same escape hatch the create modal uses.
+      } as Record<string, unknown>)
       .eq("id", appointment.id);
 
     setUpdating(false);
@@ -1038,8 +1090,13 @@ export function AppointmentSidebar({
                   className={selectClass}
                 >
                   <option value="">--</option>
+                  {staleResponsibleLabel && (
+                    <option value={STALE_RESPONSIBLE_VALUE} disabled>
+                      {staleResponsibleLabel}
+                    </option>
+                  )}
                   {lookupResponsibles.map((r) => (
-                    <option key={r.id} value={r.label}>{r.label}</option>
+                    <option key={r.id} value={r.user_id ?? ""}>{r.label}</option>
                   ))}
                 </select>
               </div>
