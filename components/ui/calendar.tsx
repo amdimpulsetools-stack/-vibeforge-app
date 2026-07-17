@@ -1,7 +1,7 @@
 "use client";
 
 import { DayPicker, type DayPickerProps } from "react-day-picker";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function Calendar({ className, classNames, ...props }: DayPickerProps) {
@@ -50,8 +50,18 @@ function Calendar({ className, classNames, ...props }: DayPickerProps) {
       }}
       components={{
         Chevron: ({ orientation }) => {
-          const Icon = orientation === "left" ? ChevronLeft : ChevronRight;
-          return <Icon className="h-4 w-4" />;
+          // v9 also renders "down"/"up" chevrons inside the month/year
+          // dropdowns (captionLayout="dropdown"); mapping everything that
+          // isn't left/right to ChevronRight painted stray "›" glyphs.
+          const Icon =
+            orientation === "left"
+              ? ChevronLeft
+              : orientation === "up"
+                ? ChevronUp
+                : orientation === "down"
+                  ? ChevronDown
+                  : ChevronRight;
+          return <Icon className="h-3.5 w-3.5" />;
         },
       }}
       {...props}
