@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
-import { Copy, Check, X, Loader2, Share2 } from "lucide-react";
+import { Copy, Check, X, Loader2, Clock } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { DatePicker } from "@/components/ui/date-picker";
 import type { Doctor } from "@/types/admin";
 
 interface AvailableSlotsModalProps {
@@ -28,8 +29,7 @@ interface ApiResponse {
   days: DaySlots[];
 }
 
-const DAY_OPTIONS = [3, 5, 7, 10] as const;
-const DURATION_OPTIONS = [15, 30, 45, 60] as const;
+const DAY_OPTIONS = [1, 3, 5, 7, 10] as const;
 
 function formatTime12h(hhmm: string): string {
   const [h, m] = hhmm.split(":").map(Number);
@@ -54,7 +54,12 @@ export function AvailableSlotsModal({
     initialDoctorId || doctors[0]?.id || ""
   );
   const [days, setDays] = useState<number>(7);
-  const [duration, setDuration] = useState<number>(30);
+  // Fecha de inicio de la búsqueda ("A partir del") — permite consultar
+  // horarios lejanos (ej. un día específico dentro de un mes) combinándola
+  // con la opción "1 día". Nunca antes de hoy.
+  const [startDate, setStartDate] = useState<string>(() =>
+    format(new Date(), "yyyy-MM-dd")
+  );
   const [data, setData] = useState<ApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -75,7 +80,9 @@ export function AvailableSlotsModal({
     setLoading(true);
 
     const today = format(new Date(), "yyyy-MM-dd");
-    const url = `/api/scheduler/available-slots?doctor_id=${selectedDoctorId}&days=${days}&duration=${duration}&start_date=${today}`;
+    // Clamp defensivo: nunca consultar hacia el pasado.
+    const from = startDate && startDate >= today ? startDate : today;
+    const url = `/api/scheduler/available-slots?doctor_id=${selectedDoctorId}&days=${days}&start_date=${from}`;
 
     fetch(url, { signal: controller.signal })
       .then((r) => r.json())
@@ -100,7 +107,7 @@ export function AvailableSlotsModal({
       cancelled = true;
       controller.abort();
     };
-  }, [open, selectedDoctorId, days, duration]);
+  }, [open, selectedDoctorId, days, startDate]);
 
   const toggleSlot = useCallback((date: string, time: string) => {
     const key = `${date}|${time}`;
@@ -186,7 +193,7 @@ export function AvailableSlotsModal({
         <div className="flex items-start justify-between border-b border-border p-5">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10">
-              <Share2 className="h-5 w-5 text-emerald-500" />
+              <Clock className="h-5 w-5 text-emerald-500" />
             </div>
             <div>
               <DialogTitle className="text-lg font-bold">Compartir horarios disponibles</DialogTitle>
@@ -246,25 +253,25 @@ export function AvailableSlotsModal({
 
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wide">
-                  Intervalo
+                  A partir del
                 </label>
-                <div className="flex gap-1 rounded-lg bg-muted p-1">
-                  {DURATION_OPTIONS.map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => setDuration(n)}
-                      className={cn(
-                        "rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
-                        duration === n
-                          ? "bg-card text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      )}
-                    >
-                      {n}m
-                    </button>
-                  ))}
-                </div>
+                <DatePicker
+                  value={startDate}
+                  onChange={(v) => {
+                    const today = format(new Date(), "yyyy-MM-dd");
+                    setStartDate(v && v >= today ? v : today);
+                  }}
+                  className="w-[150px] [&>input]:py-1.5 [&>input]:text-xs"
+                />
               </div>
+
+              {data && (
+                <div className="flex flex-col justify-end gap-1">
+                  <p className="text-xs text-muted-foreground">
+                    Bloques de {data.duration} min · según tu configuración de Agenda
+                  </p>
+                </div>
+              )}
 
               {data && totalAvailable > 0 && (
                 <div className="ml-auto flex items-end">

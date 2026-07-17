@@ -18,7 +18,6 @@ import {
   Coffee,
   Building2,
   Check,
-  Share2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -334,7 +333,7 @@ export function SchedulerHeader({
                 onClick={onShareAvailableSlots}
                 className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 transition-colors"
               >
-                <Share2 className="h-4 w-4" />
+                <Clock className="h-4 w-4" />
               </button>
               <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-150 absolute left-1/2 -translate-x-1/2 top-full mt-2 z-50">
                 <div className="relative rounded-lg bg-popover border border-border px-3 py-1.5 shadow-lg">
