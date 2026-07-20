@@ -60,9 +60,13 @@ No son tests unitarios: son **simulacros de situaciones de negocio** que VAN a p
 **Pasa si**: en ningún punto la doctora ve un error críptico ni pierde datos; los emails llegan y se entienden.
 
 ### Escenario D — "El cliente que crece" (límites de plan)
-**Simula**: clínica del plan Independiente que llega a su límite de pacientes/citas.
-⚠️ **Estado actual: los límites NO se aplican** (P0 documentado en coming-updates-core.md — el contador muestra 9/1000 pero nada bloquea el 1001). **Este escenario hoy FALLA por diseño.** Es el gate #1 de la §3: sin enforcement, la publicidad trae clientes que consumen sin pagar (revenue leak silencioso).
-**Pasa si** (post-fix): al llegar al límite → aviso claro + CTA de upgrade → el upgrade desbloquea al instante.
+**Simula**: clínica del plan Independiente que necesita más asientos.
+**Contexto real (corregido 2026-07-17)**: pacientes y citas son **ilimitados por decisión canónica** (migs 162/163) — la palanca de pricing son los ASIENTOS (doctores, recepcionistas, admins, consultorios), y esos **sí se bloquean** desde el soft-wall v0.15.16.
+1. En org QA con plan Independiente: intentar agregar un 2º doctor → debe bloquear con mensaje claro + CTA de upgrade/addon.
+2. Intentar agregar consultorio extra → ídem.
+3. Hacer el upgrade → verificar que desbloquea al instante y que MP cobra el monto nuevo (ojo: MP Wave 2 pendiente — el cambio de plan aún no sincroniza monto con MP, verificar qué pasa hoy).
+4. Verificar que crear pacientes y citas NUNCA se bloquea (es la promesa "ilimitado" — ver §4.5).
+**Pasa si**: los asientos bloquean con mensaje vendedor (no error críptico), el upgrade desbloquea, y pacientes/citas fluyen sin fricción.
 
 ### Escenario E — "Se borró todo" (restore drill)
 **Simula**: error humano o incidente que corrompe datos.
@@ -93,7 +97,7 @@ No son tests unitarios: son **simulacros de situaciones de negocio** que VAN a p
 
 Orden por riesgo. Los 4 primeros son bloqueantes absolutos.
 
-- [ ] **G1 — Enforcement de límites de plan** (Escenario D). Sin esto, cada cliente de la publicidad puede ser pérdida. ~1-1.5 días dev. *(P0 ya documentado en coming-updates-core.md)*
+- [ ] **G1 — Escenario D (asientos) ejecutado y aprobado** — el enforcement de asientos YA existe (soft-wall v0.15.16) y pacientes/citas son ilimitados por diseño (migs 162/163); el gate es VERIFICARLO end-to-end, incl. qué pasa con el monto en MP al hacer upgrade (Wave 2 pendiente). *(corregido 2026-07-17: la versión anterior de este gate citaba un P0 obsoleto)*
 - [ ] **G2 — Escenario B (aislamiento) ejecutado y aprobado** con evidencia escrita.
 - [ ] **G3 — Emails de auth con branding** (hoy salen crudos de Supabase = parecen phishing; primera impresión del funnel de ads). Opción A: 30 min con Resend SMTP. *(P0 documentado)*
 - [ ] **G4 — DKIM/SPF/DMARC en yenda.app** — sin esto, los emails del G3 caen a spam y las campañas queman dinero. *(checklist founder)*
