@@ -217,6 +217,22 @@ async function handleSubscriptionEvent(
     // reactivation_requested event for this org within the last 7 days
     // (enough to cover slow MP authorization).
     if (newStatus === "active") {
+      // Anti-double-charge safety net (billing audit 2026-07-17). The
+      // UI plan-change path (/plans, /select-plan → POST /api/mercadopago/
+      // checkout) creates a BRAND NEW preApproval on MP instead of updating
+      // the existing one, and API-created preApprovals carry an
+      // external_reference so they land HERE in Strategy 1 — which only
+      // touched the new row and returned. The "webhook will cancel the old
+      // ones" promise lived exclusively in Strategy 2 (plan-URL path), so
+      // for the real path two live preApprovals billed in parallel
+      // (e.g. S/349 + S/649/month), invisible in the UI because get_org_plan
+      // shows only the most recent. Close that gap here.
+      await cancelSupersededSubscriptions(
+        supabase,
+        ref.organization_id,
+        preapprovalId,
+      );
+
       // Centro Médico / Clínica onboard with 2 default offices; signup seeds 1
       // (mig 164). Top up on first paid activation. Idempotent + non-fatal.
       await seedSecondOfficeIfNeeded(supabase, ref.organization_id, ref.plan_slug);
@@ -334,6 +350,142 @@ async function handleSubscriptionEvent(
   console.log(
     `[MP Webhook] Plan-based subscription ${preapprovalId} -> ${newStatus} (email=${payerEmail})`
   );
+}
+
+/**
+ * Anti-double-charge safety net for Strategy 1 (external_reference /
+ * API-created preApprovals). When a fresh preApproval activates the org's
+ * new subscription row, find every OTHER still-live row for the same org
+ * (active/trialing/pending) and retire it:
+ *
+ *   1. If it carries a real, DIFFERENT mp_preapproval_id → cancel it on MP
+ *      (preApproval.update status='cancelled', same call /api/billing/cancel
+ *      uses) so MP stops billing the superseded subscription. Best-effort
+ *      PER ROW: an MP failure is logged and skipped — it must NEVER block
+ *      the new subscription's activation.
+ *   2. Stamp the DB row cancelled (status/cancelled_at/updated_at, matching
+ *      /api/billing/cancel's columns).
+ *   3. Log a `billing_events` row (event_type 'cancelled_by_mp', an existing
+ *      value from the mig 148/150/151 CHECK) for audit.
+ *
+ * Covers upgrade, downgrade, monthly↔semestral switches and trial→paid
+ * conversion in one pass: a leftover `trialing` row with no
+ * mp_preapproval_id is simply closed in the DB (nothing to cancel on MP).
+ *
+ * Idempotent: on an MP webhook retry the superseded rows are already
+ * 'cancelled', so the status filter matches nothing → clean no-op.
+ */
+async function cancelSupersededSubscriptions(
+  supabase: SupabaseClient,
+  organizationId: string,
+  newPreapprovalId: string,
+): Promise<void> {
+  // The freshly activated row already carries newPreapprovalId (set above).
+  // Resolve its id so we never cancel ourselves.
+  const { data: currentRow } = await supabase
+    .from("organization_subscriptions")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("mp_preapproval_id", newPreapprovalId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const currentId = currentRow?.id ?? null;
+
+  // Every OTHER live row for this org. pending is included so a stuck
+  // never-authorized preApproval also gets retired.
+  let staleQuery = supabase
+    .from("organization_subscriptions")
+    .select("id, mp_preapproval_id, status")
+    .eq("organization_id", organizationId)
+    .in("status", ["active", "trialing", "pending"]);
+
+  if (currentId) {
+    staleQuery = staleQuery.neq("id", currentId);
+  }
+
+  const { data: staleRows, error: staleErr } = await staleQuery;
+
+  if (staleErr) {
+    console.error(
+      "[webhook] stale_preapproval_lookup_failed",
+      safeSerializeError(staleErr),
+    );
+    return;
+  }
+
+  if (!staleRows || staleRows.length === 0) return;
+
+  const preApproval = getPreApprovalClient();
+  const nowIso = new Date().toISOString();
+
+  for (const row of staleRows) {
+    const oldPreapprovalId = row.mp_preapproval_id as string | null;
+
+    // Hard guard: never touch a row carrying the NEW preapproval id. If the
+    // currentId lookup above failed (race/transient error), the freshly
+    // activated row slips into staleRows and the unconditional DB stamp
+    // below would cancel the subscription we just activated.
+    if (oldPreapprovalId === newPreapprovalId) continue;
+
+    // Cancel on MP only when there's a real, different preApproval to stop.
+    // trialing rows converting to paid usually have none — DB-only close.
+    if (oldPreapprovalId && oldPreapprovalId !== newPreapprovalId) {
+      try {
+        await preApproval.update({
+          id: oldPreapprovalId,
+          body: { status: "cancelled" },
+        });
+        console.log(
+          `[webhook] Superseded preApproval ${oldPreapprovalId} cancelled on MP (org ${organizationId})`,
+        );
+      } catch (err) {
+        // Best-effort: log and CONTINUE. The new preApproval's activation
+        // must not fail because a stale one could not be cancelled on MP.
+        console.error(
+          "[webhook] stale_preapproval_cancel_failed",
+          {
+            organization_id: organizationId,
+            old_preapproval_id: oldPreapprovalId,
+            new_preapproval_id: newPreapprovalId,
+          },
+          safeSerializeError(err),
+        );
+      }
+    }
+
+    // Stamp the DB row cancelled regardless of the MP outcome — leaving it
+    // 'active' would keep two live subs in our own records.
+    const { error: updErr } = await supabase
+      .from("organization_subscriptions")
+      .update({
+        status: "cancelled",
+        cancelled_at: nowIso,
+        updated_at: nowIso,
+      })
+      .eq("id", row.id);
+
+    if (updErr) {
+      console.error(
+        "[webhook] stale_preapproval_db_update_failed",
+        safeSerializeError(updErr),
+      );
+      // Don't log a billing_event we can't back with a DB state change.
+      continue;
+    }
+
+    await supabase.from("billing_events").insert({
+      organization_id: organizationId,
+      subscription_id: row.id,
+      event_type: "cancelled_by_mp",
+      metadata: {
+        reason: "superseded_by_new_preapproval",
+        old_preapproval_id: oldPreapprovalId,
+        new_preapproval_id: newPreapprovalId,
+      },
+    });
+  }
 }
 
 async function handlePaymentEvent(
