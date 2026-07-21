@@ -195,6 +195,26 @@ export default function IntegracionesTab() {
     window.location.href = "/api/integrations/google/connect";
   };
 
+  const handleDisconnectWhatsApp = async () => {
+    const ok = await confirm({
+      title: es ? "Desvincular WhatsApp Business" : "Unlink WhatsApp Business",
+      description: es
+        ? "Se eliminarán las credenciales de Meta y se detendrán todos los envíos automáticos de WhatsApp (recordatorios, confirmaciones). Tus plantillas y el historial de mensajes se conservan — si vuelves a vincular la misma cuenta, todo queda como estaba."
+        : "Meta credentials will be deleted and all automatic WhatsApp sends (reminders, confirmations) will stop. Your templates and message history are kept — relinking the same account restores everything.",
+      confirmText: es ? "Desvincular" : "Unlink",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    const res = await fetch("/api/whatsapp/config", { method: "DELETE" });
+    if (res.ok) {
+      toast.success(es ? "WhatsApp desvinculado." : "WhatsApp unlinked.");
+      setWhatsappConnected(false);
+      fetchWhatsappStatus();
+    } else {
+      toast.error(es ? "Error al desvincular." : "Unlink failed.");
+    }
+  };
+
   const handleDisconnectGCal = async () => {
     const ok = await confirm({
       title: es ? "Desconectar Google Calendar" : "Disconnect Google Calendar",
@@ -310,7 +330,9 @@ export default function IntegracionesTab() {
       },
       iconNode: <WhatsAppIcon />,
       status: whatsappConnected ? "connected" : "available",
-      onConnect: () => setWhatsappWizardOpen(true),
+      onConnect: whatsappConnected
+        ? handleDisconnectWhatsApp
+        : () => setWhatsappWizardOpen(true),
     },
     {
       id: "google-calendar",
