@@ -30,7 +30,7 @@ on:
   schedule:
     - cron: "0 7 * * *"   # live-status-eod-sweep
     - cron: "0 12 * * *"  # daily-summary
-    - cron: "0 13 * * *"  # reminders + fertility-followup-contact
+    - cron: "0 13 * * *"  # reminders (fertility-followup-contact PAUSADO — ver abajo)
     - cron: "0 14 * * *"  # billing-status
     - cron: "0 15 * * *"  # account-deletion-process
     - cron: "0 8 1 * *"   # budget-pdf-cleanup (mensual, día 1)
@@ -56,7 +56,16 @@ jobs:
               case "${{ github.event.schedule }}" in
                 "0 7 * * *")  echo 'endpoints=/api/cron/live-status-eod-sweep' >> "$GITHUB_OUTPUT" ;;
                 "0 12 * * *") echo 'endpoints=/api/cron/daily-summary' >> "$GITHUB_OUTPUT" ;;
-                "0 13 * * *") echo 'endpoints=/api/cron/reminders /api/cron/fertility-followup-contact' >> "$GITHUB_OUTPUT" ;;
+                # fertility-followup-contact PAUSADO deliberadamente (auditoría
+                # 2026-07-21): el cron nunca corrió y hay 4 seguimientos de
+                # fertilidad con meses de retraso que dispararían email/WhatsApp
+                # automáticos temporalmente incoherentes a pacientes reales
+                # ("hace algunos días tuviste tu consulta" tras 60-90 días).
+                # Rehabilitar SOLO tras triage del backlog con la asesora
+                # (cerrarlos o contactarlos a mano) — basta re-añadir el path
+                # a esta línea. El resto de crons son de ventana presente/futura
+                # o mutaciones internas idempotentes: seguros ante backlog.
+                "0 13 * * *") echo 'endpoints=/api/cron/reminders' >> "$GITHUB_OUTPUT" ;;
                 "0 14 * * *") echo 'endpoints=/api/cron/billing-status' >> "$GITHUB_OUTPUT" ;;
                 "0 15 * * *") echo 'endpoints=/api/cron/account-deletion-process' >> "$GITHUB_OUTPUT" ;;
                 "0 8 1 * *")  echo 'endpoints=/api/cron/budget-pdf-cleanup' >> "$GITHUB_OUTPUT" ;;
