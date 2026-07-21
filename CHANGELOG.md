@@ -1,0 +1,4275 @@
+# CHANGELOG — VibeForge / Yenda
+
+> Registro cronológico de todas las sesiones de desarrollo del producto, extraído del `PRD.md` para mantenerlo enfocado en el estado canónico. Volver al **[PRD.md](PRD.md)**.
+>
+> **Orden:** cronológico **ascendente** (lo más antiguo primero, lo más reciente al final).
+> **Versionado:** `v0.MAYOR.MENOR`. Algunas versiones históricas colisionaron (dos entradas con el mismo número por sesiones distintas); los duplicados posteriores se renombraron con sufijo `b` (`v0.15.14b`, `v0.15.15b`, `v0.15.16b`) y llevan una nota de numeración en su encabezado.
+> **Apéndice:** al final, el detalle completo de features implementadas (archivo de la ex-Sección 12 del PRD).
+
+---
+
+## Índice
+
+- [Changelog — Sesión 2026-03-23](#changelog-sesión-2026-03-23)
+- [Changelog — Sesión 2026-03-26](#changelog-sesión-2026-03-26)
+- [Changelog — Sesión 2026-03-31](#changelog-sesión-2026-03-31)
+- [Changelog — Sesión 2026-04-05](#changelog-sesión-2026-04-05)
+- [Changelog — Sesión 2026-04-09 a 2026-04-12 (v0.7.0)](#changelog-sesión-2026-04-09-a-2026-04-12-v070)
+- [Changelog — Sesión 2026-04-12 (v0.8.0) — Landing, Blog, SEO](#changelog-sesión-2026-04-12-v080-landing-blog-seo)
+- [Changelog — Sesión 2026-04-15 (v0.8.1) — Hardening UX Trial/Auth + Tema](#changelog-sesión-2026-04-15-v081-hardening-ux-trialauth-tema)
+- [Changelog — Sesión 2026-04-16 (v0.8.2) — Antecedentes clínicos + CIE-10 personalizable](#changelog-sesión-2026-04-16-v082-antecedentes-clínicos-cie-10-personalizable)
+- [Changelog — Sesión 2026-04-17 (v0.9.0)](#changelog-sesión-2026-04-17-v090)
+- [Changelog — Sesión 2026-04-22 (v0.10.1) — Portal rediseñado + Dashboard timeline](#changelog-sesión-2026-04-22-v0101-portal-rediseñado-dashboard-timeline)
+- [Changelog — Sesión 2026-04-22 tarde (v0.11.0) — Paciente Recurrente + Portal desktop + /book redesign](#changelog-sesión-2026-04-22-tarde-v0110-paciente-recurrente-portal-desktop-book-redesign)
+- [Changelog — Sesión 2026-04-22 noche (v0.12.0) — Presupuestos de tratamiento + Descuentos](#changelog-sesión-2026-04-22-noche-v0120-presupuestos-de-tratamiento-descuentos)
+- [Changelog — Sesión 2026-04-22 cierre (v0.12.1) — Parches post-release](#changelog-sesión-2026-04-22-cierre-v0121-parches-post-release)
+- [Changelog — Sesión 2026-04-22 cierre-2 (v0.12.2) — Consentimiento informado Tier 1](#changelog-sesión-2026-04-22-cierre-2-v0122-consentimiento-informado-tier-1)
+- [Changelog — Sesión 2026-04-22 cierre-3 (v0.12.3) — Primera ronda de fixes post-auditoría](#changelog-sesión-2026-04-22-cierre-3-v0123-primera-ronda-de-fixes-post-auditoría)
+- [Changelog — Sesión 2026-04-22 cierre-4 (v0.12.4) — Segunda ronda post-auditoría](#changelog-sesión-2026-04-22-cierre-4-v0124-segunda-ronda-post-auditoría)
+- [Hito — Pilot de Vitra (2026-04-24)](#hito-pilot-de-vitra-2026-04-24)
+- [Changelog — Sesión 2026-04-24 (v0.12.5) — Tier seguro pre-pilot](#changelog-sesión-2026-04-24-v0125-tier-seguro-pre-pilot)
+- [Changelog — Sesión 2026-04-24 tarde (v0.12.6) — Landing auditada + RevenueImpact](#changelog-sesión-2026-04-24-tarde-v0126-landing-auditada-revenueimpact)
+- [Changelog — Sesión 2026-04-24 (v0.12.7) — Google Calendar (org-level, one-way)](#changelog-sesión-2026-04-24-v0127-google-calendar-org-level-one-way)
+- [Changelog — Sesión 2026-04-26 (v0.13.2) — Rediseño Modal Historia Clínica + Consultorios autorizados por doctor](#changelog-sesión-2026-04-26-v0132-rediseño-modal-historia-clínica-consultorios-autorizados-por-doctor)
+- [Changelog — Sesión 2026-04-26 tarde (v0.13.3) — Pricing alineado y trial diferenciado por tier](#changelog-sesión-2026-04-26-tarde-v0133-pricing-alineado-y-trial-diferenciado-por-tier)
+- [Changelog — Sesión 2026-04-26 noche (v0.13.4) — Semestral 8.3% + anchor refinado + Reporte IA Avanzado documentado](#changelog-sesión-2026-04-26-noche-v0134-semestral-83-anchor-refinado-reporte-ia-avanzado-documentado)
+- [Changelog — Sesión 2026-04-30 (v0.14.2) — Hardening seguridad/consent + Multi-diagnóstico CIE-10 + Timeline HC](#changelog-sesión-2026-04-30-v0142-hardening-seguridadconsent-multi-diagnóstico-cie-10-timeline-hc)
+- [Changelog — Sesión 2026-05-06 (v0.15.3) — Topbar dropdown + Animaciones unificadas + WhatsApp clipboard multi-kind + Followup card dual-action + Phase 1 perf](#changelog-sesión-2026-05-06-v0153-topbar-dropdown-animaciones-unificadas-whatsapp-clipboard-multi-kind-followup-card-dual-action-phase-1-perf)
+- [Changelog — Sesión 2026-05-08 (v0.15.4) — Cascada de 3 intentos en seguimientos (Vitra Sprint 1)](#changelog-sesión-2026-05-08-v0154-cascada-de-3-intentos-en-seguimientos-vitra-sprint-1)
+- [Changelog — Sesión 2026-05-09 (v0.15.5) — Phase 1: Budget tiers foundation](#changelog-sesión-2026-05-09-v0155-phase-1-budget-tiers-foundation)
+- [Changelog — Phase 2: Admin UI for budget tiers (v0.15.6)](#changelog-phase-2-admin-ui-for-budget-tiers-v0156)
+- [Changelog — Phase 3: Modal + entry points + sub-bucket](#changelog-phase-3-modal-entry-points-sub-bucket)
+- [Changelog — Phase 4: PDF generator + storage + cleanup](#changelog-phase-4-pdf-generator-storage-cleanup)
+- [Changelog — Phase 5 prep: treatment lifecycle + auto-followup](#changelog-phase-5-prep-treatment-lifecycle-auto-followup)
+- [Changelog — Pre-launch hardening: MP grace + cancellation (v0.15.11)](#changelog-pre-launch-hardening-mp-grace-cancellation-v01511)
+- [Changelog — Members + invitations hardening (v0.15.12)](#changelog-members-invitations-hardening-v01512)
+- [Changelog — Sesión 2026-05-13 (v0.15.13) — Signup fix + founder dashboard 5-8s→<1s + MP isTestMode bug](#changelog-sesión-2026-05-13-v01513-signup-fix-founder-dashboard-5-8s1s-mp-istestmode-bug)
+- [Changelog — Sesión 2026-05-13 noche (v0.15.14) — Device session limits (anti account-sharing)](#changelog-sesión-2026-05-13-noche-v01514-device-session-limits-anti-account-sharing)
+- [Changelog — Sesión 2026-05-14 tarde (v0.15.17) — 2FA opcional (Supabase MFA + recovery codes)](#changelog-sesión-2026-05-14-tarde-v01517-2fa-opcional-supabase-mfa-recovery-codes)
+- [Changelog — Sesión 2026-05-14 noche (v0.15.16) — Plan soft-wall (members + offices)](#changelog-sesión-2026-05-14-noche-v01516-plan-soft-wall-members-offices)
+- [Changelog — Sesión 2026-05-14 (v0.15.15) — Clinical access log (NTS 139 + Ley 29733)](#changelog-sesión-2026-05-14-v01515-clinical-access-log-nts-139-ley-29733)
+- [Changelog — Sesión 2026-06-02 — Alineación canónica de planes (citas ilimitadas)](#changelog-sesión-2026-06-02-alineación-canónica-de-planes-citas-ilimitadas)
+- [Changelog — Sesión 2026-06-03 — Device-limit trap fix + "Antes y Después" al switcher Nota/Timeline](#changelog-sesión-2026-06-03-device-limit-trap-fix-antes-y-después-al-switcher-notatimeline)
+- [Changelog — Sesiones 2026-06-05 a 2026-06-10 — Presupuestos FIV PDF + Plugins per-org + Estado de cita en vivo](#changelog-sesiones-2026-06-05-a-2026-06-10-presupuestos-fiv-pdf-plugins-per-org-estado-de-cita-en-vivo)
+- [Changelog — Sesión 2026-06-12 — Tab Fertilidad en /reports + Grid separator v3 + Canales reales de envío de presupuestos](#changelog-sesión-2026-06-12-tab-fertilidad-en-reports-grid-separator-v3-canales-reales-de-envío-de-presupuestos)
+- [Changelog — Sesión 2026-06-12 tarde (v0.15.14b) — Fixes post-launch del envío + email de presupuesto editable](#changelog-sesión-2026-06-12-tarde-v01514b-fixes-post-launch-del-envío-email-de-presupuesto-editable)
+- [Changelog — Sesión 2026-07-03 (v0.15.15b) — Lanzamiento de los dos primeros pilotos + cierre del email de presupuesto](#changelog-sesión-2026-07-03-v01515b-lanzamiento-de-los-dos-primeros-pilotos-cierre-del-email-de-presupuesto)
+- [Changelog — Sesión 2026-07-07 — Ajuste de honorarios por presupuesto (mig 174)](#changelog-sesión-2026-07-07-ajuste-de-honorarios-por-presupuesto-mig-174)
+- [Changelog — Sesión 2026-07-07 (tarde) — Auditoría y pulido de la landing (home)](#changelog-sesión-2026-07-07-tarde-auditoría-y-pulido-de-la-landing-home)
+- [Changelog — Sesión 2026-07-07 (noche) — Fixes UI ($→S/) + notificaciones de límite + operativo pilotos (v0.15.16b)](#changelog-sesión-2026-07-07-noche-fixes-ui-s-notificaciones-de-límite-operativo-pilotos-v01516b)
+- [Changelog — Sesión 2026-07-08 (v0.15.18) — Owner-doctor + Dashboard de Asesora + fixes de rol](#changelog-sesión-2026-07-08-v01518-owner-doctor-dashboard-de-asesora-fixes-de-rol)
+- [Changelog — Sesión 2026-07-12 (v0.15.19) — Agenda con precisión de 15 min + card en vivo tintado + landing "Yenda no deja de crecer"](#changelog-sesión-2026-07-12-v01519-agenda-con-precisión-de-15-min-card-en-vivo-tintado-landing-yenda-no-deja-de-crecer)
+- [Changelog — Sesión 2026-07-17 (v0.15.20) — Compartir horarios alineado a la agenda real + "Responsable" abierto a todo el equipo + selección múltiple en Servicios + campos obligatorios configurables (mig 176) + DatePicker dd/mm/aaaa](#changelog-sesión-2026-07-17-v01520-compartir-horarios-alineado-a-la-agenda-real-responsable-abierto-a-todo-el-equipo-selección-múltiple-en-servicios-campos-obligatorios-configurables-mig-176-datepicker-ddmmaaaa)
+- [Changelog — Sesiones 2026-07-20 a 2026-07-22 (v0.15.21) — Auditoría de flujo de dinero MP + crons revividos + hardening de seguridad pre-piloto](#changelog-sesiones-2026-07-20-a-2026-07-22-v01521-auditoría-de-flujo-de-dinero-mp-crons-revividos-hardening-de-seguridad-pre-piloto)
+
+---
+
+## Changelog — Sesión 2026-03-23
+
+### Nuevas Funcionalidades
+
+#### Sistema de Cuotas de Consultas IA por Plan
+- **Migración 061:** Tabla `ai_query_usage`, columna `max_ai_queries` en plans, RPC `get_ai_query_usage_this_month()`
+- **Cuotas:** Starter/Independiente: 50, Professional: 120, Enterprise: 250 consultas/mes
+- **API:** Verificación de cuota antes de procesar cada consulta IA, log de uso después
+- **Modelo:** Cambiado de `claude-sonnet` a `claude-haiku-4-5` (más económico)
+- **Restricción:** Solo usuarios admin/owner pueden usar el asistente IA
+- **Hook:** `useAiQuota()` — expone `{ used, limit, remaining, percentage }`
+- **UI Chat:** Badge de cuota en header del panel (verde/amarillo/rojo), refresco automático tras cada consulta, botón deshabilitado al agotar
+- **UI Account:** Card con anillo SVG mostrando "Quedan X/Y consultas IA", botón refresh, CTA "Mejorar plan"
+
+#### Meta de Ingresos Mensual (Settings)
+- Input numérico en Settings > General para configurar `monthly_revenue_goal`
+- Solo visible para admins, guarda directamente en `organizations`
+
+#### Días Laborables Permanentes (Settings > Agenda)
+- Selector visual de 7 días (Lun-Dom) para desactivar/activar días
+- Días desactivados no cuentan para cálculo de ocupación
+- Config en `localStorage` como `disabledWeekdays` (default: domingo desactivado)
+- Mínimo 1 día debe quedar activo
+
+#### Agenda Compacta (Settings > Agenda)
+- "Horario" y "Tamaño de bloques" unificados en una sola card con layout 2 columnas
+- Reduce espacio visual sin perder funcionalidad
+
+### Hardening Pre-Deployment
+
+#### Fonts Self-Hosted
+- Migrado de `next/font/google` a `next/font/local`
+- 12 archivos `.woff2` en `app/fonts/` (Plus Jakarta Sans, Outfit, JetBrains Mono)
+- Elimina dependencia de Google Fonts API durante el build
+
+#### Validación de Variables de Entorno
+- `lib/env-validation.ts` — valida variables requeridas al iniciar el servidor
+- Integrado en `instrumentation.ts` — falla ruidosamente si faltan `SUPABASE_URL`, `ANON_KEY`, `SERVICE_ROLE_KEY`
+- Warnings para variables opcionales (Anthropic, SMTP, MercadoPago)
+
+#### Content Security Policy (CSP)
+- Header CSP agregado en middleware con whitelist para Supabase, Anthropic API, MercadoPago
+- `frame-ancestors 'none'` para prevenir clickjacking
+- `base-uri 'self'` y `form-action 'self'`
+
+#### Fix: AI Query Usage Logging
+- El insert a `ai_query_usage` ahora maneja errores explícitamente en lugar de fallar silenciosamente
+- Migración 061 aplicada directamente a la base de datos de producción
+
+### Auditoría de Producción (Rating: 9/10 — actualizado 2026-03-31)
+- **81+ indexes** verificados activos en la base de datos
+- **Seguridad:** 9.5/10 — Auditoría completa 16/16 issues resueltos, encryption at rest, CSP hardened, org checks en todos los PATCH/DELETE, Zod en todos los endpoints, TOTP 2FA para founder panel
+- **Base de datos:** 9.5/10 — 75 migraciones, RLS completo, scheduler settings en DB, avatar options, responsible_user_id, created_by en patients
+- **Arquitectura:** 9/10 — Multi-tenant sólido, billing, roles, DB-backed config, owner+doctor dual role
+- **Performance:** 8/10 — 26 queries optimizadas, singleton Supabase client, lazy loading
+- **Testing:** 2/10 — Gap principal: 0 tests automatizados (script de seed users disponible)
+- **Pendientes para producción real:** Tests automatizados, CI/CD pipeline
+
+---
+
+## Changelog — Sesión 2026-03-26
+
+### UI/UX — Onboarding y Registro
+
+#### Panel Derecho Rediseñado (`/register`)
+- Fondo dark emerald con gradiente radial y patrón grid sutil
+- Texto rotatorio con ShimmerText: 3 frases benefit-oriented que rotan cada 4s con blur transition
+- 4 feature cards con iconos: WhatsApp reminders, historial clínico, reportes, seguridad
+- Testimonial card con social proof (Dra. María Gonzales)
+- Trust bar: "Datos encriptados · HIPAA-ready · Soporte en <2h"
+- Framer Motion entrance animations staggered
+
+#### Login Mejorado
+- Icono SVG de Google en botón OAuth (4 colores oficiales)
+- Checkbox "Recordar mi usuario" con persistencia en localStorage
+
+### UI/UX — Componentes Nuevos
+
+#### BorderAvatar (`components/ui/avatar-border.tsx`)
+- Avatar con anillo emerald, 3 tamaños (sm/md/lg), badge verificado con check
+- Soporte para foto, silueta SVG, o iniciales como fallback
+
+#### Avatares SVG Silueta (`components/ui/avatar-silhouettes.tsx`)
+- 4 siluetas minimistas: Doctor (estetoscopio), Doctora (cruz médica), Admin (corbata), Recepcionista (audífono)
+- Selector en página de cuenta cuando no hay foto subida
+- Columna `avatar_option` en `user_profiles` (migración 069)
+
+#### Topbar con Foto de Avatar
+- Hook `useUserAvatar` carga `avatar_url` + `avatar_option` del perfil
+- BorderAvatar integrado en topbar con foto/silueta/iniciales
+
+### UI/UX — Página de Cuenta Rediseñada
+
+#### Layout 3 Columnas (Admin/Owner)
+- **Izquierda (50%):** Avatar + Datos personales (4 campos: nombre, celular, título profesional, email read-only) + Cambiar contraseña (2 columnas)
+- **Centro-derecha (50%):** Sub-grid 2x2:
+  - Account info card (Founder + Rol + Org en un solo card)
+  - Consultas IA (anillo SVG)
+  - Plan info (estado, trial progress, botón gradient "Cambiar plan")
+  - Límites del plan (5 recursos con barras de progreso)
+- **Sesión activa:** Card compacto debajo de Plan (Proveedor, Último acceso, Cuenta creada, ID)
+- Inputs más compactos (py-2, rounded-lg, text-xs labels)
+- Campo "Título profesional" (Doctor/Especialista/Licenciado) ahora visible
+- Botón "Cambiar plan" con gradiente emerald→teal y shadow glow
+
+### UI/UX — Scheduler
+
+#### Calendario Mejorado
+- Marcadores de día circulares (rounded-full en vez de rounded-md)
+- Flechas de navegación con más espaciado del top
+- Botones nav circulares
+
+#### Configuración de Agenda Persistida en DB
+- **Migración 068:** Tabla `scheduler_settings` (por organización): start_hour, end_hour, intervals, time_indicator, disabled_weekdays
+- **API:** GET/PUT `/api/scheduler-settings` con auth + role checks
+- **Config layer:** `fetchSchedulerConfig()` carga de DB, `saveSchedulerConfigToDb()` guarda a DB, localStorage como cache/fallback
+- Settings page guarda a DB en vez de solo localStorage
+
+#### Días Deshabilitados Visibles en Scheduler
+- **Week view:** Headers con fondo sombreado, texto "Cerrado", overlay con rayas diagonales en time slots
+- **Day view:** Overlay completo con lock icon, "Día cerrado" y mensaje apuntando a Settings → Agenda. Bloquea interacción (z-50)
+
+### UI/UX — Dashboard Admin
+- Padding reducido en cards de Ingresos, Cobranza y Citas (p-6→p-5, mt-2→mt-1.5)
+- Contenido visualmente centrado
+
+### Soporte / Tickets
+- `handleCreateTicket` ahora muestra toasts de error específicos en vez de fallar silenciosamente
+- Logea errores RLS/DB al console para debugging
+
+### Seguridad — Auditoría Completa (16/16 issues resueltos)
+
+#### CRÍTICOS (4 fixes)
+- `/api/prescriptions/[id]` — Org membership check en PATCH/DELETE
+- `/api/treatment-plans/[id]` — Org membership check en PATCH/DELETE
+- `/api/clinical-followups/[id]` — Org membership check en PATCH/DELETE
+- `/api/clinical-attachments/[id]` — Org membership check en DELETE
+
+#### ALTOS (5 fixes)
+- `/api/email/send-test` — Org membership check
+- `/api/notifications/send` — Org + appointment ownership check
+- `/api/clinical-notes/[id]/versions` — Org check explícito (ya existía)
+- `/api/clinical-templates/[id]` — Org + role check (ya existía)
+- `/api/ai-assistant` — SQL hardened: block semicolons + CTE DML detection
+
+#### MEDIOS (5 Zod validation + 2 hardening)
+- `/api/scheduler-settings` PUT — Zod schema validation
+- `/api/whatsapp/config` PUT — Zod schema validation
+- `/api/whatsapp/send` POST — Zod schema validation
+- `/api/whatsapp/templates/[id]` PUT — Zod schema (reemplaza allowedFields)
+- `/api/whatsapp/templates` POST — Zod schema (reemplaza casting manual)
+- `lib/encryption.ts` — AES-256-GCM para `whatsapp_config.access_token`
+- CSP: `unsafe-eval` solo en desarrollo, removido en producción
+
+#### Client-Side (todo PASS)
+- Service role key aislado en server
+- XSS mitigado (sanitización HTML en markdown)
+- Security headers completos (HSTS, X-Frame, X-XSS, Referrer-Policy, Permissions-Policy)
+- Open redirect prevenido en auth callback
+- File upload validado (whitelist tipos, 10MB limit)
+- Webhooks con HMAC-SHA256 timing-safe
+
+### Migraciones Aplicadas
+- **068:** `scheduler_settings` — Config de agenda por org en DB
+- **069:** `avatar_option` en `user_profiles` — Siluetas SVG seleccionables
+
+### Variables de Entorno Nuevas
+- `ENCRYPTION_KEY` — Clave AES-256 para encriptar tokens sensibles (32+ chars). Opcional: sin ella funciona en plaintext
+
+---
+
+## Changelog — Sesión 2026-03-31
+
+### Founder Panel con 2FA (TOTP)
+- **Panel separado** en `/founder-dashboard` con layout propio (navbar horizontal, sin sidebar de clínica)
+- **Autenticación 2FA** con Google Authenticator / Authy (TOTP RFC 6238)
+- **5 páginas:** Overview (12 stat cards), Organizaciones (tabla), Revenue (desglose por plan), Usuarios (owners/admins + miembros), Health (DB, webhooks, soporte, auditoría)
+- **APIs con admin client** (`/api/founder/stats/*`) para bypass RLS y ver data cross-org
+- **Sesión 4h** con cookie httpOnly, secure, sameSite strict
+- Migraciones: 070 (totp_secret + totp_enabled en user_profiles)
+
+### Owner + Doctor (Plan Independiente)
+- Owner con doctor record vinculado hereda permisos de doctor
+- **Dashboard dual:** AdminDashboard + sección colapsable "Mi Consulta" con DoctorDashboard
+- Owner puede crear/firmar notas clínicas, ver tab Clínico en drawer pacientes
+- Scheduler pre-selecciona al owner como doctor en formularios
+- AI Assistant visible para owner (no para doctores miembros ni recepcionistas)
+- Trigger `handle_new_user` ahora seedea solo 1 consultorio por defecto
+
+### Flujo de Invitación Mejorado
+- `InviteTokenHandler` captura tokens de invitación en hash URL
+- `/api/auth/accept-invite` acepta invitación automáticamente (agrega a org, elimina org auto-creada)
+- Redirect optimizado: reset-password primero, accept-invite en background
+- Middleware: miembros invitados saltan onboarding, prefiere org con suscripción activa
+- RPC `get_user_session_check` ordena membresías por org con plan activo
+
+### Seguridad — RLS Fixes
+- `user_profiles` peer visibility: nueva función `get_org_peer_user_ids()` SECURITY DEFINER (evita recursión)
+- `user_profiles` UPDATE: nueva función `get_own_is_founder()` SECURITY DEFINER (evita recursión con peer policy)
+- Clinical notes signing: usa admin client para bypass RLS en firma
+- `organization_members` role check: agregado `receptionist` al constraint
+
+### Performance
+- **Supabase client singleton** — elimina LockManager timeout (10000ms) en dev
+- **26 queries optimizadas** — select("*") reemplazado con columnas específicas
+- **Scheduler config instant** — localStorage en useState initializer, DB sync en background
+- **Responsables via API** — `/api/members/responsibles` con admin client (bypass RLS)
+
+### UI/UX — Páginas de Planes Rediseñadas
+- `/select-plan` y `/plans` rediseñados con estilo de landing page pricing
+- Cards limpios con precio grande, badge "IA incluida", feature list con checks
+- Plan popular (Centro Médico) con scale-105, borde emerald, badge "Recomendado"
+- Banners de upgrade contextuales en Members y Offices para plan independiente
+
+### UI/UX — Otras Mejoras
+- Notificaciones con fondo sólido (`bg-background`) y z-[100] para estar encima de todo
+- Botón nested fix en NotificationItem (div con role="button" en vez de button anidado)
+- Tab "Clínico" oculto para recepcionistas en drawer de pacientes
+- Título profesional oculto para recepcionistas en Account
+- CSV export desactivado para plan independiente (feature_export = false)
+- Dashboard greeting usa `user_profiles.full_name` en vez de email
+
+### Datos y Tracking
+- **`responsible_user_id`** en appointments — dashboard agrupa por user_id y resuelve nombre actual (no texto histórico)
+- **`created_by`** en patients — doctores ven pacientes que crearon aunque no tengan citas
+- Notificaciones al crear cita + al registrar pago en creación de cita
+- Doctor solo ve su propio registro en select de doctor al crear citas
+- Followups visibles hasta 365 días (antes 30)
+- `get_doctor_personal_stats` RPC: todos los campos del dashboard (month_total, today_completed, etc.)
+
+### Planes Actualizados
+- **Independiente:** IA activada con 30 consultas/mes, 1 consultorio default
+- **Centro Médico:** 6 miembros (1 owner + 3 doctores + 2 recepcionistas), 3 consultorios
+
+### Migraciones Aplicadas (070-075)
+- **070:** totp_secret + totp_enabled en user_profiles
+- **071:** user_profiles peer visibility (get_org_peer_user_ids)
+- **072:** user_profiles UPDATE policy fix (get_own_is_founder)
+- **073:** responsible_user_id en appointments + backfill
+- **074:** get_doctor_personal_stats con todos los campos
+- **075:** created_by en patients + RLS actualizada
+
+### Scripts
+- `scripts/seed-test-users.ts` — Crea 9 usuarios de prueba en 3 orgs con Gmail aliases
+
+---
+
+## Changelog — Sesión 2026-04-05
+
+### Restricciones de Rol Doctor
+- **Reprogramar (Reprogramar):** Botón oculto para doctores — solo visible para owner/admin/recepcionista
+- **Cancelar:** Doctores solo pueden cancelar sus propias citas, con motivo obligatorio (textarea). El motivo se guarda en notas de la cita como `[Motivo de cancelación]: ...`
+- **Otros botones** (Confirmar, Completar, No asistió): Disponibles para doctores en sus propias citas
+- Botón rojo "Cancelar cita" con texto visible (fix: text-white en vez de text-destructive-foreground)
+
+### Filtrado de Consultorios por Horario del Doctor
+- `doctor_schedules.office_id` ahora se incluye en query de `useSchedulerMasterData`
+- Al crear cita, el dropdown de consultorio filtra según la combinación doctor + día
+- Si el doctor tiene oficinas específicas asignadas, solo aparecen esas
+- Auto-selección cuando solo hay 1 consultorio disponible
+- Reset automático si la selección actual deja de ser válida
+
+### Configuración de Consultorios por Doctor (Admin)
+- Corregido label incorrecto en schedule tab: "Consultorio" → "Día" en selector de día
+- Select de consultorio: "--" cambiado a "Todos los consultorios" para claridad
+- Nota informativa para owner/admin sobre restricción de consultorios
+- Traducción `schedule.day` agregada (ES/EN)
+
+### Demografía en Reportes de Marketing
+- Query de pacientes ahora incluye `departamento` y `distrito`
+- Gráfico dona: distribución por departamento
+- Gráfico barras horizontales: top 15 distritos
+- Tabla detallada: departamento, pacientes, % con barra de progreso visual
+- Badge de cobertura: "X% con ubicación" para monitorear calidad de datos
+- Datos demográficos incluidos en exportación de reporte
+
+### Fix Build Error
+- `app/api/founder/totp/verify/route.ts`: Cambiado `window: 2` a `epochTolerance: 60` (otplib v13 API)
+
+### Auditoría de Producción (Rating: 9.5/10 — actualizado 2026-04-12)
+- **Build:** Compilación limpia sin errores. NODE_OPTIONS="--max-old-space-size=4096" para build con muchas páginas SSG
+- **Seguridad:** 9.5/10 — Restricciones de rol doctor, bloqueo post-firma en notas clínicas (UI + API), RLS roles corregidos (owner/admin/doctor)
+- **Base de datos:** 9.5/10 — 82 migraciones. Nuevas tablas: exam_catalog, exam_orders, specialties, marketing_email_logs
+- **Mercado Pago:** Integración completa (checkout, webhook, addons)
+- **Emails:** 11 plantillas funcionales (confirmación, recordatorios, recibo, factura, bienvenida, cumpleaños, seguimiento, resumen diario). 6 plantillas ocultas (pendientes de implementación)
+- **Responsive:** Sidebar drawer mobile, scheduler overlay, modals/tables con overflow, touch targets 40px+
+- **SEO:** 7 páginas de producto SSG con schema.org, breadcrumbs, mega-menu full-width
+- **Desplegado:** Vercel (producción), 2 cron jobs (reminders + daily-summary/marketing)
+
+---
+
+## Changelog — Sesión 2026-04-09 a 2026-04-12 (v0.7.0)
+
+### Exámenes médicos
+- Tablas: `exam_categories`, `exam_catalog`, `exam_orders`, `exam_order_items` (migración 078)
+- Admin: `/admin/exam-catalog` con categorías + exámenes configurables
+- Doctor: panel ExamOrdersPanel con búsqueda en catálogo, selección múltiple, indicaciones, diagnóstico CIE-10
+- Tracking: pendiente → parcial → completado (auto-calcula por items)
+- Impresión: A5 landscape profesional con firma
+
+### Bloqueo post-firma de nota clínica
+- UI: botones "Recetar" y "Solicitar" ocultos cuando `is_signed=true`
+- API: POST `/api/prescriptions` y `/api/exam-orders` rechazan con 403 si nota firmada
+- Polling: modal detecta firma cada 2 segundos
+- Badge: "Nota firmada" visible en header del modal
+
+### Sistema de emails (11 funcionales)
+- `patient_welcome`: auto al crear paciente con email (via `/api/notifications/send-patient`)
+- `marketing_birthday`: cron diario, match MM-DD, registro en `marketing_email_logs`
+- `marketing_followup`: cron diario, pacientes sin cita 90+ días, cooldown 60 días, máx 20/org/día
+- `payment_invoice`: checkbox opt-in al registrar pago
+- `team_daily_summary`: cron diario 7am Perú, tabla de citas del día a `notification_emails`
+- 4 variables nuevas: `direccion_clinica`, `link_ubicacion`, `instrucciones_servicio`, `monto_cita`
+- Campos nuevos: `services.pre_appointment_instructions`, `organizations.google_maps_url`, `email_settings.notification_emails`
+- Plantillas ocultas: post-consulta, pedir reseña, campaña, pago pendiente, nueva cita equipo, cancelación equipo
+
+### Registro y seguridad
+- Confirmar contraseña con validación visual en tiempo real (borde rojo/verde)
+- Indicador de fortaleza: 5 niveles (muy débil → muy fuerte), mínimo "Aceptable"
+
+### Paginación historial de citas
+- 50 registros por página con flechas prev/next
+- Server-side con Supabase `.range()`, total count exact
+
+### Especialidades (Fase 1)
+- 28 especialidades seed (LATAM common) + select con búsqueda en onboarding
+- Tablas: `specialties`, `organization_specialties`, `specialty_clinical_data`
+- `organizations.primary_specialty_id` para acceso rápido
+
+### Responsive mobile
+- **Fase 1**: Sidebar → drawer con backdrop + hamburger en topbar (mobile only). Scheduler sidebar → overlay fullscreen. Layout padding compacto (p-4 vs p-7)
+- **Fase 2**: Reports/Settings tabs con overflow-x-auto scroll. Patients header flex-col en mobile. Dashboard botón reportes oculto. Clinical templates botón debajo del subtítulo. Members cards stacking vertical
+- **Fase 3**: History table overflow-x-auto min-w-[900px]. Appointment form date span 2cols. DNI select w-[80px]. Pagination buttons 40px touch. Vitals grid 2→4→8 cols. Modal paddings compactos. Clinical history modal max-w-[95vw]
+
+### Páginas de producto (SEO)
+- `lib/product-features.ts`: 7 features con metadata SEO, keywords, slugs
+- Mega-menu full-width en navbar con 3 columnas + highlight IA
+- `/producto`: overview page con 7 feature cards + includes badges
+- 7 páginas premium con storytelling (SSG):
+  1. `/producto/agenda-medica-online` — Calendar mockup + booking mockup
+  2. `/producto/historia-clinica-electronica` — SOAP mockup + 3 sub-features
+  3. `/producto/gestion-pacientes` — Patient card mockup + lifecycle journey
+  4. `/producto/comunicacion-automatizada` — WhatsApp mockup + 8 message types
+  5. `/producto/asistente-ia-consultorio` — Chat AI mockup + before/after
+  6. `/producto/reportes-clinica-medica` — Dashboard KPI mockup + 4 report areas
+  7. `/producto/gestion-equipo-medico` — 4 role cards con permisos
+- Cada página: hero provocativo, pain stats (fondo oscuro), features, before/after, testimonial placeholder, CTA aversión a la pérdida, schema.org, breadcrumbs
+- `/producto` añadido a rutas públicas del middleware (no requiere auth)
+
+### Fixes varios
+- Vercel cron: `*/30` → `0 13 * * *` (Hobby plan solo permite daily)
+- Topbar z-index: `z-[100]` → `z-40` (no se superpone a modals)
+- RLS exam_orders: roles corregidos (owner/admin/doctor en vez de 'member')
+- Sidebar exam-catalog agregado a navegación admin
+- waiting-for-plan: loop fix usando misma RPC que middleware
+- Clinical note modal: 2 columnas (SOAP izq + paneles der) en pantallas xl
+
+---
+
+## Changelog — Sesión 2026-04-12 (v0.8.0) — Landing, Blog, SEO
+
+### Vista expandida de paciente
+- Botón Maximize (⛶) en el header del drawer de paciente
+- Abre modal max-w-6xl con 5 tabs en layout amplio (2 columnas donde aplica)
+- Info: datos personales + 3 KPI cards (citas, pagado, notas) + etiquetas
+- Historial: tabla completa con overflow-x-auto
+- Clínico: prescripciones/exámenes en 2 cols + link a historial completo
+- Finanzas: tabla de pagos + card resumen
+- Marketing: datos de origen + métricas (primera/última cita)
+
+### Paginación de pacientes
+- Cambió de "Cargar más" a paginación con flechas prev/next
+- 25 pacientes por página, server-side con .range()
+- Footer: "X pacientes · Página Y de Z"
+- Touch targets 40px en mobile, 32px en desktop
+
+### Páginas de producto (SEO) — Reestructuración 13→7
+- `lib/product-features.ts`: 7 features agrupadas (antes 13)
+  1. Agenda Médica Online (+ booking)
+  2. Historia Clínica Electrónica (+ recetas + exámenes)
+  3. Gestión de Pacientes
+  4. Comunicación Automatizada (WhatsApp + email)
+  5. Asistente Médico con IA
+  6. Reportes y Analítica (+ retención + cobros)
+  7. Gestión de Equipo Médico
+- Mega-menu actualizado: 3 columnas + highlight IA
+- 7 páginas premium con storytelling (cada una ~600 líneas):
+  - Hero provocativo + mockup visual
+  - Pain stats en fondo oscuro con datos
+  - Features con beneficios detallados
+  - Before/after o journey del usuario
+  - Testimonial placeholder
+  - CTA con aversión a la pérdida
+  - Schema.org + breadcrumbs
+
+### Mega-menu "Recursos"
+- Dropdown full-width con 3 columnas:
+  1. Conoce REPLACE: Blog + Base de conocimientos
+  2. Herramientas gratuitas: Calculadora WhatsApp + Plantilla SOAP
+  3. Contáctanos: Contacto + Soporte + Socios
+- Footer: "Contactar soporte" + "Contratar socio experto"
+- Mobile: accordion colapsable
+
+### Calculadora de precios WhatsApp (/calculadora-whatsapp)
+- Estimador rápido para clínicas: input citas/día + días/semana
+  → auto-calcula: recordatorios, confirmaciones, seguimientos, cumpleaños
+  → muestra costo estimado mensual en USD
+- Calculadora manual (estilo Kommo): selector país (10 países LATAM)
+  + sliders de marketing y utilidad con precio/mensaje
+  + card verde con total estimado
+- FAQ con 5 preguntas sobre WhatsApp Business API
+- Precios de Meta API actualizados 2026
+
+### Blog (/blog)
+- Página index estilo Kommo: search bar, 9 category pills, featured articles,
+  article grid 3 cols, "Lo mejor del Blog" category links, CTA banner
+- Ruta dinámica /blog/[slug] con SSG para 12 artículos
+- Markdown rendering: react-markdown + gray-matter + remark-gfm
+- Layout Kommo-style: hero verde + 2 columnas (content + sticky sidebar)
+- Sidebar: author card, tabla de contenidos (auto-generated), CTA, share buttons
+- Typography audited: H2 28px+border, H3 21.6px bold, body 15px/1.85
+  Blockquotes gradient, tables rounded, emoji bullets, decorative HR
+
+### SEO Strategy (content/blog/ESTRATEGIA-SEO.md)
+- Pilar-Cluster architecture: 1 pillar page + 4 clusters (16 blogs planned)
+- Keyword map with search volume, intent, funnel stage
+- Lead magnet per blog with specific CTAs
+- GEO rules for AI Overview citability
+- 3-month editorial calendar
+
+### 3 Blog posts completos (2,500-3,500 palabras cada uno)
+1. `digitalizar-consultorio-medico-peru.md` — TOFU
+   - 6 pasos, tablas de costos, errores comunes, FAQ, lead magnet: checklist 21 pasos
+2. `reducir-ausentismo-pacientes-clinica.md` — MOFU
+   - 5 estrategias, caso práctico 25%→7%, calculadora, FAQ
+3. `notas-soap-formato-medico.md` — MOFU
+   - SOAP explicado, ejemplos por 5 especialidades (tablas), FAQ
+
+### 3 Lead magnets (content/blog/lead-magnets/)
+1. Checklist 21 pasos para digitalizar consultorio (PDF)
+2. Calculadora de pérdidas por ausentismo (Excel)
+3. Plantilla SOAP por 5 especialidades (PDF)
+
+### Rutas públicas agregadas al middleware
+`/producto`, `/blog`, `/base-conocimientos`, `/calculadora-whatsapp`, `/contacto`, `/socios`, `/soporte`
+
+### Roadmap Post-V1
+- **V1.1:** WhatsApp CRM (chat directo, tipo Leadsales)
+- **V1.2:** UTM Attribution (tracking automático de fuente de citas desde campañas Meta)
+- **V1.3:** Mensajes masivos WhatsApp API (marketing automation)
+- ~~**V1.4:** Boletas/Facturas SUNAT (Nubefact o similar)~~ → Adelantado a v0.13.0 (entregado, MVP funcional con Nubefact)
+- **V2.0:** IA avanzada (resúmenes automáticos, sugerencias diagnóstico, analytics predictivo)
+
+---
+
+## Changelog — Sesión 2026-04-15 (v0.8.1) — Hardening UX Trial/Auth + Tema
+
+### Tema visual (surface hierarchy)
+- `--background`: `#eef0f1` → `#fbfbfb` (fondo general más claro)
+- Inputs, textareas y campos del onboarding: `bg-transparent` / `bg-background/50` → `bg-card` (blanco `#ffffff`)
+- Archivos: `app/globals.css`, `components/ui/input.tsx`, `components/ui/textarea.tsx`, `app/(auth)/onboarding/steps.tsx`
+- Jerarquía resultante: fondo gris suave `#fbfbfb` → cards `#ffffff` → inputs blancos con borde
+
+### Auth — manejo de `otp_expired` / `access_denied`
+- **Problema:** el escáner de seguridad del correo (Gmail/Outlook) abre el enlace de confirmación antes que el usuario, consumiendo el link PKCE único. El usuario veía una URL cruda con `#error=access_denied&error_code=otp_expired`.
+- **Fix en `app/api/auth/callback/route.ts`:** detecta `error` / `error_code` de Supabase en query params y redirige a `/login?error=<code>` con el código preservado. Añadido branch `exchange_failed` para fallos de `exchangeCodeForSession`.
+- **Fix en `app/(auth)/login/page.tsx`:** nueva función `parseAuthError(query, hash)` que lee tanto query string como hash fragment. Banner ámbar (AlertTriangle) explica el problema en español, ofrece botón **"Reenviar enlace de confirmación"** que llama `supabase.auth.resend({ type: "signup" })`. Limpia la URL con `history.replaceState` tras mostrar el banner.
+- Códigos manejados: `otp_expired`, `access_denied`, `exchange_failed`, `auth_failed`.
+
+### Onboarding — hint sobre categoría "General"
+- Step 4 (primer servicio) ahora muestra texto aclaratorio: *"Se creará automáticamente la categoría **General**. Podrás reorganizar luego desde Admin → Servicios."*
+- Clarifica el comportamiento silencioso del backend (que auto-crea la categoría si no existe) sin pedirle al usuario un campo extra.
+- Archivo: `app/(auth)/onboarding/steps.tsx`.
+
+### Trial de 14 días — hardening end-to-end
+- **Runtime explícito:** `export const runtime = "nodejs"` en `/api/plans/start-trial` (nodemailer requiere Node, no Edge).
+- **Limpieza de filas huérfanas:** al iniciar el trial se borran filas `pending | expired | canceled` de la misma org (las sobras de checkouts Mercado Pago abandonados ya no bloquean reintentos).
+- **Email no bloqueante:** `sendTrialWelcomeEmail` se programa con `after()` de `next/server` para correr en fase post-respuesta, evitando que el `socketTimeout: 15s` de nodemailer retenga la función serverless y el cliente reciba timeout.
+- **Errores transparentes:** si el insert de `organization_subscriptions` falla, la API devuelve `{ error, detail, code }` con el mensaje real de Supabase (antes era un genérico `trial_creation_failed`).
+- **Cliente:** `select-plan/page.tsx` `handleStartTrial` ahora hace `res.text()` primero + `JSON.parse` con fallback; si el backend responde HTML (ej. 504 de Vercel), el usuario ve el mensaje real en vez de `"Error de conexión"`. El catch usa `err.message` cuando está disponible.
+
+### Limpieza DB (producción)
+- Eliminada fila `organization_subscriptions` huérfana (`cfe38e38-adb8-4a73-815c-95ff2fbcd580`, status=`pending`) de la org `db445605-5587-4b87-a732-abfd8152ee34` (chaivana).
+
+### Diagnóstico documentado — `email rate limit exceeded`
+- **No es bug del código:** es el límite del SMTP interno de Supabase (2 correos/hora/proyecto) cuando se hacen múltiples pruebas de signup/reenvío.
+- Solución recomendada: configurar **Custom SMTP** en Supabase Dashboard → *Authentication → SMTP Settings* con las mismas credenciales `SMTP_HOST/USER/PASS` que ya usa la app. Beneficios: elimina el límite de 2/hora y hace que los correos salgan desde el dominio propio (reduce drásticamente el `otp_expired` por escáneres de seguridad).
+
+### Commits
+- `710cc11` — tema `#fbfbfb` + inputs `#ffffff`
+- `646d642` — auth callback + banner ámbar con resend
+- `bbec0e6` — trial start hardening + mensajes de error reales + hint categoría General
+
+---
+
+## Changelog — Sesión 2026-04-16 (v0.8.2) — Antecedentes clínicos + CIE-10 personalizable
+
+### Corrección — Doctor no podía interactuar con su cita
+- **Problema:** el doctor `oscardlopez@outlook.com` (Jose Lopez) veía su cita asignada pero la nota clínica aparecía bloqueada (solo lectura).
+- **Causa raíz:** 3 registros duplicados en `doctors` para el mismo `user_id`, generados por ciclos repetidos de auto-creación. El hook `useCurrentDoctor()` no filtraba por `is_active` ni ordenaba, así que a veces retornaba un doctor inactivo → `currentDoctorId !== appointment.doctor_id` → panel bloqueado.
+- **Fix en `hooks/use-current-doctor.ts`:** `.eq("is_active", true).order("created_at", { ascending: false }).limit(1).maybeSingle()`.
+- **Limpieza DB (producción):** consolidados citas, horarios y servicios al registro canónico `4ec5776b`; los 2 duplicados desactivados con sufijo `[DUPLICADO - MIGRADO]` y luego restaurado `full_name = 'Jose Lopez'` al canónico.
+
+### Antecedentes del paciente en la nota clínica
+- **Motivación:** el doctor necesita ver alergias, condiciones crónicas y diagnósticos previos sin salir del panel de nota clínica (feedback directo de cliente).
+- **Migración 087:** 3 tablas normalizadas con RLS (lectura por miembros de org, escritura por org, borrado solo admin/owner):
+  - `patient_allergies`: sustancia, severidad (`leve`/`moderada`/`severa`), reacción, notas
+  - `patient_conditions`: condición, código ICD, tipo (`chronic`/`personal`/`family`), estado, fecha dx, familiar
+  - `patient_medications`: nombre, dosis, frecuencia, vía, fechas inicio/fin, doctor prescriptor
+- **API `/api/patients/[id]/antecedents`:** GET (4 queries paralelas + últimos 5 diagnósticos de `clinical_notes` con join a `doctors`), POST (discrimina por `type`), PATCH y DELETE (soft-delete con `is_active = false`).
+- **`types/patient-antecedents.ts`:** interfaces `PatientAllergy`, `PatientCondition`, `PatientMedication`, `PatientAntecedents`.
+- **`PatientContextCard`** (`scheduler/patient-context-card.tsx`):
+  - Tarjeta colapsable, auto-expande si existen alergias
+  - `AllergyBadge` con colores por severidad (rojo/ámbar/amarillo)
+  - `ConditionRow` con labels de tipo (Crónica/Antec. personal/Antec. familiar)
+  - `MedicationRow` con dosis y frecuencia
+  - Sección de últimos 5 diagnósticos CIE-10
+  - `InlineAddForm` para agregar alergias/condiciones/medicamentos directamente
+- **Integración:** renderizada sobre el encabezado de la nota clínica en `clinical-note-panel.tsx`.
+
+### Catálogo CIE-10 personalizable por organización
+- **Motivación:** el catálogo global estático (~160 códigos en `lib/cie10-catalog.ts`) no cubre diagnósticos de especialidades como endocrinología, dermatología, etc.
+- **Migración 088:** tabla `custom_diagnosis_codes` con `organization_id`, `code` (UNIQUE por org), `label`, `specialty_id` (FK opcional a `specialties`), `notes`, `created_by`. RLS: lectura por miembros, CUD solo owner/admin.
+- **API `/api/custom-diagnosis-codes`:** GET (lista por org), POST (insert con detección de duplicado `23505`), PATCH (update label/specialty/notes), DELETE.
+- **Admin → Diagnósticos CIE-10** (`admin/diagnosis-codes/page.tsx`): tabla con búsqueda, formulario inline para agregar/editar, conteo de catálogo global vs. personalizado, selector de especialidad.
+- **`searchCIE10WithCustom()`** en `lib/cie10-catalog.ts`: nueva función que mezcla hasta 5 resultados custom (etiquetados con `custom: true`) + el resto del catálogo global, sin duplicados.
+- **Integración en nota clínica:** `clinical-note-panel.tsx` carga los códigos custom de la org al montar y los pasa a `searchCIE10WithCustom`. En el dropdown, los resultados custom muestran badge "personalizado".
+- **Navegación:** sidebar con icono `BookOpen` + card en admin page con conteo. Traducciones ES/EN agregadas.
+
+### COMING-UPDATES.md
+- Movidos a ✅ Entregados: "Catálogo CIE-10 personalizable" y "Antecedentes del paciente en nota clínica"
+- Nuevo item pendiente: "Importación masiva de códigos CIE-10 (CSV/Excel)"
+
+### Commits
+- `4d2bd01` — fix: doctor appointment blocked — duplicate doctor records + missing filter
+- `145d89e` — feat: patient antecedents (allergies, conditions, medications) in clinical note
+- `be11615` — feat: custom CIE-10 diagnosis codes per organization
+
+---
+
+## Changelog — Sesión 2026-04-17 (v0.9.0)
+
+### Sistema de Addons / Verticalización por Especialidad (migración 091)
+
+Entregamos la infraestructura escalable para módulos verticales de especialidad, evitando hardcodear features por vertical.
+
+- **Catálogo global `addons`:** key, name, description, category (specialty/workflow/clinical), specialties[] (slugs a los que aplica), icon, is_premium, min_plan, sort_order. 14 addons seed: 10 de especialidad (dermatology, odontology, nutrition, psychology, pediatrics, ophthalmology, gynecology, cardiology, traumatology, aesthetic) + 4 de workflow (telehealth, advanced_reports, inventory, lab_integration).
+- **Activación por org `organization_addons`:** organization_id, addon_key, enabled, settings (JSONB), activated_at, activated_by. RLS con políticas separadas para select/insert/update/delete (owner/admin).
+- **Auto-activación en onboarding:** al completar onboarding, se activan automáticamente los addons gratuitos cuya lista de `specialties` contiene alguna de las especialidades elegidas por la org.
+- **UI Settings → Módulos:** nuevo tab en Settings con sección "Recomendados para tu especialidad", grid agrupado por categoría, toggle on/off por módulo (owner/admin), badge PRO para premium, vista read-only con ícono de candado para no-admins.
+- **Hook `useOrgAddons`:** catálogo enriquecido + `hasAddon(key)` + `toggleAddon(key, enabled)` + `refetch()`. Gating de UI en cualquier componente del dashboard.
+- **API `/api/addons`:** GET devuelve catálogo enriquecido con `enabled` y `recommended` por org. POST (solo admin/owner) togglea el addon con upsert y Zod.
+
+### Primer Vertical — Curvas de Crecimiento OMS (migración 092)
+
+Primer addon vertical completo, para endocrinología pediátrica y pediatría.
+
+- **Esquema:** `patients.sex` (male/female), tabla `patient_anthropometry` (measurement_date, weight_kg, height_cm, head_circumference_cm, notes, recorded_by) con RLS multi-tenant.
+- **Tablas LMS OMS (`lib/growth-curves/`):** WHO Child Growth Standards (0–5 años) + WHO Growth Reference (5–19 años). Parámetros Lambda-Mu-Sigma para weight-for-age, height-for-age, BMI-for-age (ambos sexos, 0–19 años) y head-circumference-for-age (0–36 meses).
+- **Cálculo:** Z-score vía fórmula LMS `Z = ((x/M)^L − 1) / (L·S)`. Percentil vía CDF normal estándar (Abramowitz & Stegun). Interpolación lineal entre puntos LMS. Reverso para graficar las líneas de percentiles.
+- **Componente `GrowthCurvesPanel` (Recharts ComposedChart):** banda P3–P97 sombreada en emerald, 5 líneas de percentiles (P3/P15/P97 punteadas, P15/P85 dashed, P50 sólida emerald), scatter con línea de trayectoria del paciente en indigo. Tooltip con valor, percentil y Z-score por punto. Tarjeta resumen de la última medición con colores semáforo (verde <15–85>, ámbar 3–15/85–97, rojo <3 o >97).
+- **4 métricas seleccionables:** Peso/Edad, Talla/Edad, IMC/Edad (auto-calculado desde peso y talla), Perímetro Cefálico.
+- **Formulario inline** para registrar nuevas mediciones, con validación. Historial tabular con botón de eliminación.
+- **Integración drawer paciente:** nueva pestaña "Crecimiento" gated por `hasAddon("growth_curves")`, visible solo a doctores/admins. Selector de sexo biológico en tab Datos (requerido por las tablas OMS). Empty states amigables cuando falta fecha de nacimiento o sexo.
+- **API `/api/patients/[id]/anthropometry`:** GET (cronológico) / POST (Zod, al menos una medición) / DELETE (por entryId).
+
+### Founder Panel — Tracking de Owners
+
+- Tabla `owner_lifecycle_events` con eventos: signup, trial_start, plan_upgrade, churn.
+- Tabla `founder_notes` para anotaciones privadas por organización.
+- Endpoints `/api/founder/stats/owners` y `/api/founder/notes`.
+- Tab "Organizaciones" en founder dashboard con embudo de conversión y notas editables por owner.
+
+### Marketplace de Integraciones
+
+- Nuevo tab "Integraciones" en Settings con tarjetas de integraciones externas (WhatsApp Business API, Mercado Pago, Google Calendar, etc.) y estado por org.
+- Wizard paso a paso para conectar WhatsApp Business API.
+- Bloqueo visual (candado) en tabs de integraciones aún no activadas.
+
+### Mejoras Menores
+
+- Fix sidebar: eliminadas entradas duplicadas de Founder e Integraciones.
+- Lock de tabs de WhatsApp hasta que la API esté conectada (consistencia con el marketplace).
+
+### Archivos Nuevos Clave
+
+- `supabase/migrations/091_addon_modules.sql`
+- `supabase/migrations/092_growth_curves_pediatric.sql`
+- `lib/growth-curves/{types,who-data,index}.ts`
+- `hooks/use-org-addons.ts`
+- `app/api/addons/route.ts`
+- `app/api/patients/[id]/anthropometry/route.ts`
+- `app/(dashboard)/settings/modulos-tab.tsx`
+- `app/(dashboard)/patients/growth-curves-panel.tsx`
+
+### Cambios de Alcance
+
+- Fase 2 de Especialidades (Sección 22) pasa de "Pendiente" a "Parcialmente implementado": la infraestructura de addons + el primer vertical completo están entregados; quedan pendientes `doctor_specialties`, tabs condicionales en historia clínica, y módulos premium cobrables.
+- Pendientes movidos a Completado: sistema de módulos verticales, primer vertical (endocrinología pediátrica), marketplace de integraciones, tracking de owners del founder.
+
+---
+
+## Changelog — Sesión 2026-04-22 (v0.10.1) — Portal rediseñado + Dashboard timeline
+
+### Fixes de schema drift (el portal no enviaba magic link ni mostraba citas)
+
+Dos columnas asumidas por el código y el PRD nunca existieron en producción porque los `CREATE TABLE IF NOT EXISTS` de migraciones posteriores saltaron las columnas nuevas:
+
+- **Migración 094** — `ALTER TABLE organizations ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT true`. Sin esta columna, `/api/portal/auth/request-link` hacía `.eq("is_active", true)` sobre una columna inexistente, PostgREST devolvía 400, `.single()` retornaba null, el `if (!org)` entraba al branch silencioso y nunca se creaba el token — el correo jamás salía.
+- **Migración 095** — `ALTER TABLE doctors ADD COLUMN IF NOT EXISTS specialty TEXT`. Sin esta columna, `/api/portal/appointments` fallaba al seleccionar `doctors(specialty, …)` y la vista "Mis Citas" del portal se mostraba vacía aunque hubiera citas.
+
+Ambas migraciones son no-destructivas y usan `IF NOT EXISTS`; los valores por defecto respetan el modelo de negocio (todas las orgs activas por defecto, `specialty` nullable editable por staff).
+
+### Canonicalización de URLs (yenda.app)
+
+Tres puntos del código construían URLs públicas desde `window.location.origin` o `req.headers.get("origin")`, generando links al dominio `saas-orcin-seven.vercel.app` en lugar del canónico `yenda.app`:
+
+- `app/api/portal/auth/request-link/route.ts` — origen del magic link
+- `app/(dashboard)/settings/booking-settings-tab.tsx` — panel admin con URL pública
+- `components/integrations/whatsapp-wizard.tsx` — webhook URL
+
+Todos ahora priorizan `process.env.NEXT_PUBLIC_APP_URL` con fallback al request. La Site URL de Supabase Auth se apunta a `https://yenda.app` para que OAuth (Google) aterrice correctamente.
+
+### Portal del Paciente — Rediseño Apple Health (Phase 1.1)
+
+`app/portal/[slug]/mis-citas/page.tsx` reescrita con lenguaje visual tipo Apple Health, mobile-first:
+
+- Fondo iOS `systemGray6` (`#F2F2F7`), tarjetas blancas `rounded-3xl` con `ring-1 ring-black/5`.
+- Sticky header con blur, título "Resumen" + nombre de la org, botones circulares (perfil con iniciales + salir).
+- Grid 2×2 de tiles de salud con icono tintado al 12%: Próxima cita (rojo), Citas completadas (naranja), Última visita (morado), Especialistas (verde). Todos tappable.
+- Tabs segmentadas **Próximas** / **Historial** con contadores en vivo.
+- Hero card de próxima cita: banner en gradiente del accent color, bloque de fecha blanco tipo iOS (día de semana + número), filas de detalle con avatar del doctor, servicio y consultorio.
+- Filas de programadas y historial agrupadas por mes (abril 2026, marzo 2026, …) en tarjetas con divisores.
+
+### Portal del Paciente — Enriquecimiento (Phase 1.2)
+
+Agregadas 5 interacciones nuevas y 1 API:
+
+- **Bottom sheet de detalle de cita** — tap en cualquier cita o tile → abre sheet con doctor+avatar, servicio, consultorio, precio, origen (portal/whatsapp/manual/booking), notas, y dos acciones: "Añadir al calendario" (genera .ics client-side) y "Cancelar cita" (respeta `portal_allow_cancel`).
+- **FAB "Agendar cita"** flotante persistente que lleva a `/book/[slug]` reutilizando el flujo público existente. También aparece inline en el empty state cuando no hay próximas citas.
+- **Bottom sheet de perfil** — botón con iniciales del paciente en el header. Muestra DNI + email bloqueados (con nota "Usado para iniciar sesión") y teléfono editable inline con validación.
+- **Filter chips en Historial** — Todas / Completadas / Canceladas / No asistió con conteos en vivo. Chips con 0 se ocultan.
+- **Bottom sheet de especialistas** — tap en el tile "Especialistas" → lista de doctores con # de citas visitadas ordenado por frecuencia.
+- **API `PATCH /api/portal/profile`** — única ruta editable del perfil. Valida formato de teléfono (`^[+\\d\\s()-]{6,30}$`), escribe solo `portal_phone` para evitar tampering de identidad. Nombre, email y DNI requieren contacto con la clínica (decisión de producto).
+
+### Dashboard admin — Lenguaje visual consistente con el portal
+
+`app/(dashboard)/dashboard/admin-dashboard.tsx` recibe el mismo patrón de icono tintado + label de color que el portal, adaptado a dark mode con utilidades Tailwind (`bg-<color>-500/10`):
+
+| Card | Icono | Color |
+|---|---|---|
+| Ingresos del mes | `Wallet` blanco sobre emerald | emerald hero |
+| Cobranza pendiente | `CircleDollarSign` | orange |
+| Citas | `CalendarDays` | violet |
+| Pacientes nuevos vs recurrentes | `UserPlus` | emerald |
+| Rendimiento por recepcionista | `Headset` | sky |
+| % de Ocupación | `Gauge` (dinámico) | rose/amber/emerald |
+| Meta del mes | `Target` | emerald |
+| Timeline últimos 30 días | `Activity` | emerald |
+
+### Dashboard admin — Timeline + KPI polish
+
+- **Timeline de 30 días** (reemplaza Top 5 Tratamientos; estos viven en `/reports` desde v0.7.0). Área chart de recharts con gradiente emerald, grid horizontal sutil, tooltip con día de la semana + fecha + conteo. Header del card muestra total + promedio/día y link "Ver agenda →" al scheduler. La query se hace en `dashboard/page.tsx`: `appointments` de los últimos 30 días excluyendo `cancelled`, rellenando con 0 los días sin citas.
+- **Citas card normalizada** — ya no mezcla absoluto y porcentaje. Ahora muestra los tres valores en absoluto (Completadas N · No shows N · Canceladas N) para claridad con volumen bajo.
+- **Ocupación tri-color**:
+  - `>= 60%` → emerald + "Óptima"
+  - `20-60%` → amber + "Media"
+  - `< 20%` → rose + "Baja"
+  - Barra de progreso con ancho mínimo 2% para que 0-1% sea visible.
+  - Hint `"Meta saludable: 60%+"` para dar contexto al número.
+- **Rendimiento por recepcionista condicional** — se oculta cuando hay menos de 2 recepcionistas (la mayoría de clínicas al inicio). La fila 2 colapsa automáticamente de `md:grid-cols-3` a `md:grid-cols-2`, sin hueco visual.
+
+### Archivos Nuevos / Modificados Clave
+
+- `supabase/migrations/094_restore_organizations_is_active.sql` (nuevo)
+- `supabase/migrations/095_restore_doctors_specialty.sql` (nuevo)
+- `app/api/portal/profile/route.ts` (nuevo — PATCH de teléfono)
+- `app/portal/[slug]/mis-citas/page.tsx` (rewrite completo)
+- `app/(dashboard)/dashboard/admin-dashboard.tsx` (iconos + timeline + KPI fixes)
+- `app/(dashboard)/dashboard/page.tsx` (nueva query `dailySeries`, prop `topTreatments` removida)
+- `app/api/portal/auth/request-link/route.ts` (URL canónica)
+- `app/(dashboard)/settings/booking-settings-tab.tsx` (URL canónica)
+- `components/integrations/whatsapp-wizard.tsx` (URL canónica)
+
+### COMING-UPDATES.md — Añadidos al roadmap del portal
+
+- **Portal — Panel de Resultados médicos (lab/imágenes)** — nueva tabla `patient_files`, bucket de Supabase Storage con policy por `org_id`+`patient_id`, UI de upload desde admin, listado agrupado por tipo en el portal.
+- **Portal — Indicaciones / pre-consulta** — campo `pre_appointment_instructions` en `services`, override opcional `custom_instructions` en `appointments`, visible en detalle de cita y email de recordatorio 24h antes.
+
+### Cambios de Alcance
+
+- Portal del Paciente avanza de "Phase 1 (auth + mis citas)" a "Phase 1 consolidada con detalle de cita, perfil editable, filtros y CTA de agendar". Las fases 2 (reservar desde portal), 3 (reprogramar), 4 (documentos) siguen en roadmap.
+- Dashboard admin: el foco cambió de "mix estratégico de servicios" (Top 5) a "pulso operativo" (timeline diario). La visión estratégica sigue disponible en `/reports`.
+
+---
+
+## Changelog — Sesión 2026-04-22 tarde (v0.11.0) — Paciente Recurrente + Portal desktop + /book redesign
+
+### Etiqueta "Paciente Recurrente" automática (migración 096)
+
+Nueva columna `patients.is_recurring boolean NOT NULL DEFAULT false` con índice parcial `(organization_id, is_recurring) WHERE is_recurring`. El flag es **lifetime-persistent**: se activa cuando el paciente acumula ≥ 2 citas `status='completed'` en la org, y se apaga si las citas se eliminan o cambian de estado.
+
+Mantenimiento 100% automático:
+
+- Función `refresh_patient_recurring(p_patient_id uuid)` con `SECURITY DEFINER`.
+- 3 triggers en `appointments`:
+  - `AFTER INSERT` cuando `NEW.status='completed'`.
+  - `AFTER UPDATE OF status, patient_id`.
+  - `AFTER DELETE` cuando `OLD.status='completed'`.
+- Backfill one-shot al correr la migración.
+
+**Conceptualmente distinto** del métric `recurring_patients_month` del dashboard (v0.9.0), que mide multi-visitas **en el mes actual** (operativo). El nuevo flag mide **relación de toda la vida** (segmentación). Ambos coexisten.
+
+**Zonas UX** donde aparece (`components/patients/recurring-badge.tsx` con 2 variantes: `RecurringBadge` tintado emerald + `RecurringDot` 1.5px):
+
+| Zona | Archivo | Componente |
+|---|---|---|
+| Lista `/patients` — fila | `patients/page.tsx:683` | Chip `xs` junto al nombre |
+| Drawer del paciente — header | `patients/patient-drawer.tsx:345` | Chip `xs` |
+| Modal expandido — header | `patients/patient-drawer.tsx:1172` | Chip `sm` |
+| Scheduler — "paciente encontrado" | `scheduler/appointment-form-modal.tsx:628` | Chip `xs` inline |
+| Scheduler day view — cards | `scheduler/day-view.tsx:303` | Punto verde |
+| Scheduler week view — cards | `scheduler/week-view.tsx:289` | Punto verde |
+
+**Filtro en `/patients`** — nuevas pills "Nuevos / Recurrentes" separadas por divider del filtro de status, con auto-toggle al hacer click en el activo.
+
+**Scheduler**: la query de `scheduler/page.tsx` ahora hace join `patients(is_recurring)` para que day/week views lean el flag sin round-trips extra.
+
+**Tipado**: `types/admin.ts` augmenta `Patient` con `is_recurring?: boolean | null` hasta que Supabase regenere los tipos (`npm run types` después del deploy).
+
+### Portal del Paciente — Rediseño Desktop (v1.1)
+
+Hasta ahora el portal vivía con `max-w-md` centrado — en desktop se veía como "un teléfono flotando". Rediseño completo respetando el lenguaje Apple Health mobile:
+
+- **Container**: `max-w-md` → `max-w-5xl`, `lg:px-8`.
+- **Grid principal `lg+`**: `grid-cols-[1fr_320px] gap-8`
+  - **Columna principal**: greeting, hero de próxima cita, sección "Programadas", sección "Historial" con grupos por mes. Los tabs mobile "Próximas/Historial" **desaparecen en desktop** — ambas secciones stack verticalmente con headers propios.
+  - **Sidebar sticky** (`lg:sticky top-28`): tiles 2×2 de resumen + card clickeable "Mi Perfil" con avatar + iniciales.
+- **Tipografía escalada**: título `28px` → `lg:text-4xl`, greeting `22px` → `lg:text-3xl`.
+- **Bottom sheets → drawer responsive**: el componente `BottomSheet` ahora usa `useMediaQuery("(min-width: 1024px)")`. En mobile: slide desde abajo (como antes). En desktop: slide desde la derecha con `max-w-md`, `inset-y-0 right-0 rounded-l-3xl`. Drag handle solo en mobile. `role="dialog" aria-modal="true"`.
+- **Polish UX**: `focus-visible:ring-2` en botones circulares del header, hover shadows en sidebar cards, `max-w-prose` en welcome message. `PortalSkeleton` reemplaza el spinner centrado — renderiza la estructura del layout para reducir jank percibido.
+- Mobile intacto.
+
+### Botón "Agendar cita" condicional (migración 097)
+
+Nueva columna `booking_settings.allow_online_booking boolean NOT NULL DEFAULT true`. Cuando el owner la desactiva desde el admin, el portal deja de linkear a `/book` y en su lugar abre un sheet de contacto.
+
+- `allow_online_booking = true` → botón en el header → `<Link href="/book/[slug]">`.
+- `allow_online_booking = false` → mismo botón → abre `<ContactSheet>`.
+
+**ContactSheet** (nuevo componente en `app/portal/[slug]/mis-citas/page.tsx`):
+
+- Reusa el `BottomSheet` responsive (bottom en mobile, right drawer en desktop).
+- Lista WhatsApp (`wa.me/<digits>`), Llamar (`tel:`), Email (`mailto:`), cada uno como row con icono tintado. Filas que no aplican (canal no configurado) se ocultan.
+- Empty state si la clínica no tiene ningún canal.
+- Datos vienen de `global_variables` (`clinic_phone`, `clinic_email`) scoped por org, surfaced por `/api/portal/auth/session` como `clinic_contact`.
+
+**Mobile FAB** se mantiene solo en `< 640px` con el mismo comportamiento condicional (icono `Plus` vs `PhoneCall`).
+
+### `/book/[slug]` — Rediseño Light + Filtros
+
+**Conversión a tema claro** (era el único flujo del producto aún en dark):
+
+- Paleta: `bg-zinc-950/900/800` → `bg-zinc-50/white`, borders `zinc-800/700` → `zinc-200/300`, body text `zinc-400/300` → `zinc-500/700`.
+- `text-white` preservado solo en superficies con accent color (logo badge, opción seleccionada, submit buttons).
+- El `accent_color` de la clínica sigue manejando selected state, submit button y filter chips.
+
+**Office picker eliminado del UX del paciente**. El paciente nunca debería elegir consultorio:
+
+- Nueva columna `doctors.default_office_id uuid REFERENCES offices(id) ON DELETE SET NULL` (migración 098) con índice parcial.
+- Al cambiar el doctor, un `useEffect` auto-resuelve el office:
+  1. `doctor.default_office_id` si está set y el office sigue activo.
+  2. Primer office alfabético (fallback).
+- El bloque "Consultorio" en el paso de servicio se eliminó.
+
+**Doctor step — búsqueda + filtro por especialidad**:
+
+- Input de búsqueda por nombre/especialidad — solo visible cuando hay ≥ 4 doctores. Botón `X` para limpiar.
+- Chips de especialidad con conteo — solo visibles cuando hay ≥ 2 especialidades distintas. Chip activo usa el accent color, chip "Todas" es el default.
+- `displayedDoctors` = memo que cruza search + specialty. Empty state amigable si no matchea nada.
+
+### Admin doctor form — Especialidad + Consultorio por defecto
+
+`/admin/doctors/[id]` (ProfileTab) tenía un hueco histórico: no había dónde setear la especialidad del doctor (la columna `specialty` existía desde migración 095 pero sin UI).
+
+- Nuevo campo **Especialidad** — input de texto libre, max 100, optional. Hint: "Visible en el portal del paciente y en la reserva pública".
+- Nuevo campo **Consultorio por defecto** — dropdown con los offices de la org (o "Sin preferencia"). Alimenta `doctors.default_office_id`.
+- `lib/validations/doctor.ts` extendido con `specialty` y `default_office_id` (ambos nullable).
+- El payload del `UPDATE` escribe ambos, convirtiendo string vacío a `null`.
+
+### API changes
+
+- `GET /api/portal/auth/session` retorna ahora `portal_settings.allow_online_booking` + nuevo campo `clinic_contact: { phone, email }` (de `global_variables`).
+- `GET /api/book/[slug]` retorna `doctors.default_office_id` para permitir resolución client-side.
+
+### Archivos Nuevos / Modificados Clave
+
+- `supabase/migrations/096_patients_is_recurring.sql` (nuevo)
+- `supabase/migrations/097_booking_settings_allow_online_booking.sql` (nuevo)
+- `supabase/migrations/098_doctors_default_office.sql` (nuevo)
+- `components/patients/recurring-badge.tsx` (nuevo)
+- `app/portal/[slug]/mis-citas/page.tsx` (desktop grid, ContactSheet, skeleton, responsive sheet)
+- `app/api/portal/auth/session/route.ts` (allow_online_booking + clinic_contact)
+- `app/book/[slug]/page.tsx` (rewrite de tema + search + specialty chips + office auto-resolve)
+- `app/api/book/[slug]/route.ts` (añade default_office_id al select)
+- `app/(dashboard)/admin/doctors/[id]/page.tsx` (specialty + default_office_id en ProfileTab)
+- `app/(dashboard)/patients/page.tsx` (badge + filter Recurrentes)
+- `app/(dashboard)/patients/patient-drawer.tsx` (badge en drawer + modal)
+- `app/(dashboard)/scheduler/page.tsx` (join `patients(is_recurring)`)
+- `app/(dashboard)/scheduler/day-view.tsx` + `week-view.tsx` (RecurringDot)
+- `app/(dashboard)/scheduler/appointment-form-modal.tsx` (badge en patient found)
+- `lib/validations/doctor.ts` (specialty + default_office_id)
+- `types/admin.ts` (augment Patient con `is_recurring`)
+
+### Cambios de Alcance
+
+- Nuevo pilar: **segmentación de pacientes por engagement**. La bandera `is_recurring` habilita filtros en `/patients`, y futuras campañas de marketing diferenciadas (variable `{{paciente_recurrente}}` en plantillas, próxima iteración).
+- **Portal desktop** sale de estado "mobile-only" a experiencia multi-resolución sin duplicar componentes — misma API, un único `BottomSheet` que se adapta.
+- **Owner control sobre la reserva online**: clínicas que prefieren gestionar el canal vía recepción pueden desactivar `/book` del portal sin cerrarlo globalmente. Flag separado de `booking_settings.is_enabled` (que sigue controlando el acceso público a `/book` para quien no está logueado).
+- Consultorios dejan de ser exposed al paciente — decisión de producto basada en que 99% de clínicas pequeñas asigna consultorio por doctor, no por cita.
+- Especialidad por doctor queda configurada en un único lugar: `/admin/doctors/[id]`. Se muestra en el portal y en `/book`.
+
+---
+
+## Changelog — Sesión 2026-04-22 noche (v0.12.0) — Presupuestos de tratamiento + Descuentos
+
+### Presupuestos de tratamiento multi-servicio (migración 099)
+
+Extensión al sistema de treatment plans (existente desde v0.7.0) para que cada plan represente un presupuesto facturable con sesiones expandidas y contabilidad unificada.
+
+**Modelo de datos — todo aditivo**:
+
+```
+NEW TABLE treatment_plan_items (
+  id, treatment_plan_id, organization_id, service_id,
+  quantity, unit_price, display_order, created_at
+)
+
+ALTER treatment_sessions:
+  + service_id              -- qué servicio es esta sesión
+  + session_price           -- precio snapshot al crear
+  + treatment_plan_item_id  -- de qué item del plan viene
+
+ALTER appointments:
+  + treatment_session_id    -- link 1:1 con la sesión cuando aplica
+
+ALTER patient_payments:
+  + treatment_plan_id       -- permite anticipos al plan sin cita
+```
+
+**Modelo contable unificado**:
+
+```
+Total del plan    = SUM(items.quantity * items.unit_price)
+Pagado            = SUM(patient_payments WHERE treatment_plan_id = X)
+Consumido         = SUM(session_price WHERE status='completed' AND plan = X)
+Saldo             = Pagado - Consumido
+```
+
+Un solo modelo cubre los 3 escenarios de pago que el producto necesita soportar:
+1. **Sesión por sesión**: `payment(appointment_id, treatment_plan_id)` en cada cita.
+2. **Anticipo parcial**: `payment(null, treatment_plan_id)` antes de las sesiones.
+3. **Pago total upfront**: mismo payment con el monto completo.
+
+El saldo se recalcula a demanda. No hay estados especiales de "anticipo" vs "pago normal".
+
+**Doctor — TreatmentPlansPanel (multi-item)**:
+- Form rebuilt como "ticket": lista de líneas editables con servicio (dropdown), cantidad, precio unitario (snapshot de `services.base_price` editable).
+- Añadir/quitar líneas dinámicamente. Preview del total en pill emerald ("S/ 800 · 10 sesiones").
+- Al guardar: crea N sesiones expandidas automáticamente (una por unidad de cada item), con `session_price` snapshot.
+- Template selector existente preservado para nombre/diagnóstico.
+
+**Recepción — Scheduler banner**:
+- Al crear cita con DNI, si el paciente tiene planes activos con sesiones pending → banner azul "Este paciente tiene un plan activo — Sesión N / M · Servicio · S/ X".
+- Click "Agendar sesión" → pre-llena service_id, doctor, y fija `price_snapshot` al `session_price` de la sesión (no al `services.base_price`, para que el presupuesto matemático se mantenga consistente).
+- Al guardar: setea `appointments.treatment_session_id` + mirror `treatment_sessions.appointment_id`.
+
+**Recepción — Appointment sidebar**:
+- Banner de contexto cuando la cita está vinculada: "Sesión N / M · Plan Title" + tres pills (Pagado / Consumido / Saldo).
+- Mensaje verde si `saldo >= session_price` ("Esta sesión se cubre con el crédito del plan"); ámbar si falta cobrar.
+- Payments desde el sidebar ahora se registran con `treatment_plan_id` cuando la cita está vinculada → la contabilidad del plan se actualiza automáticamente.
+- `updateStatus` mirror: completed → session completed + completed_at, cancelled → session unlinked (status pending), no_show → session missed.
+
+**Staff — Nueva tab "Presupuestos" en el drawer del paciente**:
+- Componente `BudgetsPanel` nuevo (`app/(dashboard)/patients/budgets-panel.tsx`): lista de planes con cards total/pagado/saldo, barra de progreso de consumo, badge de estado.
+- Botón "Registrar pago" → modal con monto editable, presets (25/50/100% del pendiente), chips de método (efectivo/yape/transferencia/tarjeta/otro), referencia.
+- Insert en `patient_payments` con `treatment_plan_id` set y `appointment_id` null → anticipo al plan.
+
+**Paciente — Card "Mi plan" en el portal**:
+- Nuevo endpoint `GET /api/portal/plans` devuelve balance computado server-side para los planes activos/pausados del paciente.
+- Card con título, barra de progreso, pagado vs total, pendiente por cobrar.
+- Respeta `accent_color` del clinic.
+- Ubicación: mobile antes de los tiles, desktop en la sidebar arriba de Mi Perfil.
+
+### Descuentos — inline + códigos reutilizables (migración 100)
+
+Sistema two-tier. Inline para todos, códigos reutilizables como Pro feature.
+
+**Modelo de datos**:
+
+```
+NEW TABLE discount_codes (
+  id, organization_id, code, type ('percent'|'fixed'), value,
+  max_uses, uses_count, valid_from, valid_until,
+  applies_to_service_ids uuid[], is_active, notes,
+  created_by, created_at, updated_at,
+  UNIQUE (organization_id, code)
+)
+
+ALTER appointments:
+  + discount_amount    -- default 0
+  + discount_reason    -- texto libre o "Código X"
+  + discount_applied_by (FK auth.users)
+  + discount_code_id   (FK discount_codes, nullable)
+```
+
+**Effective price computation**:
+
+```
+effective_price = GREATEST(0, price_snapshot - discount_amount)
+```
+
+Computado en render — no hay columna generada. Callers que no conocen el discount (reportes existentes, portal) siguen leyendo `price_snapshot` sin cambios.
+
+**Inline discount (plan Starter y superiores)**:
+- Botón "Aplicar descuento" en el Cobros section del sidebar.
+- Form expandible con 2-3 tabs: `%` / `S/.` / `Código` (el tercero solo en Pro).
+- Live preview mientras se escribe: "Descuento S/ X · Nuevo total S/ Y".
+- Writes directo a `appointments.discount_amount + discount_reason + discount_applied_by` vía RLS.
+- Cuando hay descuento activo: summary muestra el gross price tachado, el delta, y la razón. "Editar" / "Quitar" accesibles.
+- El math del sidebar (totalPrice / pending / paymentStatus / progress bar) usa `effective_price`, así pagar el discounted amount marca la cita como `paid`.
+
+**Códigos reutilizables (Professional, Enterprise)**:
+- Nueva admin page `/admin/discount-codes` gated por `RoleGate minRole=admin` + plan check.
+- Starter ve un prompt de upgrade con link a `/select-plan`.
+- Tabla de códigos: code (copy-to-clipboard), valor, usos/límite, vigencia, estado auto-computado (Activo / Inactivo / Expirado / Agotado), edit/delete.
+- Create/edit modal: code, type, value, max_uses (optional), date window, applies_to services (chips — sin selección = todos), notes.
+- Card nuevo en `/admin` grid (icono Tag, link a la página).
+
+**API**:
+- `GET /api/discount-codes` — list (plan-gated).
+- `POST /api/discount-codes` — create (plan-gated, valida percent ≤ 100).
+- `PATCH /api/discount-codes/[id]` — update.
+- `DELETE /api/discount-codes/[id]` — delete.
+- `POST /api/discount-codes/apply` — atomic apply. Valida status / dates / usage-limit / service-scope, escribe discount en appointment, incrementa `uses_count` via admin client.
+- Todos devuelven `402` cuando `plan.slug === 'starter'`.
+
+### Feature toggle — Descuentos activables (migración 101)
+
+Owner puede desactivar todo el feature desde Settings:
+
+- Nueva columna `booking_settings.discounts_enabled boolean default true`.
+- Nueva sección "Descuentos en citas" en **Settings → Agenda** con toggle y hint-text inline que enumera qué controla.
+- Cuando `false`:
+  - El botón "Aplicar descuento" desaparece del sidebar (hidden).
+  - `POST /api/discount-codes/apply` devuelve `403` con mensaje claro.
+  - No afecta descuentos ya aplicados — solo bloquea nuevos.
+- Independiente del plan gating: `discounts_enabled=true` en Starter sigue exponiendo solo el inline (codes siguen siendo Pro).
+
+### Decisión de producto — Descuentos al crear cita en el scheduler
+
+Evaluado y descartado por ahora. El form de creación de cita ya es largo (patient fields, servicio, doctor, office, status, anticipo). Añadir descuento duplica UI que ya existe en el sidebar (1 click después de guardar) y aumenta el cognitive load del form principal.
+
+Si la recepción reporta fricción, se puede añadir más adelante como toggle compacto. La decisión queda documentada aquí para evitar re-debatirla.
+
+### Ingresos reconocidos vs Caja — roadmap
+
+Añadido a COMING-UPDATES.md sección Reportes. No se implementa ahora porque sin volumen de anticipos post-release, las tres vistas devuelven el mismo número. Reevaluar 2-3 meses después del rollout de Presupuestos.
+
+### Archivos Nuevos / Modificados Clave
+
+**Migraciones**:
+- `supabase/migrations/099_treatment_plan_items_and_links.sql` (nuevo)
+- `supabase/migrations/100_discounts.sql` (nuevo)
+- `supabase/migrations/101_booking_settings_discounts_enabled.sql` (nuevo)
+
+**Treatment plans**:
+- `app/api/treatment-plans/route.ts` (multi-item + items expand)
+- `app/(dashboard)/patients/treatment-plans-panel.tsx` (rewrite a form multi-item)
+- `app/(dashboard)/patients/budgets-panel.tsx` (nuevo — tab Presupuestos)
+- `app/(dashboard)/patients/patient-drawer.tsx` (nueva tab)
+- `app/(dashboard)/scheduler/appointment-form-modal.tsx` (banner plan + link session)
+- `app/(dashboard)/scheduler/appointment-sidebar.tsx` (plan context + saldo + mirror on status change)
+- `app/api/portal/plans/route.ts` (nuevo)
+- `app/portal/[slug]/mis-citas/page.tsx` (PortalPlanCard)
+- `types/clinical-history.ts` (TreatmentPlanItem, TreatmentPlanBalance)
+
+**Descuentos**:
+- `app/api/discount-codes/route.ts` (nuevo)
+- `app/api/discount-codes/[id]/route.ts` (nuevo)
+- `app/api/discount-codes/apply/route.ts` (nuevo — atomic)
+- `app/(dashboard)/admin/discount-codes/page.tsx` (nuevo)
+- `app/(dashboard)/admin/admin-page-content.tsx` (card nuevo + count guard)
+- `app/(dashboard)/scheduler/appointment-sidebar.tsx` (DiscountControls, effective_price math)
+
+**Settings**:
+- `app/(dashboard)/settings/booking-settings-tab.tsx` (toggle discounts_enabled)
+
+**Docs**:
+- `docs/treatment-plans-design.md` (nuevo — 10 diagramas Mermaid)
+- `COMING-UPDATES.md` (add Ingresos vs Caja report, add Panel de resultados + Indicaciones de pre-consulta al Portal)
+
+### Cambios de Alcance
+
+- **Presupuestos** sale como fundacional para cualquier clínica que venda paquetes (dermatología, fertilidad, estética). Antes no era viable hacerlo bien porque `treatment_plans` no tenía precio y `patient_payments` no ligaba a plan.
+- **Descuentos** sale con arquitectura clean two-tier: inline desbloquea casos cotidianos sin gating, códigos como feature de marketing que justifica el upgrade a Pro.
+- **Feature toggle** — nueva convención: features que impactan flujos operativos (como los descuentos) deben poder ser desactivadas por el owner. La mayoría de clínicas lo tendrá activo, pero algunas pueden preferir no permitir descuentos (clínicas de alta gama, o cuando se está construyendo disciplina de precios).
+- **Zero breaking change**: todo `discount_amount` default 0 + `treatment_session_id` null + `treatment_plan_id` null en payments. Flujos existentes no se tocan hasta que explícitamente se usen las nuevas features.
+
+---
+
+## Changelog — Sesión 2026-04-22 cierre (v0.12.1) — Parches post-release
+
+Cuatro bugs encontrados probando los features de v0.12.0 en producción, más un incidente de integridad de datos que originó un bug preventivo en el form del scheduler.
+
+### Parche 1 — `discount_amount` no se descontaba en múltiples vistas
+
+El feature de descuentos actualizó la matemática del sidebar de cita, pero 4 lugares adicionales seguían comparando `price_snapshot` gross contra `total_paid`, haciendo que una cita pagada en su totalidad tras un descuento apareciera como deudora por el monto del descuento.
+
+**Síntoma reproducible**: cita de S/ 150 con 10% de descuento (= S/ 135), pagada por completo. La card del scheduler day-view mostraba badge rojo `⚠ S/15` en vez del check verde.
+
+**Lugares corregidos**:
+- `scheduler/day-view.tsx` — indicator de Payment/Debt en cada card.
+- `scheduler/week-view.tsx` — indicator compacto en cards de la vista semanal.
+- `scheduler/appointment-sidebar.tsx` — cálculo de "deuda del paciente" (suma de pendientes de todas sus citas).
+- `patients/page.tsx` — filtro "Deudores" y columna Deuda del CSV export.
+
+Todos ahora usan `effective_price = max(0, price_snapshot - discount_amount)` antes de comparar contra pagos. `PatientExtraData.appointments[].discount_amount` añadido al tipo y al `SELECT`. Default zero para filas previas a migración 100.
+
+### Parche 2 — Integridad del link paciente↔cita al editar en el scheduler
+
+**Bug real descubierto en producción**: una cita mostraba `patient_name = "Anahir Lopez"` pero `patient_id` apuntaba a Oscar Duran (otro paciente real distinto de la misma org). Los pagos de la cita se atribuyeron a Oscar. La "Anahir Lopez" no aparecía en `/patients` porque nunca existió como fila en `patients`.
+
+**Causa**: flow UX permisivo en `appointment-form-modal.tsx`. Recepción tipea un DNI → el sistema encuentra un paciente → auto-llena `patient_id`, `patient_name`, `patient_last_name`, `patient_phone`. Si recepción luego **edita manualmente** los campos de nombre/teléfono para crear "otra persona", el `patient_id` quedaba pegado al match original. Al guardar: la cita saveaba con el `patient_id` equivocado.
+
+**Fix**: nuevo `useEffect` en `appointment-form-modal.tsx` que observa `patient_name`, `patient_last_name` y `patient_phone`. Si cualquiera diverge del `foundPatient` ligado, limpia `patient_id` (`setValue("patient_id", "")`) y hace `setFoundPatient(null)`. El banner "paciente encontrado" se transforma automáticamente en "paciente nuevo", dando feedback visual claro al usuario.
+
+Solo actúa en el create-flow. No afecta edición de citas existentes (ahí `foundPatient` nunca se inicializa).
+
+### Parche 3 — Toast de error genérico escondía causas reales
+
+**Síntoma**: "Error al guardar el paciente" sin más contexto, dejaba al usuario sin saber qué hacer. Debugear requería abrir DevTools y leer el error de Supabase.
+
+**Fix** en `patient-drawer.tsx → handleSaveInfo`. El toast ahora decodifica los códigos más comunes de Postgres:
+- `23505` → "Este DNI ya está registrado en otro paciente"
+- `42703` → "Columna faltante en la base de datos: {detalle}. Aplica las migraciones pendientes." (detecta cuando una migración crítica como `sex` en 092 no se aplicó)
+- `23514` → "Valor no permitido: {detalle}. Revisa los campos del formulario." (violaciones de CHECK constraint)
+- Default → mensaje genérico + el `error.message` de Supabase appended
+
+También loggea el error completo a `console.error` para power users.
+
+**Caso que motivó el fix**: un owner intentaba guardar datos de una paciente y fallaba siempre con el mensaje genérico. El diagnóstico expuso que la migración 092 (que añade `patients.sex`) nunca había sido aplicada en esa instancia — un tipo de error silencioso que este toast ahora previene.
+
+### Parche 4 — Scheduler solo mostraba una sesión en planes multi-servicio
+
+**Síntoma**: un paciente tiene plan con 2 items (ej: "10 sesiones de Tratamiento Laser S/ 1200" + "2 sesiones de Mapeo de Endometriosis S/ 350"). Al crear cita con su DNI, el banner solo mostraba ONE sesión (la que tuviera menor `session_number` globalmente), sin dar opción a elegir cuál servicio agendar.
+
+**Fix** en el banner del scheduler (`appointment-form-modal.tsx`): la lógica de agrupación pasó de `(plan_id)` a `(plan_id, treatment_plan_item_id)`. Cada item del plan ahora surfaea su propia fila con la siguiente sesión pending de ese servicio y su botón "Agendar sesión" independiente.
+
+Para planes con un solo servicio, el render se colapsa a exactamente 1 fila y la UX es idéntica a antes (sin regresión). Para planes con 2+ servicios aparece un encabezado de nombre de plan seguido de una fila por servicio. El mensaje de confirmación al vincular ahora menciona el servicio específico: "Esta cita se vinculará a la sesión 11 de Mapeo de endometriosis del plan …".
+
+`activePlanSessions` state type extendido con `treatment_plan_item_id: string | null`, propagado en el fetch.
+
+### Data repair ejecutado manualmente
+
+El paciente Anahir Lopez (caso de Parche 2) fue reparado en producción con SQL directo:
+1. Crear paciente `Anahir Lopez` con teléfono `987589854`, DNI provisional NULL — asigna UUID nuevo `9f5a6ada-…`.
+2. Re-vincular 2 citas (`58556211-…` del 30-mar y `d71f8c7c-…` del 22-abr) al UUID correcto.
+3. Re-atribuir 2 pagos (`5827adb0-…` y `d39963aa-…` por S/ 79.50 y S/ 55.50 respectivamente) a Anahir. Antes estaban sumando deuda ficticia a Oscar Duran.
+
+Procedimiento documentado para casos similares: buscar con queries heurísticas citas donde `appointments.patient_name` no coincide con `patients.first_name + last_name` del `patient_id` ligado, o donde `patient_phone` no matchea `patients.phone`.
+
+### Diagnóstico de schema drift + catchup de migraciones 091 + 092
+
+Auditoría durante el debug del Parche 3 reveló que este ambiente de producción nunca había corrido las migraciones 091 (sistema de addons) ni 092 (curvas de crecimiento). Estaba funcionando gracias a que:
+- `useOrgAddons()` hacía `SELECT FROM organization_addons` sobre tabla inexistente, fallaba silencioso, devolvía `[]`.
+- `patients.sex` no existía, pero se usaba solo cuando el form del drawer intentaba hacer `UPDATE` — de ahí el error opaco.
+
+Documentado para referencia futura un SQL catchup seguro con:
+- `addons` + `organization_addons` + RLS policies
+- Seed de 15 addons (dermatology, odontology, pediatrics, cardiology, aesthetic, growth_curves, telehealth, lab_integration, etc.) con sus metadatos (category, specialties, is_premium, min_plan)
+- `patient_anthropometry` table con RLS
+- Sin los `INSERT FROM organization_specialties` de auto-activación (para no depender de tablas que podrían no existir todavía en ambientes similares)
+
+Decisión de producto: como alternativa al copy-paste manual en Supabase SQL Editor, agregar Supabase CLI al flujo de desarrollo queda recomendado. El setup (5 min, una sola vez) permite `npm run db:push` para aplicar todas las migraciones pendientes en orden sin posibilidad de saltarse una. Task no crítico, a hacer cuando el owner tenga tiempo.
+
+### Archivos modificados
+
+- `app/(dashboard)/scheduler/day-view.tsx`
+- `app/(dashboard)/scheduler/week-view.tsx`
+- `app/(dashboard)/scheduler/appointment-sidebar.tsx`
+- `app/(dashboard)/scheduler/appointment-form-modal.tsx`
+- `app/(dashboard)/patients/page.tsx`
+- `app/(dashboard)/patients/patient-drawer.tsx`
+
+Cero migraciones nuevas en v0.12.1. Todo el trabajo es TypeScript + lógica. La migración 101 ya fue ejecutada en v0.12.0; las migraciones 091 + 092 quedan pendientes de aplicación manual con SQL catchup documentado.
+
+### Cambios de Alcance
+
+- **Disciplina de observabilidad**: el Parche 3 establece el patrón de decodificar códigos Postgres en toasts al usuario. Los próximos formularios de edición de entidades (organization, doctor, service, etc.) deben adoptar el mismo patrón para no reintroducir UX ciega.
+- **Integridad de datos en forms multi-modo**: el Parche 2 expone una categoría de bugs donde un form que hace prefetch+prefill por un identificador (DNI, email, phone) debe mantener la invariante "mientras los campos coincidan con el registro encontrado, la relación sigue; si divergen, se rompe". Aplicar misma guarda a cualquier form que siga este patrón (búsqueda de proveedores, pacientes familiares, etc.).
+- **Schema drift es un problema operativo real**, no teórico: esta sesión se toparon 5 columnas y 3 tablas faltantes en un proyecto productivo. Justifica la inversión en automatizar el push de migraciones (CLI / CI) antes de llegar a más clientes.
+
+---
+
+## Changelog — Sesión 2026-04-22 cierre-2 (v0.12.2) — Consentimiento informado Tier 1
+
+Feature legal obligatoria en Perú (Ley 29414 + DS 027-2015-SA) — consentimiento informado para procedimientos con riesgo. Implementado en su versión MVP; Tiers 2 y 3 documentados en COMING-UPDATES.
+
+### Migración 102
+
+Tres columnas nuevas, todas aditivas y con defaults seguros:
+
+- `services.requires_consent BOOLEAN NOT NULL DEFAULT false` — el clinic admin marca qué servicios son procedimientos riesgosos (cirugía, anestesia, estética, radiación, etc.).
+- `clinical_notes.consent_registered BOOLEAN NOT NULL DEFAULT false` — marca de auditoría que el doctor obtuvo consentimiento.
+- `clinical_notes.consent_notes TEXT` — notas contextuales (ej: "firmado por la madre en caso pediátrico", "paciente difiere el procedimiento", "testigo presente").
+
+Zero impacto en datos existentes. Decisión de diseño: el **archivo firmado en sí** (foto del papel / escaneo) sigue viviendo en `clinical_attachments` con `category='consent'` — ese valor de categoría ya existía pero nunca se había usado operativamente. Reusamos el flujo de upload existente (que en móvil ofrece "Tomar foto" automáticamente desde el browser) en lugar de construir un uploader nuevo.
+
+### Admin — Toggle por servicio
+
+En `/admin/services` al editar cada servicio, nuevo toggle **"Requiere consentimiento informado"** con hint explicativo. Al marcar un servicio como `requires_consent = true`, todas las citas futuras de ese servicio activarán el bloque prominente en la nota clínica.
+
+Zod schema extendido en `lib/validations/service.ts`. Default false para no romper servicios existentes.
+
+### Editor de nota clínica — Bloque "Consentimiento informado"
+
+Nuevo panel integrado en `ClinicalNotePanel`:
+
+- **Auto-adaptativo al servicio**: si el servicio de la cita tiene `requires_consent = true`, el bloque aparece en **ámbar prominente** con badge "Requerido" y texto legal de contexto. Si no, aparece como bloque gris discreto (por si el doctor quiere registrar consentimiento optativo igual).
+- **Checkbox "Consentimiento registrado"** — firma operativa del doctor.
+- **Textarea de notas** opcional.
+- **Contador de adjuntos** tipo `consent` ya subidos a la cita (pill verde "✓ N archivos").
+- **Warning amarillo** cuando el servicio lo requiere pero no hay adjuntos: instruye al doctor a tomar foto del papel firmado y subirlo en Adjuntos → categoría Consentimiento.
+
+Los nuevos campos se propagan por el autosave existente (30s debounce) + save manual sin cambios en la arquitectura del panel.
+
+### API
+
+- `clinicalNoteSchema` + `clinicalNoteUpdateSchema` extendidos con `consent_registered` y `consent_notes`.
+- `/api/clinical-notes` POST y PATCH ya hacían spread de `parsed.data`, por lo que los nuevos campos se persisten sin cambios adicionales de código.
+- Types `ClinicalNote` en `types/clinical-notes.ts` actualizados.
+
+### Fetch del flag + contador
+
+Nuevo `useEffect` en `ClinicalNotePanel` que al abrir la nota consulta:
+- `appointments.services.requires_consent` para saber si activar modo ámbar.
+- `COUNT` de `clinical_attachments` con `category='consent'` ligados a la cita/paciente — alimenta el badge verde.
+
+Queries simples, una sola vez por apertura del modal. Sin impacto en perf.
+
+### UX flow completo (cómo usarlo)
+
+1. **Clinic admin** va a `/admin/services`, edita el servicio "Aplicación de Botox" (por ejemplo), activa el toggle "Requiere consentimiento informado" → guarda.
+2. **Recepción** agenda una cita con ese servicio para una paciente.
+3. **Doctor** el día de la cita abre la nota clínica desde el scheduler. El bloque de consentimiento aparece en ámbar con badge "Requerido".
+4. **Doctor imprime** el formato de consentimiento (por ahora desde un Word/PDF propio — Tier 2 lo hará automático). Paciente firma a mano.
+5. **Doctor toma foto** con su celular al papel firmado, lo sube en Adjuntos → categoría Consentimiento. El contador del bloque pasa a "✓ 1 archivo".
+6. **Doctor marca** el checkbox "Consentimiento registrado" en la nota. Autosave en 30s.
+
+Flujo legal cumplido end-to-end. El documento firmado queda en Supabase Storage con RLS por org, y el registro de "consent_registered = true" queda en la nota clínica auditable.
+
+### Tier 2 y Tier 3 — Roadmap
+
+Documentados con detalle en COMING-UPDATES.md sección 🏥 Historia Clínica:
+
+- **Tier 2** — `consent_templates` + `consent_records` + generador de PDF pre-llenado con datos del paciente/doctor/clínica. Gated a Professional+. Ahorra ~10 min por procedimiento.
+- **Tier 3** — Firma digital desde el portal del paciente (canvas manuscrito o aceptación electrónica con hash). Diferible hasta que haya demanda explícita de clientes.
+- **Badge de incumplimiento** — nice-to-have en drawer del paciente para auditorías internas. ~1h de trabajo cuando se priorice.
+
+### Archivos modificados
+
+- `supabase/migrations/102_informed_consent_tier1.sql` (nuevo)
+- `lib/validations/service.ts` (`requires_consent` en zod schema)
+- `lib/validations/clinical-note.ts` (`consent_registered` + `consent_notes` en zod schema)
+- `types/clinical-notes.ts` (ClinicalNote extendido)
+- `app/(dashboard)/admin/services/page.tsx` (toggle en form)
+- `app/(dashboard)/scheduler/clinical-note-panel.tsx` (bloque UI + fetch de flag + autosave extendido)
+- `COMING-UPDATES.md` (tier 2, tier 3, badge documentados)
+
+Cero breaking change. Servicios existentes siguen con `requires_consent = false` y notas existentes con `consent_registered = false` — comportamiento idéntico al pre-v0.12.2 hasta que el owner marque explícitamente los servicios.
+
+### Cambios de Alcance
+
+- **Cumplimiento legal como feature foundational, no premium**: el Tier 1 queda disponible en TODOS los planes (incluyendo Starter). Razón: el cumplimiento de Ley 29414 no debe ser un paywall — es una obligación del negocio médico. La diferenciación comercial vendrá del Tier 2 (templates + generación de PDF) que es productivity.
+- **Reuso de infrastructure existente antes de construir nueva**: la decisión de usar `clinical_attachments.category='consent'` + el input file HTML estándar (que ofrece "Tomar foto" en móvil) evitó construir un uploader especializado. Patrón a repetir para otras features.
+- **Detección contextual automática**: el bloque de consentimiento cambia su prominencia visual según el servicio de la cita, sin que el doctor tenga que recordar cuáles son "riesgosos". La configuración vive donde debe (admin), la aplicación se hace donde importa (nota clínica).
+
+---
+
+## Changelog — Sesión 2026-04-22 cierre-3 (v0.12.3) — Primera ronda de fixes post-auditoría
+
+Primeros 5 items atacados del plan de acción derivado de la auditoría multi-agente (security + performance + UX). Los reportes completos quedan en `docs/*-review-2026-04-22.md`.
+
+### 🔴 Security — 2 P0 corregidos
+
+**F-01 (P0) — cross-tenant PHI risk in `/api/portal/plans`**
+
+`app/api/portal/plans/route.ts` usa `createAdminClient()` (bypass RLS) para consultar `patient_payments` por `treatment_plan_id`. Aunque los `planIds` venían pre-filtrados por org en la query anterior, el admin client **no respeta RLS**, así que un ataque teórico con colisión de UUID podría haber expuesto pagos de otra clínica.
+
+Fix: añadir `.eq("organization_id", session.organization_id)` explícito al query de `patient_payments`. Defense-in-depth contra el admin client.
+
+**F-02 (P0) — TOCTOU en cancel de cita del portal**
+
+`app/api/portal/appointments/cancel/route.ts` hacía el `UPDATE` sin re-asertar `patient_id` + `organization_id` en el WHERE, dependiendo solo del `SELECT` previo para validar ownership. Con admin client y race condition, un atacante con session_token válido podría haber cancelado citas ajenas.
+
+Fix: el UPDATE ahora incluye `.eq("patient_id", ...).eq("organization_id", ...).in("status", ["scheduled", "confirmed"])` como guarda atómica.
+
+### ⚡ Performance — Migración 103
+
+Nueva migración `103_perf_indexes_2026_04_22.sql` con 10 índices identificados por el performance audit:
+
+- `schedule_blocks(organization_id, block_date)` — F-32
+- `clinical_notes(patient_id, created_at DESC)` — F-14
+- `pg_trgm` extension + GIN indexes on `patients(first_name, last_name, dni, phone)` — F-11 (patient search ILIKE)
+- `lookup_values(lookup_category_id, organization_id, is_active)` — F-29
+- `patient_payments(appointment_id) INCLUDE (amount)` — covering index, F-18
+- `reminder_logs(appointment_id, template_slug, channel, status)` — cron cadence
+- `notifications(organization_id, created_at DESC)` — dashboard topbar
+- `patient_portal_sessions(patient_id, expires_at DESC)`
+- `clinical_attachments(patient_id, created_at DESC)`
+
+`ANALYZE` sobre todas las tablas afectadas al final de la migración para que el planner adopte los índices de inmediato.
+
+### 📦 Bundle — paquete `motion` eliminado
+
+`npm uninstall motion` — removido del `package.json`. Duplicado de `framer-motion` (ambos instalados), nunca importado (`grep "from 'motion'"` → 0 matches). Ahorra ~8.5 MB de node_modules y ~300 KB gzip en el bundle de producción (Next no lo tree-shakeaba porque aparecía como import inválido al momento del análisis).
+
+### 🎨 UX — AlertDialog + dialogs accesibles
+
+**Nuevo sistema de confirmación imperativo**:
+- `components/ui/alert-dialog.tsx` — wrapper de `@radix-ui/react-alert-dialog` con variantes `default` y `destructive`.
+- `components/ui/confirm-dialog.tsx` — `<ConfirmDialogProvider>` al root layout + hook `useConfirm()` para uso imperativo tipo `await confirm({ title, description, variant: "destructive" })`.
+
+**3 `confirm()` nativos críticos reemplazados** (los más irreversibles del repo):
+- `clinical-note-panel.tsx:350` — firmar nota clínica (bloquea ediciones futuras).
+- `appointment-sidebar.tsx:549` — eliminar cita.
+- `portal/mis-citas/page.tsx:282,285` — `alert()` → `toast.error()` (tiene sentido un toast, no un dialog, en el portal).
+
+Los otros ~13 `confirm()` restantes (admin CRUD: discount-codes delete, treatment-plan-templates, clinical-templates, diagnosis-codes, lookups, members, offices, services, growth-curves, whatsapp-templates) usan el mismo patrón `if (!confirm(...)) return;` — su migración al `useConfirm()` es ~10 min de trabajo lineal, documentada en COMING-UPDATES como follow-up.
+
+**3 modales hand-rolled convertidos a Radix Dialog** (role="dialog" + aria-modal + ESC + focus trap + focus return + portal):
+- `scheduler/appointment-form-modal.tsx` — el más usado del app, crear/editar cita.
+- `patients/budgets-panel.tsx` — modal de registrar pago al plan.
+- `admin/discount-codes/page.tsx` — CodeFormModal crear/editar código.
+
+Los ~6 modales restantes (patient-drawer expanded, clinical-history-modal, bulk-import, patient-form, account, members) siguen hand-rolled. Documentado en COMING-UPDATES como deuda de a11y a pagar en el siguiente sprint.
+
+### Archivos modificados
+
+- `app/api/portal/plans/route.ts` (+3 líneas, explicit org filter)
+- `app/api/portal/appointments/cancel/route.ts` (+3 líneas, UPDATE re-asserts ownership)
+- `supabase/migrations/103_perf_indexes_2026_04_22.sql` (nuevo)
+- `package.json` (− `motion` dependency)
+- `components/ui/alert-dialog.tsx` (nuevo)
+- `components/ui/confirm-dialog.tsx` (nuevo — Provider + useConfirm)
+- `app/layout.tsx` (wire ConfirmDialogProvider)
+- `app/(dashboard)/scheduler/clinical-note-panel.tsx` (useConfirm para firma)
+- `app/(dashboard)/scheduler/appointment-sidebar.tsx` (useConfirm para delete)
+- `app/(dashboard)/scheduler/appointment-form-modal.tsx` (Radix Dialog)
+- `app/(dashboard)/patients/budgets-panel.tsx` (Radix Dialog para payment)
+- `app/(dashboard)/admin/discount-codes/page.tsx` (Radix Dialog para form)
+- `app/portal/[slug]/mis-citas/page.tsx` (alert → toast)
+
+### Cambios de Alcance
+
+- **Defense-in-depth cuando se usa `createAdminClient`**: establecido el patrón de re-asertar filtros de ownership en cada query/UPDATE bajo admin client, aún cuando un SELECT previo ya validó. No confiar en el estado de 2 queries atrás — los admin writes bypass RLS y las RLS son nuestra red de seguridad real.
+- **A11y de modales** pasa de "bienintencionada pero ausente" a "sistema Radix con 3 patrones adoptados". La deuda restante (~6 modales) está documentada y tiene el pattern definido — el siguiente sprint es puramente copiar el patrón.
+- **Confirmaciones imperativas** reemplazan `confirm()` nativo sin cambiar la forma del código (`if (!(await confirm({...}))) return;` vs `if (!confirm("...")) return;` — prácticamente el mismo diff en cada sitio), incentivando adopción.
+- **Performance**: migración 103 entrega los índices sin tocar código. Una sola aplicación mejora latencia de 8+ queries en hot paths (scheduler, dashboard, portal, cron).
+
+### Migración pendiente de aplicar
+
+```sql
+-- Aplicar en Supabase SQL Editor (o npm run db:push cuando esté configurado)
+-- Ver: supabase/migrations/103_perf_indexes_2026_04_22.sql
+```
+
+Post-apply, ejecutar:
+```sql
+SELECT indexname FROM pg_indexes WHERE indexname LIKE 'idx_%_trgm' OR indexname LIKE 'idx_schedule_blocks_%' OR indexname LIKE 'idx_clinical_notes_%';
+-- Debe listar los 10 nuevos.
+```
+
+---
+
+## Changelog — Sesión 2026-04-22 cierre-4 (v0.12.4) — Segunda ronda post-auditoría
+
+Segunda tanda de fixes del plan de acción tras la auditoría multi-agente. Cierra 3 findings P1 de security, las optimizaciones del hot-path del scheduler y una primera pasada de copy polish.
+
+### 🛡️ F-06 — `clinical-attachments` ownership check
+
+`GET /api/clinical-attachments/[id]` generaba una URL firmada para el archivo sin verificar que perteneciera a la org del caller. Aunque las RLS policies ya limitaban el SELECT, el endpoint no re-aseguraba en su query. Ahora incluye `.eq("organization_id", membership.organization_id)` explícito — defensa en profundidad + semántica clara 403/404.
+
+### 🛡️ F-10 + F-04 — 2FA real para founder routes (migración 104)
+
+Antes el panel founder tenía 2FA "cosmético": el TOTP generaba una cookie pero **ningún endpoint la verificaba**. Cualquier sesión con `is_founder = true` entraba aunque la cookie fuera falsa o inexistente. Adicionalmente las sesiones se guardaban en un `Map<token, entry>` in-memory — roto en Vercel serverless (cada lambda tiene su propia memoria).
+
+**Fix en 4 partes:**
+
+1. **Migración 104** — nueva tabla `founder_2fa_sessions (token, user_id, expires_at, created_at)` con RLS activa y cero policies (bloquea acceso directo, solo service role escribe/lee).
+
+2. **`lib/founder-auth.ts` reescrito** — ahora usa el admin client + tabla. Funciones `createFounder2FASession`, `validateFounder2FASession`, `destroyFounder2FASession`, `getCurrentFounder2FAUser`. Cleanup amortizado de filas expiradas.
+
+3. **Nuevo `lib/require-founder.ts`** — helper unificado que valida 3 capas: auth + `is_founder` + cookie 2FA. Devuelve `{ userId }` o `{ error: NextResponse }`. Código de error `FOUNDER_2FA_MISSING` permite al frontend redirigir a re-auth.
+
+4. **8 routes founder actualizadas** para usar `requireFounder()` en vez del patrón de auth+is_founder manual (~15 líneas menos por route). Las 3 rutas TOTP (`/setup`, `/verify`, `/status`) preservan el patrón antiguo intencionalmente — corren ANTES del 2FA.
+
+### 🛡️ F-11 — PHI allowlist en LLM assistant
+
+El asistente IA (`/api/ai-assistant`) envía los resultados de queries al usuario como contexto a Anthropic, sin filtrado. Eso significaba que DNIs, nombres, teléfonos, notas clínicas libres y diagnósticos CIE-10 viajaban a la API externa. Aunque Anthropic no retiene bajo contrato empresarial, para contratos con clínicas institucionales (hospitales estatales, aseguradoras) esto es bloqueador.
+
+**Fix:** nuevo `lib/pseudonymize-phi.ts` con helper `pseudonymizePHI(data)`. Dos reglas:
+
+- **Denylist de keys**: `dni`, `email`, `phone`, `portal_*`, `notes`, `subjective/objective/assessment/plan` (SOAP), `diagnosis_code`, `diagnosis_label`, `consent_notes`, direcciones, custom_fields → reemplazadas con `"[redacted]"`.
+- **Pseudonimización consistente**: `first_name`, `last_name`, `patient_name`, `full_name` → mapeo `Map<valor_original, "Paciente #N">` para que el LLM pueda correlacionar ("el Paciente #3 vino 4 veces") sin saber de quién se trata.
+- `birth_date` se trunca a año (`1985-XX-XX`).
+- **NO se redactan**: nombres de doctores (profesionales públicos), servicios, oficinas, fechas de cita, precios, estados → el LLM puede seguir respondiendo "¿cuántas consultas hizo Dr. García este mes?" útilmente.
+
+Aplicado en una sola línea de `/api/ai-assistant/route.ts:522` — se sanitiza `queryData` antes del `JSON.stringify` que va al prompt.
+
+### ⚡ Item 7 — Scheduler hot-path
+
+**Cambio 1 — columnas explícitas en vez de `select("*, ...")`**. El fetch principal del scheduler pasaba por la red todas las ~40+ columnas de `appointments` cuando el UI solo lee ~25. Ahora enumera explícitamente (`id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, organization_id, created_at, updated_at, edited_at, edited_by_name` + las relaciones). Reduce ~50% el volumen de red + parse en clínicas con 200+ citas/día.
+
+**Cambio 2 — indices pre-construidos para lookups O(1)**. `day-view.tsx` hacía `appointments.find(...)` y `appointments.some(...)` dentro del render loop = O(citas × slots × oficinas) por render. Con 200 citas, 50 slots, 5 oficinas → 50.000 comparaciones por cada actualización del DOM.
+
+Nuevo helper `buildAppointmentIndices(appointments, dateStr, slotMinutes)` corre UNA vez por render (vía `useMemo`) y construye:
+- `byExactStart: Map<"officeId|slotTime", Appointment>` para lookup exacto
+- `occupiedSlots: Set<"officeId|slotTime">` para "¿este slot está ocupado?"
+- `sorted: Appointment[]` para el fallback range (citas fuera del grid)
+
+Lookup por celda ahora es O(1). Con los mismos 200 × 50 × 5 = 50.000 checks, el tiempo de render pasa de ~200ms a ~15ms.
+
+### 🎨 Item 9 — Copy polish (primera pasada)
+
+Ediciones aplicadas de la lista del UX review:
+
+- `"Error de conexión"` → `"Sin conexión. Revisa tu internet e intenta otra vez."` en 10 archivos (portal, book, auth, clinical panels, patient drawer).
+- `"Error al crear la cita"` (public booking) → `"No pudimos reservar. El horario puede haberse ocupado — elige otro."`.
+- Portal cancelación: `"Error al cancelar"` → `"No pudimos cancelar tu cita. Intenta de nuevo o contacta a la clínica."` + conversión de `alert()` a `toast.error()` (commit anterior).
+- Portal tiles: `"Primera vez"` → `"Sin visitas previas"`.
+- Portal empty state: `"Contacta a la clínica para agendar"` → `"Contáctanos para agendar tu cita"` (menos stiff).
+- Anglicismo `"Break Time"` → `"Descanso"` en scheduler day-view + dialog (3 archivos).
+
+Las otras ~15 ediciones (status labels conservados para no romper operaciones, placeholders, microcopy de ayuda) quedan registradas en `docs/ux-review-2026-04-22.md` sección "Copy polish" para aplicar con calma.
+
+### Archivos modificados / nuevos
+
+**Security:**
+- `app/api/clinical-attachments/[id]/route.ts` — org guard en GET
+- `supabase/migrations/104_founder_2fa_sessions.sql` (nuevo)
+- `lib/founder-auth.ts` — reescrito para DB backend
+- `lib/require-founder.ts` (nuevo)
+- `app/api/founder/totp/verify/route.ts` — await de create session + constante renombrada
+- 8 rutas founder (no TOTP) — usar `requireFounder()`
+- `lib/pseudonymize-phi.ts` (nuevo)
+- `app/api/ai-assistant/route.ts` — aplica `pseudonymizePHI`
+
+**Performance:**
+- `app/(dashboard)/scheduler/page.tsx` — columnas explícitas
+- `app/(dashboard)/scheduler/day-view.tsx` — indices memoizados
+
+**Copy:**
+- 10 archivos con `"Error de conexión"` → versión amigable
+- `app/portal/[slug]/mis-citas/page.tsx` — varias cadenas
+- `app/book/[slug]/page.tsx` — error de reserva
+- `app/(dashboard)/scheduler/day-view.tsx` + `break-time-dialog.tsx` — Break Time → Descanso
+
+### Migración a aplicar (además de 103)
+
+```sql
+-- supabase/migrations/104_founder_2fa_sessions.sql
+CREATE TABLE IF NOT EXISTS founder_2fa_sessions (
+  token       TEXT PRIMARY KEY,
+  user_id     UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  expires_at  TIMESTAMPTZ NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_founder_2fa_sessions_user ON founder_2fa_sessions (user_id);
+CREATE INDEX IF NOT EXISTS idx_founder_2fa_sessions_expiry ON founder_2fa_sessions (expires_at);
+ALTER TABLE founder_2fa_sessions ENABLE ROW LEVEL SECURITY;
+```
+
+Sin esta migración, **TODAS las rutas founder responderán 403** (F-10 code `FOUNDER_2FA_MISSING`) porque la verificación de cookie busca un token en la tabla que no existe. Aplicar **antes** de deployear el código.
+
+### Cambios de Alcance
+
+- **Defense-in-depth** se consolida como patrón obligatorio: cada endpoint que usa `createAdminClient()` debe re-asertar filtros de ownership. Las RLS son la primera línea de defensa, las queries explícitas son la segunda.
+- **PHI-at-rest vs PHI-in-transit a LLMs**: establece el patrón de pseudonymización antes de enviar a APIs externas. Aplicable a futuras integraciones (OpenAI, Google, etc.) y a exports/reportes que puedan viajar fuera del perímetro.
+- **Scheduler perf**: pattern de "indices pre-construidos con useMemo" puede aplicarse a otras vistas con lookups caros (week-view, historical reports). Queda codificado como ejemplo en `day-view.tsx`.
+- **Copy amigable por defecto**: "Sin conexión. Revisa tu internet" reemplaza el estándar "Error de conexión" en todo el producto. Los próximos errores deben adoptar el mismo tono — específicos, accionables, primera persona plural ("No pudimos…", "Revisa…").
+
+---
+
+## Hito — Pilot de Vitra (2026-04-24)
+
+**Primer cliente real.** Centro de fertilidad en Lima, contrato de 1 mes de evaluación antes de renovación anual. Arranque: semana del Lunes siguiente.
+
+### Docs de soporte creados
+
+Toda la guía operativa del pilot vive en `docs/`:
+
+- `docs/vitra-pilot-checklist.md` — Fases 0→4 (pre-launch, onboarding, semana 1, semanas 2-3, evaluación mes 4)
+- `docs/vitra-seed-data.sql` — Template SQL con placeholders `<<<...>>>` para catálogo de fertilidad (servicios + `requires_consent` + precios), doctores, consultorios, horarios, booking settings
+- `docs/vitra-training-script.md` — 45 min divididos en Recepción (15) · Doctor (15) · Admin (10) · Portal (5)
+- `docs/vitra-feedback-log.md` — Tabla de bugs + métricas semanales + notas de reuniones Viernes + rúbrica de evaluación final
+- `docs/system-tour.md` — Guía mental del sistema (capas, flujos end-to-end, mapa de archivos, gotchas operativos, checklist de mantenimiento)
+
+### Estado de deuda técnica al momento del pilot
+
+Verificación de código al 2026-04-24:
+
+**✅ Cerrados** (v0.12.3 + v0.12.4):
+- F-04 — 2FA sessions DB-backed (migración 104)
+- F-06 — clinical-attachments ownership check
+- F-10 — founder routes validan cookie 2FA real (`requireFounder()`)
+- F-11 — PHI allowlist en LLM assistant (`pseudonymizePHI()`)
+- F-01 perf — columnas explícitas en scheduler
+- Item 6 perf — indices O(1) en day-view (200ms → 15ms)
+- ~14/24 copy edits aplicados
+- `motion` package duplicado removido (-8.5MB)
+- AlertDialog system para confirms críticos
+- Migraciones 103 (performance indexes) + 104 (founder 2fa sessions) aplicadas
+
+**🟡 Parcial**:
+- F-05 rate limiter — funciona in-memory (`lib/rate-limit.ts`), aplicado a webhook MP (60/min) y portal magic-link (3/min). Migración a Upstash/Redis diferida post-pilot (single-instance suficiente para 1 clínica).
+
+**⏸️ Diferidos post-pilot** (no bloquean operación, riesgo de regresión con cliente mirando):
+- F-03 magic-link hash — tokens plaintext en `patient_portal_tokens`. Mitigación actual: RLS estricto + rate limit + TTL corto. Fix programado para v0.12.5.
+- F-19 MP webhook prefix — HMAC sí valida, pero falta prefix check de `data.id`. Fix programado para v0.12.5.
+- ~10 copy edits restantes — principalmente "Error al guardar" genéricos en admin CRUD.
+- 9 modales hand-rolled → Radix Dialog (incluye drawer del paciente, 1400 líneas — refactor delicado).
+- 13 `confirm()` nativos → `useConfirm()` en admin CRUD + 1 en scheduler sidebar.
+- Design system dual (portal iOS-flavored vs dashboard shadcn-tokens vs /book light) — refactor grande, post-feedback de Vitra para priorizar qué unificar.
+- `recharts` dynamic import (F-12 perf).
+- AppointmentSidebar 4 awaits secuenciales → `Promise.all` (F-05 perf).
+
+### Principio operativo del pilot
+
+**El pilot NO es momento de construir features nuevas.** Es momento de pulir lo existente con uso real. Cualquier request de Vitra que no sea bug se captura en `docs/vitra-feedback-log.md` y se prioriza en reunión de evaluación del mes 4.
+
+### Artefactos esperados al cierre del pilot
+
+- Caso de estudio con números reales (citas, pacientes, ingresos, tiempo promedio de consulta)
+- Lista priorizada de bugs/features basada en uso real
+- Testimonial para marketing (si fue bien)
+- Plantilla de onboarding reusable para próximas clínicas
+- Decisión comercial: renovación anual (Professional vs Enterprise) + features pagables extra
+
+---
+
+## Changelog — Sesión 2026-04-24 (v0.12.5) — Tier seguro pre-pilot
+
+Última ronda de fixes **antes** del arranque del pilot de Vitra. Selección deliberadamente minimalista: solo cosas con bajo riesgo de regresión, altas en valor para el flujo que Vitra va a tocar.
+
+### 🛡️ F-03 — Magic-link tokens hasheados (migración 105)
+
+Antes: `patient_portal_tokens.token` guardaba el token raw (64 chars hex) idéntico al que viajaba en el email del paciente. Un backup de DB fugado, una réplica mal configurada, o un RLS momentáneamente débil bastaba para impersonar cualquier paciente cuyo token estuviera vivo (ventana 15 min).
+
+**Fix:**
+- Migración 105: purga los tokens pending, drop columna `token`, añade `token_hash TEXT UNIQUE NOT NULL` + índice. Las filas históricas (used_at NOT NULL) se backfillan con `'legacy-<id>'` para no romper la PK.
+- `lib/portal-auth.ts`: nueva helper `hashToken(raw) = sha256(raw)` hex.
+- `app/api/portal/auth/request-link/route.ts`: genera token raw, lo hashea, persiste solo el hash. Raw sigue yendo al email (estándar para magic-link flows).
+- `app/api/portal/auth/verify/route.ts`: recibe raw del URL query, hashea, busca por hash.
+
+Ahora un leak de DB no es suficiente para usarse — el atacante necesitaría también acceso al correo del paciente (que es exactamente el modelo de seguridad de cualquier magic-link).
+
+### 🧹 11 `confirm()` nativos → `useConfirm()`
+
+Cerrado el último frente del patrón `useConfirm()` introducido en v0.12.3. Migrados:
+
+- `admin/clinical-templates` (delete plantilla)
+- `admin/diagnosis-codes` (delete código)
+- `admin/lookups` (delete valor)
+- `admin/members` (2×: remove + deactivate)
+- `admin/offices` (delete)
+- `admin/services` (2×: delete servicio + delete categoría)
+- `admin/treatment-plan-templates` (delete plantilla)
+- `admin/discount-codes` (delete código)
+- `patients/growth-curves-panel` (delete medición)
+- `settings/whatsapp-templates-tab` (delete plantilla)
+
+Cero `confirm()` nativos restantes en `app/(dashboard)/**`. Solo quedan 3 `alert()` en `founder/integrations/page.tsx` (uso interno, menor prioridad).
+
+### 🎨 Copy edits — ronda 2 (11 cadenas)
+
+Aplicadas de la lista del UX review sección "Copy polish":
+
+- `clinical-note-panel`: `"Error al guardar"` → `"No se pudo guardar la nota. Tus cambios siguen en pantalla — reintenta."` | `"Error al firmar"` → `"No se pudo firmar la nota. Revisa que todos los campos estén completos."` | dialog de firma: `"¿Firmar esta nota clínica? Una vez firmada no podrá ser editada."` → `"Firmar nota clínica. Al firmar se bloquea la edición permanentemente."`.
+- `appointment-sidebar`: `"Error al subir el documento"` → `"No pudimos subir el archivo. ¿Excede los 10 MB?"` | `"Error al registrar pago: " + msg` → `"No pudimos registrar el pago. " + msg`.
+- `scheduler/page`: `"Error al mover la cita: " + msg` → `"No pudimos mover la cita. " + msg`.
+- `appointment-form-modal`: `"Cita creada, pero error al registrar anticipo: " + msg` → `"Cita creada. No se pudo registrar el anticipo — regístralo manualmente en el panel."`.
+- `book/[slug]/page`: `"Elige fecha y hora"` → `"Selecciona fecha y hora"` | `"Entra a tu portal"` → `"Accede a tu portal"` | placeholders `"Juan"`/`"Pérez"` → `"Ej. María"`/`"Ej. Rodríguez"`.
+- Portal: 3× `"Error de conexión"` → `"Sin conexión. Revisa tu internet e intenta otra vez."` en `mis-citas`, `registro`, `verify`.
+
+### 🧱 6 modales hand-rolled → Radix Dialog
+
+Modales convertidos al patrón Radix Dialog (focus trap, ESC, overlay click-outside, `role="dialog"` + aria-labelledby, SSR-friendly portal):
+
+- `scheduler/block-dialog.tsx`
+- `scheduler/available-slots-modal.tsx` (además removido dead `motion`/`AnimatePresence` imports)
+- `admin/members/page.tsx` — invite modal
+- `account/page.tsx` — modal "Añadir cupos extra" (addons)
+- `patients/clinical-history-modal.tsx`
+- `patients/patient-form-modal.tsx`
+
+Patrón copiado de `scheduler/appointment-form-modal.tsx` (referencia dorada). Shell idéntica: `<Dialog open onOpenChange={v => !v && onClose()}> <DialogContent className="[&>button]:hidden"> <DialogTitle/> <DialogDescription className="sr-only"/> ...contenido... </DialogContent> </Dialog>`.
+
+### ⏸️ Explícitamente diferidos (rastreables en `COMING-UPDATES.md`)
+
+- **`patients/patient-drawer.tsx`** — ~1400 líneas, drawer del paciente que recepción usa a diario. Refactor delicado (tabs anidados, estado de edición inline, keyboard shortcuts). Riesgo alto de regresión con pilot arrancando. Requiere sesión dedicada + QA manual.
+- **`patients/bulk-import-modal.tsx`** — parsing de CSV con edge cases numerosos. Mismo argumento.
+- **F-19** (MP webhook prefix check) — fix trivial (~15 min) pero requiere test con sandbox de MP para no romper el flujo de cobros. Se hará en commit separado antes del deploy.
+
+### Archivos modificados / nuevos
+
+**Security:**
+- `supabase/migrations/105_portal_magic_link_hash.sql` (nuevo)
+- `lib/portal-auth.ts` — añadida `hashToken()`
+- `app/api/portal/auth/request-link/route.ts` — persiste hash
+- `app/api/portal/auth/verify/route.ts` — busca por hash
+
+**UX (`useConfirm`):**
+- `app/(dashboard)/admin/clinical-templates/page.tsx`
+- `app/(dashboard)/admin/diagnosis-codes/page.tsx`
+- `app/(dashboard)/admin/lookups/page.tsx`
+- `app/(dashboard)/admin/members/page.tsx`
+- `app/(dashboard)/admin/offices/page.tsx`
+- `app/(dashboard)/admin/services/page.tsx`
+- `app/(dashboard)/admin/treatment-plan-templates/page.tsx`
+- `app/(dashboard)/admin/discount-codes/page.tsx`
+- `app/(dashboard)/patients/growth-curves-panel.tsx`
+- `app/(dashboard)/settings/whatsapp-templates-tab.tsx`
+
+**UX (copy):**
+- `app/(dashboard)/scheduler/clinical-note-panel.tsx`
+- `app/(dashboard)/scheduler/appointment-sidebar.tsx`
+- `app/(dashboard)/scheduler/page.tsx`
+- `app/(dashboard)/scheduler/appointment-form-modal.tsx`
+- `app/book/[slug]/page.tsx`
+- `app/portal/[slug]/mis-citas/page.tsx`
+- `app/portal/[slug]/registro/page.tsx`
+- `app/portal/[slug]/verify/page.tsx`
+
+**UX (modales Radix):**
+- `app/(dashboard)/scheduler/block-dialog.tsx`
+- `app/(dashboard)/scheduler/available-slots-modal.tsx`
+- `app/(dashboard)/admin/members/page.tsx`
+- `app/(dashboard)/account/page.tsx`
+- `app/(dashboard)/patients/clinical-history-modal.tsx`
+- `app/(dashboard)/patients/patient-form-modal.tsx`
+
+### Migración a aplicar antes del deploy
+
+```sql
+-- supabase/migrations/105_portal_magic_link_hash.sql
+DELETE FROM patient_portal_tokens WHERE used_at IS NULL;
+DROP INDEX IF EXISTS idx_portal_tokens_lookup;
+ALTER TABLE patient_portal_tokens DROP CONSTRAINT IF EXISTS patient_portal_tokens_token_key;
+ALTER TABLE patient_portal_tokens DROP COLUMN IF EXISTS token;
+ALTER TABLE patient_portal_tokens ADD COLUMN token_hash TEXT;
+UPDATE patient_portal_tokens SET token_hash = 'legacy-' || id::text WHERE token_hash IS NULL;
+ALTER TABLE patient_portal_tokens ALTER COLUMN token_hash SET NOT NULL;
+ALTER TABLE patient_portal_tokens ADD CONSTRAINT patient_portal_tokens_token_hash_key UNIQUE (token_hash);
+CREATE INDEX idx_portal_tokens_hash_lookup ON patient_portal_tokens (token_hash, expires_at);
+```
+
+Sin esta migración, `/api/portal/auth/request-link` fallará al insertar (columna `token_hash` no existe) y `/api/portal/auth/verify` no encontrará tokens (busca por `token_hash`). Aplicar **antes** de deployear.
+
+### Cambios de Alcance
+
+- **Magic-link security**: establece el patrón de `raw en email + hash en DB` para cualquier token futuro (session tokens del portal siguen siendo plaintext en DB pero están en cookie httpOnly/secure — distinto vector; revisable post-pilot si hace falta).
+- **`confirm()` nativos erradicados del dashboard**: queda como regla de contribución. Cualquier PR que introduzca `confirm()` nativo debe convertirse a `useConfirm()`.
+- **Modales Radix Dialog**: 2 modales grandes (`patient-drawer` + `bulk-import`) quedan hand-rolled intencionalmente, documentados en COMING-UPDATES con criterios claros para retomar el refactor.
+
+
+---
+
+## Changelog — Sesión 2026-04-24 tarde (v0.12.6) — Landing auditada + RevenueImpact
+
+Auditoría multi-agente (senior web design + neurocopywriting + UI/UX) de la home page. Foco: qué queda anticuado, qué no persuade, qué sección falta para cerrar la conversación de venta.
+
+### 🎯 Nueva sección `RevenueImpact` — "Cómo Yenda aumenta tus ingresos"
+
+Insertada entre `ExpectedResults` y `Pricing`. Tono: en LATAM se dice "ingresos" / "facturación", NO "ventas" — suena a vendedor de autos. Objetivo: que el owner entienda que Yenda no es gasto operativo, es inversión en revenue.
+
+**Componente:** `components/landing/revenue-impact.tsx` (nuevo, ~320 líneas).
+
+**3 bloques narrativos:**
+
+1. **Grid 4-col de pérdidas** — Cada card muestra dónde se pierde plata HOY vs. qué recupera Yenda, con tachado rose sobre el valor perdido:
+   - No-shows (15–25% agenda → hasta 38% menos)
+   - Cobranza pendiente (S/ 500–1,200/mes → 60–80% recuperado)
+   - Pacientes que no vuelven (40% sin seguimiento → +15% retención)
+   - Captación frenada (solo por llamada → +8–12% nuevos)
+
+2. **Calculadora ROI interactiva** — 3 sliders (doctores, citas/doctor/mes, tarifa promedio). Modelo conservador: no-show 20% → 5% + 8% captación extra. Resultado animado con easing cúbico en S/ por mes y por año. Card verde con dos bullets explicando de dónde sale el número.
+
+3. **Headline de apertura:** "Tu clínica pierde dinero todos los meses. Yenda te muestra dónde." Subheadline ataca la objeción peruana típica: "No se trata de presionar a tus pacientes. Se trata de dejar de perder cobros por olvido…".
+
+**Decisión de producto:** el modelo de cálculo es deliberadamente conservador. Con `doctors=3, apptPerDoctor=60, price=150` da ~S/5.4k/mes. No se usan claims agresivos tipo "multiplica por 3x".
+
+### 🧠 Copy del Hero reescrito
+
+Antes:
+- H1: "La primera agenda clínica con IA."
+- CTAs: "Empezar ahora" / "Ver cómo funciona"
+- Trust line: "Sin contratos. Cancela cuando quieras."
+
+Después:
+- H1: "Menos tiempo administrando. **Más tiempo con tus pacientes.**"
+- CTAs: "Probar gratis 14 días" / "Calcula tu impacto" → `#revenue-impact`
+- Trust line: "**Sin tarjeta para probar.** Sin contratos. Configura tu clínica en minutos."
+
+**Razón:** "La primera con IA" es vago (¿primera en qué? ¿por qué importa?). El headline nuevo ataca el dolor concreto (administración come tiempo clínico). El CTA secundario ahora lleva a la calculadora ROI en vez de a un ancla genérica de features — deep-link a la sección más persuasiva de la home.
+
+### 🏥 `SocialProof` rediseñado
+
+Antes: 4 trust badges + 1 pill "Sé de los primeros 100". Sin testimonios ni validación real.
+
+Después: layout 5-col:
+- **3 columnas** — testimonial card de Vitra (primer cliente real, pilot Abril 2026): nombre, tipo, ubicación, quote de por qué eligieron Yenda, status pill "Pilot activo". Placeholder verificable — el quote se reemplaza con testimonio real post-pilot.
+- **2 columnas** — card verde "Acceso anticipado" con CTA a Pricing.
+- **Debajo** — los 4 trust badges originales en fila.
+
+Convierte una sección débil (la más flaggeada por los 3 agentes) en el cierre emocional previo a Pricing. El testimonial de Vitra es real y verificable; el framing "construido con los primeros 100" ancla por qué el feedback del early adopter importa.
+
+### 🔀 Reorden narrativo: `TrustBadges` después de `PainPoints`
+
+Orden antes: Hero → **TrustBadges** → GrowthPath → PainPoints → RoleSuperpowers → Features → LiveNotifications → AIAssistant → ExpectedResults → Pricing → SocialProof → ComingUpdates → FAQ → FinalCTA.
+
+Orden después: Hero → **PainPoints** → **TrustBadges** → GrowthPath → RoleSuperpowers → Features → LiveNotifications → AIAssistant → ExpectedResults → **RevenueImpact** → Pricing → SocialProof → ComingUpdates → FAQ → FinalCTA.
+
+**Razón (neurocopy agent):** TrustBadges después del Hero interrumpe. Mejor fluye así: hook → "¿te suena?" (dolor) → validación institucional → ROI → solución detallada → precio.
+
+### Archivos modificados / nuevos
+
+- `components/landing/revenue-impact.tsx` (nuevo)
+- `components/landing/hero.tsx` — headline + CTAs + trust line
+- `components/landing/social-proof.tsx` — reescrita completa con testimonial Vitra
+- `app/page.tsx` — import + reorden
+
+### Cambios de Alcance
+
+- **"Ingresos" > "Ventas"** queda como regla de copy: todo copy de vender-a-clínica usa "ingresos", "facturación", "cobranza" — nunca "ventas". Aplica a toda landing futura, emails de activación, copy de trial.
+- **Deep-links desde Hero**: el CTA secundario de Hero apunta a `#revenue-impact`. Patrón reusable — el CTA secundario puede llevar a la sección con mayor densidad persuasiva, no a un genérico `#features`.
+- **Testimonial-placeholder con cliente real**: `SocialProof` muestra a Vitra antes del testimonio verificado final. Políticamente honesto porque el pilot ES real y público — no inventa quote, lo enmarca como "pilot activo". Actualizar quote al cierre del pilot.
+
+### Deuda registrada (ver `COMING-UPDATES.md`)
+
+Items que los agentes detectaron y decidimos NO hacer pre-pilot (riesgo de regresión, foco en estabilidad):
+
+- Modernización del Hero mockup (asymmetric + device secundario flotante)
+- Consolidar `GrowthPath` + `Pricing` (duplican los 3 tiers)
+- Mobile breaks en `RoleSuperpowers`, `LiveNotifications`, `PatientCardsCarousel`
+- CTA differentiation en Pricing (3× "Empezar ahora" idénticos) y RoleSuperpowers (sin CTA)
+- Features con screenshots reales (hoy placeholders vacíos)
+- Micro-interactions: Pricing toggle, Feature hover, LiveNotifications swipe
+- Muletas copy a eliminar: "Todo lo que necesitas. Nada que no.", "Potencia administradores", "Y no para."
+
+---
+
+## Changelog — Sesión 2026-04-24 (v0.12.7) — Google Calendar (org-level, one-way)
+
+Primera integración real con Google Calendar. Modelo deliberadamente simple para empezar: **una sola cuenta por organización** (no por doctor), **one-way Yenda → Google** (Yenda es source of truth, Google es respaldo / vista para el front desk).
+
+### Diseño
+
+- **1 calendar por org**: matchea workflows de recepción donde toda la clínica mira un solo calendar. Un solo OAuth por org. El owner/admin conecta una vez su cuenta Google (puede ser una cuenta dedicada de la clínica) y todas las citas se reflejan ahí.
+- **One-way**: Yenda nunca lee de Google. Si alguien edita un evento en Google directamente, Yenda no se entera (y queda fuera de sync hasta la próxima edición desde Yenda). Esto evita conflictos y mantiene Yenda como source of truth.
+- **Best-effort async**: si Google falla (token expirado, rate limit, calendar borrado), la cita en Yenda se crea/edita/cancela igual. El sync nunca bloquea la UX.
+- **Cancelación = PATCH status='cancelled'**, no DELETE — preserva auditoría en Google también.
+
+### Esquema (migración 106)
+
+Tabla nueva `google_calendar_integrations`:
+- `organization_id UNIQUE` (1 por org)
+- `connected_by_user_id` (auditoría)
+- `google_account_email` (display en UI)
+- `google_calendar_id` (default `'primary'`)
+- `access_token_encrypted` + `refresh_token_encrypted` — **AES-256-GCM** vía `lib/encryption.ts` con `ENCRYPTION_KEY` env. Nunca plaintext en DB.
+- `expires_at`, `scope`, `is_active`
+- `last_sync_at`, `last_sync_error`, `last_sync_error_at` — el UI los lee para alertar al owner si el sync rompe.
+
+Columna nueva en `appointments`:
+- `google_event_id TEXT` (nullable). Guarda el ID del evento creado en Google para PATCH/cancel posteriores.
+
+RLS:
+- SELECT: cualquier miembro de la org (vía `get_user_org_ids()`).
+- ALL: solo `owner` o `admin` (vía `is_org_admin(org_id)`).
+
+### Componentes nuevos
+
+- `lib/google-calendar.ts` — todo el wrapping de Google Calendar API (sin `googleapis` SDK; raw fetch para mantener bundle chico):
+  - `buildAuthorizationUrl(state, redirectUri)` — URL del consent screen
+  - `exchangeCodeForTokens({ code, redirectUri })` — code → tokens (fuerza `prompt=consent` + `access_type=offline` para garantizar refresh_token)
+  - `fetchUserInfo(accessToken)` — pide el email del owner (display)
+  - `getValidAccessToken(integration)` — refresca transparente si expiró (margen de 60s)
+  - `createEvent(orgId, event)` / `updateEvent(orgId, eventId, event)` / `cancelEvent(orgId, eventId)`
+  - `revokeToken(token)` — para disconnect
+  - `toLimaISO(date, time)` — convierte fecha+hora local de la DB a ISO con offset Lima `-05:00` (Perú no tiene DST)
+
+- `lib/google-calendar-client.ts` — helper de cliente fire-and-forget:
+  ```ts
+  syncAppointmentToGoogle(appointmentId, "upsert" | "cancel");
+  ```
+  Llama a `/api/integrations/google/sync-appointment` sin `await`. La ruta devuelve siempre 200 (best-effort) y el cliente nunca falla.
+
+### Routes
+
+- `GET /api/integrations/google/connect` — verifica auth + admin role, firma `state` con HMAC-SHA256(payload, SUPABASE_SERVICE_ROLE_KEY), redirige a Google consent.
+- `GET /api/integrations/google/callback` — verifica state, intercambia code, encripta tokens, upsert `google_calendar_integrations`, redirige a `/settings?tab=integraciones&gcal=ok`.
+- `POST /api/integrations/google/disconnect` — best-effort revoke en Google + delete row.
+- `GET /api/integrations/google/status` — lee estado para la UI (email, last_sync_at, last_sync_error, is_active).
+- `POST /api/integrations/google/sync-appointment` — `{ appointmentId, action: "upsert" | "cancel" }`. Carga la cita con relaciones (doctor/office/service), construye el evento, hace POST/PATCH a Google, persiste el `google_event_id` en el primer create. Siempre devuelve 200.
+
+### Wired en 4 puntos de mutación de citas
+
+1. **Crear** — `scheduler/appointment-form-modal.tsx:629` (después de notificación in-app)
+2. **Drag & drop move** — `scheduler/page.tsx:367` (después del update)
+3. **Reschedule modal** — `scheduler/reschedule-modal.tsx:140` (después del update)
+4. **Status change (incluido cancel)** — `scheduler/appointment-sidebar.tsx:520` — distingue `cancel` vs `upsert` según `newStatus`.
+
+### UI Settings → Integraciones
+
+- Card de Google Calendar pasó de `coming-soon` → `available`/`connected`.
+- Cuando `connected`: muestra cuenta Google, última sync, y banner ámbar con el último error si lo hubo.
+- Botón cambia a "Desconectar" con `useConfirm` destructive.
+- Lectura del query param `?gcal=ok|error` post-callback dispara toast y limpia URL.
+
+### Datos del evento en Google
+
+- **Título**: `{patient_name} — {service.name}`
+- **Descripción**: doctor, consultorio, teléfono del paciente, notas internas
+- **Ubicación**: nombre del consultorio
+- **Fechas**: con timezone `America/Lima`
+- **Status**: `confirmed` por default, `cancelled` cuando se cancela en Yenda
+
+### Setup necesario (operativo)
+
+1. **Google Cloud Console**:
+   - Habilitar Google Calendar API
+   - Agregar scope `https://www.googleapis.com/auth/calendar.events` al consent screen (mínimo privilegio — no `calendar` completo)
+   - Agregar redirect URIs:
+     - Prod: `https://yenda.app/api/integrations/google/callback`
+     - Local: `http://localhost:3000/api/integrations/google/callback`
+
+2. **Env vars** (`.env.local` + Vercel):
+   - `GOOGLE_CLIENT_ID` — reusa el de login si ya existe
+   - `GOOGLE_CLIENT_SECRET` — idem
+   - `ENCRYPTION_KEY` — 32 bytes hex. Genera con `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. **Crítico: si se pierde/rota, todos los tokens guardados quedan inservibles y los doctores tienen que reconectar.**
+   - `GOOGLE_REDIRECT_URI` (opcional) — override del redirect por defecto si el origin del request no coincide con prod.
+
+3. **Aplicar migración 106** antes de que cualquiera intente conectar.
+
+### Decisiones diferidas
+
+- **Two-way sync**: requiere webhooks de Google (push notifications) o polling + resolución de conflictos. Si Vitra lo pide, evaluar.
+- **Multi-doctor calendars** (un calendar por doctor en vez de uno por org): cuando 2-3 clientes pidan separar, agregar columna `doctor_id` nullable a la tabla y selector en el UI.
+- **Selector de calendar específico** (no `'primary'`): si un cliente quiere usar un calendar dedicado distinto al principal, listar los calendars del usuario en el callback y dejarle elegir.
+- **Bundle del Calendar v3 SDK** (`googleapis`): evitado por peso (~5MB). El wrapping con fetch cubre nuestros 4 endpoints. Si algún día necesitamos features avanzadas, reevaluar.
+
+### Cambios de Alcance
+
+- **Token-at-rest cipher pattern**: cualquier integración futura con OAuth de terceros (MP, Zoom, Meta) debe encriptar tokens con AES-256-GCM via `lib/encryption.ts`. Es la regla.
+- **Sync hooks como helpers de cliente**: el patrón `lib/<integration>-client.ts` con función fire-and-forget evita repetir lógica de fetch en N puntos del cliente. Reusable para Zoom (link de reunión), Meet, etc.
+- **State firmado en OAuth**: HMAC-SHA256(payload, SUPABASE_SERVICE_ROLE_KEY) bloquea CSRF y replay. Patrón obligatorio para cualquier OAuth flow nuevo.
+
+---
+
+## Changelog — Sesión 2026-04-26 (v0.13.2) — Rediseño Modal Historia Clínica + Consultorios autorizados por doctor
+
+Sesión enfocada en el flujo del doctor durante la consulta y en limpiar dos problemas de modelado en la administración de doctores. Driver original del usuario: "los botones de recetar y de prescripción son muy chiquitos, la ventana se siente apretada". Auditoría UX → propuesta priorizada (P0/P1/P2) → implementación.
+
+### Rediseño UX — Modal de Historia Clínica (scheduler)
+
+Tres niveles de cambios sobre `app/(dashboard)/scheduler/clinical-note-modal.tsx` y los 5 paneles que viven adentro.
+
+**P0 — Imprescindibles:**
+- **Tokens UI compartidos** en `lib/clinical-ui-tokens.ts`: `CLINICAL_PANEL_CTA` (h-9 / 36px / text-xs font-semibold), variantes por dominio (violet, cyan, blue, red, orange), `CLINICAL_PRIMARY_CTA` (h-10), `CLINICAL_SIGN_CTA` (h-11 con ring ámbar), `CLINICAL_SIGNED_BADGE`. Todos los CTAs de creación migran a estos tokens — antes eran `text-[10px] py-1` (~22px), por debajo de WCAG 2.5.5/2.5.8.
+- **Ancho del modal scheduler**: `xl:max-w-7xl (1280px)` → `xl:max-w-[1480px] 2xl:max-w-[1680px]`. Columna derecha 380 → 440/500px. En 1920px gana ~400px de área útil.
+- **Botón Firmar** prominente: `h-11` + `ring-2 ring-amber-500/30 ring-offset-2` cuando está listo. Comunica la irreversibilidad (heurística Nielsen #5).
+
+**P1 — Reorganización:**
+- **Tabs en columna derecha** vía `app/(dashboard)/scheduler/clinical-side-panels.tsx`: Recetas / Exámenes / Tratamientos / Seguimientos con badges numéricos en vivo (counts vía Supabase). Reemplaza el stack vertical de 4 paneles. Reduce scroll de ~2400px → ~800px por panel y aplica heurística "reconocer vs recordar" (Nielsen #6).
+- **Header sticky** con CTAs globales (Guardar / Firmar / Imprimir + auto-save indicator + badge "Firmada" en ámbar) siempre visibles. El badge cambia de emerald → ámbar para comunicar estado bloqueado (no éxito).
+- **Vitales 8-col en wide layout** (`lg:grid-cols-8`) — coherente con el modal hermano de pacientes.
+- **`ClinicalNotePanel` con `forwardRef` + `useImperativeHandle`**: expone `save()` / `sign()` y reporta estado vía `onStateChange(panelState)`. El modal lee estado y lanza acciones sin polling. Eliminado el polling de `is_signed` cada 2s (30 req/min) — reemplazado por callback.
+- **`patients/clinical-history-modal.tsx`** ampliado a `xl:max-w-[1480px] 2xl:max-w-[1680px]` para coherencia.
+
+**P2 — Pulido:**
+- **Atajo Ctrl+S / Cmd+S** para guardar mientras el modal está abierto y editable.
+- **Estados vacíos accionables** en los 4 paneles laterales: "Crear primera receta", "Ordenar primer examen", "Crear primer plan", "Crear primer seguimiento" — el CTA aparece inline en lugar del texto plano "Sin prescripciones".
+- **Microcopy**: "Recetar" → "Nueva receta", "Solicitar" → "Ordenar examen", "Subir" → "Subir archivo".
+- **Dark mode polish**: `backdrop-blur` en header sticky y tab bar.
+
+### Adjuntos clínicos — dropzone real con drag-and-drop
+
+`app/(dashboard)/patients/clinical-attachments-panel.tsx`:
+- Botón "+ Subir archivo" del header migra a token (`h-9` / variante `orange`) — antes era `~22px`, evidentemente más chico que sus hermanos.
+- **Dropzone py-10** con border dashed, ícono Upload de 6×6 dentro de un círculo. 3 estados visuales:
+  - **idle** — `bg-muted/20 border-muted-foreground/25`
+  - **drag-active** — `bg-orange-500/10 border-orange-500` + texto "Suelta el archivo aquí"
+  - **file-selected** — `bg-emerald-500/5 border-emerald-500/50` + nombre + tamaño del archivo
+- **Drag-and-drop nativo** (`onDragEnter/Over/Leave/Drop`) además del click. Accesibilidad: `role="button"`, `tabIndex={0}`, soporta Enter/Space.
+- **Validación cliente** de tamaño (10 MB) antes de subir.
+- **Estado vacío accionable**: si no hay adjuntos, el dropzone se muestra automáticamente (en vez del texto "Sin adjuntos").
+- Form de categoría/descripción aparece **solo después** de seleccionar el archivo (reduce ruido visual).
+
+### Fix — Eje Y del gráfico "Citas últimos 30 días" (admin dashboard)
+
+`app/(dashboard)/dashboard/admin-dashboard.tsx`. El `<AreaChart>` tenía `margin={{ left: -20, ... }}` (margen izquierdo negativo) que empujaba el `<YAxis>` fuera del contenedor visible — solo se asomaban trazos finitos de los labels. Cambio: `left: -20 → left: 0` y `width: 30 → 32` para que los valores numéricos del eje (1, 2, 3…) se rendericen completos junto al gráfico.
+
+### Fix — Doctores quedaban con horario vacío al fallar el guardado
+
+`app/(dashboard)/admin/doctors/[id]/page.tsx`. El flujo `handleSave` era `DELETE all + INSERT new`. Si el INSERT fallaba (típicamente por duplicate key en `UNIQUE(doctor_id, day_of_week, start_time)`), el delete ya se había aplicado y el doctor quedaba con CERO horarios. Causa raíz reportada por el usuario.
+
+Cambios:
+- **Validación frontend antes del save**: detecta bloques que comparten `(day_of_week, start_time)` y bloques con `end_time <= start_time`. Toast claro identificando los conflictos.
+- **Resaltado visual**: bloques con problema reciben `border-red-500/60 ring-2 ring-red-500/20` y un mensaje inline ("⚠ Duplicado…" / "⚠ La hora de fin debe ser mayor…").
+- **Snapshot + restore**: aún si el INSERT fallara por otra causa, ahora se intenta restaurar el snapshot previo del horario para que el doctor no quede con la agenda vacía.
+
+### Feature — Consultorios autorizados por doctor (`doctor_offices`)
+
+Resuelve el caso de uso que el usuario reportó: *"quiero que la Dra. Ángela solo pueda atender en los consultorios 202 y 203, pero el sistema no me deja"*.
+
+**Causa raíz:** `doctor_schedules.office_id` mezclaba dos preguntas distintas:
+1. ¿En qué consultorios puede atender este doctor? (atributo del **doctor**)
+2. ¿En cuál consultorio específico es este turno? (atributo del **bloque**)
+
+Como resultado, dos bloques con misma `(day_of_week, start_time)` y distinto `office_id` chocaban con la constraint UNIQUE. No había forma de expresar "lunes 9-13 puede ser en 202 o 203".
+
+**Esquema (migración 111):**
+
+Tabla nueva `doctor_offices`:
+- `(id, doctor_id FK, office_id FK, organization_id FK, created_at)` con `UNIQUE(doctor_id, office_id)` e índices por las 3 FKs.
+- RLS: `org_select` por `get_user_org_ids()`, `org_insert` / `org_delete` por `is_org_admin(organization_id)`. Sin policy de UPDATE — las filas son composites inmutables, "editar" = delete + insert.
+- **Default permisivo**: lista vacía → "Todos los consultorios". No rompe orgs existentes.
+
+`doctor_schedules.office_id` se mantiene opcional como **restricción adicional por turno**:
+- `NULL` → el turno hereda los consultorios autorizados del doctor.
+- `NOT NULL` → ese turno se da solo en ese consultorio específico.
+
+**UI** (en `/admin/doctors/[id]` → tab Horario):
+- **Sección nueva "Consultorios autorizados"** arriba del horario semanal: grid responsive (1/2/3 columnas) con checkboxes por consultorio activo. Resumen de estado: "Acceso completo: el doctor puede atender en cualquiera de los N consultorios" o "Restringido a 2 de 6 consultorios" + botón "Permitir todos" para limpiar.
+- **`<select>` de consultorio por bloque filtrado**: solo muestra los autorizados. El placeholder cambia: "Todos los autorizados (2)" o "Todos los consultorios" según haya o no restricción global.
+- **Valores antiguos protegidos**: si un bloque apunta a un consultorio que ya no está en la lista autorizada, aparece etiquetado como "(no autorizado)" en el dropdown para que el usuario lo corrija.
+- **Validación al guardar**: si algún bloque usa un consultorio fuera del set autorizado, identifica el bloque ofensivo y bloquea el save con toast.
+- **Save atómico-cliente con snapshot+restore** para `doctor_schedules` y `doctor_offices`. Si una mitad falla, se restaura la previa.
+
+**Tipos:** `DoctorOffice` declarado manualmente en `types/admin.ts`. El cliente Supabase del proyecto es untipado (`SupabaseClient`, no `SupabaseClient<Database>`), así que `from("doctor_offices")` funciona sin regenerar `database.ts`. Cuando se corra `npm run types` se podrá mover al tipo generado.
+
+### Operaciones requeridas para activar v0.13.2
+
+1. **Aplicar migración 111** (`supabase/migrations/111_doctor_offices.sql`):
+   - `supabase db push` (CLI), o
+   - copiar el SQL al editor de Supabase Studio, o
+   - `psql $DATABASE_URL -f supabase/migrations/111_doctor_offices.sql`.
+2. (Opcional pero recomendado) `npm run types` para regenerar `database.ts` con la nueva tabla.
+
+### Archivos tocados
+
+| Archivo | Líneas |
+|---|---|
+| `lib/clinical-ui-tokens.ts` *(nuevo)* | 47 |
+| `app/(dashboard)/scheduler/clinical-side-panels.tsx` *(nuevo)* | 211 |
+| `app/(dashboard)/scheduler/clinical-note-modal.tsx` | reescrito |
+| `app/(dashboard)/scheduler/clinical-note-panel.tsx` | refactor a `forwardRef` |
+| `app/(dashboard)/patients/prescriptions-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/exam-orders-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/treatment-plans-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/clinical-followups-panel.tsx` | CTAs + estado vacío |
+| `app/(dashboard)/patients/clinical-attachments-panel.tsx` | dropzone real |
+| `app/(dashboard)/patients/clinical-history-modal.tsx` | ancho |
+| `app/(dashboard)/dashboard/admin-dashboard.tsx` | margin del AreaChart |
+| `app/(dashboard)/admin/doctors/[id]/page.tsx` | validación + autorizados |
+| `supabase/migrations/111_doctor_offices.sql` *(nuevo)* | 56 |
+| `types/admin.ts` | tipo `DoctorOffice` |
+
+### Decisiones de diseño con contexto
+
+- **Tabs vs stack** en la columna derecha: tabs ganan por reducción de scroll y "reconocer vs recordar". Doctor ya no tiene que hacer scroll para ver que existen Tratamientos y Seguimientos.
+- **`h-9` (36px) vs `h-11` (44px)** para CTAs de paneles: 36px es el sweet spot EHR (Epic, Athena) — táctil sin sacrificar densidad. 44px se reserva para "Firmar" (irreversible) donde la prominencia justifica el extra.
+- **Badge ámbar vs emerald** para "Firmada": ámbar comunica "estado bloqueado / atención" (consistente con el badge de "Requerido" del consentimiento). Emerald comunicaría "éxito" lo cual es correcto pero no advierte del bloqueo.
+- **`doctor_offices` separado vs constraint expandida**: separar la pregunta del doctor (autorizados) de la del turno (override) sigue el modelo de Epic/Athena ("facilities" del provider). Permite UI con un solo lugar para "cambiar dónde puede atender" en vez de editar 14 bloques.
+
+### Próximos pasos sugeridos (no hechos en esta sesión)
+
+- Respetar `doctor_offices` en el flujo de booking (`api/scheduler/available-slots`) para que el matching paciente↔doctor↔consultorio sea estricto.
+- Si Vitra reporta confusión con el flow de doctor multi-consultorio, considerar mover el panel "Consultorios autorizados" al perfil del doctor (tab Perfil) en vez de al tab Horario.
+
+---
+
+## Changelog — Sesión 2026-04-26 tarde (v0.13.3) — Pricing alineado y trial diferenciado por tier
+
+Cambio comercial: los precios iniciales (Gratis / S/49 / S/149 en BD vs. S/69.90 / S/169.90 / S/569.90 en landing) eran placeholders sin alinear. Esta sesión cierra ambas fuentes con el pricing que va a producción.
+
+### Precios nuevos
+
+| Slug | Plan | Mensual | Anual (2 meses gratis) | Trial 14 días |
+|---|---|---|---|---|
+| `starter` | Independiente | **S/129** | S/1,290 | ✅ Activo |
+| `professional` | Centro Médico | **S/349** | S/3,490 | ✅ Activo |
+| `enterprise` | Clínica | **S/649** | S/6,490 | ❌ Desactivado |
+
+**Justificación del trial desactivado en Clínica:** se reserva el plan a clientes calificados que requieren contratación directa y onboarding asistido. Reactivable en cuanto el "Reporte IA avanzado" (capas 1+2 propuestas: brief ejecutivo + insights proactivos) esté listo y justifique el upgrade desde Centro Médico.
+
+### Cambios de código
+
+- **Migración `112_update_plan_prices.sql`** — `UPDATE plans` por slug actualizando `price_monthly` y `price_yearly`. Bloque `DO $$` con `RAISE NOTICE` para auditar el cambio en el log de Supabase. Rollback documentado en el header de la migración.
+- **`app/api/plans/start-trial/route.ts`** — bloqueo con `403 trial_unavailable` cuando `plan.slug === 'enterprise'`. Defense-in-depth aunque la UI ya esconda el botón.
+- **`app/(auth)/select-plan/page.tsx`** — botón "Iniciar prueba de 14 días" oculto para `enterprise`; el botón de pago pasa a destacado (gradient + h-11) con label "Contratar Clínica — S/649/mes".
+- **Anchors actualizados (3 archivos)** — `pricing.tsx`, `select-plan/page.tsx` y `dashboard/plans/page.tsx` comparten el mismo `PLAN_ANCHORS` con copys nuevos:
+  - Independiente: *"Menos de S/5 al día por tener tu consultorio en orden"*
+  - Centro Médico: *"Menos de 3 consultas al mes y la herramienta se paga sola"*
+  - Clínica: *"Con un tratamiento mediano al mes, ya pagaste tu suscripción"*
+- **`pricing.tsx` (landing)** — precios mensuales/anuales y `savingsAnnual` recalculados (S/258 / S/698 / S/1,298 ahorro al año).
+- **`growth-path.tsx` (landing)** — precios actualizados.
+- **`final-cta.tsx` (landing)** — "Planes desde S/69.90/mes" → "Planes desde S/129/mes".
+- **`app/layout.tsx`** — meta description actualizada para SEO.
+- **`admin/members/page.tsx` y `admin/offices/page.tsx`** — botones "Mejorar plan — S/169.90/mes" → "S/349/mes".
+
+### Política de migración para clientes existentes
+
+- **Organizaciones en plan gratuito (S/0) NO se migran automáticamente.** El owner del producto (Yenda) decide cuándo convertirlas, típicamente al cerrar la fase de tests internos.
+- **Suscripciones activas** conservan el precio del momento de la contratación hasta su renovación. La migración solo cambia el catálogo (`plans`), no las filas de `organization_subscriptions`.
+
+### Decisiones diferidas (no hechas en esta sesión)
+
+- **Frecuencia semestral** con descuento de medio mes gratis (8.3% off) — discutida y dimensionada en la conversación, requiere agregar columna `price_semiannual` a `plans`. Pendiente de confirmación.
+- **Reporte IA avanzado para Centro/Clínica** — propuesta en 5 capas (brief ejecutivo automatizado, insights proactivos, forecast, comparativo multi-doctor, benchmarking anónimo). Recomendación: arrancar con capas 1+2 (Centro+Clínica) cuando se vuelva a abrir trial Clínica.
+
+### Operaciones requeridas para activar v0.13.3
+
+1. Aplicar migración 112 contra producción:
+   ```
+   supabase db push
+   # o pegar supabase/migrations/112_update_plan_prices.sql en SQL Editor
+   ```
+2. Verificar en `select-plan` que el plan Clínica ya no muestra "Iniciar prueba" y muestra "Contratar Clínica — S/649/mes".
+3. Verificar en landing que las 3 cards muestran S/129 / S/349 / S/649 y los anchors nuevos.
+4. (Opcional) Probar `POST /api/plans/start-trial` con `plan_id` del enterprise — debe responder 403.
+
+---
+
+## Changelog — Sesión 2026-04-26 noche (v0.13.4) — Semestral 8.3% + anchor refinado + Reporte IA Avanzado documentado
+
+Cierre de loop sobre las decisiones diferidas en v0.13.3.
+
+### Anchor refinado (Independiente)
+
+- "Menos de S/5 al día por tener tu consultorio en orden" → **"Menos de S/5 al día por tener tu consultorio inteligente"**.
+- Aplicado en los 3 lugares que usan `PLAN_ANCHORS`: `components/landing/pricing.tsx`, `app/(auth)/select-plan/page.tsx`, `app/(dashboard)/plans/page.tsx`.
+
+### Frecuencia semestral (8.3% off)
+
+**Migración 113** (`supabase/migrations/113_plan_semiannual_price.sql`):
+- `ALTER TABLE plans ADD COLUMN price_semiannual NUMERIC(10,2)`.
+- UPDATE values: starter 709.50, professional 1919.50, enterprise 3569.50 (5.5 meses al precio mensual).
+- Comentario en columna + RAISE NOTICE para auditar.
+
+**Backend MP checkout:**
+- `lib/validations/api.ts` — `mpCheckoutSchema.billing_cycle` y `mpCreatePreferenceSchema.billing_cycle` ahora aceptan `"semiannual"`.
+- `app/api/mercadopago/checkout/route.ts`:
+  - SELECT trae `price_semiannual` además de los otros.
+  - Resolución de precio en cascada: yearly → semiannual → monthly (fallback al monthly si la cadencia pedida no está priceada).
+  - Mapeo de frequency a 1 / 6 / 12 meses (todos soportados por MP preapproval).
+  - Reason del preapproval con etiqueta legible "Anual" / "Semestral" / "Mensual".
+
+**Frontend:**
+- **`components/landing/pricing.tsx`** — toggle de 2 → 3 botones (Mensual / Semestral / Anual). State `cadence: "monthly" | "semiannual" | "annual"`. Helpers `priceFor()` y `anchorFor()` extraídos. Cada plan trae `priceSemiannual`, `savingsSemiannual`, `anchorSemiannual`. Badge "½ mes gratis" en semestral, "2 meses gratis" en anual.
+- **`app/(auth)/select-plan/page.tsx`** — mismo toggle, state local `cadence`. Type `Plan` extiende con `price_semiannual: number | null`. Cuando `cadence !== "monthly"`, el precio mostrado es per-month derivado del upfront, con sub-línea "Cobro único S/X cada N meses" + tachado del precio mensual original. CTA del botón cambia label según cadencia ("S/3,490/año", "S/1,919.50/semestre", etc.). El `handleSelect` mapea `cadence → billing_cycle` y lo manda al backend.
+- **`app/(dashboard)/plans/page.tsx`** — mismo refactor: toggle, type `Plan` con `price_semiannual`, render de precio per-month + upfront, CTA con label dinámico, `handleChangePlan` con cycle correcto.
+
+### Reporte IA Avanzado documentado en COMING-UPDATES (no implementado todavía)
+
+Sección nueva en `COMING-UPDATES.md` con tracking detallado de Capas 1+2 aprobadas en sesión 2026-04-26:
+
+- **Capa 1 — Brief Ejecutivo Automatizado**: cron weekly/monthly que envía email + widget en dashboard con narrativa LLM (3-5 párrafos) sobre operación, finanzas, clínica, alertas. Tabla `ai_executive_briefs` propuesta. Costo S/0.50-S/2.50/mes/org. Reusa `lib/pseudonymize-phi.ts`.
+- **Capa 2 — Insights Proactivos**: cron diario detecta 8 patrones (no-show, churn, follow-up gap, caída de ingresos, doctor subutilizado, plan estancado, cobros vencidos, bloqueo inusual) y los expone como widget + topbar dot + página `/dashboard/insights`. Tabla `ai_insights` propuesta. Costo ~S/15/mes/org.
+- **Capas 3-5 (parking lot)**: forecast predictivo, comparativo multi-doctor, benchmarking anónimo entre clínicas. Evaluar tras Vitra.
+
+Roadmap propuesto: Q2 2026 Capa 1 → Q3 2026 Capa 2 → Q4 2026 reactivar trial Clínica con Capas 1+2 como argumento de venta.
+
+### Archivos tocados (v0.13.4)
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/migrations/113_plan_semiannual_price.sql` *(nuevo)* | Columna + valores semestrales |
+| `lib/validations/api.ts` | Enums Zod aceptan `semiannual` |
+| `app/api/mercadopago/checkout/route.ts` | Resolver de precio + frequency 6 meses |
+| `components/landing/pricing.tsx` | Toggle 3 opciones + anchor refinado |
+| `app/(auth)/select-plan/page.tsx` | Toggle + render dinámico + handler con cycle + anchor |
+| `app/(dashboard)/plans/page.tsx` | Toggle + render dinámico + handler con cycle + anchor |
+| `COMING-UPDATES.md` | Sección nueva "Reporte IA Avanzado" con detalle |
+| `PRD.md` | Sección 5 actualizada con cuadro de cadencias + esta sección 37 |
+
+### Operaciones requeridas para activar v0.13.4
+
+1. Aplicar migración 113:
+   ```
+   supabase db push
+   ```
+   o pegar `supabase/migrations/113_plan_semiannual_price.sql` en SQL Editor.
+2. Verificar que `plans.price_semiannual` quedó poblado para los 3 planes.
+3. Probar el toggle en landing → cambiar a Semestral debe mostrar S/118.25/mes para Independiente con sub-línea "Cobro único S/709.50 cada 6 meses".
+4. Probar checkout completo en MP sandbox con `billing_cycle: "semiannual"` para confirmar que la subscription se crea con `auto_recurring.frequency = 6`.
+
+### Decisiones de diseño con contexto
+
+- **Curva 0% → 8% → 17%**: cada upgrade gana ~8 puntos. Si semestral diera 1 mes gratis (16.7%) empataría con anual y nadie elegiría anual, perdiendo cash adelantado.
+- **Per-month como número grande, upfront como sub-línea**: facilita comparar las 3 cadencias visualmente. El cliente ve "S/107.50/mes" en lugar de "S/1,290/año" como protagonista, lo que reduce la fricción de "S/1,290 es mucho dinero de un golpe".
+- **Frequency 6 en MP preapproval**: confirmado en docs de Mercado Pago que `frequency_type: "months"` acepta {1, 2, 3, 4, 6, 12}. No requirió contactar soporte de MP.
+- **Reporte IA Avanzado documentado pero NO implementado**: el usuario pidió tracking detallado para futura implementación. Las migraciones, prompts y tablas propuestas están listas para que cualquier dev (o yo en sesión futura) pueda arrancar sin re-investigar.
+
+---
+
+## Changelog — Sesión 2026-04-30 (v0.14.2) — Hardening seguridad/consent + Multi-diagnóstico CIE-10 + Timeline HC
+
+Sesión de cierre de gaps de seguridad detectados en review final de v0.14.1 + tres mejoras de UX clínica solicitadas por el equipo médico (DNI/edad visible, terminología SOAP más amigable, layout vertical) + feature mayor de comorbilidades multi-CIE-10 + reorganización del modal de HC con tab Timeline.
+
+### Hardening de seguridad post-review (migraciones 122 + 123)
+
+**Gaps cerrados:**
+- Cliente podía enviar `termsVersion` arbitrario al aceptar términos (un cliente desactualizado registraba aceptación para una versión que no era la actual). Ahora ambos endpoints (`/api/auth/accept-terms` y `/api/auth/register-invited`) ignoran el campo del cliente y persisten siempre `TERMS_VERSION` del server.
+- `register-invited` cargaba **TODOS los usuarios** vía `supabaseAdmin.auth.admin.listUsers()` para resolver email → user_id (no escala). RPC `get_user_id_by_email(lookup_email text)` con `SECURITY DEFINER` y `LIMIT 1` reemplaza ese path. Permisos revocados a `anon`/`authenticated` — solo `service_role`.
+- `informed-consents.pdf_url` guardaba un signed URL de **7 días**. Refactor: la columna ahora guarda el path en storage; `GET /api/informed-consents` genera signed URL fresco (1h) on-demand. URLs expiradas dejan de existir; sin riesgo de leak por logs/backups.
+- Faltaba **storage UPDATE policy** en bucket `informed-consents` (mig 120 solo tenía SELECT + INSERT). Agregada simétricamente para org members — habilita futuras operaciones de re-render o refresh de metadata sin perder la fila append-only.
+- `informed_consents.signature_data` permitía hasta **500KB** de base64. PNG de 600×180 cabe en 5–30KB; reducido a 200KB vía CHECK constraint + zod cap. Previene bloat de tabla.
+- `informed-consents` POST no validaba que `patient.organization_id === user's org` (RLS lo cubre, pero no había defense-in-depth). Validación explícita agregada — refuse cross-org incluso si una regresión de RLS slipped.
+- `informed-consents` GET sin filtro listaba todos los consentimientos del org. Ahora requiere `patient_id` o `appointment_id`.
+- **Middleware terms-acceptance gate**: usuarios pre-existentes (creados antes de mig 116) tenían `accepted_terms_at = NULL` y nadie los redirigía a aceptar. `get_user_session_check` extendida con `accepted_terms_at` + `accepted_terms_version`; el middleware redirige a `/onboarding/accept-terms` si la columna es NULL o si la versión no coincide con `TERMS_VERSION` (cubre también bumps de versión futuros). `/onboarding/accept-terms` agregado a `isOnboardingFlow` para que sea accesible sin pasar por gates de subscription/onboarding.
+- **UI editor de consentimientos**: tipo no preseleccionado (estado inicial `null`); paso 1 bloqueado hasta que el usuario elija explícitamente con tooltip "Selecciona el tipo". Texto duplicado en error de registro corregido (`"intenta otra vez.. Intenta de nuevo."` → `"intenta otra vez."`).
+
+### Historia Clínica: 3 mejoras UX rápidas
+
+- **DNI + edad en header del modal de HC**: la query del scheduler ahora trae `dni` y `birth_date` en el join `patients(...)`. `appointment-sidebar.tsx` los propaga al `ClinicalNoteModal` via `patientDni` (ya existía como prop pero estaba hardcoded a `null`) y nuevo `patientBirthDate`. Header renderiza badges `DNI: 12345678` y `42 años` junto al nombre del paciente.
+- **Label SOAP "Subjetivo" → "Motivo de consulta (Subjetivo)"** en `SOAP_LABELS.subjective.label` (centralizado en `types/clinical-notes.ts`). El cambio se propaga automáticamente al editor (clinical-note-panel), drawer del paciente, modal de historia clínica, plantillas admin y plantillas de impresión. Razón: los doctores no siempre conocen el método SOAP académico; el término técnico entre paréntesis preserva la estructura clínica pero baja la fricción cognitiva.
+- **Layout SOAP vertical**: los 4 campos S/O/A/P en `clinical-note-panel.tsx` pasan de `grid grid-cols-1 md:grid-cols-2` (en `wideLayout`) a `space-y-3` siempre. Razón: los doctores escriben en flujo secuencial; las columnas obligaban a navegar lateralmente y reducían el área útil de cada caja.
+
+### Múltiples diagnósticos CIE-10 por nota (migración 124)
+
+**Problema:** una nota clínica solo soportaba un `diagnosis_code` + `diagnosis_label`. La realidad clínica peruana (especialmente geriatría, internal med, derma, endocrino) tiene comorbilidades como regla, no excepción. SUSALUD/SIS pide primario + secundarios.
+
+**Decisión de schema:** tabla normalizada `clinical_note_diagnoses` (no JSONB) por:
+- Analítica futura barata: "pacientes con E11 + I10 simultáneo", reportes epidemiológicos, búsqueda por código.
+- Modelo coincide con HIS-MINSA / RIS / SIS para facturación (primary + secondary).
+
+**Estructura:**
+
+```sql
+CREATE TABLE clinical_note_diagnoses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinical_note_id UUID NOT NULL REFERENCES clinical_notes(id) ON DELETE CASCADE,
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  label TEXT NOT NULL,
+  is_primary BOOLEAN NOT NULL DEFAULT false,
+  position INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Un primary por nota (partial unique index).
+CREATE UNIQUE INDEX uq_clinical_note_diagnoses_primary
+  ON clinical_note_diagnoses(clinical_note_id) WHERE is_primary = true;
+
+-- Sin duplicar el mismo código en la misma nota (case-insensitive).
+CREATE UNIQUE INDEX uq_clinical_note_diagnoses_unique_code
+  ON clinical_note_diagnoses(clinical_note_id, lower(code));
+```
+
+**Compat con código legacy (clave del diseño):** se mantienen las columnas `clinical_notes.diagnosis_code/label` como **espejo del primary**, gestionado por el trigger `sync_primary_diagnosis_to_note` (AFTER INSERT/UPDATE/DELETE en `clinical_note_diagnoses`). Resultado: prints, exam orders, prescriptions, history views, audit logs y todo lo legacy sigue funcionando 100% sin tocarlos. Las columnas legacy quedan formalmente "deprecated, do not write directly" (TODO: agregar `COMMENT ON COLUMN` y eventualmente trigger BEFORE UPDATE que rechace escrituras directas).
+
+**Backfill:** la migración inserta una fila por cada `clinical_notes` con `diagnosis_code IS NOT NULL`, marcada `is_primary=true`, `position=0`.
+
+**API:**
+- `GET /api/clinical-notes` incluye `diagnoses:clinical_note_diagnoses(*)` en el join.
+- `POST` y `PATCH` aceptan `diagnoses[]` (replace-all semantics) o caen al legacy `diagnosis_code/label` si vienen solos.
+- Helper `replaceDiagnoses()` centraliza delete + insert atómico + asignación de exactamente un `is_primary` (si el caller no lo marca, el primero del array gana).
+
+**UI editor (`clinical-note-panel.tsx`):**
+- State pasa de `diagnosisCode/Label` (single) a `diagnoses: ClinicalNoteDiagnosisInput[]`.
+- Buscador CIE-10 agrega chip al set (dedupe case-insensitive). Items ya agregados aparecen disabled+gris en el dropdown.
+- Cada chip: borde primary + estrella sólida si `i === 0` (principal); resto con borde border + ★ outlined (click promueve a principal) y × para remover.
+- Plantillas legacy con `diagnosis_code` se convierten en chip principal sin perder los previos.
+- Botón discreto `+ Código manual` debajo del buscador abre dos inputs inline (código mono + descripción) — agrega chip one-off sin persistir al catálogo de la org. Hint a Settings → CIE-10 personalizados para escalado.
+
+**Read-only views actualizados:**
+- `clinical-history-modal.tsx`, `patient-drawer.tsx` (note expandido), `clinical-note-print.tsx`: render lista completa de chips/líneas con badge "principal" para el primario.
+- `diagnosis-history-panel.tsx`: ahora cuenta cada diagnóstico individual (no cada nota), agrupando comorbilidades correctamente para el panel "Historial de Diagnósticos" del paciente.
+
+**Recetas y exam orders:** ya estaban scoped por `clinical_note_id` (migraciones 053 y 078) — no se tocan. El link receta↔diagnóstico-específico (columna `for_diagnosis_id`) queda como follow-up en COMING-UPDATES.
+
+### Toggle Nota | Timeline en modal de HC
+
+**Problema observado:** durante la consulta en vivo, el doctor ve "K29.7 · gastritis crónica · 2026-03-15" en antecedentes y quiere ver qué le mandó la última vez. Hoy implica: cerrar modal de consulta → ir al drawer del paciente → tab Historia Clínica → expandir nota → leer. 4-5 clicks rotos por consulta recurrente.
+
+**Solución:** sub-header sticky con segmented control `📄 Nota` | `🕘 Timeline` debajo del header principal del modal. Diseño inspirado en el toggle día/semana del scheduler (consistencia visual).
+
+**Comportamiento:**
+- **Solo aparece si hay paciente vinculado** (sin paciente = no hay historial).
+- **Modo Nota** = layout actual (2-col SOAP + side panels) — sin cambios.
+- **Modo Timeline** = full-width con cards colapsables. Default descendente (más reciente arriba); botón en filtro alterna asc/desc. Botones Expandir-todo / Colapsar cuando hay >1 nota.
+- **Cards colapsadas** muestran fecha · hora · doctor (con dot de color) · top-2 chips de diagnóstico (+N más) — scan rápido sin expandir.
+- **Body lazy-renderizado**: el SOAP completo + diagnósticos + vitales + signed badge solo se construyen al expandir (perf con pacientes crónicos de 50+ consultas).
+- **Excluye la nota de la consulta actual** (evita duplicar lo que el doctor ya está viendo).
+- **CTAs Save/Sign/Print y Ctrl+S** ocultos en Timeline (read-only).
+- **Estado preservado**: el editor de Nota queda siempre montado (CSS `hidden`) entre toggles → no pierde draft ni autosave.
+- **Mount-once del Timeline**: primera vez que se entra, se carga; al volver a Nota y regresar, datos cacheados (no re-fetch). Dedupe por `patientId` vía ref.
+- Reset al cerrar el modal — próxima apertura siempre arranca en Nota.
+
+**Componente nuevo:** `app/(dashboard)/scheduler/notes-timeline.tsx` (~370 líneas). Internamente usa los mismos chips/colores/iconografía que el editor para que el doctor vea la misma UI de diagnósticos en lectura y escritura.
+
+**Beneficio:** elimina 4-5 clicks de fricción ("¿qué le mandé la última vez?") al revisar contexto durante la consulta en vivo. No requiere migración ni cambios de schema — los datos ya estaban.
+
+### Archivos tocados (v0.14.2)
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/migrations/122_get_user_id_by_email.sql` *(nuevo)* | RPC SECURITY DEFINER con permisos restringidos a service_role |
+| `app/api/auth/accept-terms/route.ts` | Forzar TERMS_VERSION server-side (ignorar campo cliente) |
+| `app/api/auth/register-invited/route.ts` | Forzar TERMS_VERSION + reemplazar listUsers() por RPC |
+| `app/api/informed-consents/route.ts` | Path en lugar de signed URL persistido + signed URL on-demand en GET + filtro requerido en GET + validación org del paciente en POST + zod cap 200KB |
+| `supabase/migrations/123_consent_hardening_and_terms_gate.sql` *(nuevo)* | Storage UPDATE policy + CHECK length signature_data + RPC get_user_session_check con accepted_terms_at/version |
+| `lib/supabase/middleware.ts` | Terms-acceptance gate + /onboarding/accept-terms en isOnboardingFlow |
+| `components/clinical/informed-consent-modal.tsx` | consent_type inicia null + bloqueo paso 1 + tooltip de selección requerida |
+| `app/(auth)/register/page.tsx` | Fix texto duplicado en error de registro |
+| `app/(dashboard)/scheduler/page.tsx` | Join `patients(is_recurring, dni, birth_date)` en query del scheduler |
+| `app/(dashboard)/scheduler/appointment-sidebar.tsx` | Pasa `patientDni` real (no null) y nuevo `patientBirthDate` al modal HC |
+| `app/(dashboard)/scheduler/clinical-note-modal.tsx` | Header con DNI + edad + toggle Nota/Timeline + lazy mount + ocultar CTAs en Timeline |
+| `app/(dashboard)/scheduler/clinical-note-panel.tsx` | State multi-diagnóstico + chips + buscador con dedupe + botón "Código manual" inline + layout SOAP vertical (sin grid 2-col) |
+| `types/clinical-notes.ts` | Label SOAP "Motivo de consulta (Subjetivo)" + interfaces ClinicalNoteDiagnosis + ClinicalNoteDiagnosisInput + diagnoses?: en ClinicalNote |
+| `lib/validations/clinical-note.ts` | Schema diagnoses array (max 20, code+label+is_primary?+position?) en clinicalNoteSchema |
+| `app/api/clinical-notes/route.ts` | GET incluye diagnoses join + helper `replaceDiagnoses()` exportado + POST extrae diagnoses + reemplaza set + re-fetch |
+| `app/api/clinical-notes/[id]/route.ts` | Importa replaceDiagnoses + PATCH reemplaza set después de update + audit log incluye "Diagnósticos" |
+| `app/(dashboard)/scheduler/clinical-note-print.tsx` | Render lista completa con badge "principal" |
+| `app/(dashboard)/patients/clinical-history-modal.tsx` | Render lista completa de chips con badge "principal" |
+| `app/(dashboard)/patients/patient-drawer.tsx` | Render lista completa de chips en note expandido |
+| `app/(dashboard)/patients/diagnosis-history-panel.tsx` | Cuenta cada diagnóstico individual (no cada nota) |
+| `supabase/migrations/124_clinical_note_diagnoses.sql` *(nuevo)* | Tabla normalizada + indexes + RLS + backfill + trigger sync primary→legacy |
+| `app/(dashboard)/scheduler/notes-timeline.tsx` *(nuevo)* | Timeline lazy con cards colapsables, filtro asc/desc, expand/collapse-all |
+| `COMING-UPDATES.md` | Item nuevo: link receta/examen ↔ diagnóstico específico (post-mig 124) |
+| `PRD.md` | Esta sección 38 + bullets en sección 12 + header v0.14.2 |
+
+### Operaciones requeridas para activar v0.14.2
+
+1. **Aplicar migración 122** (RPC `get_user_id_by_email`):
+   ```
+   supabase db push
+   ```
+   o pegar `supabase/migrations/122_get_user_id_by_email.sql` en SQL Editor.
+2. **Aplicar migración 123** (storage UPDATE policy + CHECK signature_data + RPC con accepted_terms_at): Supabase advertirá "Query has destructive operations" por la línea `DROP TRIGGER IF EXISTS`. Es seguro confirmar — es el patrón estándar para triggers idempotentes (drop si existe + recrear). En primera ejecución es no-op.
+3. **Aplicar migración 124** (tabla `clinical_note_diagnoses` + backfill + trigger):
+   - El backfill se ejecuta dentro de la migración (`INSERT ... ON CONFLICT DO NOTHING`).
+   - Verificar post-aplicación: `SELECT count(*) FROM clinical_note_diagnoses WHERE is_primary = true;` debe coincidir con `SELECT count(*) FROM clinical_notes WHERE diagnosis_code IS NOT NULL AND diagnosis_code <> '';`.
+   - El trigger `sync_primary_diagnosis_to_note` queda activo automáticamente.
+4. **Probar flujos críticos:**
+   - Usuario pre-existente (creado antes de mig 116) navega a `/dashboard` → debe redirigir a `/onboarding/accept-terms`. Aceptar términos y verificar que `accepted_terms_at` y `accepted_terms_version = TERMS_VERSION` quedan persistidos.
+   - Crear cita de paciente con DNI y birth_date → abrir modal HC → confirmar que header muestra "DNI: ..." y "X años".
+   - En editor de nota, agregar 2 diagnósticos vía buscador (ej. E11.9 y I10) → confirmar chips, promover el segundo a principal con ★, guardar → reabrir nota y verificar que el primary quedó correcto y que `clinical_notes.diagnosis_code` espeja el primary.
+   - Botón `+ Código manual`: agregar un código no catalogado (ej. K30.X) → confirmar que aparece como chip pero no aparece en el buscador después (no se persistió al catálogo).
+   - Toggle Nota → Timeline en paciente con varias consultas previas: verificar cards colapsadas con chips de diagnóstico, expandir una para ver SOAP completo, alternar asc/desc, volver a Nota y confirmar que el draft del autosave no se perdió.
+
+### Decisiones de diseño con contexto
+
+- **Tabla normalizada en lugar de JSONB**: comorbilidades aparecerán en reportes epidemiológicos, búsquedas "pacientes con E11 + I10", facturación SIS y export a HIS-MINSA. JSONB hubiera sido más rápido de implementar pero malo para analítica posterior. El costo extra (1 tabla, 1 trigger) es ~150 líneas de SQL.
+- **Trigger en lugar de view**: una vista derivada de `clinical_note_diagnoses` para reemplazar `clinical_notes.diagnosis_code` rompería decenas de queries que hacen `SELECT * FROM clinical_notes`. El trigger mantiene compat 100% sin tocar lectores.
+- **`replaceDiagnoses()` hace DELETE + INSERT en lugar de diff-based**: para N=1-3 chips típicos el costo es invisible. Diff-based duplicaría la complejidad del helper sin ganancia visible. Cuando una nota llegue a 8+ diagnósticos y autosave fire frecuentemente → ahí sí.
+- **Botón "Código manual" agrega chip sin persistir al catálogo**: forzar al doctor a ir a Settings → CIE-10 personalizados para un código one-off es fricción. Un input libre permanente invita a abuso (typos, fake codes). El botón discreto + hint a Settings es el balance correcto.
+- **Toggle Nota|Timeline en lugar de modal-on-modal con botón "Ver" por diagnóstico**: el toggle es estrictamente mejor — sin pelea de z-index/Esc, scan de múltiples consultas a la vez, descubre consultas sin diagnóstico (solo seguimiento), reusa patrón existente de cards colapsables. La idea original ("Ver" por diagnóstico) hubiera sido más lineal pero más friccional.
+- **Mount-once del Timeline + estado preservado del editor con CSS `hidden`**: alternar entre Nota y Timeline NO debe perder el draft del autosave. Unmount/remount lo perdería. CSS `hidden` mantiene el árbol React montado pero invisible — el editor sigue ejecutando su autosave timer aunque esté en Timeline.
+- **`/onboarding/accept-terms` agregado a `isOnboardingFlow`**: si no, el middleware la trataría como ruta protegida — un usuario con membresía sin onboarding completado quedaría en loop entre `/onboarding/accept-terms` y `/onboarding`. Listándola en `isOnboardingFlow` la marca como pre-gates.
+
+### Medicamentos y exámenes dentro de las cards del Timeline (cierre del loop)
+
+**Problema observado tras shippear el Timeline:** ver el SOAP de una consulta pasada responde "qué pensó el doctor" pero no "qué hizo" — para una consulta de seguimiento, la pregunta que más importa es exactamente *"¿qué le mandé tomar la última vez y qué chequeo le pedí?"*. Hoy hay que cerrar el modal de consulta → ir al drawer del paciente → tab Recetas / Exámenes → buscar por fecha. Misma fricción que el Timeline ya resuelve para el SOAP, pero un nivel más profundo.
+
+**Solución:** cada card del Timeline expande no solo el SOAP sino también **Medicamentos recetados** y **Exámenes solicitados** de esa consulta. Orden clínicamente lógico en la card:
+
+```
+SOAP → Diagnósticos → Medicamentos → Exámenes → Vitales → Firmada el …
+```
+
+**Decisión de fetching: prefetch al entrar a Timeline, no por-card al expandir.** Razones:
+- N+1 problem evitado: con 50 notas, expand de 5 dispararía 10 requests (5×rx + 5×exams). Prefetch fija el costo en 2 requests adicionales sin importar cuántas cards expandas.
+- Memoria barata: paciente típico crónico tiene ~50 notas × 2-3 prescriptions = 100-150 filas, ~30-50KB total — invisible.
+- Expand instantáneo (sin spinner por card) — mejora la sensación de "saltar entre consultas".
+- Soft-fail: si `/api/prescriptions` o `/api/exam-orders` devuelven sin permisos para el rol (caso recepcionista), no rompe el Timeline — la sección simplemente no aparece para esa card.
+
+**Indexación:** `useMemo` construye dos `Map<clinical_note_id, Prescription[]>` y `Map<clinical_note_id, ExamOrder[]>`. Cada card hace `map.get(noteId) ?? []` — O(1) lookup, sin re-cómputo entre toggles.
+
+**UX detallada:**
+
+- **Header colapsado** incluye counters discretos `💊 3` y `🧪 5` (Pill/TestTube de Lucide en `text-[10px]`). Pista visual de qué consultas tuvieron tratamiento sin tener que expandir todas.
+- **Medicamentos**: lista compacta `Metformina · 850mg · cada 12h · 30 días (Oral)` con instrucciones en italic en línea aparte. El header de la sección muestra el conteo (`Medicamentos recetados · 3`).
+- **Exámenes**: items con dot de status (verde=completado, gris=pendiente; tooltip "Completado" / "Pendiente"). Si la orden tiene `diagnosis` (diagnóstico presuntivo), aparece como `Por: gastritis crónica` arriba de los items. `notes` generales en italic abajo. Si la orden no tiene items (raro), placeholder "Orden sin ítems".
+- Si una consulta no tuvo recetas/exámenes, las secciones se ocultan completamente — no muestra "0 medicamentos" (ruido visual innecesario).
+
+**Sin migración ni cambios de schema** — `prescriptions.clinical_note_id` (mig 053) y `exam_orders.clinical_note_id` (mig 078) ya existían y ya están scoped a la org vía RLS.
+
+### Archivo tocado (extensión Timeline)
+
+| Archivo | Cambio |
+|---|---|
+| `app/(dashboard)/scheduler/notes-timeline.tsx` | Prefetch de prescriptions + exam-orders en paralelo con notes; index `useMemo` por `clinical_note_id`; counters en header colapsado; secciones nuevas en body (lazy) — Medicamentos y Exámenes con dots de status |
+
+### Decisiones de diseño con contexto (extensión)
+
+- **Prefetch en lugar de fetch-on-expand**: el N+1 sería invisible para 1-2 expands pero visible para un doctor que abre Timeline y expande 5 consultas seguidas (10 requests vs 2). El costo de memoria es trivial y la latencia de expand pasa de "request + spinner" a "instantáneo".
+- **Counters en header colapsado**: agrega ~10px de ancho pero ahorra al doctor expandir 5 cards solo para encontrar "la consulta donde le mandé el antibiótico". Beneficio neto.
+- **Soft-fail en rx/exams si 401/403**: recepcionistas no deberían ver recetas (privacidad clínica) pero deberían poder ver el SOAP del Timeline. En lugar de bloquear toda la feature por permisos, la sección simplemente no aparece para roles sin acceso. Las RLS de Supabase ya manejan el filtrado.
+- **Sin botón "Reimprimir receta" desde el Timeline**: tentador pero scope creep. V1 es solo lectura. Si aparece como necesidad real, agregar después con el `ClinicalNotePrintButton` que ya existe.
+
+## Changelog — Sesión 2026-05-06 (v0.15.3) — Topbar dropdown + Animaciones unificadas + WhatsApp clipboard multi-kind + Followup card dual-action + Phase 1 perf
+
+Sesión enfocada en pulido visual (topbar + animaciones de modales), expansión de las plantillas de WhatsApp clipboard a 3 kinds (post-cita / 2da consulta / presupuesto) cubriendo el flujo de seguimiento del Pack Fertilidad, mejoras al card de seguimiento con dual button device-aware (wa.me / Copiar), y primera ola de optimización de performance en `/scheduler/follow-ups` y `/scheduler/budgets`. También se cerró research para futuras decisiones (Openpay PE multi-gateway + Phase 2/3 perf).
+
+### Topbar rediseñado con dropdown hover
+
+- Reemplaza el bloque email + avatar plano por trigger compacto (avatar + first name opcional) que despliega dropdown al hover con 3 items: **Cuenta**, **Configuración**, **Cerrar sesión**.
+- Animación Framer Motion con curva `cubic-bezier(0.16, 1, 0.3, 1)` (ease-out muy suave). Esa misma curva pasó a ser el estándar de animación de modales/popovers en toda la app (siguiente sub-sección).
+
+### Animaciones de modales/popovers unificadas
+
+- **Problema**: las clases `data-[state=open]:animate-in data-[state=closed]:animate-out` venían de `tailwindcss-animate` pero no había keyframes definidos en Tailwind v4 — eran clases muertas. Resultado: los modales aparecían/desaparecían sin animación.
+- **Fix**: keyframes CSS reales en `globals.css` (`fade-in`, `fade-out`, `zoom-in-95`, `zoom-out-95`, `slide-in-from-*`, `slide-out-to-*`) con la misma curva `cubic-bezier(0.16, 1, 0.3, 1)` del dropdown del topbar. Aplicados en `Dialog`, `AlertDialog`, `Sheet`, `Popover`, `DropdownMenu`.
+- Honra `prefers-reduced-motion: reduce` (las animaciones se desactivan completamente).
+- **Bug fix asociado**: flicker top-left al abrir Dialog — la propiedad `translate` de Tailwind v4 colisionaba con el `transform` del keyframe (Tailwind v4 setea `translate: var(--tw-translate-x) var(--tw-translate-y)` como propiedad nativa CSS, separada de `transform`). Solución: limpiar `translate` y centrar via `transform: translate(-50%, -50%)` directo en el content del Dialog.
+
+### Plantillas WhatsApp clipboard multi-kind (mig 139)
+
+**Por qué**: el Pack Fertilidad necesita mensajes distintos según el contexto de seguimiento (cita post-agendada, paciente que no volvió a 2da consulta, paciente con presupuesto pendiente). Una sola plantilla universal no sirve.
+
+**Migración 139** (`org_whatsapp_clipboard_templates`):
+- Tabla con `id, organization_id, kind (CHECK 3 valores), template TEXT, is_enabled BOOLEAN, created_at, updated_at`. Unique `(organization_id, kind)`.
+- 3 kinds: `post_appointment`, `second_consultation_followup`, `budget_followup`.
+- RLS multi-tenant (mismo patrón que el resto de tablas org-scoped).
+- Seed function `seed_org_whatsapp_clipboard_templates(org_id)` con plantillas default por kind, en español Perú.
+- **Backfill retroactivo** dentro de la migración: `post_appointment` para todas las orgs existentes; los 2 kinds de seguimiento solo para orgs con addon `fertility_basic` o `fertility_premium` activo (`organization_addons` JOIN `addons`).
+
+**API y lib**:
+- `GET/PUT /api/whatsapp-clipboard-templates` (admin/owner only). GET devuelve los 3 kinds, PUT actualiza uno.
+- `lib/whatsapp-clipboard-config.ts` refactorizado a multi-kind: `buildMessage(kind, template, vars)` con narrowing por tipo según kind. Legacy single-template exports preservados como aliases (sin breaking change para callers viejos).
+
+**Settings UI**:
+- Tabs por kind. Los 2 kinds de seguimiento aparecen solo si la org tiene `fertility_basic` o `fertility_premium` activo (gating cliente; el server lo refuerza vía RLS y addon-check del API).
+- **Toolbar B/I/S** que inserta los marcadores de WhatsApp en la posición del cursor: `*bold*`, `_italic_`, `~strike~`.
+- **Picker de ~25 emojis curados** (✅ ❌ 📅 ⏰ 📍 💚 🩺 💊 🧪 🤰 👶 🎯 ⚠️ 📝 🔔 ☝️ 🙌 👋 ✨ 🤝 💬 📞 📲 🏥 ❤️). Inserción cursor-aware.
+- **Vista previa** parsea los marcadores WA → bold/italic/strike HTML para visualización fiel a cómo se verá el mensaje en WhatsApp (no es el mismo formato Markdown de typical CMS).
+- Variables disponibles: las mismas del template original (paciente, doctor, fecha, hora, servicio, clínica, dirección, etc.).
+
+**Bug fix asociado**: error de export en `route.ts` — Next.js 15 prohíbe exportar cosas que no sean handlers HTTP desde un `route.ts`. Las constantes que estaban exportadas se movieron a un módulo separado.
+
+### Followup card: teléfono visible + dual button device-aware
+
+**Cambios en `card-followup.tsx`**:
+- Teléfono del paciente visible debajo del nombre, formateado `+51 987 654 321`. Click → `wa.me/<digits>` (sin texto preset).
+- **Dos botones por card**: `Enviar por WhatsApp` (genera `wa.me?text=...` con plantilla pre-renderizada) + `Copiar mensaje` (copia al clipboard).
+- **Default device-aware**: detección `window.matchMedia('(max-width: 767px)')`. En móvil, `Enviar por WhatsApp` es el botón primario (variant default); en desktop, `Copiar mensaje` es el primario. Razón: las recepcionistas peruanas tienen WhatsApp Web abierto en otra pestaña y un `wa.me` fresco la **recarga** (rompe su flujo). Mejor: copiar y pegar a la ventana ya abierta. En móvil sí abre WhatsApp directo y es lo natural.
+- Ambos botones se deshabilitan cleanly cuando el teléfono falta (con tooltip).
+
+**Selección de kind por card**:
+- Si el card tiene `linked_budget_id` → kind = `budget_followup`.
+- Si no → kind = `second_consultation_followup`.
+
+**Cache de promesas**:
+- Module-level `Map<orgId, Promise<TemplatesResponse>>` deduplica fetches: si 30 cards renderizan al mismo tiempo y todas necesitan la plantilla, se hace 1 sola request.
+
+**Modal post-cita** (`whatsapp-clipboard-modal.tsx`): también ganó dual buttons device-aware (Copiar + wa.me) y recibe el teléfono propagado desde el form de cita (que ya lo tenía pero no lo pasaba al modal).
+
+### Phase 1 perf en seguimientos y presupuestos
+
+**`/scheduler/follow-ups`**:
+- Eliminado double-fetch en mount: el mount disparaba el dashboard endpoint que internamente corría 6 counts secuenciales (pendientes, recuperadas, sin respuesta, atribuidas, iniciativa propia, organic). Reorganizado a 3 counts en paralelo con los buckets de KPI.
+
+**`/api/budgets` GET**:
+- De ~6 round-trips secuenciales a **3 olas** con `Promise.all`:
+  - **Ola 1**: membership + addon-check (resolución de permisos).
+  - **Ola 2**: listing + counts (pending/accepted/rejected) + KPIs.
+  - **Ola 3**: senders (resolución de `sent_by_user_id` → display_name).
+- Removido `count: "exact"` del listing → uso de `limit + 1` con `.range()` para detectar `hasMore`. Sin overhead de full count.
+- Columnas whitelisted en ambos endpoints. Drop explícito de fields pesados sin uso en la card list (`contact_events JSONB` del followup, `notes` largas del budget). Solo se traen al expand de detalle.
+
+**Cliente**:
+- Dropdown de doctores filtra solo `id, full_name` (no carga el row completo).
+
+**TTFB estimado**: −50–70 % en `/scheduler/budgets`, −30–40 % en `/scheduler/follow-ups`. Validar con métricas reales tras pilot.
+
+**Phase 2 / Phase 3 documentados** en `docs/research/perf-followups-budgets.md`:
+- **Phase 2**: indexes específicos para queries de buckets (compuestos `(organization_id, status, sent_at DESC)`), migración a React Query con stale-while-revalidate y prefetch en hover.
+- **Phase 3**: KPIs materializados (refresh por trigger), conversión de las páginas a Server Components con streaming Suspense, paginación cursor-based.
+
+### Research: Openpay PE multi-gateway
+
+**`docs/research/openpay-pe-evaluation.md`**:
+- Análisis de Openpay PE contra docs oficiales (v2 del doc, primero contra docs incorrectos).
+- Propuesta de **abstracción multi-gateway** en `lib/payments/` para no atarse a un solo proveedor.
+- **Recomendación**: iniciar con **Culqi** (Yape nativo es el dolor #1 de clínicas peruanas, mucho más relevante que tarjetas internacionales). Openpay PE en segundo lugar **solo** para clientes B2B con relación BBVA establecida (Openpay es de BBVA y la relación bancaria abre puertas).
+- **Sin código shippeado**: la decisión queda pendiente. El doc es para que el orchestrator decida antes de invertir tiempo de implementación.
+
+### Migración aplicada
+
+| Migración | Descripción |
+|---|---|
+| `supabase/migrations/139_org_whatsapp_clipboard_templates.sql` *(nuevo)* | Tabla `org_whatsapp_clipboard_templates` (3 kinds) + RLS + seed function + backfill retroactivo (post_appointment para todas las orgs; kinds de seguimiento solo para orgs con `fertility_basic` o `fertility_premium`) |
+
+### Archivos tocados (v0.15.3)
+
+| Archivo | Cambio |
+|---|---|
+| `components/layout/topbar.tsx` | Trigger compacto avatar + first name + dropdown hover con 3 items, Framer Motion |
+| `app/globals.css` | Keyframes CSS reales (`fade-in/out`, `zoom-in/out-95`, `slide-in/out-from-*`) con `cubic-bezier(0.16, 1, 0.3, 1)` + respeto a `prefers-reduced-motion` |
+| `components/ui/dialog.tsx` | Aplicar nuevas clases de keyframe + fix flicker top-left por colisión de `translate` Tailwind v4 vs `transform` keyframe |
+| `components/ui/alert-dialog.tsx` | Aplicar nuevas clases de keyframe |
+| `components/ui/sheet.tsx` | Aplicar nuevas clases de keyframe |
+| `components/ui/popover.tsx` | Aplicar nuevas clases de keyframe |
+| `components/ui/dropdown-menu.tsx` | Aplicar nuevas clases de keyframe |
+| `supabase/migrations/139_org_whatsapp_clipboard_templates.sql` *(nuevo)* | Tabla multi-kind + RLS + seed + backfill retroactivo |
+| `app/api/whatsapp-clipboard-templates/route.ts` *(nuevo)* | GET (all kinds) + PUT (one kind), admin/owner only |
+| `lib/whatsapp-clipboard-config.ts` | Refactor a multi-kind con `buildMessage(kind, template, vars)` type-narrowed, legacy exports preservados |
+| `app/(dashboard)/settings/whatsapp-clipboard-tab.tsx` | Reescritura con tabs por kind (gated), toolbar B/I/S, picker de emojis, vista previa con parser WA |
+| `app/(dashboard)/scheduler/follow-ups/card-followup.tsx` | Teléfono visible + dual button device-aware (wa.me / Copiar) + selección de kind por card + cache de promesas |
+| `app/(dashboard)/scheduler/whatsapp-clipboard-modal.tsx` | Dual buttons device-aware + recepción del teléfono desde el form |
+| `app/(dashboard)/scheduler/follow-ups/page.tsx` | Eliminado double-fetch en mount, counts en paralelo |
+| `app/api/budgets/route.ts` | Reorganización a 3 olas `Promise.all`, drop de `count: "exact"`, columnas whitelisted, `limit+1` con `.range()` para `hasMore` |
+| `app/api/clinical-followups/dashboard/route.ts` | Columnas whitelisted, drop de `contact_events JSONB` y `notes` del listing |
+| `app/(dashboard)/scheduler/budgets/page.tsx` | Dropdown de doctores filtra solo `id, full_name` |
+| `docs/research/openpay-pe-evaluation.md` *(nuevo)* | Evaluación Openpay PE + propuesta multi-gateway + recomendación Culqi-first |
+| `docs/research/perf-followups-budgets.md` *(nuevo)* | Diagnóstico completo + Phase 2 (indexes + React Query) + Phase 3 (KPIs materializados + Server Components) |
+| `PRD.md` | Esta sección 39 + bullets en sección 12 + header v0.15.3 |
+
+### Operaciones requeridas para activar v0.15.3
+
+1. **Aplicar migración 139** (`org_whatsapp_clipboard_templates`):
+   - `supabase db push` o pegar `supabase/migrations/139_org_whatsapp_clipboard_templates.sql` en SQL Editor.
+   - El backfill se ejecuta dentro de la migración. Verificar post-aplicación: cada org debe tener fila `post_appointment`; las orgs con `fertility_basic`/`fertility_premium` deben tener también `second_consultation_followup` y `budget_followup`.
+2. **Smoke tests**:
+   - Topbar: hover muestra dropdown con animación suave; click en items navega a `/account` y `/settings`; Cerrar sesión termina la sesión.
+   - Modal HC abre/cierra con fade + zoom suaves (sin flicker top-left). Sheet del paciente, Popover de filtros, Dropdown de menú: todos animados consistentemente.
+   - Settings → WhatsApp: clínica sin addon fertility ve solo tab "Post-cita". Clínica con `fertility_basic` ve los 3 tabs. Toolbar B/I/S inserta marcadores en cursor; picker de emojis inserta en cursor; vista previa renderiza bold/italic/strike correctamente.
+   - `/scheduler/follow-ups`: cards muestran teléfono debajo del nombre; en desktop el botón primario es Copiar; en móvil (DevTools throttle) el primario es wa.me; cards sin teléfono tienen botones disabled.
+   - `/scheduler/budgets` y `/scheduler/follow-ups`: medir TTFB con DevTools Network — debería bajar significativamente vs v0.15.2.
+
+### Decisiones de diseño con contexto
+
+- **Dual button device-aware en lugar de un solo botón "inteligente"**: la lógica "abrir wa.me en móvil, copiar en desktop" se podría empaquetar en un solo botón que decide por dentro. Pero la **acción discreta** importa: en desktop el receptionist a veces sí quiere reabrir el chat (ej. primera vez del día), no solo copiar. Mostrar las dos opciones siempre y solo cambiar cuál es primaria por device es la forma honesta — no le sacas opciones, solo le pre-seleccionas la más probable.
+- **Cache de promesas a nivel módulo en lugar de React Query**: para v0.15.3 era una sola plantilla compartida entre 30 cards. React Query habría sido overkill (bundle + setup). Cuando Phase 2 perf llegue y migremos toda la data fetching a React Query, este cache se reemplaza naturalmente por un `useQuery` con `staleTime` largo.
+- **`limit+1` en lugar de `count: "exact"` para `hasMore`**: PostgreSQL hace un `COUNT(*)` adicional cuando pides `count: "exact"` que escanea toda la tabla aunque tengas paginación. `limit+1` con `.range()` solo trae 1 fila más para saber si hay siguiente página. Performance significativamente mejor en tablas con muchas rows; tradeoff: pierdes el total exacto (pero ya no se mostraba en UI).
+- **Backfill retroactivo dentro de la migración 139**: dejar la tabla vacía y hacer seed lazy en cada org cuando entra a Settings sería más limpio en código, pero significa que el primer admin que entra ve UI vacía. Backfill garantiza que el día 1 todas las orgs ya tienen sus 3 plantillas (gated por addon). Idempotente (ON CONFLICT DO NOTHING).
+- **Modales unificados con la curva del dropdown del topbar**: cohesión visual. Cuando el user descubre la animación del dropdown del topbar, el resto de los modales se sienten "del mismo lenguaje" — no como Frankenstein de animaciones de distintas épocas.
+
+---
+
+## Changelog — Sesión 2026-05-08 (v0.15.4) — Cascada de 3 intentos en seguimientos (Vitra Sprint 1)
+
+Sprint 1 del feedback de Vitra (cliente fertilidad piloto): la obstetra trabaja seguimientos en **cascada de 3 intentos**, no en single-shot. Antes había un dropdown "Posponer N días" pero el flujo no estaba mapeado al modelo mental de la asesora (intento 1 → respuesta o pospuesto → intento 2 → ... → intento 3 → cierre automático). Esta sesión expone las 4 acciones de cascada como botones primarios en cada card, con date picker explícito para el reagendamiento y auto-cierre por overflow al alcanzar `max_attempts`.
+
+### Endpoint nuevo: `POST /api/clinical-followups/[id]/advance`
+
+Un solo endpoint cubre las 4 transiciones de la cascada:
+- `mark_contacted` — primer contacto sin decisión todavía. Setea `first_contact_at` solo si era NULL (preserva atribución honesta).
+- `pospuesto` — paciente pidió más tiempo. Incrementa `attempt_count`, fija `follow_up_date`/`expected_by` a la fecha sugerida.
+- `agendado` — paciente agendó. Cierra como `agendado_via_contacto` (categoría A en KPIs).
+- `cerrar_sin_respuesta` — cierre manual como `desistido_silencioso`.
+
+**Overflow handling**: si la obstetra intenta posponer cuando `attempt_count + 1 > max_attempts`, el endpoint fuerza `desistido_silencioso` y devuelve `auto_closed: true`. La UI muestra toast: "Cerrado automáticamente — alcanzó intento máximo".
+
+Cada acción append-ea un evento al JSONB `contact_events` (mig 128) con `by_user_id`, timestamp y notas. 409 si el seguimiento ya está cerrado. Defense-in-depth scoping por `organization_id`.
+
+### Card: chip de intento + 4 botones de cascada
+
+- **Chip "Intento N/M"** en la meta row del card pendiente: emerald si N=1, amber si N=2, red si N=3.
+- **Action row nueva** debajo del separador, con 4 botones:
+  - ✅ **Agendó** (verde primary, abre confirm dialog)
+  - 💬 **Contactada** (azul outline, instant — solo habilitado desde `pendiente` o `pospuesto`)
+  - 📅 **Reagendar** (violet outline, abre date picker; deshabilitado si ya alcanzó max)
+  - 👎 **Sin respuesta** (red outline, abre confirm dialog)
+- Tooltip de "Reagendar" cuando estás en el último intento: "Si vuelves a reagendar, se cerrará automáticamente." Mensaje también visible inline en amber.
+- Date picker para reagendar usa `<input type="date">` con `min=hoy` y `max=hoy+90 días`. No se introduce ningún componente de calendar nuevo; se reutiliza el patrón ya presente en los filtros del propio page.tsx.
+
+### Cron — sin cambios, ya cubre el caso
+
+Verifiqué `app/api/cron/fertility-followup-contact/route.ts`: ya cierra automáticamente followups con `attempt_count >= cap` al recorrerlos (líneas ~283 y ~550). El filtro `eq("status", "pendiente")` salta rows que el endpoint nuevo ya cerró. No hay double-fire.
+
+### Archivos tocados (v0.15.4)
+
+| Archivo | Cambio |
+|---|---|
+| `app/api/clinical-followups/[id]/advance/route.ts` *(nuevo)* | POST con discriminated union Zod (`mark_contacted` / `pospuesto` / `agendado` / `cerrar_sin_respuesta`), append a `contact_events`, overflow → auto-close |
+| `app/(dashboard)/scheduler/follow-ups/followup-card.tsx` | Chip "Intento N/M", 4 botones de cascada, 3 dialogs (Reagendar con date picker, confirmar Agendó, confirmar Sin respuesta), prop `onAdvance` |
+| `app/(dashboard)/scheduler/follow-ups/page.tsx` | Handler `onAdvance` con detección de `auto_closed` para toast informativo, refactor `requestAction` que devuelve payload, propagación a `PendingTabContent` |
+| `PRD.md` | Esta sección 40 + header v0.15.4 |
+
+### Decisiones de diseño con contexto
+
+- **Endpoint único en lugar de 4 endpoints separados**: las 4 acciones comparten validación (membership + closed_at), audit trail (append a `contact_events`) y RLS-by-org. Un endpoint con discriminated union evita duplicar 80 % de boilerplate. Los endpoints viejos (`contact`, `snooze`, `close-no-response`, `close-manual`) se conservan para la dropdown legacy y para los flujos no-cascade.
+- **Overflow → auto-close en lugar de error**: cuando la obstetra intenta posponer un cuarto intento, lo natural sería bloquear con error. Pero el modelo mental real es "ok, se acabó el tiempo", no "operación inválida". Cerrar automáticamente y avisar es honesto con el flujo de trabajo.
+- **`<input type="date">` en lugar de Popover + Calendar**: el calendar shadcn requiere boilerplate (Popover + Calendar + format) que solo paga su costo si necesitamos restricciones complejas (días bloqueados, locale, etc.). Para un date picker básico con min/max, el input nativo es suficiente y es accesible out-of-the-box.
+
+---
+
+## Changelog — Sesión 2026-05-09 (v0.15.5) — Phase 1: Budget tiers foundation
+
+Foundation work para el feature de tiers A/B/C de presupuestos del addon Fertilidad (orientado a Vitra y futuras clínicas que cotizan con paquetes A/B/C — desde básico hasta premium con NGS, donante in-house, etc.). Esta sesión implementa **únicamente** la base técnica que destrabaron los dos audits previos (`docs/research/budget-tiers-schema-audit.md` y `docs/research/budget-tiers-ui-audit.md`, ambos GO with concerns). Phases 2/3/4 (UI admin de configuración de tiers, modal "Asignar presupuesto" con 3 entry points, generador de PDF) quedan en cola para sesiones próximas.
+
+### Migración 140 — `service_budget_tiers` + assignment fields
+
+`supabase/migrations/140_fertility_budget_tiers_and_assignment.sql`:
+
+- **`services.is_budget_eligible BOOLEAN DEFAULT false`**: instant-add en PG≥11 (default constante = metadata only). Marca el servicio como elegible para tiers; la UI debe gatear su lectura/escritura con `useFertilityAddon()`.
+- **`service_budget_tiers`**: tier A|B|C por servicio con `amount`, `currency` (default PEN), `includes_text`, `notes`, `is_active`, timestamps + `updated_at` trigger reusando la función global `update_updated_at()` de mig 001. **UNIQUE parcial** `(service_id, tier) WHERE is_active=true` (concern A del schema audit) — permite recrear un tier después de soft-delete sin coleccionar duplicados activos. RLS heredada vía `service_id → services.organization_id`: SELECT abierto a cualquier miembro, INSERT/UPDATE/DELETE solo `is_org_admin()`. NO se añadió trigger de validación de addon: el patrón establecido (mig 127, 130, 136) gatea el addon en la capa de aplicación.
+- **`budget_records`** extendida con `service_id` (FK ON DELETE SET NULL, nullable para filas legacy), `tier` (CHECK A|B|C o NULL), `assigned_at` (default NOW()), `assigned_by_user_id`, y se dropearon NOT NULL de `sent_at` y `sent_by_user_id` (el flujo nuevo es asignar primero, enviar después — pueden quedarse NULL indefinidamente si la obstetra contacta a la paciente off-channel).
+- **Backfill best-effort** (concern B): `UPDATE budget_records SET service_id = ...` por ILIKE de `services.name` vs `treatment_type` legacy (FIV→`FIV%`, IIU→`IIU%`, INDUCCION→`Inducción%`, CRIO→`Crio%`, OVODONACION→`Ovodon%`, ROPA→`%ROPA%`). Selección determinista por `display_order, created_at`. Si no hay match, queda NULL — los reports DEBEN usar LEFT JOIN.
+- `treatment_type` **NO se dropea**: 9+ consumidores en frontend + filtro SQL en `/api/budgets`. Queda como snapshot denormalizado (documentado vía COMMENT).
+
+### Helpers reusables (UI audit §6)
+
+- `hooks/use-fertility-addon.ts` — wrapper compacto sobre `useOrgAddons` que devuelve `{ active, loading }`. Reemplaza el inline `hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY])` repetido en 6+ archivos. Los call-sites actuales NO se migraron en este PR (ruido innecesario); fases 2-4 los van adoptando.
+- `components/addons/fertility-addon-gate.tsx` — componente declarativo `<FertilityAddonGate fallback={...} loadingFallback={...}>` sobre el hook anterior.
+
+### Fix crítico UI audit §3.2 — `/scheduler/follow-ups`
+
+- `components/layout/sidebar.tsx`: añadido `requiresAnyAddon: ["fertility_basic", "fertility_premium"]` al nav entry de seguimientos (paridad con `/scheduler/budgets`).
+- `app/(dashboard)/scheduler/follow-ups/page.tsx`: page-level gate con early return ("Pack Fertilidad requerido" + link a `/settings?tab=modulos`) y loader durante `addonsLoading`. Estilo idéntico al gate ya presente en `/scheduler/budgets/page.tsx`.
+
+### Null-safety de `sent_at` (concern D)
+
+Mig 140 hace `sent_at` nullable. Patches preventivos:
+
+- `app/(dashboard)/scheduler/budgets/budget-card.tsx`: `daysAgo()` acepta `string | null` y devuelve `null`; render condicional ("Sin enviar" en lugar de fecha + chip "Hace X días" oculto cuando no hay `sent_at`). El helper `formatDate()` ya tenía null-guard.
+- `app/(dashboard)/patients/fertility-budget-records-section.tsx`: `daysBetween()` acepta nullable; sort usa fallback timestamp 0 (rows sin `sent_at` van al final); render "Sin enviar" en la línea de detalles. `formatDate()` ya tenía null-guard.
+- `app/(dashboard)/scheduler/follow-ups/followup-card.tsx`: NO renderiza `sent_at` directamente — no requiere parche (la línea 386 del audit corresponde a un chip de `linkedBudget.treatment_type`, no a la fecha).
+
+### Hook + endpoint para asesoras (UI audit §3.5)
+
+- `app/api/admin/fertility/advisors/route.ts` — `GET` lista miembros con `is_fertility_advisor=true` (mig 137) joineados con `user_profiles.full_name`. Addon-gated (403 si no hay fertility_basic/premium). Visible para todos los roles dentro de la org. Usa `createAdminClient()` para el join cross-table siguiendo el patrón de `/api/members/responsibles`.
+- `hooks/use-org-fertility-advisors.ts` — wrapper cliente que: (a) gatea con `useFertilityAddon()`, (b) tolera 403 surfaceándolo como `[]` para que la Phase 3 UI no necesite branchear, (c) re-fetcha cuando cambia `organizationId`.
+
+### Concern 3 (UI audit) — `is_budget_eligible` en services SELECT
+
+Audit del impacto: las 7 ubicaciones que hacen `from("services").select("*")` (admin/services, admin/doctors/[id], scheduler/history, admin/discount-codes, scheduler/appointment-sidebar, patients/treatment-plans-panel, patients/page, einvoice/emit-dialog) reciben la nueva columna como propiedad extra del payload. Ningún consumer la usa hoy (TS la marca como `undefined` hasta `npm run types`); todas son lecturas tolerantes. **No se migraron a SELECT projecteado en este PR** — Phase 2 introduce la API gateada `/api/services/budget-eligible` y endurece según corresponda. Documentado para tracking.
+
+### Archivos tocados (v0.15.5)
+
+| Archivo | Cambio |
+|---|---|
+| `supabase/migrations/140_fertility_budget_tiers_and_assignment.sql` *(nuevo)* | Migración foundational: services flag + tabla tiers + extensión budget_records + backfill |
+| `hooks/use-fertility-addon.ts` *(nuevo)* | Wrapper compacto sobre `useOrgAddons` |
+| `components/addons/fertility-addon-gate.tsx` *(nuevo)* | Gate declarativo `<FertilityAddonGate>` |
+| `hooks/use-org-fertility-advisors.ts` *(nuevo)* | Hook cliente para listar asesoras de la org |
+| `app/api/admin/fertility/advisors/route.ts` *(nuevo)* | Endpoint addon-gated para el dropdown asesora (Phase 3) |
+| `components/layout/sidebar.tsx` | `requiresAnyAddon` agregado al entry `/scheduler/follow-ups` |
+| `app/(dashboard)/scheduler/follow-ups/page.tsx` | Page-level gate con CTA a `/settings?tab=modulos` |
+| `app/(dashboard)/scheduler/budgets/budget-card.tsx` | Null-safety en `daysAgo()` y render del bloque de envío |
+| `app/(dashboard)/patients/fertility-budget-records-section.tsx` | Null-safety en `daysBetween()`, sort de `sent_at` y línea de detalles |
+| `PRD.md` | Header v0.15.5 + esta sección 41 |
+
+### Decisiones de diseño con contexto
+
+- **No introducir trigger de addon-validation a nivel DB**: el patrón establecido en mig 127, 130 y 136 gatea el addon en la capa de aplicación. Un trigger acoplaría `service_budget_tiers` a `organization_addons`, rompería seeds/tests y dejaría filas "huérfanas" cuando una org desactive el addon (RLS las ocultaría). La defensa en profundidad es: RLS multi-tenant + check de addon en cada endpoint. Documentado en el header de la migración.
+- **UNIQUE parcial en lugar de UNIQUE total**: `(service_id, tier) WHERE is_active=true` permite que un admin desactive un tier B y luego cree uno nuevo (con monto distinto) sin violar la constraint. Si se hubiera puesto UNIQUE total, el flujo de "actualizar tier creando una nueva versión" sería imposible sin DELETE físico, contradiciendo la política append-only de auditoría comercial.
+- **Backfill best-effort en lugar de backfill obligatorio**: el mapping `treatment_type → services.name` por ILIKE puede no matchear si la org tiene servicios con nombres exóticos ("FIV con donante propio" no matchea `FIV%` literal — sí matchea, perdón, mal ejemplo. "Ciclo de fertilización in vitro" NO matchea `FIV%`). Bloquear la migración si no hay match haría imposible aplicarla a clínicas con servicios ya nombrados a su gusto. NULL es válido y los reports usan LEFT JOIN.
+- **Hook devuelve `[]` en lugar de error en 403**: el `useOrgFertilityAdvisors` está pensado para consumirse dentro de UI ya gateada. Si un caller lo consume sin gate (anti-patrón), el endpoint 403 se surfacea como lista vacía y la UI degrada sin mostrar dropdown — comportamiento más amable que un toast de error. El `error` queda en el state para casos de red real.
+- **Phase 1 NO toca los 6 call-sites existentes que repiten `hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY])`**: migrarlos al hook nuevo en este mismo PR habría inflado el diff sin cambio funcional. Phases 2-4 los irán reemplazando naturalmente cuando toquen esas zonas.
+
+### Operaciones requeridas para activar v0.15.5
+
+1. Aplicar migración 140 en Supabase (local: `npx supabase db push` — instantánea por defaults constantes; remote: aplicar via dashboard o CLI).
+2. Regenerar tipos TS: `npm run types`. Esto expone `is_budget_eligible`, `service_budget_tiers` y los nuevos campos de `budget_records` al tipo `Database`.
+3. Validar visualmente: una org sin addon ya no ve `/scheduler/follow-ups` en el sidebar y, si entra por URL directo, ve el empty state "Pack Fertilidad requerido" con CTA a Settings.
+4. (Opcional) Auditar el resultado del backfill: `SELECT count(*) FROM budget_records WHERE service_id IS NULL` debe ser ≤ el conteo histórico de filas `treatment_type='OTRO'` + servicios con nombres no-mappeables.
+
+---
+
+## Changelog — Phase 2: Admin UI for budget tiers (v0.15.6)
+
+UI administrativa para configurar los tiers A/B/C de los servicios elegibles del addon Fertilidad. Phase 2 toma la foundation técnica de v0.15.5 y la conecta con `/admin/services` y la activación del addon, sin tocar el flujo de "Asignar presupuesto" en el drawer del paciente (eso es Phase 3).
+
+### Endpoint nuevo — `/api/services/[id]/tiers`
+
+`app/api/services/[id]/tiers/route.ts`:
+
+- **GET**: devuelve los tiers existentes (activos e inactivos) para un servicio. RLS filtra por `service_id → services.organization_id`. Validación de membership + scoping al org del caller. Addon-gated (403 si no hay `fertility_basic|fertility_premium`).
+- **PUT**: upsert de hasta 3 tiers (A/B/C). Body Zod: `{ tiers: [{ tier, amount, currency: 'PEN'|'USD', includes_text?, notes?, is_active }] }`. Solo `owner|admin`. Para honrar la UNIQUE parcial `WHERE is_active=true`, hacemos lookup por `(service_id, tier)` y actualizamos en-place el row existente (preferimos el activo, fallback al inactivo más reciente). Inserción solo si no existe. Esto permite el flujo "soft-delete + recreate" sin violar la constraint y sin coleccionar duplicados activos.
+- Sin exports no-handler (Next.js 15 strict en `route.ts`).
+
+### UI `/admin/services` — gateada con `<FertilityAddonGate>`
+
+`app/(dashboard)/admin/services/page.tsx`:
+
+- **Lista de servicios**: badge "Addon Fertilidad" (lucide `Sparkles`, emerald) cuando `service.created_by_addon` está seteado y la org tiene el addon activo. Botón "Eliminar" oculto para esos mismos servicios — la org sigue pudiendo desactivar (toggle existente) y editar nombre/precio/duración. Defense in depth: el trigger `prevent_delete_addon_services()` ya bloquearía el DELETE.
+- **Form del servicio**: nuevo bloque envuelto en `<FertilityAddonGate>` con:
+  - Checkbox "Habilitar para presupuestos del addon Fertilidad" → `services.is_budget_eligible`. Persistido junto con el resto del payload via UPDATE/INSERT existente.
+  - Sub-sección expandible con 3 filas A/B/C (label tier read-only). Por fila: monto (number, 2 decimales), moneda (select PEN/USD), qué incluye (textarea), notas internas (textarea), toggle activo.
+  - Botón explícito "Guardar tiers" — separado del "Guardar" del servicio porque el endpoint es distinto (PUT vs supabase client) y porque para servicios nuevos el id no existe hasta el primer save (mensaje "Primero guarda el servicio. Después podrás configurar los tiers.").
+- En orgs sin el addon, todo el bloque desaparece (no hay checkbox ni badge) — el componente nunca renderiza por el gate.
+
+### Activación del addon — seed automático
+
+`app/api/addons/[key]/activate/route.ts`:
+
+- Antes del seed de WhatsApp templates, count `services WHERE created_by_addon = 'fertility_basic' AND organization_id = X`. Si == 0, invoca `seed_fertility_services(p_org_id)` (RPC SECURITY DEFINER de mig 140). Esto crea 6 servicios TRA + 18 tiers (3 por servicio) en la org recién activada. La RPC es idempotente, pero el count evita reruns innecesarios en re-activaciones (ej. desactivar y volver a activar).
+- Failure → warning soft, no bloquea la activación (mismo patrón que el seed de rules y WhatsApp templates).
+
+### Validation schema
+
+`lib/validations/service.ts`:
+
+- `serviceSchema` extendido con `is_budget_eligible: z.boolean().default(false)`.
+- Nuevos exports: `TIER_LETTERS` (`['A','B','C']` const), `TIER_CURRENCY_OPTIONS`, `serviceBudgetTierSchema`, tipos `TierLetter` y `ServiceBudgetTierFormData`.
+
+### Archivos tocados (v0.15.6)
+
+| Archivo | Cambio |
+|---|---|
+| `app/api/services/[id]/tiers/route.ts` *(nuevo)* | GET + PUT addon-gated para tiers A/B/C |
+| `app/api/addons/[key]/activate/route.ts` | Llama `seed_fertility_services` solo en primera activación |
+| `app/(dashboard)/admin/services/page.tsx` | Badge addon + delete oculto + nuevo bloque tiers en form |
+| `lib/validations/service.ts` | `is_budget_eligible` + schema y constantes de tier |
+| `PRD.md` | Header v0.15.6 + esta sección 42 |
+
+### Decisiones de diseño con contexto
+
+- **Botón "Guardar tiers" separado del "Guardar" del servicio**: el form de servicio usa `supabase` client directo para PATCH/INSERT; los tiers requieren un endpoint API porque la UNIQUE parcial necesita lógica de "update-by-id" (no upsert directo). Combinarlos en un solo botón implicaría secuenciar dos requests con rollback complejo si la segunda falla. Botón separado es honesto con el modelo: el admin entiende que los tiers son una entidad propia.
+- **Update por id existente, no upsert por (service_id, tier)**: la UNIQUE parcial `WHERE is_active=true` impide un upsert ingenuo (un row inactivo + un row activo coexisten). Lookup explícito + UPDATE in-place + INSERT solo si no hay row del tier preserva la política "soft-delete + recreate" sin duplicar histórico.
+- **Seed sólo en primera activación**: la RPC es idempotente, pero re-correrla en cada toggle es ruidoso (warnings de "flagged_existing" en logs). Verificar con `count(*)` antes evita el rerun y deja el código del activate más legible.
+- **Sin migrar el `services.select("*")` de los 7 callers documentados**: Phase 2 no toca esa cleanup. Las 7 ubicaciones reciben `is_budget_eligible` y `created_by_addon` como propiedades extra del payload, ningún consumer las usa hoy fuera de `/admin/services`. Phase 3/4 puede consolidar si surge necesidad real.
+
+### Operaciones requeridas para activar v0.15.6
+
+1. Deploy del código (mig 140 ya está aplicada en Vitra; `seed_fertility_services` ya disponible en DB).
+2. Regenerar tipos TS si aún no se hizo: `npm run types`. Sin esto, `is_budget_eligible` y `created_by_addon` quedan como `undefined` en el tipo `Database`, pero la UI sigue funcionando vía cast.
+3. Validar visualmente con la cuenta de Vitra: editar uno de los 6 servicios TRA seedeados, ver el bloque "Tiers de presupuesto", arreglar los 3 typos de precios documentados (FIV-A == FIV-C, OVODON-B == OVODON-C, TED-B == TED-C) usando el botón "Guardar tiers".
+4. Probar activación del addon en una org de prueba (no Vitra): verificar que los 6 servicios + 18 tiers aparecen automáticamente bajo categoría "Reproducción Asistida (TRA)".
+
+---
+
+## Changelog — Phase 3: Modal + entry points + sub-bucket
+
+**Fecha:** 2026-05-09 · **Versión:** 0.15.7
+
+Phase 3 cierra el flujo end-to-end de Budget Tiers A/B/C: la doctora asigna el tier desde 3 puntos de entrada (cita completada, drawer del paciente, card de followup) y la obstetra "de turno" envía el presupuesto desde el kanban con un botón explícito.
+
+### Entrega 1 — `<AssignBudgetModal>` reusable
+
+`components/addons/fertility/assign-budget-modal.tsx` (nuevo):
+
+- Wrapper auto-gateado con `<FertilityAddonGate>` (defense in depth).
+- Carga servicios elegibles vía `GET /api/services/budget-eligible` y asesoras vía `useOrgFertilityAdvisors()`.
+- Tier picker A/B/C como cards con monto/moneda/incluye visibles, borde emerald + ring en el seleccionado, disabled state si ese tier no está configurado para el servicio.
+- Dropdown asesora con opción "Sin asignar" (la obstetra de turno la asignará al enviar). Optional notes textarea (max 500).
+- Submit a `POST /api/budgets/assign`. Toast "Presupuesto asignado. Pendiente de procesar.", llama `onCreated(id)`, cierra.
+
+### Entrega 2 — `POST /api/budgets/assign`
+
+`app/api/budgets/assign/route.ts` (nuevo):
+
+- Addon-gated. Recepcionistas 403 (advisors con base role no-recepcionista pasan; advisors flagged en row de recepcionista quedan bloqueados por el role check + addon gate combinados).
+- Lookup de `service_budget_tiers` por `(service_id, tier, is_active=true)` para snapshot de `amount` + `currency`. Sin row → 422 "Tier no configurado para este servicio".
+- Validación cross-org del paciente, servicio y asesora.
+- `treatment_type` inferido desde `services.name` con mapping conservador documentado in-line: `FIV*`/`(FIV)` → FIV; `IIU`/`Inseminación` → IIU; `ROPA` → ROPA; `Crio` → CRIO; `Ovodon` → OVODONACION; `Inducci` → INDUCCION; **TED** y cualquier otro → OTRO. (El enum de `budget_records.treatment_type` no tiene aún valor TED — Phase 4 puede agregarlo.)
+- Insert: `assigned_at=NOW()`, `assigned_by_user_id=auth.uid()`, `sent_at=NULL`, `sent_by_user_id=NULL`, `acceptance_status='pending_acceptance'`. Devuelve `{ id, assigned_at }`.
+
+**Decisión documentada — `asesora_id` no se persiste todavía**: el body acepta `asesora_id` (organization_members.id flagged como `is_fertility_advisor`) y lo valida contra la org, pero `budget_records` no tiene una columna dedicada para guardar la asesora asignada. Sobrecargar `sent_by_user_id` rompería el split Sin procesar/Enviado introducido en este mismo phase. Phase 4 debe agregar `budget_records.assigned_asesora_member_id UUID REFERENCES organization_members(id) ON DELETE SET NULL`. Hasta entonces el dropdown es informativo/UX-only.
+
+### Entrega 3 — `GET /api/services/budget-eligible`
+
+`app/api/services/budget-eligible/route.ts` (nuevo):
+
+- Addon-gated. Lectura abierta a cualquier rol dentro de una org con addon activo.
+- Devuelve `services` con `is_budget_eligible=true AND is_active=true`, sorteados por `display_order`, joined con `service_budget_tiers` activos sorteados A→B→C.
+
+### Entrega 4 — Tres entry points
+
+- **Appointment sidebar** (`app/(dashboard)/scheduler/appointment-sidebar.tsx`): botón "Asignar presupuesto" (lucide `Receipt`, emerald outline) sólo en `appointment.status === "completed"` y con addon activo, oculto a recepcionistas. Modal montado al final del componente, fuera del scroll container.
+- **Patient drawer** (`app/(dashboard)/patients/fertility-budget-records-section.tsx`): el botón nuevo precede al legacy "Registrar presupuesto enviado" como ruta default. Cabe dentro de la sección ya gateada (`FertilityBudgetRecordsSection` retorna null si la org no tiene addon).
+- **Followup card** (`app/(dashboard)/scheduler/follow-ups/followup-card.tsx`): botón aparece para `variant === "pending" || "no_response"` y `linkedBudget === null` y rol no recepcionista. Nuevo prop `onBudgetAssigned`; cuando el modal crea el budget, llama hacia arriba hasta `refresh()` en `page.tsx` para que la card se redibuje con el chip cyan "Presupuesto …" y el botón desaparezca.
+
+### Entrega 5 — Sub-bucket "Sin procesar" en `/scheduler/budgets`
+
+- **API** (`app/api/budgets/route.ts`): el `Promise.all` ahora incluye `pendingUnsentCountQuery()` (`acceptance_status='pending_acceptance' AND sent_at IS NULL`) y `pendingSentCountQuery()` (`AND sent_at IS NOT NULL`). Response devuelve `counts.pending_unsent` y `counts.pending_sent` además del `pending` total. `BUDGET_COLUMNS` ahora incluye `service_id`, `tier`, `assigned_at`, `assigned_by_user_id` para que el card pueda mostrar "Sin procesar" y el contexto de tier.
+- **UI page** (`app/(dashboard)/scheduler/budgets/page.tsx`): nuevo helper `<PendingSubGroups>` que splitea client-side sobre `sent_at` y rinde dos sub-secciones con headers + counts. Sin procesar (amber, "Asignados, pendientes de envío al paciente") arriba; "Enviado, esperando respuesta" (blue) abajo.
+- **Card** (`app/(dashboard)/scheduler/budgets/budget-card.tsx`): nuevo flag `isUnsent` (`pending_acceptance && !sent_at`). Badge cambia a "Sin procesar" amber para isUnsent, "Esperando respuesta" blue para sent. Nuevo botón "Enviar al paciente" (lucide `Send`, fondo amber sólido) sólo en isUnsent que llama `POST /api/budgets/[id]/send`.
+
+### Entrega 6 — `POST /api/budgets/[id]/send`
+
+`app/api/budgets/[id]/send/route.ts` (nuevo):
+
+- Caller role: owner|admin|doctor|advisor. Recepcionistas 403.
+- Addon-gated. Valida que la fila pertenezca a la org del caller, que `acceptance_status='pending_acceptance'` y que `sent_at IS NULL`.
+- Setea `sent_at=NOW()` + `sent_by_user_id=auth.uid()` (la obstetra de turno que clickeó Enviar).
+- **TODO Phase 4**: trigger de PDF + dispatch (WhatsApp/Email). Comentario in-file.
+
+### Archivos tocados (v0.15.7)
+
+| Archivo | Cambio |
+|---|---|
+| `components/addons/fertility/assign-budget-modal.tsx` *(nuevo)* | Modal reusable con tier picker A/B/C |
+| `app/api/services/budget-eligible/route.ts` *(nuevo)* | GET addon-gated, services + tiers |
+| `app/api/budgets/assign/route.ts` *(nuevo)* | POST addon-gated, snapshot del monto del tier |
+| `app/api/budgets/[id]/send/route.ts` *(nuevo)* | POST marca sent_at + sent_by_user_id |
+| `app/api/budgets/route.ts` | `pending_unsent` / `pending_sent` counts + columnas Phase 3 |
+| `app/(dashboard)/scheduler/budgets/page.tsx` | `<PendingSubGroups>` helper |
+| `app/(dashboard)/scheduler/budgets/budget-card.tsx` | Badge "Sin procesar" + botón "Enviar al paciente" |
+| `app/(dashboard)/scheduler/appointment-sidebar.tsx` | Botón "Asignar presupuesto" en `completed` |
+| `app/(dashboard)/patients/fertility-budget-records-section.tsx` | Botón "Asignar presupuesto" en la sección |
+| `app/(dashboard)/scheduler/follow-ups/followup-card.tsx` | Botón "Asignar presupuesto" + prop `onBudgetAssigned` |
+| `app/(dashboard)/scheduler/follow-ups/page.tsx` | Wire `onBudgetAssigned` → `refresh()` |
+| `PRD.md` | Header v0.15.7 + esta sección |
+
+### Pendiente para Phase 4
+
+- Generación de PDF al hacer click en "Enviar al paciente" + dispatch opcional WhatsApp/Email.
+- Migración: agregar `budget_records.assigned_asesora_member_id` para persistir la asesora (Phase 3 sólo valida soft).
+- Considerar agregar valor `TED` al enum `treatment_type` de `budget_records` si la métrica TED amerita su propio bucket en reports (hoy queda en OTRO).
+
+
+---
+
+## Changelog — Phase 4: PDF generator + storage + cleanup
+
+**Fecha:** 2026-05-10 · **Versión:** 0.15.8
+
+Phase 4 cierra el feature de Budget Tiers A/B/C: la obstetra puede ahora descargar el presupuesto como PDF profesional desde el kanban y desde el drawer del paciente, y el endpoint de "Enviar al paciente" auto-genera el PDF en el mismo round-trip. Almacenamiento en bucket privado por org con RLS, regeneración lazy si el row fue editado, y un cron mensual que purga PDFs viejos para mantener el costo de Storage acotado.
+
+### Migración 141 — `141_budget_pdf_storage.sql`
+
+Cuatro piezas:
+
+1. **Columnas en `budget_records`** — `pdf_storage_path TEXT`, `pdf_generated_at TIMESTAMPTZ`, `pdf_size_bytes INTEGER`. NULLs hasta la primera generación; el comentario en la columna documenta el ciclo de invalidación.
+2. **Bucket privado `budget-pdfs`** — `INSERT ... ON CONFLICT DO NOTHING` (idempotente).
+3. **RLS path-based** sobre `storage.objects`:
+   - `SELECT/INSERT/UPDATE`: cualquier miembro activo cuya `get_user_org_ids()` contenga el primer folder (UUID).
+   - `DELETE`: solo `is_org_admin(org_id)` (el cron usa service-role, así que esto es defense in depth).
+4. **Fix retroactivo del bucket `clinical-files`** flagged en `docs/research/derma-photos-storage-strategy.md`: el código en `app/api/clinical-attachments/route.ts:80` lo asume existente pero ninguna migración lo creaba — funcionaba en prod solo porque el bucket fue creado manualmente. Mig 141 lo agrega idempotentemente con la misma RLS shape para que envs nuevos (local dev, branches de Supabase) no fallen.
+
+### Componente PDF — `lib/budget-pdf/document.tsx`
+
+`<BudgetPdfDocument>` con `@react-pdf/renderer` (runtime nodejs). Layout:
+
+- **Header band** emerald (10mm) con nombre de la org en blanco + barrita deep-emerald (mimic de la "barrita lateral de colores" de Vitra).
+- **Título** PRESUPUESTO centrado.
+- **Tabla 2 cols** paciente/documento/tratamiento/tier vs fecha/médico/asesora/vigencia (90 días desde la emisión).
+- **Card del servicio** con `PAQUETE A|B|C` y bullet list "Qué incluye" derivado de `tier.includes_text`; si está NULL, fallback genérico por `treatment_type` (4-5 ítems típicos).
+- **Total box** emerald con monto formateado (`S/` o `US$`).
+- **Consideraciones** (4 bullets boilerplate de Vitra: vigencia 90d, 60d una vez pagado, retención 10%, servicios médicos no contemplados se cotizan aparte).
+- **Footer** con nombre+RUC izq, línea de firma derecha, "ASESORA DE FERTILIDAD: …" si existe.
+
+Helvetica default (sin `Font.register()`): bundle más liviano, render predecible. Custom fonts diferidos como polish.
+
+### Helpers — `lib/budget-pdf/storage.ts` y `lib/budget-pdf/generate.ts`
+
+- `storage.ts` — `uploadBudgetPdf(adminClient, orgId, budgetId, buffer)` (path = `${orgId}/${budgetId}.pdf`, `upsert: true`), `getBudgetPdfSignedUrl(client, path, expiresIn=3600)`, `deleteBudgetPdf(adminClient, path)`. Acepta `SupabaseClient` genérico para que el cron pase su admin client.
+- `generate.ts` — `generateBudgetPdf(userClient, adminClient, budgetId)`: lookup del budget (RLS scopea por user), org+profiles via admin (no perdemos render por un quirk de RLS), tier metadata (`includes_text`/`currency`) opcional, render → upload → persist `pdf_storage_path`/`pdf_generated_at`/`pdf_size_bytes`. **Cache rule**: si `pdf_storage_path` existe Y `pdf_generated_at >= updated_at`, devuelve signed URL sin re-renderizar. Si la signed URL falla (objeto borrado out-of-band) cae al render path.
+
+### Endpoints
+
+- **`POST /api/budgets/[id]/pdf`** — addon-gated (fertility_basic|premium), rate-limited, `runtime = "nodejs"`. Devuelve `{ signed_url, storage_path, reused, size_bytes }`.
+- **`POST /api/budgets/[id]/send`** — extendido: tras marcar `sent_at`/`sent_by_user_id`, llama `generateBudgetPdf` inline y devuelve `{ data, pdf_signed_url, pdf_error }`. Falla del PDF NO revierte el envío (el row queda enviado, el cliente puede reintentar via `/pdf`). Se removió el `// TODO Phase 4`.
+
+### UI — Botón "Descargar PDF"
+
+- `app/(dashboard)/scheduler/budgets/budget-card.tsx`: botón emerald outline con `FileDown` antes de los CTAs de aceptado/rechazado. Visible para cualquier `acceptance_status` ≠ `'expired'` (forward-compat: el enum aún no tiene `expired`, pero el guard ya está). Al hacer click POST `/api/budgets/[id]/pdf` y abre la signed URL en nueva pestaña.
+- `app/(dashboard)/patients/fertility-budget-records-section.tsx`: mismo botón en cada row del listado de presupuestos del paciente.
+- `sendToPatient` ahora también abre `pdf_signed_url` retornado por `/send` automáticamente (toast warning si falla).
+
+### Cron — `/api/cron/budget-pdf-cleanup`
+
+Schedule `0 8 1 * *` (UTC = 3 AM Lima día 1 de cada mes). Auth via `CRON_SECRET` (mismo patrón que `fertility-followup-contact`). Lógica:
+
+- `rejected` con `rejected_at < NOW() - 6 months`
+- `accepted` con `accepted_at < NOW() - 2 years`
+- `expired` con `updated_at < NOW() - 6 months` (forward-compat)
+
+Por cada match: `deleteBudgetPdf` + UPDATE las 3 columnas a NULL. Falla de storage no bloquea el UPDATE (el row queda consistente; los re-renders posteriores funcionan). Log `console.log` de counts (`candidates / purged / storage_failed / db_failed`).
+
+### `vercel.json`
+
+Una entry nueva añadida al final del array (4ª cron, dentro del límite de Vercel Pro):
+
+```json
+{
+  "path": "/api/cron/budget-pdf-cleanup",
+  "schedule": "0 8 1 * *"
+}
+```
+
+Las 3 cron schedules existentes no fueron modificadas.
+
+### Archivos tocados (v0.15.8)
+
+| Archivo | Diff |
+|---------|------|
+| `supabase/migrations/141_budget_pdf_storage.sql` *(nuevo)* | 3 columnas + bucket `budget-pdfs` + 4 RLS + retroactive `clinical-files` bucket+RLS |
+| `lib/budget-pdf/storage.ts` *(nuevo)* | upload/signedUrl/delete + `BUDGET_PDFS_BUCKET` const |
+| `lib/budget-pdf/document.tsx` *(nuevo)* | `<BudgetPdfDocument>` (Helvetica, layout descrito arriba) |
+| `lib/budget-pdf/generate.ts` *(nuevo)* | `generateBudgetPdf()` con reuse cache |
+| `app/api/budgets/[id]/pdf/route.ts` *(nuevo)* | POST handler addon-gated |
+| `app/api/budgets/[id]/send/route.ts` | Wires PDF gen + remueve TODO Phase 4 |
+| `app/api/cron/budget-pdf-cleanup/route.ts` *(nuevo)* | Cron mensual con purge logic |
+| `app/(dashboard)/scheduler/budgets/budget-card.tsx` | Botón Descargar PDF + auto-open en send |
+| `app/(dashboard)/patients/fertility-budget-records-section.tsx` | Botón Descargar PDF por row |
+| `vercel.json` | +1 cron entry |
+| `PRD.md` | Header v0.15.8 + esta sección |
+
+### Pendiente / siguiente
+
+- **Backfill de PDF para rows aceptados pre-Phase 4**: no se hace automáticamente; el cliente regenera lazy en el primer click.
+- **Custom fonts** (Calibri-style) — diferido a polish, Helvetica es aceptable para MVP.
+- **Tipos generados de Supabase** — falta `npm run types` para reflejar las 3 columnas nuevas y los joins en `service_budget_tiers`. La compilación pasa porque el cliente Supabase es type-loose en `.from()` y los casts puntuales están localizados.
+- **Founder confirm**: el schedule `0 8 1 * *` (UTC) traduce a 3 AM Lima — Brazil/GRU es UTC-3, ahí serían 5 AM. La región `gru1` en Vercel solo afecta dónde corre el código, no el huso horario del cron. El schedule fue elegido para Lima (mercado primario). Cambiarlo si la prioridad es GRU.
+
+## Changelog — Phase 5 prep: treatment lifecycle + auto-followup
+
+**Migración 142** (`142_budget_treatment_lifecycle.sql`): extiende `budget_records.acceptance_status` de 3 a 6 estados (`pending_acceptance`/`accepted`/`in_progress`/`completed`/`rejected`/`expired`), añade columnas `started_at` (TIMESTAMPTZ), `started_by_user_id` (FK `auth.users` ON DELETE SET NULL), `completed_at` (TIMESTAMPTZ), crea índice parcial `idx_budget_records_accepted_unstarted` para el predicado del cron, y siembra el rule `fertility.budget_accepted_pending_start` per-org via `INSERT ... SELECT FROM organization_addons WHERE addon_key IN ('fertility_basic','fertility_premium') AND enabled=true ... ON CONFLICT (organization_id, rule_key) DO NOTHING`. El `trigger_event` se setea a `treatment_plan_created` (uno de los 3 enum allowed por la CHECK constraint del schema mig 127) — el cron es quien crea los followups, no el trigger event en sí.
+
+**Endpoints nuevos**:
+- `POST /api/budgets/[id]/start` — body opcional `{ notes? }`. Allowed: owner|admin|doctor|advisor (recepcionistas 403). Valida `acceptance_status='accepted'` AND `started_at IS NULL`. Setea `acceptance_status='in_progress'`, `started_at=NOW()`, `started_by_user_id=auth.uid()`. Cierra cualquier followup abierto del paciente con `rule_key='fertility.budget_accepted_pending_start'` Y `contact_events[].budget_record_id=this.id` con closure `agendado_via_contacto` si tenía `first_contact_at`, else `agendado_organico_dentro_ventana` (mismo branching que `/mark-accepted`). Append event tipo `treatment_started` a contact_events.
+- `POST /api/budgets/[id]/complete` — sin body. **Solo admin/owner** (financial-impact decision). Valida `acceptance_status='in_progress'`. Setea `acceptance_status='completed'`, `completed_at=NOW()`.
+
+**Transformación de followups upstream en `/api/budgets/assign`**: si la request linkea un `followup_id` con `rule_key IN ('fertility.first_consultation_lapse','fertility.second_consultation_lapse')` y `closed_at IS NULL`, se transforma in-place a `fertility.budget_pending_acceptance`: `target_category_canonical='fertility.treatment_initiated'`, `attempt_count=0`, `snooze_until=NULL`, `status` (pospuesto→pendiente, otros se preservan), `expected_by=NOW()+90d`, append `rule_transition` event con `from_rule`/`to_rule`/`budget_record_id`. **`first_contact_at` se PRESERVA** para mantener la señal de atribución honesta (Categoría A vs B). El nuevo `budget_records.followup_id` se linkea al followup transformado. Dedup verificado: `maybeCreateBudgetPendingFollowup` (lib/fertility/followup-triggers.ts:55) ya hace lookup por `rule_key='fertility.budget_pending_acceptance'` antes de insertar — el cron skipea el duplicate.
+
+**Cron diario `fertility-followup-contact` extendido** con un paso post-loop: por cada org con addon activo, busca `budget_records WHERE acceptance_status='accepted' AND started_at IS NULL AND accepted_at <= NOW()-rule.delay_days` (default 14d). Idempotencia vía búsqueda de followup abierto del paciente con `rule_key='fertility.budget_accepted_pending_start'` y `contact_events[].budget_record_id` matching. Inserta clinical_followup nuevo con `priority='yellow'`, `reason='Verificar inicio de tratamiento'`, `expected_by=NOW()+7d`, `attempt_count=0`, `max_attempts=rule.max_attempts` (default 3), `source='rule'`, `target_category_canonical='fertility.treatment_started'`, `contact_events=[{type:'budget_accepted_pending_start_alert',budget_record_id,at}]`. Helper `resolvePatientDoctor` resuelve un doctor_id válido (recent appointment → fallback any active doctor en la org). El response añade `accepted_pending_start_created`.
+
+**UI `/scheduler/budgets` — sub-buckets en Aceptados**: nuevo componente `<AcceptedSubGroups>` mirroring `<PendingSubGroups>`. Los 3 grupos:
+- **Por iniciar** (badge amber): `acceptance_status='accepted'`. Cada card muestra urgency tint en el badge según edad de `accepted_at`: <7d gris ("Aceptado hace N días"), 7–14d amber ("... — recordar inicio"), >14d rose ("... — verificar con paciente"). Botón **Marcar inicio de tratamiento** (lucide `Play`, emerald) para owner/admin/doctor/advisor.
+- **En curso** (badge azul): `acceptance_status='in_progress'`. Muestra `started_at`. Botón **Marcar completado** (lucide `CheckCircle`, emerald) **solo admin/owner** via `useOrgRole().isAdmin`.
+- **Completados** (badge emerald): `acceptance_status='completed'`. Read-only, muestra `completed_at`.
+
+El tab Aceptados ahora suma los 3 sub-buckets y muestra un mini-badge ámbar con el count de `accepted_unstarted` cuando > 0 (recordatorio visual de que hay tratamientos por arrancar).
+
+**`/api/budgets` GET extendido**: el bucket `accepted` ahora retorna `acceptance_status IN ('accepted','in_progress','completed')` (`.in()` filter). Response añade `counts.accepted_unstarted` (alias de `counts.accepted` para claridad), `counts.in_progress`, `counts.completed`. `BUDGET_COLUMNS` incluye `started_at`, `started_by_user_id`, `completed_at` para que el card pueda renderizar las fechas sin re-fetch.
+
+**Followup card stepper**: `ruleStepperActiveIdx()` mapea `fertility.budget_accepted_pending_start` al stepper dot 2 (mismo stage que `budget_pending_acceptance` — ambos pertenecen a la fase post-segunda-consulta de decisión de tratamiento). `buildReasonForTarget()` agrega caso `fertility.treatment_started` → "Verificar inicio de tratamiento".
+
+**Tipos**: `BudgetAcceptanceStatus` extendido a 6 valores. `BudgetRecord` añade `started_at`/`started_by_user_id`/`completed_at`. `ContactEventType` añade `rule_transition`/`treatment_started`/`budget_accepted_pending_start_alert`. `ContactEvent` añade campos opcionales `from_rule`/`to_rule` para los rule_transition events.
+
+**Decisiones de diseño**:
+- Preservar `first_contact_at` durante la transformación de followups upstream es **crítico** para la atribución honesta — si se reseteara, las recuperaciones legítimas (Categoría A) se contarían como orgánicas (Categoría B) y el revenue atribuido del módulo de seguimientos quedaría sub-reportado.
+- El gating de `/complete` a admin/owner es deliberado: marcar un tratamiento como completado dispara reconocimiento de revenue contra el monto del paquete; doctores y advisors pueden iniciar pero no cerrar el ciclo.
+- El cron usa `contact_events[].budget_record_id` (no una FK dedicada) para linkear followups a budgets en este nuevo path, consistent con el patrón de `budget_pending_acceptance` existente. Phase 6 podría agregar un FK column si el patrón se generaliza.
+- El index parcial `idx_budget_records_accepted_unstarted` está pensado para que el cron escanee solo el subset relevante; el predicado mismo es lo que el cron usa.
+
+---
+
+## Changelog — Pre-launch hardening: MP grace + cancellation (v0.15.11)
+
+**Branch:** `claude/add-terms-privacy-fH9H7`
+**Fecha:** 2026-05-12
+**Origen:** `docs/launch-prep/mp-cancellation-grace-audit.md` (P0 gaps Wave 1)
+
+### Lo que se arregló
+
+1. **Bug crítico: `past_due` ya no expulsa al instante.** La RPC `get_user_session_check` (mig 067 → mig 118 → ahora mig 144) ignora `past_due`/`expired` pero acepta dos estados nuevos: `grace` con `grace_period_until > now()` (7 días por defecto) y `cancelled` con `mp_next_payment_date > now()` (acceso hasta el fin del período pagado).
+
+2. **Endpoint + botón de cancelación self-serve.** `POST /api/billing/cancel` (owner-only) llama `preApproval.update({status:'cancelled'})` en MP primero — si falla, aborta y devuelve `502 mp_cancel_failed` para que local + MP no se desincronicen. Si MP responde OK, stampa la DB con `status='cancelled'`, `cancelled_at=NOW()`, `cancelled_by_user_id=auth.uid()` via admin client (la policy UPDATE de mig 003 requiere row owner; el admin client la salta). Log `billing_events` con `previous_status` + `access_until`. En `/account` Danger Zone el botón "Eliminar cuenta" (sin handler) fue reemplazado por **"Cancelar suscripción"** con `<ConfirmDialog>` y estado read-only post-cancel "Cancelada — acceso hasta {date}".
+
+3. **Cron diario `/api/cron/billing-status`** (`0 14 * * *` UTC = 09:00 Lima). 4 pasos:
+   - `trialing` con `trial_ends_at<=NOW()` → `past_due` + `past_due_since=NOW()`
+   - `grace` con expiry en ≤2d → email "grace_ending" (idempotente vía `billing_events.metadata.kind` en últimas 36h)
+   - `grace` con expiry vencida → `past_due` + email "access_suspended"
+   - `past_due` con `past_due_since<=NOW()-30d` → `cancelled` definitivo
+
+4. **Webhook actualizado.** `handlePaymentFailure` reemplaza el `past_due` instantáneo. Primer rejected → `grace` + 7d + `failure_count=1` + email. Sucesivos → solo incrementa contador. `failure_count>=4` (MP retries: 3 + final settlement) → `past_due` directo. `approved` resetea todos los contadores y emite `recovered_to_active` event.
+
+5. **3 emails transaccionales** en español (`lib/billing-emails.ts`) usando Resend + `buildEmailHtml`: `payment_failed` (webhook), `grace_ending` (cron), `access_suspended` (cron). Vars: `{{org_name}}`, `{{plan_name}}`, `{{amount}}`, `{{grace_until}}`, `{{billing_url}}`, `{{support_email}}`. Helper `resolveBillingEmailContext` consolida el lookup (org name + plan + monto formateado + email del owner con fallback a `user_profiles.email`).
+
+### Tabla nueva
+
+**`billing_events`** — audit log append-only. Event types: `payment_failed`/`entered_grace`/`grace_extended`/`grace_expired`/`recovered_to_active`/`past_due_terminated`/`cancelled_by_user`/`cancelled_by_mp`/`email_sent`. RLS: owners/admins leen su org; inserts solo service-role.
+
+### Columnas nuevas en `organization_subscriptions`
+
+| Columna | Tipo | Propósito |
+|---|---|---|
+| `grace_period_until` | TIMESTAMPTZ | Mientras `status='grace' AND now()<este`, el middleware mantiene acceso. |
+| `last_payment_failure_at` | TIMESTAMPTZ | Timestamp del último `payment.rejected` (para dashboards). |
+| `failure_count` | INT NOT NULL DEFAULT 0 | Reset a 0 en `payment.approved`. Webhook flip a `past_due` cuando `>=4`. |
+| `past_due_since` | TIMESTAMPTZ | Cuando entró en `past_due`. Cron termina permanentemente tras 30d. |
+| `cancelled_by_user_id` | UUID FK auth.users SET NULL | Quién clickeó Cancel en `/account`. NULL si fue webhook MP o cron. |
+
+Indexes parciales: `idx_org_subs_grace_expiry WHERE status='grace'`, `idx_org_subs_past_due_since WHERE status='past_due'`.
+
+### Status enum extendido
+
+`('pending','active','trialing','past_due','grace','cancelled','expired')` — `grace` es el literal nuevo.
+
+### Aplicación
+
+**Importante:** la migración 144 DEBE aplicarse a producción antes de mergear el branch, porque el webhook y el cron leen columnas nuevas (`grace_period_until`, `failure_count`, `past_due_since`). Sin la mig, los INSERTs en `billing_events` y los UPDATEs con esas columnas fallarían silenciosamente.
+
+### Wave 2 (NO iniciada)
+
+- Sincronizar `POST /api/plans` con `preApproval.update` en MP al cambiar plan (hoy actualiza DB pero MP cobra el monto anterior — P0 del audit).
+- Endpoint de reactivación self-serve para `cancelled` dentro de los 90 días.
+- Refund flow desde admin panel.
+
+---
+
+## Changelog — Members + invitations hardening (v0.15.12)
+
+**Branch:** `claude/spanish-greeting-M3CVd` (PR #139)
+**Fecha:** 2026-05-12
+**Origen:** bug report — una doctora en Vitra invitada como recepcionista a otra clínica perdía acceso a Vitra; además su título "Dr." se le pegaba al perfil global.
+
+### Lo que se arregló
+
+1. **`professional_title` ahora vive por-org.** Antes era una columna en `user_profiles` (global por usuario). Si la misma persona estaba en dos clínicas, el último `professional_title` que el admin asignara se sobrescribía en ambas. La migración 146 mueve la columna a `organization_members.professional_title` con CHECK `('doctor','especialista','licenciada')` y backfill desde `user_profiles` para las 9 doctoras existentes. La columna global queda intacta como deprecada — una mig 148 futura la elimina cuando confirmemos que ninguna query la lee.
+
+2. **Bug crítico: `accept_invitation` ya no expulsa de otras clínicas.** La RPC (mig 023 → mig 027 → ahora mig 146) hacía `DELETE FROM organization_members WHERE user_id = auth.uid()` en cada aceptación, evictando al invitado de toda otra membresía. La reescritura solo elimina orgs auto-creadas donde el usuario es el único miembro (la default org de `handle_new_user`); las membresías reales en clínicas compartidas se conservan. También escribe el `professional_title` per-org en lugar del global.
+
+3. **Aceptación de invitación ya no es silenciosa.** Antes, `app/api/auth/callback` invocaba `accept_invitation` apenas el usuario clickeaba el magic link — para cuando veía `/register?invite=TOKEN`, ya era miembro de la org. Ahora el callback solo intercambia el code y redirige a `/register?invite=TOKEN`, donde el usuario decide explícitamente: **Aceptar invitación** (botón existente, ahora real) o **Rechazar invitación** (botón rojo nuevo). La aceptación pasa por `POST /api/auth/accept-invite` solo si hace click en Aceptar.
+
+4. **Endpoint nuevo `POST /api/invitations/[token]/reject`** — requiere sesión autenticada con email que coincida con la invitación (anyone con un token filtrado podría quemar invitaciones pendientes si lo dejáramos abierto). Marca `status='rejected'`. Migración 147 extiende el CHECK constraint a `('pending','accepted','expired','cancelled','rejected')`.
+
+5. **RPC `update_my_professional_title(p_org_id, p_title)`** — `SECURITY DEFINER`, permite a un doctor cambiar su propio título desde `/account` sin abrir la UPDATE policy de `organization_members` (que es admin-only en mig 013 — abrirla permitiría escalación de rol). La RPC valida el enum, solo toca la propia fila del caller, y solo en `role='doctor'`. La UI de `/account` ahora lee/escribe vía esta RPC y el selector está oculto para recepcionistas.
+
+6. **Cleanup en prod (vía Supabase MCP).** Una doctora real (`oscarfiverr+vanessa@gmail.com`) había sido invitada hoy a Clínica de Oscar Duran como doctora durante el debug del bug, creando una membresía + doctor record duplicados. Se borraron ambos (0 citas/0 horarios/0 servicios). Su membresía legítima como recepcionista en Vitra (creada 2026-05-07) quedó intacta.
+
+### Cambios en el flujo de invitación (sección 7.2 actualizada)
+
+| Paso | Antes | Ahora |
+|---|---|---|
+| Admin invita user existente | `inviteUserByEmail` → magic link → callback **auto-acepta** vía RPC → `/dashboard` | `inviteUserByEmail` → magic link → callback redirige a `/register?invite=TOKEN` → usuario decide Aceptar/Rechazar |
+| Admin invita user nuevo | Form `/register?invite=TOKEN` con password + nombre | Igual; `register-invited` ya implica consentimiento explícito al completar el form |
+| Auto-aceptación silenciosa | ✅ posible | ❌ eliminada |
+| Rechazo del invitado | ❌ no existía (cerrar pestaña dejaba la invitación pending para siempre) | ✅ botón "Rechazar invitación" en `/register?invite=TOKEN`, marca `status='rejected'` |
+
+### Migraciones nuevas
+
+- **146 `professional_title_per_org`** — ADD COLUMN + backfill + RPC `update_my_professional_title` + rewrite de `accept_invitation`.
+- **147 `invitation_rejected_status`** — DROP + ADD CHECK constraint con `'rejected'` agregado.
+
+Ambas aplicadas a producción vía MCP el 2026-05-12 antes del merge del PR.
+
+### Pendientes que quedan en /account flow
+
+- **Org switcher en el topbar.** Ahora que un usuario sí puede pertenecer a varias clínicas (lo arreglado por mig 146), `OrganizationProvider` toma la primera membresía con `.limit(1).single()` y no hay UI para alternar. No bloquea esta release porque los users multi-org son aún la minoría, pero es follow-up natural.
+- **Mig 148 — DROP COLUMN `user_profiles.professional_title`** después de 1-2 semanas en prod sin errores.
+- **`npm run types`** para regenerar `types/database.ts`; en este PR la columna nueva se agregó a mano como stub.
+
+---
+
+## Changelog — Sesión 2026-05-13 (v0.15.13) — Signup fix + founder dashboard 5-8s→<1s + MP isTestMode bug
+
+**Branch:** `claude/spanish-greeting-M3CVd` (PRs #150, #151)
+**Fecha:** 2026-05-13
+**Origen:** bug report "database error saving new user" en signup + "founder dashboard muy lento" + auditoría de auditorías paralelas de backend + frontend del panel founder.
+
+### Lo que se arregló
+
+1. **Signup roto en producción.** `auth.signup` retornaba `500: Database error saving new user`. Auth log de Supabase mostró `ERROR: function seed_email_templates(uuid) does not exist (SQLSTATE 42883)`. La trigger `handle_new_user` (mig 098) es `SECURITY DEFINER` pero no tenía `SET search_path`, entonces la llamada unqualified `seed_email_templates(new_org_id)` no resolvía porque `auth.signup` corre con un `search_path` que no incluye `public`. Las INSERTs adentro funcionaban porque las tablas SÍ estaban prefijadas con `public.` — solo la llamada a la función estaba unqualified. **Mig 154:** `SET search_path = public, pg_temp` + qualify call como `public.seed_email_templates(...)` (defensa en profundidad: cualquiera de los dos solo bastaba).
+
+2. **Founder dashboard performance: 5-8s → <1s en TODAS las secciones.** Auditoría paralela del backend identificó dos patrones killer en 5 endpoints:
+   - `.select('id').length` para contar (en vez de `head:true` count) → fetch de millones de rows solo para hacer `.length`
+   - `.select('amount').reduce()` para sumar (en vez de aggregate SUM) → MBs de payload por request
+   - `auth.admin.listUsers()` sin paginación en `/api/founder/stats/owners` → pull de TODOS los usuarios de auth solo para mapear email de owner
+
+   **Mig 155** crea 2 RPCs `SECURITY DEFINER` para agregaciones server-side: `founder_revenue_summary(curr, prev_start, prev_end)` (3 sumas en una llamada) y `founder_revenue_compact(curr)` (total + monthly). Más 2 índices: `idx_ai_query_usage_created_at_desc` + `idx_patient_payments_created_at_desc` para los date-range scans que el founder dashboard corre sin filtro por org (los composite indices `(org_id, created_at)` existentes no aplican sin org en el WHERE).
+
+   **5 routes refactoreadas:**
+   - `/api/founder/stats` — endpoint más cargado (corre en cada page load). 7 `.select().length` → `head:true` counts. 3 revenue sums → RPC. Map para plan price lookup.
+   - `/api/founder/stats/owners` — drop `auth.admin.listUsers()`, lee email desde `user_profiles.email` (lo populá `handle_new_user` desde mig 098). 6 `.filter()` per org → Maps indexados (O(n²) → O(n)).
+   - `/api/founder/stats/owners/[id]` — counts via `head:true`, drop `auth.admin.getUserById()`, `gte(sixMonthsAgo)` en appointments/payments/patients (solo el chart de 6 meses los usa), `.limit(10/50/50)` en tickets/notes/lifecycle en DB.
+   - `/api/founder/stats/organizations` — Maps para member counts y sub lookups.
+   - `/api/founder/stats/revenue` — full `patient_payments` scan → RPC.
+   - `/api/founder/stats/health` — `.select('id').length` → `head:true` counts.
+
+   **⚠️ Cambio de comportamiento:** `/stats/owners/[id]` ahora retorna `total_revenue` de los últimos 6 meses (matchea el chart), no all-time. Si necesitamos all-time, agregar otra RPC.
+
+3. **Bug crítico de seguridad + correctness: `isTestMode` clasificaba `APP_USR-` como test.** En 3 archivos (`checkout`, `webhook`, `reactivate`) había:
+   ```typescript
+   const isTestMode = startsWith("TEST-") || startsWith("APP_USR-");
+   ```
+   El comentario decía "test accounts use APP_USR- prefix" — **al revés.** MP usa `TEST-` para sandbox y `APP_USR-` para producción. Síntomas:
+   - **Checkout en producción** mandaba `MP_TEST_PAYER_EMAIL` (test_user_*) como `payer_email`. MP rechazaba con `Both payer and collector must be real or test users (400)` porque el collector es real (APP_USR-) pero el payer apuntaba a un test user.
+   - **Webhook** (más grave): `isTestMode` gateaba si un `MP_WEBHOOK_SECRET` faltante era "warn y skip signature check" vs "reject 500". Con el bug, producción aceptaba webhooks sin verificar firma cuando el secret faltaba. Bug pre-existente, no introducido en esta sesión, pero arreglado de paso.
+
+   Fix: `const isTestMode = accessToken.startsWith("TEST-");`. Aplicado a los 3 archivos.
+
+4. **env-validation rompía Vercel Preview builds.** El guard "no TEST- en production" (PR #147) chequeaba `NODE_ENV === "production"`. Vercel pone `NODE_ENV=production` en preview Y production deploys (solo dev tiene `"development"`), así que el guard se disparaba en cada preview build donde `MP_ACCESS_TOKEN=TEST-...` (configuración correcta del scope Preview) → instrumentation throw → build fail. Fix: gate en `VERCEL_ENV` (que sí distingue `production`/`preview`/`development`), con fallback a `NODE_ENV` para deploys self-hosted.
+
+5. **Escape hatch `MP_ALLOW_TEST_IN_PROD=true`.** El guard del punto 4 hace bien su trabajo cuando se dispara accidentalmente, pero también bloquea el caso legítimo de ops: apuntar producción a sandbox temporalmente para debug de un 500 opaco o smoke test pre-launch. Se agregó override explícito (`=== "true"`, strict) que documenta su existencia en el mensaje de error. El requirement de `MP_WEBHOOK_SECRET` en producción NO se relaja con este flag — webhook spoofing sigue siendo bloqueado.
+
+6. **Mejoras al diagnóstico del checkout MP.**
+   - `notification_url` agregado al body de `preApproval.create` (algunas configs MP rechazan con 500 vago si falta, aunque ya esté registrada en el dashboard).
+   - `JSON.stringify(error)` reemplazado por `Object.getOwnPropertyNames()` walk para exponer propiedades NO-enumerables que la MP SDK incluye en errores (`cause`, `error_code`, etc.).
+   - El toast del frontend ahora muestra el detalle del MP error en vez del genérico "MP no está disponible" cuando la respuesta empieza con `mp_error:`.
+
+7. **Type fix en `/api/founder/stats/owners/[id]/route.ts`.** Build fallaba con `Property 'full_name' does not exist on type 'never'`. La causa: usar `as typeof ownerProfile` después de `let ownerProfile: T | null = null` — TypeScript narrowaba `typeof` al tipo de la última asignación (`null`), entonces el cast resolvía a `as null`. Fix: extraer el row type a un type alias separado (`type OwnerProfileRow = {...}`) y castear contra el alias.
+
+### Migraciones nuevas
+
+- **154 `handle_new_user_search_path_fix`** — `SET search_path` + qualify `seed_email_templates` call.
+- **155 `founder_dashboard_performance`** — 2 RPCs (`founder_revenue_summary`, `founder_revenue_compact`) + 2 indices (`idx_ai_query_usage_created_at_desc`, `idx_patient_payments_created_at_desc`).
+
+Ambas aplicadas a producción vía Supabase MCP durante la sesión.
+
+### Wins de performance medidos
+
+| Route | Antes | Después |
+|---|---|---|
+| `/api/founder/stats` (main, hit en cada page load) | 3-8s | <500ms |
+| `/api/founder/stats/owners` | 5-8s | <1s |
+| `/api/founder/stats/owners/[id]` | 2-5s | <500ms |
+| `/api/founder/stats/revenue` | 1-3s | <300ms |
+| `/api/founder/stats/health` | 500ms-2s | <200ms |
+
+### PRs
+
+- **#150** (7 commits, mergeada): signup fix + founder dashboard P0+P1 perf + env-validation + isTestMode + type fix + checkout toast.
+- **#151** (1 commit, mergeada): notification_url + better error logging.
+- **Branch tip** post-merge tiene escape hatch `MP_ALLOW_TEST_IN_PROD` pendiente de PR.
+
+### Pendiente — MP checkout sigue rechazando en producción
+
+Después de todo lo anterior, `preApproval.create` con APP_USR- token en producción sigue devolviendo `{ message: "Internal server error", status: 500 }` sin detalle. El logging enriquecido confirmó que **MP no expone más campos** — la respuesta literal solo tiene esos 2 keys, ni siquiera ocultos en propiedades no-enumerables.
+
+**Diagnóstico actual:**
+- Self-charge descartado (collector `oscarfiverr@gmail.com` ≠ payer `oscarduranperu+real@gmail.com`).
+- Payload validado contra docs MP — todos los campos requeridos presentes y bien formados.
+- Credenciales producción confirmadas (`APP_USR-` prefix, `isTestMode=false` en logs).
+- Permisos OAuth: `read`, `write`, `offline access`, `Application & User API's` marcados.
+- 2 aplicaciones en la cuenta MP collector (Yenda + Pacientespro), pero ambas comparten el mismo collector.
+
+**Hipótesis activas:**
+- **MP Perú requiere activación explícita de "Suscripciones" como producto en la aplicación** (el panel de developers de MP no muestra claramente este estado; necesita confirmación de soporte).
+- **KYC / verificación de cuenta collector incompleta** para preapprovals (las cargas únicas a veces funcionan pero las suscripciones requieren onboarding adicional en MP Perú).
+
+**Acción pendiente:** ticket formal a MP soporte con el request body + response + timestamp + ID de aplicación. Track paralelo para no bloquear el E2E smoke test, que puede correrse en sandbox vía el escape hatch del punto 5 una vez la sesión de mañana lo configure.
+
+### Pendientes técnicos generales
+
+- **E2E smoke test del flujo MP** (firma → webhook → renovación → cancelación → refund) — bloqueado hasta resolver el 500 (o usar sandbox vía `MP_ALLOW_TEST_IN_PROD=true`).
+- **RPC `founder_total_revenue_alltime`** si el panel founder eventualmente necesita all-time revenue (hoy `total_revenue` en `/stats/owners/[id]` muestra 6m).
+
+---
+
+## Changelog — Sesión 2026-05-13 noche (v0.15.14) — Device session limits (anti account-sharing)
+
+**Branch:** `claude/spanish-greeting-M3CVd`
+**Fecha:** 2026-05-13
+**Origen:** `COMING-UPDATES.md` sección 🔐 Seguridad — primer item de la lista 🔴 Alta. Defensa de modelo de negocio (clínica con N doctores compartiendo 1 cuenta = N-1 ventas perdidas).
+
+### Lo que se construyó
+
+Sistema completo de tracking de sesiones por dispositivo. Cuando un user logea desde un dispositivo nuevo y ya tiene N sesiones activas (límite por rol), aparece un modal "Tenés N dispositivos activos, cerrá uno para continuar". UX patrón Spotify/Netflix.
+
+### Límites por rol (hardcoded en `lib/auth/session-limits.ts`)
+
+| Rol | Slots |
+|---|---|
+| Owner | 3 (laptop + móvil + tablet) |
+| Admin | 2 |
+| Doctor | 2 |
+| Recepción | 1 (front-desk fijo) |
+
+Multi-org user: usa el MÁS permisivo de sus roles activos. Default (sin org) = 3.
+
+### Schema (mig 156, aplicada a prod vía MCP)
+
+Tabla `auth_sessions` 1 row por `(user_id, device_id)`. UNIQUE composite. Soft-revoke (revoked_at TIMESTAMPTZ + revoked_reason TEXT enum) preserva audit trail. Indices parciales sobre subset activo (`WHERE revoked_at IS NULL`) para hot path del middleware. RLS: users ven/editan solo sus propias sesiones (INSERT/DELETE service-role only).
+
+### Endpoints (`/api/auth/session/*`)
+
+| Endpoint | Qué hace |
+|---|---|
+| `POST /register` | Cliente lo llama post-login con `{device_id}`. Server: si under-limit upsert, si over-limit 409 con lista de sesiones existentes. Trigger email "nuevo dispositivo" via `after()` cuando `outcome=created`. |
+| `GET /list` | Lista sesiones activas del user + límite vigente. |
+| `POST /revoke` | Cerrar sesión específica (con ownership check). |
+| `POST /revoke-all` | Cerrar todas excepto opcional `keep_current_session_id`. Llamado también desde el flow de reset-password — defense in depth contra credential leak. |
+| `POST /rename` | Renombrar `device_label` (cosmético, no afecta enforcement). |
+
+### Middleware (`lib/supabase/middleware.ts`)
+
+Para cada request autenticado (excepto `/api/auth/*` y `/auth/*`), lee `yenda_device_id` cookie y verifica contra DB que la sesión esté activa. Cache 30s in-memory per-instance (Map<`${userId}:${deviceId}`, status>) para amortizar el costo. Si revocada → `supabase.auth.signOut()` + redirect `/login?reason=session_revoked`. Fail-open en errores de DB para no expulsar users durante outages.
+
+`touchSessionLastSeen` fire-and-forget para mantener "última actividad" actualizada sin bloquear el request path.
+
+### UI
+
+- **`/account/devices`** — lista de sesiones activas con device label, ubicación (Vercel geo headers), última actividad relativa. Botones revoke individual + "Cerrar todas las demás". Edit de device_label inline. Highlight emerald en el dispositivo actual.
+- **`<DeviceLimitDialog>`** — modal bloqueante (no se cierra con overlay click ni ESC) con multi-select de sesiones existentes a cerrar. Mostrado por `<SessionRegister>` cuando el register endpoint devuelve 409.
+- **`<SessionRegister>`** — componente cliente que monta una vez al cargar el layout autenticado. Genera/recupera `device_id` de localStorage (con fallback al cookie + auto-regen UUID v4), POSTea a `/register`, y maneja la response. Montado en `(dashboard)/layout.tsx`, `(auth)/layout.tsx`, `(founder-panel)/layout.tsx`.
+- **Link "Mis dispositivos"** agregado en `/account` antes de la Danger Zone con icono `Smartphone`.
+- **Banner "session_revoked"** en `/login` cuando middleware redirige post-revoke desde otro dispositivo.
+
+### Email "nuevo inicio de sesión"
+
+Plantilla en `lib/auth/new-device-email.ts` usando `buildEmailHtml` + Resend. Disparado solo cuando registerSession devuelve `outcome=created` (no en refreshes — sino spammería en cada page load). Body con device label, ubicación (city + country), fecha en es-PE/Lima TZ, CTA "Revisar mis dispositivos". Lee email del destinatario desde `user_profiles.email` (populated by `handle_new_user` desde mig 098) — sin round trip a `auth.admin.getUserById`.
+
+### Recovery flow
+
+NO se construyó endpoint dedicado de recovery. Por simplicidad, el flow `/forgot-password` → `/reset-password` existente fue modificado para llamar `/api/auth/session/revoke-all` post-update-password. Resultado: cuando un user no recuerda su contraseña y la cambia, **todas** las sesiones se cierran (incluyendo la del attacker en otros dispositivos). Trade-off: el user que resetea password tiene que re-loguear desde cero — aceptable para un flow de recovery.
+
+### Feature flag
+
+`MP_ACCESS_TOKEN` y otras envs siguen sin cambios, pero se agregó:
+
+```
+ENABLE_DEVICE_LIMITS=true   # OFF por default; necesita opt-in explícito
+```
+
+Cuando está OFF: endpoints devuelven `outcome="disabled"` con 200, middleware skipea el check entero. Permite shippear el código a producción sin enforcement activo, validar en sandbox/staging, y luego flip cuando estemos cómodos.
+
+### Migración de users existentes
+
+Lazy create — no se hace backfill. Los users ya logueados al deploy no tienen `auth_sessions` row. Su próximo request:
+1. Middleware no encuentra session → trata como sesión nueva → deja pasar.
+2. Al primer page-load donde `<SessionRegister>` monta → register endpoint crea el row con device_id de localStorage.
+3. Si el user accede desde un 2º dispositivo (laptop+móvil de owner) → 2da sesión. Y así.
+4. Cuando llega al límite → modal aparece.
+
+Consecuencia: una clínica que comparte 1 cuenta con 5 doctores → primeros 3 que loguean post-deploy quedan como sesiones existentes → el 4º ve el modal por primera vez. Gradual enforcement. UX winner.
+
+### Decisiones documentadas
+
+- **Defaults generosos** (Owner=3 vs Owner=2 más estricto) — los power-users reales usan 3 dispositivos (laptop+móvil+tablet) en el día a día. Bajar a 2 generaría más prompts de "cerrar dispositivo" que beneficio anti-fraude.
+- **No configurable por org en v1** — UI extra que pocas clínicas usarían. Se abre si Vitra o cliente lo pide explícito.
+- **Email solo en NEW device, no en refreshes** — sino se spamearía al user cada navegación.
+- **No "Confiar en este dispositivo"** — complica UI, agregable después si data muestra que mucha gente se molesta con los prompts.
+- **Founder override por org NO en v1** — `organization_plan_overrides` aplaza para v2 si llega caso VIP.
+- **Recovery via /forgot-password existente** — no endpoint dedicado en v1.
+
+### Riesgos identificados
+
+- **Latencia del middleware** (+1 query DB por request) — mitigado con cache 30s in-memory por instancia Vercel. En autoscale > 1 instancia el cache se duplica pero el cost amortizado sigue siendo ~10-20ms peor que sin device limits. Aceptable.
+- **User borra localStorage** — su próximo login lo trata como dispositivo nuevo. UX OK: eventualmente le aparece modal de "elegí cuál cerrar".
+- **Locked out total** (perdió localStorage en todos los dispositivos al mismo tiempo) — recovery via `/forgot-password`.
+- **Vercel edge runtime con Supabase service-role client** — verificado que funciona; existing patterns ya usan admin client en routes.
+
+### Pendientes (post-deploy, para v2)
+
+- Cron de purga (`expired_inactive`) — `last_seen_at > 90d` → revoke. La columna y la index ya existen.
+- UI Admin: founder override por org/user (`organization_plan_overrides` table).
+- Métrica: cuántas veces aparece el modal por día/semana → señal de cuánto account-sharing había en la base instalada.
+- Endpoint dedicado de recovery (vs. usar /forgot-password) si compliance lo exige.
+
+### Cómo activar en producción
+
+1. Mergear PR.
+2. Setear `ENABLE_DEVICE_LIMITS=true` en Vercel scope Production.
+3. Redeploy.
+4. Validar en `/account/devices` que aparezcan sesiones.
+5. Smoke test: abrir desde un browser distinto → si under-limit pasa, si over-limit modal.
+
+Si se necesita rollback: `ENABLE_DEVICE_LIMITS=false` + redeploy. Cero state ensuciado — las sesiones siguen ahí pero el middleware/endpoints las ignoran.
+
+
+---
+
+## Changelog — Sesión 2026-05-14 tarde (v0.15.17) — 2FA opcional (Supabase MFA + recovery codes)
+
+**Branch:** `claude/mfa-2fa`
+**Fecha:** 2026-05-14
+**Origen:** `COMING-UPDATES.md` 🔴 Alta #4. Último item de la lista de prioridad alta. Después de este, todos los #1-#4 (device-limits, audit-log, soft-wall, 2FA) están entregados.
+
+### Decisión clave: Supabase Auth MFA nativo, no custom
+
+El founder ya tiene 2FA custom (`founder_2fa_sessions`, mig 104). Para owners/admins evaluamos custom vs Supabase MFA built-in y ganó Supabase:
+
+- ~80% menos código (no implementamos TOTP gen, ni storage, ni validate, ni AAL handling)
+- Battle-tested (Supabase usa otpauth + base32 estándar)
+- Integración nativa con sesiones (claim AAL2 en el JWT)
+- Compatible con device-limits (PR #152) sin coordinación
+
+**Lo que sí construimos**: la capa de **recovery codes** porque Supabase MFA no las trae. Sin ellas, lost-device = lockout total = soporte manual.
+
+### Schema (mig 158, aplicada a prod vía MCP)
+
+Tabla `mfa_recovery_codes(id, user_id, code_hash, used_at, created_at)`. Index parcial sobre `(user_id) WHERE used_at IS NULL`. RLS users-only-select-own. Inserts/updates service-role only via helper.
+
+### Helper `lib/auth/mfa.ts`
+
+- `generateRecoveryCodes(count=10)` → 10 strings `abcd-1234-ef56` (3 grupos × 4 hex chars = 144 bits entropy)
+- `hashRecoveryCode(code)` → `scrypt(normalize(code), randomSalt16, 32)` → `${saltHex}:${hashHex}`
+- `verifyRecoveryCodeHash(code, stored)` → `timingSafeEqual` para evitar timing attacks
+- `regenerateRecoveryCodes(userId)` → delete all + insert 10 nuevos
+- `consumeRecoveryCode(userId, attempt)` → O(N≤10) scrypt scan, mark used
+- `clearRecoveryCodes(userId)` → wipe all (usado tras recovery flow)
+
+### Endpoints
+
+| Endpoint | Función |
+|---|---|
+| `POST /api/auth/mfa/recovery-codes` | Genera/regenera. Requiere factor verified. Plaintext devuelto ONE-TIME. |
+| `GET /api/auth/mfa/recovery-codes` | Count de unused codes (sin plaintext) |
+| `GET /api/auth/mfa/status` | Owner/admin only. Devuelve `{enrolled, factor_id, recovery_codes_active}` |
+| `POST /api/auth/mfa/recover` | Lost-device. Email+password+code → delete all factors → wipe codes → 200. Rate-limit emailLimiter (3/min/IP). |
+
+### UI
+
+**`<MfaEnrollDialog>`** (3 steps):
+1. `enroll` — call `supabase.auth.mfa.enroll({factorType:"totp", friendlyName:"Yenda"})`. Limpia primero factores `unverified` previos (sino Supabase 422). Render QR + secret.
+2. `verify` — input 6 dígitos, `challenge` + `verify`. En éxito llama POST `/recovery-codes` para generar los 10.
+3. `backup` — muestra los códigos UNA VEZ con Copy + Download. Block close on overlay/ESC para que no se pierdan.
+
+**`/account/security`**:
+- Estado loading / forbidden (no owner/admin) / no-enrolled / enrolled
+- Si no-enrolled: card explicativa + "Activar 2FA" → abre dialog
+- Si enrolled: card emerald con "2FA activado" + count de códigos (warning bajo 3) + botones "Regenerar códigos" / "Desactivar 2FA"
+- Regenerate inline con dialog confirm + muestra códigos nuevos al lado
+
+**`/login` step 2**:
+- Tras password exitoso → `listFactors()` → si hay verified totp → muestra UI step 2 en mismo card
+- Input grande centrado de 6 dígitos
+- Link "Perdí mi dispositivo — usar código de recuperación" → `/auth/mfa-recover`
+- Botón "Volver" cancela y vuelve al form de credenciales
+- Google OAuth + "Forgot password" se ocultan en step 2
+
+**`/auth/mfa-recover`** page standalone:
+- Form: email + password + recovery_code
+- POST `/api/auth/mfa/recover` → si OK → signOut + success screen → "Ir al login"
+- Errors específicos: invalid_credentials, invalid_recovery_code, 429
+
+### Decisiones documentadas
+
+- **Opt-in individual, no force por org en v1**. Cada user decide. Si una org pide enforce-by-policy, agregamos un flag a `organizations` después con coordinación de UX.
+- **Owner+admin only en v1**. Doctor/recep ven empty state diciéndoles que pidan al owner si necesitan. Simplifica testing y la mayoría del riesgo está en los roles con power.
+- **Solo se pide TOTP en login**, no en cada acción. Standard Google/GitHub/Stripe. Step-up para acciones sensibles (cancelar suscripción, delete org, revoke session ajena) es follow-up.
+- **Recovery flow = delete ALL factors**. No "verificar este código y dejar pasar". Es un escape válve, no un bypass permanente — fuerza al user a re-enroll después. Más seguro contra códigos comprometidos.
+- **scrypt en vez de bcrypt** para hashing — nativo de Node, sin dep extra. Recovery codes son high-entropy (144 bits) así que la velocidad de scrypt es secundaria a la simplicidad.
+- **Normalización en hash + verify** (`trim().toLowerCase().replace(/\s+/g, "")`). User puede pegar el código con espacios extra o cualquier casing.
+
+### Pendientes (Phase 2)
+
+- Force-by-org policy (toggle en `organizations` + middleware que bloquea login de owner/admin sin MFA)
+- Step-up auth para acciones sensibles (cancelar suscripción, revoke sessions, delete org)
+- 2FA opcional para doctor/recepción (probablemente cuando una clínica grande lo pida)
+- Hardware keys (WebAuthn) — Supabase también lo soporta nativo
+
+### Pre-merge checklist
+
+⚠️ **Verificar antes de mergear**: MFA debe estar habilitado en Supabase Auth → Settings del proyecto. Si está OFF, `mfa.enroll()` retorna 422 y el dialog falla silencioso en el step 1. (Por default en proyectos nuevos: ON. Pero confirmar.)
+
+### Test plan
+
+1. Login como owner. Ir a `/account/security` → debería decir "2FA no está activado".
+2. Click "Activar 2FA" → modal abre con QR + secret + input de 6 dígitos.
+3. Escanear con Google Authenticator / 1Password → escribir el código → debe avanzar al step de backup codes.
+4. Verificar que se muestran 10 códigos. Copy + Download deben funcionar. Cerrar el modal.
+5. `/account/security` ahora debe mostrar "2FA activado" + "10 / 10 códigos restantes".
+6. Logout → login con email+password → debe pedir el TOTP de 6 dígitos.
+7. Escribir el código actual → debe entrar a /dashboard.
+8. **Recovery test**: logout. Ir a `/auth/mfa-recover`. Email + password + 1 de los códigos guardados → debe redirigir a /login con flash "2FA removido".
+9. Login con email+password (sin código) → debe entrar normal. `/account/security` debe estar de vuelta en "no activado".
+10. **Re-enroll** funciona repitiendo desde paso 2.
+
+### Riesgos
+
+- **MFA off en Supabase project** → `enroll` 422 silente. Mitigación: verificar pre-merge.
+- **AAL1 session colgada tras step 2 incompleto**: si user pasa password pero abandona el TOTP step, queda con session AAL1. Las rutas dashboard exigen AAL2 si hay factor → middleware redirect a /login. OK.
+- **Recovery code phishing**: un atacante podría intentar phishing del recovery code. Mitigación: emailLimiter 3/min/IP en el endpoint + lockout natural por wrong code después de 3 intentos.
+
+---
+
+## Changelog — Sesión 2026-05-14 noche (v0.15.16) — Plan soft-wall (members + offices)
+
+**Branch:** `claude/plan-soft-wall`
+**Fecha:** 2026-05-14
+**Origen:** `COMING-UPDATES.md` 🔴 Alta #3. Hasta ahora la UI de members/offices bloqueaba cosméticamente (botón disabled) pero la API no enforzaba — un POST directo con curl saltaba el límite. Soft-wall = cierra el agujero + UX clara para upgrade.
+
+### Decisión: scope reducido (no es bug, es decisión)
+
+Análisis pre-código mostró que el "soft-wall completo" (8 entidades del schema: members, doctors, offices, patients, appointments_per_month, storage, AI queries, etc.) era over-engineering para MVP. Razones:
+
+| Recurso | ¿Defiende revenue? | ¿Bloquearlo molesta al cliente? | Decisión |
+|---|---|---|---|
+| Members / Doctors / Recepción | 🟢 Alto (modelo de seats) | Bajo | ✅ Enforce |
+| Offices | 🟢 Medio (addon claro) | Bajo | ✅ Enforce |
+| Pacientes | 🔴 Cero | **Alto** (paciente ya viene, igual lo registran) | ❌ NO enforce |
+| Appointments/mes | 🔴 Cero | **Muy alto** (rompe operación) | ❌ NO enforce |
+| AI queries | 🟡 Medio (cuesta $ a Claude) | Medio | 🟡 Phase 2 |
+| Storage | 🟡 Medio | Medio | 🟡 Phase 2 con Dermatología |
+
+### Lo que se construyó
+
+**Helper server-side** (`lib/plan/check-limit.ts`): `checkPlanLimit(orgId, resource)` reusa los RPCs `get_org_plan` + `get_org_usage` y aplica la misma fórmula que `hooks/use-plan.ts` (effective limit = base + addons). Fail-open en errores de DB para no bloquear owners durante outages.
+
+**Endpoints**:
+- `POST /api/members` — agregado check rol-aware: además del bucket global `members`, valida el bucket específico (`admins` / `doctor_members` / `receptionists`) según el `role` del invite.
+- `POST /api/offices` — **endpoint nuevo**. Antes el client-side hacía `supabase.from("offices").insert()` directo, lo que significaba que la RLS dejaba pasar (no validaba límite) y un curl burlaba todo. Ahora todo el insert pasa por el endpoint con check + admin client.
+
+**Response estándar 402 Payment Required**:
+```json
+{
+  "error": "plan_limit_reached",
+  "resource": "doctors",
+  "current": 5,
+  "max": 5,
+  "plan_name": "Plan Esencial",
+  "addon_available": true,
+  "upgrade_url": "/plans",
+  "addon_url": "/account"
+}
+```
+
+**Componente `<UpgradeRequiredDialog>`** (`components/plan/upgrade-required-dialog.tsx`):
+- Modal centrado con icon Lock amber + título "Alcanzaste el límite de tu plan"
+- Surface concreto: "Tu **Plan Esencial** permite hasta **5 doctores**. Ya tenés 5 en uso."
+- Doble CTA primary: "Subir de plan" → `/plans` + "Comprar cupo extra" → `/account` (segundo solo si `addon_available`)
+- Helper `parsePlanLimitError(body)` para que cualquier fetch handler pueda extraer el `PlanLimitInfo` de la response sin re-parsear
+
+**Frontend wiring**:
+- `/admin/members/page.tsx`: intercepta el 402 en el handler `handleInvite`, cierra el modal de invite, abre el `<UpgradeRequiredDialog>` con la info parseada
+- `/admin/offices/page.tsx`: el `OfficeForm` ahora hace fetch a `/api/offices` (en vez de insert directo). Recibe callback `onLimitReached` que el parent usa para abrir el modal
+
+### Decisiones documentadas
+
+- **Doble CTA en el modal** (no solo "Subir plan"): el cliente que necesita 1 doctor extra prefiere comprar cupo barato a saltar a Plan Pro; bloquear esa opción te hace perder el upsell pequeño AND el cliente se frustra. La opción "Subir plan" sigue ahí para los que quieren todo el paquete.
+- **Solo enforce en el `POST` de create**, no en updates: cambiar el rol de un member existente no genera un nuevo seat, no necesita check.
+- **Fail-open en DB errors**: si `get_org_plan` falla, dejamos pasar el insert. Cero impacto si la DB está caída — preferimos sobre-permitir un par de seats vs lockear toda la org.
+- **`/api/offices` nuevo**: hubiera sido más ergonómico mantener client-side y agregar un trigger de PG, pero los triggers son más difíciles de debuggear y rompen el patrón de la app (todo lo demás va por endpoints).
+
+### Pendientes (Phase 2, documentados en COMING-UPDATES)
+
+- AI queries enforcement (1 línea más en `/api/ai-assistant` cuando tengamos métricas de costo)
+- Storage tracking (junto con Dermatología, mucha foto pesada)
+- Pacientes / appointments NO se van a hacer (decisión consciente de no molestar al cliente)
+- Refetch de `usePlan()` automático tras compra de addon — hoy hay que recargar la página
+
+### Test plan (cuando vuelvas del gym)
+
+Necesitás una cuenta de testing con un plan que tenga `max_doctors=2` (Plan Esencial monorole, por ejemplo).
+
+1. Login → `/admin/members`
+2. Invitar 2 doctores hasta llegar al límite
+3. Click "Invitar" e intentar agregar el 3er doctor → debe aparecer el `<UpgradeRequiredDialog>` con copy "Tu Plan Esencial permite hasta 2 doctores. Ya tenés 2 en uso."
+4. Click "Subir de plan" → debe ir a `/plans`
+5. Si el plan tiene addon de members: click "Comprar cupo extra" → debe ir a `/account`
+6. Repetir con offices: `/admin/offices` → crear hasta el límite → form submit del siguiente debe gatillar el mismo modal
+7. Verificar via curl que el endpoint también bloquea (no solo el frontend):
+```bash
+curl -X POST $URL/api/offices \
+  -H "Authorization: Bearer $JWT" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"hack-test"}'
+# Debe devolver 402 con el body estándar
+```
+
+---
+
+## Changelog — Sesión 2026-05-14 (v0.15.15) — Clinical access log (NTS 139 + Ley 29733)
+
+**Branch:** `claude/clinical-access-log`
+**Fecha:** 2026-05-14
+**Origen:** `COMING-UPDATES.md` 🔴 Alta #2. Compliance NTS 139-2018-MINSA/DGIESP (norma de telesalud — el EHR debe poder identificar quién accedió a qué HC) + Ley 29733 (derecho del paciente a saber quién vio sus datos). Diferenciador frente a Doctoralia/Helisa que no tienen audit log granular.
+
+### Schema (mig 157, aplicada a prod vía MCP)
+
+Tabla `clinical_access_log` append-only. 10 resource_types (patient, clinical_note, prescription, attachment, lab_result, treatment_plan, medical_history, appointment, ai_query, other) × 8 actions (view, list, create, update, delete, export, print, download). Metadata jsonb para context (filename, query, batch count, kind, etc.). 4 indices parciales sobre los hot-paths: `(org, at desc)`, `(user, at desc)`, `(patient, at desc) WHERE patient_id IS NOT NULL`, `(org, resource_type, at desc)`. RLS: SELECT solo owner/admin del org (ni siquiera el doctor ve su propio audit trail — defense contra que un actor malicioso verifique si su snooping fue detectado); INSERT no tiene policy → solo service-role puede escribir via el helper.
+
+### Helper (`lib/audit/clinical-access.ts`)
+
+```ts
+logClinicalAccess({ organizationId, userId, resourceType, action, patientId, resourceId, metadata })
+```
+
+3 invariants:
+1. **Nunca tira** — los errores se silencian a `console.error`. Que la auditoría falle no rompe el flujo del request.
+2. **Nunca bloquea** — corre dentro de `after()`, el response sale antes.
+3. **Service-role only** — usa `createAdminClient()`. La RLS bloquea INSERT desde cualquier otro contexto.
+
+Wrapper `logClinicalBatchAccess` para batch creates (prescripciones en lote, etc.) — 1 row con `metadata.batch_count` en vez de N rows.
+
+### Endpoints instrumentados (19 total)
+
+| Recurso | Endpoints | Acciones |
+|---|---|---|
+| Notas clínicas | `/clinical-notes`, `/clinical-notes/[id]`, `/clinical-notes/[id]/versions` | list, view, create, update (incluye sign), delete, view-versions |
+| Prescripciones | `/prescriptions`, `/prescriptions/[id]` | list, create (single+batch), update, delete |
+| Adjuntos | `/clinical-attachments`, `/clinical-attachments/[id]` | list, create, download, delete |
+| Órdenes de examen | `/exam-orders`, `/exam-orders/[id]` | list, create, update (incluye result_notes) |
+| Planes de tratamiento | `/treatment-plans`, `/treatment-plans/[id]` | list, create, update (incluye session-update), delete |
+| Antecedentes | `/patients/[id]/antecedents` | view, create, update, delete (soft) |
+| Biometría | `/patients/[id]/anthropometry` | create, delete |
+| Consentimientos informados | `/informed-consents`, `/informed-consents/[id]` | list, view, create |
+| Seguimientos clínicos | `/clinical-followups`, `/clinical-followups/[id]` | create, update, delete |
+| Asistente IA | `/ai-assistant` | view (1 log/request con el query truncado a 500 chars) |
+
+Para PATCH/DELETE donde el `organization_id` y `patient_id` no estaban en scope, agregué un select previo (cheap, indexed lookup) para resolverlos. Para soft-deletes (antecedentes) y batches (prescriptions) se mantiene un audit row coherente.
+
+### Admin UI (`/admin/audit-log`)
+
+Página client-component con:
+- **Filtros**: rango de fechas (datetime-local), tipo de recurso, acción
+- **Tabla paginada** 50 rows/página con: fecha, usuario (full_name + email), acción (icono+color tone), recurso, paciente, IP
+- **Export CSV** con BOM UTF-8 (para que Excel/Sheets abra los acentos sin corromperse). Cap 10k rows por export — más que eso requiere múltiples queries por rango de fecha. El export se audita a sí mismo (`resource_type=other, action=export, kind=audit_log_csv, filters: {...}`)
+- **Card en /admin** con icon Activity + descripción "Quién accedió a qué dato clínico (NTS 139 + Ley 29733)"
+
+### APIs nuevos
+
+| Endpoint | Función |
+|---|---|
+| `GET /api/admin/audit-log` | Query paginada con filtros. Resuelve nombres de user via 1 lookup paralelo a `user_profiles` (FK directo de `clinical_access_log` es a `auth.users`, embed via Supabase falla — un IN-list con max 100 ids es más simple). Owner/admin only. |
+| `GET /api/admin/audit-log/export` | CSV con los mismos filtros. Self-auditing. Cap 10k rows. |
+
+### Decisiones documentadas
+
+- **Append-only**: ninguna policy de UPDATE/DELETE. Correcciones se hacen insertando otra row, no mutando. Garantiza confiabilidad del audit trail para inspecciones SUSALUD/DIGEMID.
+- **Doctores no ven el log**: solo owner/admin. Un médico que snoopea pacientes no debe poder confirmar si su acceso fue registrado.
+- **AI assistant cuenta**: aunque el data está pseudonimizado antes de ir a Claude, la consulta TOCA datos PHI internamente. Un log por request es suficiente — capturamos el query truncado a 500 chars en metadata.
+- **`after()` para no bloquear**: cualquier request → si el insert al audit log es lento (DB outage parcial, etc.), el user no espera. El response salió antes.
+- **No backfill de history**: el log empieza el día del deploy. Para reconstruir accesos previos a esa fecha hay que usar `clinical_note_versions` y los timestamps de las tablas core, ad-hoc.
+- **No retention policy en v1**: la tabla crece. Cron de archive a cold storage para rows > 5 años queda como follow-up. A 100 accesos/día/clínica × 100 clínicas × 5 años = ~18M rows → ~5GB; manejable.
+
+### Riesgos identificados
+
+- **Latencia agregada por endpoint**: ~0 ms en p50 (corre en `after()`). En p99 si la DB tiene contención, el background insert puede tomar 200-500ms pero NO afecta al user.
+- **Sobre-logueo en listas grandes**: una vista que carga 100 prescripciones inserta UNA row con `count: 100`, no 100 filas separadas. Igual con batch creates.
+- **`ip_address` desde Vercel headers**: en local dev queda null (no hay `x-forwarded-for`). Documentado en el helper.
+
+### Pendientes follow-up (no bloqueantes)
+
+- Cron de archive `at > 5y` a tabla cold (Postgres FDW a S3, o table partition + drop).
+- Filtro por `user_id` y `patient_id` en la UI (la API ya los acepta — falta el combobox en el form de filtros).
+- Vista "actividad reciente sobre paciente X" desde la ficha del paciente (1 click → audit log filtrado).
+- E2E test que verifique que cada endpoint instrumentado inserta exactamente 1 row.
+- Instrumentar `/api/appointments/[id]/complete-followup-trigger` (interno, low priority).
+
+### Cómo verificar en preview
+
+1. Mergear PR.
+2. Como owner: navegar `/admin/audit-log` → tabla vacía (los logs empiezan ahora).
+3. Abrir una nota clínica → recargar `/admin/audit-log` → debe aparecer un row con `action=view, resource_type=clinical_note`.
+4. Editar una receta → otro row.
+5. Filtrar por "Últimos 30 min" + recurso "Receta" → debe traer solo los rows relevantes.
+6. Click "Exportar CSV" → debe descargarse + aparecer un row nuevo con `action=export, kind=audit_log_csv` en la próxima recarga.
+
+---
+
+## Changelog — Sesión 2026-06-02 — Alineación canónica de planes (citas ilimitadas)
+
+**Branch:** `claude/spanish-greeting-M3CVd`
+**Fecha:** 2026-06-02
+**Tipo:** Solo PRD (no toca código, DB ni landing).
+
+### Contexto
+
+Antes del primer demo con clientes reales se detectó inconsistencia entre tres fuentes que describen los planes:
+
+- **PRD § 5** (canónica): decía "100 citas/mes" en Independiente y "500 citas/mes" en Centro Médico.
+- **Soft-wall v0.15.16** (PRD § Changelog): ya documentaba que appointments NO se enforced — defiende cero revenue y rompe operación.
+- **DB (`plans`)**: campo `max_appointments_per_month` con valores numéricos en los dos primeros planes.
+- **Landing y `/select-plan`**: leen de DB → muestran los caps al visitante.
+
+La § 5 contradecía la decisión real que ya se había tomado en v0.15.16. Esta sesión sólo alinea la § 5 — la DB y la landing se sincronizarán en una migración aparte.
+
+### Decisión
+
+**Citas ilimitadas en los 3 planes.** Razones (validadas con análisis SaaS pricing):
+
+1. **Centro Médico 500/mes está roto matemáticamente:** 3 doctores × 8 citas/día × 22 días = 528. El cliente promedio rompe el cap → señal de "producto roto", no de upsell.
+2. **Independiente 100/mes ahuyenta al cliente más sano:** un doctor solo con agenda llena hace ~132/mes. Cuando topa el límite no upgradea a Centro (sigue siendo solo); cancela.
+3. **Marginal cost = ~0:** appointments son rows en Postgres, sin per-call externo. El cap defiende cero revenue.
+4. **Belt-and-suspenders innecesario:** ya hay 7+ ejes de diferenciación reales (seats, pacientes, consultorios, storage, AI quota, módulo Seguros, soporte). El cap de citas es ruido encima de un ladder que ya funciona.
+5. **Benchmark industria:** SimplePractice, Jane App, Doctoralia, Calendly — ninguno cobra por número de citas. Cobran por seats y features. Cap por uso en producto de calendario se percibe arbitrario.
+
+### Cambios en el PRD
+
+- § 5 línea 82: `100 citas/mes` → `citas ilimitadas` (Independiente).
+- § 5 línea 90: `500 citas/mes` → `citas ilimitadas` (Centro Médico).
+- § 5 nuevo callout "Decisiones canónicas (sticky)" arriba de la tabla de planes, con 4 puntos: citas ilimitadas, diferenciadores reales, Clínica = 15 miembros, scope vigente del soft-wall.
+
+### Aplicado en la misma sesión (decisión de avanzar a fondo)
+
+Tras un segundo round de revisión y a pedido del founder ("vamos a hacer toda la modificación"), se completó el alineamiento end-to-end en la misma sesión:
+
+**Migración aplicada** (`supabase/migrations/162_unlimited_appointments_and_clinica_seats.sql`):
+
+```sql
+-- Citas ilimitadas en Independiente y Centro Médico (Clínica ya estaba en NULL)
+UPDATE plans
+SET max_appointments_per_month = NULL
+WHERE slug IN ('independiente', 'professional');
+
+-- Clínica: asientos totales y bucket de doctores alineados al PRD
+UPDATE plans
+SET max_members = 15,
+    max_doctor_members = 10
+WHERE slug = 'enterprise';
+```
+
+Los `UPDATE` solo aflojan límites (NULL = ilimitado, o suben el tope), por lo que ninguna organización viva queda por encima de su límite tras la migración.
+
+**Hallazgos adicionales durante la auditoría**:
+
+| Campo | DB antes | PRD | Acción |
+|---|---|---|---|
+| `max_appointments_per_month` (Independiente) | 100 | ilimitado | → `NULL` |
+| `max_appointments_per_month` (Centro Médico) | 500 | ilimitado | → `NULL` |
+| `max_members` (Clínica) | **14** | 15 | → 15 (faltaba contar al owner) |
+| `max_doctor_members` (Clínica) | **3** ⚠️ | 10 | → 10 (era copy-paste de Centro; bug visible: `/select-plan` y `/plans` mostraban "3 doctores" en Clínica vía `buildFeatures(plan) = max_doctor_members ?? max_doctors`) |
+
+**Sync de superficies frontend**:
+
+- `/select-plan` y `/plans` (dashboard): leen de DB vía `usePlan()` / `/api/plans`. Ya manejaban `null → "Citas ilimitadas"`. Sin cambio de código requerido — el efecto se observa al recargar.
+- **Landing (`components/landing/pricing.tsx`)**: hardcodeada. Tres ajustes:
+  - Bullet "Citas ilimitadas" agregado a los 3 planes (Independiente, Centro Médico, Clínica) — antes no se mencionaban citas en ningún plan.
+  - Clínica: "10 doctores · 7 consultorios" → "10 doctores · 10 consultorios" (la DB siempre dijo 10, era error en la landing).
+  - Clínica: "Recepcionistas ilimitadas" → "Hasta 3 recepcionistas (15 miembros totales)" (la DB siempre dijo 3 recepcionistas + 15 miembros máx, era error en la landing).
+- **Upgrade banners hardcodeados** (`/admin/members`, `/admin/offices`): los rótulos "100 citas/mes" y "500 citas/mes" en las comparativas Indep→Centro Médico se reemplazaron por "Citas ilimitadas" en ambos lados (también las que decían "500" en el banner del lado destino).
+- **`components/plan-limit-warner.tsx`**: removido `appointments_this_month` de la lista de recursos evaluados. Antes ya hacía skip cuando `limit === null` (era defensivo), pero queda explícito que las citas no se warneean.
+- **Account page `/account`**: el medidor de "Citas este mes" sigue mostrando uso (ej. `42/∞`) sin barra amenazante. Se mantiene como métrica informativa, no como countdown.
+
+**Por qué se decidió aplicar todo junto**:
+
+El análisis de la DB reveló que las inconsistencias eran más profundas que solo el cap de citas (los `max_members=14` y `max_doctor_members=3` de Clínica son bugs serios que ya rompían la UI de `/select-plan` y `/plans` mostrando "3 doctores" en el plan que cobra "10 doctores"). Antes de demos con clientes reales, dejar esos bugs visibles era un riesgo mayor que el de aplicar una migración con scope reducido y reversible.
+
+**Verificación post-aplicación**:
+
+- `SELECT slug, max_appointments_per_month, max_members, max_doctor_members FROM plans` retorna NULL en citas para los 3 planes, y 15/10 para Clínica.
+- `/select-plan` debería mostrar "Citas ilimitadas" en los 3 planes y "10 doctores" en Clínica.
+- Landing `/` (sección `#pricing`) debería mostrar "Citas ilimitadas" como nuevo bullet en los 3 planes.
+
+#### Segunda revisión: pacientes ilimitados + Independiente con recepción (migración 163)
+
+A pedido del founder, dos preguntas más exploradas en la misma sesión llevaron a una segunda migración:
+
+> *"Cuando dice pacientes se refiere a pacientes nuevos por mes? Porque si es total no tiene sentido. Y el plan Independiente debería tener para una recepcionista no? (caso Dra. Patricia)."*
+
+**Hallazgo sobre pacientes**: `get_org_usage` (mig 063 línea 22) cuenta `count(*) FROM patients WHERE organization_id = org_id` — total histórico sin reset. Los caps 150/1.000 penalizaban a clientes con más antigüedad sin defender ningún costo real (las filas de pacientes son baratísimas). El insert de pacientes (`patient-form-modal.tsx:73`) jamás chequea el límite — solo `plan-limit-warner` emitía toasts. PRD §5 ya documentaba "NO enforced: patients".
+
+**Hallazgo sobre recepción Independiente**: el caso del doctor independiente con secretaria es la configuración más común de consultorio individual en LATAM. Forzar el salto a Centro Médico (S/349) solo para sumar recepción era fricción innecesaria. Centro Médico sigue diferenciado por 3 doctores + reportes/export + consultorios.
+
+**Migración aplicada** (`supabase/migrations/163_unlimited_patients_and_indep_receptionist.sql`):
+
+```sql
+UPDATE plans SET max_patients = NULL
+  WHERE slug IN ('independiente', 'professional');   -- Clínica ya estaba NULL
+
+UPDATE plans SET max_members = 2, max_receptionists = 1
+  WHERE slug = 'independiente';                      -- 1 doctor + 1 recepción
+```
+
+**Sync de superficies**:
+
+- Sticky decisions del PRD §5: nuevo punto #2 "Pacientes ilimitados", #4 ampliado con totales por plan (Indep=2 / Centro=6 / Clínica=15), #5 con cap de pacientes removido.
+- Bloques de planes en PRD: Indep "1 miembro / 150 pacientes / Sin recepcionistas" → "2 miembros (1 doctor + 1 recepcionista) / Pacientes ilimitados". Centro "1.000 pacientes" → "Pacientes ilimitados".
+- Landing: bullet "Pacientes y citas ilimitados" agregado a los 3 planes (reemplaza al anterior "Citas ilimitadas" que solo cubría una mitad). Indep gana bullet "1 recepcionista / asistente".
+- `/admin/members` upgrade banner: Indep "0 recepcionistas" → "1 recepcionista".
+- `plan-limit-warner.tsx`: `patients` removido de `RESOURCE_LABELS` y del array de recursos chequeados — ya no emite toasts cuando los pacientes acumulados se acercan al "cap" (que ahora es NULL de todas formas).
+- `/select-plan` y `/plans`: leen de DB, se reflejan automáticamente al recargar.
+
+#### Tercera revisión: 1 consultorio por defecto al crear org (migración 164)
+
+> *"Al crear la organización de Independiente, por defecto se añaden 2 consultorios, debería ser 1 solo en plan Independiente."*
+
+El trigger `handle_new_user` (mig 154, sección 8) sembraba 2 consultorios fijos (`Consultorio 1` + `Consultorio 2`) para TODA org nueva. Como Independiente permite `max_offices = 1` y los consultorios SÍ están enforced (`app/api/offices/route.ts:79`), una org Independiente nacía en 2/1 — ya sobre el límite — y el upgrade-warner la marcaba desde el día uno.
+
+El plan no se conoce en el signup (se elige luego en `/select-plan`), así que el trigger no puede ser plan-aware. Fix en `supabase/migrations/164_seed_single_default_office.sql`: `CREATE OR REPLACE` del trigger sembrando **1 solo consultorio** (`Consultorio principal`). Todos los planes permiten ≥1; el usuario crea más si su plan lo admite.
+
+> ✅ **Decisión del founder (no backfill):** las orgs Independiente existentes con 2 consultorios se dejan como están; el cambio aplica solo de aquí en adelante.
+
+#### Cuarta revisión: seeding de consultorios plan-aware (Indep=1, Centro Médico+=2)
+
+> *"Para Independiente 1 solo consultorio sembrado y a partir del Centro Médico 2."*
+
+El plan no se conoce en el signup, así que el trigger sigue sembrando **1** consultorio para todos (mig 164). El **segundo** consultorio se siembra al **activarse** un plan multi-consultorio, vía helper idempotente `lib/onboarding/seed-default-offices.ts` (`seedSecondOfficeIfNeeded`):
+
+- Solo actúa si `plan.slug ∈ {professional, enterprise}` **y** la org tiene exactamente 1 consultorio → inserta `Consultorio 2`. En renovaciones (ya con 2+) no hace nada. Ambos planes permiten `max_offices ≥ 2`, así que nunca empuja sobre el límite. Errores tragados — sembrar nunca bloquea la activación.
+- Enganchado en los puntos de activación:
+  - `app/api/plans/start-trial/route.ts` — trial de Centro Médico (path principal de onboarding).
+  - `app/api/mercadopago/webhook/route.ts` — activación pagada (Strategy 1 con `ref.plan_slug`; Strategy 2 resolviendo el slug desde `plan_id`). Cubre Clínica (enterprise, sin trial / venta manual) y Centro Médico pagado directo.
+
+#### Quinta revisión: reordenar Variables Globales con dropdown (sin migración)
+
+> *"En el core, que se pueda editar la posición de los ítems de Variables con dropdown para que no sea tedioso."*
+
+`app/(dashboard)/admin/lookups/page.tsx` ya importaba `GripVertical` (drag-drop previsto, nunca implementado); reordenar exigía editar el número de orden a mano. Reemplazado por un **dropdown de posición por fila** (1..n) visible solo para admins:
+
+- `handleReorder(fromIndex, toPosition)` mueve el ítem y renormaliza todos los `display_order` a una secuencia contigua 1..n; solo escribe las filas que cambiaron. No hay constraint único en `display_order` (solo en `value`), así que los updates secuenciales no colisionan.
+- El input "Orden" del formulario se quitó (redundante con el dropdown); `display_order` queda como hidden y sigue defaulteando a `nextOrder` para ítems nuevos.
+- `GripVertical` removido (ya no se usa). Aplica a las 3 listas (Orígenes, Métodos de Pago, Estados de Cita), incluidos los ítems del sistema — reordenar es cosmético y no toca `value`.
+
+#### Sexta revisión: bug de seguimientos de fertilidad no creados (root cause + fix sistémico)
+
+> *Dra. Patricia: vinculó 1era + 2da consulta a los mapeos pero al completar una 1era consulta no se añade a seguimientos.*
+
+**Root cause:** había **dos** rutas que habilitan el addon fertility y solo **una** sembraba las `followup_rules` per-org:
+- ✅ `POST /api/addons/[key]/activate` — clona las 3 reglas globales + servicios TRA + plantillas WhatsApp/email.
+- ❌ `POST /api/onboarding/complete` (líneas 81-96) — el wizard auto-activa addons por especialidad (`medicina-reproductiva` → `fertility_basic`) con un `upsert` pelado a `organization_addons` y **nunca** sembraba nada más.
+
+Resultado: las orgs onboarded por el wizard quedaban con el addon `enabled=true` pero **0 `followup_rules`**, así que `maybeCreateAppointmentCompletedFollowup` (lib/fertility/followup-triggers.ts:140) encontraba `rules=[]` y hacía no-op **silencioso** (fire-and-forget, sin feedback al usuario). Afectaba a 2 de 3 orgs con el addon activo (Patricia `fd4c150b…` y `c1785176…`); la tercera funcionaba porque activó vía el endpoint correcto.
+
+**Fix #1 (data, aplicado en prod):** clonadas las 3 reglas globales a las 2 orgs afectadas vía `INSERT … SELECT … ON CONFLICT DO NOTHING`. Verificado end-to-end: el query exacto del trigger ahora devuelve `fertility.first_consultation_lapse` para el `service_id` de la 1era consulta de Patricia → al completar la cita se creará el seguimiento hacia segunda consulta (delay 21d). Deliberadamente **no** se sembraron servicios TRA (Patricia ya tiene los suyos; inyectarle 6 más sería ruido).
+
+**Fix #2 (código):** extraído todo el bloque de seed a `lib/fertility/seed-fertility-addon.ts` (`seedFertilityAddon(admin, orgId)`, extracción verbatim, idempotente, best-effort). Ahora lo llaman **ambas** rutas: `activate` (refactor 1:1) y `onboarding/complete` (cuando auto-activa un tier de fertilidad). Así el wizard ya no deja orgs a medio sembrar.
+
+**Fix #3 (red de seguridad):** como el seed es best-effort (los warnings se tragan), agregado un health-check visible. Nuevo `POST /api/admin/fertility/repair-seed` (owner/admin, gateado a orgs con el addon activo) que re-corre `seedFertilityAddon` idempotente y devuelve el conteo de reglas. La pantalla "Configuración inicial" (`canonical-mapping/mapping-form.tsx`) ahora consulta `GET /api/admin/fertility/rules` al cargar y, si hay **0 reglas activas**, muestra un banner rojo "El motor de seguimientos no tiene reglas configuradas" con botón "Reparar ahora". Así cualquier org futura que caiga en un edge case (seed falló parcialmente) tiene auto-reparación sin soporte.
+
+**Aclaración de alcance (servicios vs. seguimientos):** `seed_fertility_services` siembra los **6 servicios TRA de tratamiento** (FIV/IIU/ROPA/Crio/Ovodonación/TED) + tiers — NO siembra servicios de consulta ni crea mapeos canónicos. Las reglas de seguimiento disparan sobre `fertility.first_consultation`/`second_consultation`, que el owner debe mapear manualmente en la pantalla "Configuración inicial" a sus propios servicios de consulta. Es decir: con el fix las reglas ya existen, pero seguimientos sigue requiriendo (a) servicios de consulta y (b) su mapeo — paso manual **por diseño** (el sistema no puede adivinar cuál de los servicios de la org es "primera consulta").
+
+#### Séptima revisión: Origen del paciente no se prellenaba en la ficha de cita
+
+> *Dra. Patricia: en la ficha de la cita no se carga el Origen del paciente ya registrado; debe mostrarse para no sobreescribir información.*
+
+**Root cause (dos capas):**
+1. Al buscar un paciente por DNI en el form de cita, se prellenaban nombre/teléfono/email/nacimiento/ubicación pero **no `origin`** — el SELECT ni lo traía.
+2. Más de fondo: `patients.origin` casi nunca se poblaba. El form de registro de paciente no tiene campo Origen, y el submit de cita escribía `origin` solo en la cita (`appointments.origin`), nunca de vuelta al paciente — a diferencia de `birth_date`/`departamento`/`distrito`, que sí se backfillean al paciente si le faltan.
+
+**Fixes (appointment-form-modal.tsx):**
+- **Prefill:** el SELECT del paciente ahora incluye `origin` y hace `setValue("origin", data.origin)` al encontrarlo.
+- **Backfill:** al crear una cita para un paciente existente sin origen, se persiste `values.origin` a `patients.origin` (mismo idiom "fill if missing, never overwrite" de los otros campos). Así el origen se establece una vez y se prellena en todas las citas siguientes.
+- **Consistencia:** el sistema guarda el **label** como valor de origen (`appointments.origin = 'TikTok'`, no `'tiktok'`, porque el `<option value={o.label}>`); prefill y backfill respetan esa convención, así que la opción matchea.
+
+**Data fix (prod, org de Patricia):** backfill retroactivo de `patients.origin` desde la **primera cita** con origen de cada paciente (solo donde era null). 5 pacientes poblados — el prefill funciona de inmediato, sin esperar una cita nueva.
+
+**Pendiente ofrecido (no aplicado):** el form de registro de paciente sigue sin campo Origen (la página de pacientes ya fetchea los lookups pero no los pasa al modal). Hoy el origen se captura en la primera cita, que es un punto natural; agregar el campo al registro es un enhancement aparte. También se detectó que la página de pacientes mapea origins como `{label, value: label}` (usa label como value) — consistente con la convención label-as-value pero vale la pena unificar a futuro.
+
+#### Octava revisión: scheduler auto-size + Origen editable en ficha de paciente + reports por patient.origin
+
+Tres pedidos del founder en un solo bloque, todos enraizados en consistencia del campo "Origen" y UX del calendario.
+
+**(1) Scheduler auto-size de filas (`lib/scheduler-config.ts` + `day-view.tsx` + `week-view.tsx` + `page.tsx`)**
+
+Orgs con horarios cortos (ej. Dra. Patricia atiende 7am–2pm) veían un espacio en blanco enorme bajo el calendario porque las filas tenían altura fija (40px en day view, 32px en week view) sin importar el rango configurado. Fix:
+
+- Nuevo helper `computeSlotHeight(containerHeight, totalSlots, baseSlotHeight, headerHeight)` en `lib/scheduler-config.ts`: si el contenido natural (`totalSlots × base`) cabe en el viewport, expande las filas para llenarlo; si no cabe, conserva la base y deja que haga scroll (horarios largos siguen funcionando igual).
+- `page.tsx` mide el container scrollable con `ResizeObserver` (hooks declarados antes del early-return por la regla de hooks) y pasa `containerHeight` a `DayView` / `WeekView`.
+- Cada vista derive su propio `slotHeight` con sus constantes (`DAY_BASE_SLOT_HEIGHT=40` + `DAY_HEADER_HEIGHT=44`; `WEEK_BASE_SLOT_HEIGHT=32` + `WEEK_HEADER_HEIGHT=56`) y reemplaza los hardcoded — incluyendo el indicador de hora actual, los offsets de citas no alineadas y la altura de los event blocks (que escalan proporcionalmente con `durationSlots * slotHeight - 4`, así una cita de 1h sigue ocupando 1h visual).
+
+**(2) Origen editable desde la ficha del paciente y propagación desde la sidebar de cita**
+
+`patients.origin` (canal de marketing estructurado, lookup-backed) y `patients.referral_source` (texto libre "viene desde") son campos **distintos** pero hasta hoy solo `referral_source` era editable post-registro (en el tab Marketing del drawer); `origin` solo se mostraba read-only en la sección Info y se editaba en `appointments.origin` por cita. Resultado: el founder no podía actualizar el canal de origen del paciente desde la ficha. Cambios:
+
+- **Patient drawer / Marketing tab** (`app/(dashboard)/patients/patient-drawer.tsx`): nuevo `<select>` "Origen" cargado con `lookup_values` activos (org-scoped, `slug='origin'`), respeta la convención label-as-value del sistema. Persiste en `handleSaveMarketing` junto con `referral_source` y los custom fields. Placeholder de "Viene desde" reescrito a "Recomendación de Dra. X, paciente recurrente..." para reforzar la separación semántica (canal estructurado vs nota libre).
+- **Appointment sidebar / botón editar** (`app/(dashboard)/scheduler/appointment-sidebar.tsx`): `handleSaveEdit` ahora propaga `editOrigin` a `patients.origin` cuando el paciente está vinculado y el valor cambió. Use case del founder: la recepcionista pregunta "¿cómo nos conoció?" al check-in y lo registra ahí mismo. **Siempre sobreescribe** (a diferencia del backfill silencioso del scheduler, que sí respeta "fill if missing") porque es una edición explícita.
+
+**(3) Reports agrupan por `patients.origin` con fallback a `appointments.origin`**
+
+El origen es **del paciente** (cómo nos conoció), no de la cita. Pero `marketing-report.tsx` (líneas 141-150 y 181-199) y el RPC `get_report_metrics_for_ai` (mig 056, bloque `'origins'`) agrupaban por `appointments.origin`, dando estadísticas inconsistentes cuando una misma persona registraba diferentes orígenes en sus citas o cuando el origen estaba poblado en el paciente pero no en algunas citas. Cambios:
+
+- **`app/(dashboard)/reports/page.tsx`**: el SELECT de appointments incluye ahora `patients(id, origin)`.
+- **`app/(dashboard)/reports/marketing-report.tsx`**: `originData` y `conversionByOrigin` agrupan por `a.patients?.origin || a.origin || "Sin origen"`. El fallback cubre citas legacy donde el patient aún no tiene origen sembrado.
+- **Migración 165** (`get_report_metrics_for_ai`): `CREATE OR REPLACE` con `LEFT JOIN patients` y `GROUP BY COALESCE(p.origin, a.origin, 'Sin origen')` en el bloque `'origins'`. Resto de la función verbatim. Verificado end-to-end con datos reales de la org de Patricia: el RPC ahora reporta `Google=2 / Instagram=2 / TikTok=2` (alineado con el backfill retroactivo del paciente), mientras que antes reportaba conteos basados en `appointments.origin` que estaban desbalanceados respecto al canal real.
+
+## Changelog — Sesión 2026-06-03 — Device-limit trap fix + "Antes y Después" al switcher Nota/Timeline
+
+**Branch:** `claude/fix-device-limit-dialog`
+**PR:** #178
+**Fecha:** 2026-06-03
+**Tipo:** Fix de auth + refactor de UX de derma + nota de roadmap (no toca DB).
+
+### Contexto
+
+El founder quedó trabado al loguear con su cuenta real durante la prueba del addon de dermatología recién mergeado. La investigación destapó **dos bugs distintos en la capa de auth** que se manifestaban juntos como un loop sin salida, y **un problema de layout** en el panel clínico que rompía la grilla de tabs apenas se activaba el addon de derma.
+
+### (1) Fix de auth — el diálogo de límite de dispositivos atrapaba al usuario (`d052300`)
+
+**Root cause** (`lib/auth/sessions.ts` — `registerSession`):
+
+`registerSession()` tenía **tres caminos de error-fallback** (refresh-update, reactivate, insert) que retornaban `outcome: "limit_exceeded"` cuando la escritura a DB fallaba — **tragándose el error real**. La ruta `POST /api/auth/session/register` mapeaba ese outcome a HTTP 409, así que el cliente renderizaba el diálogo "Demasiados dispositivos" con:
+
+- `limit: undefined` → el copy mostraba "permite hasta ____ dispositivos" en blanco.
+- `existingSessions: []` → lista vacía, no había qué cerrar.
+- Con la lista vacía, el botón **"Cerrar sesiones y continuar"** queda disabled (el handler exige al menos una sesión seleccionada).
+
+Resultado: usuario completamente bloqueado dentro de un modal inescapable, a pesar de estar **muy por debajo** de su límite de dispositivos (1 sesión activa, límite 3). El único síntoma visible era el modal — el error real de la DB nunca aparecía en el cliente.
+
+**Fix (3 capas, defense in depth):**
+
+1. **Nuevo outcome `"error"`** en `RegisterSessionResult`, distinto de `"limit_exceeded"`. Los 3 fallbacks ahora retornan `error` y `console.error` el error real de Postgres en vez de ocultarlo.
+2. **La ruta `register` falla OPEN en `"error"`**: retorna HTTP 200 para que el cliente avance. El tracking de sesiones es un **anti-account-sharing soft** — un fallo de escritura de tracking jamás debe bloquear un login legítimo. La próxima carga reintenta el insert.
+3. **Defense-in-depth en la rama 409**: ahora solo dispara cuando `limit` **Y** `existingSessions` están presentes y bien formados. Un payload degenerado ya no puede renderizar el diálogo vacío que atrapa al usuario.
+
+El cliente (`components/auth/session-register.tsx`) ya fallaba open ante cualquier status que no fuera 401/409, así que devolver 200 lo pasa derecho sin tocar el componente.
+
+**Archivos tocados:**
+- `app/api/auth/session/register/route.ts` (+18, −2)
+- `lib/auth/sessions.ts` (+18, −3)
+
+### (2) Refactor de UX — "Antes y Después" movido al switcher Nota / Timeline (`b5175ba`)
+
+**Síntoma:** con el addon de derma activo, el panel lateral del modal clínico (Recetas / Exámenes / Tratamientos / Seguimientos) sumaba una 5ª tab "Antes y Después". El label largo se partía en dos líneas y desbordaba el borde del panel — la grilla `flex-1` sin `whitespace-nowrap` no aguantaba el conjunto ícono + texto en una columna de ~88px.
+
+**Root cause (arquitectural, no CSS):**
+
+Las 4 tabs laterales son **por-consulta** — están atadas a `clinical_note_id`, registran lo que se receta/pide **en esta visita**. La galería antes/después es **a nivel paciente** — se llavea con `patientId`, cruza todas las consultas, no pertenece a una nota en particular. Está al **mismo nivel conceptual que el Timeline** (también histórico, cross-consulta).
+
+Estaba en el árbol equivocado. Cualquier fix de CSS (`whitespace-nowrap`, scroll horizontal, label corto) era ocultar el síntoma sin arreglar el modelo.
+
+**Decisión:**
+
+Mover la galería al **switcher de vista** del modal (`view: "note" | "timeline"`) como tercera opción `"photos"`, junto a Nota y Timeline:
+
+```
+┌─────────────────────────────────────────────────────┐
+│  📄 Nota   │  🕐 Timeline  │  📷 Antes y Después   │  ← sticky sub-header
+└─────────────────────────────────────────────────────┘
+```
+
+**Cambios:**
+
+- **`app/(dashboard)/scheduler/clinical-note-modal.tsx`**:
+  - `view` ahora es `"note" | "timeline" | "photos"`.
+  - Tercer botón en el switcher, visible solo con `dermActive && patientId` (mismo gating que tenía la 5ª tab).
+  - `BeforeAfterPhotosPanel` se renderiza **full-width** debajo del switcher, **lazy-mounted** y persistido como el Timeline (`hasOpenedPhotos`). Se mantiene `canEdit` → el upload sigue funcionando.
+  - Auto-corrección: si el addon se apaga mientras estás en `view === "photos"`, vuelve a `"note"` (evita quedar en una vista sin botón que la represente).
+  - Import dinámico de `BeforeAfterPhotosPanel` (`browser-image-compression` solo se descarga al abrir la vista).
+
+- **`app/(dashboard)/scheduler/clinical-side-panels.tsx`**:
+  - Removido `PHOTOS_TAB`, el hook `useDermatologyAddon`, el caso especial `t.key === "photos"` en el conteo, y el `<div role="tabpanel">` de fotos.
+  - `TabKey` vuelve a 4 valores. `BASE_TABS` queda con comentario explicando dónde vive la galería ahora.
+  - Vuelve a tener 4 tabs parejas sin desbordes — sin necesidad de `whitespace-nowrap` ni hacks de layout.
+
+**Beneficios secundarios:**
+
+- La comparación de fotos pasa de una columna lateral de **~440px** a **ancho completo** del modal — la galería antes/después por fin tiene aire para mostrar pares lado a lado.
+- El switcher es un sub-header **sticky siempre visible**, mejor descubrimiento que una 5ª tab apretada en un panel angosto.
+- El **patient drawer** mantiene "Antes y Después" como tab read-only (decisión deliberada): allí **todo** es a nivel paciente, no hay mezcla con secciones por-consulta, así que la grilla no se rompe.
+
+**Archivos tocados:**
+- `app/(dashboard)/scheduler/clinical-note-modal.tsx` (+58, −10)
+- `app/(dashboard)/scheduler/clinical-side-panels.tsx` (+8, −34)
+
+### (3) Roadmap — multi-org switcher pendiente (`4c97e0a`)
+
+Durante la investigación del bug (1) apareció un **segundo problema independiente** que también contribuye al "loop al loguear" cuando un usuario tiene varias orgs. Registrado en `COMING-UPDATES.md` con repro completo y scope, sin tocar código.
+
+**Root cause:** `components/organization-provider.tsx` resuelve la org activa con:
+
+```ts
+.from('organization_members').select(...).eq('user_id', uid).eq('is_active', true).limit(1).single()
+```
+
+Sin `ORDER BY`. Postgres devuelve **una membresía arbitraria** de las que el user tenga. Hoy funciona porque el modelo asumido es **1 user = 1 org**, pero el sistema ya soporta de hecho varios casos multi-org:
+
+- Owner founder con varias clínicas piloto (Oscar tiene 2 — fue cómo se descubrió).
+- Doctor que atiende en 2 clínicas (caso explícitamente soportado por `session-limits` y `device-limits` con `maxLimitFromRoles`).
+- Recepcionista de una franquicia con varias sedes.
+
+**Síntoma observable:** si un user con 2 orgs tiene una con trial vencido y otra vigente, el `.limit(1)` puede agarrar la vencida → middleware lo manda a `/select-plan` → no hay UI para saltar a la otra org → loop sin salida desde el cliente.
+
+**Scope MVP del switcher (~1 día):**
+
+- Dropdown en el topbar (al lado del avatar) con `organization_members WHERE is_active = true` del user.
+- Persistir org seleccionada en cookie `yenda_active_org_id`, leer en `organization-provider` antes del `.limit(1)`.
+- Middleware y RLS no cambian (siguen usando `get_user_org_ids()`), solo cambia qué org se considera "activa" en el contexto cliente.
+- Re-render de `usePlan`, `useOrgAddons`, `useOrgInsurance`, `useOrgRole` al cambiar — ya leen de `useOrganization`, alcanza con invalidar.
+
+**Prioridad:** hacerlo antes del próximo cliente multi-sede o de soltar el switcher de la cuenta founder. No bloquea features nuevas pero es deuda arquitectural creciente.
+
+### Resumen end-to-end de la sesión
+
+| Cambio | Tipo | Estado |
+|---|---|---|
+| Fix device-limit trap | Bug crítico (login lockout) | ✅ Mergeado vía PR #178 |
+| "Antes y Después" → switcher Nota/Timeline | Refactor UX | ✅ Mergeado vía PR #178 |
+| Multi-org switcher | Roadmap (deuda arquitectural) | 📋 Documentado en `COMING-UPDATES.md` |
+
+**Verificación:** `tsc --noEmit` ✅ limpio, `next lint` ✅ limpio en los archivos tocados.
+
+Convención respetada en los 3 cambios: el sistema guarda el **label** del lookup como valor de origen (`patients.origin = 'TikTok'`, no `'tiktok'`), así que el select del drawer y el dropdown del scheduler funcionan con el mismo dataset.
+
+## Changelog — Sesiones 2026-06-05 a 2026-06-10 — Presupuestos FIV PDF + Plugins per-org + Estado de cita en vivo
+
+Tres features mayores entregados en cadena, todos en producción.
+
+### 1. Pipeline de PDF de presupuestos FIV para Vitra (PRs #182–#187)
+
+**Objetivo:** el botón "Descargar PDF" de un presupuesto FIV de NATURVITRA genera el template HTML profesional (Claude Design) en vez del React-PDF genérico.
+
+- **Render**: Handlebars (`lib/budget-pdf/templates/FIV.hbs`) + `puppeteer-core` + `@sparticuz/chromium` (el puppeteer full excede los límites de Vercel serverless). Gotchas resueltos y documentados en `next.config.ts`: `serverExternalPackages` + `outputFileTracingIncludes` para el `.hbs` Y para `@sparticuz/chromium/bin/**` (el tracer de Vercel no sigue los `.br` cargados por fs), `setGraphicsMode = false` antes de `executablePath()`, `maxDuration = 30`.
+- **Datos por tier**: breakdowns A/B/C hardcoded en `lib/budget-pdf/data/fiv-tiers.ts` desde los `.docx` revisión 2026-06-04 (A=18,450 / B=17,020 / C=16,260). El PDF muestra siempre el total del breakdown (ignora `budget_records.amount` para evitar drift visual con los renglones).
+- **Error surfacing**: try/catch en el route con el mensaje real en el body — el toast genérico "No se pudo generar el PDF" costó horas de triage hasta que se agregó.
+
+### 2. Doctor + asesora reales en el presupuesto (mig 167, PR #185/186)
+
+**Bug de origen:** "Médico tratante" y "Asesora" salían vacíos/incorrectos en el PDF. Dos causas: (a) el endpoint assign descartaba `asesora_id` (Phase 4 nunca aterrizada), y (b) `loadProfile` consultaba la tabla `profiles` que **no existe** (es `user_profiles`) — silenciosamente null desde el día 1.
+
+- `budget_records` ganó `appointment_id` + `assigned_doctor_id` + `assigned_asesora_member_id` (mig 167). Required en API, nullable en DB (rows legacy muestran "—").
+- `AssignBudgetModal` (sidebar de cita): doctor auto-llenado desde la cita (read-only, "desde la cita"); si la cita no tiene doctor → submit bloqueado. Asesora required (filtra `is_fertility_advisor=true`).
+- `BudgetRecordModal` (flujo standalone) reescrito: eliminado "Monto aproximado" libre → tier A/B/C + selects de doctor y asesora. Mismo endpoint que el flujo de cita.
+- Nota PostgREST: no hay FK entre `organization_members` y `user_profiles` (ambas referencian `auth.users`), así que la asesora se resuelve con 2 queries (`loadAsesoraName`), no con embed.
+
+### 3. organizations.icon_url (mig 168, PR #186)
+
+Ícono cuadrado compacto separado del `logo_url` (lockup horizontal para documentos). Topbar/sidebar lo prefieren con fallback al logo. Upload en Settings → Organización ("Ícono compacto"). Favicon dinámico quedó como pendiente.
+
+### 4. Arquitectura de plugins per-org (mig 169, PR #187)
+
+Reemplaza el switch hardcoded "if NATURVITRA + FIV" por un sistema instalable:
+
+- **`org_plugins`** (org_id, plugin_key, enabled, config JSONB). RLS: SELECT para miembros, writes solo founders.
+- **`lib/plugins/registry.ts`**: source of truth de los keys. Primer plugin: `budget_pdf_vitra` (requiere addon fertility, aplica a FIV; ampliar `applies_to.treatment_types` cuando lleguen los demás templates TRA).
+- **`lib/plugins/active.ts`**: resolver runtime — devuelve el primer plugin aplicable o null → Capa 1 (React-PDF default).
+- **Founder Panel → Plugins**: instalar/configurar/apagar/desinstalar por org, con editor JSONB inline. Vitra instalada con `config={}` (usa defaults de `VITRA_DEFAULT_CONFIG`).
+- Onboardear otra clínica con el mismo template = INSERT + override de JSONB, cero código. Template distinto = nueva entrada en registry.
+
+### 5. Estado de cita en vivo (migs 170-171, PRs #188-#194)
+
+Capa visual paralela e independiente de `appointment.status`, activable por org:
+
+- **Parte A (perf groundwork, PR #188)**: `AppointmentCard` extraído del JSX inline del day-view + `React.memo` con comparador custom (id + updated_at + geometría + selección + paymentTotal). `NowProvider` = ticker único por minuto via Context. Sin esto, la feature habría multiplicado el re-render avalanche que ya existía.
+- **Partes B+C (PR #189)**: `appointments` ganó `arrived_at` / `consultation_started_at` / `consultation_ended_at` / `consultation_closed_reason` (timestamps, no enum — el estado se deriva y los valores alimentan reportes futuros de espera/duración real). RPC `start_consultation` atómico: cierra la consulta abierta previa del MISMO doctor (race-safe con tabs paralelas). Endpoint `POST /api/appointments/[id]/live-status` con acciones arrive/unarrive/start/end/reopen; recepción puede arrive+start pero no end/reopen.
+- **Partes D+E+F (PRs #190-192)**: `<LiveStatusPill>` — pill clickeable que abre popover con las transiciones válidas (gris Programada → azul Llegó → esmeralda pulsante En consulta → gris muted Finalizada). Undo via toast 8s, sin modales. En cards de 1 slot se reduce a dot-only. Lean poll cada 30s (solo 4 columnas, ~5 KB, pausado con pestaña oculta, skip si nada cambió). Stale fade lunch-aware: consulta abierta >1h se atenúa SOLO si el doctor ya está en su siguiente cita. Settings → Agenda: toggle maestro + sub-toggle de cierre automático (`scheduler_settings.live_status*`, mig 171).
+- **Polish (PR #193)**: tipografía compacta en cards de 1 slot (el clipping de la 2da línea era preexistente), celdas 40→44px, fix del focus outline del browser que se veía como blob oscuro en el dot.
+- **Parte G (PR #194)**: cron EOD diario (02:00 Lima) que cierra consultas huérfanas con la hora de fin programada de la cita (`closed_reason='auto_eod'`); si la consulta empezó después de su fin programado, `inicio + 30 min`.
+
+### Lecciones de la sesión
+
+- **PostgREST embeds**: no se puede embeder a través de dos FKs que apuntan a la misma tabla destino (`organization_members.user_id` y `user_profiles.id` → `auth.users`). Resolver con queries separadas.
+- **Errores opacos**: `loadBudgetForPdf` tragaba el error de PostgREST y devolvía 404 genérico. Loggear SIEMPRE el error antes de colapsar a null.
+- **Vercel + sparticuz**: los binarios `.br` de chromium no son seguidos por el file tracer; declararlos en `outputFileTracingIncludes` o falla con "input directory does not exist".
+- **Working tree de sesión**: el checkout local puede resetearse entre sesiones de Claude Code web — verificar `git log` antes de auditar con agentes.
+
+### Pendientes que dejó la sesión (ver COMING-UPDATES.md)
+
+Toggle `is_fertility_advisor` en editar miembro · favicon dinámico desde `icon_url` · templates TRA restantes para Vitra (IIU/Ovodon/ROPA/Crio/TED/DuoStim) · sincronía precios admin↔PDF (opción B: `service_budget_phase_breakdowns`) · visual builder (§17.5).
+
+## Changelog — Sesión 2026-06-12 — Tab Fertilidad en /reports + Grid separator v3 + Canales reales de envío de presupuestos
+
+Tres entregables del día apuntados al pilot Vitra: un dashboard de KPIs del addon, un fix visual del scheduler que veníamos arrastrando, y el cierre de la métrica "presupuestos enviados".
+
+### 1. Tab Fertilidad en /reports (PRs #198, #199)
+
+**Problema:** las orgs con addon Fertilidad no tenían dónde ver el embudo del journey ni el desempeño de las asesoras. El tab Resumen mide volumen general pero no captura las preguntas operativas del centro de fertilidad ("¿cuántas 1ª → 2ª consulta del mes? ¿qué % de presupuestos enviados se aceptan? ¿cuánto vende cada asesora?").
+
+- **Endpoint `/api/reports/fertility`**: agregador único que carga (a) primeras/segundas consultas del rango via `organization_service_canonical_mapping` (mig 127) — fail-fast si la org no mapeó (`NO_MAPPING_FIRST` / `NO_MAPPING_SECOND` con CTA a `/settings/services/canonical`); (b) presupuestos del rango (enviados/aceptados/rechazados/pendientes/tasa de aceptación); (c) breakdown por tier A/B/C; (d) ranking por asesora (`organization_members` con `is_fertility_advisor=true`).
+- **Vista doble del embudo 1ª → 2ª**:
+  - **Por eventos** (default): cuenta 1ª consultas finalizadas y 2ª consultas finalizadas DENTRO del rango. Métrica operativa del día a día.
+  - **Por cohorte**: cuenta 1ª consultas del rango Y cuántas de ESAS pacientes hicieron su 2ª en los siguientes 60d. Métrica honesta para retención. Fallback "preliminary" en orgs jóvenes (<60d de ventana de retención disponible) para no mostrar 0/0 engañoso.
+- **Tab gateado** con `<FertilityAddonGate>`. Aparece como segunda pestaña en `/reports` solo si la org tiene `fertility_basic` o `fertility_premium`.
+- **`react-memo` con comparador custom** en las cards para evitar repaint al cambiar de tab.
+
+### 2. Grid separator architecture v3 (PR #197)
+
+**Problema:** los separadores verticales de columnas en `/scheduler` (día y semana) se fragmentaban a anchos fraccionales. v1 los pintaba con borders en cada `AppointmentCard`; v2 los movió a un overlay por fila pero empeoró el problema (cada fila redondeaba el ancho de forma independiente y los segmentos no se alineaban verticalmente).
+
+- **v3 = una sola capa full-height detrás de las cards** (`z-0` debajo del `z-10` de la grilla, posición absoluta dentro del scroller). Pinta N-1 líneas usando `repeating-linear-gradient` con `calc(100% / N)`. Como es un solo elemento, los pixels redondean una vez y los separadores quedan continuos.
+- Validado en chromium lab con widths 1024-1920 y 1-12 columnas. Cero regresión en performance (es CSS puro, no añade nodos).
+
+### 3. Canales reales de envío de presupuestos (PR #200, mig 172)
+
+**Problema heredado del Phase 3 de Budget Tiers:** `POST /api/budgets/[id]/send` solo estampaba `sent_at` y abría el PDF en una pestaña. Nada salía hacia la paciente. La métrica "presupuestos enviados" del tab Fertilidad medía "alguien clickeó el botón", no entregas reales. Para el pilot de Vitra eso era un hueco visible.
+
+- **mig 172**: `budget_records.sent_via TEXT CHECK (... 'email','whatsapp','other')`, nullable (rows previos quedan en NULL = "no sabemos el canal"). Permite cortar el KPI por canal en el futuro sin volver a migrar.
+- **Modal de 3 canales en `BudgetCard`** reemplazando el botón directo:
+  - **Email**: Resend → email con branding de la clínica (legal_name/name + icon_url/logo_url) + botón con URL firmada de 7 días al PDF. Helper en `lib/budget-pdf/send-email.ts`. Sin adjuntos (mejor deliverability + privacidad: el link expira por sí solo).
+  - **WhatsApp**: el servidor NO envía. Devuelve un `wa.me` prellenado con el link firmado y la app lo abre en pestaña nueva. La conversación queda en el WhatsApp del clinic, no en Yenda.
+  - **Otro**: stamp-only (impreso, en persona, familiar). El registro queda contado y tipificado.
+- **Validaciones del endpoint**: 422 si el canal elegido necesita contacto y el paciente no lo tiene (email faltante → "editá su ficha o elegí otro canal"; mismo para phone en whatsapp). 409 si el presupuesto ya tiene decisión o ya fue enviado. Roles permitidos: owner / admin / doctor / fertility advisor. Receptionists bloqueados.
+- **UI clarification**: el modal muestra el email del paciente al lado del botón Email, y deshabilita Email/WhatsApp con mensaje claro cuando falta el dato.
+
+### Efecto compuesto en /reports/fertility
+
+Antes: el KPI "Presupuestos enviados" estaba contaminado por clicks accidentales y por rows estampados manualmente sin entrega real. Ahora: cada envío deja huella del canal en `sent_via`. Próximo paso natural (no en este PR): cortar el KPI por canal en el tab Fertilidad para ver mix email/whatsapp/otro y detectar centros que dependen demasiado de WhatsApp manual.
+
+### Pendientes que dejó la sesión (ver COMING-UPDATES.md)
+
+Breakdown de "presupuestos enviados" por `sent_via` en /reports/fertility · estados de delivery del email (Resend webhooks → `email_delivered_at` / `email_bounced_at` para distinguir "enviado" de "rebotado") · captura de respuesta de WhatsApp (hoy no medimos si la paciente abrió o respondió el `wa.me`).
+
+## Changelog — Sesión 2026-06-12 tarde (v0.15.14b) — Fixes post-launch del envío + email de presupuesto editable
+
+> **Nota de numeración:** el header original reutilizaba `v0.15.14` (ya usada por la sesión 2026-05-13 noche — Device session limits). Renombrada a **v0.15.14b** para desambiguar; su fecha real es 2026-06-12.
+
+Continuación del mismo día: dos fixes salidos del testeo en vivo del flujo de envío de presupuestos (PR #200) y la plantilla editable del email a la paciente.
+
+### 1. Fix: el listado de presupuestos no traía `patient.email` (PR #202, mergeado)
+
+El embed de `GET /api/budgets` seleccionaba `patients(id, first_name, last_name, phone)` **sin `email`**, así que `budget.patient.email` llegaba `undefined` al cliente y el botón Email del modal de envío quedaba deshabilitado con "sin email registrado" aunque la paciente sí tuviera email en su ficha. Se agregó `email` al embed y a los tipos del card y la page. Lección: cuando una feature nueva depende de un campo, verificar que TODOS los endpoints que alimentan esa UI lo seleccionen — el whitelist de columnas (optimización v0.15.3) hace que los campos no pedidos simplemente no existan.
+
+### 2. Fix: PDF chromium roto en `/send` + skip para `via=other` (PR #203, mergeado)
+
+Al marcar "enviado por otro medio" aparecía el toast **"PDF no generado: The input directory '/var/task/node_modules/@sparticuz/chromium/bin' does not exist"**. Dos causas:
+
+- **`via=other` no debería generar PDF** — es un stamp-only (impreso, en persona) pero el código llamaba a `generateBudgetPdf` incondicionalmente para los 3 canales. Ahora lo saltea y `pdf_error` queda `null`.
+- **`next.config.ts` no registraba el include para `/send`** — cuando PR #200 agregó render de PDF desde ese route, no se replicó el `outputFileTracingIncludes` de `@sparticuz/chromium/bin/**` que sí existía para `/pdf`. Vercel solo bundleaba los binarios para `/pdf`. Es la MISMA lección documentada en la sesión 2026-06-05/10 ("los `.br` de chromium no son seguidos por el file tracer") repetida en un segundo route: **cada route serverless que renderice PDF necesita su propia entrada en `outputFileTracingIncludes`**.
+
+### 3. Email "Enviar presupuesto" editable desde Settings → Correos (PR #204, mig 173)
+
+El subject y cuerpo del email a la paciente vivían hardcodeados en `lib/budget-pdf/send-email.ts`. Ahora son una plantilla per-org (slug `fertility_budget_to_patient`) editable en la sección Fertilidad de Settings → Correos — mismo patrón que las otras 3 plantillas del addon (mig 138).
+
+- **Partes NO editables** (se appendean en código al final del cuerpo): el botón "Ver mi presupuesto" con el link firmado al PDF y la nota de confidencialidad. Una edición nunca puede romper el link ni el cumplimiento.
+- **Variables**: `{{paciente_nombre}}` · `{{tratamiento}}` · `{{clinica_nombre}}` · `{{clinica_telefono}}` · `{{vigencia_dias}}` (las dos últimas sumadas a la lista y al preview de la UI).
+- **mig 173**: redefine `seed_email_templates()` con la 4ª plantilla fertility (total 24 templates) + backfill idempotente en orgs existentes + `is_enabled=true` automático en orgs con addon activo. `timing NULL` porque no es recordatorio automático — se dispara on-demand.
+- **Si la org deshabilita la plantilla, el canal NO se bloquea**: el envío usa el copy default ("deshabilitar = no usar mi versión"). El staff hizo una acción explícita al elegir email; cortar el envío sería confuso.
+- `send-email.ts` lee la plantilla per-org via admin client; branding (logo, color, sender, reply-to) viene de `email_settings` + `organizations`, mismo source que el cron de followups. `/api/budgets/[id]/send` adelgazado: ya no arma saludo ni branding.
+- `seed-fertility-addon.ts` incluye el slug nuevo en `FERTILITY_EMAIL_SLUGS` para que la activación del addon lo prenda junto con los otros.
+
+### Estado al cierre
+
+- PRs #202, #203 y #204 mergeados a main. La mig 173 quedó pendiente de aplicar a prod al cierre de esta sesión (ver actualización 2026-07-03 abajo).
+
+## Changelog — Sesión 2026-07-03 (v0.15.15b) — Lanzamiento de los dos primeros pilotos + cierre del email de presupuesto
+
+> **Nota de numeración:** el header original reutilizaba `v0.15.15` (ya usada por la sesión 2026-05-14 — Clinical access log). Renombrada a **v0.15.15b** para desambiguar; su fecha real es 2026-07-03.
+
+Sesión operativa, no de código: se aplicó la migración pendiente, se verificó el flujo de presupuestos end-to-end en producción, y se formalizaron los dos primeros pilotos comerciales de Yenda.
+
+### 1. mig 173 aplicada a prod y verificada end-to-end
+
+- La migración se corrió en producción (vía SQL Editor de Supabase). Backfill completo: la plantilla `fertility_budget_to_patient` quedó creada en las ~97 orgs y `is_enabled=true` en las 3 con addon fertilidad activo (Vitra entre ellas).
+- **Prueba real en Vitra (NATURVITRA S.A.C.)**: se envió un presupuesto FIV de prueba a una paciente con email cargado. El correo llegó correcto — subject "Tu presupuesto de FIV — NATURVITRA S.A.C.", saludo "Hola {nombre}", vigencia resuelta a 90 días, teléfono, botón "Ver mi presupuesto" (link firmado al PDF) + nota de confidencialidad appendeados, todo con el branding de Vitra (logo + color). Editable desde Settings → Correos → Fertilidad, confirmado.
+- **Nota de UX detectada**: las 4 plantillas fertility conviven en la misma sección y es fácil confundir "Envío de presupuesto a la paciente" (on-demand, sin días de espera) con "Recordatorio de segunda consulta" (auto, 21 días). Candidato a mejora futura: separar visualmente las on-demand de las automáticas.
+
+### 2. Incidente de acceso — `session_revoked` (no era el trial)
+
+Al intentar entrar a la org de prueba de Vitra, el login redirigía a `?reason=session_revoked` después del 2FA. Causa: la feature de límite de dispositivos (mig 156) había revocado la sesión de ese navegador al superarse el límite de 3 del owner desde otro dispositivo. El middleware desloguea antes de que `/api/auth/session/register` pueda reactivar → trampa de loop. **Fix aplicado por el usuario**: borrar cookies del sitio (genera `device_id` nuevo → sin fila revocada → entra y re-registra). Documentado como patrón de soporte: no confundir `session_revoked` (device limits) con expiración de trial.
+
+### 3. Dos primeros pilotos formalizados
+
+| | **Vitra (NATURVITRA S.A.C.)** | **Dra. Patricia Quispe** |
+|---|---|---|
+| Fase 1 | 2 meses gratis + testimonial | 2 meses gratis + testimonial |
+| Fase 2 | S/ 250/mes × 6 meses (descuento fundador) | Plan Individual (precio normal) |
+| Fase 3 | Ajuste a precio "real" ya conversado | — |
+| Paquete | Centro Médico | Individual |
+
+- **Pendiente operativo para la fase de cobro (~2 meses)**: el trial nativo de Yenda es de 14 días, no 2 meses → los 2 meses gratis se gestionan manualmente (extender `trial_ends_at` o suscripción sin cobro hasta la fecha pactada). El S/250×6 de Vitra es un precio custom que MercadoPago no tiene de fábrica → definir mecanismo (cupón / precio custom / ajuste manual) antes de cobrar. Se conecta con el **Wave 2** de MercadoPago hardening (v0.15.11, aún no iniciada).
+- **Checklist de onboarding** agregado en `docs/onboarding/checklist-instalacion-cliente.md` (creado para la instalación de la Dra. Quispe, reusable para cualquier org: datos legales/RUC/Nubefact, branding, sedes, equipo, servicios, migración de pacientes, plan, plantillas, consentimientos, addons + orden sugerido del día de instalación).
+
+### Pendientes que deja la sesión
+
+Mecanismo de "2 meses gratis" y precio fundador S/250×6 para la fase de cobro (Wave 2 MP) · separación visual on-demand vs automáticas en Settings → Correos · completar la configuración de la org de la Dra. Quispe con el checklist.
+
+## Changelog — Sesión 2026-07-07 — Ajuste de honorarios por presupuesto (mig 174)
+
+Los tiers A/B/C de un presupuesto de fertilidad solo se diferencian por los honorarios del médico; el precio más alto (Tier A) puede quedarse corto para una paciente high-ticket sin que exista un 4.º tier. Se agrega un **sobreprecio de honorarios opcional por presupuesto** que el especialista fija al asignarlo.
+
+### Qué se implementó
+
+- **mig 174** — `budget_records.honorarios_adjustment NUMERIC(10,2) NOT NULL DEFAULT 0` con CHECK `>= 0` (solo sube; para bajar el precio existe el módulo Descuentos). Inerte para presupuestos existentes (default 0).
+- **Modal de asignación** (`components/addons/fertility/assign-budget-modal.tsx`): campo "Ajuste de honorarios (opcional)" visible tras elegir el tier, con preview en vivo del total (`Tier X + ajuste = Total`). Solo dígitos y un decimal, sin negativos.
+- **`POST /api/budgets/assign`**: acepta `honorarios_adjustment` (`z.number().min(0).max(1_000_000)`), lo redondea a céntimos, lo persiste y suma al snapshot `amount` (`amount = tier.amount + ajuste`).
+- **PDF Vitra FIV** (`lib/budget-pdf/render-html.ts`): nuevo helper `applyHonorariosAdjustment` integra el delta **dentro de la línea de honorarios médicos de la fase de aspiración** + su subtotal + el total, sin línea de "ajuste" visible para la paciente (decisión de UX: integrado, no separado). Todas las columnas siguen reconciliando (subtotal = honorarios + procedimiento; total = Σ subtotales). El delta viaja por `BudgetPdfProps.honorariosAdjustment` desde `generate.tsx`.
+
+### Decisiones de diseño (confirmadas con el usuario)
+
+- **Delta, no honorario absoluto**: el tier base queda intacto y es claro cuánto es el extra.
+- **Integrado en honorarios, no línea separada**: discreto para casos particulares.
+- **Solo positivo**: para descuentos ya existe mig 100.
+
+### Pendiente operativo
+
+Aplicar **mig 174** en producción (SQL Editor de Supabase) — mismo patrón que mig 173. Hasta entonces el campo del modal no debe usarse en prod (la columna no existe aún y el insert fallaría).
+
+### Nota (pre-existente, fuera de alcance)
+
+El total del PDF de Vitra (breakdown hardcoded, ej. FIV Tier A = S/18,450) ya diverge del `service_budget_tiers.amount` de la BD (ej. S/16,260); el preview del modal usa el monto de la BD. El ajuste suma el mismo delta a ambos, así que es consistente dentro de cada vista. La sincronía base admin ↔ PDF sigue siendo el pendiente ya listado en `COMING-UPDATES.md`.
+
+## Changelog — Sesión 2026-07-07 (tarde) — Auditoría y pulido de la landing (home)
+
+Auditoría de la home contra estándares de copywriting, UI/UX y neuromarketing, con los fixes aplicados en la misma sesión.
+
+### Eliminado
+
+- **Sección "Roadmap público" (`ComingUpdates`)** fuera de la home y componente `coming-updates.tsx` borrado (decisión de negocio: no anticipar el roadmap a la competencia). Referencia verbal al "roadmap" en `social-proof.tsx` reescrita ("define qué construimos primero").
+- **Placeholders de screenshots** en `features.tsx` (cajas punteadas "Screenshot — X" visibles en producción; transmitían producto sin terminar).
+- **Referencias a cuaderno/libreta** en la home, sustituidas por Excel/Google Calendar como el statu quo a vencer (`pain-points`, `role-superpowers` ×2, `expected-results`). Nota: las páginas `/producto/*` aún usan "cuaderno" en copy SEO — fuera de alcance de esta sesión, decidir aparte.
+
+### Copy / neuromarketing
+
+- **Contradicción crítica corregida**: el Hero promete "Probar gratis 14 días" pero el FAQ decía "No tenemos trial". FAQ actualizado (14 días, sin tarjeta) — la inconsistencia erosionaba confianza justo antes de la conversión.
+- **FAQ nuevo de reversibilidad**: "¿Y si quiero irme? ¿Mis datos quedan atrapados?" (objeción #1 en salud; reduce el miedo al lock-in sin sobre-prometer: reportes a CSV + entrega asistida).
+- **`GrowthPath` des-precificada**: mostraba los 3 precios completos a mitad de página duplicando a Pricing; ahora es sección de auto-identificación ("Empiezo solo…" / "Ya somos un equipo…") con link "Ver mi plan →" a `#pricing`, que conserva el monopolio del anclaje de precio.
+- **CTAs consistentes**: "Probar gratis 14 días" unificado en Hero, Pricing y FinalCTA (mismo compromiso en todo el recorrido). Secundario del Hero: ícono Play→Calculator y copy "Calcula cuánto pierdes hoy" (aversión a la pérdida, alineado con la sección de fugas).
+- FinalCTA con reassurance honesto: "Sin tarjeta. Planes desde S/129/mes cuando decidas quedarte."
+
+### Animaciones (sistema `Reveal` + `fadeUp` existente, respeta `prefers-reduced-motion`)
+
+- Entrada al scroll para las únicas secciones que aparecían "en seco": `TrustBadges` (stagger 60ms), `FAQ`, `SocialProof` (header → grid → señales).
+- `Pricing`: micro-fade (250–350ms) del bloque de precio al alternar Mensual/Semestral/Anual — feedback de cambio de estado, no decoración.
+
+Verificado: `tsc` 0 errores + `next build` completo.
+
+### Extensión de la misma sesión — /producto y /blog
+
+- **Placeholder "REPLACE" → "Yenda"** en TODAS las páginas públicas donde quedó sin sustituir (41 menciones en 9 archivos de `/producto` + 5 en `/blog`): title tags SEO ("… | REPLACE" era lo que veía Google), headings ("Cuaderno vs. REPLACE"), body copy ("Bienvenido al blog de REPLACE") y schemas JSON-LD.
+- **Cuaderno/libreta → Excel** también en `/producto` (pedido del usuario: "el tema de cuadernos es muy antiguo"): hero y sección de dolor de `agenda-medica-online`, la "trampa del Excel" reencuadrada (Excel como statu quo, ya sin salto cuaderno→Excel), comparativa renombrada "Excel vs. Yenda", y stat de `asistente-ia-consultorio`.
+- **6 testimonios placeholder eliminados** (`agenda-medica-online`, `gestion-pacientes`, `asistente-ia-consultorio`, `historia-clinica-electronica`, `reportes-clinica-medica`, `comunicacion-automatizada`): citas inventadas firmadas por "Nombre del doctor / Especialidad — Ciudad, País" con avatar gris, visibles en producción. Un testimonio fabricado es pasivo legal y de confianza; recuperables de git cuando existan testimonios reales de los pilotos (Vitra / Dra. Quispe).
+
+Verificado: `tsc` 0 errores + `next build` completo (warnings pre-existentes de Sentry/handlebars, no relacionados).
+
+## Changelog — Sesión 2026-07-07 (noche) — Fixes UI ($→S/) + notificaciones de límite + operativo pilotos (v0.15.16b)
+
+> **Nota de numeración:** el header original reutilizaba `v0.15.16` (ya usada por la sesión 2026-05-14 noche — Plan soft-wall). Renombrada a **v0.15.16b** para desambiguar; su fecha real es 2026-07-07.
+
+PRs #207 (landing, sección anterior) y #208 mergeados por el usuario.
+
+### Fixes de producto (PR #208)
+
+- **Símbolo `$` duplicado con `S/`**: varios puntos renderizaban un icono `DollarSign`/`CircleDollarSign` pegado a un monto en soles → "$ S/.150.00" (dos símbolos de moneda, uno en dólares). Reemplazado por `Coins` (icono neutro) en los 5 sitios con monto adyacente: `admin/services` (service pill), drawer de paciente (badge de fila de pago), portal del paciente (`mis-citas`, detalle de cita — el reportado por el usuario), `/producto/asistente-ia-consultorio` y `/producto/agenda-medica-online`. Los `$` que son etiquetas autónomas (headers de columna "Precio", KPI cards, filtro "Con deuda", tabs) se conservan — ahí el glifo genérico de dinero es correcto.
+- **Notificaciones de límite de plan solo para owner/admin**: `PlanLimitWarner` (montado en el layout del dashboard) emitía los toasts "Has alcanzado el límite de miembros/consultorios…" a todos los miembros. Los límites solo son accionables por quien controla la suscripción → ahora usa `useOrgRole()` y no emite nada si `!isAdmin`. Doctores y recepcionistas ya no ven ese ruido. El resto de la UI de soft-wall (modal de upgrade, banners) ya estaba gateada vía el redirect de `/admin/*`.
+
+### Operativo pilotos (directo en prod, independiente del deploy)
+
+- **Trials extendidos al 2026-09-07** (2 meses) para las dos orgs piloto en `organization_subscriptions` (`trial_ends_at` + `expires_at`): **Vitra** — su trial de 14 días había VENCIDO el 05-jul; el pendiente "gestionar manualmente los 2 meses gratis" de la sesión 2026-07-03 mordió (patrón de soporte: `trialing` vencido bloquea el acceso) — y **Dra. Patricia Quispe** (vencía 21-jul). ⚠️ **El mismo reloj vuelve a sonar el 07-sep** — para entonces debe estar resuelto el mecanismo de cobro (Wave 2 MP: S/250×6 Vitra, plan Individual Quispe).
+- **2 cupos de miembro extra para la org Quispe**: fila en `plan_addons` (`extra_member` ×2, `unit_price` S/10 — precio estándar de miembro extra en Centro Médico, documentado para la fase de cobro; gratis durante el piloto). Límites efectivos: miembros 2→4, doctores 1→3. Nota: el bucket de **recepcionistas NO se amplía** con este addon (máx. 1 en Independiente, sin addon path).
+
+## Changelog — Sesión 2026-07-08 (v0.15.18) — Owner-doctor + Dashboard de Asesora + fixes de rol
+
+PR #209. Contexto: onboarding de los pilotos (Dra. Quispe) destapó tres huecos del modelo de roles.
+
+### 1. Owner/admin puede crear su propio perfil de doctor
+- La única vía para crear un doctor era invitar a un miembro con rol doctor → el dueño-doctor (persona del plan Independiente) no podía asignarse citas. Nuevo `POST /api/doctors/self` + CTA "Yo atiendo — crear mi perfil" en `/admin/doctors` (empty-state y banner). El perfil propio consume cupo de `max_doctors` (soft-wall 402 igual que invitar) → pricing intacto en todos los planes. Separación conceptual: rol de cuenta (permisos) vs perfil profesional (recurso agendable).
+- Operativo: fila de doctor de la Dra. Quispe creada a mano en prod (desbloqueo inmediato); addon `extra_member` ×2 a S/10 insertado en `plan_addons` para sus 2 usuarios del piloto (gratis hasta la fase de cobro).
+
+### 2. Dashboard de Asesora (`is_fertility_advisor`)
+- Las asesoras/obstetras (rol base doctor o receptionist + flag mig 137) veían el dashboard de médico tratante con KPIs en cero. Nuevo `advisor-dashboard.tsx` enrutado desde `dashboard/page.tsx`: KPIs del embudo (seguimientos pendientes, presupuestos sin procesar / esperando respuesta, tasa de aceptación) + agenda de hoy org-wide (citas propias marcadas "Mía") + colas de seguimientos y presupuestos. Reusa `/api/clinical-followups/dashboard?bucket=pending` y `/api/budgets?bucket=pending`. Owner/admin asesoras conservan el dashboard admin. Escala directo a Vitra.
+
+### 3. Asesora agenda para cualquier doctor
+- El rol doctor restringía el selector de citas a "solo yo" (`restrictToDoctor`), así que la obstetra no podía reservarle citas a la Dra. Quispe. Nuevo hook `useIsFertilityAdvisor` y en el scheduler las asesoras quedan exentas de todas las restricciones "solo mis citas" (abrir sidebar, mover, editar, selector del form, fade del day-view) — operan la agenda como recepción, manteniendo su propia ficha preseleccionada al crear.
+
+### 4. Saludo consciente de honoríficos
+- `greetingName()` en lib/utils: "Dra. Patricia Quispe" saluda "Dra. Patricia" (antes "Dra."). Aplicado en dashboards y topbar.
+
+### Pendientes que deja la sesión
+
+Mergear **PR #209** (todo lo de esta sesión viaja ahí) · recordatorio ~01-sep: trials de los pilotos vencen el **07-sep** y para entonces debe existir el mecanismo de cobro (Wave 2 MP: S/250×6 Vitra + plan Individual Quispe + cobro de los 2 cupos extra S/20/mes) · completar CMP real de la Dra. Quispe y Verenisse en `/admin/doctors` (hoy placeholder `PEND-…`) · separación visual on-demand vs automáticas en Settings → Correos · templates TRA restantes para Vitra (IIU, Ovodonación, ROPA, Crio, TED, DuoStim).
+
+## Changelog — Sesión 2026-07-12 (v0.15.19) — Agenda con precisión de 15 min + card en vivo tintado + landing "Yenda no deja de crecer"
+
+PRs #210–#214. Contexto: pulido del scheduler para los pilotos (ventanas de atención que no caen en hora exacta) + señales visuales de estado en vivo + saneamiento final de la landing.
+
+### 1. Agenda con precisión de 15 minutos (mig 175, aplicada en prod)
+
+- **mig 175** — `scheduler_settings` gana `start_minute`/`end_minute` (`integer NOT NULL DEFAULT 0`, CHECK `IN (0,15,30,45)`). La ventana visible pasa a ser `[start_hour*60 + start_minute, end_hour*60 + end_minute)` minutos-desde-medianoche → una clínica puede abrir 07:15 y cerrar 20:45. Aditiva y byte-idéntica para las orgs existentes hasta que elijan un minuto ≠ 0.
+- **Invariante open<close a nivel de minuto**: el viejo CHECK `end_hour > start_hour` (mig 068) rechazaba ventanas válidas del mismo bloque horario (07:15→07:45), así que se reemplaza por el CHECK nombrado `scheduler_settings_window_valid` que compara minutos totales. Idempotente.
+- **Grilla de paso uniforme**: los bloques del day/week view arrancan en `start_hour:start_minute` y avanzan por el intervalo configurado (p.ej. 07:15 → 08:00 → 08:45 con intervalo 45). Fixes en el camino (PRs #210–#213): eje de tiempo lineal con filas de altura proporcional a su duración real, cita duplicada/desplazada en grilla de 45 min, bloqueos y break time respetando el horario configurado.
+- **Settings → Agenda** reescrito con selects hora + minuto de 15 en 15 y **resumen de duración de la jornada** calculado en vivo. Los modales de cita validan a nivel de minuto contra la ventana.
+
+### 2. El card de cita adopta el color del estado en vivo
+
+- Además del `LiveStatusPill` (llegó / en consulta / finalizada), el **fondo del card completo** se tiñe según `deriveLiveState`: azul cuando la paciente llegó, verde durante la consulta, gris muted al finalizar (o cuando la cita queda obsoleta / el doctor ya pasó a la siguiente). Refuerza la lectura de un vistazo del estado de la sala. `app/(dashboard)/scheduler/appointment-card.tsx`. Gateado por el toggle de estado en vivo de Settings→Agenda (migs 170-171 previas).
+
+### 3. Landing — sección "Yenda no deja de crecer" + limpieza
+
+- **Eliminada la sección de roadmap público** de la home (decisión de negocio: no anticipar el roadmap a la competencia).
+- **Nueva sección "Yenda no deja de crecer"** post-pricing con teasers de Próximamente (inventario, caja, HC Premium de Fertilidad, estadísticas por asesora, más medios de pago, IA) — comunica momentum sin comprometer fechas ni detalle.
+- Copy actualizado: **Excel/Google Calendar como el competidor real** a vencer (ya no "cuaderno"), precios en **S/ sin duplicar el símbolo $**.
+
+### 4. Roadmap interno
+
+- `docs/coming-updates-core.md` gana la sección **"Dos atenciones en el mismo bloque de horario"** (analizado 2026-07-09, **decisión pendiente — Oscar 2026-07-10**): opciones evaluadas — servicios cortos que subdividen el bloque, sobreagenda controlada (advertencia + confirmación + cards lado a lado estilo Google Calendar), o mantener bloqueo duro. Referenciado en la Sección 12 → Coming Updates.
+
+### Pendientes que deja la sesión
+
+Recordatorio ~01-sep: trials de los pilotos vencen el **07-sep** (mecanismo de cobro Wave 2 MP aún pendiente) · decisión de Oscar sobre "dos atenciones en el mismo bloque" · separación visual on-demand vs automáticas en Settings → Correos · templates TRA restantes para Vitra.
+
+---
+
+## Changelog — Sesión 2026-07-17 (v0.15.20) — Compartir horarios alineado a la agenda real + "Responsable" abierto a todo el equipo + selección múltiple en Servicios + campos obligatorios configurables (mig 176) + DatePicker dd/mm/aaaa
+
+Contexto: pulido operativo del scheduler y del catálogo para los pilotos. La sesión cierra desalineaciones entre lo que la clínica configura y lo que la agenda ofrece, y da al admin más control sobre el modal de cita y el catálogo de servicios.
+
+### 1. Compartir horarios alineado 1:1 con la grilla real
+
+- `/api/scheduler/available-slots` ahora lee `scheduler_settings` (`start_hour`/`end_hour`/`start_minute`/`end_minute` de la mig 175 + el menor `intervals` configurado) y **ancla el stride en la ventana de la org**, no en un parámetro del caller. El horario del doctor (`doctor_schedules`) pasa a ser **filtro de intersección** (el slot debe caber íntegro tanto en la ventana de la org como en el horario del día) → los slots ofrecidos salen 1:1 con las filas reservables de la grilla, sin desfases. Ausencia de fila `scheduler_settings` → `DEFAULT_SCHEDULER_CONFIG` (sin crash, mismo patrón `maybeSingle()` que live-status).
+- El intervalo se deriva del server (echo en `duration`) → **selector de intervalo eliminado del modal** `available-slots-modal.tsx`, reemplazado por texto informativo.
+- Nuevo campo **"A partir del"** (`DatePicker`) para consultar disponibilidad desde una fecha específica (param `start_date`, nunca antes de hoy) + chip **"1 día"** en el selector de rango. Ícono del feature cambia de `Share2` a `Clock` (modal + `scheduler-header.tsx`) para leerse como "horarios/disponibilidad".
+
+### 2. "Responsable" de la cita abierto a todos los miembros activos
+
+- `GET /api/members/responsibles` deja de filtrar por rol: devuelve **todos los miembros activos** de la org (recepción, doctores/asesoras, admin y owner), ordenados server-side `receptionist → doctor/asesora → admin/owner` y alfabético dentro de cada bucket (la UX de recepción se preserva porque siguen arriba).
+- El `<option>` usa `value=user_id` (fin del frágil match por nombre). Al **crear** una cita se preselecciona el usuario logueado como responsable.
+- Fix del **UPDATE del sidebar** que dejaba `responsible_user_id` stale al editar. Labels históricos huérfanos (responsable ya no activo/miembro) se renderizan como `<option>` deshabilitada para no perder el dato.
+- Card del dashboard renombrada **"Citas por responsable"** (`admin-dashboard.tsx`).
+
+### 3. Selección múltiple en el Catálogo de Servicios (admin only)
+
+- Modo selección en `/admin/services` con acciones en lote: **mover a categoría / activar / desactivar / eliminar**. El dialog de eliminación es inteligente: separa los servicios en **limpios** (sin uso), **en uso** (FK RESTRICT desde `appointments` + `treatment_plan_items`, dos queries en paralelo) y **addon-managed** (`created_by_addon`, omitidos — el trigger DB ya los bloquea). Doble confirmación tipo "Eliminar N y desactivar M", red de seguridad ante FK `23503`, toast con desglose (eliminados / desactivados / omitidos).
+- Fix visual: los botones destructivos usaban `text-destructive-foreground` sobre `bg-destructive`, pero en el tema `--destructive-foreground` es idéntico a `--destructive` (rojo sobre rojo → texto e ícono invisibles). Corregido para que el texto sea legible.
+
+### 4. Campos obligatorios de la cita configurables por el admin (mig 176)
+
+- **mig 176** — `scheduler_settings` gana `required_fields jsonb NOT NULL DEFAULT '{}'::jsonb`, un **override sparse** `field_key → boolean`. Un key presente en `true` hace obligatorio ese campo configurable al agendar; en `false` lo hace opcional; **ausente** cae al default del código. Byte-idéntico a la conducta pre-176 hasta que un admin cambie un switch. Keys whitelisted: `patient_dni`, `patient_phone`, `patient_email`, `patient_birth_date`, `patient_location`, `origin`, `payment_method`, `responsible`, `notes`. UX-only en v1 — las NOT NULL de `appointments` siguen siendo la garantía dura. Aplicada en prod.
+- Nueva card **"Campos de la cita"** en Settings → Agenda (`agenda-required-fields-section.tsx`). `buildAppointmentSchema` aplica los overrides vía `superRefine` (`lib/validations/appointment.ts`). Fix de bug previo: los custom fields marcados como requeridos no se validaban.
+
+### 5. DatePicker dd/mm/aaaa (`components/ui/date-picker.tsx`)
+
+- Reemplaza el input nativo `type=date` en el modal de cita por un DatePicker con formato **dd/mm/aaaa**: tecleo con máscara + calendario desplegable. Fixes de dropdowns de mes/año (sin duplicados) y de los chevrones up/down. Reusado por el campo "A partir del" del modal de compartir horarios (§1).
+
+### Pendientes que deja la sesión
+
+Se mantienen los recordatorios de v0.15.19: trials de los pilotos vencen el **07-sep** (Wave 2 MP pendiente) · decisión de Oscar sobre "dos atenciones en el mismo bloque" · separación visual on-demand vs automáticas en Settings → Correos · templates TRA restantes para Vitra.
+
+## Changelog — Sesiones 2026-07-20 a 2026-07-22 (v0.15.21) — Auditoría de flujo de dinero MP + crons revividos + hardening de seguridad pre-piloto
+
+Bloque de endurecimiento operativo (billing + crons + seguridad) antes de abrir publicidad. Todo verificado contra `git log` y código.
+
+### 1. Auditoría del flujo de dinero (Mercado Pago) — 12 hallazgos
+- **Red anti-doble-cobro en el webhook** (`d78cbbe`): `cancelSupersededSubscriptions()` en `app/api/mercadopago/webhook/route.ts` (Estrategia 1) cancela suscripciones MP superseded cuando llega una nueva activa, evitando que una org quede con dos preapprovals cobrando en paralelo.
+- **Migración 177** (`177_consolidate_plan_seats.sql`): consolida el drift de asientos de PROD hacia el repo y corrige la aritmética (mismo bug que la mig 162 — `get_org_usage` cuenta al owner). Valores canónicos: **professional** `max_members=7` (1 owner + 1 admin + 2 recepción + 3 doctores), max_doctors=3, max_doctor_members=3, max_admins=1, max_receptionists=2, max_offices=3; **independiente** `max_members=3` (owner + doctora + recepcionista). Todos los cambios AFLOJAN límites (idempotente). Desbloqueó a los 2 pilotos que estaban topados/sobre-límite (Vitra 6/6, Dra. Patricia 3/2).
+
+### 2. Crons revividos — CRON_SECRET + Cron Bridge
+- **CRON_SECRET configurado** (bearer token para los cron jobs).
+- **Cron Bridge** (`.github/workflows/cron-bridge.yml`): GitHub Actions dispara los crons mientras Vercel Hobby no los ejecuta de forma fiable; espeja `vercel.json` e incluye `workflow_dispatch` para disparo manual desde la pestaña Actions.
+- **Primera corrida real de `billing-status` en la historia**: 8 `billing_events`, 8 trials zombis → `past_due`, pilotos intactos.
+- **Saga del disparo de las 8:19**: los crons nativos de Vercel Hobby también se armaron y dispararon `fertility-followup` sobre el backlog (2 pacientes de PRUEBA, cero reales). → **`fertility-followup-contact` PAUSADO en ambos caminos** (`cron-bridge.yml` y `vercel.json`, commits `674bc36` y `5bae52f`) hasta triage con la asesora.
+
+### 3. Recordatorios sin duplicar
+- Regla `created_at` vs ventana en `/api/cron/reminders` (`0a74c48`): si la cita se agendó dentro de la ventana del recordatorio (p.ej. agendada <24h antes de la cita → el correo de confirmación ya cumple el rol del recordatorio de 24h), se omite ese recordatorio; el de 2h se conserva si aporta.
+
+### 4. Hardening de seguridad pre-piloto (mig 178, aplicada en prod) — Game Day B
+- **CRÍTICO** — `get_report_metrics_for_ai` revocada (fuga cross-tenant del panel de negocio; callers movidos a service-role).
+- `find_user_by_email` revocada (solo service-role).
+- Tablas `cs_*` deny-all (RLS on sin policies) — `cs_api_keys` estaba abierta incluso a `anon`.
+- `addon_canonical_categories` con RLS habilitado (lectura solo authenticated).
+- `user_profiles` INSERT restringido al propio perfil.
+- `office_id` validado en `/api/book/[slug]/create` (aislamiento: un caller público no puede inyectar un office de otra org).
+- **Veredicto**: migs 130-177 correctamente aisladas.
+
+### 5. Fallback de dominio + docs
+- Fallback `app.yenda.app` → `yenda.app` en 3 call-sites de emails (`app/api/cron/reminders/route.ts`, `lib/billing-emails.ts`, `lib/trial-welcome-email.ts`, commit `7f3e683`): el subdominio `app.yenda.app` no existía → links rotos si faltaba `NEXT_PUBLIC_APP_URL`.
+- `docs/launch-prep/pre-scale-readiness.md` (game days + gates + growth playbook).
+- Corrección del P0 obsoleto de límites de plan en `docs/coming-updates-core.md` (ya resuelto por diseño: asientos con soft-wall, pacientes/citas ilimitados).
+
+---
+
+## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)
+
+> Detalle largo de cada feature implementada, movido verbatim desde la Sección 12 del PRD (que ahora es un checklist de una línea). Se conserva aquí para no perder contenido único.
+
+### Completado
+- [x] Autenticación (email + Google OAuth)
+- [x] Registro con creación automática de org y datos seed
+- [x] Sistema de invitaciones por email con roles
+- [x] Multi-tenant con RLS completo
+- [x] 4 roles (owner, admin, receptionist, doctor)
+- [x] Scheduler con vista día/semana, drag & drop, conflictos
+- [x] Bloques de tiempo y break times en scheduler
+- [x] Gestión de pacientes con búsqueda, filtros y tags
+- [x] CRUD de consultorios, doctores, servicios, categorías
+- [x] Catálogos configurables (orígenes, métodos de pago)
+- [x] Variables globales de configuración
+- [x] Dashboard admin con KPIs, heatmap, top servicios
+- [x] Dashboard personal para doctores
+- [x] Reportes financieros, marketing y operacionales
+- [x] Sistema de planes (3 tiers) con límites y feature flags
+- [x] Integración Mercado Pago (checkout, webhook)
+- [x] Página de selección de plan y gestión de suscripción
+- [x] Gestión de miembros del equipo
+- [x] Sincronización automática doctores ↔ miembros de org
+- [x] Settings de org (nombre, logo, idioma, agenda, email)
+- [x] Perfil de usuario (avatar, nombre, teléfono, título profesional)
+- [x] Cambio de contraseña
+- [x] Founder dashboard con métricas globales
+- [x] AI Assistant (básico)
+- [x] Tema oscuro por defecto con toggle
+- [x] Soporte multi-idioma (ES/EN)
+- [x] Pagos de pacientes vinculados a citas
+- [x] Historial de edición de citas
+- [x] Storage buckets para avatares y logos
+- [x] Restricción de doctor: solo ve sus propias citas
+- [x] Error boundaries (global, app, dashboard, 404)
+- [x] Security headers en middleware (X-Frame-Options, HSTS, CSP parcial, Referrer-Policy, Permissions-Policy)
+- [x] Validación Zod en todas las API routes (12 rutas con schemas)
+- [x] Sentry integrado para monitoreo de errores (client + server + edge)
+- [x] Sistema de notificaciones email automáticas (templates con variables, envío por SMTP)
+- [x] 18+ email templates por org (citas, pagos, equipo, marketing) con seed automático
+- [x] Teleconsulta: modalidad virtual en servicios, meeting URLs en doctores y citas
+- [x] Trial de 14 días con creación automática de suscripción
+- [x] Registro de usuarios invitados vía token (`/api/auth/register-invited`)
+- [x] Founder: testing de integraciones MP (`/founder/integrations`)
+- [x] Configuración de visibilidad doctor↔pacientes por org (RLS dinámico)
+- [x] Rate limiting en todas las API routes (5 limiters configurados)
+- [x] **Exportación CSV de datos** — Botón de descarga CSV en pacientes (lista filtrada con datos financieros), reportes financieros, marketing y operacionales. Utilidad reutilizable en `lib/export.ts`
+- [x] **Indicador de deuda visible en citas** — Badge rojo con monto pendiente en tarjetas de cita del scheduler (day-view) y badge de deuda total del paciente en el sidebar de la cita. Consulta automática de deuda a nivel paciente
+- [x] **Fecha de nacimiento con edad automática** — Cálculo y display de edad en: lista de pacientes (icono + años), header del drawer del paciente, campo de edición en tab Info. Campo `birth_date` en DB desde migración 019
+- [x] **Dashboard de retención de pacientes (F10)** — Tab "Retención" en reportes con 5 KPIs (recurrentes, nuevos, tasa retención, frecuencia, LTV), gráfica de tendencia mensual (nuevos vs recurrentes), gráfica de tasa de retención, tabla de pacientes en riesgo con filtro configurable (2-12 meses), ranking top 20 pacientes por LTV, exportación CSV. RPCs: `get_retention_overview`, `get_visit_frequency`, `get_at_risk_patients`, `get_patient_ltv`, `get_retention_trend`
+- [x] **WhatsApp click-to-clipboard (F6 Fase 1)** — Modal post-creación de cita con mensaje pre-formateado para copiar y pegar en WhatsApp. Plantilla configurable en Settings con 7 variables dinámicas (nombre, fecha, hora, doctor, servicio, clínica, dirección). Toggle activar/desactivar, editor de plantilla con vista previa en vivo. Persistencia en localStorage
+- [x] **Notas clínicas SOAP (F9)** — Formato SOAP (Subjetivo, Objetivo, Evaluación, Plan) integrado en el sidebar de cita. Tabla `clinical_notes` con RLS multi-tenant, una nota por cita (unique constraint). Signos vitales como JSONB (peso, talla, temperatura, PA, FC, FR, SpO₂). Diagnóstico con código CIE-10 opcional. Sistema de firma digital (is_signed) que bloquea edición. Notas internas no visibles al paciente. Solo el doctor tratante o admin puede editar. API CRUD completa con rate limiting. Validación Zod en todas las rutas. Tipos: `types/clinical-notes.ts`
+- [x] **Historia Clínica Completa (F9-EXT)** — Extensión integral del módulo clínico con 7 submódulos:
+  - **Plantillas Clínicas:** Plantillas SOAP reutilizables globales (admin) o personales (doctor). 15 especialidades predefinidas (Medicina General, Ginecología, Pediatría, Dermatología, etc.). CRUD completo en `/admin/clinical-templates`. Aplicación rápida desde dropdown en editor de nota. Tabla `clinical_templates` con RLS
+  - **Planes de Tratamiento:** Creación de planes con generación automática de sesiones numeradas. Barra de progreso visual. Estados: active, completed, cancelled, paused. Sesiones individuales con status (pending/completed/missed/cancelled). Vinculación opcional a citas. Tablas `treatment_plans` + `treatment_sessions`
+  - **Recetas Médicas:** Registro completo de prescripciones (medicamento, dosis, frecuencia, duración, vía, instrucciones, cantidad). 12 vías de administración (Oral, IM, IV, Tópica, Sublingual, Inhalatoria, Ótica, Oftálmica, Nasal, Rectal, Vaginal, Transdérmica). 12 frecuencias predefinidas. Toggle activa/suspendida. UI expandible con detalles. Tabla `prescriptions`
+  - **Adjuntos Clínicos:** Upload drag-and-drop (máx 10MB). 6 categorías: general, resultado de laboratorio, imagen diagnóstica, referido, consentimiento, otro. Descarga vía Supabase Storage. Metadata completa (nombre, tipo, tamaño). Tabla `clinical_attachments`
+  - **Seguimientos Clínicos (Semáforo):** 3 niveles de prioridad: Rojo=Urgente, Amarillo=Moderado, Verde=Rutina. Fecha de seguimiento y resolución con timestamp. Resuelto por (doctor/admin ID). Vinculación a citas y notas. Tabla `clinical_followups`
+  - **Historial de Diagnósticos:** Timeline visual de todos los diagnósticos del paciente. Agrupación por código CIE-10 con conteo de frecuencia. Atribución por doctor y fecha. Panel dedicado en drawer de paciente
+  - **Versionado de Notas (Auditoría):** Historial completo de versiones por nota clínica. Snapshot inmutable de SOAP, vitales y diagnóstico por versión. Número de versión incremental y resumen de cambio. Tabla `clinical_note_versions`. Endpoint `/api/clinical-notes/[id]/versions`
+  - **Migraciones:** 050 (clinical_notes), 051 (clinical_templates), 053 (treatment_plans, treatment_sessions, prescriptions, clinical_attachments, clinical_followups, clinical_note_versions)
+  - **Componentes:** 6 paneles en drawer de paciente (followups, attachments, prescriptions, treatment-plans, diagnosis-history) + editor de nota clínica en scheduler + página admin de plantillas + vista de impresión de nota clínica + vista de impresión de receta médica + modal expandido de historia clínica + panel centralizado de seguimientos
+  - **API:** 13 endpoints (6 recursos × GET/POST + PATCH/DELETE según recurso) con rate limiting y validación Zod
+  - **Tipos:** `types/clinical-notes.ts`, `types/clinical-history.ts`, `types/clinical-templates.ts`
+  - **Seguridad:** RLS en todas las tablas, aislamiento multi-tenant, firma digital inmutable, validación Zod en todas las rutas, rate limiting generalLimiter (30 req/min)
+- [x] **Booking online / agenda pública (F7)** — Página pública `/book/[slug]` para que pacientes agenden citas sin cuenta. Wizard de 5 pasos: doctor → servicio → fecha/hora → datos del paciente → confirmación. Tabla `booking_settings` con configuración por org (toggle activar, días anticipación máx, horas mín de antelación, campos obligatorios, color de acento, mensaje de bienvenida). API pública `/api/book/[slug]` (GET datos) y `/api/book/[slug]/create` (POST crear cita). Validación de horarios, conflictos y schedule blocks. Creación automática de paciente. Email de confirmación. Rate limiting por IP. Tab "Reservas" en Settings con URL copiable. Tema oscuro, diseño mobile-first
+- [x] **Recordatorios automáticos por cron (F8)** — Cron job `/api/cron/reminders` ejecutado cada 30 min via Vercel Cron. Dos ventanas de recordatorio: 24h y 2h antes de la cita. Deduplicación con tabla `reminder_logs` (UNIQUE por appointment + template + canal). Soporte email (SMTP) y WhatsApp Business API. Agrupamiento por organización para reutilizar templates/settings. Variables de email: paciente, doctor, fecha, hora, servicio, clínica, teléfono. Config en `vercel.json`
+- [x] **Impresión de Receta Médica** — Botón "Imprimir Receta" en panel de prescripciones. Genera documento HTML imprimible con datos de paciente/doctor, lista numerada de medicamentos (dosis, vía, frecuencia, duración, cantidad, indicaciones), firma del médico y nota legal (30 días de validez). Formato A5 landscape. Solo visible con prescripciones activas. Componente: `scheduler/prescription-print.tsx`
+- [x] **Modal expandido de Historia Clínica** — Botón "Ver en grande" en tab clínico del drawer de pacientes. Modal amplio (max-w-5xl) con notas SOAP en layout 2 columnas, texto legible (text-sm vs text-xs), vitales en grid 8 columnas, paneles clínicos completos editables para doctores/admins. Resuelve `doctorId` via `useCurrentDoctor`. Componente: `patients/clinical-history-modal.tsx`
+- [x] **Panel centralizado de seguimientos (`/scheduler/follow-ups`)** — Vista dedicada accesible desde sidebar (bajo Agenda → Seguimientos). Muestra todos los seguimientos clínicos de la organización con filtros por estado y prioridad semáforo
+- [x] **Planes de tratamiento editables en modales clínicos** — `TreatmentPlansPanel` integrado en el modal de nota clínica (scheduler) y en el modal expandido de historia clínica (pacientes) con `canEdit=true` y `doctorId`. Doctores y admins pueden crear planes desde ambos contextos
+- [x] **Órdenes de exámenes médicos** — Catálogo configurable (exam_categories + exam_catalog) por owner/admin. Doctor selecciona exámenes del catálogo o escribe manualmente, agrega indicaciones (ej: "en ayunas"), diagnóstico presuntivo CIE-10. Impresión profesional A5. Tracking por item: pendiente → parcial → completado. Integrado en clinical-note-modal, clinical-history-modal y patient-drawer
+- [x] **Bloqueo post-firma** — Al firmar nota clínica: prescripciones y exámenes nuevos bloqueados (UI + API 403). Suspender Rx y marcar resultados de exámenes sigue permitido. Polling cada 2s para detección automática
+- [x] **Email: bienvenida paciente nuevo** — Se envía automáticamente al crear paciente con email. Endpoint `/api/notifications/send-patient`
+- [x] **Email: cumpleaños** — Cron diario (7am Perú) envía felicitación a pacientes cuya fecha de nacimiento coincide con hoy
+- [x] **Email: seguimiento pacientes inactivos** — Cron diario detecta pacientes sin cita completada en 90+ días. Máx 20/día/org. Cooldown 60 días via `marketing_email_logs`
+- [x] **Email: factura (payment_invoice)** — Checkbox opcional al registrar pago. Envía recibo + factura si está marcado
+- [x] **Resumen diario del equipo** — Cron diario envía tabla de citas del día a emails configurados en `email_settings.notification_emails`
+- [x] **4 nuevas variables de email** — `{{direccion_clinica}}`, `{{link_ubicacion}}`, `{{instrucciones_servicio}}`, `{{monto_cita}}`. Instrucciones configurables por servicio (`services.pre_appointment_instructions`). Google Maps URL en Settings
+- [x] **Confirmación de contraseña en registro** — Campo "Confirmar contraseña" con validación visual en tiempo real + indicador de fortaleza 5 niveles
+- [x] **Paginación historial de citas** — 50 por página con flechas prev/next (servidor-side con .range())
+- [x] **Responsive mobile (Fase 1)** — Sidebar como drawer con hamburger, scheduler sidebar como overlay fullscreen, patient drawer w-full, topbar hamburger, notificaciones dropdown responsivo
+- [x] **Responsive mobile (Fase 2+3)** — Reports/Settings tabs con scroll horizontal, patients header stacking, dashboard botón oculto, members cards stacking, history table overflow-x-auto, modals con padding compacto, touch targets 40px+, vitals grid progresivo
+- [x] **Páginas de producto SEO** — 7 páginas premium bajo /producto/ con mega-menu full-width en landing navbar: Agenda Médica, Historia Clínica, Gestión de Pacientes, Comunicación Automatizada, Asistente IA, Reportes y Analítica, Gestión de Equipo. Cada una con storytelling, mockups, pain stats, before/after, schema.org, breadcrumbs
+- [x] **Marketplace de integraciones (Settings → Integraciones)** — Tab dedicado con tarjetas de integraciones externas y estado por org (conectado/disponible/próximamente). Wizard guiado para WhatsApp Business API paso a paso. Lock visual en tabs de integraciones aún no activadas hasta conexión completa
+- [x] **Founder: tracking completo de owners** — Tab "Organizaciones" con embudo de signups → trial → conversión. RPC `get_owner_lifecycle_funnel()`. Tabla `owner_lifecycle_events` (signup, trial_start, plan_upgrade, churn). Vista detalle por owner con notas privadas (`founder_notes`). Endpoints: `/api/founder/stats/owners`, `/api/founder/notes`
+- [x] **Sistema de Addons / Módulos Verticales** — Infraestructura escalable para verticalización por especialidad. Catálogo global (`addons`) + activación por org (`organization_addons`). 14 addons seed (10 especialidad + 4 workflow). Auto-activación de addons gratuitos que matchean la especialidad elegida en onboarding. Nuevo tab "Módulos" en Settings con sección de recomendados, agrupación por categoría, toggle on/off (owner/admin), badges PRO. Hook `useOrgAddons` con `hasAddon(key)` para gating de UI. API `/api/addons` con Zod + rate limiting. Migración 091
+- [x] **Addon de Curvas de Crecimiento OMS (primer vertical pediátrico)** — Addon `growth_curves` específico para endocrinología pediátrica y pediatría. Tabla `patient_anthropometry` para mediciones longitudinales (peso, talla, perímetro cefálico). Campo `patients.sex` (requerido por WHO). Componente `GrowthCurvesPanel` con Recharts ComposedChart: banda sombreada P3–P97, 5 líneas de percentiles (P3/P15/P50/P85/P97), scatter conectado con trayectoria del paciente, tooltip con Z-score y percentil. 4 métricas: Peso/Edad, Talla/Edad, IMC/Edad, Perímetro Cefálico/Edad. Tablas LMS OMS en `lib/growth-curves/who-data.ts` (WHO Child Growth Standards 0–5a + Growth Reference 5–19a). Cálculo de Z-score/percentil vía fórmula LMS. Pestaña "Crecimiento" en el drawer de paciente gated por `hasAddon('growth_curves')`. Selector de sexo biológico en tab Datos. API `/api/patients/[id]/anthropometry`. Migración 092
+- [x] **Perfil de Organización + Membrete reutilizable** (v0.14.0 — Paso 4) — Migración 115 amplía `organizations` con 15 campos de branding/identidad: `tagline`, `ruc`, `legal_name`, `district`, `phone`, `phone_secondary`, `email_public`, `website`, `social_facebook/instagram/linkedin/tiktok/youtube`, `print_color_primary` (CHECK constraint en RUC: `^[0-9]{11}$`). Form en `Settings → Organización` con los 15 campos editables. Helper canónico en `lib/pdf/clinic-header.ts` con `renderClinicHeader(data, { compact? })` — único punto que define cómo se ve el membrete en cualquier impresión (logo a la izquierda, nombre + tagline + datos de contacto + RUC + redes en el cuerpo, color de acento desde `print_color_primary`). Modal de preview con tabs (`clinic-header-preview-modal`) para que el usuario vea cómo queda antes de imprimir. Logos finales de marca Yenda (favicon v3 cuadrado 182×180, logo principal v4 ratio 2.776:1) en `public/`.
+- [x] **Plantillas PDF reales usan el membrete de la org** (v0.14.0 — Paso 5) — Las 3 vistas de impresión (`prescription-print.tsx`, `clinical-note-print.tsx`, `exam-order-print.tsx`) reemplazan su header inline (verde / cyan hardcodeado) por una llamada a `renderClinicHeader()` con los datos reales de la org. Color de acento dinámico desde `organizations.print_color_primary` aplicado a numeración (receta), círculos S/O/A/P (nota clínica) y bordes de instrucciones (orden de exámenes). Mapper en `lib/pdf/clinic-header-data.ts` (`toClinicHeaderData(org)` + `fallbackClinicHeader(name)`) que tipa `OrganizationWithBranding` y filtra líneas vacías cuando faltan datos. Org cargada vía `useOrganization()` con fallback graceful al `clinicName` legacy si la org no carga aún.
+- [x] **Wizard Nubefact pre-llena RUC y razón social desde organizations** (v0.14.0 — Paso 6) — `components/integrations/einvoice-setup-dialog.tsx` toma defaults de `useOrganization()` para los campos `ruc`, `legal_name` y `fiscal_address` del Step 1. Hint "Tomado del Perfil de organización" debajo de cada campo pre-llenado (desaparece si el usuario lo edita). Banner emerald con link a `/settings` cuando la org no tiene RUC ni razón social configurados. Sin sync inverso: el wizard sigue guardando solo en `einvoice_configs` (Nubefact = source of truth fiscal post-conexión). `ubigeo` no se pre-llena porque `organizations` solo guarda `district` (texto libre); pendiente agregar columna `ubigeo` para cerrar ese gap.
+- [x] **Hardening legal /terms y /privacy + rediseño visual** (v0.14.0) — Páginas `/terms` y `/privacy` reescritas con foco en cumplimiento Ley 29733 (Perú) y onboarding de clientes con auditor legal serio. **Privacy** (12 secciones): rol explícito de Yenda como Encargado del Tratamiento (art. 36 LPDP), lista cerrada de 9 sub-encargados con cards (+Resend, Sentry, Nubefact, Vercel, Google), declaración de transferencia internacional, retención específica (HC 15 años NTS 139-MINSA / SUNAT 5 años / cuenta 30 días / logs 12 meses), notificación de incidentes en 72 horas, plazo ARCO 20 días hábiles (art. 24 RLPDP), Anthropic zero-data-retention explícito, HIPAA suavizado a NIST 800-66/ISO 27001, DPO `privacidad@yenda.app`. **Terms** (14 secciones): trial 14 días explícito, SLA ≥99% con ventanas de mantenimiento 48h, política de reembolsos, exportación + eliminación al cancelar (gracia 30d, CSV/JSON), fuerza mayor, cesión del contrato, conciliación ante Cámara de Comercio de Lima, prohibición de tratar datos de no-pacientes. **Diseño**: layout `max-w-7xl` con TOC sticky desktop (scroll-spy via IntersectionObserver) + Sheet mobile, hero con gradient emerald, sub-encargados como grid de cards con icon Lucide y región, callouts diferenciados (info/warning/success/time) para puntos críticos, glow ambient emerald+violet en layout público. Componentes nuevos en `components/legal/`: `legal-section`, `legal-callout`, `legal-list`, `legal-toc`, `sub-processor-card`. Fecha: 29 de abril de 2026.
+- [x] **Aceptación explícita de Términos y Privacidad en registro** (v0.14.1 — migración 116) — Columnas `accepted_terms_at`, `accepted_terms_version`, `accepted_privacy_at`, `accepted_privacy_version` en `user_profiles`. Constante `TERMS_VERSION` en `lib/constants.ts` (bumpeable cuando cambien las páginas). Checkbox obligatorio en `/register` con Zod refine. Registro vía email persiste en `auth.metadata`; el callback `/api/auth/callback` copia metadata→profile post-confirmación. Registro vía invitación valida en `app/api/auth/register-invited` con `registerInvitedSchema`. Google OAuth: si el profile no tiene `accepted_terms_at`, se redirige a `/onboarding/accept-terms` (página dedicada, fuera del wizard de onboarding regular). Endpoint server-side `/api/auth/accept-terms` graba la aceptación con `TERMS_VERSION`. Componentes nuevos: `components/ui/checkbox.tsx` (sin Radix — input nativo estilizado, sin nuevas deps).
+- [x] **Ubigeo SUNAT en organizations** (v0.14.1 — migración 117) — Columna `ubigeo TEXT` con CHECK `^[0-9]{6}$`. Catálogo INEI/SUNAT en `lib/sunat/ubigeo.ts` con 73 entradas (43 distritos Lima Metropolitana + 7 Callao + 23 capitales de departamento) — cobertura piloto, marcado como TODO completar a ~1900 entradas. Combobox custom (`components/ui/ubigeo-combobox.tsx`) basado en Popover sin `cmdk`. En Settings → Organización reemplaza el input de distrito por el combobox; persiste `ubigeo` (código) + `district` (label) juntos para retro-compat con helper de membrete. Banner amber "Migrar a ubigeo" cuando hay distrito legado sin código. Wizard Nubefact también pre-llena `ubigeo` desde la org con el hint "Tomado del Perfil de organización".
+- [x] **Tipos regenerados + cleanup de casts** (v0.14.1) — `types/database.ts` actualizado con columnas de migraciones 115/116/117. Eliminados los casts manuales `as Record<string, unknown>` y `OrganizationWithBranding` en los 3 prints PDF (receta/nota/exámenes), Settings → Organización y wizard Nubefact. `OrganizationWithBranding` queda como alias del row regenerado para retro-compat.
+- [x] **Bloqueo de sesión para miembros desactivados** (v0.14.1 — migración 118) — Reusa la columna existente `organization_members.is_active` (mig 030); no se creó columna nueva. RPC `get_user_session_check` extendida con `all_memberships_inactive` y `membership_count`. `lib/supabase/middleware.ts` redirige a `/account-suspended` cuando todas las membresías del usuario están inactivas (un user con al menos UNA membership activa pasa). Página `/account-suspended` standalone (fuera del sidebar protegido) con texto explicativo y botón de cerrar sesión. Founders bypassean el bloqueo (intencional, son superusuarios de plataforma).
+- [x] **Especialidades editables + tabla `doctor_specialties`** (v0.14.1 — migración 119) — Tabla `doctor_specialties (doctor_id, specialty, is_primary, ...)` con UNIQUE parcial sobre primaria, RLS multi-tenant copiando patrón de `prescriptions`. Catálogo canónico `lib/specialties.ts` con 28 entradas (espejo del seed mig 076: medicina-general, ginecología, pediatría, dermatología, odontología, oftalmología, cardiología, endocrinología, etc.). Selector solo-Owner en Settings → Organización (`org-specialty-section.tsx`) que persiste en `organizations.primary_specialty_id`. Tab "Especialidades" en editor de doctor (`admin/doctors/[id]/specialties-tab.tsx`) con multi-select, marca de principal y borrado. NO toca `useOrgAddons` — el matching automático queda para iteración 2.
+- [x] **Consentimiento informado digital MVP (F12)** (v0.14.1 — migración 120) — Cumplimiento Ley 29414 + DS 027-2015-SA. Tabla `informed_consents` append-only con campos: tipo (general/procedimiento/tratamiento/fotografias), descripción del procedimiento, riesgos, nombre firmado, método (`typed`/`drawn`), `signature_data` (base64 PNG si trazada), referencias a paciente/cita/servicio/doctor. RLS multi-tenant. Bucket privado `informed-consents` en Supabase Storage con RLS de storage. Wizard de 3 pasos (`components/clinical/informed-consent-modal.tsx`): tipo+descripción → preview con membrete real (vía `renderClinicHeader`) → firma tipeada o trazada en canvas. API `/api/informed-consents` (POST/GET listado por paciente) y `/api/informed-consents/[id]` (GET detalle). **Sin DELETE** por motivos legales — anulación queda para tier 2 con columnas `voided_at`/`voided_reason`. Tab "Consentimientos firmados" en el drawer de paciente. **Limitación conocida:** el artefacto se guarda como HTML en el bucket porque el repo no tiene `puppeteer`/`@react-pdf/renderer` instalados; la fila DB con `signature_data` y `signed_by_patient_name` es el registro legal canónico. Conversión HTML→PDF queda como TODO.
+- [x] **UX unificada: consentimientos manuales (foto) + digitales conviven** (v0.14.1 — migración 121) — Cliente importante (Dermosalud) hace consentimientos en papel + foto adjunta. Para no imponer cambio de flujo: RPC `get_patient_consents_unified(p_patient_id UUID)` con UNION ALL entre `informed_consents` (source='digital') y `clinical_attachments` con `category='consent'` (source='scanned'); SECURITY INVOKER (RLS de cada tabla filtra por org). Panel nuevo `consents-unified-panel.tsx` reemplaza al `informed-consents-panel.tsx` (eliminado, código muerto): muestra lista combinada con badges Digital/Foto, conteo dinámico ("3 consentimientos — 2 fotos, 1 digital"), botones "Ver" que abren PDF o foto según source. Botón unificado "Agregar consentimiento" (`consent-entry-button.tsx`) con popover de 2 opciones: "Subir foto del consentimiento firmado" (recepcionistas + admins + doctores) y "Firmar digitalmente" (solo doctores + admins — gating por rol). Componente standalone `attachment-upload-dialog.tsx` extraído del flujo existente para que ambos puntos de entrada llamen al mismo `POST /api/clinical-attachments`. Resultado: Dermosalud sigue subiendo fotos sin cambio en su rutina; el doctor puede usar firma digital cuando convenga; auditoría legal en una sola query.
+- [x] **Hardening de seguridad post-review (terms + invite + consent)** (v0.14.2 — migración 122) — Cierre de gaps detectados en review final de v0.14.1. **TERMS_VERSION forzado server-side**: `app/api/auth/accept-terms` y `app/api/auth/register-invited` ya no aceptan el `termsVersion` que envía el cliente — siempre persisten el `TERMS_VERSION` autoritativo de `lib/constants.ts` (un cliente desactualizado no puede grabar aceptación para una versión arbitraria). **RPC `get_user_id_by_email`**: el flujo de registro por invitación reemplaza el `supabaseAdmin.auth.admin.listUsers()` (cargaba TODOS los usuarios en memoria) por una RPC `SECURITY DEFINER` que busca por email en `auth.users` con `LIMIT 1` — escala a millones de usuarios. Permisos revocados a `anon`/`authenticated`, solo `service_role` puede invocarla. **PDFs de consentimiento con signed URL on-demand**: `informed-consents` ya no persiste un signed URL de 7 días en la columna `pdf_url` — guarda el path en storage y genera signed URL fresco (1 hora) en cada GET. Las URLs expiradas dejan de ser un problema; sin riesgo de leak por logs/backups con URLs largas que no caducan.
+- [x] **Hardening de consentimientos + middleware terms-gate** (v0.14.2 — migración 123) — Cierra warnings y notas del review final. **Storage UPDATE policy** en bucket `informed-consents` (mig 120 solo tenía SELECT + INSERT; UPDATE simétrico para org members permite re-render o refresh de metadata sin perder la fila). **CHECK length 200KB** en `informed_consents.signature_data` + zod cap de 500KB → 200KB (PNG de 600×180 cabe sobrado en 5–30KB; el cap previene bloat de la tabla). **`patient.organization_id` validado en POST** de `/api/informed-consents` (defense-in-depth sobre RLS — refuse cross-org si una regresión de RLS slipped). **GET `/api/informed-consents` requiere filtro** (`patient_id` o `appointment_id`) — listar todos los consentimientos del org leak información innecesaria. **Middleware terms-acceptance gate**: `get_user_session_check` extendida con `accepted_terms_at` y `accepted_terms_version`; el middleware redirige a `/onboarding/accept-terms` si la columna es NULL o si la versión persistida no coincide con `TERMS_VERSION` (cubre usuarios pre-existentes creados antes de mig 116, y bumps de versión futuros). **UI editor de consentimientos**: tipo no preseleccionado (paso 1 bloqueado hasta elegir explícitamente), fix texto duplicado en error de registro.
+- [x] **Historia Clínica: DNI+edad en header, label SOAP, layout vertical** (v0.14.2) — En el modal de HC (durante consulta), el header ahora muestra **DNI** y **edad** junto al nombre del paciente (la query del scheduler ahora trae `dni` y `birth_date` en el join `patients(...)` y los propaga via `patientDni`/`patientBirthDate` al modal). **`SOAP_LABELS.subjective.label`**: "Subjetivo" → "**Motivo de consulta (Subjetivo)**" (los doctores no siempre están familiarizados con el método SOAP académico; el término técnico entre paréntesis preserva la estructura clínica pero baja la fricción cognitiva). El cambio se propaga automáticamente al editor, drawer del paciente, modal de historia clínica, plantillas admin y plantillas de impresión. **Layout SOAP vertical**: los 4 campos S/O/A/P pasan de `grid grid-cols-1 md:grid-cols-2` a `space-y-3` siempre — los doctores escriben en flujo secuencial; las columnas obligaban a navegar lateralmente y reducían el área útil de cada caja.
+- [x] **Múltiples diagnósticos CIE-10 por nota clínica** (v0.14.2 — migración 124) — Una sola consulta ahora soporta múltiples CIE-10 (comorbilidades reales: el paciente con E11 + I10 + Z71.3 ya no fuerza al doctor a "elegir el más importante"). **Tabla normalizada `clinical_note_diagnoses`** `(id, clinical_note_id, organization_id, code, label, is_primary, position, created_at)` con UNIQUE parcial sobre `is_primary=true` (un primary por nota), UNIQUE `(note_id, lower(code))` (sin duplicados), índices por code/note/org y RLS multi-tenant. Backfill automático en la migración: una fila por nota con `diagnosis_code IS NOT NULL`, marcada `is_primary=true`. **Trigger `sync_primary_diagnosis_to_note`** AFTER INSERT/UPDATE/DELETE espeja el primary a `clinical_notes.diagnosis_code/label` — prints, exam orders, prescriptions y history views existentes siguen funcionando 100% sin tocar nada (las columnas legacy quedan deprecated pero leíbles, mantenidas como vista derivada). **API**: GET incluye `diagnoses:clinical_note_diagnoses(*)`; POST/PATCH aceptan array `diagnoses[]` (replace-all semantics) o caen al legacy `diagnosis_code/label` si vienen solos. Helper `replaceDiagnoses()` centraliza delete+insert + asignación de exactamente un `is_primary` (si el caller no lo marca, el primero gana). **UI editor (`clinical-note-panel.tsx`)**: state pasa de single (code/label) a array; el buscador agrega chip al set (dedupe case-insensitive por código). Cada chip tiene **×** para remover y **★** para promover a principal (chip primario tiene borde primary + estrella sólida). Plantilla legacy con un diagnóstico se convierte en chip principal sin perder los previos. **Read-only views** (clinical-history-modal, patient-drawer, clinical-note-print): render lista completa de chips/líneas con badge "principal" para el primario; `DiagnosisHistoryPanel` ahora cuenta cada diagnóstico individual (no cada nota), agrupando comorbilidades correctamente. Recetas y exam orders ya estaban scoped por `clinical_note_id` (mig 053/078) — no se tocan.
+- [x] **Código CIE-10 manual one-off en nota** (v0.14.2) — Botón discreto **`+ Código manual`** debajo del buscador de CIE-10 en el editor abre dos inputs inline (código mono + descripción + Cancelar/Agregar). Agrega chip a la nota actual **sin persistir al catálogo de la org** — para casos donde el doctor conoce un sub-código MINSA específico que aún no está catalogado pero no quiere crear un código personalizado permanente. Enter en el input de descripción confirma. Hint "Si lo usas seguido, agrégalo en Ajustes → CIE-10 personalizados" para escalado natural a custom codes. Dedupe respetado: pasa por el mismo `addDiagnosis` → no se duplica si el código ya existe.
+- [x] **Toggle Nota | Timeline en modal de HC** (v0.14.2) — Sub-header sticky con segmented control `📄 Nota` | `🕘 Timeline` debajo del header principal del modal. Solo aparece si la cita tiene paciente vinculado. **Modo Nota** = layout actual (2-col SOAP + side panels), sin cambios. **Modo Timeline** = full-width con cards colapsables del historial completo de notas del paciente, descendente por defecto (filtro asc/desc + Expandir-todo / Colapsar). Excluye la nota de la consulta actual. Cards colapsadas muestran fecha · hora · doctor (con dot de color) · top-2 chips de diagnóstico (+N más) — scan rápido sin expandir. **Body lazy-renderizado**: el SOAP completo + diagnósticos + vitales + signed badge solo se construyen al expandir (perf con pacientes crónicos de 50+ consultas). CTAs Save/Sign/Print y atajo Ctrl+S quedan ocultos en Timeline (read-only). El editor de Nota queda siempre montado (CSS `hidden`) → no pierde draft ni autosave entre toggles. Mount-once del Timeline: primera vez que se entra, se carga; al volver a Nota y regresar, datos cacheados (no re-fetch). Reset al cerrar el modal — próxima apertura siempre arranca en Nota. Componente nuevo: `app/(dashboard)/scheduler/notes-timeline.tsx`. **Beneficio**: elimina 4-5 clicks de fricción ("¿qué le mandé la última vez?") al revisar contexto durante la consulta en vivo.
+- [x] **Medicamentos y exámenes en cards del Timeline HC** (v0.14.2) — Cada card del Timeline ahora muestra (lazy, al expandir) el snapshot clínico completo de la consulta: **SOAP → Diagnósticos → Medicamentos recetados → Exámenes solicitados → Vitales**. Pre-fetch al entrar a Timeline (3 requests en paralelo: notes + prescriptions + exam-orders) indexados por `clinical_note_id` en `useMemo` para lookup O(1) sin re-fetch al expandir. **Header colapsado** incluye counters discretos `💊 N` (medicamentos) y `🧪 M` (exámenes) como pista visual sin expandir — el doctor sabe de un vistazo qué consultas tuvieron tratamiento o exámenes. **Medicamentos**: lista compacta con `medication + dosage · frequency · duration (route)` + instrucciones en italic. **Exámenes**: items con dot de status (verde=completado, gris=pendiente), diagnóstico presuntivo de la orden, notas generales. Soft-fail en rx/exams si el rol no tiene permisos (recepcionistas) — la sección simplemente no aparece, sin error. Si la consulta no tuvo recetas/exámenes, las secciones se ocultan (no muestra "0 medicamentos" — ruido). Sin migración ni cambios de schema; datos ya estaban ligados a `clinical_note_id` desde mig 053 y 078. **Beneficio**: cierra el loop "qué pensó (SOAP) + qué hizo (recetas/exámenes)" en una sola card.
+- [x] **Pack Vertical Fertilidad — Básico (`fertility_basic`) — addon end-to-end con seguimientos automatizados y atribución honesta** (v0.15.0 — migraciones 127-131) — Primer addon vertical end-to-end del catálogo, listo para piloto Vitra. Resuelve el dolor #1 reportado en discovery con clínicas de fertilidad: pacientes que no regresan después de la primera consulta y se pierden silenciosamente del embudo. **Arquitectura conceptual**: dos eventos centrales (Contacto efectuado + Cita creada con seguimiento activo) y tres categorías de atribución (A=Recuperada con contacto / B=Agendado sin contacto / C=Orgánica) calculadas automáticamente por **trigger PL/pgSQL `BEFORE INSERT ON appointments`** (mig 129) — sin intervención humana, sin falsos positivos. **Tablas nuevas**: `addon_canonical_categories` (catálogo global de 14 categorías canónicas de fertility con `category_key` tipo `fertility.first_consultation`, `fertility.beta_hcg_check`, etc.), `organization_service_canonical_mapping` (mapeo per-org entre categoría canónica y servicios del catálogo de la clínica — multi-mapping), `followup_rules` (reglas pre-cargadas + custom; `is_system=true` para las 3 reglas Tier 2), `message_templates` (email; las plantillas WhatsApp viven en la tabla `whatsapp_templates` existente). **Extensión de tablas existentes** (mig 128): `clinical_followups` gana 11 columnas (`source` ['manual'|'rule'|'system'], `rule_key`, `target_category_canonical`, `expected_by`, `first_contact_at`, `contact_events JSONB`, `snooze_until`, `attempt_count`, `max_attempts`, `closure_reason`, `closed_at`, `status` con 8 estados nuevos + backfill desde `is_resolved`). `appointments` gana 3 columnas (`attribution_source`, `linked_followup_id`, `attribution_set_at`). **3 reglas Tier 2 sembradas** (mig 130): `fertility.first_consultation_lapse` (21 días para agendar 2da consulta), `fertility.second_consultation_lapse` (14 días para decisión de tratamiento), `fertility.budget_pending_acceptance` (7 días para aceptar presupuesto). **Plantillas peruanas** (mig 131): 5 email templates (3 reglas × tono `amable`/`directo`, español Perú no neutro LATAM) + 6 WhatsApp Meta-ready templates como recurso TS estático en `lib/fertility/whatsapp-templates.ts` (status `PENDING` — la org las submite a Meta vía wizard existente; el cron skipea WhatsApp si la plantilla aún no está `APPROVED`). **`tier_group` en addons table**: nueva columna que permite mutua exclusión entre `fertility_basic` y `fertility_premium` (siembra mig 130 ambos con `tier_group='fertility'`); permite agrupación de addons donde uno reemplaza al otro sin tocar el modelo aditivo de `organization_addons`. **11 endpoints REST**: `POST /api/addons/[key]/activate` (con clonado per-org de reglas y plantillas WA + manejo 409 tier_group), `POST /api/addons/[key]/deactivate`, `GET/PUT /api/admin/fertility/canonical-mapping`, `GET /api/admin/fertility/rules`, `GET/PUT /api/admin/fertility/settings` (delays + tono + LTV — sync con `followup_rules.delay_days`), `PATCH /api/clinical-followups/[id]/contact` (manual_contacted/manual_whatsapp), `/snooze`, `/close-no-response`, `/close-manual`, `/reactivate`, `POST /api/appointments/[id]/complete-followup-trigger` (fire-and-forget desde el scheduler post-completado). **Cron diario** `/api/cron/fertility-followup-contact` (schedule `0 13 * * *` = 8am Lima en Vercel Hobby; gate por hora local de cada org adentro del cron sigue funcional para futuro upgrade a hourly cuando la org esté en Vercel Pro). **UI panel `/scheduler/follow-ups` reorganizado en 3 tabs** (Pendientes / Recuperados / Sin respuesta) con buckets, KPIs en Recuperados (Recuperaciones atribuibles, Iniciativa propia, Tasa, Revenue atribuido = recuperaciones × LTV configurable), filtros en Sheet (origen, regla, doctor, fecha), card con badge violeta "Automatizado" + mini-stepper SVG de 3 puntos para seguimientos `source='rule'`. **Wizard mapeo canónico** `/admin/addon-config/fertility/canonical-mapping` (multi-select por categoría, validación soft de las 3 categorías estrella — `first_consultation`, `second_consultation`, `treatment_decision`). **Settings page** `/admin/addon-config/fertility/settings` (9 ajustes configurables — delay_days_*, max_attempts, auto_contact_time, auto_send_email/whatsapp, default_message_tone, ltv_promedio_paciente). **Cableado scheduler → trigger**: `appointment-sidebar.tsx:updateStatus` invoca fire-and-forget al endpoint trigger cuando una cita pasa a `completed`. **`treatment_plan` trigger**: helper `maybeCreateBudgetPendingFollowup` se llama desde `app/api/treatment-plans/route.ts` post-insert (no-op si addon inactivo). **Componentes UI nuevos** (sin nuevas deps): `Tabs`/`DropdownMenu`/`Sheet` (wrappers sobre Radix existente), `Switch` manual sin Radix, `module-activate-dialog` y `module-config-dialog` (reusables para el redesign de Settings/Módulos). **Tests SQL** del trigger en `supabase/tests/fertility_followup_attribution_test.sql` (8 casos cubriendo categorías A/B/C, servicio no mapeado, múltiples seguimientos, cita reagendada, multi-tenant) — escritos pero sin ejecutar (sin Supabase CLI en sandbox). **Documentación**: `docs/spec-followup-module-fertility.md` (spec técnico completo 809 líneas), `docs/plan-vertical-fertility-gynecology.md` (plan estratégico vertical), `docs/coming-updates-fertility-addon.md` (roadmap del addon — qué entregado / qué Tier 2 Premium / qué deuda técnica / qué no-roadmap explícito). **Script de provisioning** `scripts/provision-fertility-org.ts` (idempotente, crea org + owner + activa addon + siembra plantillas WA per-org). El módulo de seguimientos es vertical-friendly: el patrón (categorías canónicas + reglas + atribución honesta) se reusará tal cual cuando construyamos `gynecology` y otros verticales futuros.
+- [x] **Redesign Settings → Módulos al estilo Settings → Integraciones (Activar → modal → engranaje config)** (v0.15.0) — Reemplaza la grid plana anterior (todos los addons como toggles) por un patrón de 3 estados visuales por card + 4 secciones jerárquicas. **Estados**: (1) No activo gratuito → botón emerald **"Activar"** que abre `<ModuleActivateDialog>` con bullets completos + checkbox "Llevame al wizard tras activar" (default true) + manejo de 409 tier_group con mensaje explícito en alerta ámbar inline; (2) No activo Premium PRO (`fertility_premium`) → badge ámbar "Próximamente" + botón gris deshabilitado "Notifícame"; (3) Activo → badge verde "Activo" + icono engranaje en esquina superior derecha + footer con "Activado el [fecha]". Click engranaje abre `<ModuleConfigDialog>` con links útiles (ej. para `fertility_basic`: link a `/admin/addon-config/fertility/canonical-mapping` y `/settings`) + zona de peligro abajo con confirmación inline para "Desactivar módulo". **4 secciones jerárquicas verticales** (sin duplicar addons entre secciones): "Mis activos" (si ≥1 activo) → "Recomendados para tu especialidad" (matchea `addon.specialties[]` con la specialty de la org, icono Star emerald) → "Otras especialidades disponibles" (resto con `category=specialty`, icono Stethoscope) → "Herramientas adicionales" (addons con `category != specialty`, icono Layers). **Iconos tonales** por categoría: emerald (specialty), sky (workflow), amber (clinical), violet (`fertility_premium`). **Permisos**: non-admin ve todos los inactivos con botón deshabilitado "Solo admins". **Setup redirect**: si el addon tiene `setupUrl` y el checkbox está marcado, navigate post-201 al wizard. Componentes nuevos reusables: `components/modules/module-activate-dialog.tsx` y `components/modules/module-config-dialog.tsx` (consumen `useOrgAddons` y los endpoints `/api/addons/[key]/activate|deactivate`). Sin nuevas deps. Pendiente menor: métrica "N reglas configuradas" en cards activas (omitido por requerir query adicional).
+- [x] **Empty states guiados en `/admin/services` para onboarding de owner nuevo** (v0.15.0) — Los owners nuevos llegaban a Servicios sin saber que primero necesitan crear una **categoría**, generando confusión y soporte. Ahora la página detecta 3 escenarios y renderiza UI distinta: (1) **Sin categorías ni servicios** → card grande emerald centrada con icono `FolderTree`, título "Empieza creando tu primera categoría", descripción explicativa, botón emerald grande "Crear mi primera categoría" + 3 chips decorativos `Consultas` / `Procedimientos` / `Exámenes`. Click → cambia a tab `categories` y abre el form inline existente. (2) **Categorías sin servicios** → card emerald con icono `Stethoscope`, título "Listo, ahora crea tu primer servicio", botón emerald + sub-link "Crear otra categoría". (3) **UI normal** (con servicios) → intacta, cero cambios. Solo `isAdmin` ve los empty states (staff/doctor sigue viendo la UI normal vacía — no son ellos quienes deben crear servicios). El page reusa los formularios inline existentes en lugar de inventar modales nuevos — sin duplicación.
+- [x] **Slug del plan base consolidado a `'independiente'` + helper para uso futuro** (v0.15.0 — migraciones 132 y 133) — Bug detectado durante registro de tenant Vitra: la card del plan Independiente mostraba `S/ 3.35/mes` en lugar de `S/ 129`. Causa raíz: el repo arrastraba **dos slugs intercambiables** para el plan base (`'starter'` y `'independiente'`); las migraciones 112/113 actualizaban precios `WHERE slug='starter'` pero la fila real seed (mig 003) tenía `slug='independiente'`, así que el UPDATE nunca afectó esa fila — quedó con placeholder de mig 020 (3.35/33.50). **Mig 132**: `UPDATE plans SET price_monthly=129, price_semiannual=709.50, price_yearly=1290 WHERE slug IN ('starter','independiente') AND price_monthly < 100` (idempotente, defense con guard) + CHECK constraint `plans_price_monthly_reasonable` que rechaza precios entre 0.01 y 49.99 (precio 0 sí permitido para plan gratis). **Mig 133**: `UPDATE plans SET slug='independiente' WHERE slug='starter'` (no-op si la DB ya está consolidada como en Vitra) + CHECK constraint `plans_slug_canonical` que solo permite `('independiente', 'professional', 'enterprise')`. **`lib/constants.ts`**: helpers nuevos `isIndependientePlanSlug(slug)` y `isPaidPlanSlug(slug)` que aceptan **ambos slugs** ('starter' legacy + 'independiente' canonical) para uso futuro en código nuevo. **NO se reemplazaron los 7 sitios actuales** que comparan `plan.slug === 'starter'` literal — esto cambiaba behaviors de gating preexistentes (ej. `app/api/plans/route.ts:92` dejaría a Independiente sin trial, `discount-codes` empezaría a gatear discount codes que hoy no se gatean). Documentado como deuda técnica en `COMING-UPDATES.md` con la lista de 7 archivos a auditar y QA dedicado en sesión separada.
+- [x] **Migración cron `fertility-followup-contact` daily 13 UTC + documentada deuda Vercel Pro** (v0.15.0) — Vercel Hobby plan limita crons a once-per-day. El schedule horario `0 * * * *` que diseñé inicialmente fallaba el deployment con "Hobby accounts are limited to daily cron jobs". Fix: schedule `0 13 * * *` (1pm UTC = 8am hora Lima). Para Vitra y Dermosalud (ambas en Lima UTC-5) funciona perfecto: cron coincide con su 8am local. Tradeoff documentado: el feature de "envía a la 8am hora local de cada org" queda neutralizado mientras todas las orgs sean de Lima — el gate por hora local en el código del cron sigue funcional, sólo necesita el schedule horario para activarse. Reactivación trivial cuando upgrade a Vercel Pro ($20/mes): cambiar 1 línea en `vercel.json` (`0 * * * *`) + redeploy. Registrado en `COMING-UPDATES.md` Technical Debt como trigger condicional ("primer cliente fuera de Lima, o cuando se agreguen 2+ crons hourly más al sistema").
+- [x] **Sección 🔐 Seguridad y Auth nueva en `COMING-UPDATES.md` + re-ranking de Prioridad sugerida** (v0.15.0) — Sección transversal nueva (no vinculada a addons) con 8 items pendientes ordenados por mi recomendación: (1) Límite de dispositivos simultáneos por user — anti account-sharing patrón Netflix/Kommo; tabla `auth_sessions`, defaults Owner 2 / Admin 2 / Doctor 2 / Recepcionista 1; (2) Logout from all devices; (3) Login alerts por email; (4) 2FA opcional para owner/admin (vendible Plan Clínica); (5) Audit log de acceso a HC — compliance NTS 139 + Ley 29733; (6) Rate limit + captcha en login; (7) Password policy + rotación; (8) Session timeout por inactividad. Sub-sección "Cerrados" con los 5 items de seguridad ya entregados (terms acceptance, bloqueo sesión miembros desactivados, hardening privacy, 2FA founders, magic-link hash). **Tabla de Prioridad sugerida re-rankeada al 2026-05-02** integrando seguridad transversal y verticales nuevos: top 4 ahora todos defienden modelo de negocio o son compliance (límite dispositivos, audit log HC, soft-wall límites de plan, 2FA owners). CRM multi-canal bajado a #8 (importante pero post defensa de modelo). Marcado como entregado en lista de referencia: terms acceptance, bloqueo sesión, hardening privacy, addon `fertility_basic` MVP. Header del doc actualizado a v0.15.0 con fecha 2026-05-03.
+- [x] **Settings → Integraciones agrupado por status (Mis activas / Disponibles / Próximamente)** (v0.15.1) — Reemplaza la grid plana de 8 cards en orden arbitrario por 3 secciones jerárquicas con headers + contador. (1) **Mis integraciones activas** (icono CheckCircle2 emerald) — solo aparece si la org tiene ≥1 conectada (Nubefact si emite, Google Calendar si sincroniza, WhatsApp Business si conectado). (2) **Disponibles para conectar** (icono Plug blue) — las que tienen `status='available'`. (3) **Próximamente** (icono Clock muted) — Mercado Pago, Culqi, Zoom, Google Meet, Gmail. Si una sección queda vacía, no se renderiza. Cada section render reusa el mismo card render via closure inline `renderCard()` para no duplicar JSX. Multi-tenant safe: cada org ve solo sus integraciones activas; estructura visual idéntica para todas.
+- [x] **Break time default OFF en scheduler** (v0.15.1) — `DEFAULT_BREAK_TIME_CONFIG.enabled` cambia de `true` a `false`. Las orgs nuevas ya no asumen automáticamente almuerzo 1-2pm L-V; la clínica activa break time explícitamente desde el botón Coffee del header del scheduler. Asumirlo era invasivo para clínicas que no tienen ese horario o trabajan sin almuerzo fijo. **Deuda registrada**: el config sigue siendo localStorage per-browser; falta migrar a tabla per-org en DB para que persista a nivel clínica y no por dispositivo. Documentado en `COMING-UPDATES.md` sección ⏰ Configuración de horario y formato.
+- [x] **Empty states guiados en `/admin/doctors`, `/admin/offices`, `/patients`, `/scheduler`** (v0.15.1) — Replica el patrón entregado en `/admin/services` (v0.15.0) en 4 secciones más, para que owners nuevos tengan guía durante el primer onboarding. **Doctors**: card emerald con icono `Stethoscope` cuando 0 doctores + isAdmin → CTA "Agregar primer doctor" → link a `/admin/doctors/new`. **Offices**: cuando 0 consultorios + isAdmin → CTA "Crear primer consultorio" → reusa el form inline existente con `setShowAddForm(true)`. **Patients**: cuando 0 pacientes + sin filtros activos (cualquier rol) → doble CTA: emerald "Agregar primer paciente" (`PatientFormModal`) + outline "Importar desde CSV" (`BulkImportModal`); chip decorativo "hasta 500 pacientes a la vez". **Scheduler**: cuando 0 servicios + 0 citas totales en la org + isAdmin → CTA "Configurar servicios →" → link a `/admin/services` con sub-link guía. Detalle inteligente: el scheduler agrega un fetch lightweight `count:exact head:true` sobre `appointments` para obtener el conteo total de la org (no solo del rango visible) — sin esto el empty state aparecería cada día visible vacío, no solo en first-time.
+- [x] **Tour interactivo de bienvenida con driver.js (10 steps + persistencia + sección Ayuda en /account)** (v0.15.1) — Onboarding overlay opaco + tooltips contextuales para owners nuevos. Librería `driver.js@^1.4.0` (~5KB, sin React deps pesadas, MIT). **Auto-trigger**: `<TourAutostart>` montado en dashboard layout dispara `startTour()` con delay 800ms cuando se cumplen TODAS las condiciones (owner + ruta `/dashboard` + `localStorage.yenda_tour_completed_v1` no seteado + `window.innerWidth ≥ 768`). **10 steps**: bienvenida (body center) → sidebar → 5 nav items (escritorio/agenda/pacientes/reportes/configuración) con position right → topbar avatar (bottom-end) → notificaciones (bottom) → cierre. Atributos `data-tour-step` agregados en `sidebar.tsx` (6 puntos) y `topbar.tsx` (2 puntos) sin cambiar layout/clases. **Custom CSS** en `globals.css` matchea branding Yenda: overlay navy 75% (#070e1b), tooltip card con `var(--card)` + radius 12, título 14/600 Outfit, body 13/400 muted, botón "Siguiente" con `var(--primary)` emerald, "Atrás" outline, X gris. Persistencia se setea en `onDestroyed` (cubre tanto "Omitir X" como "Empezar a usar Yenda" del último paso). **Botón "Ver tour de bienvenida"** en `/account` (sección Ayuda) llama `resetTour()` + `startTour()` para re-disparar manualmente. **Mobile**: si `window.innerWidth < 768` el tour no auto-dispara; si el user lo invoca desde /account muestra toast "El tour está optimizado para desktop". Componentes nuevos: `components/onboarding/tour-provider.tsx` (context + hook `useTour()` + lazy import) y `components/onboarding/tour-autostart.tsx`.
+- [x] **Hardening completo del flujo de invitación de miembros** (v0.15.1 — migraciones 134 y 135) — Bug de raíz detectado durante testeo de invitación de doctora a Vitra: el owner invitó a `oscarfiverr+Angela@gmail.com` (con A mayúscula) y la doctora terminó como owner de una org huérfana "Mi Clínica" sin pasar por la pantalla de aceptación. **Causas múltiples encontradas**: (1) endpoint `/api/members` no normalizaba email a lowercase al INSERTAR en `organization_invitations`; (2) trigger `handle_new_user` (mig 036) comparaba email case-sensitive y no detectaba la invitation pending por casing distinto al de auth.users normalizado; (3) middleware `lib/supabase/middleware.ts:100` redirigía a `/dashboard` cualquier user autenticado que fuera a `/register`, sin respetar el `?invite=` query param que viene del magic link de Supabase auth; (4) endpoint `/api/auth/accept-invite` insertaba en `doctors` sin chequear duplicados → race condition concurrente creaba 2 rows por user (caso real: Angela tenía 2 rows en `doctors` con 0.8ms de diferencia, Jose Lopez 2 rows con 16 días de diferencia por retry de re-invitación). **Fixes aplicados**: (a) `email.toLowerCase().trim()` en `/api/members` antes del INSERT; (b) **migración 134** reemplaza `handle_new_user` con `LOWER(email) = LOWER(NEW.email)` + backfill `UPDATE organization_invitations SET email = LOWER(email)` + CHECK constraint `organization_invitations_email_lowercase`; (c) middleware con guard `isInviteAcceptance = pathname === "/register" && searchParams.has("invite")` que permite que el user autenticado pase por la página de aceptación; (d) `/register` page con rama nueva para invited-autenticado: pantalla compacta "Únete al equipo de [Org]" con logo + role + botón único "Aceptar invitación y continuar" que llama `/api/auth/accept-invite` y redirige a `/dashboard`; manejo específico de errores `invitation_expired`, `invitation_already_used`, `invalid_token`, `no_pending_invitation` con mensajes en español; (e) `accept-invite` usa `.ilike("email", ...)` para matching case-insensitive sin RPC nuevo; (f) ambos endpoints (accept-invite + register-invited) ahora hacen SELECT-then-INSERT condicional en `doctors` para evitar duplicados por retry secuencial; (g) **migración 135** crea `UNIQUE INDEX doctors_user_org_unique ON doctors(user_id, organization_id) WHERE user_id IS NOT NULL` que cierra el race condition concurrente a nivel DB — segundo INSERT paralelo falla con error 23505. **Bonus toast** de bienvenida en primer dashboard load para non-owners (`localStorage.yenda_welcome_toast_seen`) con CTA "Ir a Mi Cuenta" — solo se muestra una vez por device, dura 8s, omitido para owners (que ya tienen su flow de onboarding completo). Defense-in-depth: 7 capas de protección — UI normalization + DB constraint + middleware respect + accept-invite case-insensitive + handle_new_user case-insensitive + idempotent INSERT + UNIQUE INDEX.
+- [x] **Account header reactivo al form + sync auth.user_metadata.full_name al guardar** (v0.15.1) — Bug detectado: en `/account` el header muestra el nombre del user al lado del avatar leyendo de `user.user_metadata.full_name` (auth), pero el form guarda en `user_profiles.full_name` (tabla profile). Después de guardar el header no refresca. Doble fix: (a) `displayName` ahora deriva de `watch("full_name")` de RHF — refresca en tiempo real mientras el user tipea, antes incluso de guardar; (b) tras el UPSERT a `user_profiles`, también se llama `supabase.auth.updateUser({ data: { full_name } })` que sincroniza el `user_metadata` que leen otros componentes (sidebar, topbar). Resultado: refrescos consistentes en toda la app sin necesidad de hard reload.
+- [x] **Settings → tab "WhatsApp" desbloqueado (clipboard config no requiere Business API)** (v0.15.1) — Bug de gating: el tab "WhatsApp" en Settings tenía un candadito que solo desaparecía si la org tenía Business API conectada. Pero ese tab contiene la **config de clipboard** (toggle del modal post-cita con copia manual), que es justamente la feature alternativa para clínicas SIN Business API conectada. El gating estaba al revés. Fix: el tab "WhatsApp" siempre disponible (renderiza `<WhatsAppClipboardTab />` directo sin gate). El tab "WA Business" sí mantiene el gating por `waConnected` porque ese sí requiere la integración Meta. Esto desbloquea la funcionalidad esperada por el owner: activar el modal post-cita con copia al portapapeles para que la recepcionista lo pegue en WhatsApp Web/móvil.
+- [x] **Hero landing con gradient animado emerald→violet→cyan reactivo al cursor** (v0.15.1) — Cambio de copy del hero principal y efecto visual en las palabras destacadas. **Antes**: "Menos tiempo administrando. Más tiempo con tus pacientes." con gradient simple emerald→teal en la segunda mitad. **Ahora**: "La **Agenda inteligente** que hace crecer tu facturación." con efecto visual nuevo en "Agenda inteligente": (1) gradient con 4 stops `#10B981 → #8B5CF6 → #06B6D4 → #10B981` que crea loop continuo sin "bordes secos"; (2) animación auto `agenda-shimmer` 6s ease-in-out que mueve `background-position` de 0%→100%→0% — efecto de "ola de color" recorriendo las letras lentamente; (3) reactivo al cursor: `useEffect` con `requestAnimationFrame` calcula el ángulo del mouse relativo al centro del span y setea `--angle` en CSS. El gradient rota en tiempo real siguiendo el cursor con transición de 220ms cubic-bezier suave. (4) Accesibilidad: `@media (prefers-reduced-motion: reduce)` desactiva la animación auto y deja el ángulo estático. Performance: `will-change: background-position, background-image` + cancelación de `requestAnimationFrame` previo en cada mousemove → cero reflows.
+- [x] **Card Centro Médico (Más popular) con borde gradient animado + glow pulsante + botón CTA tipo Brief IA con shimmer** (v0.15.2) — En la sección de pricing del landing, el plan del medio (Centro Médico, marcado como "Más popular") tenía un border emerald simple poco diferenciador frente a Independiente y Clínica. Reemplazado por: (1) **borde animado**: `::before` con gradient `emerald (#10B981) → violet (#8B5CF6) → cyan (#06B6D4) → emerald` shifteando posición horizontal en loop de 5s ease-in-out, recortado con `mask-composite: xor` para que se vea solo el anillo de 2px (mascara el fondo, deja solo borde). (2) **Glow pulsante**: `::after` con doble radial-gradient (emerald 18% + violet 14%) blureado 16px, anima opacidad 70% ↔ 100% en loop de 4s — efecto "respirando". (3) **Botón "Empezar ahora"**: replica el patrón visual del botón Brief IA del dashboard (gradient emerald → violet → cyan → emerald, `background-size: 250% 100%`, animación `btn-popular-shift` 3.5s loop). Hover: shadow púrpura difuso. Active: scale 0.98. (4) **Badge "Más popular"** cambió de bg-emerald sólido a gradient emerald → violet para consistencia. **Otros 2 cards (Independiente y Clínica)** sin cambios, mantienen outline limpio — jerarquía visual clara, solo el "Más popular" brilla. **Accesibilidad**: `prefers-reduced-motion: reduce` desactiva las 3 animaciones. **Performance**: pseudo-elementos absolutos con `pointer-events: none`, `isolation: isolate` en el card.
+- [x] **Sección "Otras especialidades disponibles" oculta si la org tiene specialty principal** (v0.15.2) — En `Settings → Módulos`, la sección "Otras especialidades disponibles" listaba TODOS los addons de specialty no recomendados, incluyendo los irrelevantes (oftalmología, odontología, etc. para una clínica de fertilidad). Ruido visual y confuso para clínicas verticales. **Fix**: si `organization.primary_specialty_id` está seteado (típico tras onboarding), la sección se oculta — solo se muestran "Mis activos" + "Recomendados para tu especialidad" + "Herramientas adicionales". **Fallback**: si la org no tiene specialty primary (caso edge: legacy o sin onboarding completo), todas las especialidades se muestran como antes (informativo). Hook nuevo importado: `useOrganization()` en `modulos-tab.tsx`.
+- [x] **Fix: lectura de `patients.sex` en SELECT del drawer del paciente** (v0.15.2 — bug transversal) — Bug reportado por el owner: en cualquier org, al seleccionar "Sexo biológico" en el drawer del paciente y guardar, parecía que no persistía (al reabrir el drawer el campo volvía a aparecer vacío). **Diagnóstico**: el UPDATE sí persistía correctamente en `patients.sex`, pero los SELECTs en `app/(dashboard)/patients/page.tsx` (la query principal de la lista paginada en línea 134-135 y la query del drawer post-save reload en línea 314) **no incluían la columna `sex`**. Resultado: el state inicial de `infoSex` arrancaba en `""` siempre. **Fix de 4 letras**: agregar `sex` al string del SELECT en los 2 lugares. Cero cambios de UI o UPDATE — solo READ. Bug **transversal a todas las orgs**, los datos estaban guardados en DB todo el tiempo, solo no se mostraban.
+- [x] **Fix: KPI "Revenue estimado atribuido" en panel de Recuperados solo cuenta categoría A (withContact)** (v0.15.2 — honestidad de la métrica) — En el panel `/scheduler/follow-ups` tab Recuperados, el KPI "Revenue estimado atribuido" estaba mostrando `S/ 5,000` cuando había 0 recuperaciones atribuibles y solo 1 paciente que volvió por iniciativa propia (categoría B). **Bug en `app/api/clinical-followups/dashboard/route.ts:429`**: usaba `revenueAttributed = recoveredCount * ltvValue`, donde `recoveredCount` incluía AMBAS categorías (A=atribuible + B=iniciativa propia). **Fix**: cambio a `revenueAttributed = withContact * ltvValue` — solo categoría A. Esto respeta la **promesa de honestidad de atribución** del spec sec. 0.3 ("el sistema solo se atribuye recuperaciones donde efectivamente actuó"). Si paciente volvió sola, NO cuenta como revenue atribuido aunque sí aparece como "Iniciativa propia" en KPIs.
+- [x] **Embudo de presupuestos del Pack Fertilidad — tabla `budget_records` independiente de `treatment_plans`** (v0.15.2 — migraciones 136 y 137) — Feature comercial clave del addon `fertility_basic` para clínicas que envían presupuestos por miles de soles (FIV/IIU/etc.). Modelo arquitectónico: separación de responsabilidades entre tracking comercial del presupuesto (`budget_records`) y modelo clínico (`treatment_plans`). **Por qué tabla nueva y no extender treatment_plans**: Vitra (anchor del piloto) usa **Omnia para historia clínica** — sus doctores NO crean `treatment_plan` en Yenda. Forzar la creación de un plan vacío para luego marcarlo como enviado sería trabajo administrativo sin valor. La obstetra debe poder registrar el envío directamente, sin tocar HC. Para clínicas futuras con HC interna, `budget_records.treatment_plan_id` es FK opcional para linkear ambos. **Migración 136** (`budget_records`): `id, organization_id, patient_id, treatment_plan_id (nullable), sent_by_user_id, sent_at, treatment_type (CHECK 7 valores), amount NUMERIC(10,2) opcional, notes, acceptance_status (pending_acceptance/accepted/rejected), accepted_at, rejected_at, rejection_reason, followup_id, created_at, updated_at`. RLS multi-tenant patrón `informed_consents`. Append-only por auditoría comercial (sin policy DELETE). Trigger automático para `updated_at`. **7 tipos de tratamiento canónicos**: FIV (Fecundación In Vitro), IIU (Inseminación Intrauterina), INDUCCION (Inducción de ovulación), CRIO (Criopreservación), OVODONACION, ROPA (Método ROPA), OTRO. **Migración 137**: `organization_members.is_fertility_advisor BOOLEAN DEFAULT false` para flag de obstetra/asesora de fertilidad (NO un rol nuevo en DB — usa `role='doctor'` con flag adicional para no contaminar la matriz de 4 roles existente con permisos one-off). También `organization_invitations.invitation_meta JSONB DEFAULT '{}'` para persistir flags opcionales de invitación (incluye `{is_fertility_advisor: true}` cuando se marca el toggle en el form de invitar). **Endpoints REST**: `POST /api/budgets` (crear, dispara seguimiento), `PATCH /api/budgets/[id]/mark-accepted` (cierra como `agendado_via_contacto`), `PATCH /api/budgets/[id]/mark-rejected` (cierra como `cerrado_manual` con razón opcional), `GET /api/budgets` con buckets (pending/accepted/rejected) + filtros (treatment_type, doctor_id, patient_id, date range, q libre) + KPIs (`total_sent_30d`, `acceptance_rate_pct`, `rejection_rate_pct`, `avg_time_to_acceptance_days`), `GET /api/budgets/[id]` detalle. Todos gateados por `hasAnyAddon(['fertility_basic', 'fertility_premium'])` — devuelven 403 si no. **Matriz de permisos**: Owner/Admin → ven y gestionan toda la org. Doctor con `is_fertility_advisor=true` (obstetra) → ven y gestionan toda la org. Doctor sin flag → solo lo suyo (envíos propios + pacientes con citas asignadas). Recepcionista → ven todo, NO crean ni editan. **UI**: (a) Modal "Registrar presupuesto enviado" (`components/clinical/budget-record-modal.tsx`) con form RHF+Zod — paciente preseleccionado o búsqueda con debounce 250ms, tipo de tratamiento Select, monto opcional con prefix S/, notas Textarea max 500. (b) Sección "Presupuestos enviados" en el drawer del paciente (`app/(dashboard)/patients/fertility-budget-records-section.tsx`) con badges contextuales por estado + countdown del followup + botones Marcar aceptado/rechazado. (c) Vista nueva `/scheduler/budgets` con kanban de 3 tabs (Pendientes/Aceptados/Rechazados) + 4 KPI cards arriba + sheet de filtros + cards con avatar paciente, badge tipo tratamiento, monto si aplica, "Enviado por X", tiempo desde envío, notas truncadas. (d) Toggle "También funciona como asesora de fertilidad" en form de invitación de admin/members — solo aparece si org tiene addon fertility activo Y rol elegido es `doctor`. (e) Sidebar entry condicional `/scheduler/budgets` bajo grupo Agenda con nuevo campo `requiresAnyAddon` en NavItem (solo visible si fertility addon activo). **Trigger del seguimiento**: `maybeCreateBudgetPendingFollowup()` extendido para aceptar `budget_record_id` opcional. Se llama al **mark-as-sent** (que en el nuevo modelo es el INSERT mismo del budget_record), no al `treatment_plan_created` como en el diseño previo. Delay default 7 días. **Comportamiento clave**: el `budget_record` queda **abierto indefinidamente** hasta que la obstetra marque manualmente — el seguimiento de 7 días es solo recordatorio para contactar. Si una paciente decide a los 3 meses (escenario realista en fertilidad), `accepted_at - sent_at = 90 días` queda registrado y el KPI `avg_time_to_acceptance_days` lo refleja. **Para Vitra**: se ejecutó manualmente para Allison Tomasto (cita ya completada antes de tener mapeo + reglas) un INSERT de seguimiento retroactivo, dado que el trigger automático funcional solo aplica para citas marcadas como completed POST mig 134-137. Activación legacy de Vitra requirió clonar reglas globales con SQL manual y guardar el mapping del wizard.
+- [x] **Topbar rediseñado con dropdown hover (avatar + nombre opcional)** (v0.15.3) — Reemplaza el bloque email + avatar plano del topbar por un trigger compacto (avatar + first name opcional) que despliega un dropdown al hover con 3 items (Cuenta, Configuración, Cerrar sesión). Animación suave Framer Motion (`cubic-bezier(0.16, 1, 0.3, 1)`) que después se adoptó como estándar de animación de modales en toda la app.
+- [x] **Animaciones de modales / popovers / sheets / dropdowns / alert-dialogs unificadas** (v0.15.3) — Reemplaza utilidades muertas de `tailwindcss-animate` por keyframes CSS reales en `Dialog`, `AlertDialog`, `Sheet`, `Popover`, `DropdownMenu`. Mismo `cubic-bezier(0.16, 1, 0.3, 1)` que el dropdown del topbar. Honra `prefers-reduced-motion`. Fix de flicker top-left en Dialog por colisión entre la propiedad `translate` de Tailwind v4 y `transform` del keyframe.
+- [x] **Plantillas WhatsApp clipboard multi-kind** (v0.15.3 — migración 139) — Tabla `org_whatsapp_clipboard_templates` con 3 kinds (`post_appointment`, `second_consultation_followup`, `budget_followup`), RLS multi-tenant, seed function + backfill retroactivo (post_appointment para todas las orgs; los 2 kinds de seguimiento solo para orgs con `fertility_basic` o `fertility_premium` activo). API route `/api/whatsapp-clipboard-templates` (GET all kinds, PUT one, admin/owner only). `lib/whatsapp-clipboard-config.ts` refactorizado a multi-kind con `buildMessage(kind, template, vars)` type-narrowed; legacy single-template exports preservados para retrocompatibilidad. Settings UI reescrito con tabs por kind (los 2 kinds de seguimiento addon-gated), toolbar B/I/S con marcadores WhatsApp (`*bold*` / `_italic_` / `~strike~`), picker curado de ~25 emojis (✅ ❌ 📅 ⏰ 📍 💚 🩺 💊 🧪 🤰 👶 🎯 ⚠️ 📝 🔔 ☝️ 🙌 👋 ✨ 🤝 💬 📞 📲 🏥 ❤️), inserción cursor-aware y vista previa que parsea formato WA → bold/italic/strike HTML para visualización fiel. Fix adicional: route export error en Next.js 15 (prohibido exportar non-handlers desde `route.ts`).
+- [x] **Followup card con teléfono visible + dual button device-aware** (v0.15.3) — Cada card de seguimiento muestra el teléfono del paciente debajo del nombre, formateado `+51 987 654 321` y clickeable como deeplink `wa.me`. Dos botones de acción por card: **Enviar por WhatsApp** (`wa.me`) y **Copiar mensaje**. Default device-aware: en móvil `wa.me` es primario; en desktop `Copiar` es primario porque las recepcionistas peruanas mantienen WhatsApp Web abierto en otra pestaña y un `wa.me` fresco la recarga. Ambos se deshabilitan limpiamente cuando el teléfono falta. El kind de plantilla se elige por card (`budget_followup` si hay budget linkeado, `second_consultation_followup` si no). Cache de promesas a nivel módulo deduplica fetches de plantilla entre todas las cards en pantalla. **Modal post-cita** también ganó dual buttons (Copiar + wa.me) device-aware con teléfono propagado desde el form de cita.
+- [x] **Phase 1 perf: `/scheduler/follow-ups` y `/scheduler/budgets`** (v0.15.3) — Eliminado double-fetch en mount de followups (de 6 counts en cold start a 3). `/api/budgets` GET reorganizado de ~6 round-trips secuenciales a 3 olas con `Promise.all` (membership+addon-check, listing+counts+kpi, senders). Removido `count: "exact"` redundante del listing usando `limit+1` con `.range()` para `hasMore`. Columnas whitelisted en ambos endpoints (drop de campos pesados sin uso como `contact_events JSONB`, `notes`). Dropdown de doctores filtra solo `id, full_name` desde el cliente. **TTFB estimado: −50–70 % en `/scheduler/budgets`, −30–40 % en `/scheduler/follow-ups`**. Phase 2 (indexes + React Query) y Phase 3 (KPIs materializados + server components) documentados pero pendientes de decisión en `docs/research/perf-followups-budgets.md`.
+- [x] **Research: evaluación Openpay PE para integración multi-gateway de payment-link** (v0.15.3 — pendiente de decisión) — `docs/research/openpay-pe-evaluation.md` documenta propuesta de abstracción multi-gateway y recomendación de iniciar con Culqi (Yape nativo, dolor #1 de clínicas peruanas) y posicionar Openpay PE en segundo lugar solo para clientes B2B con relación BBVA. Ningún código de pasarela shippeado todavía — el doc es pura research para tomar decisión antes de invertir tiempo de implementación.
+
+### Pendiente / Por Mejorar
+- [x] **Facturación electrónica SUNAT vía Nubefact (MVP completo)** — v0.13.0 → v0.13.1. Cierre del módulo de facturación electrónica multi-tenant para clínicas peruanas. Componentes:
+  - **Wizard de conexión** (Settings → Integraciones): RUC, razón social, dirección, ubigeo, route + token Nubefact, series autorizadas. Soporta sandbox + producción con prueba live. Credenciales encriptadas AES-256-GCM en `lib/encryption.ts`.
+  - **Emisión desde el sidebar de cita** (Boletas / Facturas / NC): datos cliente y servicio pre-llenados desde `patients` + `services`. IGV calculado a partir del precio del catálogo (convención clínica peruana: precio = con IGV incluido). Envío automático del PDF al email del paciente vía Nubefact. Card de comprobante emitido en sidebar con estado SUNAT, números, links a PDF / XML / CDR / Nubefact.
+  - **Pago parcial / anticipos**: si `amount_paid < total_price`, el modal ofrece radio "Pagado / Total" con reescalado proporcional automático (`factor = amount_paid / sumBaseline`) y sufijo " (pago parcial)" en la descripción del item. La boleta refleja exactamente el cobro real — modelo contable correcto para clínicas con anticipos.
+  - **Forma + medio de pago SUNAT (Catálogo 59)**: heurística pura en `lib/einvoice/payment-mapper.ts` que mapea cualquier label de `lookup_values` (Yape/Plin/Tunki/BIM/Visa/Mastercard/Efectivo/Transferencia/Cheque/etc.) al código SUNAT correcto. Multi-tenant: labels custom caen al fallback `099 Otros`, siempre válido. Pre-llenado desde el último `patient_payments.payment_method` de la cita, editable por el user.
+  - **Warning Bancarización (Ley 28194)**: si `total ≥ S/2,000` (o USD 500) y el método mapea a Efectivo, el modal muestra warning ámbar antes de emitir — el cliente perdería derecho a deducir IGV/costo. No bloquea, advierte. Protección fiscal real para clínicas con tickets grandes (FIV, paquetes de fertilidad).
+  - **Notas de crédito (doc_type 3)**: dialog dedicado con catálogo SUNAT 9 (anulación, devolución total, disminución valor, corrección, etc.) ordenado por frecuencia clínica. Hereda cliente + items + totales del original. Botón "Anular / Nota de crédito" en card del comprobante y en drawer del dashboard. Auto-marca el original como `cancelled` para motivos de anulación. Auto-crea fila `einvoice_series` tipo 3 si no existe.
+  - **Dashboard `/facturacion`** (admin-only, gateado por `einvoice_configs.is_active`): KPIs (monto emitido en período, pendientes SUNAT, rechazados/anulados), filtros (período, tipo, estado, serie, búsqueda libre), tabla con drawer de detalle, links a PDF/XML/CDR. Empty-state con CTA al wizard cuando la org no ha conectado.
+  - **Backend hardening**: validación Zod backend de `customer_address` para facturas y RUC (defense-in-depth), atomic UPDATE+RETURNING en correlativo vía RPC `reserve_einvoice_correlative` (migración 110, elimina race conditions en emisiones concurrentes), rollback del correlativo en cualquier error no-retryable (no solo error 23 duplicado).
+  - **Tablas**: `einvoice_configs`, `einvoice_series`, `einvoices`, `einvoice_line_items`. Migraciones 108 + 109 + 110. Provider abstracto en `lib/einvoice/` (Nubefact implementado, abierto a Efact/Bizfor en el futuro).
+  - **Deuda diferida** (post-v0.14): mapeo SUNAT explícito de métodos en `Settings → Catálogos` (`sunat_payment_code` per-org), tipo "Anticipo" SUNAT (catálogo 12), webhook/cron de polling SUNAT para refresco automático de estados PENDIENTE → ACEPTADO.
+- [x] **Descuento al crear cita + bloqueo post-cobro** (v0.13.1) — El descuento se aplica ahora desde el modal de cita (toggle con modos % o monto fijo + razón), antes de cualquier cobro. El sidebar permite editar descuento solo cuando `totalPaid === 0`; si hay pagos registrados, el control se reemplaza por un mensaje informativo orientando a emitir nota de crédito (motivo SUNAT 09 — disminución de valor). Soluciona el bug conceptual donde aplicar descuento después de un anticipo desincronizaba el comprobante ya emitido del precio real. El máximo del anticipo y la sugerencia 50% se reescalan a `totalAfterDiscount` para coherencia.
+- [x] **Drawer del paciente: ancho aumentado** (v0.13.1) — `md:w-[420px] → 480px` y `lg:w-[480px] → 580px`. Los 7 tabs (Datos / Historial / Clínico / Presupuestos / Finanzas / Marketing / Fiscal) en 480px quedaban apretadísimos. Tradeoff: el drawer ocupa más espacio sobre la lista de pacientes detrás. Si se necesita más, próximo paso es consolidar tabs (Fiscal → sección dentro de Finanzas, Marketing → sección dentro de Datos).
+- [ ] Impresión de recibo/comprobante (F3) — Requiere evaluar formato legal Perú (SUNAT)
+- [ ] Confirmación de cita desde email 1-click (F4) — Token seguro temporal
+- [ ] WhatsApp Business API (F6 Fase 2) — Envío automático vía Twilio/360dialog
+- [x] Consentimiento informado digital (F12) — Requisito legal Perú — ✅ implementado en v0.14.1 (mig 120), UX unificada manual+digital (mig 121). Ver "Consentimiento informado digital MVP" más arriba en "Completado"
+- [ ] Módulo de inventario básico (F13)
+- [x] Portal del paciente (F14) — ✅ Phase 1 implementada (v0.10.1, portal rediseñado). Ver Changelog §24
+- [ ] Reportes con IA generativa (F15)
+- [ ] App móvil o PWA
+- [x] Facturación electrónica SUNAT — entregado MVP en v0.13.0 con Nubefact (boleta/factura desde la cita, pagos parciales con reescalado proporcional). Ver detalle más arriba en "Completado".
+- [ ] Add-ons de plan (UI frontend para comprar extras desde el panel)
+- [x] Bloqueo de usuario desactivado (modal "Su usuario ha sido desactivado") — ✅ implementado en v0.14.1 (mig 118): página `/account-suspended` + gate en middleware cuando todas las membresías están inactivas
+- [ ] Tests automatizados (unit, integration, e2e)
+- [ ] Optimización de performance y caching
+- [ ] Custom SMTP en Supabase Auth (para envío de invitaciones sin rate limit)
+- [x] Especialidades: primer módulo vertical entregado — Curvas de crecimiento OMS (Endocrinología Pediátrica / Pediatría)
+- [x] Especialidades: select editable en Settings (solo Owner) — ✅ implementado en v0.14.1 (mig 119, `org-specialty-section.tsx`)
+- [x] Especialidades: tabla `doctor_specialties` + asignación en admin de doctores — ✅ implementado en v0.14.1 (mig 119, tab "Especialidades" en editor de doctor)
+- [ ] Especialidades: tabs condicionales en historia clínica según especialidad del doctor
+- [x] Especialidades: segundo módulo vertical — Odontograma (Odontología) o Tracking de fertilidad (Medicina Reproductiva) — ✅ entregado Tracking de Fertilidad end-to-end (`fertility_basic`, v0.15.0, migs 127-131). Ver "Pack Vertical Fertilidad" más arriba
+- [ ] Growth curves: expansión de tablas LMS OMS a granularidad mensual completa (actualmente trimestral para 0–5a, anual para 5–19a)
+- [ ] Growth curves: integración con signos vitales de notas clínicas SOAP (auto-registrar antropometría al firmar)
+- [ ] Emails: post-consulta, pedir reseña, campaña marketing (plantillas ocultas, sin lógica de envío)
+- [ ] Emails: pago pendiente (plantilla oculta, sin trigger)
+- [ ] Screenshots reales para placeholders en /producto/* y /blog/*
+- [ ] SEO: páginas por especialidad (/especialidades/[slug])
+- [ ] SEO: páginas comparativas (vs Doctoralia, vs Dentalink, etc.)
+- [x] SEO: blog con 3 artículos completos + 9 placeholders
+- [x] SEO: lead magnets (checklist, calculadora ausentismo, plantilla SOAP)
+- [x] SEO: calculadora de precios WhatsApp (/calculadora-whatsapp)
+- [ ] SEO: página pilar "Software de gestión para clínicas en Perú"
+- [ ] Página /base-conocimientos (hub de ayuda con categorías)
+- [ ] Página /contacto (formulario)
+- [ ] Página /socios (programa de socios)
+- [ ] Conectar lead magnets con captura de email real (Resend/Mailchimp)
+- [ ] Imágenes reales para blogs (fotos/ilustraciones)
+- [ ] Reemplazo global de "REPLACE" por nombre final del software
+
+### Coming Updates (roadmap próximo)
+- [x] **Etiqueta "Paciente Recurrente" automática** — ✅ implementado en v0.11.0. Tag automático cuando el paciente acumula 2+ citas completadas, badge visible en lista, drawer y scheduler. Ver Changelog §25
+- [x] **Límites de plan: UX de soft-wall** — ✅ implementado parcialmente en v0.15.16: soft-wall enforced para **members** (rol-aware) y **offices** (modal de bloqueo + CTA upgrade). Decisión canónica (§5): pacientes y citas quedan **ilimitados** (cap removido, no defiende revenue). Pendiente Phase 2: AI queries + storage. Ver Changelog v0.15.16
+- [ ] **Storage: límites y mensajes de espacio** — Auditar dónde se pueden subir imágenes (avatares, logos, adjuntos clínicos, fotos antes/después). Al acercarse o agotar el storage del plan, mostrar alerta con uso actual vs límite y CTA de upgrade. Mensaje claro: "Has alcanzado tu límite de almacenamiento (X MB/GB). Mejora tu plan para seguir subiendo archivos"
+- [ ] **Módulo de Laboratorio (addon `lab_integration`)** — Conexión con laboratorios, recepción de resultados digitales, asociación a historias clínicas y órdenes de exámenes. Ya existe el addon seed; falta la implementación de UI y flujos
+- [ ] **Grabación de consulta + transcripción con IA** — Grabar audio de la consulta médica, transcribir con Whisper/similar, y generar automáticamente nota SOAP pre-llenada vía LLM. Requiere evaluación de privacidad médica, consentimiento del paciente, y costos de API
+- [ ] **Módulo Dermatología: antes/después con optimización de imágenes** — Addon `dermatology` ya registrado. Implementar galería de fotos comparativas (antes/después) por zona corporal, con compresión y resize automático (ej: max 1200px, WebP) para no agotar storage. Timeline visual de evolución de lesiones
+- [ ] **Bundle Consulta + Tratamiento** — Permitir crear un "paquete" que agrupe un servicio de consulta + sesiones de tratamiento en un solo cobro. Precio bundle con descuento opcional. Al agendar, se crean la cita inicial + las sesiones del plan de tratamiento automáticamente
+- [ ] **Dos atenciones en el mismo bloque de horario (scheduler)** — Caso raro pero real: a veces se necesitan 2 atenciones dentro del mismo bloque (control corto + otra paciente que aprovecha el hueco, o un servicio adicional). Analizado 2026-07-09, **decisión pendiente (Oscar, 2026-07-10)** entre servicios cortos que subdividen el bloque, permitir solape/sobreagenda controlada (advertencia + confirmación, cards lado a lado estilo Google Calendar), o mantener el bloqueo duro. Detalle completo en `docs/coming-updates-core.md`
+
+> Roadmap interno detallado (no público): `docs/coming-updates-core.md`. La sección de "Roadmap público" de la landing fue eliminada (decisión de negocio, no anticipar a la competencia); en su lugar la home muestra la sección "Yenda no deja de crecer" con teasers de Próximamente.
+
+---
