@@ -710,18 +710,41 @@ function TemplateEditor({
                   : "Hello {{1}}, your appointment is on {{2}} at {{3}} with {{4}}."}
                 className={inputClass + " resize-y min-h-[100px]"}
               />
+              {/* Los chips muestran EN VIVO el significado que cada número
+                  tiene según el "Mapeo de variables" de más abajo — pedido
+                  del founder: sin leyenda, los números obligan a memorizar. */}
+              <p className="text-xs text-muted-foreground">
+                {es
+                  ? "Haz clic para insertar una variable. Meta solo entiende números — su significado se asigna abajo en \"Mapeo de variables\" y se refleja aquí:"
+                  : "Click to insert a variable. Meta only understands numbers — assign each one's meaning below in \"Variable mapping\" and it shows here:"}
+              </p>
               <div className="flex flex-wrap gap-1.5">
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    onClick={() => insertVariable(n)}
-                    disabled={!canEdit}
-                    className="rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-xs font-mono text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
-                  >
-                    {`{{${n}}}`}
-                  </button>
-                ))}
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => {
+                  const mapped = form.variable_mapping[String(n)];
+                  const mappedLabel = mapped
+                    ? WHATSAPP_VARIABLE_OPTIONS.find((o) => o.value === mapped)?.label ?? mapped
+                    : null;
+                  return (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => insertVariable(n)}
+                      disabled={!canEdit}
+                      title={
+                        mappedLabel ??
+                        (es ? "Sin significado asignado aún" : "No meaning assigned yet")
+                      }
+                      className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2 py-1 text-xs text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors disabled:opacity-50"
+                    >
+                      <span className="font-mono">{`{{${n}}}`}</span>
+                      {mappedLabel && (
+                        <span className="font-normal text-emerald-600/80 dark:text-emerald-400/70">
+                          · {mappedLabel}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
