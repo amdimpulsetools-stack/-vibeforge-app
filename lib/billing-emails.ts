@@ -49,7 +49,7 @@ interface BillingEmailResult {
   error?: string;
 }
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://app.yenda.app";
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://yenda.app";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "soporte@yenda.app";
 const BILLING_URL = `${APP_URL}/account`;
 
