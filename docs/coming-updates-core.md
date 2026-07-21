@@ -1,7 +1,7 @@
 # Coming Updates — Yenda Core (no addon)
 
 > **Estado:** roadmap activo
-> **Última actualización:** 2026-07-09
+> **Última actualización:** 2026-07-17
 > **Doc fertilidad separado:** `docs/coming-updates-fertility-addon.md`
 > **Owner:** Oscar (Founder, Yenda)
 
@@ -13,9 +13,18 @@ Este documento trackea **lo que queda pendiente en el core de Yenda** (lo que NO
 
 ### 🔴 P0 — Pre-launch público
 
-#### Enforcement real de límites de plan (no implementado)
+#### Enforcement real de límites de plan — ✅ RESUELTO en lo esencial (nota corregida 2026-07-17)
 
-**Estado**: el contador en `/account` muestra `pacientes 9/1000`, `consultorios 2/3`, `citas este mes 14/500`, pero **el sistema NO bloquea cuando se llega al límite**. Es decir, una clínica con plan Independiente puede crear el paciente 1001 sin que nada se lo impida.
+**Esta entrada quedó obsoleta y confundió una decisión de gates pre-publicidad.** Estado real:
+
+- ✅ **Los límites que diferencian los planes (asientos) SÍ se bloquean** desde el soft-wall v0.15.16: `lib/plan/check-limit.ts` (members, doctors, doctor_members, admins, receptionists, offices) aplicado server-side en `/api/members`, `/api/offices` y `/api/doctors/self`, con addons extra_members/extra_offices sumando al tope.
+- ✅ **Pacientes y citas/mes son ILIMITADOS en los 3 planes por decisión canónica** (migs 162 y 163, 2026-06-02): el cap de pacientes era acumulado-total y penalizaba antigüedad sin reflejar costo real; las citas defienden cero revenue y un cap rompe la operación del cliente. No hay "paciente 1001 gratis" porque los pacientes dejaron de ser palanca de pricing — la palanca son los asientos, y esos sí se cobran.
+
+**Lo que queda de la entrada original (opcional, no bloqueante de publicidad):**
+1. Email automático al admin al superar el 80% de un límite de asientos
+2. Cron que detecte orgs sobre-límite legacy y notifique al owner
+
+**Estimado restante**: ~0.5 día. **Prioridad**: P2 (era P0 cuando los caps de pacientes/citas existían sin enforcement; ese mundo ya no existe).
 
 **Modelo de datos verificado** (`mig 031:294-310`, RPC `get_org_usage`):
 - **Pacientes**: `count(*) FROM patients` — lifetime, NO resetea

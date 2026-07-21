@@ -1,0 +1,88 @@
+# ═══════════════════════════════════════════════════════════════════
+# Cron Bridge — dispara los crons de la app mientras el plan de Vercel
+# (Hobby) no los ejecute de forma confiable.
+#
+# Espeja 1:1 los horarios de vercel.json (UTC, igual que aquí) y llama
+# cada endpoint con `Authorization: Bearer $CRON_SECRET` — la misma
+# validación que usan los handlers (>=32 chars, ver
+# app/api/cron/billing-status/route.ts).
+#
+# Setup (una sola vez): GitHub → Settings → Secrets and variables →
+# Actions → New repository secret → `CRON_SECRET` con EXACTAMENTE el
+# mismo valor configurado en Vercel. Opcional: variable de repositorio
+# `CRON_BASE_URL` si el dominio de prod no es https://app.yenda.app
+# (mismo fallback que usa app/api/cron/reminders/route.ts).
+#
+# Notas:
+# - Los schedules de Actions solo corren desde la rama default (main):
+#   este workflow se activa al mergear.
+# - Actions puede retrasar los schedules algunos minutos; irrelevante
+#   para jobs diarios.
+# - `workflow_dispatch` permite disparar cualquier cron a mano desde la
+#   pestaña Actions (útil para probar billing-status hoy mismo).
+# - Cuando se compre Vercel Pro, este workflow puede quedarse como
+#   respaldo: los handlers son idempotentes y un doble disparo diario
+#   es inocuo, pero si se prefiere, basta borrar este archivo.
+# ═══════════════════════════════════════════════════════════════════
+name: Cron Bridge
+
+on:
+  schedule:
+    - cron: "0 7 * * *"   # live-status-eod-sweep
+    - cron: "0 12 * * *"  # daily-summary
+    - cron: "0 13 * * *"  # reminders + fertility-followup-contact
+    - cron: "0 14 * * *"  # billing-status
+    - cron: "0 15 * * *"  # account-deletion-process
+    - cron: "0 8 1 * *"   # budget-pdf-cleanup (mensual, día 1)
+  workflow_dispatch:
+    inputs:
+      endpoint:
+        description: "Path del cron a disparar (ej. /api/cron/billing-status)"
+        required: true
+        type: string
+
+jobs:
+  fire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Resolve endpoints for this schedule
+        id: resolve
+        run: |
+          case "${{ github.event_name }}" in
+            workflow_dispatch)
+              echo 'endpoints=${{ inputs.endpoint }}' >> "$GITHUB_OUTPUT" ;;
+            *)
+              case "${{ github.event.schedule }}" in
+                "0 7 * * *")  echo 'endpoints=/api/cron/live-status-eod-sweep' >> "$GITHUB_OUTPUT" ;;
+                "0 12 * * *") echo 'endpoints=/api/cron/daily-summary' >> "$GITHUB_OUTPUT" ;;
+                "0 13 * * *") echo 'endpoints=/api/cron/reminders /api/cron/fertility-followup-contact' >> "$GITHUB_OUTPUT" ;;
+                "0 14 * * *") echo 'endpoints=/api/cron/billing-status' >> "$GITHUB_OUTPUT" ;;
+                "0 15 * * *") echo 'endpoints=/api/cron/account-deletion-process' >> "$GITHUB_OUTPUT" ;;
+                "0 8 1 * *")  echo 'endpoints=/api/cron/budget-pdf-cleanup' >> "$GITHUB_OUTPUT" ;;
+                *) echo "Unknown schedule: ${{ github.event.schedule }}" && exit 1 ;;
+              esac ;;
+          esac
+
+      - name: Fire cron endpoints
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          BASE_URL: ${{ vars.CRON_BASE_URL || 'https://app.yenda.app' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::CRON_SECRET no está configurado en GitHub Actions secrets"
+            exit 1
+          fi
+          failed=0
+          for path in ${{ steps.resolve.outputs.endpoints }}; do
+            echo "→ GET $BASE_URL$path"
+            status=$(curl -s -o /tmp/body.txt -w "%{http_code}" \
+              -H "Authorization: Bearer $CRON_SECRET" \
+              --max-time 300 "$BASE_URL$path")
+            echo "  HTTP $status — $(head -c 300 /tmp/body.txt)"
+            if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
+              echo "::error::$path devolvió HTTP $status"
+              failed=1
+            fi
+          done
+          exit $failed
