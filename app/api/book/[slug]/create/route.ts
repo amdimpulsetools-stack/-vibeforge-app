@@ -183,6 +183,24 @@ export async function POST(
     );
   }
 
+  // 7.5. Verify office belongs to this org (isolation: without this check a
+  // public caller could inject another org's office_id into the appointment
+  // and probe foreign office occupancy via the conflict check below).
+  const { data: office } = await supabase
+    .from("offices")
+    .select("id")
+    .eq("id", data.office_id)
+    .eq("organization_id", org.id)
+    .eq("is_active", true)
+    .single();
+
+  if (!office) {
+    return NextResponse.json(
+      { error: "Consultorio no disponible" },
+      { status: 400 }
+    );
+  }
+
   // 8. Calculate end time
   const [h, m] = data.start_time.split(":").map(Number);
   const totalMinutes = h * 60 + m + service.duration_minutes;

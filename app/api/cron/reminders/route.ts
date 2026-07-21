@@ -77,6 +77,7 @@ export async function GET(req: NextRequest) {
       .select(
         `
         id,
+        created_at,
         patient_name,
         patient_phone,
         patient_id,
@@ -113,7 +114,22 @@ export async function GET(req: NextRequest) {
       const apptDateTime = new Date(
         `${appt.appointment_date}T${appt.start_time}`
       );
-      return apptDateTime >= windowStart && apptDateTime <= windowEnd;
+      if (apptDateTime < windowStart || apptDateTime > windowEnd) return false;
+
+      // Solo recordar citas agendadas ANTES de que se abriera la ventana de
+      // este recordatorio: si la paciente agendó hace pocas horas, el correo
+      // de confirmación que acaba de recibir YA cumple el rol de recordatorio
+      // — mandarle ambos casi seguidos se percibe como spam robótico.
+      // (Ej.: cita agendada 20h antes → sin recordatorio de 24h, pero el de
+      // 2h sí saldrá porque 20h > 2.5h.)
+      if (appt.created_at) {
+        const bookedMsBeforeAppt =
+          apptDateTime.getTime() - new Date(appt.created_at).getTime();
+        if (bookedMsBeforeAppt <= window.maxHours * 60 * 60 * 1000) {
+          return false;
+        }
+      }
+      return true;
     });
 
     // 5. Check which reminders were already sent

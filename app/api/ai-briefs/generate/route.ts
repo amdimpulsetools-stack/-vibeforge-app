@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { aiLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
 import { aiBriefGenerateSchema } from "@/lib/validations/api";
@@ -132,7 +133,10 @@ export async function POST(req: NextRequest) {
     const { from, to } = resolvePeriod(body);
 
     // ── Fetch metrics (RPC already returns previous-period comparison) ──
-    const { data: metrics, error: metricsError } = await supabase.rpc(
+    // Admin client a propósito: mig 178 revocó EXECUTE para anon/authenticated
+    // (la función era invocable cross-tenant pasando cualquier org_id). El
+    // orgId viene de la membresía validada del caller, nunca del request.
+    const { data: metrics, error: metricsError } = await createAdminClient().rpc(
       "get_report_metrics_for_ai",
       {
         org_id: orgId,
