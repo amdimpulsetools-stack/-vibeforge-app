@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import { WhatsAppWizard } from "@/components/integrations/whatsapp-wizard";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -1817,6 +1818,13 @@ function WhatsAppLockedBanner({
   es: boolean;
   onGoToIntegraciones: () => void;
 }) {
+  // El wizard se abre AQUÍ mismo (no redirigimos a Integraciones): el
+  // usuario que llegó a esta pestaña ya declaró su intención — hacerle
+  // viajar a otra pestaña pierde momentum. La conexión sigue viviendo
+  // en Integraciones (link secundario); solo cambia desde dónde puede
+  // iniciarse.
+  const [wizardOpen, setWizardOpen] = useState(false);
+
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted/60 mb-5">
@@ -1827,16 +1835,32 @@ function WhatsAppLockedBanner({
       </h3>
       <p className="mt-2 max-w-md text-sm text-muted-foreground">
         {es
-          ? "Para usar plantillas, mensajes y recordatorios de WhatsApp, primero activa tu WhatsApp Business API desde la pestaña Integraciones."
-          : "To use WhatsApp templates, messages and reminders, first activate your WhatsApp Business API from the Integrations tab."}
+          ? "Para usar plantillas, mensajes y recordatorios de WhatsApp, primero conecta tu WhatsApp Business API."
+          : "To use WhatsApp templates, messages and reminders, first connect your WhatsApp Business API."}
       </p>
       <button
-        onClick={onGoToIntegraciones}
+        onClick={() => setWizardOpen(true)}
         className="mt-6 inline-flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90 transition-opacity"
       >
         <Plug className="h-4 w-4" />
-        {es ? "Ir a Integraciones" : "Go to Integrations"}
+        {es ? "Conectar WhatsApp" : "Connect WhatsApp"}
       </button>
+      <button
+        onClick={onGoToIntegraciones}
+        className="mt-3 text-xs text-muted-foreground underline-offset-2 hover:underline"
+      >
+        {es ? "o gestiónalo desde Integraciones" : "or manage it from Integrations"}
+      </button>
+
+      <WhatsAppWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        onConnected={() => {
+          // Recarga para que la pestaña WA Business se desbloquee con el
+          // estado fresco de la conexión recién creada.
+          window.location.reload();
+        }}
+      />
     </div>
   );
 }

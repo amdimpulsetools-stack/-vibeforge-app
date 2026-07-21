@@ -123,6 +123,49 @@ export async function PUT(req: NextRequest) {
 }
 
 /**
+ * DELETE /api/whatsapp/config
+ * Desvincula la cuenta de WhatsApp Business: elimina la fila de
+ * credenciales (token cifrado incluido). Las plantillas
+ * (whatsapp_templates) y el historial (whatsapp_message_logs) se
+ * CONSERVAN a propósito: re-vincular la misma WABA los reutiliza, y
+ * la auditoría de mensajes enviados no debe perderse. Sin config
+ * activa, todo el pipeline automático (cron, notificaciones) salta el
+ * canal WhatsApp por sus guards existentes — el apagado viene gratis.
+ */
+export async function DELETE() {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const { data: member } = await supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", user.id)
+    .eq("is_active", true)
+    .single();
+
+  if (!member || !["owner", "admin"].includes(member.role)) {
+    return NextResponse.json({ error: "No tienes permisos" }, { status: 403 });
+  }
+
+  const { error } = await supabase
+    .from("whatsapp_config")
+    .delete()
+    .eq("organization_id", member.organization_id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+/**
  * POST /api/whatsapp/config
  * Verifies the connection to Meta API.
  */
