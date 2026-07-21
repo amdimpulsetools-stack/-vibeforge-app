@@ -24,6 +24,10 @@
     {
       "path": "/api/cron/live-status-eod-sweep",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/sheets-mirror",
+      "schedule": "0 9 * * *"
     }
   ]
 }

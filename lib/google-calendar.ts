@@ -62,10 +62,27 @@ const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
 const GOOGLE_REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const GOOGLE_CAL_BASE = "https://www.googleapis.com/calendar/v3";
 
-// Only the events scope. Principle of least privilege — we cannot read or
-// modify any other Google data this way.
-const SCOPE = "https://www.googleapis.com/auth/calendar.events";
+// Least-privilege scopes:
+//   - calendar.events → the one-way calendar mirror (mig 106).
+//   - drive.file      → the Google Sheets backup (mig 179). drive.file only
+//     grants access to files THIS app created — not the user's whole Drive,
+//     and NOT the broad `spreadsheets` scope. Cheaper OAuth verification and
+//     the clinic keeps ownership of the doc.
+// Requested together and incrementally (include_granted_scopes below): orgs
+// connected before Sheets existed keep working; on their next reconnect they
+// pick up drive.file. Detect per-org via the persisted `scope` column.
+export const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+const SCOPE = [
+  "https://www.googleapis.com/auth/calendar.events",
+  DRIVE_FILE_SCOPE,
+].join(" ");
 const DEFAULT_TZ = "America/Lima";
+
+/** True when the org's stored scope grants the Sheets backup (drive.file). */
+export function hasDriveScope(scope: string | null | undefined): boolean {
+  if (!scope) return false;
+  return scope.split(/\s+/).includes(DRIVE_FILE_SCOPE);
+}
 
 // Refresh 60s before actual expiration to avoid edge-of-window 401s.
 const REFRESH_MARGIN_MS = 60 * 1000;
@@ -224,7 +241,7 @@ export async function getIntegration(
  * active integration. Throws on refresh failure (caller decides whether to
  * mark integration inactive).
  */
-async function getValidAccessToken(integration: GCalIntegration): Promise<string> {
+export async function getValidAccessToken(integration: GCalIntegration): Promise<string> {
   const expiresAtMs = new Date(integration.expires_at).getTime();
   const stillValid = expiresAtMs - REFRESH_MARGIN_MS > Date.now();
 
@@ -250,7 +267,7 @@ async function getValidAccessToken(integration: GCalIntegration): Promise<string
   return refreshed.access_token;
 }
 
-async function markSyncSuccess(integrationId: string) {
+export async function markSyncSuccess(integrationId: string) {
   const supabase = createAdminClient();
   await supabase
     .from("google_calendar_integrations")
@@ -262,7 +279,7 @@ async function markSyncSuccess(integrationId: string) {
     .eq("id", integrationId);
 }
 
-async function markSyncError(integrationId: string, err: unknown, deactivate = false) {
+export async function markSyncError(integrationId: string, err: unknown, deactivate = false) {
   const supabase = createAdminClient();
   const message = err instanceof Error ? err.message : String(err);
   await supabase

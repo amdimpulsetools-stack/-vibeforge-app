@@ -12,6 +12,9 @@ import {
   ArrowRight,
   AlertTriangle,
   Clock,
+  RefreshCw,
+  ExternalLink,
+  Table2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLanguage } from "@/components/language-provider";
@@ -112,13 +115,24 @@ interface GCalStatus {
   last_sync_at?: string | null;
   last_sync_error?: string | null;
   is_active?: boolean;
+  // Google Sheets mirror (mig 179)
+  sheets_enabled?: boolean;
+  sheets_spreadsheet_id?: string | null;
+  has_drive_scope?: boolean;
+}
+
+function spreadsheetUrl(id: string): string {
+  return `https://docs.google.com/spreadsheets/d/${id}/edit`;
 }
 
 export default function IntegracionesTab() {
   const { language } = useLanguage();
-  const { organizationId } = useOrganization();
+  const { organizationId, isOrgAdmin } = useOrganization();
   const confirm = useConfirm();
   const es = language === "es";
+
+  const [sheetsSaving, setSheetsSaving] = useState(false);
+  const [sheetsRefreshing, setSheetsRefreshing] = useState(false);
 
   const [whatsappWizardOpen, setWhatsappWizardOpen] = useState(false);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
@@ -197,6 +211,72 @@ export default function IntegracionesTab() {
       fetchGCalStatus();
     } else {
       toast.error(es ? "Error al desconectar." : "Disconnect failed.");
+    }
+  };
+
+  // ── Google Sheets backup (mig 179) ──
+  const handleRefreshSheet = useCallback(async () => {
+    setSheetsRefreshing(true);
+    try {
+      const res = await fetch("/api/integrations/google/sheets-refresh", { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        if (data?.spreadsheetId) {
+          setGcal((g) => ({ ...g, sheets_spreadsheet_id: data.spreadsheetId }));
+        }
+        toast.success(es ? "Hoja actualizada." : "Sheet updated.");
+        fetchGCalStatus();
+      } else if (res.status === 403) {
+        toast.error(es ? "Solo el owner o admin puede hacer esto." : "Owner/admin only.");
+      } else if (data?.reason === "missing_drive_scope") {
+        toast.error(
+          es ? "Reconecta Google para habilitar la hoja." : "Reconnect Google to enable the sheet."
+        );
+      } else {
+        toast.error(es ? "No se pudo actualizar la hoja." : "Could not update the sheet.");
+      }
+    } finally {
+      setSheetsRefreshing(false);
+    }
+  }, [es, fetchGCalStatus]);
+
+  const handleToggleSheets = async (enabled: boolean) => {
+    setSheetsSaving(true);
+    try {
+      const res = await fetch("/api/integrations/google/sheets-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled }),
+      });
+      if (res.ok) {
+        setGcal((g) => ({ ...g, sheets_enabled: enabled }));
+        toast.success(
+          enabled
+            ? es
+              ? "Respaldo en Google Sheets activado."
+              : "Google Sheets backup enabled."
+            : es
+              ? "Respaldo en Google Sheets desactivado."
+              : "Google Sheets backup disabled."
+        );
+        // When just enabled, kick off a first write so the sheet exists.
+        if (enabled) await handleRefreshSheet();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        if (data?.error === "missing_drive_scope") {
+          toast.error(
+            es
+              ? "Reconecta Google para habilitar la hoja."
+              : "Reconnect Google to enable the sheet."
+          );
+        } else if (data?.error === "forbidden") {
+          toast.error(es ? "Solo el owner o admin puede hacer esto." : "Owner/admin only.");
+        } else {
+          toast.error(es ? "No se pudo guardar." : "Could not save.");
+        }
+      }
+    } finally {
+      setSheetsSaving(false);
     }
   };
 
@@ -423,6 +503,92 @@ export default function IntegracionesTab() {
                         <Settings className="h-3.5 w-3.5" />
                         {es ? "Personalizar descripción" : "Customize description"}
                       </button>
+
+                      {/* Google Sheets backup (mig 179) */}
+                      <div className="rounded-lg border border-border/60 bg-muted/20 p-3">
+                        <div className="mb-2 flex items-center gap-1.5">
+                          <Table2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span className="text-xs font-semibold">
+                            {es ? "Respaldo en Google Sheets" : "Google Sheets backup"}
+                          </span>
+                        </div>
+
+                        {gcal.has_drive_scope === false ? (
+                          // Scope missing — connected before Sheets existed.
+                          <div className="space-y-2">
+                            <p className="text-[11px] leading-relaxed text-muted-foreground">
+                              {es
+                                ? "Reconecta tu cuenta de Google para autorizar la hoja de cálculo (permiso de un solo archivo que Yenda crea)."
+                                : "Reconnect your Google account to authorize the spreadsheet (single-file permission Yenda creates)."}
+                            </p>
+                            <button
+                              onClick={handleConnectGCal}
+                              disabled={!isOrgAdmin}
+                              className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-700 hover:bg-amber-500/20 disabled:opacity-40 disabled:cursor-not-allowed dark:text-amber-400 transition-colors"
+                            >
+                              <RefreshCw className="h-3.5 w-3.5" />
+                              {es ? "Reconectar Google para habilitar" : "Reconnect Google to enable"}
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <label className="flex items-center justify-between gap-2">
+                              <span className="text-[11px] leading-relaxed text-muted-foreground">
+                                {es
+                                  ? "Espeja tus citas (−30/+90 días) a una hoja en tu Drive, cada noche."
+                                  : "Mirror your appointments (−30/+90 days) to a sheet in your Drive, nightly."}
+                              </span>
+                              <button
+                                role="switch"
+                                aria-checked={!!gcal.sheets_enabled}
+                                disabled={!isOrgAdmin || sheetsSaving}
+                                onClick={() => handleToggleSheets(!gcal.sheets_enabled)}
+                                className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                                  gcal.sheets_enabled ? "bg-emerald-500" : "bg-muted-foreground/30"
+                                }`}
+                              >
+                                <span
+                                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                    gcal.sheets_enabled ? "translate-x-4" : "translate-x-0.5"
+                                  }`}
+                                />
+                              </button>
+                            </label>
+
+                            {gcal.sheets_enabled && (
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  onClick={handleRefreshSheet}
+                                  disabled={!isOrgAdmin || sheetsRefreshing}
+                                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  {sheetsRefreshing ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                  )}
+                                  {es ? "Actualizar hoja ahora" : "Update sheet now"}
+                                </button>
+                                {gcal.sheets_spreadsheet_id ? (
+                                  <a
+                                    href={spreadsheetUrl(gcal.sheets_spreadsheet_id)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors"
+                                  >
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                    {es ? "Abrir hoja" : "Open sheet"}
+                                  </a>
+                                ) : (
+                                  <span className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-border/40 px-3 py-1.5 text-xs text-muted-foreground/60">
+                                    {es ? "Sin hoja aún" : "No sheet yet"}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 

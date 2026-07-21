@@ -1,11 +1,18 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { format, subDays, addDays } from "date-fns";
 import type { AppointmentWithRelations, Doctor, Service } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
+import { exportToCSV } from "@/lib/export";
+import {
+  SHEET_EXPORT_COLUMNS,
+  buildExportRow,
+  type SheetExportAppointment,
+} from "@/lib/sheets-columns";
 import {
   CalendarDays,
   Search,
@@ -21,12 +28,16 @@ import {
   Building2,
   ClipboardList,
   DollarSign,
+  Download,
 } from "lucide-react";
 
 const PAGE_SIZE = 50;
+// Hard cap for a single CSV export (rango filtrado completo).
+const EXPORT_CAP = 5000;
 
 export default function AppointmentHistoryPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const es = language === "es";
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -42,6 +53,7 @@ export default function AppointmentHistoryPage() {
   const [filterService, setFilterService] = useState<string>("all");
   const [searchText, setSearchText] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   // Sorting
   const [sortField, setSortField] = useState<"date" | "patient" | "price">("date");
@@ -146,6 +158,69 @@ export default function AppointmentHistoryPage() {
     }
   };
 
+  // Export the FULL filtered range (not just the current page) to CSV with BOM,
+  // using the same columns as the Google Sheets mirror.
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const supabase = createClient();
+      let query = supabase
+        .from("appointments")
+        .select(
+          "id, patient_name, patient_phone, appointment_date, start_time, end_time, status, origin, payment_method, price_snapshot, created_at, doctors(full_name), offices(name), services(name)"
+        )
+        .gte("appointment_date", dateFrom)
+        .lte("appointment_date", dateTo)
+        .order("appointment_date", { ascending: true })
+        .order("start_time", { ascending: true })
+        .limit(EXPORT_CAP + 1);
+
+      if (filterStatus !== "all") query = query.eq("status", filterStatus);
+      if (filterDoctor !== "all") query = query.eq("doctor_id", filterDoctor);
+      if (filterService !== "all") query = query.eq("service_id", filterService);
+
+      const { data, error } = await query;
+      if (error) {
+        toast.error(es ? "Error al exportar." : "Export failed.");
+        return;
+      }
+
+      let rows = (data ?? []) as unknown as SheetExportAppointment[];
+
+      // Apply the same client-side text filter as the visible table.
+      const term = searchText.trim().toLowerCase();
+      if (term) {
+        rows = rows.filter(
+          (a) =>
+            (a.patient_name ?? "").toLowerCase().includes(term) ||
+            (a.doctors?.full_name ?? "").toLowerCase().includes(term) ||
+            (a.services?.name ?? "").toLowerCase().includes(term) ||
+            (a.offices?.name ?? "").toLowerCase().includes(term)
+        );
+      }
+
+      if (rows.length > EXPORT_CAP) {
+        rows = rows.slice(0, EXPORT_CAP);
+        toast.warning(
+          es
+            ? `Se exportaron las primeras ${EXPORT_CAP} filas. Acota el rango de fechas para exportar menos.`
+            : `Exported the first ${EXPORT_CAP} rows. Narrow the date range to export fewer.`
+        );
+      }
+
+      if (rows.length === 0) {
+        toast.info(t("common.no_results"));
+        return;
+      }
+
+      const csvRows = rows.map(buildExportRow);
+      const date = new Date().toISOString().slice(0, 10);
+      exportToCSV([...SHEET_EXPORT_COLUMNS], csvRows, `citas_${date}.csv`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const SortIcon = ({ field }: { field: string }) => {
     if (sortField !== field) return null;
     return sortDir === "asc" ? (
@@ -173,14 +248,25 @@ export default function AppointmentHistoryPage() {
             <h1 className="text-lg font-bold">{t("history.title")}</h1>
             <p className="text-sm text-muted-foreground">{t("history.subtitle")}</p>
           </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent transition-colors"
-          >
-            <Filter className="h-4 w-4" />
-            {t("history.filters")}
-            {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleExport}
+              disabled={exporting || loading}
+              className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Exportar CSV"
+            >
+              {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              <span className="hidden sm:inline">{es ? "Exportar" : "Export"}</span>
+            </button>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent transition-colors"
+            >
+              <Filter className="h-4 w-4" />
+              {t("history.filters")}
+              {showFilters ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
+          </div>
         </div>
 
         {/* Filters panel */}
