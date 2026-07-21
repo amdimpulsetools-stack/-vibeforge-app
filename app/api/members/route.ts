@@ -167,14 +167,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(planLimitErrorBody(memberCheck), { status: 402 });
   }
 
-  // Try to find existing user by email
-  const { data: targetUserId } = await supabase.rpc(
+  // Try to find existing user by email. Admin client a propósito: mig 178
+  // revocó EXECUTE de find_user_by_email para authenticated — era un oráculo
+  // global email→user_id invocable por cualquier usuario de cualquier org vía
+  // /rest/v1/rpc. El gating de rol admin/owner de esta ruta ya ocurrió arriba.
+  const supabaseAdmin = createAdminClient();
+  const { data: targetUserId } = await supabaseAdmin.rpc(
     "find_user_by_email",
     { lookup_email: email }
   );
 
   // --- CASE A: User already exists → add directly ---
-  const supabaseAdmin = createAdminClient();
 
   if (targetUserId) {
     // Check if already a member
