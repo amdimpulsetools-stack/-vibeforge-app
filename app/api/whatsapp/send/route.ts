@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
 import { sendWhatsAppMessage, resolveVariableValues } from "@/lib/whatsapp/send";
 import { decrypt } from "@/lib/encryption";
@@ -102,6 +103,12 @@ export async function POST(req: NextRequest) {
     phoneNumberId: config.phone_number_id,
   });
 
+  // whatsapp_message_logs INSERT is restricted to owner/admin by RLS
+  // (migration 048). This route only checks org membership (a receptionist
+  // can send), so message logs are written with the service-role client to
+  // avoid RLS failures on both the success and failure paths.
+  const adminForLogs = createAdminClient();
+
   try {
     const waTemplate = template as unknown as WhatsAppTemplate;
     const variableValues = body.variables
@@ -115,8 +122,8 @@ export async function POST(req: NextRequest) {
       variableValues
     );
 
-    // Log the message
-    await supabase.from("whatsapp_message_logs").insert({
+    // Log the message (service-role: RLS-safe regardless of caller role)
+    await adminForLogs.from("whatsapp_message_logs").insert({
       organization_id: member.organization_id,
       template_id: template.id,
       recipient_phone: body.recipient_phone,
@@ -131,8 +138,8 @@ export async function POST(req: NextRequest) {
     const message = err instanceof Error ? err.message : "Error al enviar mensaje";
     console.error("[WhatsApp Send]", message);
 
-    // Log the failure
-    await supabase.from("whatsapp_message_logs").insert({
+    // Log the failure (service-role: RLS-safe regardless of caller role)
+    await adminForLogs.from("whatsapp_message_logs").insert({
       organization_id: member.organization_id,
       template_id: template.id,
       recipient_phone: body.recipient_phone,

@@ -10,8 +10,8 @@
 # Setup (una sola vez): GitHub → Settings → Secrets and variables →
 # Actions → New repository secret → `CRON_SECRET` con EXACTAMENTE el
 # mismo valor configurado en Vercel. Opcional: variable de repositorio
-# `CRON_BASE_URL` si el dominio de prod no es https://app.yenda.app
-# (mismo fallback que usa app/api/cron/reminders/route.ts).
+# `CRON_BASE_URL` si el dominio de prod no es https://yenda.app
+# (dominio canónico, verificado en producción el 2026-07-22).
 #
 # Notas:
 # - Los schedules de Actions solo corren desde la rama default (main):
@@ -29,6 +29,7 @@ name: Cron Bridge
 on:
   schedule:
     - cron: "0 7 * * *"   # live-status-eod-sweep
+    - cron: "0 9 * * *"   # sheets-mirror (04:00 Lima)
     - cron: "0 12 * * *"  # daily-summary
     - cron: "0 13 * * *"  # reminders (fertility-followup-contact PAUSADO — ver abajo)
     - cron: "0 14 * * *"  # billing-status
@@ -55,6 +56,7 @@ jobs:
             *)
               case "${{ github.event.schedule }}" in
                 "0 7 * * *")  echo 'endpoints=/api/cron/live-status-eod-sweep' >> "$GITHUB_OUTPUT" ;;
+                "0 9 * * *")  echo 'endpoints=/api/cron/sheets-mirror' >> "$GITHUB_OUTPUT" ;;
                 "0 12 * * *") echo 'endpoints=/api/cron/daily-summary' >> "$GITHUB_OUTPUT" ;;
                 # fertility-followup-contact PAUSADO deliberadamente (auditoría
                 # 2026-07-21): el cron nunca corrió y hay 4 seguimientos de
@@ -76,7 +78,7 @@ jobs:
       - name: Fire cron endpoints
         env:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
-          BASE_URL: ${{ vars.CRON_BASE_URL || 'https://app.yenda.app' }}
+          BASE_URL: ${{ vars.CRON_BASE_URL || 'https://yenda.app' }}
         run: |
           if [ -z "$CRON_SECRET" ]; then
             echo "::error::CRON_SECRET no está configurado en GitHub Actions secrets"

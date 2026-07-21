@@ -168,6 +168,17 @@ Ver `docs/research/derma-photos-storage-strategy.md`. Diseñado pero no implemen
 
 ---
 
+#### Ítems trasladados desde el roadmap del PRD (2026-07-22, consolidación de fuente única)
+
+Con el split PRD/CHANGELOG, el roadmap vive SOLO aquí. Estos cuatro estaban únicamente en el PRD:
+
+- **Storage: límites y mensajes de espacio** — mostrar uso vs límite del plan (`max_storage_mb`) con CTA de upgrade al acercarse al tope. Hoy el límite existe en `plans` pero no se mide ni comunica.
+- **Módulo de Laboratorio** (addon `lab_integration`) — órdenes de laboratorio, resultados adjuntos al historial, catálogo de exámenes.
+- **Grabación de consulta + transcripción con IA** — audio de la consulta → Whisper/LLM → borrador SOAP. Alto valor para doctores, sensible en privacidad (consentimiento explícito requerido).
+- **Bundle Consulta + Tratamiento** (cobro único) — solapa parcialmente con "Atención combinada (multi-servicio por cita)" de abajo; evaluar juntos cuando se retome esa decisión.
+
+---
+
 #### Multi-gateway de pagos (Culqi → Openpay → MercadoPago)
 
 Ver `docs/research/openpay-pe-evaluation.md`. Recomendación: iniciar con Culqi como primer gateway adicional (Yape nativo). Estimado 3-4 días para abstracción + Culqi.

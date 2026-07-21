@@ -1,4 +1,5 @@
 import { WhatsAppClient } from "./client";
+import { normalizePhoneForWa } from "@/lib/whatsapp-clipboard-config";
 import type {
   WhatsAppTemplate,
   MetaSendMessagePayload,
@@ -8,6 +9,9 @@ import type {
 
 /**
  * Resolves variable values for a WhatsApp template given appointment data.
+ *
+ * Meta rejects empty parameters (error 132000), so any variable without a
+ * value falls back to "-" instead of "". Values are trimmed.
  */
 export function resolveVariableValues(
   template: WhatsAppTemplate,
@@ -16,7 +20,9 @@ export function resolveVariableValues(
   const resolved: Record<string, string> = {};
 
   for (const [position, variableName] of Object.entries(template.variable_mapping)) {
-    resolved[position] = data[variableName] || "";
+    const raw = data[variableName];
+    const value = typeof raw === "string" ? raw.trim() : "";
+    resolved[position] = value !== "" ? value : "-";
   }
 
   return resolved;
@@ -30,13 +36,23 @@ export function buildSendPayload(
   recipientPhone: string,
   variableValues: Record<string, string>
 ): MetaSendMessagePayload {
+  // Normalize the recipient to E.164 digits (assumes Peru +51 when no
+  // country code). Reception typically types "987 654 321" — without this
+  // the number reaches Meta as 9 digits and is rejected. Throwing here is
+  // safe: every call-site of sendWhatsAppMessage wraps it in try/catch and
+  // logs the failure, so the cron loop keeps going with the next appointment.
+  const normalizedPhone = normalizePhoneForWa(recipientPhone);
+  if (!normalizedPhone) {
+    throw new Error(`invalid_phone: ${recipientPhone ?? ""}`);
+  }
+
   const components: MetaMessageComponent[] = [];
 
   // Header parameters (if header has variables)
   if (template.header_type === "TEXT" && template.header_content?.includes("{{")) {
     components.push({
       type: "header",
-      parameters: [{ type: "text", text: variableValues["header_1"] || "" }],
+      parameters: [{ type: "text", text: variableValues["header_1"] || "-" }],
     });
   } else if (template.header_type === "IMAGE" && template.header_content) {
     components.push({
@@ -54,7 +70,7 @@ export function buildSendPayload(
   if (variableNumbers.length > 0) {
     const parameters: MetaMessageParameter[] = variableNumbers.map((n) => ({
       type: "text" as const,
-      text: variableValues[String(n)] || "",
+      text: variableValues[String(n)] || "-",
     }));
 
     components.push({
@@ -71,7 +87,7 @@ export function buildSendPayload(
           type: "button",
           sub_type: "url",
           index,
-          parameters: [{ type: "text", text: variableValues[`btn_${index}`] || "" }],
+          parameters: [{ type: "text", text: variableValues[`btn_${index}`] || "-" }],
         });
       }
     });
@@ -79,7 +95,7 @@ export function buildSendPayload(
 
   return {
     messaging_product: "whatsapp",
-    to: recipientPhone.replace(/[^0-9]/g, ""), // Strip non-numeric chars
+    to: normalizedPhone, // E.164 digits (Peru +51 assumed), validated above
     type: "template",
     template: {
       name: template.meta_template_name,
