@@ -132,22 +132,33 @@ export async function GET(req: NextRequest) {
       return true;
     });
 
-    // 5. Check which reminders were already sent
+    // 5. Check which reminders were already sent — PER CHANNEL.
+    // Email and WhatsApp are independent channels: a reminder that already
+    // went out by email must still be retried by WhatsApp in future runs
+    // (and vice-versa), so we keep a separate "already sent" set per channel.
     const appointmentIds = filteredAppointments.map((a) => a.id);
     const { data: existingLogs } = await supabase
       .from("reminder_logs")
-      .select("appointment_id")
+      .select("appointment_id, channel")
       .in("appointment_id", appointmentIds)
       .eq("template_slug", window.slug)
-      .eq("channel", "email")
+      .in("channel", ["email", "whatsapp"])
       .eq("status", "sent");
 
-    const alreadySent = new Set(
-      (existingLogs || []).map((l) => l.appointment_id)
+    const emailAlreadySent = new Set(
+      (existingLogs || [])
+        .filter((l) => l.channel === "email")
+        .map((l) => l.appointment_id)
+    );
+    const waAlreadySent = new Set(
+      (existingLogs || [])
+        .filter((l) => l.channel === "whatsapp")
+        .map((l) => l.appointment_id)
     );
 
+    // Process any appointment still pending on at least one channel.
     const toSend = filteredAppointments.filter(
-      (a) => !alreadySent.has(a.id)
+      (a) => !emailAlreadySent.has(a.id) || !waAlreadySent.has(a.id)
     );
 
     let sent = 0;
@@ -255,24 +266,8 @@ export async function GET(req: NextRequest) {
         const patient = appt.patients as any;
         const patientEmail = patient?.email || null;
 
-        if (!patientEmail) {
-          skipped++;
-          // Log as skipped
-          await supabase.from("reminder_logs").upsert(
-            {
-              appointment_id: appt.id,
-              template_slug: window.slug,
-              channel: "email",
-              recipient: "none",
-              status: "skipped",
-              error_message: "No patient email",
-            },
-            { onConflict: "appointment_id,template_slug,channel" }
-          );
-          continue;
-        }
-
-        // Build variables
+        // Shared variables — computed once and used by BOTH channels, so a
+        // patient without an email can still receive the WhatsApp reminder.
         const doctor = appt.doctors as any;
         const office = appt.offices as any;
         const service = appt.services as any;
@@ -300,106 +295,119 @@ export async function GET(req: NextRequest) {
             ? `S/. ${Number(rawAmount).toFixed(2)}`
             : "";
 
-        const variables: Record<string, string> = {
-          "{{paciente_nombre}}": patientName || "",
-          "{{doctor_nombre}}": doctor?.full_name || "",
-          "{{fecha_cita}}": formattedDate,
-          "{{hora_cita}}": appt.start_time?.slice(0, 5) || "",
-          "{{consultorio}}": office?.name || "",
-          "{{servicio}}": service?.name || "",
-          "{{clinica_nombre}}": clinicName,
-          "{{clinica_telefono}}": clinicPhoneVar?.value || "",
-          "{{direccion_clinica}}": org?.address || "",
-          "{{link_ubicacion}}": org?.google_maps_url || "",
-          "{{instrucciones_servicio}}": service?.pre_appointment_instructions || "",
-          "{{monto_cita}}": montoCita,
-          "{{link_cancelar}}": portalBaseUrl ? `${portalBaseUrl}/mis-citas` : "",
-          "{{link_reagendar}}": portalBaseUrl ? `${portalBaseUrl}/mis-citas` : "",
-        };
+        // ── EMAIL CHANNEL (independent) ──────────────────────────────────
+        // Only touch email if this reminder hasn't already gone out by email.
+        if (!emailAlreadySent.has(appt.id)) {
+          if (!patientEmail) {
+            // No email on file — skip ONLY the email channel and fall
+            // through to WhatsApp below (do NOT `continue`).
+            skipped++;
+            await supabase.from("reminder_logs").upsert(
+              {
+                appointment_id: appt.id,
+                template_slug: window.slug,
+                channel: "email",
+                recipient: "none",
+                status: "skipped",
+                error_message: "No patient email",
+              },
+              { onConflict: "appointment_id,template_slug,channel" }
+            );
+          } else {
+            const variables: Record<string, string> = {
+              "{{paciente_nombre}}": patientName || "",
+              "{{doctor_nombre}}": doctor?.full_name || "",
+              "{{fecha_cita}}": formattedDate,
+              "{{hora_cita}}": appt.start_time?.slice(0, 5) || "",
+              "{{consultorio}}": office?.name || "",
+              "{{servicio}}": service?.name || "",
+              "{{clinica_nombre}}": clinicName,
+              "{{clinica_telefono}}": clinicPhoneVar?.value || "",
+              "{{direccion_clinica}}": org?.address || "",
+              "{{link_ubicacion}}": org?.google_maps_url || "",
+              "{{instrucciones_servicio}}": service?.pre_appointment_instructions || "",
+              "{{monto_cita}}": montoCita,
+              "{{link_cancelar}}": portalBaseUrl ? `${portalBaseUrl}/mis-citas` : "",
+              "{{link_reagendar}}": portalBaseUrl ? `${portalBaseUrl}/mis-citas` : "",
+            };
 
-        let subject = template.subject;
-        let emailBody = template.body;
-        let emailBodyHtml = (template as { body_html?: string | null }).body_html ?? null;
+            let subject = template.subject;
+            let emailBody = template.body;
+            let emailBodyHtml = (template as { body_html?: string | null }).body_html ?? null;
 
-        for (const [key, value] of Object.entries(variables)) {
-          subject = subject.replaceAll(key, value);
-          emailBody = emailBody.replaceAll(key, value);
-          if (emailBodyHtml) {
-            const escaped = value
-              .replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;")
-              .replace(/"/g, "&quot;")
-              .replace(/'/g, "&#039;");
-            emailBodyHtml = emailBodyHtml.replaceAll(key, escaped);
+            for (const [key, value] of Object.entries(variables)) {
+              subject = subject.replaceAll(key, value);
+              emailBody = emailBody.replaceAll(key, value);
+              if (emailBodyHtml) {
+                const escaped = value
+                  .replace(/&/g, "&amp;")
+                  .replace(/</g, "&lt;")
+                  .replace(/>/g, "&gt;")
+                  .replace(/"/g, "&quot;")
+                  .replace(/'/g, "&#039;");
+                emailBodyHtml = emailBodyHtml.replaceAll(key, escaped);
+              }
+            }
+
+            const html = buildEmailHtml({
+              body: emailBody,
+              bodyHtml: emailBodyHtml,
+              brandColor,
+              logoUrl,
+              clinicName,
+            });
+
+            const emailResult = await sendEmail({
+              to: patientEmail,
+              subject,
+              html,
+              fromName,
+              replyTo,
+            });
+
+            if (emailResult.ok) {
+              await supabase.from("reminder_logs").upsert(
+                {
+                  appointment_id: appt.id,
+                  template_slug: window.slug,
+                  channel: "email",
+                  recipient: patientEmail,
+                  status: "sent",
+                },
+                { onConflict: "appointment_id,template_slug,channel" }
+              );
+              sent++;
+            } else {
+              const errorMsg = emailResult.skipped ? "email_not_configured" : emailResult.error;
+              console.error(
+                `[Cron Reminders] Failed to send email to ${patientEmail}:`,
+                errorMsg
+              );
+
+              await supabase.from("reminder_logs").upsert(
+                {
+                  appointment_id: appt.id,
+                  template_slug: window.slug,
+                  channel: "email",
+                  recipient: patientEmail,
+                  status: "failed",
+                  error_message: errorMsg,
+                },
+                { onConflict: "appointment_id,template_slug,channel" }
+              );
+
+              failed++;
+            }
           }
         }
 
-        const html = buildEmailHtml({
-          body: emailBody,
-          bodyHtml: emailBodyHtml,
-          brandColor,
-          logoUrl,
-          clinicName,
-        });
-
-        const emailResult = await sendEmail({
-          to: patientEmail,
-          subject,
-          html,
-          fromName,
-          replyTo,
-        });
-
-        if (emailResult.ok) {
-          await supabase.from("reminder_logs").upsert(
-            {
-              appointment_id: appt.id,
-              template_slug: window.slug,
-              channel: "email",
-              recipient: patientEmail,
-              status: "sent",
-            },
-            { onConflict: "appointment_id,template_slug,channel" }
-          );
-          sent++;
-        } else {
-          const errorMsg = emailResult.skipped ? "email_not_configured" : emailResult.error;
-          console.error(
-            `[Cron Reminders] Failed to send email to ${patientEmail}:`,
-            errorMsg
-          );
-
-          await supabase.from("reminder_logs").upsert(
-            {
-              appointment_id: appt.id,
-              template_slug: window.slug,
-              channel: "email",
-              recipient: patientEmail,
-              status: "failed",
-              error_message: errorMsg,
-            },
-            { onConflict: "appointment_id,template_slug,channel" }
-          );
-
-          failed++;
-        }
-
-        // Send WhatsApp reminder if configured
-        if (waClient && waTemplate) {
+        // ── WHATSAPP CHANNEL (independent) ───────────────────────────────
+        // Fires regardless of the email outcome above, and is retried in
+        // future runs until it succeeds (its own per-channel "sent" set).
+        if (waClient && waTemplate && !waAlreadySent.has(appt.id)) {
           const recipientPhone = patient?.phone || appt.patient_phone;
           if (recipientPhone) {
-            // Check if WA reminder already sent
-            const { data: existingWaLog } = await supabase
-              .from("reminder_logs")
-              .select("id")
-              .eq("appointment_id", appt.id)
-              .eq("template_slug", window.slug)
-              .eq("channel", "whatsapp")
-              .eq("status", "sent")
-              .maybeSingle();
-
-            if (!existingWaLog) {
+            {
               try {
                 const waVariableData: Record<string, string> = {
                   paciente_nombre: patientName || "",

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { buildEmailHtml } from "@/lib/email-template";
 import { parseBody } from "@/lib/api-utils";
 import { sendNotificationSchema } from "@/lib/validations/api";
@@ -73,16 +74,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Determine recipient email — patient email from patients table or from extra_variables
+  // Determine recipient email — patient email from patients table or from extra_variables.
+  // A missing email is NOT a hard stop: WhatsApp is an independent channel and the
+  // typical Peruvian patient only has a mobile. We skip ONLY the email send below and
+  // still attempt WhatsApp.
   const patientEmail =
     extra_variables?.patient_email ||
     (appointment.patients as any)?.email ||
     null;
-
-  if (!patientEmail) {
-    // No email on file — can't send, skip silently
-    return NextResponse.json({ skipped: true, reason: "no_patient_email" });
-  }
 
   const orgId = appointment.organization_id;
 
@@ -235,6 +234,13 @@ export async function POST(req: NextRequest) {
     const recipientPhone = patient?.phone || appointment.patient_phone;
 
     if (recipientPhone) {
+      // whatsapp_message_logs INSERT is restricted to owner/admin by RLS
+      // (migration 048). This route can be called by a receptionist, so the
+      // logs are written with the service-role client to avoid RLS failures.
+      const adminForLogs = createAdminClient();
+      // Captured so the failure branch can still reference the template that
+      // was being sent (may stay null if we fail before resolving it).
+      let waTemplateId: string | null = null;
       try {
         // Fetch WhatsApp config for this org
         const { data: waConfig } = await supabase
@@ -255,6 +261,7 @@ export async function POST(req: NextRequest) {
             .single();
 
           if (waTemplate) {
+            waTemplateId = waTemplate.id;
             const client = new WhatsAppClient({
               accessToken: decrypt(waConfig.access_token),
               wabaId: waConfig.waba_id,
@@ -285,8 +292,8 @@ export async function POST(req: NextRequest) {
               variableValues
             );
 
-            // Log the message
-            await supabase.from("whatsapp_message_logs").insert({
+            // Log the message (service-role: RLS-safe regardless of caller role)
+            await adminForLogs.from("whatsapp_message_logs").insert({
               organization_id: orgId,
               template_id: waTemplate.id,
               recipient_phone: recipientPhone,
@@ -302,6 +309,23 @@ export async function POST(req: NextRequest) {
       } catch (err) {
         const message = err instanceof Error ? err.message : "Error WA desconocido";
         console.error("[Notification WhatsApp Error]", message);
+
+        // Persist the failure so it is visible in the WA message log
+        // (previously this was only console.error'd and silently lost).
+        try {
+          await adminForLogs.from("whatsapp_message_logs").insert({
+            organization_id: orgId,
+            template_id: waTemplateId,
+            recipient_phone: recipientPhone,
+            patient_id: appointment.patient_id || null,
+            appointment_id: appointment.id,
+            status: "failed",
+            error_message: message,
+          });
+        } catch (logErr) {
+          console.error("[Notification WhatsApp Error] failed to persist log:", logErr);
+        }
+
         results.whatsapp = { success: false };
       }
     }

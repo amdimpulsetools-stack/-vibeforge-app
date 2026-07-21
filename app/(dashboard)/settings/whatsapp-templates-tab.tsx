@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -24,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
   Smartphone,
+  Zap,
 } from "lucide-react";
 import type {
   WhatsAppTemplate,
@@ -82,6 +84,36 @@ const STATUS_CONFIG: Record<
   },
 };
 
+// ── Automation link (email template) ────────────────────────────────────────
+
+/**
+ * A local email template linked to a WA template via `local_template_id`
+ * turns on automatic sending: the cron (reminders) and /api/notifications/send
+ * match `whatsapp_templates.local_template_id === email_templates.id`.
+ *
+ * Only these slugs are actually driven by the automatic pipeline
+ * (/api/notifications/send call-sites + cron windows), so we restrict the
+ * selector to them. Others (welcome, birthday, marketing…) never trigger a WA
+ * send and would be misleading here.
+ */
+const AUTOMATABLE_EMAIL_SLUGS = [
+  "appointment_confirmation",
+  "appointment_confirmation_virtual",
+  "appointment_reminder_24h",
+  "appointment_reminder_2h",
+  "appointment_rescheduled",
+  "appointment_cancelled",
+  "appointment_meeting_link_changed",
+  "payment_receipt",
+  "payment_invoice",
+] as const;
+
+interface EmailTemplateOption {
+  id: string;
+  slug: string;
+  name: string;
+}
+
 function StatusBadge({ status, language }: { status: WhatsAppTemplateStatus; language: string }) {
   const cfg = STATUS_CONFIG[status];
   return (
@@ -101,6 +133,7 @@ export default function WhatsAppTemplatesTab() {
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplateOption[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<WhatsAppTemplate | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
   const [statusFilter, setStatusFilter] = useState<WhatsAppTemplateStatus | "ALL">("ALL");
@@ -117,9 +150,24 @@ export default function WhatsAppTemplatesTab() {
     setLoading(false);
   }, [organizationId]);
 
+  const fetchEmailTemplates = useCallback(async () => {
+    if (!organizationId) return;
+    // RLS lets org members read their own email_templates. We only keep the
+    // slugs the automatic pipeline can actually trigger.
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("email_templates")
+      .select("id, slug, name")
+      .eq("organization_id", organizationId)
+      .in("slug", [...AUTOMATABLE_EMAIL_SLUGS])
+      .order("sort_order", { ascending: true });
+    setEmailTemplates((data as EmailTemplateOption[]) || []);
+  }, [organizationId]);
+
   useEffect(() => {
     fetchTemplates();
-  }, [fetchTemplates]);
+    fetchEmailTemplates();
+  }, [fetchTemplates, fetchEmailTemplates]);
 
   const filteredTemplates =
     statusFilter === "ALL"
@@ -138,6 +186,7 @@ export default function WhatsAppTemplatesTab() {
     return (
       <TemplateEditor
         template={editingTemplate}
+        emailTemplates={emailTemplates}
         onBack={() => {
           setEditingTemplate(null);
           setCreatingNew(false);
@@ -226,6 +275,7 @@ export default function WhatsAppTemplatesTab() {
               <TemplateRow
                 key={template.id}
                 template={template}
+                emailTemplates={emailTemplates}
                 language={language}
                 isAdmin={isOrgAdmin}
                 onEdit={() => setEditingTemplate(template)}
@@ -277,6 +327,7 @@ export default function WhatsAppTemplatesTab() {
 
 function TemplateRow({
   template,
+  emailTemplates,
   language,
   isAdmin,
   onEdit,
@@ -285,6 +336,7 @@ function TemplateRow({
   onSubmit,
 }: {
   template: WhatsAppTemplate;
+  emailTemplates: EmailTemplateOption[];
   language: string;
   isAdmin: boolean;
   onEdit: () => void;
@@ -293,6 +345,10 @@ function TemplateRow({
   onSubmit: () => void;
 }) {
   const es = language === "es";
+
+  const linkedEmail = template.local_template_id
+    ? emailTemplates.find((t) => t.id === template.local_template_id)
+    : null;
 
   return (
     <div className="group flex items-center gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 transition-all hover:border-primary/30 hover:bg-accent/50">
@@ -308,6 +364,16 @@ function TemplateRow({
           <span className="text-xs text-muted-foreground">
             {template.language}
           </span>
+          {template.local_template_id && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
+              title={es ? "Envío automático vinculado" : "Linked for automatic sending"}
+            >
+              <Zap className="h-2.5 w-2.5" />
+              {es ? "Auto: " : "Auto: "}
+              {linkedEmail?.name || linkedEmail?.slug || (es ? "vinculada" : "linked")}
+            </span>
+          )}
         </div>
         {template.body_text && (
           <p className="text-xs text-muted-foreground truncate mt-0.5 max-w-md">
@@ -375,11 +441,13 @@ function TemplateRow({
 
 function TemplateEditor({
   template,
+  emailTemplates,
   onBack,
   onSaved,
   language,
 }: {
   template: WhatsAppTemplate | null;
+  emailTemplates: EmailTemplateOption[];
   onBack: () => void;
   onSaved: () => void;
   language: string;
@@ -401,6 +469,7 @@ function TemplateEditor({
     buttons: (template?.buttons || []) as WhatsAppTemplateButton[],
     variable_mapping: (template?.variable_mapping || {}) as Record<string, string>,
     sample_values: (template?.sample_values || {}) as Record<string, string>,
+    local_template_id: (template?.local_template_id || "") as string,
   });
 
   // Extract variable count from body
@@ -427,6 +496,8 @@ function TemplateEditor({
       meta_template_name: isNew
         ? toMetaTemplateName(form.meta_template_name)
         : form.meta_template_name,
+      // The API expects a uuid or null — an empty string would fail validation.
+      local_template_id: form.local_template_id || null,
     };
 
     const res = await fetch(url, {
@@ -560,6 +631,35 @@ function TemplateEditor({
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Automation link — maps this WA template to an email template
+                slug so the cron / notifications pipeline sends it automatically */}
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium flex items-center gap-1.5">
+                <Zap className="h-3.5 w-3.5 text-emerald-500" />
+                {es ? "Usar para (automático)" : "Use for (automatic)"}
+              </label>
+              <select
+                value={form.local_template_id}
+                onChange={(e) => setForm({ ...form, local_template_id: e.target.value })}
+                disabled={!canEdit}
+                className={selectClass + " w-full"}
+              >
+                <option value="">
+                  {es ? "Ninguna (solo envío manual)" : "None (manual sending only)"}
+                </option>
+                {emailTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name || t.slug}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                {es
+                  ? "Vincula esta plantilla a un evento para que se envíe automáticamente (ej. confirmación o recordatorio de cita). Requiere que la plantilla esté aprobada por Meta y que WhatsApp esté activado en ese email."
+                  : "Link this template to an event so it is sent automatically (e.g. appointment confirmation or reminder). Requires Meta approval and WhatsApp enabled on that email template."}
+              </p>
             </div>
 
             {/* Header */}
