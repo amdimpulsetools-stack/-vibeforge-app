@@ -75,7 +75,7 @@ export async function sendTrialWelcomeEmail(params: {
         })
       : "";
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.yenda.app";
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yenda.app";
     const dashboardUrl = `${appUrl}/dashboard`;
     const guiaUrl = `${appUrl}/base-conocimientos`;
 

@@ -192,7 +192,7 @@ export async function GET(req: NextRequest) {
         .eq("key", "clinic_phone")
         .single();
 
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.yenda.app";
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://yenda.app";
       const portalEnabled = portalSettings?.portal_enabled && org?.slug;
       const portalBaseUrl = portalEnabled ? `${appUrl}/portal/${org.slug}` : "";
 
