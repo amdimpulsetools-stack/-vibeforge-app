@@ -36,6 +36,7 @@ import {
   Wallet,
   Banknote,
   Percent,
+  Tag,
   Video,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -180,6 +181,14 @@ export function AppointmentFormModal({
   const [discountValue, setDiscountValue] = useState("");
   const [discountReason, setDiscountReason] = useState("");
 
+  // Precio personalizado por-cita: override del `price_snapshot` SOLO para
+  // esta cita. No toca el catálogo (/admin/services). Cuando está activo, es
+  // la base de todo el pricing downstream (descuento, anticipo, seguro y el
+  // price_snapshot que se guarda). Cuando está inactivo, todo cae al precio
+  // del servicio y el comportamiento es byte-idéntico al anterior.
+  const [customPriceEnabled, setCustomPriceEnabled] = useState(false);
+  const [customPriceValue, setCustomPriceValue] = useState("");
+
   // Treatment plan linking — populated after a patient is found.
   // Each entry represents a session pending to be scheduled (no appointment yet).
   const [activePlanSessions, setActivePlanSessions] = useState<Array<{
@@ -240,16 +249,30 @@ export function AppointmentFormModal({
   const serviceModality = (selectedService as any)?.modality as string | undefined;
   const isVirtualService = serviceModality === "virtual" || serviceModality === "both";
 
+  // Precio efectivo de ESTA cita. Si el toggle "Precio personalizado" está
+  // activo y el valor es un número válido (≥ 0), esa es la base; si no, el
+  // precio del servicio del catálogo. Toda la cadena de pricing (descuento,
+  // anticipo, seguro, price_snapshot) se calcula sobre esta base para que el
+  // resumen refleje: personalizado → descuento → total.
+  const customPriceNum = Number(customPriceValue);
+  const customPriceValid =
+    customPriceEnabled &&
+    customPriceValue.trim() !== "" &&
+    !isNaN(customPriceNum) &&
+    customPriceNum >= 0;
+  const effectivePrice = customPriceValid ? customPriceNum : servicePrice;
+
   // Discount math — kept here so the deposit max stays in sync with the
   // post-discount total. We round to 2 decimals on the way in to avoid
-  // float-tail noise (e.g. 10% of 33.33 = 3.333000... → 3.33).
+  // float-tail noise (e.g. 10% of 33.33 = 3.333000... → 3.33). Base = precio
+  // efectivo (personalizado si aplica, si no el del servicio).
   const discountInputNum = Number(discountValue) || 0;
   const discountAmountComputed = discountEnabled
     ? discountMode === "percent"
-      ? Math.round(((servicePrice * Math.min(discountInputNum, 100)) / 100) * 100) / 100
-      : Math.min(Math.max(discountInputNum, 0), servicePrice)
+      ? Math.round(((effectivePrice * Math.min(discountInputNum, 100)) / 100) * 100) / 100
+      : Math.min(Math.max(discountInputNum, 0), effectivePrice)
     : 0;
-  const totalAfterDiscount = Math.max(0, servicePrice - discountAmountComputed);
+  const totalAfterDiscount = Math.max(0, effectivePrice - discountAmountComputed);
 
   // Auto-set deposit to 50% when service changes (or when discount changes,
   // so the suggested amount stays coherent with the post-discount total).
@@ -258,6 +281,20 @@ export function AppointmentFormModal({
       setDepositAmount((totalAfterDiscount * 0.5).toFixed(2));
     }
   }, [selectedServiceId, totalAfterDiscount]);
+
+  // Re-prefill the custom-price input with the NEW service's price whenever the
+  // service changes while the toggle is active — mirrors the anticipo auto-50%
+  // behavior so a stale number never lingers silently. A ref makes it fire on
+  // an actual service change, never on mount (initial ref === current id).
+  const prevServiceForCustomPriceRef = useRef(selectedServiceId);
+  useEffect(() => {
+    if (prevServiceForCustomPriceRef.current !== selectedServiceId) {
+      prevServiceForCustomPriceRef.current = selectedServiceId;
+      if (customPriceEnabled) {
+        setCustomPriceValue(servicePrice > 0 ? servicePrice.toFixed(2) : "");
+      }
+    }
+  }, [selectedServiceId, customPriceEnabled, servicePrice]);
 
   const watchedStartTime = watch("start_time");
   const endTime = useMemo(() => {
@@ -438,6 +475,25 @@ export function AppointmentFormModal({
       cancelled = true;
     };
   }, [watchedPatientId, selectedServiceId, servicePrice, insuranceRefetchKey]);
+
+  // Quotes shown to the user, rescaled to the custom price when active. The
+  // DB fetch above stays keyed on the service price (no re-query per keystroke),
+  // and since coverage is linear we recompute the amounts here from the same
+  // coverage_percent. The SAVED amounts are authoritative anyway: the
+  // `compute_appointment_insurance_amounts` trigger (mig 161) recomputes both
+  // insurance_coverage_amount and patient_copay server-side from price_snapshot.
+  const displayInsuranceQuotes = useMemo(() => {
+    if (!customPriceValid) return patientInsuranceQuotes;
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+    return patientInsuranceQuotes.map((q) => {
+      const insuranceAmount = r2((effectivePrice * q.coverage_percent) / 100);
+      return {
+        ...q,
+        insurance_amount: insuranceAmount,
+        patient_copay: r2(effectivePrice - insuranceAmount),
+      };
+    });
+  }, [patientInsuranceQuotes, customPriceValid, effectivePrice]);
 
   // ─── Service filter by doctor ─────────────────────────────────────────────
   const doctorServiceIds = useMemo(() => {
@@ -787,8 +843,13 @@ export function AppointmentFormModal({
       (s) => s.session_id === selectedPlanSessionId
     );
     const serviceForPrice = services.find((s) => s.id === values.service_id);
-    const priceSnapshot =
-      planSession?.session_price != null
+    // Precio personalizado tiene la máxima precedencia: si el toggle está
+    // activo con un monto válido, ESE es el price_snapshot de la cita. Si no,
+    // se mantiene la lógica actual (precio de la sesión del plan, si no el del
+    // servicio) — byte-idéntica al comportamiento previo.
+    const priceSnapshot = customPriceValid
+      ? customPriceNum
+      : planSession?.session_price != null
         ? Number(planSession.session_price)
         : serviceForPrice
           ? Number(serviceForPrice.base_price)
@@ -831,10 +892,10 @@ export function AppointmentFormModal({
         payment_mode: paymentMode,
         insurance_carrier_id: paymentMode === "insurance" ? selectedInsuranceCarrierId : null,
         insurance_coverage_amount: paymentMode === "insurance"
-          ? (patientInsuranceQuotes.find((q) => q.carrier.id === selectedInsuranceCarrierId)?.insurance_amount ?? 0)
+          ? (displayInsuranceQuotes.find((q) => q.carrier.id === selectedInsuranceCarrierId)?.insurance_amount ?? 0)
           : 0,
         patient_copay: paymentMode === "insurance"
-          ? (patientInsuranceQuotes.find((q) => q.carrier.id === selectedInsuranceCarrierId)?.patient_copay ?? 0)
+          ? (displayInsuranceQuotes.find((q) => q.carrier.id === selectedInsuranceCarrierId)?.patient_copay ?? 0)
           : Math.max(0, (priceSnapshot ?? 0) - (discountEnabled ? discountAmountComputed : 0)),
       } as Record<string, unknown>)
       .select("id")
@@ -1437,15 +1498,78 @@ export function AppointmentFormModal({
                   {discountEnabled && discountAmountComputed > 0 ? (
                     <span className="flex items-baseline gap-2">
                       <span className="text-xs line-through text-muted-foreground font-normal">
-                        S/. {servicePrice.toFixed(2)}
+                        S/. {effectivePrice.toFixed(2)}
                       </span>
                       <span>S/. {totalAfterDiscount.toFixed(2)}</span>
                     </span>
                   ) : (
-                    <>S/. {servicePrice.toFixed(2)}</>
+                    <>S/. {effectivePrice.toFixed(2)}</>
                   )}
                 </span>
               </div>
+
+              {/* Precio personalizado toggle — override del price_snapshot SOLO
+                  para esta cita. Va primero en la cadena: personalizado →
+                  descuento → total. Requiere servicio seleccionado (este bloque
+                  ya sólo se renderiza cuando servicePrice > 0). */}
+              <button
+                type="button"
+                onClick={() => {
+                  setCustomPriceEnabled((v) => {
+                    const next = !v;
+                    // Al activar: prellenar con el precio actual del servicio.
+                    // Al desactivar: volver al precio del servicio (limpiar).
+                    if (next) setCustomPriceValue(servicePrice.toFixed(2));
+                    else setCustomPriceValue("");
+                    return next;
+                  });
+                }}
+                className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2 text-sm transition-colors hover:bg-accent"
+              >
+                <span className="flex items-center gap-2 text-muted-foreground">
+                  <Tag className="h-4 w-4" />
+                  Precio personalizado
+                </span>
+                <div
+                  className={cn(
+                    "relative h-5 w-9 rounded-full transition-colors",
+                    customPriceEnabled ? "bg-primary" : "bg-muted"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform",
+                      customPriceEnabled && "translate-x-4"
+                    )}
+                  />
+                </div>
+              </button>
+
+              {customPriceEnabled && (
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Precio para esta cita
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-muted-foreground">
+                      S/.
+                    </span>
+                    <input
+                      type="number"
+                      value={customPriceValue}
+                      onChange={(e) => setCustomPriceValue(e.target.value)}
+                      min="0"
+                      step="0.50"
+                      placeholder={servicePrice.toFixed(2)}
+                      className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground">
+                    Solo para esta cita — no cambia el precio del servicio en el
+                    catálogo.
+                  </p>
+                </div>
+              )}
 
               {/* Discount toggle */}
               <button
@@ -1520,7 +1644,7 @@ export function AppointmentFormModal({
                         value={discountValue}
                         onChange={(e) => setDiscountValue(e.target.value)}
                         min="0"
-                        max={discountMode === "percent" ? 100 : servicePrice}
+                        max={discountMode === "percent" ? 100 : effectivePrice}
                         step={discountMode === "percent" ? "1" : "0.50"}
                         placeholder={discountMode === "percent" ? "10" : "0.00"}
                         className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
@@ -1538,7 +1662,7 @@ export function AppointmentFormModal({
                           − S/. {discountAmountComputed.toFixed(2)}
                         </span>
                         {" sobre "}
-                        S/. {servicePrice.toFixed(2)}
+                        S/. {effectivePrice.toFixed(2)}
                       </p>
                     )}
                   </div>
@@ -1612,7 +1736,7 @@ export function AppointmentFormModal({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setDepositAmount(servicePrice.toFixed(2))}
+                        onClick={() => setDepositAmount(effectivePrice.toFixed(2))}
                         className="rounded-lg bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent transition-colors"
                       >
                         100%
@@ -1668,7 +1792,7 @@ export function AppointmentFormModal({
                         Pendiente al día de la cita
                       </span>
                       <span className="font-bold text-amber-700 dark:text-amber-400">
-                        S/. {Math.max(0, servicePrice - Number(depositAmount)).toFixed(2)}
+                        S/. {Math.max(0, effectivePrice - Number(depositAmount)).toFixed(2)}
                       </span>
                     </div>
                   )}
@@ -1766,7 +1890,7 @@ export function AppointmentFormModal({
                   <span className="font-semibold">S/. {totalAfterDiscount.toFixed(2)}</span>
                 </label>
 
-                {patientInsuranceQuotes
+                {displayInsuranceQuotes
                   .filter((q) => q.covered)
                   .map((q) => {
                     const isSelected =
@@ -1808,7 +1932,7 @@ export function AppointmentFormModal({
               </div>
 
               {paymentMode === "insurance" && selectedInsuranceCarrierId && (() => {
-                const q = patientInsuranceQuotes.find(
+                const q = displayInsuranceQuotes.find(
                   (x) => x.carrier.id === selectedInsuranceCarrierId
                 );
                 if (!q) return null;
