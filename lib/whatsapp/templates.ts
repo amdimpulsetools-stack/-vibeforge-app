@@ -149,6 +149,48 @@ export async function syncTemplateStatus(
 }
 
 /**
+ * Pre-valida contra las reglas NO documentadas en el error de Meta —
+ * ambas devuelven el críptico "Invalid parameter" (#100) sin explicar:
+ *  1. Las variables del body deben ser consecutivas empezando en {{1}}
+ *     ({{1}},{{2}},{{5}} → rechazada por el salto).
+ *  2. El body no puede TERMINAR en una variable (ni empezar por una en
+ *     algunas revisiones — lo bloqueamos también, cuesta nada).
+ * Devuelve un mensaje accionable en español, o null si pasa.
+ * (Reproducido en vivo con el founder, 2026-07-22.)
+ */
+export function validateTemplateBodyForMeta(bodyText: string): string | null {
+  const numbers = [...bodyText.matchAll(/\{\{(\d+)\}\}/g)].map((m) =>
+    Number(m[1])
+  );
+  if (numbers.length > 0) {
+    const unique = [...new Set(numbers)].sort((a, b) => a - b);
+    const expected = Array.from({ length: unique.length }, (_, i) => i + 1);
+    const isSequential = unique.every((n, i) => n === expected[i]);
+    if (!isSequential) {
+      return (
+        `Meta exige variables consecutivas empezando en {{1}} y sin saltos. ` +
+        `Tu mensaje usa {{${unique.join("}}, {{")}}} — renumera a ` +
+        `{{${expected.join("}}, {{")}}} (y ajusta el mapeo).`
+      );
+    }
+    const trimmed = bodyText.trim();
+    if (/\{\{\d+\}\}$/.test(trimmed)) {
+      return (
+        "Meta no permite que el mensaje TERMINE en una variable. " +
+        "Agrega texto después de la última variable (ej. \"¡Te esperamos!\")."
+      );
+    }
+    if (/^\{\{\d+\}\}/.test(trimmed)) {
+      return (
+        "Meta no permite que el mensaje EMPIECE con una variable. " +
+        "Agrega texto antes (ej. \"Hola {{1}}, ...\")."
+      );
+    }
+  }
+  return null;
+}
+
+/**
  * Validates a Meta template name (lowercase, underscores, no spaces).
  */
 export function isValidMetaTemplateName(name: string): boolean {

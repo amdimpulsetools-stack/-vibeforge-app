@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
-import { submitTemplateToMeta } from "@/lib/whatsapp/templates";
+import {
+  submitTemplateToMeta,
+  validateTemplateBodyForMeta,
+} from "@/lib/whatsapp/templates";
 import { decrypt } from "@/lib/encryption";
 import type { WhatsAppTemplate } from "@/lib/whatsapp/types";
 
@@ -46,6 +49,13 @@ export async function POST(
 
   if (!template) {
     return NextResponse.json({ error: "Plantilla no encontrada" }, { status: 404 });
+  }
+
+  // Reglas de Meta que su API solo reporta como "Invalid parameter":
+  // validamos aquí para devolver un error accionable en español.
+  const bodyRuleError = validateTemplateBodyForMeta(template.body_text ?? "");
+  if (bodyRuleError) {
+    return NextResponse.json({ error: bodyRuleError }, { status: 400 });
   }
 
   if (!["DRAFT", "REJECTED"].includes(template.status)) {
