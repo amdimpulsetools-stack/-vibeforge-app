@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
@@ -34,6 +35,9 @@ import {
   MessageCircle,
   RefreshCw,
   HeartHandshake,
+  AlertTriangle,
+  Info,
+  Smartphone,
 } from "lucide-react";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -144,9 +148,28 @@ export default function EmailSettingsTab() {
   const { hasAnyAddon } = useOrgAddons();
   const fertilityActive = hasAnyAddon(["fertility_basic", "fertility_premium"]);
 
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // Cross-tab navigation: switch to "WA Business" (whatsapp-api) preserving
+  // other query params. The parent settings page reads ?tab= to render the
+  // active tab, so replacing the URL is enough to move the user there.
+  const goToTab = useCallback(
+    (tab: string) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("tab", tab);
+      router.replace(`?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams]
+  );
+
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<EmailSettings | null>(null);
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  // Set of email_template.id that HAVE an APPROVED WhatsApp template linked via
+  // whatsapp_templates.local_template_id — same criterion the send route and
+  // the reminders cron use to actually fire a WA message. If an event isn't in
+  // this set, its WhatsApp channel cannot work, so the WA toggle is disabled.
+  const [waApprovedByEmailId, setWaApprovedByEmailId] = useState<Set<string>>(new Set());
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [seedingTemplates, setSeedingTemplates] = useState(false);
@@ -157,7 +180,7 @@ export default function EmailSettingsTab() {
     if (!organizationId) return;
     const supabase = createClient();
 
-    const [settingsRes, templatesRes] = await Promise.all([
+    const [settingsRes, templatesRes, waTemplatesRes] = await Promise.all([
       supabase
         .from("email_settings")
         .select("id, organization_id, sender_name, sender_email, reply_to_email, brand_color, email_logo_url, notification_emails")
@@ -169,7 +192,26 @@ export default function EmailSettingsTab() {
         .eq("organization_id", organizationId)
         .order("category")
         .order("sort_order"),
+      // Which events have an APPROVED + linked WhatsApp template. Only these
+      // can actually deliver on WhatsApp (send route + cron both require
+      // status=APPROVED and local_template_id === email_template.id).
+      supabase
+        .from("whatsapp_templates")
+        .select("local_template_id, status")
+        .eq("organization_id", organizationId)
+        .eq("status", "APPROVED")
+        .not("local_template_id", "is", null),
     ]);
+
+    if (waTemplatesRes.data) {
+      setWaApprovedByEmailId(
+        new Set(
+          (waTemplatesRes.data as { local_template_id: string | null }[])
+            .map((w) => w.local_template_id)
+            .filter((id): id is string => !!id)
+        )
+      );
+    }
 
     if (settingsRes.data) {
       setSettings(settingsRes.data as EmailSettings);
@@ -264,16 +306,24 @@ export default function EmailSettingsTab() {
         onRefetch={fetchData}
       />
 
-      {/* Email templates by category */}
+      {/* Notifications matrix (event × channel) */}
       <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" />
           <div>
-            <h2 className="text-lg font-semibold">{t("email.templates_title")}</h2>
+            <h2 className="text-lg font-semibold">{t("email.notifications_title")}</h2>
             <p className="text-sm text-muted-foreground">
-              {t("email.templates_description")}
+              {t("email.notifications_description")}
             </p>
           </div>
+        </div>
+
+        {/* Honesty legend — the truth we verified in /api/notifications/send
+            and the reminders cron: is_enabled=false skips the WHOLE event
+            (both channels), so the email toggle is the event master switch. */}
+        <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          <Info className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
+          <p>{t("email.event_active_tip")}</p>
         </div>
 
         {(() => {
@@ -345,6 +395,20 @@ export default function EmailSettingsTab() {
           );
         })()}
 
+        {/* Column headers — the two channel columns of the matrix. Widths must
+            match the per-row cells in TemplateRow. */}
+        {templates.length > 0 && (
+          <div className="flex items-center gap-3 px-4 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <span className="flex-1">{t("email.col_event")}</span>
+            <span className="w-16 flex flex-col items-center leading-tight">
+              <span className="flex items-center gap-1"><Mail className="h-3 w-3" />{t("email.col_email")}</span>
+              <span className="text-[9px] font-normal normal-case text-muted-foreground/70">{t("email.col_email_hint")}</span>
+            </span>
+            <span className="w-36 flex items-center justify-center gap-1"><MessageCircle className="h-3 w-3" />{t("email.col_whatsapp")}</span>
+            <span className="w-16" />
+          </div>
+        )}
+
         {CATEGORIES.map((category) => {
           // Hide unimplemented templates
           const HIDDEN_SLUGS = new Set<string>([
@@ -373,6 +437,8 @@ export default function EmailSettingsTab() {
               key={category}
               category={category}
               templates={categoryTemplates}
+              waApprovedByEmailId={waApprovedByEmailId}
+              onConfigureWa={() => goToTab("whatsapp-api")}
               isTemplateLocked={isTemplateLocked}
               isAdmin={isOrgAdmin}
               onEdit={setEditingTemplate}
@@ -742,6 +808,8 @@ function GeneralSettings({
 function TemplateCategoryGroup({
   category,
   templates,
+  waApprovedByEmailId,
+  onConfigureWa,
   isTemplateLocked,
   isAdmin,
   onEdit,
@@ -750,6 +818,8 @@ function TemplateCategoryGroup({
 }: {
   category: TemplateCategory;
   templates: EmailTemplate[];
+  waApprovedByEmailId: Set<string>;
+  onConfigureWa: () => void;
   isTemplateLocked: (t: EmailTemplate) => boolean;
   isAdmin: boolean;
   onEdit: (t: EmailTemplate) => void;
@@ -774,6 +844,8 @@ function TemplateCategoryGroup({
               key={template.id}
               template={template}
               locked={locked}
+              hasApprovedWa={waApprovedByEmailId.has(template.id)}
+              onConfigureWa={onConfigureWa}
               isAdmin={isAdmin}
               onEdit={() => onEdit(template)}
               onToggle={() => onToggle(template)}
@@ -791,6 +863,8 @@ function TemplateCategoryGroup({
 function TemplateRow({
   template,
   locked,
+  hasApprovedWa,
+  onConfigureWa,
   isAdmin,
   onEdit,
   onToggle,
@@ -798,6 +872,11 @@ function TemplateRow({
 }: {
   template: EmailTemplate;
   locked: boolean;
+  // True when an APPROVED WhatsApp template is linked to this event
+  // (whatsapp_templates.local_template_id === template.id). Same chain the
+  // send route + reminders cron require to actually deliver on WhatsApp.
+  hasApprovedWa: boolean;
+  onConfigureWa: () => void;
   isAdmin: boolean;
   onEdit: () => void;
   onToggle: () => void;
@@ -815,6 +894,29 @@ function TemplateRow({
       } ${t("email.timing_before")}`
     : null;
 
+  // The event master switch: is_enabled=false skips the WHOLE event in both
+  // the send route and the reminders cron (the template query filters on
+  // is_enabled=true, so a disabled event never resolves a WA template either).
+  const eventActive = template.is_enabled && !locked;
+
+  // WhatsApp is only toggleable when: admin, not plan-locked, the event is
+  // active (otherwise it can never fire), and there's an APPROVED linked WA
+  // template. Otherwise the toggle is disabled with an explanatory tooltip.
+  const waReason = !hasApprovedWa
+    ? "no_template"
+    : !template.is_enabled
+    ? "event_off"
+    : null;
+  const waToggleEnabled = isAdmin && !locked && waReason === null;
+  const waTooltip =
+    waReason === "no_template"
+      ? t("email.wa_needs_template")
+      : waReason === "event_off"
+      ? t("email.wa_off_event_off")
+      : template.wa_enabled
+      ? "WhatsApp activado"
+      : "WhatsApp desactivado";
+
   return (
     <div
       className={`group flex items-center gap-3 rounded-xl border px-4 py-3 transition-all ${
@@ -823,41 +925,9 @@ function TemplateRow({
           : "border-border/60 bg-card hover:border-primary/30 hover:bg-accent/50"
       }`}
     >
-      {/* Toggle */}
-      <button
-        type="button"
-        onClick={onToggle}
-        disabled={!isAdmin || locked}
-        className="shrink-0 disabled:cursor-not-allowed"
-        title={template.is_enabled ? t("email.enabled") : t("email.disabled")}
-      >
-        {template.is_enabled && !locked ? (
-          <ToggleRight className="h-6 w-6 text-primary" />
-        ) : (
-          <ToggleLeft className="h-6 w-6 text-muted-foreground" />
-        )}
-      </button>
-
-      {/* WhatsApp toggle */}
-      <button
-        type="button"
-        onClick={onToggleWa}
-        disabled={!isAdmin || locked}
-        className="shrink-0 disabled:cursor-not-allowed"
-        title={template.wa_enabled ? "WhatsApp activado" : "WhatsApp desactivado"}
-      >
-        <MessageCircle
-          className={`h-5 w-5 transition-colors ${
-            template.wa_enabled && !locked
-              ? "text-emerald-500"
-              : "text-muted-foreground/40"
-          }`}
-        />
-      </button>
-
-      {/* Info */}
+      {/* ── Event (name + meta) ─────────────────────────────────────────── */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium truncate">{template.name}</span>
           {timingLabel && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">
@@ -877,10 +947,68 @@ function TemplateRow({
             {template.description}
           </p>
         )}
+        {/* Master-switch honesty: when the event is off, nothing sends. */}
+        {!locked && !template.is_enabled && (
+          <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400">
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            {t("email.event_off")}
+          </p>
+        )}
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* ── Email column (is_enabled — event master switch) ─────────────── */}
+      <div className="w-16 flex justify-center shrink-0">
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={!isAdmin || locked}
+          className="disabled:cursor-not-allowed"
+          title={t("email.event_active_tip")}
+          aria-label={t("email.event_active")}
+        >
+          {eventActive ? (
+            <ToggleRight className="h-6 w-6 text-primary" />
+          ) : (
+            <ToggleLeft className="h-6 w-6 text-muted-foreground" />
+          )}
+        </button>
+      </div>
+
+      {/* ── WhatsApp column (wa_enabled — needs approved linked template) ─ */}
+      <div className="w-36 flex flex-col items-center justify-center gap-0.5 shrink-0">
+        <button
+          type="button"
+          onClick={onToggleWa}
+          disabled={!waToggleEnabled}
+          className="disabled:cursor-not-allowed"
+          title={waTooltip}
+          aria-label={waTooltip}
+        >
+          <MessageCircle
+            className={`h-5 w-5 transition-colors ${
+              template.wa_enabled && waToggleEnabled
+                ? "text-emerald-500"
+                : "text-muted-foreground/40"
+            }`}
+          />
+        </button>
+        {/* When there's no approved+linked WA template, point the user to the
+            place where they configure that chain — WA Business. */}
+        {waReason === "no_template" && !locked && (
+          <button
+            type="button"
+            onClick={onConfigureWa}
+            className="flex items-center gap-0.5 text-[10px] text-primary hover:underline leading-tight text-center"
+            title={t("email.wa_needs_template")}
+          >
+            <Smartphone className="h-2.5 w-2.5 shrink-0" />
+            {t("email.wa_configure_link")}
+          </button>
+        )}
+      </div>
+
+      {/* ── Edit action ─────────────────────────────────────────────────── */}
+      <div className="w-16 flex justify-end shrink-0">
         {!locked && isAdmin && (
           <button
             type="button"
