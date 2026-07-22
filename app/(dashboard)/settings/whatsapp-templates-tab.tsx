@@ -108,6 +108,22 @@ const AUTOMATABLE_EMAIL_SLUGS = [
   "payment_invoice",
 ] as const;
 
+/** Ejemplos realistas por variable — se autollenan al mapear si el campo
+ *  de ejemplo está vacío. Meta EXIGE ejemplos para aprobar plantillas con
+ *  variables; dejarlos en blanco era la causa #1 del "Invalid parameter". */
+const SAMPLE_VALUE_DEFAULTS: Record<string, string> = {
+  paciente_nombre: "María López",
+  paciente_dni: "45678912",
+  paciente_telefono: "+51 987 654 321",
+  fecha_cita: "23/07/2026",
+  hora_cita: "9:00 am",
+  servicio: "Consulta general",
+  doctor_nombre: "Dra. García",
+  clinica_nombre: "Clínica Bienestar",
+  clinica_telefono: "+51 912 345 678",
+  monto_pagado: "S/ 200.00",
+};
+
 interface EmailTemplateOption {
   id: string;
   slug: string;
@@ -856,12 +872,30 @@ function TemplateEditor({
                     </span>
                     <select
                       value={form.variable_mapping[num] || ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        // Al mapear una variable, si el ejemplo está vacío se
+                        // autollena con un valor realista según el tipo —
+                        // Meta EXIGE ejemplos y dejarlos en blanco era la
+                        // causa #1 del "Invalid parameter" al someter.
+                        const currentSample = (form.sample_values[num] || "").trim();
+                        const autoSample =
+                          !currentSample && value
+                            ? SAMPLE_VALUE_DEFAULTS[value] ?? ""
+                            : null;
                         setForm({
                           ...form,
-                          variable_mapping: { ...form.variable_mapping, [num]: e.target.value },
-                        })
-                      }
+                          variable_mapping: { ...form.variable_mapping, [num]: value },
+                          ...(autoSample
+                            ? {
+                                sample_values: {
+                                  ...form.sample_values,
+                                  [num]: autoSample,
+                                },
+                              }
+                            : {}),
+                        });
+                      }}
                       className={selectClass + " w-full text-xs"}
                     >
                       <option value="">{es ? "— Seleccionar —" : "— Select —"}</option>
