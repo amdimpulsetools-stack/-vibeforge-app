@@ -23,6 +23,11 @@ export function buildMetaTemplatePayload(
     if (template.header_type === "TEXT") {
       headerComponent.format = "TEXT";
       headerComponent.text = template.header_content;
+      // Same Meta rule as the body: a TEXT header containing {{1}} must
+      // ship an example value or the whole template is rejected (#100).
+      if (/\{\{\d+\}\}/.test(template.header_content)) {
+        headerComponent.example = { header_text: ["Ejemplo"] };
+      }
     } else {
       headerComponent.format = template.header_type as "IMAGE" | "VIDEO" | "DOCUMENT";
       headerComponent.example = {
@@ -39,15 +44,28 @@ export function buildMetaTemplatePayload(
     text: template.body_text,
   };
 
-  // Add sample values for body variables
-  const variableNumbers = Object.keys(template.sample_values)
+  // Add sample values for body variables. Meta REJECTS ("Invalid
+  // parameter", #100) any template whose body contains {{n}} variables
+  // but ships no example values — so the variable list must come from
+  // the BODY TEXT itself, not only from whatever sample_values the user
+  // happened to type. Union of both sources + fallback per variable.
+  const bodyVarNumbers = [...template.body_text.matchAll(/\{\{(\d+)\}\}/g)].map(
+    (m) => Number(m[1])
+  );
+  const sampleKeyNumbers = Object.keys(template.sample_values)
     .map(Number)
-    .filter((n) => !isNaN(n))
-    .sort((a, b) => a - b);
+    .filter((n) => !isNaN(n));
+  const variableNumbers = [...new Set([...bodyVarNumbers, ...sampleKeyNumbers])].sort(
+    (a, b) => a - b
+  );
 
   if (variableNumbers.length > 0) {
     bodyComponent.example = {
-      body_text: [variableNumbers.map((n) => template.sample_values[String(n)] || `ejemplo_${n}`)],
+      body_text: [
+        variableNumbers.map(
+          (n) => template.sample_values[String(n)]?.trim() || `Ejemplo ${n}`
+        ),
+      ],
     };
   }
 
