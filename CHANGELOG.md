@@ -4076,6 +4076,50 @@ Bloque de endurecimiento operativo (billing + crons + seguridad) antes de abrir 
 
 ---
 
+## Changelog — Sesión 2026-07-22 (v0.15.22) — WhatsApp end-to-end operativo + Sheets + Notificaciones
+
+> **HITO: primer mensaje de WhatsApp automático real de la historia de Yenda.** Confirmación de cita enviada a las **9:39 AM** desde la org piloto (Dra. Patricia, con datos de prueba), tras un día completo de setup guiado con Meta: app WA YENDA, número de prueba, token permanente de system user, webhook verificado y plantillas aprobadas. Todo verificado contra `git log` y código.
+
+### 1. Pipeline WhatsApp — fixes de la auditoría pre-test (PRs #222 rescate / #224 / #225 / #226)
+Auditoría pre-test del pipeline automático (agente Fable 5): el envío directo funcionaba, pero el automático (cron de recordatorios + notificaciones por evento) tenía minas que garantizaban fallo silencioso. Fixes por agente Opus, revisados por el advisor.
+- **C1 — Normalización E.164 peruana** (`dc4b3e9`): `buildSendPayload` usa `normalizePhoneForWa` (la misma del modal manual): `"987 654 321"` → `51987654321`; `+51`/`51` tolerados; `<9` dígitos → `invalid_phone` logueado como `failed` sin romper el loop del cron. Dato real: **74 de 85 pacientes en prod** están en formato 9-dígitos — antes de esto casi ningún WhatsApp habría llegado.
+- **C2 — Selector "Usar para (automático)"** (`dc4b3e9`): el cron matchea `local_template_id` pero la UI nunca lo seteaba (vínculo imposible sin SQL → omisión silenciosa total). Select con los 9 slugs automatizables reales (incl. `appointment_cancelled`) + "Ninguna (solo manual)" + badge "Auto: X" en la card; POST y PUT persisten el campo.
+- **C3 — WhatsApp independiente del gate de email** (`dc4b3e9`): paciente sin email ya recibe WA (antes el `continue` del email saltaba ambos canales — el caso peruano típico celular-sin-correo). Dedupe por canal (`emailAlreadySent` / `waAlreadySent`): un WA fallido se reintenta en runs futuros aunque el email ya haya salido. Email-puro byte-idéntico (verificado por diff).
+- **A3 — Variables vacías → "-"** (`dc4b3e9`): Meta rechaza parámetros vacíos con `132000` y tumba el mensaje entero.
+- **M2 — Fallos WA persistidos + logs vía admin client** (`dc4b3e9`): los fallos de `/api/notifications/send` ahora se guardan en `whatsapp_message_logs`; ambos logs (éxito y fallo) de esa ruta y de `/api/whatsapp/send` pasan a admin client — la RLS de mig 048 solo permitía INSERT a owner/admin y una recepcionista perdía el log en silencio.
+- **Chips de variables con significado en vivo** (`2f39695`): cada chip `{{1}}..{{10}}` lee su significado desde el "Mapeo de variables" del propio form en vivo (`{{1}} · Nombre del paciente`, con tooltip) — nunca se desincroniza como una leyenda estática.
+- **Ejemplos garantizados al someter** (`57436ec`): la lista de variables se deriva del propio `body_text` (regex `{{n}}`) unida a las claves de `sample_values`, con fallback "Ejemplo N" — someter una plantilla con variables ya no puede fallar por ejemplos ausentes (Meta rebota con "Invalid parameter" #100). Mismo trato al header TEXT con `{{1}}`.
+- **Ejemplos inteligentes al mapear** (`773faa9`): al asignar una variable en el mapeo, el campo de ejemplo se autollena con un valor realista (`SAMPLE_VALUE_DEFAULTS`: "María López", "23/07/2026", "S/ 200.00"...) si estaba vacío — editable, pero ya no se olvida.
+- **Pre-validación de reglas ocultas de Meta** (`b283e7d`): `validateTemplateBodyForMeta()` corre en el submit ANTES de llamar a Meta y bloquea las 3 reglas que Meta nunca explica — variables no consecutivas (`{{1}},{{2}},{{5}}`), body que termina en variable, body que empieza con variable — devolviendo el error accionable en español con la renumeración exacta sugerida.
+- **Guard de idempotencia anti-duplicados** (`fe8d576`): crear una cita ya "confirmada" disparaba la notificación desde el form Y desde el cambio de estado → doble confirmación. Si la misma plantilla ya se envió a la misma cita en `<10 min` (`whatsapp_message_logs` por `appointment_id` + `template_id`) → respuesta `skipped_duplicate`. Ventana corta que permite reenvíos legítimos (cancelar y re-confirmar días después).
+- **`monto_pagado` desde `price_snapshot` fuera de eventos de pago** (`fe8d576`): `monto_pagado` solo existe en eventos de pago; en confirmaciones caía al fallback "-". Ahora fuera de pagos la variable se llena con el precio de la cita (`price_snapshot`, formateado "S/ X.XX") en ambos canales, sin editar plantillas ni re-aprobación de Meta.
+- **Diferido documentado**: C4 (timezone/frecuencia del cron) queda para Vercel Pro.
+
+### 2. UX de conexión WhatsApp (PR #223)
+- **Botón Desvincular** (`7996927`): `DELETE /api/whatsapp/config` (owner/admin) elimina la fila de credenciales (token cifrado incluido) y detiene todo envío automático por los guards existentes. Plantillas e historial de mensajes se **conservan**: re-vincular la misma WABA restaura todo y la auditoría no se pierde. En Integraciones, el estado conectado ejecuta el desvincular con `ConfirmDialog` destructivo (mismo patrón que GCal).
+- **Wizard abrible desde el candado** (`7996927`): el candado de la pestaña WA Business abre el wizard de 6 pasos in-place (modal en el sitio) en vez de redirigir a Integraciones — el botón pasa de "Ir a Integraciones" a "Conectar WhatsApp", con link secundario a Integraciones.
+
+### 3. Espejo Google Sheets + export historial (mig 179, PR #222)
+- **mig 179** (`0ba937a`): `sheets_enabled` + `sheets_spreadsheet_id` en `google_calendar_integrations` (aditiva, default off). Scope `drive.file` incremental al OAuth de Google (los ya conectados ven CTA "Reconectar para habilitar"; Yenda solo toca archivos que ella creó).
+- **Cron nocturno** `/api/cron/sheets-mirror` (04:00 Lima, registrado en `vercel.json` + Cron Bridge): reescribe por org el doc "Yenda — Citas — {org}" con 3 pestañas — **Hoy** (primera), **Citas** (-30/+90 días, fila 1 congelada, filtros, colores por estado) y **Léeme** (advertencia "se sobrescribe, la agenda se edita en Yenda" + última actualización). Diseño "espejo nocturno" a propósito: el append en tiempo real deriva en drift silencioso; tiempo real queda como fase 2. `lib/google-sheets.ts` (fetch crudo, reutiliza tokens/refresh, backoff 429) + `lib/sheets-columns.ts` (fuente única de columnas server/cliente). Solo datos operativos, nada clínico (Ley 29733: la hoja vive en el Drive del cliente).
+- **Botón "Actualizar ahora"** para forzar el espejo fuera del cron.
+- **Export CSV del historial de citas** con filtros.
+
+### 4. Precio personalizado por cita (`9720258`)
+- Toggle **"Precio personalizado"** en la ficha de creación de cita, junto a Descuento y Anticipo: input S/ prellenado con el precio del servicio, ayuda "Solo para esta cita — no cambia el catálogo".
+- **Sin migración**: `appointments.price_snapshot` ya es el precio congelado por-cita y todo lo downstream lo lee. `effectivePrice` como base única de la cadena (descuento %/monto y su tope, botón 100% del anticipo, "pendiente", preview de seguro). `price_snapshot` del insert con precedencia **personalizado > sesión de plan > servicio**.
+- **Seguro coherente**: el trigger de mig 161 recalcula copago/cobertura desde `NEW.price_snapshot`, así que el precio custom fluye automáticamente hasta el seguro. Toggle off = comportamiento byte-idéntico al actual (trazas A-D verificadas con números reales).
+- **Sidebar de edición = fase 2** (hoy no maneja precio; tocarlo implica decidir interacción con pagos/comprobantes emitidos).
+
+### 5. Pestaña Notificaciones (ex-Correos) (`d8fe79d`)
+El toggle `wa_enabled` de cada evento vivía escondido en "Correos" — founder y advisor tardaron 20 min en encontrarlo con la cadena de WhatsApp perfecta y el canal apagado. Regla aplicada: "configura donde piensas, no donde se guarda".
+- Tab "Correos" → **"Notificaciones"** (key interno `correos` intacto → deep-links viejos siguen funcionando) con **matriz evento × canal**: fila por evento con toggles 📧 Email y 📱 WhatsApp (mutan las MISMAS columnas `is_enabled` / `wa_enabled`, cero cambio de datos), agrupadas por categoría del seed.
+- **HALLAZGO verificado**: `is_enabled=false` mata el evento ENTERO (ambos canales — `notifications/send` y el cron filtran por `is_enabled` antes de resolver WA) → el toggle **Email se rotula como interruptor maestro**, con nota ámbar "Evento apagado: no se envía por ningún canal".
+- El toggle **WA se deshabilita con tooltip+link** cuando el evento no tiene plantilla WA aprobada+vinculada (mismo criterio que el cron).
+- **Aviso ámbar de cadena rota en WA Business**: card de plantilla APPROVED+vinculada cuyo evento tenga `wa_enabled=false` (o `is_enabled=false`) muestra advertencia con el nombre del evento y link directo a Notificaciones, distinguiendo "canal desactivado" vs "evento apagado". 13 keys i18n ES/EN nuevas.
+
+---
+
 ## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)
 
 > Detalle largo de cada feature implementada, movido verbatim desde la Sección 12 del PRD (que ahora es un checklist de una línea). Se conserva aquí para no perder contenido único.

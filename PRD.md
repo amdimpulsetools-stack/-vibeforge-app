@@ -1,7 +1,7 @@
 # VibeForge — Product Requirements Document (PRD)
 
 > **Última actualización:** 2026-07-22
-> **Versión:** 0.15.21
+> **Versión:** 0.15.22
 > **Estado (resumen ejecutivo):**
 > - **MVP en producción** multi-tenant (RLS), 4 roles + Founder, agenda día/semana con precisión al minuto, pacientes, historia clínica/SOAP completa, reportes, planes 3-tiers (S/129 / S/349 / S/649).
 > - **Addon vertical Fertilidad end-to-end** (`fertility_basic`): seguimientos automatizados con atribución honesta (categorías A/B/C), embudo de presupuestos con tiers A/B/C, generador de PDF per-org, lifecycle de tratamiento (por iniciar → en curso → completado) y crons de recordatorio.
@@ -9,6 +9,7 @@
 > - **Facturación electrónica SUNAT** vía Nubefact (boletas/facturas/notas de crédito desde la cita, pagos parciales, mapeo Catálogo 59, warning bancarización Ley 28194).
 > - **Billing Mercado Pago con período de gracia** (mig 144) + cancelación self-serve (Wave 1); Wave 2 (cambio de plan sincronizado con MP + reactivación) pendiente.
 > - **Seguridad y billing operativos endurecidos pre-piloto (v0.15.21)**: red anti-doble-cobro en el webhook MP (`cancelSupersededSubscriptions`), consolidación de asientos (mig 177) que desbloqueó a los 2 pilotos, hardening de seguridad con cierre de fuga cross-tenant crítica (mig 178), y crons revividos vía CRON_SECRET + Cron Bridge (GitHub Actions) con primera corrida real de billing-status.
+> - **Mensajería WhatsApp Business API operativa end-to-end (v0.15.22)**: primer WhatsApp automático real de la historia de Yenda (confirmación de cita, 2026-07-22) con el pipeline endurecido tras la auditoría pre-test (normalización E.164 peruana, canal WA independiente del email, pre-validación de reglas ocultas de Meta, guard anti-duplicados), UX de conexión/desvinculación, pestaña **Notificaciones** con matriz evento×canal, espejo nocturno en Google Sheets (mig 179) y precio personalizado por cita.
 > - **Hardening legal y de seguridad**: Ley 29733 / 29414, consentimiento informado digital (mig 120), 2FA opcional, límite de dispositivos anti-sharing (mig 156), audit log de acceso a HC (NTS 139).
 > - **Sistema de módulos verticales** (addons) con Curvas de Crecimiento OMS (pediatría) como primer vertical + catálogo de especialidades editables (mig 119).
 > - **Landing/pricing** saneados (S/ sin duplicar $, Excel como competidor real) + sección "Yenda no deja de crecer" con teasers de próximas features.
@@ -448,12 +449,12 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - **Persistencia:** localStorage por navegador (`vibeforge_wa_clipboard_enabled`, `vibeforge_wa_clipboard_template`)
 - **Archivos:** `lib/whatsapp-clipboard-config.ts`, `scheduler/whatsapp-clipboard-modal.tsx`, `settings/whatsapp-clipboard-tab.tsx`
 
-#### Fase 2: WhatsApp Business API (Pendiente)
-- Integración con WhatsApp Business API via Twilio o 360dialog
-- Envío automático de confirmaciones y recordatorios
-- Templates aprobados por Meta para mensajes transaccionales
-- Endpoint `app/api/whatsapp/send/route.ts`
-- Vinculación con sistema de recordatorios automáticos (F8)
+#### Fase 2: WhatsApp Business API (Implementado — operativo end-to-end)
+- Integración directa con WhatsApp Business API de Meta (credenciales cifradas, webhook verificado)
+- Envío automático de confirmaciones y recordatorios (cron + notificaciones por evento) con normalización E.164 peruana, dedupe por canal y guard anti-duplicados
+- Templates aprobados por Meta con submit/sync, mapeo de variables con ejemplos inteligentes y pre-validación de reglas ocultas de Meta
+- Endpoint `app/api/whatsapp/send/route.ts` + selector "Usar para (automático)" que vincula plantillas a eventos
+- **Primer envío automático real: 2026-07-22.** Detalle del pipeline endurecido: [CHANGELOG.md](CHANGELOG.md) (v0.15.22)
 
 ### 7.7 Dashboard por Rol
 - **Admin/Owner:** KPIs globales (pacientes, doctores, citas, ingresos), top servicios, heatmap de citas, stats operacionales
@@ -575,8 +576,9 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - Vista previa en vivo con datos de ejemplo
 - Botón de restaurar plantilla por defecto
 
-### Settings (Correos)
+### Settings (Notificaciones) — ex-"Correos"
 - Configuración de email (remitente, templates)
+- Matriz evento × canal (📧 Email / 📱 WhatsApp): el toggle Email actúa como interruptor maestro del evento; WA se deshabilita si falta plantilla aprobada+vinculada. Detalle: [CHANGELOG.md](CHANGELOG.md) (v0.15.22)
 
 ### Settings (Integraciones)
 - Marketplace visual de integraciones externas (WhatsApp Business API, Mercado Pago, Google Calendar, etc.)
