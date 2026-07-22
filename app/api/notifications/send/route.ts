@@ -167,7 +167,15 @@ export async function POST(req: NextRequest) {
     "{{link_cancelar}}": "", // TODO: generate public links
     "{{link_reagendar}}": "",
     "{{link_reunion}}": (appointment as any).meeting_url || "",
-    "{{monto_pagado}}": extra_variables?.monto_pagado || "",
+    // Fuera de eventos de pago no hay "monto pagado" — usamos el precio de
+    // la cita (price_snapshot) para que la variable muestre algo útil en
+    // confirmaciones/recordatorios en vez del fallback "-" (feedback del
+    // founder en el primer envío real).
+    "{{monto_pagado}}":
+      extra_variables?.monto_pagado ||
+      (appointment.price_snapshot != null
+        ? `S/ ${Number(appointment.price_snapshot).toFixed(2)}`
+        : ""),
     ...(extra_variables || {}),
   };
 
@@ -262,6 +270,34 @@ export async function POST(req: NextRequest) {
 
           if (waTemplate) {
             waTemplateId = waTemplate.id;
+
+            // Guard de idempotencia: crear una cita ya "confirmada" dispara
+            // la notificación desde el form Y desde el cambio de estado (y
+            // un doble click hace lo mismo) → el paciente recibía la MISMA
+            // confirmación duplicada (reproducido por el founder en el
+            // primer envío real). Si esta plantilla ya se envió a esta cita
+            // en los últimos 10 minutos, no se reenvía. La ventana corta
+            // permite reenvíos legítimos posteriores (ej. cancelar y volver
+            // a confirmar días después).
+            const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+            const { data: recentDup } = await adminForLogs
+              .from("whatsapp_message_logs")
+              .select("id")
+              .eq("appointment_id", appointment.id)
+              .eq("template_id", waTemplate.id)
+              .eq("status", "sent")
+              .gte("created_at", tenMinAgo)
+              .limit(1)
+              .maybeSingle();
+
+            if (recentDup) {
+              return NextResponse.json({
+                success: true,
+                to: patientEmail,
+                whatsapp: "skipped_duplicate",
+              });
+            }
+
             const client = new WhatsAppClient({
               accessToken: decrypt(waConfig.access_token),
               wabaId: waConfig.waba_id,
@@ -279,7 +315,11 @@ export async function POST(req: NextRequest) {
               doctor_nombre: doctor?.full_name || "",
               clinica_nombre: org?.name || "",
               clinica_telefono: clinicPhoneVar?.value || "",
-              monto_pagado: extra_variables?.monto_pagado || "",
+              monto_pagado:
+                extra_variables?.monto_pagado ||
+                (appointment.price_snapshot != null
+                  ? `S/ ${Number(appointment.price_snapshot).toFixed(2)}`
+                  : ""),
             };
 
             const typedWaTemplate = waTemplate as unknown as WhatsAppTemplate;
