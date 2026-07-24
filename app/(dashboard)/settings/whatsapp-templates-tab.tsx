@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
@@ -15,6 +16,7 @@ import {
   RefreshCw,
   FileText,
   AlertCircle,
+  AlertTriangle,
   CheckCircle2,
   Clock,
   XCircle,
@@ -128,6 +130,10 @@ interface EmailTemplateOption {
   id: string;
   slug: string;
   name: string;
+  // Channel state of the linked event — used to warn when a WA template is
+  // approved + linked but the WhatsApp channel of that event is switched off.
+  is_enabled: boolean;
+  wa_enabled: boolean;
 }
 
 function StatusBadge({ status, language }: { status: WhatsAppTemplateStatus; language: string }) {
@@ -146,6 +152,15 @@ export default function WhatsAppTemplatesTab() {
   const { language } = useLanguage();
   const { organizationId, isOrgAdmin } = useOrganization();
   const confirm = useConfirm();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // Jump to the "Notificaciones" tab (internal key stays "correos"), where the
+  // WhatsApp channel of each event is toggled.
+  const goToNotifications = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", "correos");
+    router.replace(`?${params.toString()}`, { scroll: false });
+  }, [router, searchParams]);
 
   const [loading, setLoading] = useState(true);
   const [templates, setTemplates] = useState<WhatsAppTemplate[]>([]);
@@ -173,7 +188,7 @@ export default function WhatsAppTemplatesTab() {
     const supabase = createClient();
     const { data } = await supabase
       .from("email_templates")
-      .select("id, slug, name")
+      .select("id, slug, name, is_enabled, wa_enabled")
       .eq("organization_id", organizationId)
       .in("slug", [...AUTOMATABLE_EMAIL_SLUGS])
       .order("sort_order", { ascending: true });
@@ -294,6 +309,7 @@ export default function WhatsAppTemplatesTab() {
                 emailTemplates={emailTemplates}
                 language={language}
                 isAdmin={isOrgAdmin}
+                onGoToNotifications={goToNotifications}
                 onEdit={() => setEditingTemplate(template)}
                 onDelete={async () => {
                   const ok = await confirm({
@@ -346,6 +362,7 @@ function TemplateRow({
   emailTemplates,
   language,
   isAdmin,
+  onGoToNotifications,
   onEdit,
   onDelete,
   onSync,
@@ -355,6 +372,7 @@ function TemplateRow({
   emailTemplates: EmailTemplateOption[];
   language: string;
   isAdmin: boolean;
+  onGoToNotifications: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onSync: () => void;
@@ -365,6 +383,18 @@ function TemplateRow({
   const linkedEmail = template.local_template_id
     ? emailTemplates.find((t) => t.id === template.local_template_id)
     : null;
+
+  // Broken-chain warning: template is APPROVED and linked to an event, but the
+  // event's WhatsApp channel (or the whole event) is off — so this approved
+  // template will never actually send. The fix lives in "Notificaciones".
+  const linkedEventName = linkedEmail?.name || linkedEmail?.slug || null;
+  const chainBroken =
+    template.status === "APPROVED" &&
+    !!template.local_template_id &&
+    !!linkedEmail &&
+    (!linkedEmail.wa_enabled || !linkedEmail.is_enabled);
+  const chainBrokenReason =
+    chainBroken && linkedEmail && !linkedEmail.is_enabled ? "event_off" : "wa_off";
 
   return (
     <div className="group flex items-center gap-3 rounded-xl border border-border/60 bg-card px-4 py-3 transition-all hover:border-primary/30 hover:bg-accent/50">
@@ -402,6 +432,40 @@ function TemplateRow({
             <AlertCircle className="h-3 w-3" />
             {template.rejection_reason}
           </p>
+        )}
+        {chainBroken && (
+          <button
+            type="button"
+            onClick={onGoToNotifications}
+            className="mt-1.5 flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-left text-[11px] text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 transition-colors"
+          >
+            <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
+            <span>
+              {es ? (
+                <>
+                  Aprobada y vinculada, pero el canal WhatsApp de{" "}
+                  <span className="font-semibold">
+                    &ldquo;{linkedEventName}&rdquo;
+                  </span>{" "}
+                  {chainBrokenReason === "event_off"
+                    ? "está desactivado (evento apagado)"
+                    : "está desactivado"}{" "}
+                  — actívalo en Notificaciones.
+                </>
+              ) : (
+                <>
+                  Approved and linked, but the WhatsApp channel of{" "}
+                  <span className="font-semibold">
+                    &ldquo;{linkedEventName}&rdquo;
+                  </span>{" "}
+                  {chainBrokenReason === "event_off"
+                    ? "is off (event disabled)"
+                    : "is off"}{" "}
+                  — turn it on in Notifications.
+                </>
+              )}
+            </span>
+          </button>
         )}
       </div>
 

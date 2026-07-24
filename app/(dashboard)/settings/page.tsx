@@ -616,7 +616,9 @@ export default function SettingsPage() {
     { id: "general", label: "General", icon: <Building2 className="h-4 w-4" /> },
     { id: "agenda", label: language === "es" ? "Agenda" : "Scheduler", icon: <CalendarDays className="h-4 w-4" /> },
     { id: "reservas", label: language === "es" ? "Reservas" : "Booking", icon: <Globe2 className="h-4 w-4" /> },
-    { id: "correos", label: language === "es" ? "Correos" : "Emails", icon: <Mail className="h-4 w-4" /> },
+    // Tab renamed to "Notificaciones" (matriz evento × canal). El key interno
+    // sigue siendo "correos" para NO romper deep-links guardados (?tab=correos).
+    { id: "correos", label: language === "es" ? "Notificaciones" : "Notifications", icon: <Mail className="h-4 w-4" /> },
     { id: "plantillas-hc", label: language === "es" ? "Plantillas HC" : "Clinical Templates", icon: <FileText className="h-4 w-4" /> },
     ...(hasFertilityAddon
       ? [{ id: "presupuestos" as const, label: language === "es" ? "Presupuestos" : "Budgets", icon: <FileSignature className="h-4 w-4" /> }]
