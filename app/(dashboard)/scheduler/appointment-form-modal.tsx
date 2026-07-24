@@ -269,7 +269,7 @@ export function AppointmentFormModal({
   const discountInputNum = Number(discountValue) || 0;
   const discountAmountComputed = discountEnabled
     ? discountMode === "percent"
-      ? Math.round(((effectivePrice * Math.min(discountInputNum, 100)) / 100) * 100) / 100
+      ? Math.round(((effectivePrice * Math.min(Math.max(discountInputNum, 0), 100)) / 100) * 100) / 100
       : Math.min(Math.max(discountInputNum, 0), effectivePrice)
     : 0;
   const totalAfterDiscount = Math.max(0, effectivePrice - discountAmountComputed);
@@ -279,6 +279,11 @@ export function AppointmentFormModal({
   useEffect(() => {
     if (totalAfterDiscount > 0) {
       setDepositAmount((totalAfterDiscount * 0.5).toFixed(2));
+    } else {
+      // Total S/ 0 (descuento 100%, precio personalizado 0): sin esto quedaría
+      // la sugerencia del total anterior y se registraría un anticipo mayor
+      // que el total real.
+      setDepositAmount("");
     }
   }, [selectedServiceId, totalAfterDiscount]);
 
@@ -768,6 +773,16 @@ export function AppointmentFormModal({
 
     if (officeConflict) {
       toast.error(t("scheduler.conflict_error"));
+      return;
+    }
+
+    // El anticipo es un pago a cuenta del total FINAL (post-descuento): nunca
+    // puede superarlo. El input tiene max=, pero max no bloquea la escritura
+    // manual ni el caso en que el descuento se activa después de tipear.
+    if (depositEnabled && Number(depositAmount) > totalAfterDiscount) {
+      toast.error(
+        `El anticipo (S/. ${Number(depositAmount).toFixed(2)}) no puede superar el total a pagar (S/. ${totalAfterDiscount.toFixed(2)})`
+      );
       return;
     }
 
@@ -1736,7 +1751,7 @@ export function AppointmentFormModal({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setDepositAmount(effectivePrice.toFixed(2))}
+                        onClick={() => setDepositAmount(totalAfterDiscount.toFixed(2))}
                         className="rounded-lg bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent transition-colors"
                       >
                         100%
@@ -1792,7 +1807,7 @@ export function AppointmentFormModal({
                         Pendiente al día de la cita
                       </span>
                       <span className="font-bold text-amber-700 dark:text-amber-400">
-                        S/. {Math.max(0, effectivePrice - Number(depositAmount)).toFixed(2)}
+                        S/. {Math.max(0, totalAfterDiscount - Number(depositAmount)).toFixed(2)}
                       </span>
                     </div>
                   )}
