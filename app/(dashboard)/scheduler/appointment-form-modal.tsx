@@ -260,7 +260,21 @@ export function AppointmentFormModal({
     customPriceValue.trim() !== "" &&
     !isNaN(customPriceNum) &&
     customPriceNum >= 0;
-  const effectivePrice = customPriceValid ? customPriceNum : servicePrice;
+  // Si la cita está vinculada a una sesión de plan de tratamiento con precio
+  // propio, esa es la base visual — la misma precedencia que el price_snapshot
+  // persistido (personalizado > sesión del plan > servicio), para que el
+  // resumen, el descuento y el anticipo giren sobre el mismo número que se
+  // guarda.
+  const selectedPlanSession = activePlanSessions.find(
+    (s) => s.session_id === selectedPlanSessionId
+  );
+  const planSessionPrice =
+    selectedPlanSession?.session_price != null
+      ? Number(selectedPlanSession.session_price)
+      : null;
+  const effectivePrice = customPriceValid
+    ? customPriceNum
+    : planSessionPrice ?? servicePrice;
 
   // Discount math — kept here so the deposit max stays in sync with the
   // post-discount total. We round to 2 decimals on the way in to avoid
@@ -269,7 +283,7 @@ export function AppointmentFormModal({
   const discountInputNum = Number(discountValue) || 0;
   const discountAmountComputed = discountEnabled
     ? discountMode === "percent"
-      ? Math.round(((effectivePrice * Math.min(discountInputNum, 100)) / 100) * 100) / 100
+      ? Math.round(((effectivePrice * Math.min(Math.max(discountInputNum, 0), 100)) / 100) * 100) / 100
       : Math.min(Math.max(discountInputNum, 0), effectivePrice)
     : 0;
   const totalAfterDiscount = Math.max(0, effectivePrice - discountAmountComputed);
@@ -279,6 +293,11 @@ export function AppointmentFormModal({
   useEffect(() => {
     if (totalAfterDiscount > 0) {
       setDepositAmount((totalAfterDiscount * 0.5).toFixed(2));
+    } else {
+      // Total S/ 0 (descuento 100%, precio personalizado 0): sin esto quedaría
+      // la sugerencia del total anterior y se registraría un anticipo mayor
+      // que el total real.
+      setDepositAmount("");
     }
   }, [selectedServiceId, totalAfterDiscount]);
 
@@ -771,6 +790,16 @@ export function AppointmentFormModal({
       return;
     }
 
+    // El anticipo es un pago a cuenta del total FINAL (post-descuento): nunca
+    // puede superarlo. El input tiene max=, pero max no bloquea la escritura
+    // manual ni el caso en que el descuento se activa después de tipear.
+    if (depositEnabled && Number(depositAmount) > totalAfterDiscount) {
+      toast.error(
+        `El anticipo (S/. ${Number(depositAmount).toFixed(2)}) no puede superar el total a pagar (S/. ${totalAfterDiscount.toFixed(2)})`
+      );
+      return;
+    }
+
     setSaving(true);
     const supabase = createClient();
     const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -880,12 +909,14 @@ export function AppointmentFormModal({
         price_snapshot: priceSnapshot,
         // Discount captured at creation time — the contable-correct
         // moment to apply it (before any cobro/comprobante).
-        discount_amount: discountEnabled && discountAmountComputed > 0
-          ? discountAmountComputed
-          : 0,
-        discount_reason: discountEnabled && discountReason.trim()
-          ? discountReason.trim()
-          : null,
+        discount_amount:
+          paymentMode !== "insurance" && discountEnabled && discountAmountComputed > 0
+            ? discountAmountComputed
+            : 0,
+        discount_reason:
+          paymentMode !== "insurance" && discountEnabled && discountReason.trim()
+            ? discountReason.trim()
+            : null,
         treatment_session_id: planSession?.session_id ?? null,
         organization_id: organizationId,
         custom_fields: customFields,
@@ -1571,11 +1602,14 @@ export function AppointmentFormModal({
                 </div>
               )}
 
-              {/* Discount toggle */}
+              {/* Discount toggle — deshabilitado en modo seguro: el copago lo
+                  define la aseguradora sobre el precio bruto y el descuento no
+                  participa en ese cálculo (trigger mig 161). */}
               <button
                 type="button"
+                disabled={paymentMode === "insurance"}
                 onClick={() => setDiscountEnabled((v) => !v)}
-                className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2 text-sm transition-colors hover:bg-accent"
+                className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-background px-3 py-2 text-sm transition-colors hover:bg-accent disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-background"
               >
                 <span className="flex items-center gap-2 text-muted-foreground">
                   <Percent className="h-4 w-4" />
@@ -1595,6 +1629,12 @@ export function AppointmentFormModal({
                   />
                 </div>
               </button>
+              {paymentMode === "insurance" && (
+                <p className="text-[11px] text-muted-foreground">
+                  El descuento no aplica a citas con seguro — el copago lo
+                  define la aseguradora.
+                </p>
+              )}
 
               {discountEnabled && (
                 <div className="space-y-3">
@@ -1736,7 +1776,7 @@ export function AppointmentFormModal({
                       </button>
                       <button
                         type="button"
-                        onClick={() => setDepositAmount(effectivePrice.toFixed(2))}
+                        onClick={() => setDepositAmount(totalAfterDiscount.toFixed(2))}
                         className="rounded-lg bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent transition-colors"
                       >
                         100%
@@ -1792,7 +1832,7 @@ export function AppointmentFormModal({
                         Pendiente al día de la cita
                       </span>
                       <span className="font-bold text-amber-700 dark:text-amber-400">
-                        S/. {Math.max(0, effectivePrice - Number(depositAmount)).toFixed(2)}
+                        S/. {Math.max(0, totalAfterDiscount - Number(depositAmount)).toFixed(2)}
                       </span>
                     </div>
                   )}
@@ -1913,6 +1953,9 @@ export function AppointmentFormModal({
                             onChange={() => {
                               setPaymentMode("insurance");
                               setSelectedInsuranceCarrierId(q.carrier.id);
+                              // El descuento no participa en el cálculo del
+                              // copago del seguro: se apaga al cambiar de modo.
+                              setDiscountEnabled(false);
                             }}
                             className="accent-primary"
                           />

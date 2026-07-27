@@ -87,6 +87,7 @@ export async function GET(req: NextRequest) {
         status,
         organization_id,
         price_snapshot,
+        discount_amount,
         doctors ( full_name ),
         offices ( name ),
         services ( name, base_price, pre_appointment_instructions ),
@@ -285,15 +286,18 @@ export async function GET(req: NextRequest) {
           year: "numeric",
         });
 
-        // Compute appointment amount
-        const rawAmount =
+        // Compute appointment amount. price_snapshot guarda el bruto (mig 100):
+        // el recordatorio debe mostrar el precio post-descuento que pagará el
+        // paciente.
+        const grossAmount =
           (appt as any).price_snapshot ??
           service?.base_price ??
           null;
-        const montoCita =
-          rawAmount != null && !isNaN(Number(rawAmount))
-            ? `S/. ${Number(rawAmount).toFixed(2)}`
-            : "";
+        const rawAmount =
+          grossAmount != null && !isNaN(Number(grossAmount))
+            ? Math.max(0, Number(grossAmount) - (Number((appt as any).discount_amount) || 0))
+            : null;
+        const montoCita = rawAmount != null ? `S/. ${rawAmount.toFixed(2)}` : "";
 
         // ── EMAIL CHANNEL (independent) ──────────────────────────────────
         // Only touch email if this reminder hasn't already gone out by email.
@@ -417,6 +421,9 @@ export async function GET(req: NextRequest) {
                   doctor_nombre: doctor?.full_name || "",
                   clinica_nombre: clinicName,
                   clinica_telefono: clinicPhoneVar?.value || "",
+                  // Sin esto, una plantilla de recordatorio con {{monto_pagado}}
+                  // caería al fallback "-" (mismo bug que la 1ª confirmación real).
+                  monto_pagado: rawAmount != null ? `S/ ${rawAmount.toFixed(2)}` : "",
                 };
 
                 const variableValues = resolveVariableValues(waTemplate, waVariableData);

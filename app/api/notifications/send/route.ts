@@ -141,15 +141,18 @@ export async function POST(req: NextRequest) {
     year: "numeric",
   });
 
-  // Compute appointment amount (price_snapshot if set, otherwise service.base_price)
-  const rawAmount =
+  // Compute appointment amount. price_snapshot guarda el precio BRUTO
+  // (doctrina mig 100) — el paciente debe ver lo que va a pagar, así que
+  // restamos el descuento de la cita aquí.
+  const grossAmount =
     (appointment as any).price_snapshot ??
     service?.base_price ??
     null;
-  const montoCita =
-    rawAmount != null && !isNaN(Number(rawAmount))
-      ? `S/. ${Number(rawAmount).toFixed(2)}`
-      : "";
+  const rawAmount =
+    grossAmount != null && !isNaN(Number(grossAmount))
+      ? Math.max(0, Number(grossAmount) - (Number((appointment as any).discount_amount) || 0))
+      : null;
+  const montoCita = rawAmount != null ? `S/. ${rawAmount.toFixed(2)}` : "";
 
   const variables: Record<string, string> = {
     "{{paciente_nombre}}": patientName || "",
@@ -173,9 +176,7 @@ export async function POST(req: NextRequest) {
     // founder en el primer envío real).
     "{{monto_pagado}}":
       extra_variables?.monto_pagado ||
-      (appointment.price_snapshot != null
-        ? `S/ ${Number(appointment.price_snapshot).toFixed(2)}`
-        : ""),
+      (rawAmount != null ? `S/ ${rawAmount.toFixed(2)}` : ""),
     ...(extra_variables || {}),
   };
 
@@ -317,9 +318,7 @@ export async function POST(req: NextRequest) {
               clinica_telefono: clinicPhoneVar?.value || "",
               monto_pagado:
                 extra_variables?.monto_pagado ||
-                (appointment.price_snapshot != null
-                  ? `S/ ${Number(appointment.price_snapshot).toFixed(2)}`
-                  : ""),
+                (rawAmount != null ? `S/ ${rawAmount.toFixed(2)}` : ""),
             };
 
             const typedWaTemplate = waTemplate as unknown as WhatsAppTemplate;
