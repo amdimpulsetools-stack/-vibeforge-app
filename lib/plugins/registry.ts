@@ -14,7 +14,7 @@
  *      at `/founder-dashboard/plugins`).
  */
 
-import { renderFivHtmlPdf } from "@/lib/budget-pdf/render-html";
+import { renderBudgetHtmlPdf } from "@/lib/budget-pdf/render-html";
 import {
   resolveVitraConfig,
   VITRA_DEFAULT_CONFIG,
@@ -22,25 +22,25 @@ import {
 import type { Plugin } from "./types";
 
 // ── budget_pdf_vitra ──────────────────────────────────────────────
-// First Capa-2 PDF plugin. Wraps the FIV Handlebars template + the
-// Vitra brand defaults. Today applies only to FIV; expand
-// `applies_to.treatment_types` as we ship IIU / OVODON / etc.
-// templates (each one is a new .hbs + data file, but the plugin key
-// stays the same — Vitra's row in org_plugins doesn't need to be
-// touched when we widen coverage).
+// First Capa-2 PDF plugin. Wraps the per-treatment Handlebars
+// templates (FIV / CRIO / IIU / TED) + the Vitra brand defaults.
+// Expand `applies_to.treatment_types` as we ship OVODON / ROPA / etc.
+// templates (each one is a new .hbs + data file + router entry in
+// render-html.ts, but the plugin key stays the same — Vitra's row in
+// org_plugins doesn't need to be touched when we widen coverage).
 const budgetPdfVitra: Plugin = {
   family: "budget_pdf",
   key: "budget_pdf_vitra",
   name: "Presupuestos Vitra",
   description:
-    "Templates HTML personalizados para NATURVITRA S.A.C. (FIV — más treatments por venir).",
+    "Templates HTML personalizados para NATURVITRA S.A.C. (FIV, CRIO, IIU y TED — más treatments por venir).",
   requires_addons: ["fertility_basic", "fertility_premium"],
-  applies_to: { treatment_types: ["FIV"] },
+  applies_to: { treatment_types: ["FIV", "CRIO", "IIU", "TED"] },
   default_config: VITRA_DEFAULT_CONFIG as unknown as Record<string, unknown>,
   // Contact data resolves: explicit JSONB config → real org data
   // (organizations.*, editable in Ajustes) → empty. Never seeded.
   render: (props, config) =>
-    renderFivHtmlPdf(props, resolveVitraConfig(config, props.org)),
+    renderBudgetHtmlPdf(props, resolveVitraConfig(config, props.org)),
 };
 
 export const PLUGINS: Record<string, Plugin> = {

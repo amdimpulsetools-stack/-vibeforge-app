@@ -20,6 +20,7 @@ export type BudgetTreatmentType =
   | "IIU"
   | "INDUCCION"
   | "CRIO"
+  | "TED"
   | "OVODONACION"
   | "ROPA"
   | "OTRO";
