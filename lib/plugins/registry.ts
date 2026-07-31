@@ -16,7 +16,7 @@
 
 import { renderFivHtmlPdf } from "@/lib/budget-pdf/render-html";
 import {
-  mergeVitraConfig,
+  resolveVitraConfig,
   VITRA_DEFAULT_CONFIG,
 } from "@/lib/budget-pdf/data/vitra-overrides";
 import type { Plugin } from "./types";
@@ -37,8 +37,10 @@ const budgetPdfVitra: Plugin = {
   requires_addons: ["fertility_basic", "fertility_premium"],
   applies_to: { treatment_types: ["FIV"] },
   default_config: VITRA_DEFAULT_CONFIG as unknown as Record<string, unknown>,
+  // Contact data resolves: explicit JSONB config → real org data
+  // (organizations.*, editable in Ajustes) → empty. Never seeded.
   render: (props, config) =>
-    renderFivHtmlPdf(props, mergeVitraConfig(config)),
+    renderFivHtmlPdf(props, resolveVitraConfig(config, props.org)),
 };
 
 export const PLUGINS: Record<string, Plugin> = {

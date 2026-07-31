@@ -6,8 +6,10 @@
   Sintaxis: Handlebars. Triple-stache {{{...}}} para HTML raw (footer, logo).
 
   Variables esperadas:
-    org.{logo_url, legal_name, tax_id, address, phones, email, website,
+    org.{logo_url, legal_name, tax_id, address, contact_line, website,
          brand_color, footer_html}
+    (contact_line = "teléfonos · email" ya unido; address/contact_line/
+     website son opcionales — la línea se omite si falta el dato)
     patient.{full_name, document_label}
     doctor.{full_name}
     advisor.{full_name, phone}
@@ -491,9 +493,9 @@ table.grid tfoot td { font-weight: 600; background: var(--brand-tint); color: va
         <div class="head-org">
           <div class="org-name">{{org.legal_name}}</div>
           <div class="org-line">RUC {{org.tax_id}}</div>
-          <div class="org-line">{{org.address}}</div>
-          <div class="org-line">{{org.phones}} · {{org.email}}</div>
-          <div class="org-line">{{org.website}}</div>
+          {{#if org.address}}<div class="org-line">{{org.address}}</div>{{/if}}
+          {{#if org.contact_line}}<div class="org-line">{{org.contact_line}}</div>{{/if}}
+          {{#if org.website}}<div class="org-line">{{org.website}}</div>{{/if}}
         </div>
       </header>
 
@@ -764,7 +766,7 @@ table.grid tfoot td { font-weight: 600; background: var(--brand-tint); color: va
       </div>
 
       <div class="advisor-line">
-        Asesora de fertilidad: <b>{{advisor.full_name}}</b> · <span class="cel">{{advisor.phone}}</span>
+        Asesora de fertilidad: <b>{{advisor.full_name}}</b>{{#if advisor.phone}} · <span class="cel">{{advisor.phone}}</span>{{/if}}
       </div>
     </div>
     <footer class="page-footer">
