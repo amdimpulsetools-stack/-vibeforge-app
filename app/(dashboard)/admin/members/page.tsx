@@ -105,9 +105,9 @@ function getMemberDisplay(
 
 /** Invite-modal options: role + optional professional_title */
 const MEMBER_TYPE_OPTIONS: {
-  role: "doctor" | "receptionist";
+  role: "doctor" | "receptionist" | "admin";
   title: ProfessionalTitle;
-  iconKey: "stethoscope" | "briefcase-medical" | "graduation-cap" | "headset";
+  iconKey: "stethoscope" | "briefcase-medical" | "graduation-cap" | "headset" | "shield-check";
   labelKey: string;
   descKey: string;
 }[] = [
@@ -139,6 +139,13 @@ const MEMBER_TYPE_OPTIONS: {
     labelKey: "members.role_receptionist",
     descKey: "members.role_receptionist_desc",
   },
+  {
+    role: "admin",
+    title: null,
+    iconKey: "shield-check",
+    labelKey: "members.role_admin",
+    descKey: "members.role_admin_desc",
+  },
 ];
 
 const ICON_MAP = {
@@ -146,6 +153,7 @@ const ICON_MAP = {
   "briefcase-medical": BriefcaseMedical,
   "graduation-cap": GraduationCap,
   headset: Headset,
+  "shield-check": ShieldCheck,
 };
 
 export default function MembersPage() {
@@ -612,16 +620,23 @@ export default function MembersPage() {
                     const isSelected = inviteOptionIdx === idx;
                     const isDoctorRole = opt.role === "doctor";
                     const isReceptionistRole = opt.role === "receptionist";
+                    const isAdminRole = opt.role === "admin";
                     const doctorLimitReached = isAtLimit("doctors");
                     const receptionistLimitReached = isAtLimit("receptionists");
-                    const isDisabled = (isDoctorRole && doctorLimitReached) || (isReceptionistRole && receptionistLimitReached);
+                    const adminLimitReached = isAtLimit("admins");
+                    const isDisabled =
+                      (isDoctorRole && doctorLimitReached) ||
+                      (isReceptionistRole && receptionistLimitReached) ||
+                      (isAdminRole && adminLimitReached);
                     const tooltipText = isDoctorRole && doctorLimitReached
                       ? (language === "es" ? "Límite de doctores alcanzado. Añade un cupo desde tu panel de cuenta." : "Doctor limit reached. Add a slot from your account panel.")
                       : isReceptionistRole && receptionistLimitReached
                         ? (language === "es" ? "Límite de recepcionistas alcanzado. Añade un cupo desde tu panel de cuenta." : "Receptionist limit reached. Add a slot from your account panel.")
-                        : "";
+                        : isAdminRole && adminLimitReached
+                          ? t("members.admin_extra_cost")
+                          : "";
                     return (
-                      <div key={`${opt.role}-${opt.title ?? "none"}`} className="relative group/role">
+                      <div key={`${opt.role}-${opt.title ?? "none"}`} className={`relative group/role ${isAdminRole ? "col-span-2" : ""}`}>
                         <button
                           type="button"
                           onClick={() => !isDisabled && setInviteOptionIdx(idx)}
@@ -677,29 +692,34 @@ export default function MembersPage() {
                   </label>
                 )}
 
-              {/* Admin section — contact support */}
-              <div className="rounded-lg border border-border bg-muted/50 p-4">
-                <div className="flex items-start gap-3">
-                  <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-500 shrink-0" />
-                  <div className="space-y-2">
-                    <p className="text-sm font-medium">
-                      {t("members.role_admin")}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {t("members.admin_extra_cost")}
-                    </p>
-                    <a
-                      href="https://wa.me/18094039726"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" />
-                      {t("members.contact_support")}
-                    </a>
+              {/* Admin extra-cost notice — only when the plan's admin seats are
+                  taken. The first admin (included in the plan) is invited via
+                  the "Administrador" card above; additional ones go through
+                  support (paid). */}
+              {isAtLimit("admins") && (
+                <div className="rounded-lg border border-border bg-muted/50 p-4">
+                  <div className="flex items-start gap-3">
+                    <ShieldCheck className="mt-0.5 h-5 w-5 text-blue-500 shrink-0" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium">
+                        {t("members.role_admin")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("members.admin_extra_cost")}
+                      </p>
+                      <a
+                        href="https://wa.me/18094039726"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                        {t("members.contact_support")}
+                      </a>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 mt-6">

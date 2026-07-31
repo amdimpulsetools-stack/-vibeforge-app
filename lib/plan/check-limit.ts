@@ -50,7 +50,14 @@ export type PlanLimitResult = PlanLimitOk | PlanLimitExceeded;
 //   - whether an addon exists to buy more slots à la carte
 const RESOURCE_CONFIG: Record<
   PlanLimitResource,
-  { plan_col: string; usage_field: string; addon_field: string | null }
+  {
+    plan_col: string;
+    usage_field: string;
+    addon_field: string | null;
+    // When true, a plan value of 0 means "none allowed" instead of the
+    // historical "0 = unlimited" convention (which offices/members rely on).
+    zero_means_none?: boolean;
+  }
 > = {
   members: {
     plan_col: "max_members",
@@ -71,6 +78,11 @@ const RESOURCE_CONFIG: Record<
     plan_col: "max_admins",
     usage_field: "admins",
     addon_field: null,
+    // Plan Independiente sets max_admins = 0 meaning "no admin seats" —
+    // without this flag the generic 0=unlimited rule would let an admin
+    // invite through by direct API call (the UI hides it, but the server
+    // is the real gate).
+    zero_means_none: true,
   },
   receptionists: {
     plan_col: "max_receptionists",
@@ -129,8 +141,9 @@ export async function checkPlanLimit(
 
   const baseLimit = plan[cfg.plan_col] as number | null;
 
-  // null or 0 → unlimited.
-  if (baseLimit == null || baseLimit === 0) {
+  // null or 0 → unlimited (except resources flagged zero_means_none,
+  // where 0 is a hard "none allowed" and falls through to the cap check).
+  if (baseLimit == null || (baseLimit === 0 && !cfg.zero_means_none)) {
     return {
       ok: true,
       unlimited: true,
