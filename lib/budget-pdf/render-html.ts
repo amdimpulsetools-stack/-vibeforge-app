@@ -137,8 +137,11 @@ function buildFivData(
       logo_url: props.org.logoDataUrl ?? "",
       brand_color: overrides.brand_color,
       address: overrides.address,
-      phones: overrides.phones,
-      email: overrides.email,
+      // Línea "teléfonos · email" pre-unida para que la plantilla no
+      // imprima un separador colgante cuando falta uno de los dos.
+      contact_line: [overrides.phones, overrides.email]
+        .filter(Boolean)
+        .join(" · "),
       website: overrides.website,
       footer_html: overrides.footer_html,
     },
@@ -151,7 +154,9 @@ function buildFivData(
     },
     advisor: {
       full_name: props.asesora?.fullName ?? "—",
-      phone: overrides.advisor_phone_fallback,
+      // Celular real del perfil de la asesora asignada; si no lo tiene,
+      // el fallback resuelto (config explícita → teléfono de la org).
+      phone: props.asesora?.phone || overrides.advisor_phone_fallback,
     },
     budget: {
       code: synthBudgetCode(props.budgetId, issuedAt),

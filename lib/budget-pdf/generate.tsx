@@ -73,11 +73,18 @@ interface OrgRow {
   ruc: string | null;
   legal_name: string | null;
   logo_url: string | null;
+  address: string | null;
+  phone: string | null;
+  phone_secondary: string | null;
+  email_public: string | null;
+  website: string | null;
+  print_color_primary: string | null;
 }
 
 interface ProfileLite {
   id: string;
   full_name: string | null;
+  whatsapp_phone?: string | null;
 }
 
 interface OrgBudgetPdfSettingsRow {
@@ -183,7 +190,9 @@ async function loadOrg(
 ): Promise<OrgRow | null> {
   const { data } = await client
     .from("organizations")
-    .select("id, name, ruc, legal_name, logo_url")
+    .select(
+      "id, name, ruc, legal_name, logo_url, address, phone, phone_secondary, email_public, website, print_color_primary",
+    )
     .eq("id", orgId)
     .maybeSingle();
   return (data as OrgRow | null) ?? null;
@@ -200,7 +209,7 @@ async function loadProfile(
   // and "Asesora" rendered as "—" for budgets going back to mig 136.
   const { data } = await client
     .from("user_profiles")
-    .select("id, full_name")
+    .select("id, full_name, whatsapp_phone")
     .eq("id", userId)
     .maybeSingle();
   return (data as ProfileLite | null) ?? null;
@@ -214,10 +223,10 @@ async function loadProfile(
  * the gap. Returns null when either the member or profile row is
  * missing.
  */
-async function loadAsesoraName(
+async function loadAsesora(
   client: SupabaseClient,
   memberId: string | null,
-): Promise<string | null> {
+): Promise<{ fullName: string; phone: string | null } | null> {
   if (!memberId) return null;
   const { data: member } = await client
     .from("organization_members")
@@ -227,7 +236,11 @@ async function loadAsesoraName(
   const userId = (member as { user_id: string | null } | null)?.user_id;
   if (!userId) return null;
   const profile = await loadProfile(client, userId);
-  return profile?.full_name ?? null;
+  if (!profile?.full_name) return null;
+  return {
+    fullName: profile.full_name,
+    phone: profile.whatsapp_phone ?? null,
+  };
 }
 
 /**
@@ -313,11 +326,10 @@ export async function generateBudgetPdf(
   // auth.users(id) independently, so PostgREST cannot embed them).
   // No legacy fallback to sent_by_user_id: that mapping was wrong
   // and left the PDF blank for un-sent budgets — rather show "—".
-  const asesoraName = await loadAsesoraName(
+  const asesora = await loadAsesora(
     adminClient,
     budget.assigned_asesora_member_id,
   );
-  const asesora = asesoraName ? { id: "", full_name: asesoraName } : null;
 
   // Tier metadata (currency + includes_text). Optional — fallbacks
   // exist downstream.
@@ -365,6 +377,12 @@ export async function generateBudgetPdf(
       name: org.legal_name ?? org.name,
       ruc: org.ruc,
       logoDataUrl: org.logo_url,
+      address: org.address,
+      phone: org.phone,
+      phoneSecondary: org.phone_secondary,
+      emailPublic: org.email_public,
+      website: org.website,
+      printColorPrimary: org.print_color_primary,
     },
     patient: {
       firstName: patient.first_name ?? "",
@@ -372,7 +390,7 @@ export async function generateBudgetPdf(
       documentNumber: patient.dni ?? null,
     },
     doctor: { fullName: doctor?.full_name ?? "—" },
-    asesora: asesora?.full_name ? { fullName: asesora.full_name } : null,
+    asesora,
     service: {
       name: budget.service?.name ?? budget.treatment_type,
       treatmentType: budget.service?.name

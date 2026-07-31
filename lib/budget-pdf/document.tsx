@@ -34,6 +34,15 @@ export interface BudgetPdfProps {
     name: string;
     ruc?: string | null;
     logoDataUrl?: string | null;
+    // Contacto real de la organización (mig 115, editable en Ajustes).
+    // Los templates Capa 2 lo imprimen en header/footer en lugar de
+    // datos seedeados; el fallback Capa 1 solo usa name/ruc.
+    address?: string | null;
+    phone?: string | null;
+    phoneSecondary?: string | null;
+    emailPublic?: string | null;
+    website?: string | null;
+    printColorPrimary?: string | null;
   };
   patient: {
     firstName: string;
@@ -41,7 +50,7 @@ export interface BudgetPdfProps {
     documentNumber?: string | null;
   };
   doctor: { fullName: string };
-  asesora: { fullName: string } | null;
+  asesora: { fullName: string; phone?: string | null } | null;
   service: { name: string; treatmentType: string };
   tier: "A" | "B" | "C" | null;
   amount: number;
