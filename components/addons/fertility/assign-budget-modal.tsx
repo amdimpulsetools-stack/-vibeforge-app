@@ -374,8 +374,11 @@ function AssignBudgetModalInner({
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="w-full max-w-xl p-0 [&>button]:top-4 [&>button]:right-4">
-        <div className="space-y-4 p-5">
+      {/* Ancho > alto (pedido founder): 3xl con campos a dos columnas en
+          desktop; tope de altura con scroll interno para que el modal
+          nunca toque los bordes de la pantalla. */}
+      <DialogContent className="w-full max-w-3xl p-0 [&>button]:top-4 [&>button]:right-4">
+        <div className="max-h-[85vh] space-y-4 overflow-y-auto p-5">
           <div className="flex items-start gap-2">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600">
               <Receipt className="h-4 w-4" />
@@ -633,6 +636,9 @@ function AssignBudgetModalInner({
             </div>
           )}
 
+          {/* Doctor + asesora lado a lado en desktop para acortar el
+              modal; apilados en móvil. */}
+          <div className="grid gap-4 sm:grid-cols-2">
           {/* Doctor (médico tratante). Read-only when sourced from a
               cita, dropdown otherwise. Both required — a budget needs
               a treating doctor to render the PDF properly. */}
@@ -709,6 +715,7 @@ function AssignBudgetModalInner({
               </p>
             )}
           </div>
+          </div>
 
           {/* Notes */}
           <div className="space-y-1.5">
@@ -718,7 +725,7 @@ function AssignBudgetModalInner({
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              rows={3}
+              rows={2}
               maxLength={500}
               placeholder="Contexto para la asesora, condiciones especiales, etc."
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
