@@ -261,6 +261,19 @@ export async function POST(request: NextRequest) {
   const honorariosAdjustment =
     Math.round((payload.honorarios_adjustment ?? 0) * 100) / 100;
 
+  // Solo Tier A admite ajuste (sobreprecio sobre el paquete más alto,
+  // intención original de mig 174). La UI ya lo esconde para B/C; este
+  // guard cierra la puerta a un POST directo.
+  if (honorariosAdjustment > 0 && payload.tier !== "A") {
+    return NextResponse.json(
+      {
+        error:
+          "El ajuste de honorarios solo aplica al Tier A. Para un precio intermedio usa el Tier B o C.",
+      },
+      { status: 400 },
+    );
+  }
+
   // ── DEDUP GUARD ────────────────────────────────────────────────
   // If the patient already has at least one budget in an active
   // state (`pending_acceptance` or `accepted`), require the caller

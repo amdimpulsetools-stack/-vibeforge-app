@@ -304,6 +304,14 @@ function AssignBudgetModalInner({
     setHonorariosAdjustment("");
   }, [serviceId]);
 
+  // El ajuste solo aplica al Tier A (decisión founder: es un
+  // sobreprecio sobre el paquete MÁS ALTO; "subir un poco" desde C
+  // no tiene sentido existiendo B). Al bajar de tier se descarta
+  // cualquier monto ya tecleado para que no viaje oculto al submit.
+  useEffect(() => {
+    if (tier !== "A") setHonorariosAdjustment("");
+  }, [tier]);
+
   const canSubmit = Boolean(
     serviceId &&
       tier &&
@@ -581,13 +589,14 @@ function AssignBudgetModalInner({
             </div>
           )}
 
-          {/* Ajuste de honorarios (opcional). Solo visible con un tier
-              elegido. Sobreprecio ≥ 0 sobre el precio base del tier; se
-              integra en el total. En plantillas que itemizan honorarios
-              se reparte proporcionalmente entre las líneas de honorarios
-              del tratamiento en múltiplos de S/ 10 (honorarios-fold.ts),
-              de ahí la sugerencia de usar múltiplos de 10. */}
-          {selectedTier && (
+          {/* Ajuste de honorarios (opcional). Solo visible con el TIER A
+              elegido (sobreprecio sobre el paquete más alto; el server
+              rechaza ajuste con B/C). Sobreprecio ≥ 0 que se integra en
+              el total. En plantillas que itemizan honorarios se reparte
+              proporcionalmente entre las líneas de honorarios del
+              tratamiento en múltiplos de S/ 10 (honorarios-fold.ts), de
+              ahí la sugerencia de usar múltiplos de 10. */}
+          {selectedTier && tier === "A" && (
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Ajuste de honorarios (opcional)
