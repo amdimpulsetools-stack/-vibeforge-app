@@ -5,7 +5,7 @@ import { generalLimiter } from "@/lib/rate-limit";
 import {
   FERTILITY_BASIC_KEY,
   FERTILITY_PREMIUM_KEY,
-  type BudgetTreatmentType,
+  inferTreatmentTypeFromServiceName,
 } from "@/types/fertility";
 
 // ──────────────────────────────────────────────────────────────────
@@ -56,26 +56,10 @@ const bodySchema = z.object({
   acknowledged_existing: z.boolean().optional(),
 });
 
-// ──────────────────────────────────────────────────────────────────
-// treatment_type inference
-//
-// `services.name` → BudgetTreatmentType. The 7 enum values
-// (FIV/IIU/INDUCCION/CRIO/OVODONACION/ROPA/OTRO) come from mig 136.
-// TED ("Transferencia Embrionaria Diferida") falls into "OTRO" because
-// the enum doesn't have a dedicated TED value yet — that's intentional.
-// First match wins; "OTRO" is the catch-all.
-// ──────────────────────────────────────────────────────────────────
-function inferTreatmentType(serviceName: string): BudgetTreatmentType {
-  const upper = serviceName.toUpperCase();
-  if (upper.startsWith("FIV") || upper.includes("(FIV)")) return "FIV";
-  if (upper.includes("IIU") || upper.includes("INSEMINACI")) return "IIU";
-  if (upper.includes("ROPA")) return "ROPA";
-  if (upper.includes("CRIO")) return "CRIO";
-  if (upper.includes("OVODON")) return "OVODONACION";
-  if (upper.includes("INDUCCI")) return "INDUCCION";
-  // TED (Transferencia Embrionaria Diferida) and any other → OTRO.
-  return "OTRO";
-}
+// treatment_type inference: unified helper in types/fertility.ts
+// (mig 180). The stored value and the PDF template router now derive
+// from the same function — before, this file lacked TED/DUOSTIM and
+// stored "OTRO" while the PDF routed by its own divergent copy.
 
 interface MembershipRow {
   organization_id: string;
@@ -268,7 +252,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const treatmentType = inferTreatmentType(service.name as string);
+  const treatmentType = inferTreatmentTypeFromServiceName(
+    service.name as string,
+  );
 
   // Honorarios surcharge (mig 174). Rounded to cents to match the
   // NUMERIC(10,2) column and folded into the snapshot amount below.

@@ -33,9 +33,19 @@ const budgetPdfVitra: Plugin = {
   key: "budget_pdf_vitra",
   name: "Presupuestos Vitra",
   description:
-    "Templates HTML personalizados para NATURVITRA S.A.C. (FIV, CRIO, IIU y TED — más treatments por venir).",
+    "Templates HTML personalizados para NATURVITRA S.A.C. (FIV, CRIO, IIU, TED, DUO STIM, ROPA y Ovodonación+NGS).",
   requires_addons: ["fertility_basic", "fertility_premium"],
-  applies_to: { treatment_types: ["FIV", "CRIO", "IIU", "TED"] },
+  applies_to: {
+    treatment_types: [
+      "FIV",
+      "CRIO",
+      "IIU",
+      "TED",
+      "DUOSTIM",
+      "ROPA",
+      "OVODONACION",
+    ],
+  },
   default_config: VITRA_DEFAULT_CONFIG as unknown as Record<string, unknown>,
   // Contact data resolves: explicit JSONB config → real org data
   // (organizations.*, editable in Ajustes) → empty. Never seeded.

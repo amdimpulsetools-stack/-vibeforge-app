@@ -1,0 +1,733 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="UTF-8">
+{{!--
+  Yenda · Plantilla de presupuesto — Ovodonación con NGS
+  Sintaxis: Handlebars. Triple-stache {{{...}}} para HTML raw (footer, logo).
+
+  Variables esperadas:
+    org.{logo_url, legal_name, tax_id, address, contact_line, website,
+         brand_color, footer_html}
+    (contact_line = "teléfonos · email" ya unido; address/contact_line/
+     website son opcionales — la línea se omite si falta el dato)
+    patient.{full_name, document_label}
+    doctor.{full_name}
+    advisor.{full_name, phone}
+    budget.{code, issued_at_short, valid_until_short, total_formatted}
+    phases.estimulacion.{subtotal, ovulos_donante, honorarios_medicos}
+    phases.fiv.{subtotal}
+    phases.transferencia.{subtotal, honorarios_medicos, desvitrificacion}
+    ngs.{biopsia, embrion_1..8, embrion_adicional}
+
+  Montos: pre-formateados como string "1,234.00" — el template añade "S/" o "US$".
+--}}
+<title>Presupuesto · Fecundación in Vitro · Ovodonación con NGS · {{org.legal_name}}</title>
+<style>/* ============================================================
+   Yenda · Sistema de presupuestos médicos
+   Hoja de estilos compartida — print-safe (A4)
+   Marca por org vía  --brand  (inline style en .doc)
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --brand:        #d2644f;   /* color de marca (override por org) */
+  --brand-deep:   #b5503c;   /* variante fuerte (barra total)     */
+  --brand-tint:   #fbeeea;   /* fondo muy claro (headers de fase) */
+  --brand-tint-2: #f3d8d0;   /* bordes / acentos suaves           */
+
+  --ink:    #20262b;
+  --ink-2:  #3f474e;
+  --muted:  #6b7480;
+  --faint:  #9aa3ad;
+  --line:   #e4e7eb;
+  --line-2: #eef0f3;
+  --paper:  #ffffff;
+  --wash:   #f7f8fa;
+
+  --fs-base: 10.5pt;
+}
+
+/* derive brand tints when org only sets --brand:
+   we keep explicit tints above as sensible defaults for the coral brand;
+   orgs that set a very different hue can also set the tints. */
+
+* { box-sizing: border-box; }
+
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+body {
+  margin: 0;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: var(--fs-base);
+  line-height: 1.42;
+  color: var(--ink);
+  background: #e7e9ed;            /* gris de lienzo (solo pantalla) */
+  font-feature-settings: 'kern' 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* tabular numerals everywhere money/figures appear */
+.num, .price, .total-fig, td.amt, .meta-val { font-variant-numeric: tabular-nums; }
+
+/* ---------- Contenedor (lienzo) ---------- */
+.doc { width: auto; margin: 0; padding: 0; background: transparent; }
+
+/* ---------- Hoja A4 ---------- */
+.sheet {
+  width: 210mm;
+  height: 297mm;
+  margin: 22px auto;
+  padding: 15mm 15mm 0;
+  background: var(--paper);
+  box-shadow: 0 2px 18px rgba(20,30,45,.14);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+.sheet-body { flex: 1 1 auto; min-height: 0; }
+.sheet-body > :first-child { margin-top: 0; }
+
+/* ---------- Pie de página (repetido en cada hoja) ---------- */
+.page-footer {
+  flex: none;
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding: 8px 0 10px;
+  text-align: center;
+}
+.page-footer .pf-addr p { margin: 1.5px 0; font-size: 7.2pt; color: var(--muted); line-height: 1.5; }
+.page-footer .pf-addr sup { font-size: .7em; }
+.page-footer .loc { color: var(--brand-deep); font-weight: 600; }
+
+/* ---------- Cabecera de continuación (págs. 2+) ---------- */
+.run-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 9px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.run-head .rh-logo { width: 92px; color: var(--brand); flex: none; }
+.run-head .rh-logo img { width: 100%; display: block; }
+.run-head .rh-meta { font-size: 8pt; color: var(--muted); }
+.run-head .rh-meta b { color: var(--ink); font-weight: 600; }
+
+/* ---------- Línea asesora (última hoja) ---------- */
+.advisor-line {
+  margin-top: 18px; padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 8.4pt; color: var(--muted);
+}
+.advisor-line b { color: var(--ink); font-weight: 600; }
+.advisor-line .cel { color: var(--brand-deep); font-weight: 600; }
+
+/* =====================================================
+   HEADER
+   ===================================================== */
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--brand);
+}
+.head-logo {
+  color: var(--brand);
+  width: 150px;
+  flex: none;
+}
+.head-logo img { width: 100%; display: block; }
+
+.head-org {
+  text-align: right;
+  font-size: 8.2pt;
+  line-height: 1.55;
+  color: var(--muted);
+  padding-top: 4px;
+}
+.head-org .org-name {
+  font-size: 9.4pt;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: .01em;
+}
+.head-org .org-line { white-space: nowrap; }
+
+/* =====================================================
+   TÍTULO + CÓDIGO
+   ===================================================== */
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 18px;
+}
+.title-row .eyebrow {
+  font-size: 8pt;
+  letter-spacing: .22em;
+  font-weight: 600;
+  color: var(--brand);
+  text-transform: uppercase;
+}
+.title-row h1 {
+  margin: 3px 0 0;
+  font-size: 19pt;
+  font-weight: 600;
+  letter-spacing: -.01em;
+  color: var(--ink);
+  line-height: 1.08;
+}
+.doc-code {
+  text-align: right;
+  font-size: 8pt;
+  color: var(--muted);
+}
+.doc-code b { display:block; font-size: 10.5pt; color: var(--ink); font-weight: 600; letter-spacing:.02em; }
+
+/* =====================================================
+   META (paciente / médico …)
+   ===================================================== */
+.meta {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.meta .cell { background: var(--paper); padding: 8px 12px; }
+.meta .lbl {
+  font-size: 7pt;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.meta .val { font-size: 10pt; font-weight: 500; color: var(--ink); }
+
+/* =====================================================
+   FASES / TABLA
+   ===================================================== */
+.phases { margin-top: 20px; }
+
+.tx-group {
+  margin: 18px 0 11px;
+  font-size: 9.5pt; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--ink);
+  padding: 8px 13px; background: var(--wash);
+  border-left: 3px solid var(--brand); border-radius: 0 5px 5px 0;
+}
+.phases > .tx-group:first-child { margin-top: 0; }
+
+.phase {
+  margin-bottom: 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  break-inside: avoid;
+}
+.phase-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 14px;
+  background: var(--brand-tint);
+  border-bottom: 1px solid var(--brand-tint-2);
+}
+.phase-num {
+  flex: none;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--brand);
+  color: #fff;
+  font-size: 9pt;
+  font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+}
+.phase-name {
+  flex: 1;
+  font-size: 10pt;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  color: var(--brand-deep);
+}
+.phase-sub {
+  flex: none;
+  white-space: nowrap;
+  font-size: 10pt;
+  font-weight: 600;
+  color: var(--brand-deep);
+  font-variant-numeric: tabular-nums;
+}
+.phase-sub small { font-size: 7pt; font-weight: 600; color: var(--faint); letter-spacing:.08em; text-transform:uppercase; margin-right: 5px; }
+
+table.items { width: 100%; border-collapse: collapse; }
+table.items td { padding: 6.5px 14px; vertical-align: top; }
+table.items tr + tr td { border-top: 1px solid var(--line-2); }
+table.items td.desc { font-size: 9.9pt; color: var(--ink-2); }
+table.items td.desc .hint { display:block; font-size: 7.6pt; color: var(--faint); margin-top: 1px; }
+table.items td.amt {
+  text-align: right;
+  white-space: nowrap;
+  width: 1%;
+  font-size: 9.9pt;
+  font-weight: 500;
+  color: var(--ink);
+}
+table.items td.amt .cur { color: var(--faint); font-weight: 500; margin-right: 2px; }
+.tag-inc {
+  display: inline-block;
+  font-size: 7.4pt;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--brand);
+  background: var(--brand-tint);
+  border: 1px solid var(--brand-tint-2);
+  padding: 1px 7px;
+  border-radius: 20px;
+}
+
+/* ---------- Total ---------- */
+.total {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--brand-deep);
+  color: #fff;
+  padding: 13px 18px;
+  border-radius: 8px;
+  break-inside: avoid;
+}
+.total .t-lbl { font-size: 10pt; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.total .t-lbl small { display:block; font-size: 7pt; font-weight: 500; opacity: .8; letter-spacing:.1em; margin-top:1px; }
+.total .t-fig { font-size: 18pt; font-weight: 700; font-variant-numeric: tabular-nums; }
+.total .t-fig .cur { font-size: 11pt; font-weight: 600; opacity: .85; margin-right: 3px; }
+
+/* =====================================================
+   BLOQUES SECUNDARIOS
+   ===================================================== */
+.section { margin-top: 22px; display: flow-root; }
+.section > h2 {
+  font-size: 8.5pt;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--brand);
+  margin: 0 0 9px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 8px;
+}
+.section > h2::after { content: ""; flex: 1; }
+
+/* consideraciones */
+ul.notes { margin: 0; padding: 0; list-style: none; }
+ul.notes li {
+  position: relative;
+  padding: 3.5px 0 3.5px 16px;
+  font-size: 9.4pt;
+  color: var(--ink-2);
+  break-inside: avoid;
+}
+ul.notes li::before {
+  content: "";
+  position: absolute; left: 2px; top: 8px;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--brand-tint-2);
+}
+ul.notes li.k::before { background: var(--brand); }
+ul.notes li b { color: var(--ink); font-weight: 600; }
+ul.notes .price { font-weight: 600; color: var(--ink); }
+
+.sub-list { margin: 4px 0 6px 16px; padding: 0; list-style: none; }
+.sub-list li { padding: 1.5px 0 1.5px 14px; font-size: 8.6pt; color: var(--muted); position: relative; }
+.sub-list li::before { content: "–"; position:absolute; left:0; color: var(--faint); }
+
+/* tabla genérica (NGS / add-ons) */
+table.grid { width: 100%; border-collapse: collapse; font-size: 9.4pt; }
+table.grid caption {
+  text-align: left; font-size: 8pt; color: var(--muted); padding-bottom: 6px;
+}
+table.grid th, table.grid td { padding: 6px 12px; border: 1px solid var(--line); }
+table.grid thead th {
+  background: var(--brand-tint);
+  color: var(--brand-deep);
+  font-size: 7.6pt;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  text-align: left;
+  font-weight: 600;
+}
+table.grid td.amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 500; }
+table.grid tbody tr:nth-child(even) td { background: var(--wash); }
+table.grid tfoot td { font-weight: 600; background: var(--brand-tint); color: var(--brand-deep); border-color: var(--brand-tint-2); }
+
+/* checklist evaluaciones */
+.checks {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 26px;
+}
+.checks .ck-group h3 {
+  font-size: 8.4pt; font-weight: 600; color: var(--ink);
+  margin: 0 0 6px; padding-bottom: 4px; border-bottom: 1px dashed var(--line);
+}
+.checks .ck-group .vig { font-weight: 500; color: var(--muted); font-size: 7.6pt; }
+.checks ul { margin: 0; padding: 0; list-style: none; }
+.checks li {
+  position: relative; padding: 2.5px 0 2.5px 17px;
+  font-size: 9pt; color: var(--ink-2);
+}
+.checks li::before {
+  content: ""; position: absolute; left: 1px; top: 6px;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--brand);
+}
+.checks li .note { color: var(--muted); font-size: 7.6pt; }
+.checks li.ck-head {
+  padding-left: 2px;
+  margin-top: 7px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.checks li.ck-head::before { display: none; }
+.checks li.sub { padding-left: 30px; }
+.checks li.sub::before {
+  content: "✓"; left: 13px; top: 1px;
+  width: auto; height: auto; background: none;
+  font-size: 8.5pt; line-height: 1.35; font-weight: 700;
+  color: var(--brand); border-radius: 0;
+}
+/* Mujer: marcadores como dots en vez de checks */
+.checks .ck-group.mujer li::before {
+  content: ""; left: 1px; top: 6px;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--brand);
+  font-size: 0;
+}
+/* ítems individuales forzados a check */
+.checks .ck-group.mujer li.chk::before,
+.checks li.chk::before {
+  content: "✓"; left: 0; top: 1px;
+  width: auto; height: auto; background: none; border-radius: 0;
+  font-size: 8.5pt; line-height: 1.35; font-weight: 700; color: var(--brand);
+}
+
+/* términos */
+.terms { font-size: 8.7pt; color: var(--ink-2); line-height: 1.5; }
+.terms h3 {
+  font-size: 8.4pt; font-weight: 600; color: var(--ink);
+  margin: 10px 0 2px; letter-spacing: .02em;
+}
+.terms p { margin: 0 0 4px; }
+.terms ul.arrows { margin: 2px 0 6px; padding: 0; list-style: none; }
+.terms ul.arrows li { position: relative; padding: 2.5px 0 2.5px 18px; break-inside: avoid; }
+.terms ul.arrows li::before {
+  content: ""; position: absolute; left: 3px; top: 8px;
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--brand);
+}
+.terms .accept {
+  margin-top: 10px; padding: 8px 12px;
+  background: var(--wash); border-left: 3px solid var(--brand);
+  font-weight: 500; color: var(--ink); border-radius: 0 5px 5px 0;
+}
+
+/* firmas / footer */
+.signs {
+  margin-top: 40px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 40px;
+  break-inside: avoid;
+}
+.sign { text-align: center; padding-top: 30px; }
+.sign .line { border-top: 1.4px solid var(--ink-2); margin-bottom: 6px; }
+.sign .who { font-size: 8.8pt; font-weight: 600; color: var(--ink); }
+.sign .role { font-size: 7.6pt; color: var(--muted); margin-top: 1px; }
+
+.foot {
+  margin-top: 20px; padding-top: 12px;
+  border-top: 1px solid var(--line);
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 8pt; color: var(--muted);
+}
+.foot .advisor b { color: var(--ink); font-weight: 600; }
+.foot .advisor .cel { color: var(--brand-deep); font-weight: 600; }
+.foot .brandmark { color: var(--brand); width: 78px; opacity: .9; }
+.foot .brandmark img { width: 100%; display:block; }
+
+/* page break helper — solo afecta impresión, evita artefactos en pantalla */
+@media print { .page-break { break-before: page; } }
+
+/* =====================================================
+   PRINT — cada .sheet = una página A4
+   ===================================================== */
+@page { size: A4; margin: 0; }
+
+@media print {
+  html, body { background: #fff; }
+  .doc { width: auto; margin: 0; padding: 0; }
+  .sheet {
+    margin: 0;
+    box-shadow: none;
+    break-after: page;
+    break-inside: avoid;
+  }
+  .sheet:last-child { break-after: auto; }
+  .no-print { display: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- El color de marca se inyecta por org en --brand. Cada .sheet = una página A4. -->
+<div class="doc" style="--brand: {{org.brand_color}};">
+
+  <section class="sheet" data-screen-label="01">
+    <div class="sheet-body">
+      <header class="head">
+        <div class="head-logo"><img src="{{org.logo_url}}" alt="{{org.legal_name}}"></div>
+        <div class="head-org">
+          <div class="org-name">{{org.legal_name}}</div>
+          <div class="org-line">RUC {{org.tax_id}}</div>
+          {{#if org.address}}<div class="org-line">{{org.address}}</div>{{/if}}
+          {{#if org.contact_line}}<div class="org-line">{{org.contact_line}}</div>{{/if}}
+          {{#if org.website}}<div class="org-line">{{org.website}}</div>{{/if}}
+        </div>
+      </header>
+
+      <div class="title-row">
+        <div>
+          <div class="eyebrow">Presupuesto de tratamiento</div>
+          <h1>Fecundación in Vitro · Ovodonación con NGS</h1>
+        </div>
+        <div class="doc-code">
+          <b>{{budget.code}}</b>
+          Emitido {{budget.issued_at_short}}
+        </div>
+      </div>
+
+      <section class="meta">
+        <div class="cell"><div class="lbl">Paciente</div><div class="val">{{patient.full_name}}</div></div>
+        <div class="cell"><div class="lbl">Documento</div><div class="val meta-val">{{patient.document_label}}</div></div>
+        <div class="cell"><div class="lbl">Fecha de emisión</div><div class="val meta-val">{{budget.issued_at_short}}</div></div>
+        <div class="cell"><div class="lbl">Médico tratante</div><div class="val">{{doctor.full_name}}</div></div>
+        <div class="cell"><div class="lbl">Asesora de fertilidad</div><div class="val">{{advisor.full_name}}</div></div>
+        <div class="cell"><div class="lbl">Vigencia</div><div class="val meta-val">{{budget.valid_until_short}}</div></div>
+      </section>
+
+      <section class="phases">
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">1</div>
+            <div class="phase-name">Fase de estimulación</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.estimulacion.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody><tr>
+              <td class="desc">Óvulos de la donante<span class="hint">Incluye medicación, evaluaciones y aspiración folicular</span></td>
+              <td class="amt"><span class="cur">S/</span> {{phases.estimulacion.ovulos_donante}}</td>
+            </tr>
+            <tr>
+              <td class="desc">Honorarios médicos<span class="hint">Pago en efectivo o TB</span></td>
+              <td class="amt"><span class="cur">S/</span> {{phases.estimulacion.honorarios_medicos}}</td>
+            </tr>
+          </tbody></table>
+        </div>
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">2</div>
+            <div class="phase-name">Fecundación in vitro</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.fiv.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody><tr>
+              <td class="desc">Procedimiento de FIV</td>
+              <td class="amt"><span class="tag-inc">Incluido</span></td>
+            </tr>
+            <tr>
+              <td class="desc">Cultivo embrionario hasta estadio blastocisto</td>
+              <td class="amt"><span class="tag-inc">Incluido</span></td>
+            </tr>
+            <tr>
+              <td class="desc">Vitrificación de embriones</td>
+              <td class="amt"><span class="tag-inc">Incluido</span></td>
+            </tr>
+            <tr>
+              <td class="desc">Biopsia embrionaria</td>
+              <td class="amt"><span class="tag-inc">Incluido</span></td>
+            </tr>
+          </tbody></table>
+        </div>
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">3</div>
+            <div class="phase-name">Primera transferencia embrionaria</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.transferencia.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody><tr>
+              <td class="desc">Honorarios médicos<span class="hint">Pago en efectivo o TB</span></td>
+              <td class="amt"><span class="cur">S/</span> {{phases.transferencia.honorarios_medicos}}</td>
+            </tr>
+            <tr>
+              <td class="desc">Control endometrial<span class="hint">Máximo 3 controles</span></td>
+              <td class="amt"><span class="tag-inc">Incluido</span></td>
+            </tr>
+            <tr>
+              <td class="desc">Desvitrificación de embriones</td>
+              <td class="amt"><span class="cur">S/</span> {{phases.transferencia.desvitrificacion}}</td>
+            </tr>
+            <tr>
+              <td class="desc">Transferencia embrionaria</td>
+              <td class="amt"><span class="tag-inc">Incluido</span></td>
+            </tr>
+          </tbody></table>
+        </div>
+        <div class="total">
+          <div class="t-lbl">Total<small>Total en soles</small></div>
+          <div class="t-fig"><span class="cur">S/</span>{{budget.total_formatted}}</div>
+        </div>
+      </section>
+    </div>
+    <footer class="page-footer">
+      <div class="pf-addr">{{{org.footer_html}}}</div>
+    </footer>
+  </section>
+
+  <section class="sheet" data-screen-label="02">
+    <div class="sheet-body">
+      <header class="run-head">
+        <div class="rh-logo"><img src="{{org.logo_url}}" alt=""></div>
+        <div class="rh-meta">Presupuesto · Fecundación in Vitro · Ovodonación con NGS · <b>{{budget.code}}</b></div>
+      </header>
+      <section class="section"><h2>Consideraciones</h2><ul class="notes">
+        <li class="k">A partir del quinto control, cada cita tendrá un costo adicional de <span class="price">S/ 300.00</span>.</li>
+        <li>El programa <b>incluye</b>: 1 consulta nutricional presencial y 1 control nutricional virtual.</li>
+        <li>El programa <b>no incluye</b> las evaluaciones prequirúrgicas (análisis de sangre, riesgo quirúrgico, evaluación psicológica).</li>
+        <li>Podrá acceder a un <b>10% de descuento</b> en el paquete de análisis de laboratorio para mujer y varón (precio referencial: <span class="price">S/ 814.50</span>); incluye la evaluación psicológica.</li>
+        <li>No incluye la legalización de los consentimientos informados.</li>
+        <li>No incluye las medicinas para estimulación ovárica (desde <span class="price">S/ 6,500.00</span>).</li>
+        <li>No incluye el mantenimiento de embriones (<span class="price">S/ 80.00</span> mensuales).</li>
+        <li>No incluye las medicinas para la preparación endometrial.</li>
+      </ul></section>
+
+      <section class="section"><h2>Gastos adicionales</h2>
+        <table class="grid"><tbody>
+          <tr><td>Mantenimiento de embriones (mensual)</td><td class="amt">S/ 80.00</td></tr>
+          <tr><td>Estudio genético (NGS / PGT-A)</td><td class="amt">Según tabla</td></tr>
+        </tbody></table>
+      </section>
+    </div>
+    <footer class="page-footer">
+      <div class="pf-addr">{{{org.footer_html}}}</div>
+    </footer>
+  </section>
+
+  <section class="sheet" data-screen-label="03">
+    <div class="sheet-body">
+      <header class="run-head">
+        <div class="rh-logo"><img src="{{org.logo_url}}" alt=""></div>
+        <div class="rh-meta">Presupuesto · Fecundación in Vitro · Ovodonación con NGS · <b>{{budget.code}}</b></div>
+      </header>
+      <section class="section">
+        <h2>Estudio genético preimplantacional — opcional</h2>
+        <table class="grid">
+          <caption>Test genético preimplantacional para aneuploidías (PGT-A) · NGS — Next Generation Sequencing. Se realiza solo a embriones que lleguen entre el día 5 y 6 de desarrollo, mediante biopsia. Precios referenciales en dólares americanos.</caption>
+          <thead><tr><th>Screening genético NGS</th><th style="text-align:right">Precio (US$)</th></tr></thead>
+          <tbody>
+            <tr><td>Embrión 1</td><td class="amt">US$ {{ngs.embrion_1}}</td></tr>
+            <tr><td>Embrión 2</td><td class="amt">US$ {{ngs.embrion_2}}</td></tr>
+            <tr><td>Embrión 3</td><td class="amt">US$ {{ngs.embrion_3}}</td></tr>
+            <tr><td>Embrión 4</td><td class="amt">US$ {{ngs.embrion_4}}</td></tr>
+            <tr><td>Embrión 5</td><td class="amt">US$ {{ngs.embrion_5}}</td></tr>
+            <tr><td>Embrión 6</td><td class="amt">US$ {{ngs.embrion_6}}</td></tr>
+            <tr><td>Embrión 7</td><td class="amt">US$ {{ngs.embrion_7}}</td></tr>
+            <tr><td>Embrión 8</td><td class="amt">US$ {{ngs.embrion_8}}</td></tr>
+          </tbody>
+          <tfoot><tr><td>Embrión adicional</td><td class="amt">US$ {{ngs.embrion_adicional}}</td></tr></tfoot>
+        </table>
+      </section>
+
+      <section class="section"><h2>Evaluaciones previas al tratamiento</h2>
+        <div class="checks">
+          <div class="ck-group mujer">
+            <h3>Receptora (paciente)</h3>
+            <ul>
+              <li>HIV I y II</li>
+              <li>Hepatitis B (HBsAg)</li>
+              <li>Hepatitis C (anticuerpos)</li>
+              <li>VDRL</li>
+              <li>Chlamydia trachomatis IgM</li>
+              <li>Grupo sanguíneo y factor</li>
+              <li>Glucosa</li>
+              <li>Examen completo de orina</li>
+              <li class="chk">Evaluación psicológica</li>
+            </ul>
+          </div>
+          <div class="ck-group">
+            <h3>Hombre <span class="vig">· vigencia 6 meses</span></h3>
+            <ul>
+              <li>HIV I y II</li>
+              <li>Hepatitis B (HBsAg)</li>
+              <li>Hepatitis C (anticuerpos)</li>
+              <li>VDRL</li>
+              <li>Chlamydia trachomatis IgM</li>
+              <li class="ck-head">Examen de semen</li>
+              <li class="sub">Espermocultivo <span class="note">(no requiere abstinencia · vig. 3 meses)</span></li>
+              <li class="sub">Espermatograma <span class="note">(abstinencia 3–5 días)</span></li>
+              <li class="sub">Test de fragmentación</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+    <footer class="page-footer">
+      <div class="pf-addr">{{{org.footer_html}}}</div>
+    </footer>
+  </section>
+
+  <section class="sheet" data-screen-label="04">
+    <div class="sheet-body">
+      <header class="run-head">
+        <div class="rh-logo"><img src="{{org.logo_url}}" alt=""></div>
+        <div class="rh-meta">Presupuesto · Fecundación in Vitro · Ovodonación con NGS · <b>{{budget.code}}</b></div>
+      </header>
+      <section class="section"><h2>Términos y condiciones</h2>
+        <div class="terms">
+          <h3>Consideraciones generales</h3>
+          <p>No incluye adicionales en materiales, medicinas, procedimientos u otro tipo de gastos no señalados en el presupuesto.</p>
+          <h3>Vigencia del presupuesto</h3>
+          <ul class="arrows">
+            <li>El presupuesto tiene una vigencia de 90 días desde la fecha de emisión.</li>
+            <li>En el caso de un presupuesto promocional, la vigencia será hasta la fecha en que finalice la promoción.</li>
+            <li>Una vez pagado el tratamiento, el presupuesto tendrá una validez de 60 días.</li>
+            <li>Vencido el plazo ampliado, cualquier pago anticipado se utilizará como monto a cuenta del nuevo presupuesto que se elabore con los precios vigentes a dicha fecha.</li>
+          </ul>
+          <h3>Devolución de anticipos o de servicios no realizados</h3>
+          <p>En caso la paciente decida no continuar con el tratamiento en cualquiera de sus etapas, la empresa hará la devolución del dinero abonado de todos los procedimientos no realizados, con una retención del 10% por motivos de gastos administrativos.</p>
+          <div class="accept">He leído y acepto las condiciones y términos asociados a los servicios indicados en el presupuesto.</div>
+        </div>
+      </section>
+
+      <div class="signs">
+        <div class="sign"><div class="line"></div><div class="who">{{org.legal_name}}</div><div class="role">Representante legal</div></div>
+        <div class="sign"><div class="line"></div><div class="who">Firma y nombre de la paciente</div><div class="role">{{patient.full_name}}</div></div>
+      </div>
+      <div class="advisor-line">Asesora de fertilidad: <b>{{advisor.full_name}}</b>{{#if advisor.phone}} · <span class="cel">{{advisor.phone}}</span>{{/if}}</div>
+    </div>
+    <footer class="page-footer">
+      <div class="pf-addr">{{{org.footer_html}}}</div>
+    </footer>
+  </section>
+
+</div>
+
+
+</body></html>

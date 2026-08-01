@@ -119,6 +119,8 @@ export const BUDGET_TREATMENT_TYPES = [
   "CRIO",
   "OVODONACION",
   "ROPA",
+  "TED",
+  "DUOSTIM",
   "OTRO",
 ] as const;
 
@@ -131,8 +133,38 @@ export const BUDGET_TREATMENT_TYPE_LABELS: Record<BudgetTreatmentType, string> =
   CRIO: "Criopreservación",
   OVODONACION: "Ovodonación",
   ROPA: "Método ROPA",
+  TED: "TED (Transferencia Embrionaria Diferida)",
+  DUOSTIM: "DUO STIM (Acumulación de Embriones)",
   OTRO: "Otro",
 };
+
+/**
+ * `services.name` → BudgetTreatmentType. Inferencia ÚNICA para toda la
+ * app (mig 180): la usan el assign de presupuestos (lo que se guarda en
+ * `budget_records.treatment_type`) y el router de plantillas PDF. Antes
+ * existían dos copias divergentes (assign sin TED → guardaba OTRO;
+ * generate.tsx con TED) y el PDF podía rutear distinto de lo almacenado.
+ *
+ * Orden importa: DUOSTIM va antes que TED porque un nombre como
+ * "DUO STIM (doble estimulación y transferencia)" contiene
+ * "transferencia" y caería en la plantilla equivocada.
+ */
+export function inferTreatmentTypeFromServiceName(
+  serviceName: string | null,
+): BudgetTreatmentType {
+  if (!serviceName) return "OTRO";
+  const n = serviceName.toLowerCase();
+  if ((n.includes("duo") && n.includes("stim")) || n.includes("acumulaci"))
+    return "DUOSTIM";
+  if (n.includes("ovodon")) return "OVODONACION";
+  if (n.includes("ropa")) return "ROPA";
+  if (n.includes("crio")) return "CRIO";
+  if (n.includes("inseminaci") || n.includes("iiu")) return "IIU";
+  if (n.includes("transferencia") || n.includes("ted")) return "TED";
+  if (n.includes("inducci")) return "INDUCCION";
+  if (n.includes("fiv") || n.includes("fecundaci")) return "FIV";
+  return "OTRO";
+}
 
 export type BudgetAcceptanceStatus =
   | "pending_acceptance"
