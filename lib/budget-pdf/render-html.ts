@@ -2,10 +2,12 @@
  * HTML → PDF render path for tier-style fertility budgets (Phase 5).
  *
  * Switched per-org from `generate.tsx`. NATURVITRA's templates cover
- * FIV, CRIO, IIU and TED (`templates/*.hbs`), routed by
- * `props.service.treatmentType`. The data shape per tier (A/B/C)
- * lives in `data/{fiv,crio,iiu,ted}-tiers.ts`; the per-org
- * footer/header overrides live in `data/vitra-overrides.ts`.
+ * FIV, CRIO, IIU, TED, DUO STIM, ROPA and OVODON (`templates/*.hbs`),
+ * routed by `props.service.treatmentType`. The data shape per tier
+ * (A/B/C) lives in `data/*-tiers.ts`; the per-org footer/header
+ * overrides live in `data/vitra-overrides.ts`. The honorarios
+ * adjustment (mig 174) is split across each treatment's honorarios
+ * lines via `honorarios-fold.ts` (proportional, S/10 steps).
  *
  * Rendering pipeline: Handlebars (template + data) → HTML string →
  * Puppeteer headless chromium → PDF buffer.
@@ -33,7 +35,15 @@ import {
 import { CRIO_TIER_BREAKDOWNS } from "./data/crio-tiers";
 import { IIU_TIER_BREAKDOWNS } from "./data/iiu-tiers";
 import { TED_TIER_BREAKDOWNS } from "./data/ted-tiers";
+import { DUOSTIM_TIER_BREAKDOWNS } from "./data/duostim-tiers";
+import { ROPA_TIER_BREAKDOWNS } from "./data/ropa-tiers";
+import { OVODON_TIER_BREAKDOWNS } from "./data/ovodon-tiers";
 import type { OrgPdfOverrides } from "./data/vitra-overrides";
+import {
+  addCents,
+  centsOf,
+  distributeHonorarios,
+} from "./honorarios-fold";
 
 type RenderProps = BudgetPdfProps & { budgetId: string };
 
@@ -57,41 +67,15 @@ async function loadTemplate(
   return compiled;
 }
 
-/**
- * Format a number into the Peruvian-style "1,234.00" string used
- * across the templates. We never inject the "S/" prefix here — the
- * template owns the currency glyph so we don't double up.
- */
-function formatPen(n: number): string {
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-/**
- * Parse a Peruvian-formatted "11,200.00" string back into a number.
- * Inverse of `formatPen` — needed to fold a per-budget honorarios
- * surcharge into the otherwise-hardcoded breakdown strings.
- */
-function parsePen(s: string): number {
-  return Number(s.replace(/,/g, "")) || 0;
-}
-
-/** "11,200.00" + delta → "11,450.00" — helper for the honorarios fold. */
-function addPen(s: string, delta: number): string {
-  return formatPen(parsePen(s) + delta);
-}
-
 /** Effective tier, defaulting to A like the original FIV path. */
 function resolveTier(props: RenderProps): "A" | "B" | "C" {
   return props.tier ?? "A";
 }
 
-/** delta > 0 → apply the fold; otherwise leave the breakdown as-is. */
-function honorariosDelta(props: RenderProps): number {
+/** Ajuste de honorarios (mig 174) en céntimos enteros; 0 = sin fold. */
+function honorariosDeltaCents(props: RenderProps): number {
   const d = props.honorariosAdjustment ?? 0;
-  return d > 0 ? d : 0;
+  return d > 0 ? Math.round(d * 100) : 0;
 }
 
 /**
@@ -172,29 +156,46 @@ function synthBudgetCode(budgetId: string, issuedAt: Date): string {
  * Builds the Handlebars data object for the FIV template from the
  * upstream `BudgetPdfProps` + the per-tier and per-org bundles.
  *
- * Honorarios fold (mig 174): the whole delta lands on the aspiración
- * phase — the main procedure fee — so the patient sees a single,
- * higher "Honorarios médicos" figure with no separate "ajuste" line
- * (per the chosen UX). The phase subtotal and the grand total move by
- * the same delta so every column still reconciles.
+ * Honorarios fold (mig 174 + reparto 2026-08): el delta se distribuye
+ * proporcionalmente entre las DOS líneas de honorarios (aspiración y
+ * transferencia) vía `distributeHonorarios` — múltiplos de S/ 10,
+ * resto a la línea mayor. La paciente no ve línea de "ajuste": cada
+ * línea, su subtotal de fase y el total general se mueven juntos y
+ * todo sigue cuadrando al céntimo.
  */
 function buildFivData(
   props: RenderProps,
   overrides: OrgPdfOverrides,
 ): Record<string, unknown> {
   const base = FIV_TIER_BREAKDOWNS[resolveTier(props)];
-  const delta = honorariosDelta(props);
-  const breakdown = !delta
-    ? base
-    : {
-        ...base,
-        aspiracion: {
-          ...base.aspiracion,
-          honorarios_medicos: addPen(base.aspiracion.honorarios_medicos, delta),
-          subtotal: addPen(base.aspiracion.subtotal, delta),
-        },
-        total_formatted: addPen(base.total_formatted, delta),
-      };
+  const delta = honorariosDeltaCents(props);
+  let breakdown = base;
+  if (delta) {
+    const [dAsp, dTra] = distributeHonorarios(
+      [
+        centsOf(base.aspiracion.honorarios_medicos),
+        centsOf(base.transferencia.honorarios_medicos),
+      ],
+      delta,
+    );
+    breakdown = {
+      ...base,
+      aspiracion: {
+        ...base.aspiracion,
+        honorarios_medicos: addCents(base.aspiracion.honorarios_medicos, dAsp),
+        subtotal: addCents(base.aspiracion.subtotal, dAsp),
+      },
+      transferencia: {
+        ...base.transferencia,
+        honorarios_medicos: addCents(
+          base.transferencia.honorarios_medicos,
+          dTra,
+        ),
+        subtotal: addCents(base.transferencia.subtotal, dTra),
+      },
+      total_formatted: addCents(base.total_formatted, delta),
+    };
+  }
 
   const common = buildCommonData(props, overrides);
   return {
@@ -220,25 +221,25 @@ function buildFivData(
 }
 
 /**
- * CRIO — single phase. Honorarios fold (mig 174): the design has an
- * explicit "Honorarios médicos" line, so the delta lands there (same
- * pattern as FIV's aspiración phase); subtotal + total move together.
+ * CRIO — single phase, ÚNICA línea de honorarios: el reparto degenera
+ * al comportamiento histórico (todo el delta a esa línea); subtotal y
+ * total se mueven juntos.
  */
 function buildCrioData(
   props: RenderProps,
   overrides: OrgPdfOverrides,
 ): Record<string, unknown> {
   const base = CRIO_TIER_BREAKDOWNS[resolveTier(props)];
-  const delta = honorariosDelta(props);
+  const delta = honorariosDeltaCents(props);
   const breakdown = !delta
     ? base
     : {
         fase: {
           ...base.fase,
-          honorarios_medicos: addPen(base.fase.honorarios_medicos, delta),
-          subtotal: addPen(base.fase.subtotal, delta),
+          honorarios_medicos: addCents(base.fase.honorarios_medicos, delta),
+          subtotal: addCents(base.fase.subtotal, delta),
         },
-        total_formatted: addPen(base.total_formatted, delta),
+        total_formatted: addCents(base.total_formatted, delta),
       };
 
   const common = buildCommonData(props, overrides);
@@ -250,28 +251,27 @@ function buildCrioData(
 }
 
 /**
- * IIU — single phase. Honorarios fold (mig 174): the design has an
- * explicit "Honorarios médicos" line, so the delta lands there;
- * subtotal + total move together.
+ * IIU — single phase, única línea de honorarios: reparto degenerado
+ * (todo el delta a esa línea); subtotal + total move together.
  */
 function buildIiuData(
   props: RenderProps,
   overrides: OrgPdfOverrides,
 ): Record<string, unknown> {
   const base = IIU_TIER_BREAKDOWNS[resolveTier(props)];
-  const delta = honorariosDelta(props);
+  const delta = honorariosDeltaCents(props);
   const breakdown = !delta
     ? base
     : {
         procedimiento: {
           ...base.procedimiento,
-          honorarios_medicos: addPen(
+          honorarios_medicos: addCents(
             base.procedimiento.honorarios_medicos,
             delta,
           ),
-          subtotal: addPen(base.procedimiento.subtotal, delta),
+          subtotal: addCents(base.procedimiento.subtotal, delta),
         },
-        total_formatted: addPen(base.total_formatted, delta),
+        total_formatted: addCents(base.total_formatted, delta),
       };
 
   const common = buildCommonData(props, overrides);
@@ -283,28 +283,27 @@ function buildIiuData(
 }
 
 /**
- * TED — single phase. Honorarios fold (mig 174): the design has an
- * explicit "Honorario médico" line, so the delta lands there;
- * subtotal + total move together.
+ * TED — single phase, única línea de honorarios: reparto degenerado
+ * (todo el delta a esa línea); subtotal + total move together.
  */
 function buildTedData(
   props: RenderProps,
   overrides: OrgPdfOverrides,
 ): Record<string, unknown> {
   const base = TED_TIER_BREAKDOWNS[resolveTier(props)];
-  const delta = honorariosDelta(props);
+  const delta = honorariosDeltaCents(props);
   const breakdown = !delta
     ? base
     : {
         transferencia: {
           ...base.transferencia,
-          honorario_medico: addPen(
+          honorario_medico: addCents(
             base.transferencia.honorario_medico,
             delta,
           ),
-          subtotal: addPen(base.transferencia.subtotal, delta),
+          subtotal: addCents(base.transferencia.subtotal, delta),
         },
-        total_formatted: addPen(base.total_formatted, delta),
+        total_formatted: addCents(base.total_formatted, delta),
       };
 
   const common = buildCommonData(props, overrides);
@@ -316,11 +315,193 @@ function buildTedData(
 }
 
 /**
+ * DUO STIM — dos estimulaciones ováricas completas + transferencia:
+ * TRES líneas de honorarios. El reparto proporcional evita que todo
+ * el ajuste caiga en la 1.ª estimulación (dos procedimientos casi
+ * idénticos con honorarios muy distintos delatarían el sobreprecio
+ * dentro del propio documento). Cada incremento arrastra el subtotal
+ * de su fase de aspiración Y el subtotal de su bloque de estimulación.
+ */
+function buildDuostimData(
+  props: RenderProps,
+  overrides: OrgPdfOverrides,
+): Record<string, unknown> {
+  const base = DUOSTIM_TIER_BREAKDOWNS[resolveTier(props)];
+  const delta = honorariosDeltaCents(props);
+  let breakdown = base;
+  if (delta) {
+    const [d1, d2, dTra] = distributeHonorarios(
+      [
+        centsOf(base.primera.aspiracion.honorarios_medicos),
+        centsOf(base.segunda.aspiracion.honorarios_medicos),
+        centsOf(base.transferencia.honorario_medico),
+      ],
+      delta,
+    );
+    breakdown = {
+      primera: {
+        ...base.primera,
+        aspiracion: {
+          ...base.primera.aspiracion,
+          honorarios_medicos: addCents(
+            base.primera.aspiracion.honorarios_medicos,
+            d1,
+          ),
+          subtotal: addCents(base.primera.aspiracion.subtotal, d1),
+        },
+        subtotal: addCents(base.primera.subtotal, d1),
+      },
+      segunda: {
+        ...base.segunda,
+        aspiracion: {
+          ...base.segunda.aspiracion,
+          honorarios_medicos: addCents(
+            base.segunda.aspiracion.honorarios_medicos,
+            d2,
+          ),
+          subtotal: addCents(base.segunda.aspiracion.subtotal, d2),
+        },
+        subtotal: addCents(base.segunda.subtotal, d2),
+      },
+      transferencia: {
+        ...base.transferencia,
+        honorario_medico: addCents(base.transferencia.honorario_medico, dTra),
+        subtotal: addCents(base.transferencia.subtotal, dTra),
+      },
+      total_formatted: addCents(base.total_formatted, delta),
+    };
+  }
+
+  const common = buildCommonData(props, overrides);
+  return {
+    ...common,
+    budget: { ...common.budget, total_formatted: breakdown.total_formatted },
+    phases: {
+      primera: breakdown.primera,
+      segunda: breakdown.segunda,
+      transferencia: breakdown.transferencia,
+    },
+    ngs: FIV_NGS_PRICES,
+  };
+}
+
+/**
+ * ROPA — tratamiento donante (ciclo FIV) + tratamiento receptora
+ * (transferencia): DOS líneas de honorarios repartidas. El incremento
+ * de la donante arrastra subtotal de aspiración + subtotal del bloque
+ * donante; el de la receptora, su único subtotal.
+ */
+function buildRopaData(
+  props: RenderProps,
+  overrides: OrgPdfOverrides,
+): Record<string, unknown> {
+  const base = ROPA_TIER_BREAKDOWNS[resolveTier(props)];
+  const delta = honorariosDeltaCents(props);
+  let breakdown = base;
+  if (delta) {
+    const [dDon, dRec] = distributeHonorarios(
+      [
+        centsOf(base.donante.aspiracion.honorarios_medicos),
+        centsOf(base.receptora.honorario_medico),
+      ],
+      delta,
+    );
+    breakdown = {
+      donante: {
+        ...base.donante,
+        aspiracion: {
+          ...base.donante.aspiracion,
+          honorarios_medicos: addCents(
+            base.donante.aspiracion.honorarios_medicos,
+            dDon,
+          ),
+          subtotal: addCents(base.donante.aspiracion.subtotal, dDon),
+        },
+        subtotal: addCents(base.donante.subtotal, dDon),
+      },
+      receptora: {
+        ...base.receptora,
+        honorario_medico: addCents(base.receptora.honorario_medico, dRec),
+        subtotal: addCents(base.receptora.subtotal, dRec),
+      },
+      total_formatted: addCents(base.total_formatted, delta),
+    };
+  }
+
+  const common = buildCommonData(props, overrides);
+  return {
+    ...common,
+    budget: { ...common.budget, total_formatted: breakdown.total_formatted },
+    phases: {
+      donante: breakdown.donante,
+      receptora: breakdown.receptora,
+    },
+    ngs: FIV_NGS_PRICES,
+  };
+}
+
+/**
+ * OVODONACIÓN + NGS — estimulación (óvulos de donante + honorarios) +
+ * FIV incluida + primera transferencia: DOS líneas de honorarios
+ * repartidas (así fijó Vitra su propio tier A: +1,080 estimulación /
+ * +350 transferencia sobre el docx).
+ */
+function buildOvodonData(
+  props: RenderProps,
+  overrides: OrgPdfOverrides,
+): Record<string, unknown> {
+  const base = OVODON_TIER_BREAKDOWNS[resolveTier(props)];
+  const delta = honorariosDeltaCents(props);
+  let breakdown = base;
+  if (delta) {
+    const [dEst, dTra] = distributeHonorarios(
+      [
+        centsOf(base.estimulacion.honorarios_medicos),
+        centsOf(base.transferencia.honorarios_medicos),
+      ],
+      delta,
+    );
+    breakdown = {
+      ...base,
+      estimulacion: {
+        ...base.estimulacion,
+        honorarios_medicos: addCents(
+          base.estimulacion.honorarios_medicos,
+          dEst,
+        ),
+        subtotal: addCents(base.estimulacion.subtotal, dEst),
+      },
+      transferencia: {
+        ...base.transferencia,
+        honorarios_medicos: addCents(
+          base.transferencia.honorarios_medicos,
+          dTra,
+        ),
+        subtotal: addCents(base.transferencia.subtotal, dTra),
+      },
+      total_formatted: addCents(base.total_formatted, delta),
+    };
+  }
+
+  const common = buildCommonData(props, overrides);
+  return {
+    ...common,
+    budget: { ...common.budget, total_formatted: breakdown.total_formatted },
+    phases: {
+      estimulacion: breakdown.estimulacion,
+      fiv: breakdown.fiv,
+      transferencia: breakdown.transferencia,
+    },
+    ngs: FIV_NGS_PRICES,
+  };
+}
+
+/**
  * Router — treatmentType → { template file, data builder }. Adding a
  * new treatment = new .hbs + new data file + one entry here (and
  * widening `applies_to.treatment_types` in the plugin registry).
  */
-const TEMPLATE_ROUTES: Record<
+export const TEMPLATE_ROUTES: Record<
   string,
   {
     templateFile: string;
@@ -334,6 +515,9 @@ const TEMPLATE_ROUTES: Record<
   CRIO: { templateFile: "CRIO.hbs", buildData: buildCrioData },
   IIU: { templateFile: "IIU.hbs", buildData: buildIiuData },
   TED: { templateFile: "TED.hbs", buildData: buildTedData },
+  DUOSTIM: { templateFile: "DUOSTIM.hbs", buildData: buildDuostimData },
+  ROPA: { templateFile: "ROPA.hbs", buildData: buildRopaData },
+  OVODONACION: { templateFile: "OVODON.hbs", buildData: buildOvodonData },
 };
 
 /**

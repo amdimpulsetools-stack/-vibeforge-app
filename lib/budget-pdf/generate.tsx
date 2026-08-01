@@ -23,6 +23,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { BudgetPdfDocument, type BudgetPdfProps } from "./document";
 import { getActiveBudgetPdfPlugin } from "@/lib/plugins/active";
 import type { BudgetTreatmentType } from "@/lib/plugins/types";
+import { inferTreatmentTypeFromServiceName } from "@/types/fertility";
 import {
   buildBudgetPdfPath,
   getBudgetPdfSignedUrl,
@@ -243,24 +244,8 @@ async function loadAsesora(
   };
 }
 
-/**
- * Map `services.name` → expected enum slot. Mirrors the inference
- * documented in `app/api/budgets/assign/route.ts` (Phase 3).
- */
-function inferTreatmentTypeFromService(
-  serviceName: string | null,
-): string {
-  if (!serviceName) return "OTRO";
-  const n = serviceName.toLowerCase();
-  if (n.includes("ovodon")) return "OVODONACION";
-  if (n.includes("ropa")) return "ROPA";
-  if (n.includes("crio")) return "CRIO";
-  if (n.includes("inseminaci") || n.includes("iiu")) return "IIU";
-  if (n.includes("transferencia") || n.includes("ted")) return "TED";
-  if (n.includes("inducci")) return "INDUCCION";
-  if (n.includes("fiv") || n.includes("fecundaci")) return "FIV";
-  return "OTRO";
-}
+// Inferencia unificada en types/fertility.ts (mig 180) — misma función
+// que usa el assign, así lo almacenado y lo ruteado nunca divergen.
 
 export async function generateBudgetPdf(
   userClient: SupabaseClient,
@@ -394,7 +379,7 @@ export async function generateBudgetPdf(
     service: {
       name: budget.service?.name ?? budget.treatment_type,
       treatmentType: budget.service?.name
-        ? inferTreatmentTypeFromService(budget.service.name)
+        ? inferTreatmentTypeFromServiceName(budget.service.name)
         : budget.treatment_type,
     },
     tier: budget.tier,

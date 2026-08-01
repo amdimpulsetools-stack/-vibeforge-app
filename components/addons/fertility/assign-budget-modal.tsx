@@ -580,8 +580,10 @@ function AssignBudgetModalInner({
 
           {/* Ajuste de honorarios (opcional). Solo visible con un tier
               elegido. Sobreprecio ≥ 0 sobre el precio base del tier; se
-              integra en el total (y, en plantillas que itemizan
-              honorarios, dentro de la línea de honorarios médicos). */}
+              integra en el total. En plantillas que itemizan honorarios
+              se reparte proporcionalmente entre las líneas de honorarios
+              del tratamiento en múltiplos de S/ 10 (honorarios-fold.ts),
+              de ahí la sugerencia de usar múltiplos de 10. */}
           {selectedTier && (
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -608,8 +610,10 @@ function AssignBudgetModalInner({
               </div>
               <p className="text-[11px] text-muted-foreground">
                 Sobreprecio sobre los honorarios del tier para casos
-                particulares. Se suma al total; la paciente no ve una
-                línea de “ajuste”.
+                particulares. Se suma al total y se reparte entre las
+                líneas de honorarios del tratamiento; la paciente no ve
+                una línea de “ajuste”. Usa múltiplos de 10 para que los
+                montos queden redondos.
               </p>
               {adjustmentValue > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-2 text-xs">

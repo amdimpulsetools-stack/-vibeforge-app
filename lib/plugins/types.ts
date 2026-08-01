@@ -23,6 +23,7 @@ export type BudgetTreatmentType =
   | "TED"
   | "OVODONACION"
   | "ROPA"
+  | "DUOSTIM"
   | "OTRO";
 
 /**
