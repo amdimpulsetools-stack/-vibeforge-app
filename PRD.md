@@ -1,10 +1,11 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-07-22
-> **Versión:** 0.15.22
+> **Última actualización:** 2026-08-03
+> **Versión:** 0.15.23
 > **Estado (resumen ejecutivo):**
 > - **MVP en producción** multi-tenant (RLS), 4 roles + Founder, agenda día/semana con precisión al minuto, pacientes, historia clínica/SOAP completa, reportes, planes 3-tiers (S/129 / S/349 / S/649).
 > - **Addon vertical Fertilidad end-to-end** (`fertility_basic`): seguimientos automatizados con atribución honesta (categorías A/B/C), embudo de presupuestos con tiers A/B/C, generador de PDF per-org, lifecycle de tratamiento (por iniciar → en curso → completado) y crons de recordatorio.
+> - **Sistema de presupuestos multi-perfil (v0.15.23, migs 180-181)**: las 7 plantillas FIV del plugin Vitra completas (CRIO/IIU/TED/OVODON/DUO STIM/ROPA + FIV) con honorarios múltiples y reparto proporcional del ajuste; **modos de presupuesto por org** en `org_budget_pdf_settings` — `documents_enabled=false` (solo asignación y seguimiento, sin PDF, con guards server-side) y `pricing_mode='single'` (precio único por tratamiento, UI sin tiers, `tier='A'` interno sin cambios de contrato). Perfil clínica chica (Dra. Patricia) onboardeable sin imponerle el modelo Vitra.
 > - **2 pilotos comerciales activos** desde 2026-07-03 (Vitra — fertilidad + Dra. Quispe); trials extendidos al 07-sep, mecanismo de cobro Wave 2 MP pendiente.
 > - **Facturación electrónica SUNAT** vía Nubefact (boletas/facturas/notas de crédito desde la cita, pagos parciales, mapeo Catálogo 59, warning bancarización Ley 28194).
 > - **Billing Mercado Pago con período de gracia** (mig 144) + cancelación self-serve (Wave 1); Wave 2 (cambio de plan sincronizado con MP + reactivación) pendiente.
@@ -1008,11 +1009,21 @@ Mantener el alcance acotado a "secciones lineales + variables + fórmulas básic
 
 Cuando lleguen 30-40 orgs distintas pidiendo templates custom y vos (founder) te estés volviendo el cuello de botella diseñando `.hbs` a mano. Antes de eso, **mantener el flujo actual** (founder instala plugin con HTML pre-hecho + edita JSONB) escala perfectamente.
 
+### Plan de construcción por fases (decisión 2026-08-03)
+
+Del análisis "builder de presupuestos + perfiles de org" salió el orden de ataque:
+
+- **Fase 0 — motor de secciones SIN UI** (se puede adelantar antes del umbral): definir el formato JSON de plantilla por secciones (texto, tabla de precios, separador, imagen, variables) y un renderer que lo consuma, cuyo primer caso de uso es **reproducir byte-a-byte el documento genérico actual** (`lib/budget-pdf/document.tsx`) como una plantilla de secciones. Cero UI nueva: el founder edita el JSON a mano igual que hoy edita `org_plugins.config`. Esto valida el modelo de datos del builder con un consumidor real antes de invertir en editor visual, y convierte el PDF genérico en la primera plantilla del sistema (menos código especial, no más).
+- **Fase 1+ — el builder visual** (recién al umbral de 30-40 orgs de arriba): panel de edición, estilos predefinidos, dropdown de variables, fórmulas simples y preview — sobre el motor ya probado de Fase 0.
+
+Los dos flags de mig 181 (`documents_enabled`, `pricing_mode`) ya cubren los perfiles simples sin builder; el builder solo se justifica para orgs que quieren *diseño* propio, no solo *contenido* propio.
+
 ### Prerequisitos arquitectónicos (ya cumplidos)
 
 - ✅ Sistema de plugins per-org con config JSONB editable (mig 169, esta sesión)
 - ✅ Pipeline HTML+Handlebars+Puppeteer en Vercel (sparticuz/chromium, sesión previa)
 - ✅ Capa 2 desacoplada del addon de fertilidad
+- ✅ Modos de presupuesto por org (mig 181): `documents_enabled` + `pricing_mode` en `org_budget_pdf_settings`
 
 
 ---

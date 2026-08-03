@@ -1,7 +1,7 @@
 # Coming Updates — Verticalidad Fertilidad
 
 > **Estado:** roadmap activo
-> **Última actualización:** 2026-05-02
+> **Última actualización:** 2026-08-03
 > **Documento padre:** `docs/plan-vertical-fertility-gynecology.md`
 > **Spec entregado en piloto:** `docs/spec-followup-module-fertility.md`
 > **Owner:** Oscar (Founder, Yenda)
@@ -48,6 +48,25 @@ Cosas del MISMO tier que se postergaron deliberadamente para no overengineer ant
 ### Pequeñas mejoras técnicas
 - Atomicidad real en sync de `delay_days` de settings → reglas (hoy es best-effort sin rollback). Requiere RPC SQL.
 - Endpoint `/api/clinical-followups/dashboard` sigue exponiendo modo legacy + buckets. Considerar deprecar legacy cuando ningún consumer la use.
+
+---
+
+## Presupuestos — backlog priorizado (análisis 2026-08-03)
+
+Decisiones del análisis "builder de presupuestos + perfiles de org" (sesión que produjo migs 180-181). Lo ya entregado de ese análisis: modos por org `documents_enabled` + `pricing_mode='single'` (mig 181, PR #234).
+
+### I4 — Inmutabilidad del PDF firmado + guard de conciliación · prioridad **M**
+- **Problema**: un presupuesto ya **enviado/aceptado** puede divergir de su PDF si después cambian los tiers del servicio, el ajuste de honorarios o los settings del PDF de la org — el documento que la paciente tiene en la mano deja de coincidir con lo que Yenda cree que cotizó.
+- **Alcance propuesto**:
+  1. **Snapshot inmutable al enviar**: congelar en `budget_records` (o tabla satélite) los montos, líneas y settings usados al generar el PDF enviado; regeneraciones posteriores del PDF de un presupuesto enviado sirven el snapshot, no el estado vivo del catálogo.
+  2. **Guard de conciliación**: chequeo (al aceptar y/o cron liviano) que compare snapshot vs estado vivo y marque discrepancias — la asesora ve un aviso "el catálogo cambió después de enviar este presupuesto" en vez de descubrirlo en el cobro.
+- **No incluye**: versionado completo de documentos ni firma digital criptográfica — es integridad operativa/contable, no legal.
+- Registrado desde el análisis 2026-08-03; construir cuando se toque de nuevo el flujo de aceptación o antes de escalar a >2 orgs con presupuestos activos, lo que llegue primero.
+
+### Builder de presupuestos — Fase 0 antes que UI
+- El builder visual arranca por una **Fase 0: motor de secciones sin UI** que reproduce el documento genérico actual como plantilla JSON (valida el modelo de datos con un consumidor real, sin editor).
+- El builder visual completo recién **al umbral definido en PRD §17.5** (30-40 orgs pidiendo templates custom).
+- Detalle del plan por fases: **PRD §17.5 — "Plan de construcción por fases (decisión 2026-08-03)"** (no duplicar acá).
 
 ---
 
