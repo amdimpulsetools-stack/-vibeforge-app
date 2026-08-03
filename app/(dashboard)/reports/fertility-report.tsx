@@ -22,6 +22,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useBudgetDocSettings } from "@/hooks/use-budget-doc-settings";
 import {
   ArrowRight,
   CalendarCheck2,
@@ -115,6 +116,9 @@ export function FertilityReport({
   const [data, setData] = useState<FertilityReportData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // mig 181 — pricing_mode='single': el breakdown "Por paquete" es una
+  // gráfica sin información (todo cae en A); se oculta.
+  const { singlePricing } = useBudgetDocSettings();
 
   useEffect(() => {
     let cancelled = false;
@@ -304,7 +308,8 @@ export function FertilityReport({
             )}
           </div>
 
-          {/* Por paquete */}
+          {/* Por paquete — oculto en modo precio único (mig 181) */}
+          {!singlePricing && (
           <div className="rounded-xl border border-border bg-card p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               Por paquete (enviados → aceptados)
@@ -348,6 +353,7 @@ export function FertilityReport({
               enviado en un mes anterior puede aceptarse en este).
             </p>
           </div>
+          )}
         </div>
       </section>
     </div>

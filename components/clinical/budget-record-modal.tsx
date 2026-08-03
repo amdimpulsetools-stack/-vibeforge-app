@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { useOrgFertilityAdvisors } from "@/hooks/use-org-fertility-advisors";
+import { useBudgetDocSettings } from "@/hooks/use-budget-doc-settings";
 import { cn } from "@/lib/utils";
 
 // ──────────────────────────────────────────────────────────────────
@@ -194,6 +195,15 @@ export function BudgetRecordModal({
     setTier(null);
   }, [serviceId]);
 
+  // mig 181 — pricing_mode='single': UI sin tiers (tarjeta única),
+  // tier='A' autoseleccionado por debajo. Mismo comportamiento que
+  // assign-budget-modal.tsx.
+  const { singlePricing } = useBudgetDocSettings();
+  useEffect(() => {
+    if (!singlePricing || !selectedService) return;
+    if (selectedService.tiers.some((t) => t.tier === "A")) setTier("A");
+  }, [singlePricing, selectedService]);
+
   const canSubmit = Boolean(
     patientId &&
       serviceId &&
@@ -361,17 +371,42 @@ export function BudgetRecordModal({
             )}
           </div>
 
-          {/* Tier picker — only when a service is selected */}
+          {/* Tier picker — only when a service is selected. En
+              pricing_mode='single' (mig 181): tarjeta única de precio. */}
           {selectedService && (
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Tier (paquete)
+                {singlePricing ? "Precio del tratamiento" : "Tier (paquete)"}
               </label>
               {selectedService.tiers.length === 0 ? (
                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-xs text-amber-600">
                   Este servicio aún no tiene tiers configurados.
                   Configúralos desde Admin → Servicios.
                 </div>
+              ) : singlePricing ? (
+                (() => {
+                  const tA = selectedService.tiers.find(
+                    (x) => x.tier === "A",
+                  );
+                  return tA ? (
+                    <div className="rounded-lg border border-emerald-500 bg-emerald-500/10 p-3 ring-2 ring-emerald-500/30">
+                      <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                        {tA.currency === "USD" ? "USD" : "S/"}{" "}
+                        {Number(tA.amount).toFixed(2)}
+                      </p>
+                      {tA.includes_text && (
+                        <p className="mt-1 line-clamp-3 text-[11px] text-muted-foreground">
+                          {tA.includes_text}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-xs text-amber-600">
+                      Este servicio no tiene precio configurado.
+                      Configúralo desde Admin → Servicios.
+                    </div>
+                  );
+                })()
               ) : (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {(["A", "B", "C"] as const).map((letter) => {

@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { FertilityAddonGate } from "@/components/addons/fertility-addon-gate";
 import { useOrgFertilityAdvisors } from "@/hooks/use-org-fertility-advisors";
+import { useBudgetDocSettings } from "@/hooks/use-budget-doc-settings";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -312,6 +313,17 @@ function AssignBudgetModalInner({
     if (tier !== "A") setHonorariosAdjustment("");
   }, [tier]);
 
+  // mig 181 — pricing_mode='single': la org maneja UN precio por
+  // tratamiento. La UI no habla de tiers (tarjeta única) y por debajo
+  // se escribe tier='A' — cero cambios de contrato en el assign. En
+  // este modo el ajuste de honorarios sigue disponible (es un
+  // sobreprecio sobre el precio estándar).
+  const { singlePricing } = useBudgetDocSettings();
+  useEffect(() => {
+    if (!singlePricing || !selectedService) return;
+    if (selectedService.tiers.some((t) => t.tier === "A")) setTier("A");
+  }, [singlePricing, selectedService]);
+
   const canSubmit = Boolean(
     serviceId &&
       tier &&
@@ -507,17 +519,38 @@ function AssignBudgetModalInner({
             )}
           </div>
 
-          {/* Tier picker */}
+          {/* Tier picker. En pricing_mode='single' (mig 181) la org no
+              habla de tiers: tarjeta única con el precio del
+              tratamiento (tier A por debajo, autoseleccionado). */}
           {selectedService && (
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Tier (paquete)
+                {singlePricing ? "Precio del tratamiento" : "Tier (paquete)"}
               </label>
               {selectedService.tiers.length === 0 ? (
                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-xs text-amber-600">
                   Este servicio aún no tiene tiers configurados. Configúralos
                   desde Admin → Servicios.
                 </div>
+              ) : singlePricing ? (
+                selectedTier ? (
+                  <div className="rounded-lg border border-emerald-500 bg-emerald-500/10 p-3 ring-2 ring-emerald-500/30">
+                    <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">
+                      {selectedTier.currency === "USD" ? "USD" : "S/"}{" "}
+                      {Number(selectedTier.amount).toFixed(2)}
+                    </p>
+                    {selectedTier.includes_text && (
+                      <p className="mt-1 line-clamp-3 text-[11px] text-muted-foreground">
+                        {selectedTier.includes_text}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2 text-xs text-amber-600">
+                    Este servicio no tiene precio configurado. Configúralo
+                    desde Admin → Servicios.
+                  </div>
+                )
               ) : (
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   {(["A", "B", "C"] as const).map((letter) => {
@@ -621,7 +654,8 @@ function AssignBudgetModalInner({
                 />
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Sobreprecio sobre los honorarios del tier para casos
+                Sobreprecio sobre los honorarios{" "}
+                {singlePricing ? "del tratamiento" : "del tier"} para casos
                 particulares. Se suma al total y se reparte entre las
                 líneas de honorarios del tratamiento; la paciente no ve
                 una línea de “ajuste”. Usa múltiplos de 10 para que los
@@ -630,7 +664,8 @@ function AssignBudgetModalInner({
               {adjustmentValue > 0 && (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/[0.06] px-3 py-2 text-xs">
                   <span className="text-muted-foreground">
-                    Tier {tier} {formatMoney(selectedTier.amount, selectedTier.currency)}
+                    {singlePricing ? "Precio" : `Tier ${tier}`}{" "}
+                    {formatMoney(selectedTier.amount, selectedTier.currency)}
                     {" + "}ajuste {formatMoney(adjustmentValue, selectedTier.currency)}
                   </span>
                   <span className="font-semibold text-emerald-700 dark:text-emerald-400">

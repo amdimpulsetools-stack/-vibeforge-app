@@ -92,6 +92,7 @@ interface OrgBudgetPdfSettingsRow {
   vigencia_days: number;
   terms: unknown;
   footer_text: string | null;
+  pricing_mode: string | null;
 }
 
 const FALLBACK_VIGENCIA_DAYS = 30;
@@ -103,10 +104,15 @@ const FALLBACK_TERMS: string[] = [
 async function loadBudgetPdfSettings(
   client: SupabaseClient,
   orgId: string,
-): Promise<{ vigenciaDays: number; terms: string[]; footerText: string }> {
+): Promise<{
+  vigenciaDays: number;
+  terms: string[];
+  footerText: string;
+  singlePricing: boolean;
+}> {
   const { data } = await client
     .from("org_budget_pdf_settings")
-    .select("vigencia_days, terms, footer_text")
+    .select("vigencia_days, terms, footer_text, pricing_mode")
     .eq("organization_id", orgId)
     .maybeSingle();
 
@@ -116,6 +122,7 @@ async function loadBudgetPdfSettings(
       vigenciaDays: FALLBACK_VIGENCIA_DAYS,
       terms: FALLBACK_TERMS,
       footerText: "",
+      singlePricing: false,
     };
   }
 
@@ -127,6 +134,8 @@ async function loadBudgetPdfSettings(
     vigenciaDays: row.vigencia_days || FALLBACK_VIGENCIA_DAYS,
     terms,
     footerText: row.footer_text ?? "",
+    // mig 181 — el PDF genérico omite fila Tier y rótulo PAQUETE.
+    singlePricing: row.pricing_mode === "single",
   };
 }
 
@@ -391,6 +400,7 @@ export async function generateBudgetPdf(
     vigenciaDays: pdfSettings.vigenciaDays,
     terms: pdfSettings.terms,
     footerText: pdfSettings.footerText,
+    singlePricing: pdfSettings.singlePricing,
   };
 
   // Plugin-based routing (mig 169). If the org has an installed
