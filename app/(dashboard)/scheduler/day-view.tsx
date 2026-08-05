@@ -396,8 +396,12 @@ export function DayView({
               className={cn("flex", rowBorder)}
             >
               {/* Time label — sticky left para sobrevivir al scroll horizontal.
-                  z-[7] queda por encima de las tarjetas (z-[5]/z-[6]). */}
-              <div className="sticky left-0 z-[7] w-20 shrink-0 bg-card px-2 py-2 text-right">
+                  z-[7] queda por encima de las tarjetas (z-[5]/z-[6]).
+                  border-r propio: su `bg-card` pinta ENCIMA de la capa de
+                  separadores (z-0), así que sin este borde la línea que
+                  separa el gutter del primer consultorio desaparecía. Mismo
+                  ancho w-20 + border-box ⇒ cae exacto sobre la de z-0. */}
+              <div className="sticky left-0 z-[7] w-20 shrink-0 border-r border-border bg-card px-2 py-2 text-right">
                 {showLabel && (
                   <span className="text-xs text-muted-foreground">{time}</span>
                 )}

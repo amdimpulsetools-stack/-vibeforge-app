@@ -210,7 +210,11 @@ export function SchedulerHeader({
           </Popover>
         </div>
 
-        <div className="flex w-full flex-wrap items-center justify-end gap-2 md:w-auto md:flex-nowrap">
+        {/* Fila de controles. En <md "Nueva cita" vive en el FAB (ver
+            scheduler/page.tsx), así que los controles restantes se reparten
+            a lo ancho del contenedor con justify-between en vez de quedar
+            amontonados a la derecha. md+ conserva el justify-end de siempre. */}
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 md:w-auto md:flex-nowrap md:justify-end">
           {/* View toggle */}
           <div className="flex gap-1 rounded-lg bg-muted p-1">
             <button
@@ -416,10 +420,12 @@ export function SchedulerHeader({
             </div>
           )}
 
-          {/* Nueva cita — SIEMPRE visible y tocable (44 px de alto en móvil) */}
+          {/* Nueva cita — en <md se oculta: la reemplaza el FAB circular de
+              la página (así la segunda fila del header no se desperdicia
+              con un botón que ocupaba la línea entera). */}
           <button
             onClick={onNewAppointment}
-            className="flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity md:py-2"
+            className="hidden shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity md:flex md:py-2"
           >
             <Plus className="h-4 w-4" />
             {t("scheduler.new_appointment")}

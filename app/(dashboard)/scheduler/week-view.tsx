@@ -382,8 +382,9 @@ export function WeekView({
               className={cn("flex", rowBorder)}
             >
               {/* Time label — sticky left; z-[7] por encima de las
-                  tarjetas de cita (z-[5]/z-[6]). */}
-              <div className="sticky left-0 z-[7] w-16 shrink-0 bg-card px-1 py-1 text-right">
+                  tarjetas de cita (z-[5]/z-[6]). border-r propio: el bg-card
+                  tapa la capa de separadores (z-0), igual que en day-view. */}
+              <div className="sticky left-0 z-[7] w-16 shrink-0 border-r border-border bg-card px-1 py-1 text-right">
                 {showLabel && (
                   <span className="text-xs text-muted-foreground">{time}</span>
                 )}
