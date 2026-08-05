@@ -332,7 +332,7 @@ function NoteCard({
     <div
       className={cn(
         "rounded-lg border border-border overflow-hidden transition-all",
-        note.is_signed && "border-l-4 border-l-emerald-500"
+        note.is_signed && "border-l-4 border-l-success-500"
       )}
     >
       {/* Header (clickable) */}
@@ -586,7 +586,7 @@ function NoteBody({
                             className={cn(
                               "h-1.5 w-1.5 rounded-full shrink-0 mt-1.5",
                               item.status === "completed"
-                                ? "bg-emerald-500"
+                                ? "bg-success-500"
                                 : "bg-muted-foreground/40"
                             )}
                             title={

@@ -2,6 +2,7 @@
 
 import { useMemo, forwardRef, useImperativeHandle } from "react";
 import { useLanguage } from "@/components/language-provider";
+import { useBrandAccent } from "@/hooks/use-brand-accent";
 import type { AppointmentWithRelations, Patient } from "@/types/admin";
 import { calculateAge } from "@/lib/export";
 import {
@@ -136,6 +137,10 @@ function renderCustomLabel(props: {
 export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportProps>(
   function MarketingReport({ appointments, patients, dateFrom, dateTo }, ref) {
   const { t } = useLanguage();
+  // Color de marca de los charts (sigue el tema de acento de la org).
+  // ORIGIN_COLORS (arriba) NO se toca: ahí el verde es una categoría más
+  // dentro de una paleta y tiene que seguir distinguiéndose del azul.
+  const accent = useBrandAccent();
 
   // Origin distribution. The canonical source is patients.origin — the
   // marketing channel belongs to the patient (how they found the clinic),
@@ -333,7 +338,7 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
           <CardTitle icon={Target} label={t("reports.conversion_rate")} tooltip={t("reports.tooltip_conversion_rate")} />
-          <p className="mt-2 text-2xl font-bold text-emerald-600">{conversionData.conversionRate}%</p>
+          <p className="mt-2 text-2xl font-bold text-success-600">{conversionData.conversionRate}%</p>
           <p className="text-[10px] text-muted-foreground">
             {conversionData.totalCompleted} / {conversionData.totalScheduled} {t("reports.attended")}
           </p>
@@ -442,9 +447,9 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
                 <tr key={row.name} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                   <td className="px-4 py-2.5 font-medium">{row.name}</td>
                   <td className="px-4 py-2.5 text-center">{row.total}</td>
-                  <td className="px-4 py-2.5 text-center text-emerald-600 font-medium">{row.completed}</td>
+                  <td className="px-4 py-2.5 text-center text-success-600 font-medium">{row.completed}</td>
                   <td className="px-4 py-2.5 text-center">
-                    <span className={`font-semibold ${row.rate >= 70 ? "text-emerald-600" : row.rate >= 40 ? "text-amber-600" : "text-red-600"}`}>
+                    <span className={`font-semibold ${row.rate >= 70 ? "text-success-600" : row.rate >= 40 ? "text-amber-600" : "text-red-600"}`}>
                       {row.rate}%
                     </span>
                   </td>
@@ -525,7 +530,7 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
                   <XAxis type="number" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
                   <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.length > 14 ? v.slice(0, 14) + "..." : v} />
                   <Tooltip content={<CustomTooltip />} cursor={false} />
-                  <Bar dataKey="value" name="Pacientes" fill="#10b981" radius={[0, 4, 4, 0]} animationDuration={800} animationEasing="ease-out" />
+                  <Bar dataKey="value" name="Pacientes" fill={accent} radius={[0, 4, 4, 0]} animationDuration={800} animationEasing="ease-out" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -605,7 +610,7 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
                 <Bar
                   dataKey="value"
                   name="Pacientes"
-                  fill="#10b981"
+                  fill={accent}
                   radius={999}
                   animationDuration={800}
                   animationEasing="ease-out"

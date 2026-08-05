@@ -300,11 +300,11 @@ export function ClinicalFollowupsPanel({
               </div>
               <div className="shrink-0">
                 {fu.is_resolved ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  <CheckCircle2 className="h-4 w-4 text-success-500" />
                 ) : canEdit ? (
                   <button
                     onClick={() => resolveFollowup(fu.id)}
-                    className="rounded p-0.5 text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-600 transition-colors"
+                    className="rounded p-0.5 text-muted-foreground hover:bg-success-500/10 hover:text-success-600 transition-colors"
                     title="Marcar resuelto"
                   >
                     <Circle className="h-4 w-4" />

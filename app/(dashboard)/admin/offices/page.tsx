@@ -273,7 +273,7 @@ export default function OfficesPage() {
                     disabled={!isAdmin}
                     className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                       office.is_active
-                        ? "bg-emerald-500/10 text-emerald-500"
+                        ? "bg-success-500/10 text-success-500"
                         : "bg-muted text-muted-foreground"
                     } ${!isAdmin ? "cursor-default" : ""}`}
                   >

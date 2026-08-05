@@ -358,7 +358,7 @@ export function FollowupCard({
 
   const attemptChipClass =
     currentAttempt === 1
-      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
+      ? "border-success-500/40 bg-success-500/10 text-success-600"
       : currentAttempt === 2
         ? "border-amber-500/40 bg-amber-500/10 text-amber-600"
         : "border-red-500/40 bg-red-500/10 text-red-600";
@@ -391,7 +391,7 @@ export function FollowupCard({
 
   const borderClass =
     variant === "recovered"
-      ? "border-emerald-500/30 bg-emerald-500/5"
+      ? "border-success-500/30 bg-success-500/5"
       : variant === "no_response"
         ? "border-l-4 border-l-amber-500 border-amber-500/30 bg-amber-500/5"
         : "border-border bg-card";
@@ -410,7 +410,7 @@ export function FollowupCard({
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               {variant === "recovered" ? (
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-success-500" />
               ) : variant === "no_response" ? (
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
               ) : (
@@ -496,7 +496,7 @@ export function FollowupCard({
                   className={cn(
                     "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
                     followup.status === "agendado_via_contacto"
-                      ? "bg-emerald-500/10 text-emerald-600"
+                      ? "bg-success-500/10 text-success-600"
                       : "bg-muted text-muted-foreground"
                   )}
                 >
@@ -559,7 +559,7 @@ export function FollowupCard({
                       "font-medium",
                       followup.days_diff <= 7
                         ? "text-amber-500"
-                        : "text-emerald-500"
+                        : "text-success-500"
                     )}
                   >
                     En {followup.days_diff}{" "}
@@ -581,7 +581,7 @@ export function FollowupCard({
                 </span>
               )}
               {variant === "recovered" && followup.closed_at && (
-                <span className="flex items-center gap-1 text-emerald-600">
+                <span className="flex items-center gap-1 text-success-600">
                   <Sparkles className="h-3 w-3" />
                   {followup.status === "agendado_via_contacto"
                     ? "Vía contacto automático"
@@ -758,7 +758,7 @@ export function FollowupCard({
             <button
               onClick={() => setAgendoOpen(true)}
               disabled={busy}
-              className="flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+              className="flex items-center gap-1 rounded-lg bg-success-500 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-success-600 disabled:opacity-50"
               title="La paciente agendó cita"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -977,7 +977,7 @@ export function FollowupCard({
                 setAgendoOpen(false);
               }}
               disabled={busy}
-              className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-success-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-success-600 disabled:opacity-50"
             >
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Sí, agendó

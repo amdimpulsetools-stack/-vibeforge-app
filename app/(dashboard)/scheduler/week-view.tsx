@@ -375,7 +375,7 @@ export function WeekView({
                             const effective = Math.max(0, gross - discount);
                             const paid = paymentTotals[startAppt.id] ?? 0;
                             if (effective === 0 || paid >= effective) {
-                              return <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-emerald-600" />;
+                              return <CheckCircle2 className="h-2.5 w-2.5 shrink-0 text-success-600" />;
                             }
                             if (paid > 0) {
                               return <CircleDollarSign className="h-2.5 w-2.5 shrink-0 text-amber-600" />;

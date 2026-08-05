@@ -111,14 +111,14 @@ interface DoctorStatsResponse {
 const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string; dot: string }> = {
   scheduled: { bg: "bg-muted/60", text: "text-muted-foreground", label: "Programada", dot: "bg-muted-foreground" },
   confirmed: { bg: "bg-blue-500/15", text: "text-blue-400", label: "Confirmada", dot: "bg-blue-400" },
-  completed: { bg: "bg-emerald-500/15", text: "text-emerald-400", label: "Completada", dot: "bg-emerald-400" },
+  completed: { bg: "bg-success-500/15", text: "text-success-400", label: "Completada", dot: "bg-success-400" },
   cancelled: { bg: "bg-red-500/15", text: "text-red-400", label: "Cancelada", dot: "bg-red-400" },
 };
 
 const PRIORITY_CONFIG: Record<string, { bg: string; border: string; text: string; dot: string; label: string }> = {
   red: { bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-400", dot: "bg-red-400", label: "Urgente" },
   yellow: { bg: "bg-amber-500/10", border: "border-amber-500/30", text: "text-amber-400", dot: "bg-amber-400", label: "Moderado" },
-  green: { bg: "bg-emerald-500/10", border: "border-emerald-500/30", text: "text-emerald-400", dot: "bg-emerald-400", label: "Rutina" },
+  green: { bg: "bg-success-500/10", border: "border-success-500/30", text: "text-success-400", dot: "bg-success-400", label: "Rutina" },
 };
 
 // ── Animations ─────────────────────────────────────────────────────
@@ -550,12 +550,12 @@ function TodayAgenda({
                       isCurrent
                         ? "bg-primary ring-primary/30 animate-pulse"
                         : isCompleted
-                          ? "bg-emerald-400 ring-emerald-400/30"
+                          ? "bg-success-400 ring-success-400/30"
                           : "bg-muted-foreground/30 ring-muted/30"
                     }`}
                   />
                   {idx < items.length - 1 && (
-                    <div className={`w-px flex-1 ${isCompleted ? "bg-emerald-500/30" : "bg-border/40"}`} />
+                    <div className={`w-px flex-1 ${isCompleted ? "bg-success-500/30" : "bg-border/40"}`} />
                   )}
                 </div>
 
@@ -591,7 +591,7 @@ function TodayAgenda({
                 {/* Status + Note indicator */}
                 <div className="flex items-center gap-2 shrink-0">
                   {item.has_note && (
-                    <div className={`flex h-5 w-5 items-center justify-center rounded ${item.note_signed ? "text-emerald-400" : "text-amber-400"}`}>
+                    <div className={`flex h-5 w-5 items-center justify-center rounded ${item.note_signed ? "text-success-400" : "text-amber-400"}`}>
                       <FileSignature className="h-3 w-3" />
                     </div>
                   )}
@@ -670,7 +670,7 @@ function FollowupsPanel({
 
       {followups.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-8">
-          <CheckCircle2 className="h-6 w-6 text-emerald-400/40" />
+          <CheckCircle2 className="h-6 w-6 text-success-400/40" />
           <p className="mt-2 text-xs text-muted-foreground">Sin seguimientos pendientes</p>
         </div>
       ) : (
@@ -873,7 +873,7 @@ function RecentCompletedPanel({ items }: { items: RecentCompleted[] }) {
                   <span
                     className={`flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${
                       item.note_signed
-                        ? "bg-emerald-500/10 text-emerald-400"
+                        ? "bg-success-500/10 text-success-400"
                         : "bg-amber-500/10 text-amber-400"
                     }`}
                   >

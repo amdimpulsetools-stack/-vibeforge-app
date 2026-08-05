@@ -80,9 +80,9 @@ const STATE_META: Record<
   },
   in_consultation: {
     label: "En consulta",
-    dot: "bg-emerald-500 animate-pulse",
-    text: "text-emerald-700 dark:text-emerald-400",
-    bg: "bg-emerald-500/10",
+    dot: "bg-success-500 animate-pulse",
+    text: "text-success-700 dark:text-success-400",
+    bg: "bg-success-500/10",
     Icon: Stethoscope,
   },
   ended: {

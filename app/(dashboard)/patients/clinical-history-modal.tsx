@@ -132,7 +132,7 @@ export function ClinicalHistoryModal({
                       key={note.id}
                       className={cn(
                         "rounded-lg border border-border overflow-hidden transition-all",
-                        note.is_signed && "border-l-4 border-l-emerald-500"
+                        note.is_signed && "border-l-4 border-l-success-500"
                       )}
                     >
                       {/* Header */}

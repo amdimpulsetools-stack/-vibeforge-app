@@ -883,7 +883,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     key={cn_note.id}
                     className={cn(
                       "rounded-lg border border-border overflow-hidden transition-all",
-                      cn_note.is_signed && "border-l-4 border-l-emerald-500"
+                      cn_note.is_signed && "border-l-4 border-l-success-500"
                     )}
                   >
                     {/* Header — clickable to expand */}
@@ -1085,7 +1085,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   </div>
                   <div className="rounded-lg border border-border p-3 text-center">
                     <p className="text-[10px] uppercase text-muted-foreground">{t("patients.total_paid")}</p>
-                    <p className="mt-1 text-base font-bold text-emerald-600">S/. {totalPaid.toFixed(2)}</p>
+                    <p className="mt-1 text-base font-bold text-success-600">S/. {totalPaid.toFixed(2)}</p>
                   </div>
                   <div className={cn(
                     "rounded-lg border p-3 text-center",
@@ -1396,7 +1396,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         <p className="text-xs text-muted-foreground mt-0.5">Citas</p>
                       </div>
                       <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                        <p className="text-2xl font-bold text-emerald-600">
+                        <p className="text-2xl font-bold text-success-600">
                           S/. {payments.reduce((s, p) => s + Number(p.amount), 0).toFixed(0)}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">Pagado</p>
@@ -1548,7 +1548,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                           {payments.map((pay) => (
                             <tr key={pay.id} className="border-b border-border/50">
                               <td className="py-2.5 px-3">{pay.payment_date.split("-").reverse().join("/")}</td>
-                              <td className="py-2.5 px-3 text-right font-medium text-emerald-600">S/. {Number(pay.amount).toFixed(2)}</td>
+                              <td className="py-2.5 px-3 text-right font-medium text-success-600">S/. {Number(pay.amount).toFixed(2)}</td>
                               <td className="py-2.5 px-3 text-muted-foreground">{pay.payment_method || "—"}</td>
                               <td className="py-2.5 px-3 text-muted-foreground text-xs">{pay.notes || "—"}</td>
                             </tr>
@@ -1560,7 +1560,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   <div className="rounded-xl border border-border bg-muted/30 p-4">
                     <div className="grid grid-cols-2 gap-4 text-center">
                       <div>
-                        <p className="text-2xl font-bold text-emerald-600">S/. {payments.reduce((s, p) => s + Number(p.amount), 0).toFixed(2)}</p>
+                        <p className="text-2xl font-bold text-success-600">S/. {payments.reduce((s, p) => s + Number(p.amount), 0).toFixed(2)}</p>
                         <p className="text-xs text-muted-foreground">Total pagado</p>
                       </div>
                       <div>

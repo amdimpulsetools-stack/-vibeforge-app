@@ -2,6 +2,7 @@
 
 import { useMemo, forwardRef, useImperativeHandle } from "react";
 import { useLanguage } from "@/components/language-provider";
+import { useBrandAccent } from "@/hooks/use-brand-accent";
 import type { AppointmentWithRelations, PatientPayment } from "@/types/admin";
 import {
   DollarSign,
@@ -91,6 +92,8 @@ function CardTitle({ icon: Icon, label, tooltip, iconClass }: { icon: typeof Dol
 export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportProps>(
   function FinancialReport({ appointments, payments, dateFrom, dateTo }, ref) {
     const { t } = useLanguage();
+    // Color de marca del chart (sigue el tema de acento de la org).
+    const accent = useBrandAccent();
 
     const doctorData = useMemo(() => {
       const map = new Map<string, DoctorProductivity>();
@@ -161,12 +164,12 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
             <p className="mt-2 text-2xl font-bold">S/. {totalRevenue.toFixed(2)}</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
-            <CardTitle icon={DollarSign} label={t("reports.total_collected")} tooltip={t("reports.tooltip_total_collected")} iconClass="text-emerald-500" />
-            <p className="mt-2 text-2xl font-bold text-emerald-600">S/. {totalPaid.toFixed(2)}</p>
+            <CardTitle icon={DollarSign} label={t("reports.total_collected")} tooltip={t("reports.tooltip_total_collected")} iconClass="text-success-500" />
+            <p className="mt-2 text-2xl font-bold text-success-600">S/. {totalPaid.toFixed(2)}</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
             <CardTitle icon={DollarSign} label={t("reports.total_pending")} tooltip={t("reports.tooltip_total_pending")} iconClass="text-amber-500" />
-            <p className={`mt-2 text-2xl font-bold ${totalPending > 0 ? "text-amber-600" : "text-emerald-600"}`}>S/. {totalPending.toFixed(2)}</p>
+            <p className={`mt-2 text-2xl font-bold ${totalPending > 0 ? "text-amber-600" : "text-success-600"}`}>S/. {totalPending.toFixed(2)}</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
             <CardTitle icon={Users} label={t("reports.total_attended")} tooltip={t("reports.tooltip_total_attended")} />
@@ -209,7 +212,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")} />
                   <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                   <Tooltip content={<RevenueTooltip />} cursor={false} />
-                  <Bar dataKey="Facturado" fill="#10b981" radius={999} maxBarSize={56} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={1000} animationEasing="ease-out" />
+                  <Bar dataKey="Facturado" fill={accent} radius={999} maxBarSize={56} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={1000} animationEasing="ease-out" />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -240,7 +243,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
                   <tr key={doc.name} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-2.5"><div className="flex items-center gap-2"><span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: doc.color }} /><span className="font-medium">{doc.name}</span></div></td>
                     <td className="px-4 py-2.5 text-center">{doc.totalAppointments}</td>
-                    <td className="px-4 py-2.5 text-center text-emerald-600 font-medium">{doc.attended}</td>
+                    <td className="px-4 py-2.5 text-center text-success-600 font-medium">{doc.attended}</td>
                     <td className="px-4 py-2.5 text-center text-blue-600">{doc.confirmed}</td>
                     <td className="px-4 py-2.5 text-center text-red-600">{doc.cancelled}</td>
                     <td className="px-4 py-2.5 text-right font-semibold">S/. {doc.revenue.toFixed(2)}</td>
@@ -251,7 +254,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
                   <tr className="bg-muted/50 font-bold">
                     <td className="px-4 py-2.5">TOTAL</td>
                     <td className="px-4 py-2.5 text-center">{appointments.length}</td>
-                    <td className="px-4 py-2.5 text-center text-emerald-600">{totalAttended}</td>
+                    <td className="px-4 py-2.5 text-center text-success-600">{totalAttended}</td>
                     <td className="px-4 py-2.5 text-center text-blue-600">{doctorData.reduce((s, d) => s + d.confirmed, 0)}</td>
                     <td className="px-4 py-2.5 text-center text-red-600">{totalCancelled}</td>
                     <td className="px-4 py-2.5 text-right">S/. {totalRevenue.toFixed(2)}</td>

@@ -452,7 +452,7 @@ export function GrowthCurvesPanel({
             ? "text-red-500 bg-red-500/10"
             : latest.percentile! < 15 || latest.percentile! > 85
               ? "text-amber-500 bg-amber-500/10"
-              : "text-emerald-500 bg-emerald-500/10";
+              : "text-success-500 bg-success-500/10";
         return (
           <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-3">
             <div className="flex-1 text-xs">

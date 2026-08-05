@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, forwardRef, useImperativeHandle } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useBrandAccent } from "@/hooks/use-brand-accent";
 import {
   UserCheck,
   UserPlus,
@@ -134,6 +135,8 @@ function CardTitle({
 export const RetentionReport = forwardRef<ReportExportHandle, RetentionReportProps>(
   function RetentionReport({ dateFrom, dateTo }, ref) {
     const { t } = useLanguage();
+    // Color de marca del chart (sigue el tema de acento de la org).
+    const accent = useBrandAccent();
     const [loading, setLoading] = useState(true);
     const [overview, setOverview] = useState<RetentionOverview | null>(null);
     const [frequency, setFrequency] = useState<VisitFrequency | null>(null);
@@ -308,14 +311,14 @@ export const RetentionReport = forwardRef<ReportExportHandle, RetentionReportPro
                 <AreaChart data={retentionRateData}>
                   <defs>
                     <linearGradient id="retentionGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                      <stop offset="0%" stopColor={accent} stopOpacity={0.3} />
+                      <stop offset="100%" stopColor={accent} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} />
                   <Tooltip content={<PercentTooltip />} cursor={false} />
-                  <Area type="monotone" dataKey={t("retention.retention_rate")} stroke="#10b981" strokeWidth={2} fill="url(#retentionGradient)" animationDuration={1000} />
+                  <Area type="monotone" dataKey={t("retention.retention_rate")} stroke={accent} strokeWidth={2} fill="url(#retentionGradient)" animationDuration={1000} />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (

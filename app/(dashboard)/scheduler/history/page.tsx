@@ -347,7 +347,7 @@ export default function AppointmentHistoryPage() {
           </div>
           <div className="flex gap-4 text-xs text-muted-foreground">
             <span>{totalCount} {t("history.records")}</span>
-            <span className="text-emerald-500">{completedCount} {t("scheduler.status_completed").toLowerCase()}</span>
+            <span className="text-success-500">{completedCount} {t("scheduler.status_completed").toLowerCase()}</span>
             <span className="text-red-500">{cancelledCount} {t("scheduler.status_cancelled").toLowerCase()}</span>
             <span className="font-medium text-foreground">S/. {totalRevenue.toFixed(2)}</span>
           </div>

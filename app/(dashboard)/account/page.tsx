@@ -1344,13 +1344,13 @@ function AddonPurchaseModal({
 /* ─── Plan Section (owner/admin only) ─── */
 
 const PLAN_BADGE_STYLES: Record<string, string> = {
-  independiente: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+  independiente: "bg-success-500/10 text-success-400 border-success-500/20",
   professional: "bg-blue-500/10 text-blue-400 border-blue-500/20",
   enterprise: "bg-amber-500/10 text-amber-400 border-amber-500/20",
 };
 
 const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  active: { label: "Activo", color: "text-emerald-400" },
+  active: { label: "Activo", color: "text-success-400" },
   trialing: { label: "Prueba", color: "text-blue-400" },
   past_due: { label: "Pago pendiente", color: "text-amber-400" },
   cancelled: { label: "Cancelado", color: "text-destructive" },
@@ -1655,7 +1655,7 @@ function AiQuotaRing({
       ? "stroke-red-500"
       : percentage >= 0.8
         ? "stroke-amber-500"
-        : "stroke-emerald-500";
+        : "stroke-success-500";
 
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
@@ -1753,7 +1753,7 @@ function AiQuotaCard() {
                 ? "text-red-400"
                 : quota.percentage >= 80
                   ? "text-amber-400"
-                  : "text-emerald-400"
+                  : "text-success-400"
             )}>
               {quota.remaining}/{quota.limit}
             </span>

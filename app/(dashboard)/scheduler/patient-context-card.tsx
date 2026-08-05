@@ -241,7 +241,7 @@ function ConditionRow({ condition }: { condition: PatientCondition }) {
         <span className="text-muted-foreground/60">({condition.family_member})</span>
       )}
       {condition.status === "managed" && (
-        <span className="text-emerald-600 text-[9px]">Controlada</span>
+        <span className="text-success-600 text-[9px]">Controlada</span>
       )}
       {condition.status === "resolved" && (
         <span className="text-muted-foreground/60 text-[9px] line-through">Resuelta</span>

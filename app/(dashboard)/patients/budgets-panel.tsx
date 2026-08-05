@@ -402,7 +402,7 @@ function BudgetCard({
     row.total_budget > 0 ? (row.consumed / row.total_budget) * 100 : 0;
   const saldoTone =
     row.saldo > 0
-      ? "text-emerald-600 dark:text-emerald-400"
+      ? "text-success-600 dark:text-success-400"
       : row.saldo < 0
         ? "text-red-600 dark:text-red-400"
         : "text-muted-foreground";
@@ -421,7 +421,7 @@ function BudgetCard({
           className={cn(
             "rounded-full px-2 py-0.5 text-[9px] font-medium border",
             row.status === "active" &&
-              "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+              "border-success-500/30 bg-success-500/10 text-success-700 dark:text-success-400",
             row.status === "paused" &&
               "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400",
             row.status === "completed" &&

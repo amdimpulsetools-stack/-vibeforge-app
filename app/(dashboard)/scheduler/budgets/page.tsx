@@ -225,7 +225,7 @@ export default function BudgetsPage() {
           value={kpis ? String(kpis.total_sent_30d) : "—"}
         />
         <KpiCard
-          icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
+          icon={<CheckCircle2 className="h-4 w-4 text-success-500" />}
           label="Aceptados"
           value={kpis ? `${counts.accepted}` : "—"}
           subtitle={kpis ? `${kpis.acceptance_rate_pct}% conversión` : undefined}

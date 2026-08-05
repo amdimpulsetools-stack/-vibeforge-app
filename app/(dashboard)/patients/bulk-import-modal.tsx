@@ -306,7 +306,7 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                   className={cn(
                     "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-colors",
                     isActive && "bg-primary/10 text-primary",
-                    isDone && "text-emerald-400",
+                    isDone && "text-success-400",
                     !isActive && !isDone && "text-muted-foreground"
                   )}
                 >
@@ -456,8 +456,8 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
           {step === "preview" && (
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-center">
-                  <p className="text-lg font-bold text-emerald-400">{validRows.length}</p>
+                <div className="rounded-lg border border-success-500/20 bg-success-500/5 p-3 text-center">
+                  <p className="text-lg font-bold text-success-400">{validRows.length}</p>
                   <p className="text-[11px] text-muted-foreground">Listos para importar</p>
                 </div>
                 <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-center">
@@ -567,8 +567,8 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
           {/* ─── STEP: Done ─── */}
           {step === "done" && importSummary && (
             <div className="flex flex-col items-center justify-center gap-4 py-6">
-              <div className="rounded-full bg-emerald-500/10 p-3">
-                <CheckCircle2 className="h-8 w-8 text-emerald-400" />
+              <div className="rounded-full bg-success-500/10 p-3">
+                <CheckCircle2 className="h-8 w-8 text-success-400" />
               </div>
               <div className="text-center">
                 <p className="text-base font-semibold">Importación completada</p>
@@ -577,8 +577,8 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
                 </p>
               </div>
               <div className="grid w-full max-w-xs grid-cols-3 gap-3">
-                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-2.5 text-center">
-                  <p className="text-lg font-bold text-emerald-400">{importSummary.inserted_rows}</p>
+                <div className="rounded-lg border border-success-500/20 bg-success-500/5 p-2.5 text-center">
+                  <p className="text-lg font-bold text-success-400">{importSummary.inserted_rows}</p>
                   <p className="text-[10px] text-muted-foreground">Importados</p>
                 </div>
                 <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-2.5 text-center">
