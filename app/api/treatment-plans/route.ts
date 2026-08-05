@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
-import { maybeCreateBudgetPendingFollowup } from "@/lib/fertility/followup-triggers";
+import { maybeCreateBudgetPendingFollowup } from "@/lib/followups/triggers";
 import { logClinicalAccess } from "@/lib/audit/clinical-access";
 
 const planItemSchema = z.object({

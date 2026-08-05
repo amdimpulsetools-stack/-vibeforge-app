@@ -11,7 +11,7 @@ import {
   type BudgetRecord,
   type BudgetTreatmentType,
 } from "@/types/fertility";
-import { maybeCreateBudgetPendingFollowup } from "@/lib/fertility/followup-triggers";
+import { maybeCreateBudgetPendingFollowup } from "@/lib/followups/triggers";
 
 const treatmentTypeEnum = z.enum(BUDGET_TREATMENT_TYPES);
 

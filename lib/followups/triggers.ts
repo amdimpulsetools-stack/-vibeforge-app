@@ -2,6 +2,11 @@
  * Server-side helpers that create rule-based clinical_followups when
  * domain events fire (treatment plan created, appointment completed).
  *
+ * Cubre las DOS rutas: las reglas del Pack Fertilidad y la ruta core
+ * (mig 182, `core.service_followup`), que corre para cualquier org cuyo
+ * servicio tenga `followup_after_days`. Por eso vive en `lib/followups/`
+ * y no bajo `lib/fertility/`.
+ *
  * These are best-effort: if the org has no fertility addon enabled, or
  * the rule is disabled, or the canonical mapping is missing, we silently
  * no-op. The caller's primary action (creating the plan, marking the
@@ -17,7 +22,7 @@ import {
   FERTILITY_BASIC_KEY,
   FERTILITY_PREMIUM_KEY,
 } from "@/types/fertility";
-import type { FollowupSourceType } from "@/types/fertility";
+import type { FollowupSourceType } from "@/types/followups";
 
 interface BudgetPendingArgs {
   organization_id: string;
