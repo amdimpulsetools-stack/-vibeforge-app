@@ -76,6 +76,24 @@ export async function POST(
     );
   }
 
+  // mig 181 — modo solo-seguimiento: la org trackea presupuestos pero
+  // Yenda no genera el documento. La UI ya esconde el botón; este
+  // guard cierra el POST directo.
+  const { data: docSettings } = await supabase
+    .from("org_budget_pdf_settings")
+    .select("documents_enabled")
+    .eq("organization_id", membership.organization_id)
+    .maybeSingle();
+  if (docSettings && docSettings.documents_enabled === false) {
+    return NextResponse.json(
+      {
+        error:
+          "Esta organización registra presupuestos sin documento (modo seguimiento).",
+      },
+      { status: 403 },
+    );
+  }
+
   const admin = createAdminClient();
 
   // The orchestrator returns `{ok: false, error}` for *handled* errors,

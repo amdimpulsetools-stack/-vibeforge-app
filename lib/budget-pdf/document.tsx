@@ -68,6 +68,10 @@ export interface BudgetPdfProps {
   vigenciaDays: number;
   terms: string[];
   footerText: string;
+  // mig 181 — pricing_mode='single': la org maneja un precio único por
+  // tratamiento (tier='A' interno). El PDF omite la fila "Tier" y el
+  // rótulo "PAQUETE X" para no insinuar paquetes que no se ofrecen.
+  singlePricing?: boolean;
 }
 
 const styles = StyleSheet.create({
@@ -336,6 +340,7 @@ export function BudgetPdfDocument(props: BudgetPdfProps): React.ReactElement {
     vigenciaDays,
     terms,
     footerText,
+    singlePricing,
   } = props;
 
   const fechaLabel = formatPeruDate(fecha);
@@ -375,8 +380,12 @@ export function BudgetPdfDocument(props: BudgetPdfProps): React.ReactElement {
               <Text style={styles.metaLabel}>Tratamiento</Text>
               <Text style={styles.metaValue}>{service.name}</Text>
 
-              <Text style={styles.metaLabel}>Tier</Text>
-              <Text style={styles.metaValue}>{tier ?? "—"}</Text>
+              {!singlePricing && (
+                <>
+                  <Text style={styles.metaLabel}>Tier</Text>
+                  <Text style={styles.metaValue}>{tier ?? "—"}</Text>
+                </>
+              )}
             </View>
 
             <View style={[styles.metaCol, styles.metaColDivider]}>
@@ -398,9 +407,11 @@ export function BudgetPdfDocument(props: BudgetPdfProps): React.ReactElement {
 
           <View style={styles.card}>
             <Text style={styles.serviceName}>{service.name}</Text>
-            <Text style={styles.tierLabel}>
-              {tier ? TIER_TO_PAQUETE[tier] : "PAQUETE PERSONALIZADO"}
-            </Text>
+            {!singlePricing && (
+              <Text style={styles.tierLabel}>
+                {tier ? TIER_TO_PAQUETE[tier] : "PAQUETE PERSONALIZADO"}
+              </Text>
+            )}
             <Text style={styles.includesHeading}>Qué incluye</Text>
             {includesItems.map((item, i) => (
               <Text key={i} style={styles.includesItem}>

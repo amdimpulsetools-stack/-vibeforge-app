@@ -30,6 +30,7 @@ import {
   type BudgetTreatmentType,
 } from "@/types/fertility";
 import { useOrgRole } from "@/hooks/use-org-role";
+import { useBudgetDocSettings } from "@/hooks/use-budget-doc-settings";
 
 export interface BudgetCardProps {
   budget: BudgetRecord & {
@@ -89,6 +90,10 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
   // action. Doctors and advisors can /start, but only admin/owner
   // can /complete (it's a financial-impact decision).
   const { isAdmin } = useOrgRole();
+  // mig 181 — modo "solo asignación y seguimiento": sin botones de PDF
+  // y el envío se registra solo "por otro medio" (la org emite su
+  // documento fuera de Yenda).
+  const { documentsEnabled } = useBudgetDocSettings();
 
   // Phase 3 — a budget is "Sin procesar" when it has been assigned
   // (assigned_at + assigned_by_user_id are populated) but sent_at is
@@ -409,8 +414,10 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
       {/* Phase 4 — Descargar PDF. Visible for any status except
           'expired' (admins might still want to archive accepted/
           rejected). The current acceptance_status enum has no
-          'expired' literal yet but the guard is forward-compatible. */}
-      {budget.acceptance_status !== ("expired" as BudgetAcceptanceStatus) && (
+          'expired' literal yet but the guard is forward-compatible.
+          Oculto en modo solo-seguimiento (mig 181). */}
+      {documentsEnabled &&
+        budget.acceptance_status !== ("expired" as BudgetAcceptanceStatus) && (
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             onClick={downloadPdf}
@@ -518,6 +525,10 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
           </DialogDescription>
 
           <div className="mt-4 space-y-2">
+            {/* Email + WhatsApp adjuntan el link firmado al PDF — solo
+                tienen sentido con documentos habilitados (mig 181). */}
+            {documentsEnabled && (
+            <>
             {/* Email */}
             <button
               type="button"
@@ -576,6 +587,8 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
                 )}
               </div>
             </button>
+            </>
+            )}
 
             {/* Other */}
             <button

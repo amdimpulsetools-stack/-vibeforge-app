@@ -61,6 +61,8 @@
 - [Changelog — Sesión 2026-07-12 (v0.15.19) — Agenda con precisión de 15 min + card en vivo tintado + landing "Yenda no deja de crecer"](#changelog-sesión-2026-07-12-v01519-agenda-con-precisión-de-15-min-card-en-vivo-tintado-landing-yenda-no-deja-de-crecer)
 - [Changelog — Sesión 2026-07-17 (v0.15.20) — Compartir horarios alineado a la agenda real + "Responsable" abierto a todo el equipo + selección múltiple en Servicios + campos obligatorios configurables (mig 176) + DatePicker dd/mm/aaaa](#changelog-sesión-2026-07-17-v01520-compartir-horarios-alineado-a-la-agenda-real-responsable-abierto-a-todo-el-equipo-selección-múltiple-en-servicios-campos-obligatorios-configurables-mig-176-datepicker-ddmmaaaa)
 - [Changelog — Sesiones 2026-07-20 a 2026-07-22 (v0.15.21) — Auditoría de flujo de dinero MP + crons revividos + hardening de seguridad pre-piloto](#changelog-sesiones-2026-07-20-a-2026-07-22-v01521-auditoría-de-flujo-de-dinero-mp-crons-revividos-hardening-de-seguridad-pre-piloto)
+- [Changelog — Sesión 2026-07-22 (v0.15.22) — WhatsApp end-to-end operativo + Sheets + Notificaciones](#changelog-sesión-2026-07-22-v01522-whatsapp-end-to-end-operativo-sheets-notificaciones)
+- [Changelog — Sesiones 2026-07-23 a 2026-08-03 (v0.15.23) — Plantillas FIV completas + jerarquía de precios + modos de presupuesto por org (migs 180-181)](#changelog-sesiones-2026-07-23-a-2026-08-03-v01523-plantillas-fiv-completas-jerarquía-de-precios-modos-de-presupuesto-por-org-migs-180-181)
 
 ---
 
@@ -4117,6 +4119,33 @@ El toggle `wa_enabled` de cada evento vivía escondido en "Correos" — founder 
 - **HALLAZGO verificado**: `is_enabled=false` mata el evento ENTERO (ambos canales — `notifications/send` y el cron filtran por `is_enabled` antes de resolver WA) → el toggle **Email se rotula como interruptor maestro**, con nota ámbar "Evento apagado: no se envía por ningún canal".
 - El toggle **WA se deshabilita con tooltip+link** cuando el evento no tiene plantilla WA aprobada+vinculada (mismo criterio que el cron).
 - **Aviso ámbar de cadena rota en WA Business**: card de plantilla APPROVED+vinculada cuyo evento tenga `wa_enabled=false` (o `is_enabled=false`) muestra advertencia con el nombre del evento y link directo a Notificaciones, distinguiendo "canal desactivado" vs "evento apagado". 13 keys i18n ES/EN nuevas.
+
+---
+
+## Changelog — Sesiones 2026-07-23 a 2026-08-03 (v0.15.23) — Plantillas FIV completas + jerarquía de precios + modos de presupuesto por org (migs 180-181)
+
+Cierre del sistema de presupuestos de fertilidad como producto multi-perfil: las 7 plantillas FIV de Vitra completas, la jerarquía de precios de la cita auditada y corregida, y los dos primeros **modos de presupuesto por organización** (mig 181) que permiten onboardear clínicas chicas (Dra. Patricia) sin imponerles el modelo Vitra.
+
+### 1. Jerarquía de precios de la cita — auditoría + fixes (PRs #228/#229)
+Auditoría (agente Fable 5) de la cadena precio personalizado → descuento → anticipo → notificaciones tras el toggle de precio custom de v0.15.22:
+- **Anticipo y montos de notificación sobre el total post-descuento** (`44aec3d`): el tope del anticipo y las variables de monto de las notificaciones (email/WA) se calculaban sobre el precio base ignorando el descuento aplicado.
+- **Descuento bloqueado en modo seguro + base de sesión de plan** (`6959a35`): el control de descuento respeta el bloqueo post-cobro también con precio personalizado activo, y la base del resumen usa la sesión de plan cuando la cita pertenece a un plan de tratamiento.
+- **Rol Administrador invitable desde el modal de miembros** (`72a4b89`): respetando el tope de seats del plan.
+
+### 2. Plantillas de presupuesto FIV completas (plugin Vitra) + mig 180 (PRs #230-#232)
+- **CRIO, IIU y TED** (`c43e00a`): tres plantillas nuevas del plugin per-org de Vitra con variables de organización.
+- **Datos de contacto del PDF desde la organización real** (`92bc50a`): fin de los valores seed hardcodeados — teléfono, dirección y email del PDF salen de `organizations`.
+- **OVODON, DUO STIM y ROPA + reparto proporcional de honorarios** (`0245532`, **mig 180**): plantillas con honorarios múltiples (varias líneas de honorario médico por tratamiento) y reparto proporcional del ajuste de honorarios entre esas líneas — la paciente nunca ve una línea "ajuste".
+- **Ajuste de honorarios restringido al Tier A** (`ff2d941`, PR #234): decisión de producto — el sobreprecio por caso particular solo aplica al paquete premium; guard en UI y en `POST /api/budgets/assign`.
+- **Modal de asignación más ancho que largo** (`1f439c2`, PR #234): layout de 2 columnas para reducir scroll en la pantalla de la asesora.
+
+### 3. Modos de presupuesto por organización (mig 181, PR #234)
+Análisis previo (builder de presupuestos + perfiles de org, 2026-08-03) concluyó que antes de cualquier builder visual conviene parametrizar los dos ejes que diferencian a las clínicas: **¿Yenda emite el documento?** y **¿un precio o tres paquetes?**. `org_budget_pdf_settings` gana dos flags (aditivos, default = comportamiento actual):
+- **`documents_enabled=false` — modo "solo asignación y seguimiento"**: la org trackea presupuestos (asignación, envío, aceptación, embudo) pero emite su documento fuera de Yenda. La UI oculta Descargar PDF (ficha de paciente + tarjeta del scheduler), el modal de envío solo ofrece "por otro medio", y hay guard server-side: `POST /api/budgets/[id]/pdf` → 403 y `POST /api/budgets/[id]/send` rechaza `via != 'other'`.
+- **`pricing_mode='single'` — precio único por tratamiento** (perfil Dra. Patricia): Admin → Servicios muestra una sola fila de precio ("Precio único"), los modales de asignación (`assign-budget-modal`, `budget-record-modal`) colapsan los tiers a una tarjeta única de precio, el reporte de fertilidad oculta el breakdown "Por paquete" y el PDF genérico omite la fila "Tier" y el rótulo "PAQUETE X". **Por debajo se sigue escribiendo `tier='A'`** en `budget_records` — cero cambios de contrato en APIs, atribución ni reportes; reversible por org con un UPDATE.
+- **Hook `use-budget-doc-settings`**: lee ambos flags con RLS de miembro; fila ausente o carga en curso = defaults (documentos on, tiers) para no parpadear botones visibles.
+- **Aplicado en prod**: la org de la Dra. Patricia quedó en `pricing_mode='single'` (nota operativa: existen 2 orgs con su nombre — 2026-06-02 y 2026-07-07, probable duplicado de re-onboarding; ambas quedaron configuradas, pendiente decidir cuál limpiar).
+- **Decisiones registradas del mismo análisis**: builder visual arranca por una **Fase 0** (motor de secciones sin UI que reproduce el PDF genérico actual) y el ítem **I4 — inmutabilidad del PDF firmado + guard de conciliación** entra al backlog con prioridad M. Detalle en PRD §17.5 y `docs/coming-updates-fertility-addon.md`.
 
 ---
 

@@ -47,9 +47,23 @@ export async function PATCH(
 
   const { mark_contacted, ...rest } = parsed.data;
   const updateData: Record<string, unknown> = { ...rest };
+  // Las dos generaciones de estado (is_resolved, mig 053 / status, mig
+  // 128) deben moverse juntas: la bandeja /scheduler/follow-ups filtra
+  // por status, así que un followup resuelto solo con is_resolved
+  // seguiría apareciendo en Pendientes.
   if (parsed.data.is_resolved) {
-    updateData.resolved_at = new Date().toISOString();
+    const now = new Date().toISOString();
+    updateData.resolved_at = now;
     updateData.resolved_by = user.id;
+    updateData.status = "cerrado_manual";
+    updateData.closure_reason = "resuelto_desde_historia_clinica";
+    updateData.closed_at = now;
+  } else if (parsed.data.is_resolved === false) {
+    updateData.resolved_at = null;
+    updateData.resolved_by = null;
+    updateData.status = "pendiente";
+    updateData.closure_reason = null;
+    updateData.closed_at = null;
   }
   if (mark_contacted) {
     updateData.last_contacted_at = new Date().toISOString();

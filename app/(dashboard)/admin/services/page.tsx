@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
+import { useBudgetDocSettings } from "@/hooks/use-budget-doc-settings";
 import { FertilityAddonGate } from "@/components/addons/fertility-addon-gate";
 import {
   serviceSchema,
@@ -944,6 +945,11 @@ function ServiceForm({
   const { active: fertilityActive } = useFertilityAddon();
   const [saving, setSaving] = useState(false);
   const [tierRows, setTierRows] = useState<TierRowState[]>(() => emptyTierRows());
+  // mig 181 — pricing_mode='single': la org maneja un precio por
+  // tratamiento; el editor muestra solo la fila A (índice 0 de
+  // TIER_LETTERS, así updateTierRow(idx) sigue apuntando bien) y el
+  // copy no habla de tiers. Las filas B/C conservan su estado.
+  const { singlePricing } = useBudgetDocSettings();
   const [tiersLoading, setTiersLoading] = useState(false);
 
   const {
@@ -1261,8 +1267,9 @@ function ServiceForm({
                 Habilitar para presupuestos del addon Fertilidad
               </div>
               <div className="text-xs text-muted-foreground">
-                Marca este servicio como elegible para tiers A/B/C. La asesora podrá
-                asignar uno de los tres paquetes a la paciente al cotizar.
+                {singlePricing
+                  ? "Marca este servicio como cotizable. La asesora podrá asignar el presupuesto a la paciente con el precio configurado."
+                  : "Marca este servicio como elegible para tiers A/B/C. La asesora podrá asignar uno de los tres paquetes a la paciente al cotizar."}
               </div>
             </div>
           </label>
@@ -1271,10 +1278,15 @@ function ServiceForm({
             <div className="space-y-3 pt-2 border-t border-emerald-500/20">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold">Tiers de presupuesto (A/B/C)</div>
+                  <div className="text-sm font-semibold">
+                    {singlePricing
+                      ? "Precio del tratamiento"
+                      : "Tiers de presupuesto (A/B/C)"}
+                  </div>
                   <p className="text-xs text-muted-foreground">
-                    Configura los tres paquetes de precios de este servicio.
-                    Define qué incluye cada uno para que la paciente entienda la diferencia.
+                    {singlePricing
+                      ? "Configura el precio estándar de este servicio y qué incluye."
+                      : "Configura los tres paquetes de precios de este servicio. Define qué incluye cada uno para que la paciente entienda la diferencia."}
                   </p>
                 </div>
               </div>
@@ -1290,7 +1302,9 @@ function ServiceForm({
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {tierRows.map((row, idx) => (
+                  {tierRows
+                    .filter((r) => !singlePricing || r.tier === "A")
+                    .map((row, idx) => (
                     <div
                       key={row.tier}
                       className="rounded-lg border border-border bg-card p-3 space-y-2"
@@ -1298,9 +1312,11 @@ function ServiceForm({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10 text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                            {row.tier}
+                            {singlePricing ? "S/" : row.tier}
                           </span>
-                          <span className="text-sm font-medium">Tier {row.tier}</span>
+                          <span className="text-sm font-medium">
+                            {singlePricing ? "Precio único" : `Tier ${row.tier}`}
+                          </span>
                         </div>
                         <label className="flex items-center gap-1.5 text-xs">
                           <input

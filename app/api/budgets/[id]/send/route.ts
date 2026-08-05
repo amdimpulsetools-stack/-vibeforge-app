@@ -134,6 +134,27 @@ export async function POST(
     );
   }
 
+  // mig 181 — modo solo-seguimiento: email/whatsapp adjuntan el link
+  // al PDF, que en este modo no se genera. Solo se registra el envío
+  // "por otro medio". Guard server-side: la UI ya esconde los canales,
+  // esto cierra el POST directo.
+  if (via !== "other") {
+    const { data: docSettings } = await supabase
+      .from("org_budget_pdf_settings")
+      .select("documents_enabled")
+      .eq("organization_id", membership.organization_id)
+      .maybeSingle();
+    if (docSettings && docSettings.documents_enabled === false) {
+      return NextResponse.json(
+        {
+          error:
+            "Esta organización registra presupuestos sin documento; marca el envío como 'por otro medio'.",
+        },
+        { status: 403 },
+      );
+    }
+  }
+
   const { data: existing } = await supabase
     .from("budget_records")
     .select("id, organization_id, acceptance_status, sent_at, patient_id, treatment_type")

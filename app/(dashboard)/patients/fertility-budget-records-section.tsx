@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dialog";
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { useOrgRole } from "@/hooks/use-org-role";
+import { useBudgetDocSettings } from "@/hooks/use-budget-doc-settings";
 import { BudgetRecordModal } from "@/components/clinical/budget-record-modal";
 import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
 import {
@@ -288,6 +289,8 @@ function BudgetRow({
   canEdit: boolean;
 }) {
   const [pdfLoading, setPdfLoading] = useState(false);
+  // mig 181 — modo solo-seguimiento: sin botón de PDF.
+  const { documentsEnabled } = useBudgetDocSettings();
   const downloadPdf = async () => {
     setPdfLoading(true);
     const res = await fetch(`/api/budgets/${budget.id}/pdf`, {
@@ -394,7 +397,9 @@ function BudgetRow({
 
       {/* Phase 4 — Descargar PDF available for any non-expired status.
           The current acceptance_status enum has no 'expired' literal,
-          so the guard is currently always-true; kept forward-compat. */}
+          so the guard is currently always-true; kept forward-compat.
+          Oculto en modo solo-seguimiento (mig 181). */}
+      {documentsEnabled && (
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           onClick={downloadPdf}
@@ -409,6 +414,7 @@ function BudgetRow({
           Descargar PDF
         </button>
       </div>
+      )}
 
       {canEdit && budget.acceptance_status === "pending_acceptance" && (
         <div className="mt-3 flex flex-wrap gap-2">
