@@ -63,6 +63,7 @@
 - [Changelog — Sesiones 2026-07-20 a 2026-07-22 (v0.15.21) — Auditoría de flujo de dinero MP + crons revividos + hardening de seguridad pre-piloto](#changelog-sesiones-2026-07-20-a-2026-07-22-v01521-auditoría-de-flujo-de-dinero-mp-crons-revividos-hardening-de-seguridad-pre-piloto)
 - [Changelog — Sesión 2026-07-22 (v0.15.22) — WhatsApp end-to-end operativo + Sheets + Notificaciones](#changelog-sesión-2026-07-22-v01522-whatsapp-end-to-end-operativo-sheets-notificaciones)
 - [Changelog — Sesiones 2026-07-23 a 2026-08-03 (v0.15.23) — Plantillas FIV completas + jerarquía de precios + modos de presupuesto por org (migs 180-181)](#changelog-sesiones-2026-07-23-a-2026-08-03-v01523-plantillas-fiv-completas-jerarquía-de-precios-modos-de-presupuesto-por-org-migs-180-181)
+- [Changelog — Sesiones 2026-08-03 a 2026-08-05 (v0.15.24) — Seguimientos core para todas las orgs (migs 182-183) + fixes de integridad del módulo](#changelog-sesiones-2026-08-03-a-2026-08-05-v01524-seguimientos-core-para-todas-las-orgs-migs-182-183-fixes-de-integridad-del-módulo)
 
 ---
 
@@ -4146,6 +4147,32 @@ Análisis previo (builder de presupuestos + perfiles de org, 2026-08-03) concluy
 - **Hook `use-budget-doc-settings`**: lee ambos flags con RLS de miembro; fila ausente o carga en curso = defaults (documentos on, tiers) para no parpadear botones visibles.
 - **Aplicado en prod**: la org de la Dra. Patricia quedó en `pricing_mode='single'` (nota operativa: existen 2 orgs con su nombre — 2026-06-02 y 2026-07-07, probable duplicado de re-onboarding; ambas quedaron configuradas, pendiente decidir cuál limpiar).
 - **Decisiones registradas del mismo análisis**: builder visual arranca por una **Fase 0** (motor de secciones sin UI que reproduce el PDF genérico actual) y el ítem **I4 — inmutabilidad del PDF firmado + guard de conciliación** entra al backlog con prioridad M. Detalle en PRD §17.5 y `docs/coming-updates-fertility-addon.md`.
+
+---
+
+## Changelog — Sesiones 2026-08-03 a 2026-08-05 (v0.15.24) — Seguimientos core para todas las orgs (migs 182-183) + fixes de integridad del módulo
+
+Los seguimientos pasan de "función del addon de fertilidad" a **capacidad de plataforma**. Base: análisis en dos etapas (mapeo Fable 5 con referencias file:line + diseño Opus 5) documentado en `docs/research/seguimientos-genericos-core.md`. Hallazgo central: el modelo de datos ya era genérico — una sola tabla `clinical_followups`, motor de reglas multi-addon, trigger de atribución sin referencias a fertilidad; lo verticalizado era la superficie (gates de UI) y el seed.
+
+### 1. Fixes de integridad previos al desgate (PRs #234 parcial / #235)
+Tres bugs del módulo que se volvían visibles (o más graves) al abrir la bandeja a todas las orgs:
+- **Bug A — desync `is_resolved`↔`status`** (`67d671d`, en #234): resolver un seguimiento desde el panel de historia clínica escribía solo `is_resolved` (mig 053) sin tocar `status` (mig 128) → seguía apareciendo en Pendientes de la bandeja para siempre. El PATCH ahora cierra ambas generaciones (`cerrado_manual` + `closed_at`) y des-resolver reabre ambas.
+- **Bug B — scoping multi-org en APIs de seguimientos** (`36a9832`, PR #235): 9 rutas resolvían la org con `.limit(1).single()` sobre `organization_members` (org arbitraria para usuarios multi-org). Nuevo helper `lib/followups/org-scope.ts`: endpoints por-recurso derivan la org del propio seguimiento + membresía activa validada contra ESA org; endpoints de colección aceptan `org_id` explícito del cliente con fallback al comportamiento actual (cero cambio para usuarios de una org). Bonus: miembros desactivados ya no crean/editan seguimientos.
+- **Bug C — reactivar inflaba Cat A** (`3880b95`, PR #235): reactivar preservaba `first_contact_at`, así que una paciente contactada en un ciclo viejo que volvía POR SU CUENTA meses después contaba como "recuperada con contacto" (Cat A) sumando LTV al revenue atribuido. Ahora reactivar archiva el timestamp como evento `reactivation_reset` en `contact_events` (auditable, no se borra nada) y lo limpia: vuelta espontánea → Cat B honesto; contacto nuevo + vuelta → Cat A legítima del ciclo actual. Nota: corrige *a la baja* un posible sobre-conteo en los KPIs de Recuperados de Vitra.
+
+### 2. Fase 1 — Seguimientos core (PR #236, migs 182-183, aplicadas en prod)
+Implementación de la Fase 1 del diseño. Cero configuración obligatoria, cero regresión (verificada contra Postgres efímero: rama del addon byte-idéntica, migraciones idempotentes, ningún write sobre filas existentes; en prod 0 filas desincronizadas preexistentes).
+- **mig 182 — fundación**: `clinical_followups.doctor_id` nullable (seguimientos sin médico: recepción, administrativos); `services.followup_after_days` (NULL = sin seguimiento, CHECK 1-365); seed categoría centinela `('core','core.next_visit')` — "cualquier próxima cita cuenta como cierre", sin mapeo de servicios; trigger `sync_followup_state_generations` que mantiene alineadas las dos generaciones de estado en ambas direcciones (solo actúa si UNA cambió — no-op puro para los writes existentes, que mandan ambas); índice parcial para el guard de duplicados.
+- **mig 183 — pasada centinela en la atribución**: `compute_appointment_attribution` conserva la lógica de mig 129 tal cual (misma clasificación Cat A/B por `first_contact_at`, mismo `EXCEPTION`→`organica`, SECURITY INVOKER) y añade: si la pasada por categoría mapeada no encontró seguimiento — incluido el early return de "servicio sin mapeo" — busca el seguimiento abierto más antiguo del paciente con target `core.next_visit`. Detalle técnico: RECORD → variables escalares (con RECORD, el camino nuevo lanzaría `record is not assigned yet` que el EXCEPTION tragaría, matando la pasada centinela en silencio).
+- **Creación core** (`lib/fertility/followup-triggers.ts`): cita completada cuyo servicio tiene `followup_after_days` → seguimiento `rule_key='core.service_followup'`, target centinela, `expected_by = completado + N días`. En orgs CON addon corre solo como fallback si ninguna regla del addon disparó (cero doble-creación para Vitra). Guard de duplicados por cita. El endpoint `complete-followup-trigger` recibió además el fix de scoping multi-org pendiente y acepta `{followup_days?: number|null, followup_reason?}` (null = el doctor lo desmarcó).
+- **Control del doctor al completar la cita** (`appointment-sidebar.tsx`): "Requiere control" + chips 7/15/30 + días libres + motivo, pre-marcado con el default del servicio. Sin interacción → se crea con el default (captura la deserción silenciosa). Desmarcado → no se crea.
+- **Editor de servicios**: campo "Sugerir control a los ___ días", todas las orgs, sin gate.
+- **Bandeja desgateada** (`sidebar.tsx` + `follow-ups/page.tsx`): item visible para todas las orgs (Presupuestos sigue gateado); eliminado el empty state "Pack Fertilidad requerido". Revelación progresiva: KPIs de revenue, filtro por regla y copy de fertilidad condicionados a `fertilityActive`; empty state educativo para orgs core con link a `/admin/services`.
+- **Badges de origen en la card** (`followup-card.tsx`): azul "Control" / violeta "Automatizado" (intacto) / gris "Manual". WhatsApp para seguimientos core: mensaje neutro construido en código (`buildCoreFollowupMessage`) — las plantillas clipboard existentes eran de fertilidad o de confirmación de reserva; plantilla editable queda para Fase 2.
+- **Regla de monetización aplicada**: el core te dice *a quién llamar*; el addon te dice *cuánto vale la llamada y en qué etapa del embudo está* (journey multi-etapa, plantillas por etapa, revenue atribuido).
+
+### 3. Pendiente declarado (Fase 2, sin fecha)
+Origen polimórfico `source_type`/`source_id` (cierra el bug D: seguimientos de planes de tratamiento huérfanos), seguimientos por `treatment_sessions.status='missed'` (apagado por defecto vía `organization_followup_settings` sin backfill), renombrado `lib/fertility/*` → `lib/followups/*`, plantilla WhatsApp de control editable. El cron de contacto automático **sigue pausado deliberadamente** (humano en el loop; requiere modo drenaje de backlog antes de reactivarse).
 
 ---
 
