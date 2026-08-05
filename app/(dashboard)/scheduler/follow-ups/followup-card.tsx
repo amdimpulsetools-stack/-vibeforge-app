@@ -55,7 +55,7 @@ import type { FollowupVariant, FollowupWithDetails } from "./types";
 const VIOLET = "#8B5CF6";
 
 /**
- * `rule_key` de la ruta core (mig 182 / `lib/fertility/followup-triggers`).
+ * `rule_key` de la ruta core (mig 182 / `lib/followups/triggers`).
  * Se duplica aquí a propósito para no arrastrar el módulo de servidor al
  * bundle del cliente.
  */

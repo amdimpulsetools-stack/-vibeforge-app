@@ -79,6 +79,7 @@ const ModulosTab = dynamic(() => import("./modulos-tab"), { loading: TabLoader }
 const ClinicalTemplatesTab = dynamic(() => import("./clinical-templates-tab"), { loading: TabLoader });
 const OrgSpecialtySection = dynamic(() => import("./org-specialty-section"), { loading: TabLoader });
 const AgendaRequiredFieldsSection = dynamic(() => import("./agenda-required-fields-section"), { loading: TabLoader });
+const FollowupSettingsSection = dynamic(() => import("./followup-settings-section"), { loading: TabLoader });
 // Header preview modal lazy-loaded — only mounted when the user clicks
 // "Vista previa del membrete". Keeps the first paint of /settings small.
 const ClinicHeaderPreviewModal = dynamic(
@@ -1587,6 +1588,11 @@ export default function SettingsPage() {
             onChange={(next) => updateSchedulerConfig({ requiredFields: next })}
             language={language === "es" ? "es" : "en"}
           />
+
+          {/* Seguimientos automáticos (mig 185/187). Vive en Agenda porque la
+              bandeja de Seguimientos es una vista de la agenda y el disparador
+              es una sesión que no se atendió. */}
+          <FollowupSettingsSection language={language === "es" ? "es" : "en"} />
 
           {/* Time indicator toggle */}
           <div className="rounded-2xl border border-border/60 bg-card p-6">

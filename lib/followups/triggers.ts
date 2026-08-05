@@ -2,6 +2,11 @@
  * Server-side helpers that create rule-based clinical_followups when
  * domain events fire (treatment plan created, appointment completed).
  *
+ * Cubre las DOS rutas: las reglas del Pack Fertilidad y la ruta core
+ * (mig 182, `core.service_followup`), que corre para cualquier org cuyo
+ * servicio tenga `followup_after_days`. Por eso vive en `lib/followups/`
+ * y no bajo `lib/fertility/`.
+ *
  * These are best-effort: if the org has no fertility addon enabled, or
  * the rule is disabled, or the canonical mapping is missing, we silently
  * no-op. The caller's primary action (creating the plan, marking the
@@ -17,6 +22,7 @@ import {
   FERTILITY_BASIC_KEY,
   FERTILITY_PREMIUM_KEY,
 } from "@/types/fertility";
+import type { FollowupSourceType } from "@/types/followups";
 
 interface BudgetPendingArgs {
   organization_id: string;
@@ -29,6 +35,16 @@ interface BudgetPendingArgs {
    * the contact_events first event for traceability.
    */
   budget_record_id?: string;
+  /**
+   * mig 184 — origen polimórfico. Este helper lo llaman DOS entradas
+   * distintas y hasta ahora el seguimiento no guardaba de cuál venía:
+   *   - POST /api/budgets        → ('budget_record', budget.id)
+   *   - POST /api/treatment-plans → ('treatment_plan', plan.id)
+   * La segunda es el vínculo plan → seguimiento que faltaba y que la
+   * mig 188 necesita para cerrar los seguimientos de un plan cancelado.
+   */
+  source_type?: FollowupSourceType;
+  source_id?: string | null;
 }
 
 /**
@@ -41,7 +57,14 @@ export async function maybeCreateBudgetPendingFollowup(
   args: BudgetPendingArgs
 ): Promise<{ created: boolean; followup_id?: string; reason?: string }> {
   try {
-    const { organization_id, patient_id, doctor_id, budget_record_id } = args;
+    const {
+      organization_id,
+      patient_id,
+      doctor_id,
+      budget_record_id,
+      source_type,
+      source_id,
+    } = args;
 
     // 1. Check addon enabled.
     const enabled = await isFertilityAddonEnabled(supabase, organization_id);
@@ -74,6 +97,18 @@ export async function maybeCreateBudgetPendingFollowup(
       status: "pendiente",
       max_attempts: rule.max_attempts ?? 3,
     };
+
+    // mig 184 — origen. Si el caller no lo manda, se infiere del
+    // budget_record_id para no perder el vínculo en llamadas antiguas.
+    const resolvedSourceType =
+      source_type ?? (budget_record_id ? "budget_record" : undefined);
+    if (resolvedSourceType) {
+      insertPayload.source_type = resolvedSourceType;
+      insertPayload.source_id =
+        source_id ??
+        (resolvedSourceType === "budget_record" ? budget_record_id : null) ??
+        null;
+    }
 
     if (budget_record_id) {
       insertPayload.contact_events = [
@@ -211,6 +246,12 @@ export async function maybeCreateAppointmentCompletedFollowup(
               expected_by: expectedBy,
               status: "pendiente",
               max_attempts: r.max_attempts ?? 3,
+              // mig 184 — origen polimórfico. La cita completada es lo
+              // que disparó la regla. `source_id` puede ser null si el
+              // caller no mandó el id (rutas antiguas): el CHECK admite
+              // source_type sin source_id.
+              source_type: "appointment",
+              source_id: args.appointment_id ?? null,
             })
             .select("id")
             .single();
@@ -314,6 +355,11 @@ async function createCoreServiceFollowup(
     expected_by: expectedBy.toISOString(),
     follow_up_date: expectedBy.toISOString().slice(0, 10),
     status: "pendiente",
+    // mig 184 — origen polimórfico, en paralelo al appointment_id de
+    // arriba (que NO se deja de escribir: el guard de duplicados de
+    // esta misma función sigue consultándolo).
+    source_type: "appointment",
+    source_id: args.appointment_id ?? null,
   });
 
   return !error;

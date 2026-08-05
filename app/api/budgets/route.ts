@@ -11,7 +11,7 @@ import {
   type BudgetRecord,
   type BudgetTreatmentType,
 } from "@/types/fertility";
-import { maybeCreateBudgetPendingFollowup } from "@/lib/fertility/followup-triggers";
+import { maybeCreateBudgetPendingFollowup } from "@/lib/followups/triggers";
 
 const treatmentTypeEnum = z.enum(BUDGET_TREATMENT_TYPES);
 
@@ -165,6 +165,11 @@ export async function POST(request: NextRequest) {
     patient_id: budget.patient_id,
     doctor_id: doctorId,
     budget_record_id: budget.id,
+    // mig 184 — origen polimórfico. Complementa (no reemplaza) el
+    // back-link `budget_records.followup_id` de mig 136: ahora el
+    // vínculo se puede navegar en las dos direcciones.
+    source_type: "budget_record",
+    source_id: budget.id,
   });
 
   if (followup.created && followup.followup_id) {

@@ -77,9 +77,31 @@ export async function POST(request: NextRequest) {
   if (org.error) return org.error;
   const organizationId = org.organizationId;
 
+  // mig 184 — origen polimórfico. Este endpoint solo lo usa el panel de
+  // historia clínica (app/(dashboard)/patients/clinical-followups-panel.tsx),
+  // que manda `appointment_id` y `clinical_note_id` cuando el panel se
+  // abre desde una cita o desde una nota, y ambos null cuando el
+  // usuario lo crea suelto desde la ficha del paciente.
+  //
+  // La prioridad appointment > clinical_note > manual es la MISMA que
+  // usa el backfill de la mig 184, para que una fila creada hoy y una
+  // backfilleada de ayer con los mismos ids acaben con el mismo origen.
+  const sourceType = followupData.appointment_id
+    ? "appointment"
+    : followupData.clinical_note_id
+      ? "clinical_note"
+      : "manual";
+  const sourceId =
+    followupData.appointment_id ?? followupData.clinical_note_id ?? null;
+
   const { data, error } = await supabase
     .from("clinical_followups")
-    .insert({ ...followupData, organization_id: organizationId })
+    .insert({
+      ...followupData,
+      organization_id: organizationId,
+      source_type: sourceType,
+      source_id: sourceId,
+    })
     .select("*, doctors(full_name), patients(first_name, last_name, phone)")
     .single();
 

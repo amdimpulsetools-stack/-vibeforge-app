@@ -354,7 +354,7 @@ export async function POST(request: NextRequest) {
   // to the new phase's window.
   //
   // Dedup verification: `maybeCreateBudgetPendingFollowup` (lib/
-  // fertility/followup-triggers.ts:55) queries for an existing
+  // followups/triggers.ts:55) queries for an existing
   // followup with rule_key='fertility.budget_pending_acceptance'
   // before inserting; the cron will see this transformed row and
   // skip creating a duplicate.
