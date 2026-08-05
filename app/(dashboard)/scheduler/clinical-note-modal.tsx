@@ -206,7 +206,7 @@ export function ClinicalNoteModal({
                       className={cn(
                         "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]",
                         panelState.autoSaveStatus === "saving" && "text-muted-foreground",
-                        panelState.autoSaveStatus === "saved" && "text-emerald-500",
+                        panelState.autoSaveStatus === "saved" && "text-success-500",
                         panelState.autoSaveStatus === "error" && "text-red-500"
                       )}
                       role="status"

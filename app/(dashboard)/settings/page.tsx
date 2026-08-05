@@ -43,12 +43,18 @@ import {
   Hash,
   Eye,
   Palette,
+  Check,
   Share2,
   Sparkles,
   AlertTriangle,
 } from "lucide-react";
 import { UbigeoCombobox } from "@/components/ui/ubigeo-combobox";
 import { findUbigeoByCode } from "@/lib/sunat/ubigeo";
+import {
+  ACCENT_THEMES,
+  resolveAccentTheme,
+  type AccentThemeKey,
+} from "@/lib/theme/accent-themes";
 import {
   loadSchedulerConfig,
   fetchSchedulerConfig,
@@ -161,7 +167,7 @@ export default function SettingsPage() {
     isOrgAdmin,
     refetchOrg,
   } = useOrganization();
-  const { isAdmin, loading: roleLoading } = useOrgRole();
+  const { isAdmin, isOwner, loading: roleLoading } = useOrgRole();
   const { hasAnyAddon } = useOrgAddons();
   const hasFertilityAddon = hasAnyAddon([
     FERTILITY_BASIC_KEY,
@@ -191,6 +197,47 @@ export default function SettingsPage() {
   );
   const [uploadingIcon, setUploadingIcon] = useState(false);
   const [showHeaderPreview, setShowHeaderPreview] = useState(false);
+
+  // ── Acento de marca de la organización (mig 190) ─────────────────────────
+  // Optimista: el swatch marca la elección al instante y se revierte si el
+  // UPDATE falla. El recolor real lo hace el <style> que renderiza
+  // app/(dashboard)/layout.tsx en el server, de ahí el router.refresh().
+  const [accentTheme, setAccentTheme] = useState<AccentThemeKey>(
+    resolveAccentTheme(organization?.accent_theme)
+  );
+  const [savingAccent, setSavingAccent] = useState(false);
+  useEffect(() => {
+    setAccentTheme(resolveAccentTheme(organization?.accent_theme));
+  }, [organization?.accent_theme]);
+
+  const handleAccentChange = async (next: AccentThemeKey) => {
+    if (!organizationId || savingAccent || next === accentTheme) return;
+    const previous = accentTheme;
+    setAccentTheme(next);
+    setSavingAccent(true);
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("organizations")
+      .update({ accent_theme: next })
+      .eq("id", organizationId);
+
+    setSavingAccent(false);
+
+    if (error) {
+      setAccentTheme(previous);
+      toast.error("No se pudo cambiar el color: " + error.message);
+      return;
+    }
+
+    refetchOrg();
+    // El layout es un Server Component: sin refresh el <style> del acento
+    // se quedaría con el valor anterior hasta la siguiente navegación dura.
+    router.refresh();
+    const label =
+      ACCENT_THEMES.find((o) => o.key === next)?.label ?? next;
+    toast.success(`Color del sistema: ${label}`);
+  };
   const logoInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
 
@@ -716,6 +763,71 @@ export default function SettingsPage() {
       {/* ── General tab ──────────────────────────────────────────────────────── */}
       {activeTab === "general" && (
         <div className="space-y-6">
+          {/* Accento de marca del sistema — sólo owner */}
+          {isOwner && (
+            <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
+              <div className="flex items-center gap-2">
+                <Palette className="h-5 w-5 text-primary" />
+                <div>
+                  <h2 className="text-lg font-semibold">Color del sistema</h2>
+                  <p className="text-sm text-muted-foreground">
+                    El acento de marca del panel: menú activo, botones
+                    principales, enlaces y destellos.
+                  </p>
+                </div>
+              </div>
+
+              {/* Los verdes con significado (pagado, activo, completado) NO
+                  cambian con esta elección, ni tampoco el rojo de eliminar,
+                  el ámbar de aviso o el azul informativo. Se dice en la UI
+                  para que nadie espere que "todo" cambie de color. */}
+              <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                Los estados siguen con su color de siempre: verde para
+                pagado, activo o completado; rojo para eliminar; ámbar para
+                avisos.
+              </p>
+
+              <div className="grid gap-3 sm:grid-cols-3">
+                {ACCENT_THEMES.map((opt) => {
+                  const selected = accentTheme === opt.key;
+                  return (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => handleAccentChange(opt.key)}
+                      disabled={savingAccent}
+                      aria-pressed={selected}
+                      className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all disabled:opacity-60 ${
+                        selected
+                          ? "border-primary bg-primary/5 shadow-sm ring-1 ring-primary/30"
+                          : "border-border bg-background hover:border-primary/40 hover:bg-accent/40"
+                      }`}
+                    >
+                      <span
+                        className="h-8 w-8 shrink-0 rounded-full ring-2 ring-white/10"
+                        style={{ backgroundColor: opt.swatchColor }}
+                        aria-hidden
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold">
+                          {opt.label}
+                        </span>
+                        <span className="block text-[11px] text-muted-foreground">
+                          {opt.description}
+                        </span>
+                      </span>
+                      {savingAccent && selected ? (
+                        <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
+                      ) : selected ? (
+                        <Check className="h-4 w-4 shrink-0 text-primary" />
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Organization profile */}
           <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
             <div className="flex items-center gap-2">

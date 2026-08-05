@@ -44,11 +44,19 @@ export async function PATCH(
   const snoozeUntil = new Date(
     Date.now() + parsed.data.days * 24 * 60 * 60 * 1000
   ).toISOString();
+  // Fecha calendario (YYYY-MM-DD) de `follow_up_date`, que es DATE.
+  const nextDate = snoozeUntil.slice(0, 10);
 
   const { data, error } = await supabase
     .from("clinical_followups")
     .update({
       snooze_until: snoozeUntil,
+      // Posponer tiene que mover la fecha comprometida, no solo el
+      // snooze: el bucket Pendientes ordena y muestra `expected_by`, así
+      // que sin esto la card seguía apareciendo vencida y en el mismo
+      // sitio después de posponerla.
+      expected_by: snoozeUntil,
+      follow_up_date: nextDate,
       status: "pospuesto",
     })
     .eq("id", id)

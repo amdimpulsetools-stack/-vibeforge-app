@@ -15,10 +15,10 @@ import {
   Sparkles,
   Stethoscope,
   User,
-  Flag,
   RotateCcw,
   XCircle,
   CalendarClock,
+  History,
   ThumbsDown,
 } from "lucide-react";
 import {
@@ -42,6 +42,10 @@ import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
 import { FOLLOWUP_PRIORITY_CONFIG } from "@/types/clinical-history";
+import {
+  formatLastContacted,
+  resolveFollowupUrgency,
+} from "@/lib/followups/urgency";
 import { BUDGET_TREATMENT_TYPE_LABELS } from "@/types/fertility";
 import { Receipt } from "lucide-react";
 import {
@@ -106,6 +110,26 @@ function formatPhoneDisplay(raw: string): string {
   return `+${cc} ${groups.join(" ")}`.trim();
 }
 
+const MONTHS_ES = [
+  "ene", "feb", "mar", "abr", "may", "jun",
+  "jul", "ago", "set", "oct", "nov", "dic",
+];
+
+/**
+ * "2026-08-12" / "2026-08-12T05:00:00Z" → "12 ago 2026".
+ * Se formatea desde el trozo YYYY-MM-DD del ISO a propósito: construir un
+ * `Date` y leerlo con `toLocaleDateString` daría un día distinto en el
+ * servidor (UTC) y en el navegador (America/Lima, UTC-5).
+ */
+function formatDueDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return null;
+  const month = MONTHS_ES[Number(m[2]) - 1];
+  if (!month) return null;
+  return `${Number(m[3])} ${month} ${m[1]}`;
+}
+
 interface FollowupCardProps {
   followup: FollowupWithDetails;
   variant: FollowupVariant;
@@ -134,6 +158,13 @@ interface FollowupCardProps {
    * disappears, since `linkedBudget` is no longer null).
    */
   onBudgetAssigned?: () => unknown | Promise<unknown>;
+  /**
+   * Resalta la card unos segundos después de contactarla. Con el orden de
+   * cola de trabajo la card se va al fondo del bucket, así que el anillo
+   * es la única pista visual de dónde terminó (cuando sigue dentro de las
+   * páginas ya cargadas).
+   */
+  justMoved?: boolean;
 }
 
 export function FollowupCard({
@@ -146,6 +177,7 @@ export function FollowupCard({
   onReactivate,
   onAdvance,
   onBudgetAssigned,
+  justMoved = false,
 }: FollowupCardProps) {
   const [busy, setBusy] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
@@ -178,6 +210,16 @@ export function FollowupCard({
   const originBadge = resolveOriginBadge(followup.source, followup.rule_key);
   const isCoreFollowup = followup.rule_key === CORE_SERVICE_FOLLOWUP_RULE_KEY;
   const priorityConfig = FOLLOWUP_PRIORITY_CONFIG[followup.priority];
+  // Badge principal = urgencia operativa (vencido / vence hoy), con la
+  // prioridad clínica como fallback. La prioridad queda además como
+  // señal secundaria (el puntito de color) para no perderla de vista.
+  const urgency = resolveFollowupUrgency(followup.priority, followup.days_diff);
+  const UrgencyIcon = urgency.icon;
+  const showPriorityDot = urgency.kind !== "priority";
+  // Misma preferencia que el `days_diff` del server (expected_by manda).
+  const dueDateLabel = formatDueDate(
+    followup.expected_by ?? followup.follow_up_date
+  );
   // Si el followup vino de la regla `fertility.budget_pending_acceptance`,
   // hay un budget_record linkeado vía FK inversa. Mostramos badge cyan con
   // el tipo de tratamiento (FIV/IIU/etc.) para diferenciar de seguimientos
@@ -316,7 +358,7 @@ export function FollowupCard({
 
   const attemptChipClass =
     currentAttempt === 1
-      ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
+      ? "border-success-500/40 bg-success-500/10 text-success-600"
       : currentAttempt === 2
         ? "border-amber-500/40 bg-amber-500/10 text-amber-600"
         : "border-red-500/40 bg-red-500/10 text-red-600";
@@ -349,7 +391,7 @@ export function FollowupCard({
 
   const borderClass =
     variant === "recovered"
-      ? "border-emerald-500/30 bg-emerald-500/5"
+      ? "border-success-500/30 bg-success-500/5"
       : variant === "no_response"
         ? "border-l-4 border-l-amber-500 border-amber-500/30 bg-amber-500/5"
         : "border-border bg-card";
@@ -359,7 +401,8 @@ export function FollowupCard({
       <div
         className={cn(
           "rounded-xl border p-4 transition-all hover:shadow-md",
-          borderClass
+          borderClass,
+          justMoved && "ring-2 ring-blue-500/60 ring-offset-2 ring-offset-background"
         )}
       >
         <div className="flex items-start justify-between gap-4">
@@ -367,7 +410,7 @@ export function FollowupCard({
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               {variant === "recovered" ? (
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-500" />
+                <CheckCircle2 className="h-5 w-5 shrink-0 text-success-500" />
               ) : variant === "no_response" ? (
                 <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
               ) : (
@@ -376,16 +419,29 @@ export function FollowupCard({
               <span className="text-sm font-semibold">{patientName}</span>
 
               {variant === "pending" && (
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                    priorityConfig.bgLight,
-                    priorityConfig.textColor
+                <>
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
+                      urgency.bgLight,
+                      urgency.textColor
+                    )}
+                    title={urgency.title}
+                  >
+                    <UrgencyIcon className="h-3 w-3" />
+                    {urgency.label}
+                  </span>
+                  {showPriorityDot && (
+                    <span
+                      className={cn(
+                        "h-2 w-2 shrink-0 rounded-full",
+                        priorityConfig.color
+                      )}
+                      title={`Prioridad clínica: ${priorityConfig.label}`}
+                      aria-label={`Prioridad clínica: ${priorityConfig.label}`}
+                    />
                   )}
-                >
-                  <Flag className="h-3 w-3" />
-                  {priorityConfig.label}
-                </span>
+                </>
               )}
 
               {variant === "pending" && isOpen && (
@@ -440,7 +496,7 @@ export function FollowupCard({
                   className={cn(
                     "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
                     followup.status === "agendado_via_contacto"
-                      ? "bg-emerald-500/10 text-emerald-600"
+                      ? "bg-success-500/10 text-success-600"
                       : "bg-muted text-muted-foreground"
                   )}
                 >
@@ -488,32 +544,44 @@ export function FollowupCard({
                 <Stethoscope className="h-3 w-3" />
                 {followup.doctors?.full_name ?? "—"}
               </span>
-              {followup.follow_up_date && (
+              {dueDateLabel && (
                 <span className="flex items-center gap-1">
                   <CalendarCheck className="h-3 w-3" />
-                  {followup.follow_up_date}
+                  {variant === "pending" ? "Vence" : "Fecha"} {dueDateLabel}
                 </span>
               )}
-              {variant === "pending" && typeof followup.days_diff === "number" && (
+              {/* Solo el futuro: "vencido"/"vence hoy" ya los dice el badge. */}
+              {variant === "pending" &&
+                typeof followup.days_diff === "number" &&
+                followup.days_diff > 0 && (
+                  <span
+                    className={cn(
+                      "font-medium",
+                      followup.days_diff <= 7
+                        ? "text-amber-500"
+                        : "text-success-500"
+                    )}
+                  >
+                    En {followup.days_diff}{" "}
+                    {followup.days_diff === 1 ? "día" : "días"}
+                  </span>
+                )}
+              {variant === "pending" && (
                 <span
                   className={cn(
-                    "font-medium",
-                    followup.days_diff < 0
-                      ? "text-red-500"
-                      : followup.days_diff <= 7
-                        ? "text-amber-500"
-                        : "text-emerald-500"
+                    "flex items-center gap-1",
+                    followup.last_contacted_at
+                      ? "text-muted-foreground"
+                      : "text-muted-foreground/70"
                   )}
+                  title="El orden de la bandeja pone primero a quien lleva más tiempo sin contacto"
                 >
-                  {followup.days_diff < 0
-                    ? `Vencido hace ${Math.abs(followup.days_diff)} días`
-                    : followup.days_diff === 0
-                      ? "Hoy"
-                      : `En ${followup.days_diff} días`}
+                  <History className="h-3 w-3" />
+                  {formatLastContacted(followup.last_contacted_at)}
                 </span>
               )}
               {variant === "recovered" && followup.closed_at && (
-                <span className="flex items-center gap-1 text-emerald-600">
+                <span className="flex items-center gap-1 text-success-600">
                   <Sparkles className="h-3 w-3" />
                   {followup.status === "agendado_via_contacto"
                     ? "Vía contacto automático"
@@ -690,7 +758,7 @@ export function FollowupCard({
             <button
               onClick={() => setAgendoOpen(true)}
               disabled={busy}
-              className="flex items-center gap-1 rounded-lg bg-emerald-500 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+              className="flex items-center gap-1 rounded-lg bg-success-500 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-success-600 disabled:opacity-50"
               title="La paciente agendó cita"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -909,7 +977,7 @@ export function FollowupCard({
                 setAgendoOpen(false);
               }}
               disabled={busy}
-              className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-success-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-success-600 disabled:opacity-50"
             >
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Sí, agendó

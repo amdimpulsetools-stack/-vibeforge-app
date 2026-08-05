@@ -533,7 +533,7 @@ export default function MembersPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground">Estado</span>
                   {member.is_active ? (
-                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">Activo</span>
+                    <span className="rounded-full bg-success-500/10 px-2 py-0.5 text-[10px] font-semibold text-success-600">Activo</span>
                   ) : (
                     <span className="rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-semibold text-red-600">Inactivo</span>
                   )}

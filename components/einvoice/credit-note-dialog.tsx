@@ -427,13 +427,13 @@ function SuccessPanel({
 }) {
   return (
     <div className="space-y-4">
-      <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/30 p-4 flex items-start gap-3">
-        <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
+      <div className="rounded-xl bg-success-500/10 border border-success-500/30 p-4 flex items-start gap-3">
+        <CheckCircle2 className="h-5 w-5 text-success-600 dark:text-success-400 mt-0.5 shrink-0" />
         <div>
-          <div className="font-semibold text-emerald-700 dark:text-emerald-300">
+          <div className="font-semibold text-success-700 dark:text-success-300">
             {result.series}-{String(result.number).padStart(8, "0")}
           </div>
-          <div className="text-xs text-emerald-700/80 dark:text-emerald-300/80 mt-0.5">
+          <div className="text-xs text-success-700/80 dark:text-success-300/80 mt-0.5">
             Nota de crédito enviada a SUNAT.
           </div>
         </div>

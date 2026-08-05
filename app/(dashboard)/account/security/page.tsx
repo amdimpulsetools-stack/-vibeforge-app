@@ -179,9 +179,9 @@ export default function SecurityPage() {
         </div>
       ) : status?.enrolled ? (
         <>
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5">
+          <div className="rounded-xl border border-success-500/30 bg-success-500/5 p-5">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500 shrink-0">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-success-500/15 text-success-500 shrink-0">
                 <ShieldCheck className="h-5 w-5" />
               </div>
               <div className="flex-1">

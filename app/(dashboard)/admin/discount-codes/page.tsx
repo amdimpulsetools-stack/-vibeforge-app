@@ -264,7 +264,7 @@ function CodesManager() {
                               ? "bg-amber-500/15 text-amber-700"
                               : exhausted
                                 ? "bg-amber-500/15 text-amber-700"
-                                : "bg-emerald-500/15 text-emerald-700"
+                                : "bg-success-500/15 text-success-700"
                         )}
                       >
                         {!c.is_active
@@ -422,7 +422,7 @@ function CodeFormModal({
                 className={cn(
                   "flex-1 rounded-md px-2 py-2 text-xs font-medium",
                   isActive
-                    ? "bg-emerald-500 text-white"
+                    ? "bg-success-500 text-white"
                     : "bg-muted text-muted-foreground"
                 )}
               >

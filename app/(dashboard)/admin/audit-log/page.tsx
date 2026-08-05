@@ -84,7 +84,7 @@ const ACTION_ICONS: Record<string, typeof Eye> = {
 const ACTION_TONE: Record<string, string> = {
   view: "text-blue-400",
   list: "text-slate-400",
-  create: "text-emerald-400",
+  create: "text-success-400",
   update: "text-amber-400",
   delete: "text-red-400",
   export: "text-purple-400",

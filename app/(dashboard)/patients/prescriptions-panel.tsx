@@ -288,7 +288,7 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
                     "mt-1 flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium transition-colors",
                     rx.is_active
                       ? "bg-red-500/10 text-red-600 hover:bg-red-500/20"
-                      : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+                      : "bg-success-500/10 text-success-600 hover:bg-success-500/20"
                   )}
                 >
                   {rx.is_active ? <><Ban className="h-3 w-3" /> Suspender</> : <><RotateCcw className="h-3 w-3" /> Reactivar</>}

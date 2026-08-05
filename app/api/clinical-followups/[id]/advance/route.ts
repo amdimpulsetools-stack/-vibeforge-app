@@ -141,6 +141,11 @@ export async function POST(
       update.status = "contactado";
       update.last_contacted_at = now;
       update.contacted_by = user.id;
+      // Mismo efecto que PATCH /contact: los dos botones de contacto de
+      // la card ("Contactado" azul y "Contactada" de la cascada) tienen
+      // que dejar el mismo rastro, o el chip "Intento N/M" se
+      // desincroniza según por cuál pasó la asesora.
+      update.attempt_count = (current.attempt_count ?? 0) + 1;
       if (!current.first_contact_at) {
         update.first_contact_at = now;
       }
@@ -180,6 +185,11 @@ export async function POST(
       } else {
         update.status = "pospuesto";
         update.attempt_count = nextAttempt;
+        // Reagendar es haber hablado con la paciente: también cede el
+        // puesto en la cola de trabajo del bucket Pendientes, que ordena
+        // por `last_contacted_at`.
+        update.last_contacted_at = now;
+        update.contacted_by = user.id;
         update.follow_up_date = action.next_date;
         update.expected_by = action.next_date;
         update.snooze_until = action.next_date;

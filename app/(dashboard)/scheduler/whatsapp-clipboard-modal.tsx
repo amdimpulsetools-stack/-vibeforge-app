@@ -102,7 +102,7 @@ export function WhatsAppClipboardModal({
             {/* Close button */}
             <div className="flex justify-between items-start mb-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10">
-                <CheckCircle2 className="h-7 w-7 text-emerald-500" />
+                <CheckCircle2 className="h-7 w-7 text-success-500" />
               </div>
               <button
                 onClick={onClose}

@@ -229,7 +229,7 @@ export function ExamOrdersPanel({
   };
 
   const statusIcon = (status: string) => {
-    if (status === "completed") return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />;
+    if (status === "completed") return <CheckCircle2 className="h-3.5 w-3.5 text-success-500" />;
     if (status === "partial") return <Clock className="h-3.5 w-3.5 text-amber-500" />;
     return <Circle className="h-3.5 w-3.5 text-muted-foreground" />;
   };
@@ -241,7 +241,7 @@ export function ExamOrdersPanel({
   };
 
   const statusColor = (status: string) => {
-    if (status === "completed") return "bg-emerald-500/10 text-emerald-600";
+    if (status === "completed") return "bg-success-500/10 text-success-600";
     if (status === "partial") return "bg-amber-500/10 text-amber-600";
     return "bg-muted text-muted-foreground";
   };
@@ -481,14 +481,14 @@ export function ExamOrdersPanel({
                         className="mt-0.5 shrink-0"
                       >
                         {item.status === "completed"
-                          ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-                          : <Circle className="h-3.5 w-3.5 text-muted-foreground hover:text-emerald-500" />
+                          ? <CheckCircle2 className="h-3.5 w-3.5 text-success-500" />
+                          : <Circle className="h-3.5 w-3.5 text-muted-foreground hover:text-success-500" />
                         }
                       </button>
                     ) : (
                       <div className="mt-0.5 shrink-0">
                         {item.status === "completed"
-                          ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                          ? <CheckCircle2 className="h-3.5 w-3.5 text-success-500" />
                           : <Circle className="h-3.5 w-3.5 text-muted-foreground" />
                         }
                       </div>
@@ -501,7 +501,7 @@ export function ExamOrdersPanel({
                         <p className="text-[10px] text-muted-foreground mt-0.5">{item.instructions}</p>
                       )}
                       {item.result_notes && (
-                        <p className="text-[10px] text-emerald-600 mt-0.5">Resultado: {item.result_notes}</p>
+                        <p className="text-[10px] text-success-600 mt-0.5">Resultado: {item.result_notes}</p>
                       )}
                     </div>
                   </div>

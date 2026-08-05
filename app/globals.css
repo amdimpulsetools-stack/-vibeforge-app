@@ -106,6 +106,39 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   ESCALA SEMÁNTICA "SUCCESS" — verde FIJO, nunca se temiza
+   ═══════════════════════════════════════════════════════════════════
+   Los temas de acento por organización (lib/theme/accent-themes.ts)
+   redefinen `--color-emerald-*` para recolorear TODA la marca del
+   dashboard sin tocar una sola clase. Pero emerald se usaba también
+   como color con carga psicológica: "pagado", "activo", "completado",
+   "confirmado", "firmado". Ese verde NO es marca — es significado, y
+   tiene que seguir siendo verde en Océano y en Arena.
+   Por eso esta escala existe: son EXACTAMENTE los valores emerald por
+   defecto de Tailwind 4 (node_modules/tailwindcss/theme.css), copiados
+   aquí bajo otro nombre para que ningún override los alcance.
+   Regla al escribir UI nueva:
+     - "esto salió bien / está confirmado / está pagado / está activo"
+       → success-*
+     - decoración de marca (CTA genérico, empty state, glow, chip)
+       → emerald-* (se temiza solo)
+   Rojo = destructivo, ámbar = advertencia, azul = informativo: esos ya
+   no usaban emerald y siguen intactos.  */
+@theme {
+  --color-success-50: oklch(97.9% 0.021 166.113);
+  --color-success-100: oklch(95% 0.052 163.051);
+  --color-success-200: oklch(90.5% 0.093 164.15);
+  --color-success-300: oklch(84.5% 0.143 164.978);
+  --color-success-400: oklch(76.5% 0.177 163.223);
+  --color-success-500: oklch(69.6% 0.17 162.48);
+  --color-success-600: oklch(59.6% 0.145 163.225);
+  --color-success-700: oklch(50.8% 0.118 165.612);
+  --color-success-800: oklch(43.2% 0.095 166.913);
+  --color-success-900: oklch(37.8% 0.077 168.94);
+  --color-success-950: oklch(26.2% 0.051 172.552);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    LANDING PAGE ANIMATIONS
    ═══════════════════════════════════════════════════════════════════ */
 @keyframes fadeUp {
@@ -314,20 +347,28 @@
 /* ═══════════════════════════════════════════════════════════════════
    GRADIENT ACCENTS
    ═══════════════════════════════════════════════════════════════════ */
+/* El segundo stop se deriva de --primary con un mix en oklab hacia un
+   azul apagado: reproduce el viraje emerald→teal original y, para
+   cualquier otro acento, produce una variante más fría y oscura sin
+   saltos de hue raros (oklab interpola por componentes, no por ángulo). */
 .gradient-primary {
-  background: linear-gradient(135deg, oklch(0.72 0.19 165), oklch(0.65 0.17 195));
+  background: linear-gradient(
+    135deg,
+    var(--primary),
+    color-mix(in oklab, var(--primary) 78%, oklch(0.45 0.1 250))
+  );
 }
 .gradient-warm {
   background: linear-gradient(135deg, oklch(0.78 0.15 75), oklch(0.7 0.16 45));
 }
 .gradient-glow {
-  box-shadow: 0 0 40px -8px oklch(0.72 0.19 165 / 0.25),
-              0 0 16px -4px oklch(0.72 0.19 165 / 0.15);
+  box-shadow: 0 0 40px -8px color-mix(in oklab, var(--primary) 25%, transparent),
+              0 0 16px -4px color-mix(in oklab, var(--primary) 15%, transparent);
 }
 
 /* Active nav item glow */
 .nav-active-glow {
-  box-shadow: 0 0 20px -6px oklch(0.72 0.19 165 / 0.2);
+  box-shadow: 0 0 20px -6px color-mix(in oklab, var(--primary) 20%, transparent);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -363,7 +404,7 @@
    FOCUS & SELECTION
    ═══════════════════════════════════════════════════════════════════ */
 ::selection {
-  background: oklch(0.72 0.19 165 / 0.25);
+  background: color-mix(in oklab, var(--primary) 25%, transparent);
   color: inherit;
 }
 
@@ -508,7 +549,7 @@
 .card-hover:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 24px -8px oklch(0 0 0 / 0.2),
-              0 0 0 1px oklch(0.72 0.19 165 / 0.08);
+              0 0 0 1px color-mix(in oklab, var(--primary) 8%, transparent);
 }
 
 /* ═══════════════════════════════════════════════════════════════════

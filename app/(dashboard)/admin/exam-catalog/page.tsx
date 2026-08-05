@@ -364,7 +364,7 @@ export default function ExamCatalogPage() {
                               <div className="flex items-center gap-1">
                                 <button
                                   onClick={() => toggleExamActive(exam)}
-                                  className={cn("rounded p-1 transition-colors", exam.is_active ? "text-muted-foreground hover:text-amber-500" : "text-muted-foreground hover:text-emerald-500")}
+                                  className={cn("rounded p-1 transition-colors", exam.is_active ? "text-muted-foreground hover:text-amber-500" : "text-muted-foreground hover:text-success-500")}
                                   title={exam.is_active ? "Desactivar" : "Activar"}
                                 >
                                   {exam.is_active ? <X className="h-3.5 w-3.5" /> : <Check className="h-3.5 w-3.5" />}

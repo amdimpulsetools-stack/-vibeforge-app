@@ -214,7 +214,7 @@ function AppointmentCardInner({
             const pending = price - paid;
             if (price === 0 || paid >= price) {
               return (
-                <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-600" />
+                <CheckCircle2 className="h-3 w-3 shrink-0 text-success-600" />
               );
             }
             if (pending > 0) {

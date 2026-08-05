@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLanguage } from "@/components/language-provider";
+import { useBrandAccent } from "@/hooks/use-brand-accent";
 import { formatCurrency, greetingName } from "@/lib/utils";
 import {
   TrendingUp,
@@ -80,7 +81,7 @@ function GrowthBadge({ value, suffix, light }: { value: number; suffix?: string;
       className={`inline-flex items-center gap-0.5 text-xs font-semibold ${
         light
           ? positive ? "text-white/90" : "text-red-200"
-          : positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+          : positive ? "text-success-600 dark:text-success-400" : "text-red-500 dark:text-red-400"
       }`}
     >
       {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
@@ -105,6 +106,8 @@ export function AdminDashboard({
 }: AdminDashboardProps) {
   const { language } = useLanguage();
   const isEs = language === "es";
+  // Color de marca del chart (sigue el tema de acento de la org).
+  const accent = useBrandAccent();
   const [period, setPeriod] = useState<"month" | "week" | "today">("month");
   const data = periodData[period];
 
@@ -128,9 +131,9 @@ export function AdminDashboard({
   const occupancyTone =
     data.occupancyRate >= 60
       ? {
-          text: "text-emerald-500",
-          bar: "bg-emerald-500",
-          iconBg: "bg-emerald-500/10",
+          text: "text-success-500",
+          bar: "bg-success-500",
+          iconBg: "bg-success-500/10",
           label: isEs ? "Óptima" : "Healthy",
         }
       : data.occupancyRate >= 20
@@ -269,7 +272,7 @@ export function AdminDashboard({
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <div className="flex justify-center mb-1">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <CheckCircle2 className="h-4 w-4 text-success-500" />
               </div>
               <p className="text-xs text-muted-foreground">
                 {isEs ? "Completadas" : "Completed"}
@@ -504,8 +507,8 @@ export function AdminDashboard({
                 >
                   <defs>
                     <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.35} />
-                      <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                      <stop offset="0%" stopColor={accent} stopOpacity={0.35} />
+                      <stop offset="100%" stopColor={accent} stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid
@@ -557,13 +560,13 @@ export function AdminDashboard({
                   <Area
                     type="monotone"
                     dataKey="count"
-                    stroke="#10b981"
+                    stroke={accent}
                     strokeWidth={2}
                     fill="url(#areaGrad)"
                     animationDuration={800}
                     animationEasing="ease-out"
                     dot={false}
-                    activeDot={{ r: 4, fill: "#10b981", stroke: "white", strokeWidth: 2 }}
+                    activeDot={{ r: 4, fill: accent, stroke: "white", strokeWidth: 2 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>

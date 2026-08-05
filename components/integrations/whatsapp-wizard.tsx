@@ -801,13 +801,13 @@ function VerifyStep({
         <div
           className={`rounded-xl border p-5 ${
             verification.verified
-              ? "border-emerald-500/30 bg-emerald-500/5"
+              ? "border-success-500/30 bg-success-500/5"
               : "border-destructive/30 bg-destructive/5"
           }`}
         >
           <div className="flex items-start gap-3">
             {verification.verified ? (
-              <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
+              <CheckCircle2 className="h-6 w-6 text-success-500 shrink-0" />
             ) : (
               <XCircle className="h-6 w-6 text-destructive shrink-0" />
             )}
@@ -815,7 +815,7 @@ function VerifyStep({
               <p
                 className={`text-sm font-semibold ${
                   verification.verified
-                    ? "text-emerald-700 dark:text-emerald-400"
+                    ? "text-success-700 dark:text-success-400"
                     : "text-destructive"
                 }`}
               >

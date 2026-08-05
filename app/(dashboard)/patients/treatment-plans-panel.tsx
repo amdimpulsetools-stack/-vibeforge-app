@@ -612,7 +612,7 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
                               {canEdit && session.status === "pending" && (
                                 <button
                                   onClick={() => updateSessionStatus(plan.id, session.id, "completed")}
-                                  className="rounded bg-emerald-500/10 p-0.5 text-emerald-600 hover:bg-emerald-500/20"
+                                  className="rounded bg-success-500/10 p-0.5 text-success-600 hover:bg-success-500/20"
                                   title="Marcar completada"
                                 >
                                   <Check className="h-3 w-3" />
@@ -647,7 +647,7 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
                   <div className="flex gap-1 pt-1">
                     <button
                       onClick={() => updatePlanStatus(plan.id, "completed")}
-                      className="flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-600 hover:bg-emerald-500/20"
+                      className="flex items-center gap-1 rounded-md bg-success-500/10 px-2 py-1 text-[10px] font-medium text-success-600 hover:bg-success-500/20"
                     >
                       <Check className="h-3 w-3" /> Completar
                     </button>

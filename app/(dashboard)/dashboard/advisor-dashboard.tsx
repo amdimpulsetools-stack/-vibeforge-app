@@ -69,7 +69,7 @@ interface TodayAppointment {
 const STATUS_CONFIG: Record<string, { bg: string; text: string; label: string }> = {
   scheduled: { bg: "bg-muted/60", text: "text-muted-foreground", label: "Programada" },
   confirmed: { bg: "bg-blue-500/15", text: "text-blue-400", label: "Confirmada" },
-  completed: { bg: "bg-emerald-500/15", text: "text-emerald-400", label: "Completada" },
+  completed: { bg: "bg-success-500/15", text: "text-success-400", label: "Completada" },
 };
 
 const COLOR_MAP: Record<string, { icon: string; bg: string; ring: string }> = {

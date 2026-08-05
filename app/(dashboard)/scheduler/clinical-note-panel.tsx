@@ -548,7 +548,7 @@ export const ClinicalNotePanel = forwardRef<
             <span className={cn(
               "flex items-center gap-1 text-[10px]",
               autoSaveStatus === "saving" && "text-muted-foreground",
-              autoSaveStatus === "saved" && "text-emerald-500",
+              autoSaveStatus === "saved" && "text-success-500",
               autoSaveStatus === "error" && "text-red-500",
             )}>
               {autoSaveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Guardando...</>}

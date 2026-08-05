@@ -283,7 +283,7 @@ export default function DoctorsPage() {
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-muted-foreground">Hoy</span>
                   {todaySchedule ? (
-                    <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">Disponible</span>
+                    <span className="rounded-full bg-success-500/10 px-2 py-0.5 text-[10px] font-semibold text-success-600">Disponible</span>
                   ) : (
                     <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">No atiende</span>
                   )}

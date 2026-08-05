@@ -1370,7 +1370,7 @@ export function AppointmentSidebar({
                     <button
                       onClick={() => updateStatus("completed")}
                       disabled={updating}
-                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-success-500 px-4 py-2 text-sm font-medium text-white hover:bg-success-600 disabled:opacity-50 transition-colors"
                     >
                       {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       {t("scheduler.complete")}
@@ -1515,7 +1515,7 @@ export function AppointmentSidebar({
                 className={cn(
                   "rounded px-2 py-1",
                   planContext.saldo >= 0
-                    ? "bg-emerald-500/10"
+                    ? "bg-success-500/10"
                     : "bg-red-500/10"
                 )}
               >
@@ -1524,7 +1524,7 @@ export function AppointmentSidebar({
                   className={cn(
                     "font-semibold",
                     planContext.saldo >= 0
-                      ? "text-emerald-700 dark:text-emerald-400"
+                      ? "text-success-700 dark:text-success-400"
                       : "text-red-600 dark:text-red-400"
                   )}
                 >
@@ -1534,7 +1534,7 @@ export function AppointmentSidebar({
             </div>
             {planContext.saldo >= planContext.session_price &&
             planContext.session_price > 0 ? (
-              <p className="flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+              <p className="flex items-center gap-1 rounded bg-success-500/10 px-2 py-1 text-[10px] font-medium text-success-700 dark:text-success-400">
                 <CheckCircle2 className="h-3 w-3" />
                 Esta sesión se cubre con el crédito del plan — al marcarla
                 completada, el saldo se consume automáticamente.
@@ -1651,7 +1651,7 @@ export function AppointmentSidebar({
               </div>
               {/* Payment status badge */}
               {paymentStatus === "paid" && (
-                <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                <span className="rounded-full bg-success-500/10 px-2 py-0.5 text-[10px] font-semibold text-success-600 dark:text-success-400">
                   Cobrado
                 </span>
               )}
@@ -1700,9 +1700,9 @@ export function AppointmentSidebar({
                     <p className="text-[10px] text-muted-foreground leading-tight">Total</p>
                     <p className="text-sm font-bold">S/. {totalPrice.toFixed(2)}</p>
                   </div>
-                  <div className="rounded-lg bg-emerald-500/10 py-2 px-1">
-                    <p className="text-[10px] text-emerald-700 dark:text-emerald-400 leading-tight">Pagado</p>
-                    <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  <div className="rounded-lg bg-success-500/10 py-2 px-1">
+                    <p className="text-[10px] text-success-700 dark:text-success-400 leading-tight">Pagado</p>
+                    <p className="text-sm font-bold text-success-600 dark:text-success-400">
                       S/. {totalPaid.toFixed(2)}
                     </p>
                   </div>
@@ -1757,7 +1757,7 @@ export function AppointmentSidebar({
             {totalPrice > 0 && (
               <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  className="h-full rounded-full bg-success-500 transition-all"
                   style={{ width: `${Math.min(100, (totalPaid / totalPrice) * 100)}%` }}
                 />
               </div>
@@ -1790,7 +1790,7 @@ export function AppointmentSidebar({
                         })}
                       </p>
                     </div>
-                    <span className="ml-2 shrink-0 text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                    <span className="ml-2 shrink-0 text-sm font-bold text-success-600 dark:text-success-400">
                       S/. {Number(p.amount).toFixed(2)}
                     </span>
                   </div>

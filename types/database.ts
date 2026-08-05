@@ -36,6 +36,10 @@ export interface Database {
           print_color_primary: string | null;
           // SUNAT ubigeo (migration 117) — exactly 6 digits.
           ubigeo: string | null;
+          // Acento de MARCA del dashboard (migration 190).
+          // 'emerald' | 'ocean' | 'sand' — ver lib/theme/accent-themes.ts.
+          // No afecta a los colores semánticos ni a emails/PDFs/portal.
+          accent_theme: string;
         };
         Insert: {
           id?: string;
@@ -66,6 +70,7 @@ export interface Database {
           social_whatsapp?: string | null;
           print_color_primary?: string | null;
           ubigeo?: string | null;
+          accent_theme?: string;
         };
         Update: {
           id?: string;
@@ -95,6 +100,7 @@ export interface Database {
           social_whatsapp?: string | null;
           print_color_primary?: string | null;
           ubigeo?: string | null;
+          accent_theme?: string;
         };
       };
       organization_members: {

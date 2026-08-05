@@ -269,14 +269,14 @@ function computeStatusUi(invoice: InvoiceRow): {
     return {
       label: "Aceptado SUNAT",
       className:
-        "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+        "border-success-500/40 bg-success-500/10 text-success-700 dark:text-success-400",
       Icon: CheckCircle2,
     };
   }
   return {
     label: "Emitido",
     className:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+      "border-success-500/30 bg-success-500/10 text-success-700 dark:text-success-400",
     Icon: CheckCircle2,
   };
 }
