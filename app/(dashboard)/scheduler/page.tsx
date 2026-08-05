@@ -7,7 +7,7 @@ import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { format, addDays, startOfWeek } from "date-fns";
 import { toast } from "sonner";
-import { Loader2, CalendarPlus, ArrowRight } from "lucide-react";
+import { Loader2, CalendarPlus, ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import type {
@@ -346,6 +346,12 @@ export default function SchedulerPage() {
   );
 
   // Handlers — wrapped in useCallback to prevent child re-renders
+  // Nueva cita — compartido por el botón del header (md+) y el FAB móvil.
+  const handleNewAppointment = useCallback(() => {
+    setFormDefaults({ date: format(currentDate, "yyyy-MM-dd") });
+    setShowForm(true);
+  }, [currentDate]);
+
   const handleSlotClick = useCallback((date: Date, time: string, officeId: string) => {
     setFormDefaults({
       date: format(date, "yyyy-MM-dd"),
@@ -504,6 +510,18 @@ export default function SchedulerPage() {
     services.length === 0 &&
     totalApptCount === 0;
 
+  // ¿Hay algún panel/modal del scheduler encima? Con cualquiera abierto el
+  // FAB de "Nueva cita" se oculta (mismo criterio que el FAB del IA, que
+  // queda debajo de su panel z-50).
+  const schedulerOverlayOpen =
+    selectedAppointment !== null ||
+    showForm ||
+    showReschedule ||
+    showBlockDialog ||
+    showBreakTimeDialog ||
+    showAvailableSlots ||
+    waModal.open;
+
   // Measure the scrollable grid container so DayView/WeekView can stretch
   // rows to fill the viewport on short schedules (e.g. 7am–2pm) instead of
   // leaving a blank gap. Long schedules keep scrolling as before. Declared
@@ -537,10 +555,7 @@ export default function SchedulerPage() {
           viewMode={viewMode}
           onDateChange={setCurrentDate}
           onViewModeChange={setViewMode}
-          onNewAppointment={() => {
-            setFormDefaults({ date: format(currentDate, "yyyy-MM-dd") });
-            setShowForm(true);
-          }}
+          onNewAppointment={handleNewAppointment}
           onNewBlock={() => setShowBlockDialog(true)}
           onBreakTime={() => setShowBreakTimeDialog(true)}
           onShareAvailableSlots={
@@ -592,6 +607,25 @@ export default function SchedulerPage() {
           </NowProvider>
         </div>
       </div>
+
+      {/* FAB "Nueva cita" — solo <md y solo en la agenda. Se apila JUSTO
+          encima del FAB del asistente IA (components/ai-assistant-panel.tsx:
+          `bottom: calc(1.5rem + safe-area)`, `right-6`, 3.25 rem de lado), así
+          que va a 1.5 + 3.25 + 0.75 (gap) = 5.5 rem sobre la misma safe-area y
+          con el mismo tamaño para que ambos queden centrados en la columna.
+          z-40 igual que el del IA: los paneles/modales (z-50) lo tapan.
+          Además se desmonta mientras hay un panel o modal del scheduler
+          abierto, para no estorbar sobre sus acciones. */}
+      {!schedulerOverlayOpen && (
+        <button
+          type="button"
+          onClick={handleNewAppointment}
+          aria-label="Nueva cita"
+          className="fixed bottom-[calc(5.5rem+env(safe-area-inset-bottom))] right-6 z-40 flex h-13 w-13 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl transition-transform active:scale-95 md:hidden"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      )}
 
       {/* Appointment detail sidebar — full page height */}
       {selectedAppointment && (

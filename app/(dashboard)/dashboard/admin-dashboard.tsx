@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { useBrandAccent } from "@/hooks/use-brand-accent";
-import { formatCurrency, greetingName } from "@/lib/utils";
+import { cn, formatCurrency, greetingName } from "@/lib/utils";
 import {
   TrendingUp,
   TrendingDown,
@@ -91,6 +91,54 @@ function GrowthBadge({ value, suffix, light }: { value: number; suffix?: string;
   );
 }
 
+type DashboardPeriod = "month" | "week" | "today";
+
+/**
+ * Segmented control de período. Se renderiza dos veces (una `hidden md:flex`
+ * dentro del header, otra `md:hidden` a ancho completo encima de la card de
+ * ingresos) compartiendo el mismo estado; `fullWidth` reparte los 3 segmentos
+ * en partes iguales y fuerza una sola línea por label.
+ */
+function PeriodSegmented({
+  period,
+  onChange,
+  labels,
+  fullWidth = false,
+  className,
+}: {
+  period: DashboardPeriod;
+  onChange: (p: DashboardPeriod) => void;
+  labels: Record<DashboardPeriod, string>;
+  fullWidth?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center rounded-xl border border-border/60 bg-card p-1",
+        fullWidth && "w-full",
+        className
+      )}
+    >
+      {(["month", "week", "today"] as const).map((p) => (
+        <button
+          key={p}
+          onClick={() => onChange(p)}
+          className={cn(
+            "rounded-lg px-3.5 py-1.5 text-xs font-semibold whitespace-nowrap transition-all",
+            fullWidth && "flex-1 px-2 py-2.5",
+            period === p
+              ? "gradient-primary text-white shadow-sm"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {labels[p]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 const RECEPTIONIST_COLORS = [
   "#f97316", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#14b8a6",
 ];
@@ -114,6 +162,14 @@ export function AdminDashboard({
   const periodLabels = {
     month: isEs ? "Mes" : "Month",
     week: isEs ? "Últ. 7 días" : "Last 7 days",
+    today: isEs ? "Hoy" : "Today",
+  };
+
+  // Móvil: labels cortos para que cada segmento entre en UNA línea a 390 px
+  // ("Últ. 7 días" se partía en tres renglones). md+ usa los de arriba.
+  const periodLabelsShort = {
+    month: isEs ? "Mes" : "Month",
+    week: isEs ? "7 días" : "7 days",
     today: isEs ? "Hoy" : "Today",
   };
 
@@ -166,33 +222,28 @@ export function AdminDashboard({
 
   return (
     <div className="space-y-6 pb-8">
-      {/* ── HEADER ── */}
-      <div className="flex items-center justify-between">
-        <div>
+      {/* ── HEADER ──
+           Móvil: solo título + "Brief IA" (el selector de período baja a su
+           propia fila full-width, ver abajo). `min-w-0` + `truncate` en el
+           bloque de texto y `shrink-0` en las acciones evitan que el botón
+           se salga por el borde derecho a 390 px. md+ idéntico a siempre. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <h1 className="text-3xl font-extrabold tracking-tight">
             {isEs ? "Escritorio" : "Dashboard"}
           </h1>
-          <p className="mt-1 text-muted-foreground">
+          <p className="mt-1 truncate text-muted-foreground">
             {isEs ? "Bienvenido de vuelta" : "Welcome back"}, {greetingName(userName) || userName}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Period filter */}
-          <div className="flex items-center rounded-xl border border-border/60 bg-card p-1">
-            {(["month", "week", "today"] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                  period === p
-                    ? "gradient-primary text-white shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {periodLabels[p]}
-              </button>
-            ))}
-          </div>
+        <div className="flex shrink-0 items-center gap-3">
+          {/* Period filter — desde md vive en el header (como siempre) */}
+          <PeriodSegmented
+            className="hidden md:flex"
+            period={period}
+            onChange={setPeriod}
+            labels={periodLabels}
+          />
           {/* Brief Ejecutivo IA — botón compacto en el header. Abre modal
                con selector de periodo + comparativa vs. periodo anterior. */}
           <ExecutiveBriefWidget />
@@ -205,6 +256,16 @@ export function AdminDashboard({
           </Link>
         </div>
       </div>
+
+      {/* Selector de período (solo <md) — fila propia a ancho completo, justo
+          encima de la card de ingresos, con los 3 segmentos repartidos. */}
+      <PeriodSegmented
+        className="md:hidden"
+        fullWidth
+        period={period}
+        onChange={setPeriod}
+        labels={periodLabelsShort}
+      />
 
       {/* ── ROW 1: Revenue | Pending Debt | Appointments ── */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">

@@ -120,7 +120,10 @@ export function ExecutiveBriefWidget() {
         disabled={!hasAiFeature}
         title={hasAiFeature ? "Brief Ejecutivo IA" : "Disponible en plan Pro"}
         className={cn(
-          "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all",
+          // <sm: gap/padding reducidos y `shrink-0 whitespace-nowrap` para que
+          // la píldora nunca se corte por el borde derecho a 390 px.
+          // Desde sm (y por tanto en desktop) queda exactamente como antes.
+          "inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2.5 text-sm font-semibold transition-all sm:gap-2 sm:px-4",
           hasAiFeature
             ? // Gradient emerald → violet (#7C3AED). Subtle shadow + scale
               // microinteraction matches the other primary CTAs.
