@@ -229,6 +229,11 @@ export function DoctorDashboard({ userName }: { userName: string }) {
       ? Math.round((stats.today_completed / stats.today_appointments) * 100)
       : 0;
 
+  // Deep-link a la bandeja con el filtro de doctor pre-aplicado.
+  const followupsTrayHref = data.doctor_id
+    ? `/scheduler/follow-ups?doctor=${encodeURIComponent(data.doctor_id)}`
+    : "/scheduler/follow-ups";
+
   const totalFollowups =
     (stats.followup_counts?.overdue ?? 0) +
     (stats.followup_counts?.today ?? 0) +
@@ -291,7 +296,7 @@ export function DoctorDashboard({ userName }: { userName: string }) {
             exit={{ opacity: 0, height: 0 }}
           >
             <Link
-              href="/scheduler/follow-ups"
+              href={followupsTrayHref}
               className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-red-500/8 px-4 py-3 transition-all hover:bg-red-500/15"
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/15">
@@ -369,6 +374,7 @@ export function DoctorDashboard({ userName }: { userName: string }) {
             <FollowupsPanel
               followups={stats.pending_followups ?? []}
               counts={stats.followup_counts ?? { overdue: 0, today: 0, this_week: 0 }}
+              doctorId={data.doctor_id}
             />
           </motion.div>
 
@@ -607,11 +613,18 @@ function TodayAgenda({
 function FollowupsPanel({
   followups,
   counts,
+  doctorId,
 }: {
   followups: PendingFollowup[];
   counts: { overdue: number; today: number; this_week: number };
+  doctorId: string | null;
 }) {
   const total = counts.overdue + counts.today + counts.this_week;
+  // La bandeja lee `?doctor=` en el montaje para pre-aplicar su filtro.
+  // Sin `doctorId` (RPC antiguo) el link cae al listado completo.
+  const trayHref = doctorId
+    ? `/scheduler/follow-ups?doctor=${encodeURIComponent(doctorId)}`
+    : "/scheduler/follow-ups";
 
   return (
     <div className="rounded-2xl border border-border/60 bg-card">
@@ -623,7 +636,7 @@ function FollowupsPanel({
           <h2 className="text-sm font-bold">Seguimientos</h2>
         </div>
         <Link
-          href="/scheduler/follow-ups"
+          href={trayHref}
           className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
         >
           Ver todos

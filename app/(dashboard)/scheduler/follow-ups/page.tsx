@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
   CalendarCheck,
@@ -11,6 +12,7 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,7 +29,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
-import { useFertilityAddon } from "@/hooks/use-fertility-addon";
+import { useFollowupCapabilities } from "@/hooks/use-followup-capabilities";
 import type { Doctor } from "@/types/admin";
 import { FollowupCard } from "./followup-card";
 import type {
@@ -69,7 +71,18 @@ export default function FollowUpsPage() {
   // la primera membresía, que para un usuario multi-org puede ser otra
   // clínica (bandeja vacía o con seguimientos que no son los suyos).
   const { organizationId, loading: orgLoading } = useOrganization();
-  const { active: fertilityActive, loading: addonsLoading } = useFertilityAddon();
+  const {
+    hasJourney,
+    hasRevenueKpis,
+    hasStepTemplates,
+    loading: capabilitiesLoading,
+  } = useFollowupCapabilities();
+  // Deep-link desde el widget del dashboard del doctor:
+  // `/scheduler/follow-ups?doctor=<id>`. Solo se lee en el montaje —
+  // a partir de ahí manda el panel de filtros, así que cambiar el
+  // filtro en la UI no tiene que pelearse con la URL.
+  const searchParams = useSearchParams();
+  const initialDoctorId = searchParams.get("doctor");
   const [tab, setTab] = useState<"pending" | "recovered" | "no_response">(
     "pending"
   );
@@ -80,11 +93,13 @@ export default function FollowUpsPage() {
   });
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [rules, setRules] = useState<FollowupRuleLite[]>([]);
-  const [filters, setFilters] = useState<FollowupFilters>(DEFAULT_FILTERS);
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [draftFilters, setDraftFilters] = useState<FollowupFilters>(
-    DEFAULT_FILTERS
+  const [filters, setFilters] = useState<FollowupFilters>(() =>
+    initialDoctorId
+      ? { ...DEFAULT_FILTERS, doctor_id: initialDoctorId }
+      : DEFAULT_FILTERS
   );
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [draftFilters, setDraftFilters] = useState<FollowupFilters>(filters);
 
   // Per-tab state — lazy load: only the active tab has data
   const [pending, setPending] = useState<TabState>(emptyTab());
@@ -108,7 +123,7 @@ export default function FollowUpsPage() {
   // El catálogo de reglas es del Pack Fertilidad: una org core no tiene
   // ninguna, así que ni siquiera pedimos el endpoint.
   useEffect(() => {
-    if (!fertilityActive) {
+    if (!hasStepTemplates) {
       setRules([]);
       return;
     }
@@ -116,7 +131,7 @@ export default function FollowUpsPage() {
       .then((r) => (r.ok ? r.json() : { rules: [] }))
       .then((j: { rules?: FollowupRuleLite[] }) => setRules(j.rules ?? []))
       .catch(() => setRules([]));
-  }, [fertilityActive]);
+  }, [hasStepTemplates]);
 
   // Apply counts coming from any bucket response. Used by `fetchTab` so we
   // don't need a separate `bucket=counts` round-trip on mount or after
@@ -398,7 +413,7 @@ export default function FollowUpsPage() {
   const activeTabState =
     tab === "pending" ? pending : tab === "recovered" ? recovered : noResponse;
 
-  if (addonsLoading) {
+  if (capabilitiesLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -414,7 +429,7 @@ export default function FollowUpsPage() {
           <div>
             <h1 className="text-lg font-bold">Seguimientos</h1>
             <p className="text-sm text-muted-foreground">
-              {fertilityActive
+              {hasJourney
                 ? "Pacientes pendientes de contactar para agendar próxima cita"
                 : "Pacientes que esperan tu contacto para volver"}
             </p>
@@ -428,6 +443,25 @@ export default function FollowUpsPage() {
               <RefreshCcw className="h-4 w-4" />
               <span className="hidden sm:inline">Recargar</span>
             </button>
+            {/* Chip del filtro de doctor: sin él, quien llega por el
+                deep-link del dashboard ve una bandeja recortada sin
+                pista de por qué. Con "Todos" volvemos al estado base. */}
+            {filters.doctor_id !== "all" && (
+              <span className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary">
+                {doctors.find((d) => d.id === filters.doctor_id)?.full_name ??
+                  "Doctor"}
+                <button
+                  type="button"
+                  onClick={() =>
+                    applyFilters({ ...filters, doctor_id: "all" })
+                  }
+                  className="rounded p-0.5 hover:bg-primary/20"
+                  aria-label="Quitar filtro de doctor"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
             <Sheet
               open={filtersOpen}
               onOpenChange={(o) => {
@@ -454,7 +488,7 @@ export default function FollowUpsPage() {
                   setFilters={setDraftFilters}
                   doctors={doctors}
                   rules={rules}
-                  showRuleFilter={fertilityActive}
+                  showRuleFilter={hasStepTemplates}
                 />
 
                 <SheetFooter>
@@ -505,7 +539,7 @@ export default function FollowUpsPage() {
           <TabsContent value="pending">
             <PendingTabContent
               state={pending}
-              fertilityActive={fertilityActive}
+              hasJourney={hasJourney}
               onContact={onContact}
               onSnooze={onSnooze}
               onMarkNoResponse={onMarkNoResponse}
@@ -520,7 +554,7 @@ export default function FollowUpsPage() {
             <RecoveredTabContent
               state={recovered}
               kpis={recoveredKpis}
-              fertilityActive={fertilityActive}
+              hasRevenueKpis={hasRevenueKpis}
               onLoadMore={() => fetchTab("recovered", filters, false)}
             />
           </TabsContent>
@@ -571,7 +605,7 @@ function emptyTab(): TabState {
 
 function PendingTabContent({
   state,
-  fertilityActive,
+  hasJourney,
   onContact,
   onSnooze,
   onMarkNoResponse,
@@ -581,7 +615,7 @@ function PendingTabContent({
   onLoadMore,
 }: {
   state: TabState;
-  fertilityActive: boolean;
+  hasJourney: boolean;
   onContact: (id: string) => Promise<unknown>;
   onSnooze: (id: string, days: number) => Promise<unknown>;
   onMarkNoResponse: (id: string) => Promise<unknown>;
@@ -592,7 +626,7 @@ function PendingTabContent({
 }) {
   if (!state.loaded) return null;
   if (state.items.length === 0) {
-    return fertilityActive ? (
+    return hasJourney ? (
       <EmptyState
         title="Sin seguimientos pendientes ahora mismo"
         description="Cuando complete una primera consulta de fertilidad, aparecerá un seguimiento automático aquí."
@@ -637,12 +671,12 @@ function PendingTabContent({
 function RecoveredTabContent({
   state,
   kpis,
-  fertilityActive,
+  hasRevenueKpis,
   onLoadMore,
 }: {
   state: TabState;
   kpis: RecoveredKpis | null;
-  fertilityActive: boolean;
+  hasRevenueKpis: boolean;
   onLoadMore: () => void;
 }) {
   if (!state.loaded) return null;
@@ -650,7 +684,7 @@ function RecoveredTabContent({
   return (
     <div className="space-y-4 pb-12">
       {kpis && (
-        <RecoveredKpiHeader kpis={kpis} showRevenue={fertilityActive} />
+        <RecoveredKpiHeader kpis={kpis} showRevenue={hasRevenueKpis} />
       )}
 
       {state.items.length === 0 ? (

@@ -39,7 +39,9 @@ import {
   AlertTriangle,
   Receipt,
   Info,
+  Bell,
 } from "lucide-react";
+import Link from "next/link";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { useOrgRole } from "@/hooks/use-org-role";
@@ -49,6 +51,7 @@ import { LiveStatusPill } from "./live-status-pill";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
+import { OPEN_FOLLOWUP_STATUSES } from "@/types/followups";
 import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
 import dynamic from "next/dynamic";
 
@@ -146,6 +149,35 @@ export function AppointmentSidebar({
     })();
     return () => { cancelled = true; };
   }, [appointment.organization_id]);
+
+  // ── Seguimientos abiertos del paciente ──────────────────────────────────
+  // Chip discreto junto a los datos del paciente: quien atiende ve que hay
+  // algo pendiente de contactar SIN tener que ir a la bandeja. Una sola
+  // query de conteo (head:true, cero filas transferidas) por apertura del
+  // sidebar — la lista de seguimientos vive en /scheduler/follow-ups.
+  const [openFollowupsCount, setOpenFollowupsCount] = useState(0);
+  useEffect(() => {
+    const patientId = appointment.patient_id;
+    const orgId = appointment.organization_id;
+    if (!patientId || !orgId) {
+      setOpenFollowupsCount(0);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supabase = createClient();
+      const { count } = await supabase
+        .from("clinical_followups")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .eq("patient_id", patientId)
+        .in("status", OPEN_FOLLOWUP_STATUSES);
+      if (!cancelled) setOpenFollowupsCount(count ?? 0);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [appointment.patient_id, appointment.organization_id]);
 
   // Fetch count of active budgets for this patient — shown next to
   // the "Asignar presupuesto" CTA. Only runs when fertility is on
@@ -965,6 +997,20 @@ export function AppointmentSidebar({
                 </p>
               )}
             </div>
+            {/* Seguimientos abiertos del paciente */}
+            {openFollowupsCount > 0 && (
+              <Link
+                href="/scheduler/follow-ups"
+                className="flex items-center gap-1 shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
+                title="Ver seguimientos en la bandeja"
+              >
+                <Bell className="h-3 w-3" />
+                {openFollowupsCount} seguimiento
+                {openFollowupsCount !== 1 ? "s" : ""} abierto
+                {openFollowupsCount !== 1 ? "s" : ""}
+              </Link>
+            )}
+
             {/* Patient total debt badge */}
             {patientDebt > 0 && (
               <span className="flex items-center gap-1 shrink-0 rounded-lg bg-red-500/10 border border-red-500/30 px-2 py-1 text-[11px] font-bold text-red-600 dark:text-red-400" title="Deuda total del paciente">
