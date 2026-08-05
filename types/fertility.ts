@@ -36,7 +36,10 @@ export type ContactEventType =
   // mig 142 — Phase 5 prep, treatment lifecycle.
   | "rule_transition"
   | "treatment_started"
-  | "budget_accepted_pending_start_alert";
+  | "budget_accepted_pending_start_alert"
+  // Reactivación de un seguimiento cerrado: archiva el first_contact_at
+  // del ciclo anterior antes de ponerlo en NULL.
+  | "reactivation_reset";
 
 export type ContactDeliveryStatus =
   | "sent"
@@ -62,6 +65,12 @@ export interface ContactEvent {
   from_rule?: string;
   /** mig 142 — only populated for `type='rule_transition'` events. */
   to_rule?: string;
+  /**
+   * Only populated for `type='reactivation_reset'` events: el
+   * `first_contact_at` del ciclo anterior, archivado aquí como historial
+   * auditable justo antes de que el reactivate lo ponga en NULL.
+   */
+  archived_first_contact_at?: string;
 }
 
 export interface FollowupRuleRow {
