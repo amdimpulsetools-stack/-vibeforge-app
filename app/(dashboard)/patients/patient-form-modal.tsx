@@ -134,7 +134,7 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="w-full max-w-lg max-h-[95vh] p-0 gap-0 flex flex-col overflow-hidden [&>button]:hidden">
+      <DialogContent className="w-full max-w-lg max-h-[95dvh] p-0 gap-0 flex flex-col overflow-hidden [&>button]:hidden">
         <DialogDescription className="sr-only">{t("patients.add")}</DialogDescription>
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-4 md:px-6 py-3 md:py-4">

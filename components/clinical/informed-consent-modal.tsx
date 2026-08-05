@@ -135,7 +135,7 @@ export function InformedConsentModal(props: InformedConsentModalProps) {
           </DialogDescription>
         </DialogHeader>
 
-        <div className="mt-2 max-h-[65vh] overflow-y-auto pr-1">
+        <div className="mt-2 max-h-[65dvh] overflow-y-auto pr-1">
           {step === 1 && (
             <Step1
               consentType={consentType}

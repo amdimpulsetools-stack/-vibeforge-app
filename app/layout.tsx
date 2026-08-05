@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import { Toaster } from "sonner";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -68,6 +68,25 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Next 15 ya inyecta `width=device-width, initial-scale=1`, pero faltaba
+ * `viewportFit: "cover"`: sin él `env(safe-area-inset-*)` vale siempre 0 y
+ * los contenedores fixed (sidebar drawer, sheets, footer del modal de cita)
+ * no pueden esquivar el notch ni el home indicator del iPhone.
+ * No se fija `maximumScale`/`userScalable`: bloquear el zoom es un fallo de
+ * accesibilidad; el zoom involuntario de iOS se ataca con font-size 16 px
+ * en los campos (ver globals.css).
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fbfbfb" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0b0f" },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: {
@@ -89,12 +108,23 @@ export default function RootLayout({
             </LanguageProvider>
           </ThemeProvider>
         </QueryProvider>
+        {/* En móvil los toasts top-right tapaban el topbar y el header del
+            scheduler justo donde la usuaria acaba de tocar. `mobileOffset`
+            los centra con margen a ambos lados (sonner cambia a ancho
+            completo bajo 600 px) y respeta la safe-area del notch.
+            La posición se mantiene top-right en escritorio. */}
         <Toaster
           richColors
           position="top-right"
           gap={8}
           visibleToasts={4}
           closeButton
+          mobileOffset={{
+            top: "calc(env(safe-area-inset-top) + 12px)",
+            left: "12px",
+            right: "12px",
+            bottom: "12px",
+          }}
           toastOptions={{
             duration: 4000,
           }}

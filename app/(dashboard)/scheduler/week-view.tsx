@@ -127,10 +127,14 @@ export function WeekView({
   };
 
   return (
-    <div className="min-w-[900px]">
+    // Desktop intacto (900 px desde md); en móvil el grid se estrecha a
+    // 700 px para que quepan más días por pantallazo.
+    <div className="min-w-[700px] md:min-w-[900px]">
       {/* Day headers */}
       <div className="sticky top-0 z-10 flex border-b border-border bg-card">
-        <div className="w-16 shrink-0 border-r border-border" />
+        {/* Gutter de horas sticky: la referencia horaria sobrevive al
+            scroll horizontal (móvil). */}
+        <div className="sticky left-0 z-[2] w-16 shrink-0 border-r border-border bg-card" />
         {weekDays.map((day) => {
           const dayAppointments = getAppointmentsForDay(day);
           const today = isToday(day);
@@ -177,7 +181,7 @@ export function WeekView({
             for the full history of why (per-row borders fragment at
             fractional widths; the old z-8 overlay doubled lines). */}
         <div className="pointer-events-none absolute inset-0 z-0 flex">
-          <div className="w-16 shrink-0 border-r border-border" />
+          <div className="sticky left-0 w-16 shrink-0 border-r border-border" />
           {weekDays.map((day) => (
             <div key={day.toISOString()} className="flex-1 border-r border-border" />
           ))}
@@ -199,8 +203,9 @@ export function WeekView({
               key={time}
               className={cn("flex", rowBorder)}
             >
-              {/* Time label */}
-              <div className="w-16 shrink-0 px-1 py-1 text-right">
+              {/* Time label — sticky left; z-[7] por encima de las
+                  tarjetas de cita (z-[5]/z-[6]). */}
+              <div className="sticky left-0 z-[7] w-16 shrink-0 bg-card px-1 py-1 text-right">
                 {showLabel && (
                   <span className="text-xs text-muted-foreground">{time}</span>
                 )}

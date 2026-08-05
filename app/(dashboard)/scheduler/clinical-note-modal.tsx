@@ -146,7 +146,7 @@ export function ClinicalNoteModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] xl:max-w-[1480px] 2xl:max-w-[1680px] max-h-[92vh] overflow-y-auto p-0">
+      <DialogContent className="max-w-[95vw] xl:max-w-[1480px] 2xl:max-w-[1680px] max-h-[92dvh] overflow-y-auto p-0">
         {/* Sticky header — title, patient context, signed badge, global CTAs */}
         <DialogHeader className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur px-4 pt-4 pb-3 md:px-6 md:pt-5 md:pb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">

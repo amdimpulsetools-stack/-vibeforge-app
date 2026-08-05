@@ -147,6 +147,34 @@ export function AppointmentFormModal({
   const availableDoctors = currentDoctorId && restrictToDoctor
     ? doctors.filter((d) => d.id === currentDoctorId)
     : doctors;
+  // ── Alto real del viewport en móvil ────────────────────────────────
+  // iOS Safari no encoge `100dvh` cuando aparece el teclado: el dialog
+  // sigue midiendo la pantalla completa y el footer con "Guardar" queda
+  // debajo del teclado. `visualViewport` SÍ refleja el área visible (y su
+  // desplazamiento), así que lo espejamos en el alto/top del dialog.
+  // Solo se activa bajo 768 px → desktop no cambia.
+  const [mobileViewport, setMobileViewport] = useState<{ height: number; top: number } | null>(null);
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    const sync = () => {
+      if (window.innerWidth >= 768) {
+        setMobileViewport(null);
+        return;
+      }
+      setMobileViewport({ height: vv.height, top: vv.offsetTop });
+    };
+    sync();
+    vv.addEventListener("resize", sync);
+    vv.addEventListener("scroll", sync);
+    window.addEventListener("resize", sync);
+    return () => {
+      vv.removeEventListener("resize", sync);
+      vv.removeEventListener("scroll", sync);
+      window.removeEventListener("resize", sync);
+    };
+  }, []);
+
   const [saving, setSaving] = useState(false);
   const [searchingPatient, setSearchingPatient] = useState(false);
   const [foundPatient, setFoundPatient] = useState<Patient | null>(null);
@@ -1049,13 +1077,25 @@ export function AppointmentFormModal({
     <>
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent
-        className="w-full max-w-2xl max-h-[95vh] overflow-y-auto p-0 gap-0 [&>button]:hidden"
+        /* Móvil: dialog a pantalla completa con UN solo contenedor
+           scrolleable (antes había doble max-h anidado: 95vh en el
+           DialogContent + 70vh en el form). El alto se toma del
+           visualViewport cuando existe, porque iOS Safari NO encoge
+           100dvh al abrir el teclado y el footer de "Guardar" quedaba
+           debajo de él. Desktop (md:) conserva exactamente el layout
+           anterior. */
+        className="flex w-full max-w-2xl flex-col overflow-hidden p-0 gap-0 [&>button]:hidden top-0 left-0 translate-x-0 translate-y-0 h-[100dvh] max-h-[100dvh] rounded-none sm:rounded-none md:grid md:h-auto md:max-h-[95dvh] md:overflow-y-auto md:top-[50%] md:left-[50%] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-xl"
+        style={
+          mobileViewport
+            ? { height: mobileViewport.height, maxHeight: mobileViewport.height, top: mobileViewport.top }
+            : undefined
+        }
       >
         <DialogDescription className="sr-only">
           {t("scheduler.new_appointment")}
         </DialogDescription>
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-4 md:px-6 py-3 md:py-4">
+        <div className="shrink-0 flex items-center justify-between border-b border-border px-4 md:px-6 py-3 md:py-4">
           <DialogTitle className="text-lg font-semibold">{t("scheduler.new_appointment")}</DialogTitle>
           <button
             onClick={onClose}
@@ -1068,7 +1108,7 @@ export function AppointmentFormModal({
         {/* Form */}
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="max-h-[70vh] overflow-y-auto px-4 md:px-6 py-4 space-y-4"
+          className="min-h-0 flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4 md:max-h-[70dvh] md:flex-none"
         >
           {/* Conflict warning */}
           {conflict && (
@@ -1085,7 +1125,9 @@ export function AppointmentFormModal({
               <select
                 value={docType}
                 onChange={(e) => setDocType(e.target.value as "DNI" | "CE" | "Pasaporte")}
-                className="w-[80px] sm:w-[100px] shrink-0 rounded-lg border border-input bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                /* 104 px en móvil: con los 16 px que exige iOS para no hacer
+                   zoom, "Pasaporte" ya no entraba en los 80 px de antes. */
+                className="w-[104px] sm:w-[100px] shrink-0 rounded-lg border border-input bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               >
                 <option value="DNI">DNI</option>
                 <option value="CE">CE</option>
@@ -2125,19 +2167,21 @@ export function AppointmentFormModal({
           />
         </form>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-2 border-t border-border px-4 md:px-6 py-3 md:py-4">
+        {/* Footer — último item del flex-col: en móvil queda anclado al
+            fondo del dialog (que ya sigue al visualViewport), así que
+            "Guardar" es siempre visible con el teclado abierto. */}
+        <div className="shrink-0 flex justify-end gap-2 border-t border-border bg-card px-4 md:px-6 py-3 md:py-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent transition-colors"
+            className="rounded-lg border border-border px-4 py-2.5 text-sm text-muted-foreground hover:bg-accent transition-colors md:py-2"
           >
             {t("common.cancel")}
           </button>
           <button
             onClick={handleSubmit(onSubmit)}
             disabled={saving || !!conflict || doctorDayError}
-            className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity md:py-2"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {t("common.save")}

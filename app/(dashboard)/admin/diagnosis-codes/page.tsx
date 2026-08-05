@@ -324,8 +324,10 @@ export default function DiagnosisCodesPage() {
             )}
           </div>
         ) : (
-          <div className="rounded-xl border border-border bg-card overflow-hidden">
-            <table className="w-full text-sm">
+          // overflow-x-auto: antes era `overflow-hidden` y en móvil las
+          // columnas se clipeaban sin scroll posible. Desktop sin cambios.
+          <div className="rounded-xl border border-border bg-card overflow-x-auto">
+            <table className="w-full min-w-[560px] text-sm">
               <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="px-4 py-2 text-left">Código</th>

@@ -313,8 +313,14 @@ export function DayView({
 
   const isDayDisabled = schedulerConfig.disabledWeekdays.includes(currentDate.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6);
 
+  // Ancho mínimo del grid. Desktop se queda EXACTAMENTE como estaba
+  // (600 px desde md). En móvil se reduce, y con un solo consultorio no
+  // se fuerza scroll horizontal: 80 px de gutter + 1 columna caben en 390.
+  const gridMinWidth =
+    offices.length <= 1 ? "min-w-0 md:min-w-[600px]" : "min-w-[480px] md:min-w-[600px]";
+
   return (
-    <div className="min-w-[600px] relative" onClick={() => setContextMenu(null)}>
+    <div className={cn(gridMinWidth, "relative")} onClick={() => setContextMenu(null)}>
       {/* Disabled day overlay — blocks entire grid */}
       {isDayDisabled && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-[2px] rounded-lg">
@@ -335,7 +341,9 @@ export function DayView({
 
       {/* Column headers */}
       <div className="sticky top-0 z-10 flex border-b border-border bg-card">
-        <div className="w-20 shrink-0 border-r border-border" />
+        {/* Gutter de horas: sticky a la izquierda para que la referencia
+            horaria no se pierda al scrollear en horizontal (móvil). */}
+        <div className="sticky left-0 z-[2] w-20 shrink-0 border-r border-border bg-card" />
         {offices.map((office) => (
           <div
             key={office.id}
@@ -362,7 +370,7 @@ export function DayView({
             and sits BEHIND cards (z-5) so it never cuts their chrome.
             Verified in a chromium lab at DPR 1 / 1.25 / 4. */}
         <div className="pointer-events-none absolute inset-0 z-0 flex">
-          <div className="w-20 shrink-0 border-r border-border" />
+          <div className="sticky left-0 w-20 shrink-0 border-r border-border" />
           {offices.map((office) => (
             <div key={office.id} className="flex-1 border-r border-border" />
           ))}
@@ -387,8 +395,9 @@ export function DayView({
               key={time}
               className={cn("flex", rowBorder)}
             >
-              {/* Time label */}
-              <div className="w-20 shrink-0 px-2 py-2 text-right">
+              {/* Time label — sticky left para sobrevivir al scroll horizontal.
+                  z-[7] queda por encima de las tarjetas (z-[5]/z-[6]). */}
+              <div className="sticky left-0 z-[7] w-20 shrink-0 bg-card px-2 py-2 text-right">
                 {showLabel && (
                   <span className="text-xs text-muted-foreground">{time}</span>
                 )}
@@ -532,10 +541,15 @@ export function DayView({
                               onUnblock(block.id);
                             }}
                             title={isBreakTime ? "Configurar descanso" : "Desbloquear horario"}
-                            className={`rounded p-0.5 transition-colors ${
+                            aria-label={isBreakTime ? "Configurar descanso" : "Desbloquear horario"}
+                            /* Equivalente táctil del "click derecho → Desbloquear":
+                               el icono sigue midiendo 16 px (densidad desktop
+                               intacta) pero el pseudo-elemento extiende el área
+                               tocable a 44 px en <md. */
+                            className={`relative rounded p-0.5 transition-colors before:absolute before:-inset-3.5 before:content-[''] md:before:content-none ${
                               isBreakTime
-                                ? "text-blue-400/50 hover:bg-blue-500/20 hover:text-blue-500"
-                                : "text-muted-foreground/40 hover:bg-background/70 hover:text-foreground"
+                                ? "text-blue-500/80 md:text-blue-400/50 hover:bg-blue-500/20 hover:text-blue-500"
+                                : "text-muted-foreground/80 md:text-muted-foreground/40 hover:bg-background/70 hover:text-foreground"
                             }`}
                           >
                             <LockOpen className="h-3 w-3" />
@@ -592,7 +606,7 @@ export function DayView({
             className="pointer-events-none absolute left-0 right-0 z-20 flex items-center"
             style={{ top: `${timeLineTop}px` }}
           >
-            <div className="w-20 shrink-0 flex justify-end pr-1">
+            <div className="sticky left-0 z-[1] w-20 shrink-0 flex justify-end pr-1">
               <span className="rounded bg-red-500 px-1 py-0.5 text-[10px] font-bold text-white leading-none">
                 {now.getHours().toString().padStart(2, "0")}:{now.getMinutes().toString().padStart(2, "0")}
               </span>

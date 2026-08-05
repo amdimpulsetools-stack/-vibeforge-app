@@ -72,7 +72,7 @@ export function LegalToc({ items, ariaLabel = "Tabla de contenidos" }: LegalTocP
             onClick={() => setMobileOpen(false)}
             aria-hidden
           />
-          <div className="absolute inset-x-0 bottom-0 max-h-[80vh] overflow-y-auto rounded-t-2xl border-t border-border bg-card p-6 shadow-2xl">
+          <div className="absolute inset-x-0 bottom-0 max-h-[80dvh] overflow-y-auto rounded-t-2xl border-t border-border bg-card p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <p className="text-sm font-semibold tracking-tight text-foreground">
                 {ariaLabel}

@@ -187,7 +187,7 @@ export function AvailableSlotsModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="w-full max-w-3xl max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden [&>button]:hidden">
+      <DialogContent className="w-full max-w-3xl max-h-[90dvh] flex flex-col p-0 gap-0 overflow-hidden [&>button]:hidden">
         <DialogDescription className="sr-only">Horarios disponibles</DialogDescription>
         {/* Header */}
         <div className="flex items-start justify-between border-b border-border p-5">

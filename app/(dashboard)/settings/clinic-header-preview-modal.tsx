@@ -147,7 +147,7 @@ export function ClinicHeaderPreviewModal({
 
   return (
     <Dialog open={open} onOpenChange={(v) => (v ? null : onClose())}>
-      <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto p-0 [&>button]:hidden">
+      <DialogContent className="max-w-3xl max-h-[92dvh] overflow-y-auto p-0 [&>button]:hidden">
         {/* Sticky header with tabs */}
         <div className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur px-5 py-3">
           <div className="flex items-center justify-between gap-3">

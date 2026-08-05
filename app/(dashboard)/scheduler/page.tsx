@@ -526,7 +526,10 @@ export default function SchedulerPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] md:gap-4">
+    /* Móvil: dvh (100vh en iOS incluye la barra de URL colapsable y el
+       borde inferior del card quedaba tapado) y resta calibrada al padding
+       real de <md (topbar 4rem + p-4 ×2 = 6rem). Desktop sin cambios. */
+    <div className="flex h-[calc(100dvh-6rem)] md:h-[calc(100vh-7rem)] md:gap-4">
       {/* Left column: header + calendar */}
       <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card min-w-0">
         <SchedulerHeader

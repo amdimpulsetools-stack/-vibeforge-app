@@ -143,7 +143,7 @@ export function ExecutiveBriefWidget() {
 
       {/* Modal with the brief */}
       <Dialog open={open} onOpenChange={(v) => (v ? setOpen(true) : handleClose())}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto p-0 [&>button]:hidden">
+        <DialogContent className="max-w-3xl max-h-[90dvh] overflow-y-auto p-0 [&>button]:hidden">
           {/* Sticky header */}
           <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-card/95 backdrop-blur px-5 py-4">
             <div className="min-w-0">

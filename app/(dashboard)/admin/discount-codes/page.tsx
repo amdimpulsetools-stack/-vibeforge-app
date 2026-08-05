@@ -204,8 +204,11 @@ function CodesManager() {
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-border bg-card">
-          <table className="w-full text-sm">
+        // overflow-x-auto: el wrapper era `overflow-hidden`, así que a 360 px
+        // las 6 columnas se clipeaban SIN posibilidad de scroll (datos
+        // inaccesibles). En desktop la tabla sigue cabiendo → sin cambios.
+        <div className="overflow-x-auto rounded-2xl border border-border bg-card">
+          <table className="w-full min-w-[560px] text-sm">
             <thead className="bg-muted/50 text-xs text-muted-foreground">
               <tr>
                 <th className="px-4 py-2 text-left font-medium">Código</th>
@@ -397,7 +400,7 @@ function CodeFormModal({
 
   return (
     <Dialog open onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="w-full max-w-lg p-5 space-y-4 max-h-[90vh] overflow-y-auto [&>button]:top-4 [&>button]:right-4">
+      <DialogContent className="w-full max-w-lg p-5 space-y-4 max-h-[90dvh] overflow-y-auto [&>button]:top-4 [&>button]:right-4">
         <DialogTitle className="text-lg font-bold">
           {isEdit ? "Editar código" : "Nuevo código"}
         </DialogTitle>

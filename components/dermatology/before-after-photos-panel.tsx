@@ -337,7 +337,7 @@ export function BeforeAfterPhotosPanel({ patientId, canEdit, appointmentId, doct
           onClick={() => setLightboxId(null)}
         >
           <div
-            className="relative max-h-[90vh] max-w-3xl overflow-hidden rounded-xl bg-card"
+            className="relative max-h-[90dvh] max-w-3xl overflow-hidden rounded-xl bg-card"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -355,7 +355,7 @@ export function BeforeAfterPhotosPanel({ patientId, canEdit, appointmentId, doct
                 <img
                   src={lightboxUrl}
                   alt="Foto"
-                  className="max-h-[80vh] w-auto object-contain"
+                  className="max-h-[80dvh] w-auto object-contain"
                 />
               )}
             </div>
