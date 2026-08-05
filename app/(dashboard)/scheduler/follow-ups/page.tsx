@@ -24,6 +24,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
+import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
@@ -104,12 +105,18 @@ export default function FollowUpsPage() {
       .then(({ data }) => setDoctors((data ?? []) as Doctor[]));
   }, []);
 
+  // El catálogo de reglas es del Pack Fertilidad: una org core no tiene
+  // ninguna, así que ni siquiera pedimos el endpoint.
   useEffect(() => {
+    if (!fertilityActive) {
+      setRules([]);
+      return;
+    }
     fetch("/api/admin/fertility/rules", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { rules: [] }))
       .then((j: { rules?: FollowupRuleLite[] }) => setRules(j.rules ?? []))
       .catch(() => setRules([]));
-  }, []);
+  }, [fertilityActive]);
 
   // Apply counts coming from any bucket response. Used by `fetchTab` so we
   // don't need a separate `bucket=counts` round-trip on mount or after
@@ -399,26 +406,6 @@ export default function FollowUpsPage() {
     );
   }
 
-  if (!fertilityActive) {
-    return (
-      <div className="p-6">
-        <div className="rounded-xl border border-dashed border-border p-10 text-center">
-          <CalendarCheck className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
-          <p className="text-base font-semibold">Pack Fertilidad requerido</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Esta función está disponible con el addon Pack Fertilidad.
-          </p>
-          <Link
-            href="/settings?tab=modulos"
-            className="mt-4 inline-flex items-center rounded-lg border border-primary/40 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/15"
-          >
-            Activar Pack Fertilidad
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex h-[calc(100vh-3.5rem)] flex-col">
       {/* Header */}
@@ -427,7 +414,9 @@ export default function FollowUpsPage() {
           <div>
             <h1 className="text-lg font-bold">Seguimientos</h1>
             <p className="text-sm text-muted-foreground">
-              Pacientes pendientes de contactar para agendar próxima cita
+              {fertilityActive
+                ? "Pacientes pendientes de contactar para agendar próxima cita"
+                : "Pacientes que esperan tu contacto para volver"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -465,6 +454,7 @@ export default function FollowUpsPage() {
                   setFilters={setDraftFilters}
                   doctors={doctors}
                   rules={rules}
+                  showRuleFilter={fertilityActive}
                 />
 
                 <SheetFooter>
@@ -515,6 +505,7 @@ export default function FollowUpsPage() {
           <TabsContent value="pending">
             <PendingTabContent
               state={pending}
+              fertilityActive={fertilityActive}
               onContact={onContact}
               onSnooze={onSnooze}
               onMarkNoResponse={onMarkNoResponse}
@@ -529,6 +520,7 @@ export default function FollowUpsPage() {
             <RecoveredTabContent
               state={recovered}
               kpis={recoveredKpis}
+              fertilityActive={fertilityActive}
               onLoadMore={() => fetchTab("recovered", filters, false)}
             />
           </TabsContent>
@@ -579,6 +571,7 @@ function emptyTab(): TabState {
 
 function PendingTabContent({
   state,
+  fertilityActive,
   onContact,
   onSnooze,
   onMarkNoResponse,
@@ -588,6 +581,7 @@ function PendingTabContent({
   onLoadMore,
 }: {
   state: TabState;
+  fertilityActive: boolean;
   onContact: (id: string) => Promise<unknown>;
   onSnooze: (id: string, days: number) => Promise<unknown>;
   onMarkNoResponse: (id: string) => Promise<unknown>;
@@ -598,10 +592,23 @@ function PendingTabContent({
 }) {
   if (!state.loaded) return null;
   if (state.items.length === 0) {
-    return (
+    return fertilityActive ? (
       <EmptyState
         title="Sin seguimientos pendientes ahora mismo"
         description="Cuando complete una primera consulta de fertilidad, aparecerá un seguimiento automático aquí."
+      />
+    ) : (
+      <EmptyState
+        title="Aún no tienes seguimientos"
+        description="Se crean solos cuando marcas “Requiere control” al completar una cita, o desde la historia clínica del paciente."
+        action={
+          <Link
+            href="/admin/services"
+            className="mt-3 inline-flex items-center rounded-lg border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/15"
+          >
+            Configurar control por servicio
+          </Link>
+        }
       />
     );
   }
@@ -630,17 +637,21 @@ function PendingTabContent({
 function RecoveredTabContent({
   state,
   kpis,
+  fertilityActive,
   onLoadMore,
 }: {
   state: TabState;
   kpis: RecoveredKpis | null;
+  fertilityActive: boolean;
   onLoadMore: () => void;
 }) {
   if (!state.loaded) return null;
 
   return (
     <div className="space-y-4 pb-12">
-      {kpis && <RecoveredKpiHeader kpis={kpis} />}
+      {kpis && (
+        <RecoveredKpiHeader kpis={kpis} showRevenue={fertilityActive} />
+      )}
 
       {state.items.length === 0 ? (
         <EmptyState
@@ -712,9 +723,25 @@ function NoResponseTabContent({
   );
 }
 
-function RecoveredKpiHeader({ kpis }: { kpis: RecoveredKpis }) {
+/**
+ * El ingreso atribuido (LTV × recuperaciones) es de las pocas cosas que
+ * hacen defendible el precio del addon: para una org core mostramos los
+ * conteos, no los soles.
+ */
+function RecoveredKpiHeader({
+  kpis,
+  showRevenue,
+}: {
+  kpis: RecoveredKpis;
+  showRevenue: boolean;
+}) {
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div
+      className={cn(
+        "grid grid-cols-2 gap-3",
+        showRevenue ? "lg:grid-cols-4" : "lg:grid-cols-3"
+      )}
+    >
       <KpiCard
         icon={<Sparkles className="h-4 w-4" />}
         label="Recuperaciones atribuibles"
@@ -736,13 +763,15 @@ function RecoveredKpiHeader({ kpis }: { kpis: RecoveredKpis }) {
         helper="recuperados / cerrados"
         tone="emerald"
       />
-      <KpiCard
-        icon={<Wallet className="h-4 w-4" />}
-        label="Revenue estimado atribuido"
-        value={`S/ ${kpis.revenue_attributed.toLocaleString("es-PE")}`}
-        helper="basado en LTV"
-        tone="violet"
-      />
+      {showRevenue && (
+        <KpiCard
+          icon={<Wallet className="h-4 w-4" />}
+          label="Revenue estimado atribuido"
+          value={`S/ ${kpis.revenue_attributed.toLocaleString("es-PE")}`}
+          helper="basado en LTV"
+          tone="violet"
+        />
+      )}
     </div>
   );
 }
@@ -782,15 +811,18 @@ function KpiCard({
 function EmptyState({
   title,
   description,
+  action,
 }: {
   title: string;
   description: string;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-12 text-center">
       <CalendarCheck className="mb-2 h-8 w-8 text-muted-foreground/50" />
       <p className="text-sm font-medium">{title}</p>
       <p className="mt-1 max-w-sm text-xs text-muted-foreground">{description}</p>
+      {action}
     </div>
   );
 }
@@ -844,11 +876,14 @@ function FiltersBody({
   setFilters,
   doctors,
   rules,
+  showRuleFilter,
 }: {
   filters: FollowupFilters;
   setFilters: (f: FollowupFilters) => void;
   doctors: Doctor[];
   rules: FollowupRuleLite[];
+  /** El filtro por regla solo tiene sentido con el motor de reglas del addon. */
+  showRuleFilter: boolean;
 }) {
   const toggleOrigin = (origin: "manual" | "rule" | "system") => {
     const next = filters.origin.includes(origin)
@@ -882,22 +917,24 @@ function FiltersBody({
         </div>
       </FilterField>
 
-      <FilterField label="Regla específica">
-        <select
-          value={filters.rule_key}
-          onChange={(e) =>
-            setFilters({ ...filters, rule_key: e.target.value })
-          }
-          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-        >
-          <option value="all">Todas las reglas</option>
-          {rules.map((r) => (
-            <option key={r.rule_key} value={r.rule_key}>
-              {r.display_name}
-            </option>
-          ))}
-        </select>
-      </FilterField>
+      {showRuleFilter && (
+        <FilterField label="Regla específica">
+          <select
+            value={filters.rule_key}
+            onChange={(e) =>
+              setFilters({ ...filters, rule_key: e.target.value })
+            }
+            className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+          >
+            <option value="all">Todas las reglas</option>
+            {rules.map((r) => (
+              <option key={r.rule_key} value={r.rule_key}>
+                {r.display_name}
+              </option>
+            ))}
+          </select>
+        </FilterField>
+      )}
 
       <FilterField label="Doctor">
         <select

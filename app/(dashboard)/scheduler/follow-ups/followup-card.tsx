@@ -55,6 +55,13 @@ import type { FollowupVariant, FollowupWithDetails } from "./types";
 const VIOLET = "#8B5CF6";
 
 /**
+ * `rule_key` de la ruta core (mig 182 / `lib/fertility/followup-triggers`).
+ * Se duplica aquí a propósito para no arrastrar el módulo de servidor al
+ * bundle del cliente.
+ */
+const CORE_SERVICE_FOLLOWUP_RULE_KEY = "core.service_followup";
+
+/**
  * Module-level cache so we don't re-fetch the same template once per card
  * mount. The dashboard often renders 20+ cards at once; without this we'd
  * fire 20+ identical API calls. Keyed by template kind. The `Promise`
@@ -168,7 +175,8 @@ export function FollowupCard({
   const patientName = patient
     ? `${patient.first_name} ${patient.last_name}`
     : "—";
-  const isRule = followup.source === "rule";
+  const originBadge = resolveOriginBadge(followup.source, followup.rule_key);
+  const isCoreFollowup = followup.rule_key === CORE_SERVICE_FOLLOWUP_RULE_KEY;
   const priorityConfig = FOLLOWUP_PRIORITY_CONFIG[followup.priority];
   // Si el followup vino de la regla `fertility.budget_pending_acceptance`,
   // hay un budget_record linkeado vía FK inversa. Mostramos badge cyan con
@@ -195,6 +203,20 @@ export function FollowupCard({
   // on mount. The cached promise is shared across cards/mounts.
   const buildingRef = useRef(false);
   const buildFollowupMessage = async (): Promise<string | null> => {
+    // Seguimiento core: ninguna de las plantillas de clipboard sirve tal
+    // cual. `post_appointment` deja `{{FECHA}}`/`{{HORA}}`/`{{DIRECCION}}`
+    // sin resolver (un seguimiento no tiene cita futura de la que sacar
+    // esos datos) y `second_consultation_followup` es copy de fertilidad
+    // ("tu segunda consulta"). Hasta que la Fase 2 añada una plantilla
+    // genérica editable, construimos un mensaje neutro en código — así
+    // el botón de WhatsApp sigue siendo útil sin fricción.
+    if (isCoreFollowup) {
+      return buildCoreFollowupMessage({
+        patientName,
+        clinicName: organization?.name ?? "",
+        doctorName: followup.doctors?.full_name ?? null,
+      });
+    }
     const template = await getCachedTemplate(templateKind);
     if (templateKind === "budget_followup") {
       if (!linkedBudget) return null;
@@ -378,7 +400,7 @@ export function FollowupCard({
                 </span>
               )}
 
-              {isRule && (
+              {originBadge?.kind === "automated" && (
                 <span
                   className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
                   style={{
@@ -389,6 +411,20 @@ export function FollowupCard({
                 >
                   <Sparkles className="h-3 w-3" />
                   Automatizado
+                </span>
+              )}
+
+              {originBadge?.kind === "control" && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
+                  <CalendarClock className="h-3 w-3" />
+                  Control
+                </span>
+              )}
+
+              {originBadge?.kind === "manual" && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  <Stethoscope className="h-3 w-3" />
+                  Manual
                 </span>
               )}
 
@@ -444,9 +480,7 @@ export function FollowupCard({
               <p className="text-sm text-muted-foreground line-clamp-1">
                 {followup.reason}
               </p>
-              {isRule && stepActiveIdx !== null && (
-                <MiniStepper activeIdx={stepActiveIdx} />
-              )}
+              {stepActiveIdx !== null && <MiniStepper activeIdx={stepActiveIdx} />}
             </div>
 
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -918,6 +952,44 @@ export function FollowupCard({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/**
+ * Badge de origen del seguimiento. Tres familias:
+ *   - `core.service_followup`  → "Control" (azul), la ruta core.
+ *   - reglas `fertility.*`     → "Automatizado" (violeta), sin cambios.
+ *   - `source='manual'`        → "Manual" (gris), semáforo de historia
+ *     clínica.
+ * Cualquier otra regla desconocida cae en "Automatizado" para conservar
+ * el comportamiento previo (`source === 'rule'` → badge violeta).
+ */
+function resolveOriginBadge(
+  source: FollowupWithDetails["source"],
+  ruleKey: string | null
+): { kind: "control" | "automated" | "manual" } | null {
+  if (ruleKey === CORE_SERVICE_FOLLOWUP_RULE_KEY) return { kind: "control" };
+  if (source === "rule") return { kind: "automated" };
+  if (source === "manual") return { kind: "manual" };
+  return null;
+}
+
+/**
+ * Mensaje neutro para seguimientos core. No pasa por
+ * `org_whatsapp_clipboard_templates` — ver el comentario en
+ * `buildFollowupMessage`.
+ */
+function buildCoreFollowupMessage(vars: {
+  patientName: string;
+  clinicName: string;
+  doctorName: string | null;
+}): string {
+  const clinic = vars.clinicName ? ` de ${vars.clinicName}` : "";
+  const doctor = vars.doctorName ? ` con ${vars.doctorName}` : "";
+  return (
+    `Hola ${vars.patientName} 👋\n\n` +
+    `Te escribimos${clinic} para coordinar tu próximo control${doctor}. ` +
+    `¿Te gustaría agendar tu cita?\n\nQuedamos atentos.`
   );
 }
 

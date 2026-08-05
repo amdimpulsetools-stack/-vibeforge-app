@@ -45,6 +45,20 @@ export const serviceSchema = z.object({
   // Fertility addon — only relevant if the org has fertility_basic|premium
   // active. Inert otherwise. UI gates this with <FertilityAddonGate>.
   is_budget_eligible: z.boolean().default(false),
+
+  // Seguimientos core (mig 182) — default de control por servicio,
+  // visible para TODAS las orgs. Vacío = sin seguimiento automático.
+  followup_after_days: z
+    .preprocess(
+      (v) => (v === "" || v === null || v === undefined ? null : v),
+      z.coerce
+        .number()
+        .int("Debe ser un número entero de días")
+        .min(1, "Mínimo 1 día")
+        .max(365, "Máximo 365 días")
+        .nullable()
+    )
+    .default(null),
 });
 
 export type ServiceFormData = z.infer<typeof serviceSchema>;
