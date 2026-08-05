@@ -18,10 +18,17 @@ import {
   Coffee,
   Building2,
   Check,
+  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 
 interface SchedulerHeaderProps {
   currentDate: Date;
@@ -123,27 +130,44 @@ export function SchedulerHeader({
     }
   };
 
+  // Móvil: fecha corta (la larga desborda a 390 px y empujaba "Nueva cita"
+  // fuera del card, que es `overflow-hidden`). Desktop mantiene el formato
+  // completo de siempre.
+  const titleLong =
+    viewMode === "day"
+      ? format(currentDate, "EEEE, d MMMM yyyy", { locale: es })
+      : `${format(currentDate, "d MMM", { locale: es })} — ${format(addDays(currentDate, 6), "d MMM yyyy", { locale: es })}`;
+  const titleShort =
+    viewMode === "day"
+      ? format(currentDate, "EEE d MMM", { locale: es })
+      : `${format(currentDate, "d MMM", { locale: es })} — ${format(addDays(currentDate, 6), "d MMM", { locale: es })}`;
+
+  // Acciones secundarias: en <md viven dentro del menú "⋯" para que
+  // "Nueva cita" (la acción principal de recepción) nunca quede cortada.
+  const hasSecondaryActions = Boolean(onNewBlock || onBreakTime || onShareAvailableSlots);
+
   return (
-    <div className="border-b border-border px-4 py-3 space-y-3">
-      {/* Top row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+    <div className="border-b border-border px-3 py-3 md:px-4 space-y-2 md:space-y-3">
+      {/* Top row — en <md se parte en dos filas (navegación / acciones) */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex w-full items-center gap-1 md:w-auto md:gap-3">
           <button
             onClick={() => navigateDate(-1)}
-            className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            aria-label="Anterior"
+            className="shrink-0 rounded-lg p-2.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors md:p-2"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
 
-          <h2 className="text-lg font-semibold min-w-[200px] text-center capitalize">
-            {viewMode === "day"
-              ? format(currentDate, "EEEE, d MMMM yyyy", { locale: es })
-              : `${format(currentDate, "d MMM", { locale: es })} — ${format(addDays(currentDate, 6), "d MMM yyyy", { locale: es })}`}
+          <h2 className="flex-1 truncate text-center text-base font-semibold capitalize md:min-w-[200px] md:flex-none md:text-lg">
+            <span className="md:hidden">{titleShort}</span>
+            <span className="hidden md:inline">{titleLong}</span>
           </h2>
 
           <button
             onClick={() => navigateDate(1)}
-            className="rounded-lg p-2 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            aria-label="Siguiente"
+            className="shrink-0 rounded-lg p-2.5 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors md:p-2"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -152,7 +176,7 @@ export function SchedulerHeader({
             <PopoverTrigger asChild>
               <button
                 className={cn(
-                  "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                  "shrink-0 rounded-lg border px-3 py-2 text-sm font-medium transition-colors md:py-1.5",
                   isToday(currentDate)
                     ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
                     : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
@@ -186,13 +210,13 @@ export function SchedulerHeader({
           </Popover>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-end gap-2 md:w-auto md:flex-nowrap">
           {/* View toggle */}
           <div className="flex gap-1 rounded-lg bg-muted p-1">
             <button
               onClick={() => onViewModeChange("day")}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "rounded-md px-3 py-2 text-sm font-medium transition-colors md:py-1.5",
                 viewMode === "day"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -203,7 +227,7 @@ export function SchedulerHeader({
             <button
               onClick={() => onViewModeChange("week")}
               className={cn(
-                "rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+                "rounded-md px-3 py-2 text-sm font-medium transition-colors md:py-1.5",
                 viewMode === "week"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -215,7 +239,7 @@ export function SchedulerHeader({
 
           {/* Office filter */}
           {offices.length > 1 && (
-            <div className="relative" ref={dropdownRef}>
+            <div className="relative shrink-0" ref={dropdownRef}>
               <button
                 onClick={() => setOfficeDropdownOpen((o) => !o)}
                 className={cn(
@@ -289,6 +313,10 @@ export function SchedulerHeader({
             </div>
           )}
 
+          {/* Acciones secundarias — visibles sueltas solo desde md.
+              En móvil se colapsan al menú "⋯" de más abajo, para que la
+              fila no supere el ancho del card (que es overflow-hidden). */}
+          <div className="hidden md:flex md:items-center md:gap-2">
           {/* Bloquear button */}
           {onNewBlock && (
             <button
@@ -345,11 +373,53 @@ export function SchedulerHeader({
               </div>
             </div>
           )}
+          </div>
 
-          {/* Nueva cita */}
+          {/* Menú "⋯" — mismas acciones secundarias, con label visible
+              (en touch los tooltips group-hover nunca aparecen). */}
+          {hasSecondaryActions && (
+            <div className="md:hidden">
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  aria-label="Más acciones"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted"
+                >
+                  <MoreHorizontal className="h-5 w-5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="min-w-[13rem]">
+                  {onNewBlock && (
+                    <DropdownMenuItem onSelect={() => onNewBlock()} className="gap-2 py-2.5">
+                      <Lock className="h-4 w-4 text-amber-500" />
+                      Bloquear horario
+                    </DropdownMenuItem>
+                  )}
+                  {onBreakTime && (
+                    <DropdownMenuItem onSelect={() => onBreakTime()} className="gap-2 py-2.5">
+                      <Coffee className="h-4 w-4 text-blue-500" />
+                      Break Time
+                      {breakTimeEnabled && (
+                        <span className="ml-auto h-2 w-2 rounded-full bg-blue-500" />
+                      )}
+                    </DropdownMenuItem>
+                  )}
+                  {onShareAvailableSlots && (
+                    <DropdownMenuItem
+                      onSelect={() => onShareAvailableSlots()}
+                      className="gap-2 py-2.5"
+                    >
+                      <Clock className="h-4 w-4 text-emerald-500" />
+                      Compartir horarios
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+
+          {/* Nueva cita — SIEMPRE visible y tocable (44 px de alto en móvil) */}
           <button
             onClick={onNewAppointment}
-            className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity md:py-2"
           >
             <Plus className="h-4 w-4" />
             {t("scheduler.new_appointment")}
@@ -357,21 +427,21 @@ export function SchedulerHeader({
         </div>
       </div>
 
-      {/* Overview counters */}
-      <div className="flex gap-4">
+      {/* Overview counters — wrap + labels ocultos en <sm (icono + número) */}
+      <div className="flex flex-wrap gap-2 md:gap-4">
         <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5">
           <CalendarDays className="h-4 w-4 text-primary" />
-          <span className="text-sm text-muted-foreground">{t("scheduler.overview_total")}:</span>
+          <span className="hidden text-sm text-muted-foreground sm:inline">{t("scheduler.overview_total")}:</span>
           <span className="text-sm font-semibold">{todayAppointments.length}</span>
         </div>
         <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5">
           <Clock className="h-4 w-4 text-blue-500" />
-          <span className="text-sm text-muted-foreground">{t("scheduler.overview_pending")}:</span>
+          <span className="hidden text-sm text-muted-foreground sm:inline">{t("scheduler.overview_pending")}:</span>
           <span className="text-sm font-semibold">{pending}</span>
         </div>
         <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5">
           <Percent className="h-4 w-4 text-emerald-500" />
-          <span className="text-sm text-muted-foreground">{t("scheduler.overview_occupation")}:</span>
+          <span className="hidden text-sm text-muted-foreground sm:inline">{t("scheduler.overview_occupation")}:</span>
           <span className="text-sm font-semibold">{occupationPercent}%</span>
         </div>
       </div>

@@ -128,6 +128,13 @@ function AppointmentCardInner({
         : null;
 
   return (
+    // NOTA MÓVIL — el drag & drop es HTML5 nativo y NO dispara en touch.
+    // No se porta a touch a propósito (un DnD táctil sobre un grid con
+    // scroll horizontal es frágil y caro): el camino alternativo ya existe
+    // y es completo — tap en la tarjeta → AppointmentSidebar →
+    // "Reprogramar" → RescheduleModal (fecha + hora + consultorio, con
+    // detección de conflictos). Mover una cita desde el celular pasa por
+    // ahí; el DnD queda como atajo de escritorio.
     <button
       draggable={!isOtherDoctor}
       onDragStart={(e) => {
