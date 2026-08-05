@@ -191,7 +191,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={chartData} barCategoryGap="25%">
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval="preserveStartEnd" tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")} />
                   <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip content={<CustomTooltip />} cursor={false} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
@@ -209,7 +209,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
             {revenueChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={revenueChartData} barCategoryGap="30%">
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval="preserveStartEnd" tickFormatter={(v: string) => v.split(" ").slice(0, 2).join(" ")} />
                   <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
                   <Tooltip content={<RevenueTooltip />} cursor={false} />
                   <Bar dataKey="Facturado" fill={accent} radius={999} maxBarSize={56} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={1000} animationEasing="ease-out" />

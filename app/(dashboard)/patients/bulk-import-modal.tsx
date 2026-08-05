@@ -455,7 +455,7 @@ export function BulkImportModal({ onClose, onSuccess }: BulkImportModalProps) {
           {/* ─── STEP: Preview ─── */}
           {step === "preview" && (
             <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 min-[400px]:grid-cols-3 gap-3">
                 <div className="rounded-lg border border-success-500/20 bg-success-500/5 p-3 text-center">
                   <p className="text-lg font-bold text-success-400">{validRows.length}</p>
                   <p className="text-[11px] text-muted-foreground">Listos para importar</p>
