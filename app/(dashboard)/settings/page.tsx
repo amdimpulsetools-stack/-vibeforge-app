@@ -1380,7 +1380,7 @@ export default function SettingsPage() {
             <p className="text-sm text-muted-foreground mb-4">
               {t("settings.language_description")}
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 onClick={() => setLanguage("es")}
                 className={`flex items-center gap-3 rounded-lg border p-4 transition-all ${
@@ -1569,7 +1569,7 @@ export default function SettingsPage() {
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
                   {language === "es" ? "Horario" : "Hours"}
                 </h3>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium">
                       {language === "es" ? "Inicio" : "Start"}

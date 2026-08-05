@@ -151,10 +151,16 @@ export function RescheduleModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="mx-4 w-full max-w-md rounded-xl border border-border bg-card shadow-xl">
+    /* Modal artesanal (no usa el primitivo Dialog): sin max-h, el cuerpo
+       —fecha + hora + consultorio + doctor + aviso de conflicto— se salía
+       de pantalla en móvil y en landscape sin forma de scrollear. Ahora el
+       alto se topa en el viewport dinámico (dvh: 100vh incluye la barra de
+       URL de iOS) y el scroll vive SOLO en el cuerpo, con cabecera y pie
+       —donde está "Reprogramar"— siempre visibles. */
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-border bg-card shadow-xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
+        <div className="shrink-0 flex items-center justify-between border-b border-border px-4 sm:px-6 py-4">
           <div className="flex items-center gap-2">
             <RefreshCw className="h-5 w-5 text-primary" />
             <h3 className="text-lg font-semibold">Reprogramar Cita</h3>
@@ -167,7 +173,7 @@ export function RescheduleModal({
           </button>
         </div>
 
-        <div className="px-6 py-4 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-4">
           {/* Current appointment info */}
           <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
             <p className="font-medium text-foreground">Cita actual:</p>
@@ -247,7 +253,7 @@ export function RescheduleModal({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end gap-2 border-t border-border px-6 py-4">
+        <div className="shrink-0 flex justify-end gap-2 border-t border-border px-4 sm:px-6 py-4">
           <button
             onClick={onClose}
             className="rounded-lg border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-accent transition-colors"

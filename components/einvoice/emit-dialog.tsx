@@ -566,7 +566,7 @@ export function EInvoiceEmitDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-2xl max-h-[92dvh] overflow-hidden p-0 gap-0 flex flex-col [&>button]:hidden">
         {/* Header */}
-        <div className="border-b border-border px-6 py-4">
+        <div className="border-b border-border px-4 sm:px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
               <Receipt className="h-5 w-5 text-primary" />
@@ -585,7 +585,7 @@ export function EInvoiceEmitDialog({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-5">
           {result?.ok ? (
             <SuccessPanel
               result={result}
@@ -599,7 +599,7 @@ export function EInvoiceEmitDialog({
           ) : (
             <>
               {/* Doc type + series */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs font-medium mb-1">Tipo</div>
                   <div className="flex gap-2">
@@ -662,7 +662,7 @@ export function EInvoiceEmitDialog({
                       . Quedan pendientes {config.default_currency}{" "}
                       {fmt(pending)}. Elegí por qué monto emitir esta boleta:
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <BillingModeChip
                         active={billingMode === "paid"}
                         onClick={() => setBillingMode("paid")}
@@ -693,7 +693,7 @@ export function EInvoiceEmitDialog({
                   </div>
                 )}
 
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <div className="text-[11px] font-medium mb-1">Tipo doc</div>
                     <select
@@ -708,7 +708,7 @@ export function EInvoiceEmitDialog({
                       ))}
                     </select>
                   </div>
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <div className="text-[11px] font-medium mb-1">Número</div>
                     <input
                       value={customerDocNumber}
@@ -817,7 +817,7 @@ export function EInvoiceEmitDialog({
                         updateItem(i, "quantity", Number(e.target.value))
                       }
                       placeholder="Cant"
-                      className="col-span-3 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
+                      className="col-span-6 sm:col-span-3 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
                     />
                     <input
                       type="number"
@@ -828,7 +828,7 @@ export function EInvoiceEmitDialog({
                       }
                       placeholder="Precio (con IGV)"
                       title="Precio unitario con IGV incluido — lo que paga el paciente"
-                      className="col-span-4 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
+                      className="col-span-6 sm:col-span-4 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
                     />
                     <select
                       value={it.igv_affectation}
@@ -839,7 +839,7 @@ export function EInvoiceEmitDialog({
                           Number(e.target.value)
                         )
                       }
-                      className="col-span-4 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
+                      className="col-span-11 sm:col-span-4 rounded-lg border border-input bg-background px-2 py-1.5 text-sm"
                     >
                       {IGV_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>
@@ -850,7 +850,7 @@ export function EInvoiceEmitDialog({
                     {items.length > 1 && (
                       <button
                         onClick={() => removeItem(i)}
-                        className="col-span-1 rounded-lg text-muted-foreground hover:text-destructive transition-colors"
+                        className="col-span-1 min-h-[2.75rem] sm:min-h-0 rounded-lg text-muted-foreground hover:text-destructive transition-colors"
                       >
                         ×
                       </button>
@@ -867,7 +867,7 @@ export function EInvoiceEmitDialog({
               </fieldset>
 
               {/* Discount + observations */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs font-medium mb-1">Descuento global</div>
                   <input
@@ -972,7 +972,7 @@ export function EInvoiceEmitDialog({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-border px-6 py-3 flex items-center justify-end gap-2">
+        <div className="border-t border-border px-4 sm:px-6 py-3 flex items-center justify-end gap-2">
           {result?.ok ? (
             <button
               onClick={() => onOpenChange(false)}

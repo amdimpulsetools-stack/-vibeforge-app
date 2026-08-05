@@ -399,7 +399,10 @@ export default function PatientsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
+    /* Móvil: dvh (100vh en iOS incluye la barra de URL colapsable) y la
+       resta calibrada al layout real de <md — topbar 4rem + el p-4 del
+       main ×2 = 6rem. Desde md se conserva el valor anterior. */
+    <div className="flex h-[calc(100dvh-6rem)] md:h-[calc(100vh-3.5rem)]">
       {/* Main List */}
       <div className={cn("flex flex-1 flex-col overflow-hidden", selectedPatient && "hidden md:flex")}>
         {/* Header */}
@@ -861,7 +864,7 @@ function EmptyStatePatients({
   onImport: () => void;
 }) {
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] items-center justify-center px-4">
+    <div className="flex min-h-[calc(100dvh-6rem)] md:min-h-[calc(100vh-7rem)] items-center justify-center px-4">
       <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-10 text-center shadow-sm">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
           <UserPlus className="h-8 w-8 text-emerald-500" />

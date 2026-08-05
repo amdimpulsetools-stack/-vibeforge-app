@@ -711,7 +711,7 @@ export default function SchedulerPage() {
 
 function EmptyStateScheduler() {
   return (
-    <div className="flex min-h-[calc(100vh-7rem)] items-center justify-center px-4">
+    <div className="flex min-h-[calc(100dvh-6rem)] md:min-h-[calc(100vh-7rem)] items-center justify-center px-4">
       <div className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent p-10 text-center shadow-sm">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/15 ring-1 ring-emerald-500/30">
           <CalendarPlus className="h-8 w-8 text-emerald-500" />

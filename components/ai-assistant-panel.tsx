@@ -5,6 +5,7 @@ import { Bot, X, Send, Loader2, Download, ChevronRight, Sparkles } from "lucide-
 import { cn } from "@/lib/utils";
 import { useAiQuota } from "@/hooks/use-ai-quota";
 import { useOrganization } from "@/components/organization-provider";
+import { useVisualViewport } from "@/hooks/use-visual-viewport";
 
 interface Message {
   id: string;
@@ -304,6 +305,11 @@ export function AiAssistantPanel() {
     sendMessage(suggestion);
   };
 
+  // Alto real del viewport: `h-screen` (=100vh) dejaba el composer bajo la
+  // barra de Safari y, con el teclado abierto, directamente tapado. En
+  // escritorio el hook devuelve null y manda el CSS de siempre.
+  const mobileViewport = useVisualViewport();
+
   // Only render for admin/owner (after all hooks)
   if (!isOrgAdmin) return null;
 
@@ -313,7 +319,7 @@ export function AiAssistantPanel() {
       <button
         onClick={() => setOpen(!open)}
         className={cn(
-          "fixed bottom-6 right-6 z-40 flex h-13 w-13 items-center justify-center rounded-2xl shadow-xl transition-all duration-300",
+          "fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-6 z-40 flex h-13 w-13 items-center justify-center rounded-2xl shadow-xl transition-all duration-300",
           open
             ? "bg-muted text-muted-foreground rotate-180"
             : "gradient-primary text-white hover:scale-105 gradient-glow"
@@ -326,12 +332,21 @@ export function AiAssistantPanel() {
       {/* Panel */}
       <div
         className={cn(
-          "fixed right-0 top-0 z-50 flex h-screen w-[380px] max-w-[95vw] flex-col border-l border-border/60 bg-card shadow-2xl transition-transform duration-300",
+          /* Móvil: ancho completo y alto dvh (100vh incluye la barra de
+             URL colapsable de iOS, así que el composer quedaba debajo).
+             El alto/top reales salen de visualViewport cuando hay teclado.
+             Desde md: los 380 px de siempre. */
+          "fixed right-0 top-0 z-50 flex h-[100dvh] w-full flex-col border-l border-border/60 bg-card shadow-2xl transition-transform duration-300 md:w-[380px] md:max-w-[95vw]",
           open ? "translate-x-0" : "translate-x-full"
         )}
+        style={
+          mobileViewport
+            ? { height: mobileViewport.height, top: mobileViewport.top }
+            : undefined
+        }
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border/40 px-4 py-3 bg-card">
+        <div className="shrink-0 flex items-center justify-between border-b border-border/40 px-4 py-3 bg-card">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-xl gradient-primary">
               <Sparkles className="h-4 w-4 text-white" />
@@ -358,7 +373,8 @@ export function AiAssistantPanel() {
             )}
             <button
               onClick={() => setOpen(false)}
-              className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              aria-label="Cerrar asistente"
+              className="relative rounded-lg p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] md:before:hidden"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -366,7 +382,7 @@ export function AiAssistantPanel() {
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {messages.map((msg, i) => (
             <MessageBubble
               key={msg.id}
@@ -388,7 +404,7 @@ export function AiAssistantPanel() {
 
         {/* Example queries (shown when only welcome message) */}
         {messages.length === 1 && (
-          <div className="border-t border-border/40 px-4 py-3 space-y-2">
+          <div className="shrink-0 border-t border-border/40 px-4 py-3 space-y-2">
             <p className="text-xs text-muted-foreground font-medium">Ejemplos:</p>
             <div className="flex flex-col gap-1.5">
               {EXAMPLE_QUERIES.map((q) => (
@@ -405,7 +421,7 @@ export function AiAssistantPanel() {
         )}
 
         {/* Input */}
-        <div className="border-t border-border/40 px-4 py-3">
+        <div className="shrink-0 border-t border-border/40 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:pb-3">
           <div className="flex gap-2">
             <textarea
               ref={inputRef}

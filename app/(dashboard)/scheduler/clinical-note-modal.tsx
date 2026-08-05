@@ -146,7 +146,13 @@ export function ClinicalNoteModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[95vw] xl:max-w-[1480px] 2xl:max-w-[1680px] max-h-[92dvh] overflow-y-auto p-0">
+      {/* Móvil: pantalla completa. El contenido está pensado para dos
+          columnas anchas; a 390 px un dialog centrado con 95vw dejaba
+          márgenes muertos arriba y abajo mientras la nota (el editor SOAP
+          + los paneles laterales, ya apilados por el grid de abajo) pedía
+          todo el alto disponible. dvh y no vh porque 100vh incluye la
+          barra de URL de iOS. Desde md: exactamente el dialog anterior. */}
+      <DialogContent className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0 sm:rounded-none md:top-[50%] md:left-[50%] md:h-auto md:max-h-[92dvh] md:max-w-[95vw] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-xl xl:max-w-[1480px] 2xl:max-w-[1680px]">
         {/* Sticky header — title, patient context, signed badge, global CTAs */}
         <DialogHeader className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur px-4 pt-4 pb-3 md:px-6 md:pt-5 md:pb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -296,7 +302,7 @@ export function ClinicalNoteModal({
             mostrar si hay paciente vinculado (sin paciente no hay historial
             que mostrar). */}
         {patientId && (
-          <div className="sticky top-[68px] z-[9] border-b border-border bg-card/95 backdrop-blur px-4 py-2 md:px-6">
+          <div className="relative z-[9] border-b border-border bg-card/95 backdrop-blur px-4 py-2 md:sticky md:top-[68px] md:px-6">
             <div
               className="inline-flex items-center gap-1 rounded-lg bg-muted p-1"
               role="tablist"

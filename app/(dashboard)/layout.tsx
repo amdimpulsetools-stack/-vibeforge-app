@@ -102,7 +102,11 @@ export default async function DashboardLayout({
           <PlanLimitWarner />
           <TourAutostart />
           <SessionRegister />
-          <div className="flex h-screen overflow-hidden">
+          {/* dvh y no h-screen: en iOS Safari 100vh incluye la barra de
+              URL colapsable, así que el shell medía más que la pantalla y
+              el pie de las páginas quedaba debajo del chrome del
+              navegador. En escritorio dvh == vh. */}
+          <div className="flex h-[100dvh] overflow-hidden">
             <Sidebar />
             <div className="flex flex-1 flex-col overflow-hidden">
               <Topbar />
