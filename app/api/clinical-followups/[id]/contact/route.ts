@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import type { ContactEvent } from "@/types/fertility";
+import { assertActiveMembership } from "@/lib/followups/org-scope";
 
 const schema = z.object({
   type: z.enum(["manual_contacted", "manual_whatsapp"]),
@@ -32,16 +33,6 @@ export async function PATCH(
   if (!rl.success)
     return NextResponse.json({ error: "Demasiadas solicitudes" }, { status: 429 });
 
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .single();
-  if (!membership)
-    return NextResponse.json({ error: "No perteneces a una organización" }, { status: 403 });
-
   let body: unknown;
   try {
     body = await request.json();
@@ -52,18 +43,25 @@ export async function PATCH(
   if (!parsed.success)
     return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
 
-  // Defense-in-depth scoping.
+  // Defense-in-depth scoping: la org sale del propio seguimiento.
   const { data: current, error: curErr } = await supabase
     .from("clinical_followups")
     .select(
       "id, organization_id, status, first_contact_at, attempt_count, contact_events"
     )
     .eq("id", id)
-    .eq("organization_id", membership.organization_id)
     .single();
   if (curErr || !current) {
     return NextResponse.json({ error: "Seguimiento no encontrado" }, { status: 404 });
   }
+
+  const denied = await assertActiveMembership(
+    supabase,
+    user.id,
+    current.organization_id
+  );
+  if (denied) return denied;
+  const organizationId = current.organization_id;
 
   const events: ContactEvent[] = Array.isArray(current.contact_events)
     ? (current.contact_events as unknown as ContactEvent[])
@@ -95,7 +93,7 @@ export async function PATCH(
     .from("clinical_followups")
     .update(updateData)
     .eq("id", id)
-    .eq("organization_id", membership.organization_id)
+    .eq("organization_id", organizationId)
     .select("*, doctors(full_name), patients(first_name, last_name, phone)")
     .single();
 

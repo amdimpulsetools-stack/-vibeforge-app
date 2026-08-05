@@ -2,6 +2,10 @@ import { createClient } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { logClinicalAccess } from "@/lib/audit/clinical-access";
+import {
+  assertActiveMembership,
+  resolveFollowupOrg,
+} from "@/lib/followups/org-scope";
 
 const updateSchema = z.object({
   priority: z.enum(["red", "yellow", "green"]).optional(),
@@ -21,23 +25,11 @@ export async function PATCH(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
-
-  // Verify followup belongs to user's org
-  const { data: followup } = await supabase
-    .from("clinical_followups")
-    .select("organization_id")
-    .eq("id", id)
-    .single();
-  if (!followup || followup.organization_id !== membership.organization_id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  // La org sale del propio seguimiento y se valida la membresía activa
+  // contra ESA org, en vez de comparar contra una membresía arbitraria.
+  const org = await resolveFollowupOrg(supabase, user.id, id);
+  if (org.error) return org.error;
+  const organizationId = org.organizationId;
 
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ error: "JSON inválido" }, { status: 400 }); }
@@ -74,13 +66,14 @@ export async function PATCH(
     .from("clinical_followups")
     .update(updateData)
     .eq("id", id)
+    .eq("organization_id", organizationId)
     .select("*, doctors(full_name), patients(first_name, last_name, phone)")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   logClinicalAccess({
-    organizationId: membership.organization_id,
+    organizationId,
     userId: user.id,
     resourceType: "appointment",
     action: "update",
@@ -105,29 +98,34 @@ export async function DELETE(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
-
-  // Verify followup belongs to user's org
+  // Se lee el seguimiento aquí (no vía resolveFollowupOrg) porque el log
+  // de auditoría necesita `patient_id`, que se pierde tras el DELETE.
   const { data: followup } = await supabase
     .from("clinical_followups")
     .select("organization_id, patient_id")
     .eq("id", id)
-    .single();
-  if (!followup || followup.organization_id !== membership.organization_id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    .maybeSingle();
+  if (!followup) {
+    return NextResponse.json({ error: "Seguimiento no encontrado" }, { status: 404 });
   }
 
-  const { error } = await supabase.from("clinical_followups").delete().eq("id", id);
+  const denied = await assertActiveMembership(
+    supabase,
+    user.id,
+    followup.organization_id
+  );
+  if (denied) return denied;
+  const organizationId = followup.organization_id;
+
+  const { error } = await supabase
+    .from("clinical_followups")
+    .delete()
+    .eq("id", id)
+    .eq("organization_id", organizationId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   logClinicalAccess({
-    organizationId: membership.organization_id,
+    organizationId,
     userId: user.id,
     resourceType: "appointment",
     action: "delete",

@@ -5,6 +5,10 @@ import {
   FERTILITY_BASIC_KEY,
   FERTILITY_PREMIUM_KEY,
 } from "@/types/fertility";
+import {
+  assertActiveMembership,
+  resolveActiveOrg,
+} from "@/lib/followups/org-scope";
 
 /**
  * GET /api/clinical-followups/dashboard
@@ -41,7 +45,7 @@ export async function GET(request: NextRequest) {
   const bucket = sp.get("bucket");
 
   if (!bucket) {
-    return legacyResponse(supabase, sp);
+    return legacyResponse(supabase, sp, user.id);
   }
 
   const validBuckets = new Set([
@@ -57,20 +61,11 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .single();
-  if (!membership) {
-    return NextResponse.json(
-      { error: "No perteneces a una organización activa" },
-      { status: 403 }
-    );
-  }
-  const orgId = membership.organization_id;
+  // El cliente manda su org activa en `org_id`; sin ella se cae al
+  // fallback de primera membresía (ver lib/followups/org-scope.ts).
+  const org = await resolveActiveOrg(supabase, user.id, sp.get("org_id"));
+  if (org.error) return org.error;
+  const orgId = org.organizationId;
 
   const offset = parsePositiveInt(sp.get("offset"), 0);
   const rawLimit = parsePositiveInt(sp.get("limit"), 20);
@@ -131,10 +126,17 @@ export async function GET(request: NextRequest) {
 
 async function legacyResponse(
   supabase: SupaClient,
-  sp: URLSearchParams
+  sp: URLSearchParams,
+  userId: string
 ): Promise<NextResponse> {
   const doctorId = sp.get("doctor_id");
   const priorityFilter = sp.get("priority");
+  const orgId = sp.get("org_id");
+
+  if (orgId) {
+    const denied = await assertActiveMembership(supabase, userId, orgId);
+    if (denied) return denied;
+  }
 
   let query = supabase
     .from("clinical_followups")
@@ -143,6 +145,8 @@ async function legacyResponse(
     .not("follow_up_date", "is", null)
     .order("follow_up_date", { ascending: true });
 
+  // Sin `org_id` no se filtra por organización, como hasta ahora.
+  if (orgId) query = query.eq("organization_id", orgId);
   if (doctorId) query = query.eq("doctor_id", doctorId);
   if (priorityFilter) query = query.eq("priority", priorityFilter);
 

@@ -3,8 +3,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import { logClinicalAccess } from "@/lib/audit/clinical-access";
+import {
+  assertActiveMembership,
+  resolveActiveOrg,
+} from "@/lib/followups/org-scope";
 
 const followupSchema = z.object({
+  // Org activa del cliente. Opcional: sin ella se cae al fallback de
+  // primera membresía (ver lib/followups/org-scope.ts).
+  organization_id: z.string().uuid().optional(),
   patient_id: z.string().uuid(),
   doctor_id: z.string().uuid(),
   appointment_id: z.string().uuid().nullable().optional(),
@@ -26,12 +33,21 @@ export async function GET(request: NextRequest) {
   const patientId = request.nextUrl.searchParams.get("patient_id");
   const showResolved = request.nextUrl.searchParams.get("show_resolved") === "true";
   const priority = request.nextUrl.searchParams.get("priority");
+  const orgId = request.nextUrl.searchParams.get("org_id");
+
+  if (orgId) {
+    const denied = await assertActiveMembership(supabase, user.id, orgId);
+    if (denied) return denied;
+  }
 
   let query = supabase
     .from("clinical_followups")
     .select("*, doctors(full_name), patients(first_name, last_name, phone)")
     .order("created_at", { ascending: false });
 
+  // Sin `org_id` no se filtra por organización, como hasta ahora: el RLS
+  // acota a las orgs del usuario y un usuario de una sola org ve lo mismo.
+  if (orgId) query = query.eq("organization_id", orgId);
   if (patientId) query = query.eq("patient_id", patientId);
   if (!showResolved) query = query.eq("is_resolved", false);
   if (priority) query = query.eq("priority", priority);
@@ -56,25 +72,21 @@ export async function POST(request: NextRequest) {
   const parsed = followupSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Datos inválidos", details: parsed.error.flatten().fieldErrors }, { status: 400 });
 
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .single();
-
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
+  const { organization_id: requestedOrgId, ...followupData } = parsed.data;
+  const org = await resolveActiveOrg(supabase, user.id, requestedOrgId ?? null);
+  if (org.error) return org.error;
+  const organizationId = org.organizationId;
 
   const { data, error } = await supabase
     .from("clinical_followups")
-    .insert({ ...parsed.data, organization_id: membership.organization_id })
+    .insert({ ...followupData, organization_id: organizationId })
     .select("*, doctors(full_name), patients(first_name, last_name, phone)")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   logClinicalAccess({
-    organizationId: membership.organization_id,
+    organizationId,
     userId: user.id,
     resourceType: "appointment",
     action: "create",

@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { createClient } from "@/lib/supabase/client";
+import { useOrganization } from "@/components/organization-provider";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
 import type { Doctor } from "@/types/admin";
 import { FollowupCard } from "./followup-card";
@@ -63,6 +64,10 @@ interface ListResponse {
 }
 
 export default function FollowUpsPage() {
+  // La bandeja manda su org activa a la API: sin ella el endpoint resuelve
+  // la primera membresía, que para un usuario multi-org puede ser otra
+  // clínica (bandeja vacía o con seguimientos que no son los suyos).
+  const { organizationId, loading: orgLoading } = useOrganization();
   const { active: fertilityActive, loading: addonsLoading } = useFertilityAddon();
   const [tab, setTab] = useState<"pending" | "recovered" | "no_response">(
     "pending"
@@ -157,7 +162,13 @@ export default function FollowUpsPage() {
             : noResponse.items.length;
 
       try {
-        const qs = buildQuery(filtersToUse, variant, offset, PAGE_SIZE);
+        const qs = buildQuery(
+          filtersToUse,
+          variant,
+          offset,
+          PAGE_SIZE,
+          organizationId
+        );
         const res = await fetch(
           `/api/clinical-followups/dashboard?${qs}`,
           { cache: "no-store" }
@@ -224,14 +235,17 @@ export default function FollowUpsPage() {
       recovered.items.length,
       noResponse.items.length,
       applyCountsFromResponse,
+      organizationId,
     ]
   );
 
-  // Fetch the default tab on mount.
+  // Fetch the default tab once the active org is known — pedirla antes
+  // dejaría que la API eligiera la org por su cuenta.
   useEffect(() => {
+    if (orgLoading) return;
     fetchTab("pending", filters, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [orgLoading, organizationId]);
 
   // When tab changes, lazy-load if not loaded.
   useEffect(() => {
@@ -951,10 +965,12 @@ function buildQuery(
   filters: FollowupFilters,
   bucket: FollowupVariant | "counts",
   offset = 0,
-  limit = PAGE_SIZE
+  limit = PAGE_SIZE,
+  organizationId: string | null = null
 ): string {
   const params = new URLSearchParams();
   params.set("bucket", bucket);
+  if (organizationId) params.set("org_id", organizationId);
   if (filters.doctor_id !== "all") params.set("doctor_id", filters.doctor_id);
   if (filters.origin.length > 0 && filters.origin.length < 3) {
     for (const o of filters.origin) params.append("origin", o);

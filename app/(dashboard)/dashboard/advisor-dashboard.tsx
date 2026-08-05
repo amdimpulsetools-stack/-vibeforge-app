@@ -19,6 +19,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { useOrganization } from "@/components/organization-provider";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { greetingName } from "@/lib/utils";
 import {
@@ -125,6 +126,10 @@ function greetingByHour(): string {
 
 export function AdvisorDashboard({ userName }: { userName: string }) {
   const { doctorId: myDoctorId } = useCurrentDoctor();
+  // Org activa explícita hacia la API de seguimientos: sin ella el
+  // endpoint resuelve la primera membresía, que para un usuario
+  // multi-org puede ser otra clínica.
+  const { organizationId, loading: orgLoading } = useOrganization();
 
   const [followups, setFollowups] = useState<FollowupItem[]>([]);
   const [followupsPending, setFollowupsPending] = useState(0);
@@ -138,13 +143,19 @@ export function AdvisorDashboard({ userName }: { userName: string }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (orgLoading) return;
     const load = async () => {
       const supabase = createClient();
+      const followupsQs = new URLSearchParams({
+        bucket: "pending",
+        limit: "5",
+      });
+      if (organizationId) followupsQs.set("org_id", organizationId);
       const today = new Date();
       const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
       const [fuRes, buRes, apptRes] = await Promise.all([
-        fetch("/api/clinical-followups/dashboard?bucket=pending&limit=5", { cache: "no-store" })
+        fetch(`/api/clinical-followups/dashboard?${followupsQs}`, { cache: "no-store" })
           .then((r) => (r.ok ? r.json() : null))
           .catch(() => null),
         fetch("/api/budgets?bucket=pending&limit=5", { cache: "no-store" })
@@ -187,7 +198,7 @@ export function AdvisorDashboard({ userName }: { userName: string }) {
       setLoading(false);
     };
     void load();
-  }, []);
+  }, [orgLoading, organizationId]);
 
   const todayLabel = new Date().toLocaleDateString("es-PE", {
     weekday: "long",
