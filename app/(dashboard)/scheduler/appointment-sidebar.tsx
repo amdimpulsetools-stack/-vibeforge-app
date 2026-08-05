@@ -910,8 +910,13 @@ export function AppointmentSidebar({
     onUpdate();
   };
 
+  // NOTA MÓVIL — la regla global de globals.css sube TODOS los <select>
+  // nativos a 16 px bajo md (si no, iOS Safari hace zoom al enfocarlos).
+  // Con esa fuente el py-1.5 dejaba cajas de ~38 px: en móvil se sube el
+  // padding para llegar a los 44 px de área tocable y desde md vuelve la
+  // densidad de escritorio, byte por byte.
   const selectClass =
-    "w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors";
+    "w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors md:py-1.5";
 
   return (
     <>
@@ -925,12 +930,12 @@ export function AppointmentSidebar({
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="text-sm font-semibold">{t("scheduler.details")}</h3>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2 md:gap-1">
           {/* Edit toggle — hidden when readOnly (doctor viewing other doctor's appointment) */}
           {!readOnly && appointment.status !== "cancelled" && appointment.status !== "no_show" && !editing && (
             <button
               onClick={handleStartEdit}
-              className="rounded-lg p-1 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+              className="relative rounded-lg p-1 text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-8 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] md:before:hidden"
               title={t("common.edit")}
             >
               <Pencil className="h-4 w-4" />
@@ -938,7 +943,8 @@ export function AppointmentSidebar({
           )}
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            aria-label="Cerrar"
+            className="relative rounded-lg p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-8 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] md:before:hidden"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1094,7 +1100,7 @@ export function AppointmentSidebar({
                   value={editMeetingUrl}
                   onChange={(e) => setEditMeetingUrl(e.target.value)}
                   placeholder="https://zoom.us/j/..."
-                  className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-colors md:py-1.5"
                 />
               </div>
               {editMeetingUrl && editMeetingUrl !== ((appointment as any).meeting_url ?? "") && (
@@ -1128,7 +1134,7 @@ export function AppointmentSidebar({
                 value={editNotes}
                 onChange={(e) => setEditNotes(e.target.value)}
                 rows={2}
-                className="w-full rounded-lg border border-input bg-background px-3 py-1.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none"
+                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-none md:py-1.5"
                 placeholder={t("scheduler.notes")}
               />
             </div>
@@ -1498,7 +1504,7 @@ export function AppointmentSidebar({
               </div>
               <ClipboardList className="h-3.5 w-3.5 shrink-0 text-blue-600" />
             </div>
-            <div className="grid grid-cols-3 gap-1 text-[10px]">
+            <div className="grid grid-cols-3 gap-1 text-[11px] md:text-[10px]">
               <div className="rounded bg-background/70 px-2 py-1">
                 <p className="text-muted-foreground">Pagado</p>
                 <p className="font-semibold text-foreground">
@@ -1830,7 +1836,7 @@ export function AppointmentSidebar({
                   </div>
 
                   {/* Payment method chips */}
-                  <div className="grid grid-cols-3 gap-1">
+                  <div className="grid grid-cols-2 gap-1.5 md:grid-cols-3 md:gap-1">
                     {(lookupPayments ?? []).map((pm) => {
                       const Icon = getPaymentIcon(pm.icon);
                       return (
@@ -1839,7 +1845,7 @@ export function AppointmentSidebar({
                           type="button"
                           onClick={() => setPayMethod((m) => (m === pm.label ? "" : pm.label))}
                           className={cn(
-                            "flex items-center justify-center gap-1 rounded-lg border py-1.5 text-[11px] font-medium transition-all",
+                            "flex min-h-[2.75rem] items-center justify-center gap-1 rounded-lg border px-1 py-1.5 text-[11px] font-medium transition-all md:min-h-0",
                             payMethod === pm.label
                               ? "border-primary bg-primary/10 text-primary"
                               : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground"
@@ -2239,7 +2245,7 @@ function DiscountControls({
 
       {(mode === "percent" || mode === "fixed") && (
         <>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
             <input
               type="number"
               min="0"
@@ -2247,14 +2253,14 @@ function DiscountControls({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder={mode === "percent" ? "10" : "50.00"}
-              className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+              className="rounded-md border border-input bg-background px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/50 md:py-1"
             />
             <input
               type="text"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Razón (opcional)"
-              className="rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+              className="rounded-md border border-input bg-background px-2 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-500/50 md:py-1"
             />
           </div>
           {effectiveAmount > 0 && (

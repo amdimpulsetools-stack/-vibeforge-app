@@ -126,10 +126,188 @@ export function WeekView({
     return appointments.filter((a) => a.appointment_date === dateStr);
   };
 
+  /** Mismas citas, ordenadas por hora — la vista agenda las lee en fila. */
+  const getSortedAppointmentsForDay = (date: Date) =>
+    [...getAppointmentsForDay(date)].sort((a, b) =>
+      a.start_time.localeCompare(b.start_time)
+    );
+
+  const isDisabledDay = (day: Date) =>
+    schedulerConfig.disabledWeekdays.includes(
+      day.getDay() as 0 | 1 | 2 | 3 | 4 | 5 | 6
+    );
+
   return (
-    // Desktop intacto (900 px desde md); en móvil el grid se estrecha a
-    // 700 px para que quepan más días por pantallazo.
-    <div className="min-w-[700px] md:min-w-[900px]">
+    <>
+    {/* ═══ VISTA AGENDA (<md) ══════════════════════════════════════════
+        La grilla semanal necesita ~900 px de ancho: en un iPhone de 390 px
+        se veía menos de la mitad de la semana, con tarjetas de 10 px y sin
+        referencia de día al scrollear en horizontal. En móvil la semana se
+        lee como lista vertical agrupada por día: cabecera de día sticky +
+        una card tocable por cita que dispara EXACTAMENTE los mismos
+        handlers que la grilla (`onAppointmentClick` → AppointmentSidebar,
+        `onSlotClick` → AppointmentFormModal), así que no hay flujo nuevo
+        que mantener. Colores y tipografía salen de los mismos helpers que
+        la grilla y appointment-card (hexToPastel / hexToDark), de modo que
+        una cita se reconoce igual en ambas vistas.
+        Desde md: se oculta y manda la grilla de siempre. */}
+    <div className="md:hidden">
+      {weekDays.map((day) => {
+        const dayAppointments = getSortedAppointmentsForDay(day);
+        const today = isToday(day);
+        const dayDisabled = isDisabledDay(day);
+        const firstSlot = TIME_SLOTS[0] ?? "08:00";
+
+        return (
+          <section key={day.toISOString()}>
+            {/* Cabecera de día — sticky dentro del scroll de la agenda.
+                Fondo opaco a propósito (bg-card, sin el bg-primary/5 de la
+                grilla): al quedar pegada, un fondo translúcido dejaría ver
+                las citas pasando por debajo. El día actual se marca con
+                color de texto + punto. */}
+            <div className="sticky top-0 z-10 flex items-center gap-2 border-y border-border bg-card px-3 py-2">
+              {today && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />}
+              <p
+                className={cn(
+                  "text-sm font-semibold capitalize",
+                  dayDisabled
+                    ? "text-muted-foreground/60"
+                    : today
+                      ? "text-primary"
+                      : "text-foreground"
+                )}
+              >
+                {format(day, "EEEE d 'de' MMM", { locale: es })}
+              </p>
+              {dayDisabled ? (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  Cerrado
+                </span>
+              ) : dayAppointments.length > 0 ? (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                  {dayAppointments.length}
+                </span>
+              ) : null}
+              <span className="flex-1" />
+              {!dayDisabled && (
+                /* Añadir cita en este día. La grilla ofrece el slot vacío
+                   como afordancia; en la lista no hay slots, así que el
+                   "+" vive en la cabecera. p-3 + icono de 20 px = 44 px de
+                   área tocable, con margen negativo para no engordar la
+                   fila. */
+                <button
+                  type="button"
+                  onClick={() => onSlotClick(day, firstSlot, offices[0]?.id ?? "")}
+                  className="-m-2 rounded-lg p-3 text-primary transition-colors active:bg-primary/10"
+                  aria-label={`Nueva cita el ${format(day, "d 'de' MMMM", { locale: es })}`}
+                >
+                  <Plus className="h-5 w-5" />
+                </button>
+              )}
+            </div>
+
+            {dayDisabled ? null : dayAppointments.length === 0 ? (
+              /* Estado vacío discreto — y tocable, para que un día libre
+                 siga siendo el punto de entrada natural para agendar. */
+              <button
+                type="button"
+                onClick={() => onSlotClick(day, firstSlot, offices[0]?.id ?? "")}
+                className="flex w-full items-center gap-2 px-3 py-3 text-left text-xs text-muted-foreground/70 transition-colors active:bg-accent"
+              >
+                <Plus className="h-3.5 w-3.5 shrink-0 opacity-70" />
+                Sin citas — toca para agendar
+              </button>
+            ) : (
+              <div className="space-y-1.5 px-3 py-2">
+                {dayAppointments.map((appt) => {
+                  const doctorColor = appt.doctors?.color ?? "#9ca3af";
+                  const isOtherDoctorAppt =
+                    currentDoctorId != null && appt.doctor_id !== currentDoctorId;
+                  const gross = Number(appt.price_snapshot ?? 0);
+                  const discount = Number(
+                    (appt as { discount_amount?: number | null }).discount_amount ?? 0
+                  );
+                  const effective = Math.max(0, gross - discount);
+                  const paid = paymentTotals[appt.id] ?? 0;
+
+                  return (
+                    <button
+                      key={appt.id}
+                      type="button"
+                      onClick={() => onAppointmentClick(appt)}
+                      className={cn(
+                        "flex min-h-[56px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-shadow",
+                        !isOtherDoctorAppt && "active:shadow-md",
+                        selectedAppointmentId === appt.id &&
+                          !isOtherDoctorAppt &&
+                          "ring-2 ring-primary"
+                      )}
+                      style={{
+                        backgroundColor: hexToPastel(doctorColor, 0.18),
+                        borderLeft: `4px solid ${doctorColor}`,
+                        ...(isOtherDoctorAppt
+                          ? { filter: "saturate(0.5)", opacity: 0.6 }
+                          : {}),
+                      }}
+                    >
+                      <div className="w-12 shrink-0">
+                        <p
+                          className="text-sm font-bold leading-tight"
+                          style={{ color: hexToDark(doctorColor) }}
+                        >
+                          {appt.start_time.slice(0, 5)}
+                        </p>
+                        <p
+                          className="text-[11px] leading-tight"
+                          style={{ color: hexToDark(doctorColor, 0.55) }}
+                        >
+                          {appt.end_time.slice(0, 5)}
+                        </p>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1">
+                          {appt.patients?.is_recurring && (
+                            <RecurringDot className="shrink-0" />
+                          )}
+                          <p
+                            className="truncate text-sm font-semibold"
+                            style={{ color: hexToDark(doctorColor) }}
+                          >
+                            {appt.patient_name}
+                          </p>
+                        </div>
+                        <p
+                          className="truncate text-xs"
+                          style={{ color: hexToDark(doctorColor, 0.55) }}
+                        >
+                          {appt.services?.name ?? "—"} · {appt.doctors?.full_name ?? "—"}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        {!isOtherDoctorAppt &&
+                          (appt as { meeting_url?: string | null }).meeting_url && (
+                            <Video className="h-4 w-4 text-blue-500" />
+                          )}
+                        {!isOtherDoctorAppt && effective > 0 && (
+                          paid >= effective ? (
+                            <CheckCircle2 className="h-4 w-4 text-success-600" />
+                          ) : paid > 0 ? (
+                            <CircleDollarSign className="h-4 w-4 text-amber-600" />
+                          ) : null
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        );
+      })}
+    </div>
+
+    {/* Grilla semanal — desde md, idéntica a la anterior. */}
+    <div className="hidden min-w-[900px] md:block">
       {/* Day headers */}
       <div className="sticky top-0 z-10 flex border-b border-border bg-card">
         {/* Gutter de horas sticky: la referencia horaria sobrevive al
@@ -428,7 +606,11 @@ export function WeekView({
                       onSlotClick(day, time, offices[0]?.id ?? "")
                     }
                   >
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* En touch no hay hover: sin señal permanente nada
+                        indica que un slot vacío es tocable. Se muestra
+                        tenue por defecto y desde md vuelve al
+                        comportamiento hover-only de escritorio. */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-30 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                       <Plus className="h-3 w-3 text-emerald-500" />
                     </div>
                   </div>
@@ -439,5 +621,6 @@ export function WeekView({
         })}
       </div>
     </div>
+    </>
   );
 }

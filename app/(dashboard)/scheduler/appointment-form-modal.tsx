@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { useOrgInsurance } from "@/hooks/use-org-insurance";
+import { useVisualViewport } from "@/hooks/use-visual-viewport";
 import { useUser } from "@/hooks/use-user";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -150,30 +151,10 @@ export function AppointmentFormModal({
   // ── Alto real del viewport en móvil ────────────────────────────────
   // iOS Safari no encoge `100dvh` cuando aparece el teclado: el dialog
   // sigue midiendo la pantalla completa y el footer con "Guardar" queda
-  // debajo del teclado. `visualViewport` SÍ refleja el área visible (y su
-  // desplazamiento), así que lo espejamos en el alto/top del dialog.
-  // Solo se activa bajo 768 px → desktop no cambia.
-  const [mobileViewport, setMobileViewport] = useState<{ height: number; top: number } | null>(null);
-  useEffect(() => {
-    const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    if (!vv) return;
-    const sync = () => {
-      if (window.innerWidth >= 768) {
-        setMobileViewport(null);
-        return;
-      }
-      setMobileViewport({ height: vv.height, top: vv.offsetTop });
-    };
-    sync();
-    vv.addEventListener("resize", sync);
-    vv.addEventListener("scroll", sync);
-    window.addEventListener("resize", sync);
-    return () => {
-      vv.removeEventListener("resize", sync);
-      vv.removeEventListener("scroll", sync);
-      window.removeEventListener("resize", sync);
-    };
-  }, []);
+  // debajo del teclado. El hook espeja `visualViewport` (área visible +
+  // desplazamiento) y devuelve null en escritorio → allí no cambia nada.
+  // Compartido con components/ai-assistant-panel.tsx.
+  const mobileViewport = useVisualViewport();
 
   const [saving, setSaving] = useState(false);
   const [searchingPatient, setSearchingPatient] = useState(false);

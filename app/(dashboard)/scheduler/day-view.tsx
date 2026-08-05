@@ -590,7 +590,11 @@ export function DayView({
                       dragApptId.current = null;
                     }}
                   >
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* En touch no hay hover: sin señal permanente nada
+                        indica que un slot vacío es tocable. Se muestra
+                        tenue por defecto y desde md vuelve al
+                        comportamiento hover-only de escritorio. */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-30 transition-opacity md:opacity-0 md:group-hover:opacity-100">
                       <Plus className="h-4 w-4 text-emerald-500" />
                     </div>
                   </div>

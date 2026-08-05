@@ -115,7 +115,7 @@ export default function ReportsPage() {
 
   return (
     <AiReportProvider reportType={activeTab} dateFrom={dateFrom} dateTo={dateTo}>
-      <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+      <div className="flex h-[calc(100dvh-6rem)] flex-col md:h-[calc(100vh-3.5rem)]">
         {/* Header */}
         <div className="border-b border-border bg-card px-6 py-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">

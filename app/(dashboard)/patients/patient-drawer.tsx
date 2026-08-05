@@ -19,6 +19,7 @@ import {
 } from "@/types/admin";
 import {
   X,
+  ArrowLeft,
   User,
   Phone,
   Mail,
@@ -442,18 +443,27 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {/* Vista expandida — pensada para escritorio (modal de dos
+                columnas); en móvil el drawer YA ocupa toda la pantalla. */}
             <button
               onClick={() => setExpandedView(true)}
-              className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              className="hidden rounded-lg p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground md:block"
               title="Vista expandida"
             >
               <Maximize2 className="h-4 w-4" />
             </button>
+            {/* Cerrar. En móvil el drawer tapa la lista de pacientes y el
+                gesto "atrás" de Android sale de la página entera, así que
+                la acción se lee como "volver" (flecha) y el área tocable
+                sube a 44 px con un pseudo-elemento — el icono no se mueve
+                ni un pixel en escritorio. */}
             <button
               onClick={onClose}
-              className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+              aria-label="Volver a la lista de pacientes"
+              className="relative rounded-lg p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground before:absolute before:left-1/2 before:top-1/2 before:h-11 before:w-11 before:-translate-x-1/2 before:-translate-y-1/2 before:content-[''] md:before:hidden"
             >
-              <X className="h-4 w-4" />
+              <ArrowLeft className="h-5 w-5 md:hidden" />
+              <X className="hidden h-4 w-4 md:block" />
             </button>
           </div>
         </div>
@@ -579,7 +589,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           <div className="space-y-4">
             <p className="text-xs text-muted-foreground">Edita los datos personales del paciente.</p>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium">{t("patients.first_name")} *</label>
                 <input
@@ -657,7 +667,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium">{t("patients.phone")}</label>
                 <input
@@ -712,7 +722,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
             {/* Departamento & Distrito (only for non-foreigners) */}
             {!infoIsForeigner && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium">Departamento</label>
                   <select
@@ -999,7 +1009,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                               <Heart className="h-3 w-3 text-red-500" />
                               <span className="text-[10px] font-semibold text-muted-foreground uppercase">Signos Vitales</span>
                             </div>
-                            <div className="grid grid-cols-4 gap-1.5">
+                            <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
                               {VITALS_FIELDS.filter((f) => cn_note.vitals?.[f.key as keyof Vitals] != null).map((f) => (
                                 <div key={f.key} className="rounded bg-muted/40 px-1.5 py-1 text-center">
                                   <p className="text-[9px] text-muted-foreground">{f.label}</p>
@@ -1079,21 +1089,21 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               <>
                 {/* Summary cards */}
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-lg border border-border p-3 text-center">
+                  <div className="rounded-lg border border-border p-2 sm:p-3 text-center">
                     <p className="text-[10px] uppercase text-muted-foreground">{t("patients.service_price")}</p>
-                    <p className="mt-1 text-base font-bold">S/. {totalServiceCost.toFixed(2)}</p>
+                    <p className="mt-1 text-sm sm:text-base font-bold">S/. {totalServiceCost.toFixed(2)}</p>
                   </div>
-                  <div className="rounded-lg border border-border p-3 text-center">
+                  <div className="rounded-lg border border-border p-2 sm:p-3 text-center">
                     <p className="text-[10px] uppercase text-muted-foreground">{t("patients.total_paid")}</p>
-                    <p className="mt-1 text-base font-bold text-success-600">S/. {totalPaid.toFixed(2)}</p>
+                    <p className="mt-1 text-sm sm:text-base font-bold text-success-600">S/. {totalPaid.toFixed(2)}</p>
                   </div>
                   <div className={cn(
-                    "rounded-lg border p-3 text-center",
+                    "rounded-lg border p-2 sm:p-3 text-center",
                     pendingBalance > 0 ? "border-red-500/30 bg-red-500/5" : "border-border"
                   )}>
                     <p className="text-[10px] uppercase text-muted-foreground">{t("patients.pending_balance")}</p>
                     <p className={cn(
-                      "mt-1 text-base font-bold",
+                      "mt-1 text-sm sm:text-base font-bold",
                       pendingBalance > 0 ? "text-red-600" : "text-foreground"
                     )}>
                       S/. {pendingBalance.toFixed(2)}
@@ -1112,7 +1122,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
                 {showPaymentForm && (
                   <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">{t("patients.payment_amount")} *</label>
                         <input
@@ -1390,19 +1400,19 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   </div>
                   <div className="space-y-4">
                     <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Resumen</h3>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                        <p className="text-2xl font-bold text-primary">{appointments.length}</p>
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                      <div className="rounded-xl border border-border bg-muted/30 p-3 sm:p-4 text-center">
+                        <p className="text-xl sm:text-2xl font-bold text-primary">{appointments.length}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">Citas</p>
                       </div>
-                      <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                        <p className="text-2xl font-bold text-success-600">
+                      <div className="rounded-xl border border-border bg-muted/30 p-3 sm:p-4 text-center">
+                        <p className="text-xl sm:text-2xl font-bold text-success-600">
                           S/. {payments.reduce((s, p) => s + Number(p.amount), 0).toFixed(0)}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">Pagado</p>
                       </div>
-                      <div className="rounded-xl border border-border bg-muted/30 p-4 text-center">
-                        <p className="text-2xl font-bold text-blue-600">{clinicalNotes.length}</p>
+                      <div className="rounded-xl border border-border bg-muted/30 p-3 sm:p-4 text-center">
+                        <p className="text-xl sm:text-2xl font-bold text-blue-600">{clinicalNotes.length}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">Notas clínicas</p>
                       </div>
                     </div>
@@ -1431,7 +1441,48 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   ) : appointments.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4">Sin citas registradas</p>
                   ) : (
-                    <div className="overflow-x-auto">
+                    <>
+                    {/* Móvil: la tabla de 5 columnas obliga a 600 px de
+                        scroll horizontal dentro de un modal de 360 px.
+                        Debajo de md el historial se lee como cards
+                        apiladas con los mismos datos. */}
+                    <div className="space-y-2 md:hidden">
+                      {appointments.map((appt) => (
+                        <div
+                          key={appt.id}
+                          className="rounded-lg border border-border/60 p-3 text-sm"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-medium">
+                              {appt.appointment_date.split("-").reverse().join("/")}
+                              <span className="ml-2 text-xs text-muted-foreground">
+                                {appt.start_time?.slice(0, 5)}
+                              </span>
+                            </span>
+                            <span
+                              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                              style={{
+                                backgroundColor: (APPOINTMENT_STATUS_COLORS[appt.status] ?? "#9ca3af") + "20",
+                                color: APPOINTMENT_STATUS_COLORS[appt.status] ?? "#9ca3af",
+                              }}
+                            >
+                              {t(`scheduler.status_${appt.status}`)}
+                            </span>
+                          </div>
+                          <p className="mt-1 flex items-center gap-1.5 text-xs">
+                            <span
+                              className="h-2 w-2 shrink-0 rounded-full"
+                              style={{ backgroundColor: appt.doctors?.color }}
+                            />
+                            {appt.doctors?.full_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {appt.services?.name}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="hidden overflow-x-auto md:block">
                       <table className="w-full text-sm min-w-[600px]">
                         <thead>
                           <tr className="border-b border-border text-xs text-muted-foreground">
@@ -1470,6 +1521,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         </tbody>
                       </table>
                     </div>
+                    </>
                   )}
                 </div>
               )}
@@ -1560,11 +1612,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   <div className="rounded-xl border border-border bg-muted/30 p-4">
                     <div className="grid grid-cols-2 gap-4 text-center">
                       <div>
-                        <p className="text-2xl font-bold text-success-600">S/. {payments.reduce((s, p) => s + Number(p.amount), 0).toFixed(2)}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-success-600">S/. {payments.reduce((s, p) => s + Number(p.amount), 0).toFixed(2)}</p>
                         <p className="text-xs text-muted-foreground">Total pagado</p>
                       </div>
                       <div>
-                        <p className="text-2xl font-bold text-muted-foreground">{payments.length}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-muted-foreground">{payments.length}</p>
                         <p className="text-xs text-muted-foreground">Transacciones</p>
                       </div>
                     </div>

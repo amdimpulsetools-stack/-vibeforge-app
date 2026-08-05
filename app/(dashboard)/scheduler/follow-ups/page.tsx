@@ -469,7 +469,10 @@ export default function FollowUpsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] flex-col">
+    /* Móvil: dvh (100vh en iOS incluye la barra de URL colapsable) y la
+       resta calibrada al layout real de <md — topbar 4rem + el p-4 del
+       main ×2 = 6rem. Desde md se conserva el valor anterior. */
+    <div className="flex h-[calc(100dvh-6rem)] flex-col md:h-[calc(100vh-3.5rem)]">
       {/* Header */}
       <div className="border-b border-border bg-card px-6 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">

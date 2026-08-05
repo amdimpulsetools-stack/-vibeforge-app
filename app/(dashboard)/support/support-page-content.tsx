@@ -413,7 +413,7 @@ export function SupportPageContent() {
 
   // ─── CHAT VIEW ──────────────────────────────────
   return (
-    <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-3xl flex-col">
+    <div className="mx-auto flex h-[calc(100dvh-6rem)] max-w-3xl flex-col md:h-[calc(100vh-8rem)]">
       {/* Chat header */}
       <div className="flex items-center gap-3 pb-4">
         <button

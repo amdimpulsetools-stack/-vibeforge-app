@@ -578,7 +578,7 @@ export default function IntegracionesTab() {
                             </label>
 
                             {gcal.sheets_enabled && (
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                 <button
                                   onClick={handleRefreshSheet}
                                   disabled={!isOrgAdmin || sheetsRefreshing}
@@ -651,7 +651,7 @@ export default function IntegracionesTab() {
                   )}
 
                   {it.status === "connected" && it.onConnect && it.id === "nubefact" && (
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       <button
                         onClick={it.onConnect}
                         className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent transition-colors justify-center"
