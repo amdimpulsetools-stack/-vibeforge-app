@@ -1,7 +1,7 @@
 # Seguimientos como capacidad core de Yenda — análisis y propuesta
 
-> **Fecha:** 2026-08-03
-> **Estado:** análisis aprobado para discusión — SIN implementación aún (decisión pendiente de Oscar)
+> **Fecha:** 2026-08-03 · **Actualizado:** 2026-08-05
+> **Estado:** ✅ **Fases 1 y 2 IMPLEMENTADAS** — Fase 1: migs 182-183 + PR #236 (v0.15.24); Fase 2: migs 184-188 + PR #238 (v0.15.25). Bugs A/B/C/D cerrados. Queda como futuro: plantilla WhatsApp core editable (pide ALTER del CHECK de kinds de mig 139) y cablear los campos inertes de mig 185 (`close_on_any_appointment`, `default_followup_days`).
 > **Método:** mapeo técnico del sistema actual (agente Fable 5, referencias file:line verificadas) + propuesta de diseño (agente Opus 5)
 > **Pregunta del founder:** ¿cómo se organizan los seguimientos para especialidades distintas de fertilidad o para una org general sin especialización? ¿Dónde se asignan? ¿Cómo se modela una 1ª cita que deriva a una 2ª?
 

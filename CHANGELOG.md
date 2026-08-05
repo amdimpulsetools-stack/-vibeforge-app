@@ -64,6 +64,7 @@
 - [Changelog — Sesión 2026-07-22 (v0.15.22) — WhatsApp end-to-end operativo + Sheets + Notificaciones](#changelog-sesión-2026-07-22-v01522-whatsapp-end-to-end-operativo-sheets-notificaciones)
 - [Changelog — Sesiones 2026-07-23 a 2026-08-03 (v0.15.23) — Plantillas FIV completas + jerarquía de precios + modos de presupuesto por org (migs 180-181)](#changelog-sesiones-2026-07-23-a-2026-08-03-v01523-plantillas-fiv-completas-jerarquía-de-precios-modos-de-presupuesto-por-org-migs-180-181)
 - [Changelog — Sesiones 2026-08-03 a 2026-08-05 (v0.15.24) — Seguimientos core para todas las orgs (migs 182-183) + fixes de integridad del módulo](#changelog-sesiones-2026-08-03-a-2026-08-05-v01524-seguimientos-core-para-todas-las-orgs-migs-182-183-fixes-de-integridad-del-módulo)
+- [Changelog — Sesión 2026-08-05 (v0.15.25) — Fase 2 de seguimientos: orígenes ricos, sesiones perdidas y settings por org (migs 184-188)](#changelog-sesión-2026-08-05-v01525-fase-2-de-seguimientos-orígenes-ricos-sesiones-perdidas-y-settings-por-org-migs-184-188)
 
 ---
 
@@ -4173,6 +4174,39 @@ Implementación de la Fase 1 del diseño. Cero configuración obligatoria, cero 
 
 ### 3. Pendiente declarado (Fase 2, sin fecha)
 Origen polimórfico `source_type`/`source_id` (cierra el bug D: seguimientos de planes de tratamiento huérfanos), seguimientos por `treatment_sessions.status='missed'` (apagado por defecto vía `organization_followup_settings` sin backfill), renombrado `lib/fertility/*` → `lib/followups/*`, plantilla WhatsApp de control editable. El cron de contacto automático **sigue pausado deliberadamente** (humano en el loop; requiere modo drenaje de backlog antes de reactivarse).
+
+---
+
+## Changelog — Sesión 2026-08-05 (v0.15.25) — Fase 2 de seguimientos: orígenes ricos, sesiones perdidas y settings por org (migs 184-188)
+
+Fase 2 del diseño `docs/research/seguimientos-genericos-core.md` (PR #238, 2 lotes de agente Opus). Principio rector: **`organization_followup_settings` sin backfill** — ausencia de fila = automatismos nuevos apagados; Vitra y Dra. Patricia no tienen fila (verificado en prod: 0 filas, sus 21 seguimientos abiertos intactos), las orgs nuevas nacen con fila vía onboarding, y las existentes se suman con el toggle de Settings.
+
+### 1. Orígenes ricos (migs 184-186)
+- **mig 184 — origen polimórfico**: `clinical_followups.source_type` (CHECK: appointment | clinical_note | treatment_plan | treatment_session | budget_record | manual, NULL permitido) + `source_id` UUID sin FK + índice parcial. Backfill idempotente con prioridad `budget_record > appointment > clinical_note > manual` (11/33 filas en prod; los seguimientos de reglas del addon sin referencia registrada quedan NULL — el origen no se puede inventar retroactivamente). `appointment_id`/`clinical_note_id` intactos y se siguen escribiendo.
+- **mig 185 — settings por org**: `missed_session_followup` (default true), `missed_session_delay_days` (1-30, default 3), + `close_on_any_appointment` y `default_followup_days` **declarados e inertes** (documentado en la migración por qué cablearlos hoy sería la regresión que evitamos). RLS (SELECT miembros / escritura admin, sin DELETE), GRANTs explícitos — hallazgo de la verificación: sin ellos el trigger de mig 187 habría recibido 42501, su EXCEPTION lo habría tragado y la feature quedaría apagada en silencio para siempre.
+- **mig 186 — vocabulario de eventos**: CHECK de `followup_rules.trigger_event` ampliado con `appointment_no_show`, `treatment_session_missed`, `budget_accepted`, y corrección del abuso de mig 142 (`fertility.budget_accepted_pending_start` pasa de `treatment_plan_created` a `budget_accepted`) tras auditoría de consumidores documentada dentro de la propia migración: cero código selecciona esa regla por `trigger_event`.
+
+### 2. Sesión perdida → seguimiento + el plan cierra los suyos (migs 187-188, cierra el bug D)
+- **mig 187**: trigger `AFTER UPDATE ON treatment_sessions` (transición a `missed` filtrada en el `WHEN`) — cubre las DOS rutas de escritura (espejo del sidebar de cita en no_show y PATCH del plan). Crea `clinical_followups` con `rule_key='core.missed_session'`, `source='system'`, origen `('treatment_session', id)`, target centinela `core.next_visit` (la pasada de mig 183 lo cierra cuando el paciente reagenda), motivo en español con número de sesión y título del plan, `expected_by = now() + delay`. `SECURITY INVOKER` con análisis de las políticas RLS reales (mismo predicado `get_user_org_ids()` en ambas tablas; DEFINER descartado explícitamente por abrir un camino cross-tenant sin beneficio). `EXCEPTION WHEN OTHERS` → nunca bloquea marcar la sesión. Guard de idempotencia por par polimórfico (solo bloquean seguimientos abiertos: re-perder una sesión ya cerrada crea uno nuevo).
+- **mig 188**: plan → `cancelled`/`completed` cierra los seguimientos abiertos nacidos del plan o de sus sesiones, `closure_reason='plan_cancelled'|'plan_completed'` (la bandeja distingue "desistió" de "terminó"). Solo hacia adelante — los huérfanos previos no tienen origen reconstruible; se cierran a mano como hasta ahora.
+- **Server**: los puntos de creación pueblan el origen — cita → `('appointment', id)`, presupuesto → `('budget_record', id)`, **plan de tratamiento → `('treatment_plan', id)` (el vínculo que faltaba, núcleo del bug D)**, manual con la misma prioridad que el backfill. Onboarding siembra la fila de settings en orgs nuevas (upsert idempotente).
+
+### 3. UI (PR #238, lote 2b)
+- **Settings → Agenda → "Seguimientos automáticos"**: toggle de sesiones perdidas + días de espera, bilingüe es/en, lazy-loaded como sus vecinas. Org sin fila → toggle OFF con hint honesto. Endpoint `GET/PUT /api/organization-followup-settings` (Zod réplica del CHECK → 400 en vez de 500, `resolveActiveOrg` multi-org, check de admin además de RLS — sin él un upsert sin permisos no escribiría nada y la UI diría "guardado").
+- **Chip en el sidebar de la cita**: "N seguimiento(s) abierto(s)" del paciente (count head-only, fetch cancelable, deps por paciente/org — no por render), junto al badge de deuda, con link a la bandeja.
+- **Deep-link del widget del doctor**: "Ver todos" y el banner de vencidos → `/scheduler/follow-ups?doctor=<id>`; la bandeja lee el param solo en el montaje y muestra chip del doctor con X para quitar el filtro.
+
+### 4. Refactor de nombres (lote 2b)
+- `lib/fertility/followup-triggers.ts` → **`lib/followups/triggers.ts`** (git mv; grep final: cero referencias rotas). Coherente con `lib/followups/org-scope.ts` del fix multi-org.
+- Tipos genéricos (FollowupStatus, FollowupSource, FollowupSourceType, ContactEvent, FollowupRuleRow, `OPEN_FOLLOWUP_STATUSES`, `OrganizationFollowupSettings`...) → **`types/followups.ts`**, con re-exports desde `types/fertility.ts` (ningún import existente cambia). Presupuestos/tiers se quedan en fertility.
+- **`useFollowupCapabilities()`** (`hasTray/hasJourney/hasRevenueKpis/hasStepTemplates` sobre `useFertilityAddon`) adoptado en la bandeja — el próximo vertical no hereda lecturas de "fertility" en el módulo genérico.
+
+### 5. Verificación
+- Lote 2a contra Postgres 16 efímero con RLS activa ejecutando como rol miembro (no admin, `auth.uid()` emulado): 14 casos verdes — backfill con prioridades, idempotencia por hashes de tabla, settings on/off/ausente, no-duplicación, cierre selectivo por plan, CHECKs. Los 7 seguimientos de la org piloto del stub idénticos tras todos los tests.
+- `tsc --noEmit` + `npm run build` limpios en ambos lotes. Migraciones aplicadas y verificadas en prod (2 triggers instalados, regla mig 142 corregida, 0 filas de settings, seguimientos abiertos sin cambios).
+
+### 6. Futuro declarado (sin fecha)
+Plantilla WhatsApp clipboard editable para seguimientos core (confirmado: requiere ALTER del CHECK de kinds de mig 139 — el mensaje neutro en código de la Fase 1 se queda mientras tanto); cablear `close_on_any_appointment` (como `COALESCE(...,true)`) y `default_followup_days` junto con su UI. El cron de contacto automático sigue pausado deliberadamente.
 
 ---
 
