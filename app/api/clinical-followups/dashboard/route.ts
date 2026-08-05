@@ -243,7 +243,7 @@ const NO_RESPONSE_LOOKBACK_DAYS = 60;
 const FOLLOWUP_COLUMNS =
   "id, organization_id, patient_id, doctor_id, status, source, rule_key, " +
   "follow_up_date, expected_by, closed_at, attempt_count, max_attempts, " +
-  "priority, reason, snooze_until, first_contact_at, " +
+  "priority, reason, snooze_until, first_contact_at, last_contacted_at, " +
   "target_category_canonical, closure_reason, created_at, updated_at";
 
 const SELECT_WITH_DETAILS =
@@ -367,8 +367,21 @@ async function loadBucketItems(
   let q: AnyQuery;
 
   if (bucket === "pending") {
+    // Orden "cola de trabajo": lo que manda no es la fecha comprometida
+    // sino cuánto hace que nadie habló con la paciente.
+    //   1. `last_contacted_at` NULLS FIRST → las que NUNCA se llamaron
+    //      arriba; dentro de ellas, la más vencida primero. Después las
+    //      ya contactadas, la más antigua primero, y la recién
+    //      contactada al fondo → la cola se vacía por arriba y marcar
+    //      "Contactado" REUBICA la card (antes no se movía nunca).
+    //   2. `created_at` + `id` no son cosméticos: sin un orden total el
+    //      `.range()` de la paginación puede repetir u omitir filas
+    //      cuando varias comparten expected_by.
     q = buildPendingQuery(supabase, orgId, filters, SELECT_WITH_DETAILS, false)
+      .order("last_contacted_at", { ascending: true, nullsFirst: true })
       .order("expected_by", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
       .range(offset, offset + fetchSize - 1);
   } else if (bucket === "recovered") {
     q = buildRecoveredQuery(supabase, orgId, filters, SELECT_WITH_DETAILS, false)
@@ -395,10 +408,14 @@ async function loadBucketItems(
       expected_by?: string | null;
     };
     let daysDiff: number | undefined;
-    const ref = r.follow_up_date
-      ? new Date(`${r.follow_up_date}T00:00:00`)
-      : r.expected_by
-        ? new Date(r.expected_by)
+    // `expected_by` manda sobre `follow_up_date`: es la columna con la que
+    // ordenamos el bucket y con la que filtran date_from/date_to, así que
+    // el badge de vencido tiene que hablar de la misma fecha. Las filas
+    // viejas sin expected_by caen a follow_up_date.
+    const ref = r.expected_by
+      ? new Date(r.expected_by)
+      : r.follow_up_date
+        ? new Date(`${r.follow_up_date}T00:00:00`)
         : null;
     if (ref) {
       const diff = ref.getTime() - today.getTime();

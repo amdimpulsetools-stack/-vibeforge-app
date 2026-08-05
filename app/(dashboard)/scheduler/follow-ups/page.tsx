@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -107,6 +107,23 @@ export default function FollowUpsPage() {
   const [noResponse, setNoResponse] = useState<TabState>(emptyTab());
   const [recoveredKpis, setRecoveredKpis] = useState<RecoveredKpis | null>(null);
 
+  // Card recién contactada/reagendada: el bucket Pendientes es una cola de
+  // trabajo, así que la card se va al fondo. El anillo temporal la vuelve
+  // a hacer visible mientras siga dentro de las páginas cargadas.
+  const [justMovedId, setJustMovedId] = useState<string | null>(null);
+  const justMovedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markMoved = (id: string) => {
+    if (justMovedTimer.current) clearTimeout(justMovedTimer.current);
+    setJustMovedId(id);
+    justMovedTimer.current = setTimeout(() => setJustMovedId(null), 5000);
+  };
+  useEffect(
+    () => () => {
+      if (justMovedTimer.current) clearTimeout(justMovedTimer.current);
+    },
+    []
+  );
+
   // Initial doctors + rules
   useEffect(() => {
     const supabase = createClient();
@@ -165,7 +182,13 @@ export default function FollowUpsPage() {
     async (
       variant: FollowupVariant,
       filtersToUse: FollowupFilters,
-      reset: boolean
+      reset: boolean,
+      /**
+       * Tamaño de página solo para este fetch. Lo usa `refresh()` para
+       * recargar de una sola vez todo lo que la asesora ya había traído
+       * con "Cargar más" (si no, cada acción colapsaba la lista a 15).
+       */
+      limitOverride?: number
     ) => {
       const setter =
         variant === "pending"
@@ -188,7 +211,7 @@ export default function FollowUpsPage() {
           filtersToUse,
           variant,
           offset,
-          PAGE_SIZE,
+          limitOverride ?? PAGE_SIZE,
           organizationId
         );
         const res = await fetch(
@@ -296,7 +319,19 @@ export default function FollowUpsPage() {
   const refresh = () => {
     // No separate `bucket=counts` request — fetchTab returns fresh counts
     // alongside the listing in its response body.
-    fetchTab(TAB_TO_VARIANT[tab], filters, true);
+    const variant = TAB_TO_VARIANT[tab];
+    const loaded =
+      variant === "pending"
+        ? pending.items.length
+        : variant === "recovered"
+          ? recovered.items.length
+          : noResponse.items.length;
+    // Recargamos desde 0 pero pidiendo tantas filas como ya había en
+    // pantalla: con el orden de cola de trabajo cada acción reubica una
+    // card, y volver a PAGE_SIZE le borraría a la asesora todo lo que
+    // había abierto con "Cargar más". El endpoint topa `limit` en 100.
+    const keep = Math.min(100, Math.max(PAGE_SIZE, loaded));
+    fetchTab(variant, filters, true, keep);
   };
 
   // Action handlers — call PATCH subroute endpoints (owned by Agente 2).
@@ -340,19 +375,25 @@ export default function FollowUpsPage() {
     return r.ok;
   };
 
-  const onContact = (id: string) =>
-    patchAction(
+  const onContact = async (id: string) => {
+    const ok = await patchAction(
       `/api/clinical-followups/${id}/contact`,
       { type: "manual_contacted" },
-      "Marcado como contactado"
+      "Contactada — la movimos al final de tu cola"
     );
+    if (ok) markMoved(id);
+    return ok;
+  };
 
-  const onSnooze = (id: string, days: number) =>
-    patchAction(
+  const onSnooze = async (id: string, days: number) => {
+    const ok = await patchAction(
       `/api/clinical-followups/${id}/snooze`,
       { days },
-      `Pospuesto ${days} días`
+      `Pospuesto ${days} días — vence en la nueva fecha`
     );
+    if (ok) markMoved(id);
+    return ok;
+  };
 
   const onMarkNoResponse = (id: string) =>
     patchAction(
@@ -385,9 +426,9 @@ export default function FollowUpsPage() {
       action.kind === "agendado"
         ? "Marcado como agendado"
         : action.kind === "mark_contacted"
-          ? "Contactada"
+          ? "Contactada — la movimos al final de tu cola"
           : action.kind === "pospuesto"
-            ? "Reagendado"
+            ? "Reagendado — la movimos al final de tu cola"
             : "Cerrado sin respuesta";
     const res = await requestAction(
       `/api/clinical-followups/${id}/advance`,
@@ -395,6 +436,12 @@ export default function FollowUpsPage() {
       action,
       successMsg
     );
+    if (
+      res.ok &&
+      (action.kind === "mark_contacted" || action.kind === "pospuesto")
+    ) {
+      markMoved(id);
+    }
     if (
       res.ok &&
       res.payload &&
@@ -547,6 +594,7 @@ export default function FollowUpsPage() {
               onAdvance={onAdvance}
               onBudgetAssigned={refresh}
               onLoadMore={() => fetchTab("pending", filters, false)}
+              justMovedId={justMovedId}
             />
           </TabsContent>
 
@@ -613,6 +661,7 @@ function PendingTabContent({
   onAdvance,
   onBudgetAssigned,
   onLoadMore,
+  justMovedId,
 }: {
   state: TabState;
   hasJourney: boolean;
@@ -623,6 +672,7 @@ function PendingTabContent({
   onAdvance: (id: string, action: AdvanceAction) => Promise<unknown>;
   onBudgetAssigned: () => void;
   onLoadMore: () => void;
+  justMovedId: string | null;
 }) {
   if (!state.loaded) return null;
   if (state.items.length === 0) {
@@ -659,6 +709,7 @@ function PendingTabContent({
           onCloseManual={(reason) => onCloseManual(f.id, reason)}
           onAdvance={(action) => onAdvance(f.id, action)}
           onBudgetAssigned={onBudgetAssigned}
+          justMoved={f.id === justMovedId}
         />
       ))}
       {state.hasMore && (
