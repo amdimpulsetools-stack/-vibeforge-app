@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import type { ContactEvent } from "@/types/fertility";
+import { assertActiveMembership } from "@/lib/followups/org-scope";
 
 export const runtime = "nodejs";
 
@@ -31,8 +32,9 @@ export const runtime = "nodejs";
  *     ejecutada. NO existe tabla separada — `contact_events` es un
  *     campo del propio `clinical_followups` (mig 128).
  *
- * Defense-in-depth: scope explícito por `organization_id` además del
- * RLS, replicando el patrón de los otros endpoints en este folder.
+ * Defense-in-depth: la org se deriva del propio seguimiento y se exige
+ * membresía activa en ELLA, replicando el patrón de los otros endpoints
+ * en este folder (ver lib/followups/org-scope.ts).
  */
 const advanceSchema = z.discriminatedUnion("kind", [
   z.object({
@@ -73,19 +75,6 @@ export async function POST(
   if (!rl.success)
     return NextResponse.json({ error: "Demasiadas solicitudes" }, { status: 429 });
 
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .single();
-  if (!membership)
-    return NextResponse.json(
-      { error: "No perteneces a una organización" },
-      { status: 403 }
-    );
-
   let body: unknown;
   try {
     body = await request.json();
@@ -106,7 +95,6 @@ export async function POST(
       "id, organization_id, status, first_contact_at, attempt_count, max_attempts, contact_events, closed_at"
     )
     .eq("id", id)
-    .eq("organization_id", membership.organization_id)
     .single();
   if (curErr || !current) {
     return NextResponse.json(
@@ -114,6 +102,14 @@ export async function POST(
       { status: 404 }
     );
   }
+
+  const denied = await assertActiveMembership(
+    supabase,
+    user.id,
+    current.organization_id
+  );
+  if (denied) return denied;
+  const organizationId = current.organization_id;
 
   if (current.closed_at) {
     return NextResponse.json(
@@ -245,7 +241,7 @@ export async function POST(
     .from("clinical_followups")
     .update(update)
     .eq("id", id)
-    .eq("organization_id", membership.organization_id)
+    .eq("organization_id", organizationId)
     .select("*, doctors(full_name), patients(first_name, last_name, phone)")
     .single();
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
+import { resolveFollowupOrg } from "@/lib/followups/org-scope";
 
 const schema = z.object({
   days: z.number().int().min(1).max(90),
@@ -27,15 +28,8 @@ export async function PATCH(
   if (!rl.success)
     return NextResponse.json({ error: "Demasiadas solicitudes" }, { status: 429 });
 
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .single();
-  if (!membership)
-    return NextResponse.json({ error: "No perteneces a una organización" }, { status: 403 });
+  const org = await resolveFollowupOrg(supabase, user.id, id);
+  if (org.error) return org.error;
 
   let body: unknown;
   try {
@@ -58,7 +52,7 @@ export async function PATCH(
       status: "pospuesto",
     })
     .eq("id", id)
-    .eq("organization_id", membership.organization_id)
+    .eq("organization_id", org.organizationId)
     .select("*, doctors(full_name), patients(first_name, last_name, phone)")
     .single();
 

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { useOrganization } from "@/components/organization-provider";
 import type { ClinicalFollowupWithRelations } from "@/types/clinical-history";
 import { FOLLOWUP_PRIORITY_CONFIG } from "@/types/clinical-history";
 import {
@@ -36,6 +37,10 @@ export function ClinicalFollowupsPanel({
   clinicalNoteId,
   canEdit,
 }: ClinicalFollowupsPanelProps) {
+  // La org activa viaja explícita a la API: sin ella el endpoint resuelve
+  // la primera membresía y para un médico con acceso a varias clínicas
+  // esa puede no ser la que está mirando.
+  const { organizationId, loading: orgLoading } = useOrganization();
   const [followups, setFollowups] = useState<ClinicalFollowupWithRelations[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -49,8 +54,10 @@ export function ClinicalFollowupsPanel({
   const [notes, setNotes] = useState("");
 
   const fetchFollowups = useCallback(async () => {
+    if (orgLoading) return;
     try {
       const params = new URLSearchParams({ patient_id: patientId });
+      if (organizationId) params.set("org_id", organizationId);
       if (showResolved) params.set("show_resolved", "true");
       const res = await fetch(`/api/clinical-followups?${params}`);
       const json = await res.json();
@@ -59,7 +66,7 @@ export function ClinicalFollowupsPanel({
       toast.error("Error al cargar seguimientos");
     }
     setLoading(false);
-  }, [patientId, showResolved]);
+  }, [patientId, showResolved, organizationId, orgLoading]);
 
   useEffect(() => {
     fetchFollowups();
@@ -73,6 +80,7 @@ export function ClinicalFollowupsPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          organization_id: organizationId ?? undefined,
           patient_id: patientId,
           doctor_id: doctorId,
           appointment_id: appointmentId || null,
