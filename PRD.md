@@ -1,10 +1,11 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-08-03
-> **Versión:** 0.15.23
+> **Última actualización:** 2026-08-05
+> **Versión:** 0.15.24
 > **Estado (resumen ejecutivo):**
 > - **MVP en producción** multi-tenant (RLS), 4 roles + Founder, agenda día/semana con precisión al minuto, pacientes, historia clínica/SOAP completa, reportes, planes 3-tiers (S/129 / S/349 / S/649).
 > - **Addon vertical Fertilidad end-to-end** (`fertility_basic`): seguimientos automatizados con atribución honesta (categorías A/B/C), embudo de presupuestos con tiers A/B/C, generador de PDF per-org, lifecycle de tratamiento (por iniciar → en curso → completado) y crons de recordatorio.
+> - **Seguimientos core para todas las orgs (v0.15.24, migs 182-183)**: la bandeja `/scheduler/follow-ups` deja de estar gateada por el addon — cualquier org tiene seguimientos de primera clase sin configuración: default "control a los N días" por servicio + checkbox del doctor al completar la cita + cierre automático vía categoría centinela `core.next_visit` cuando el paciente agenda cualquier cita futura (atribución honesta Cat A/B intacta). Revelación progresiva: KPIs de revenue, filtro por regla y journey multi-etapa siguen siendo del addon. Incluye fixes de los bugs de desync `is_resolved`↔`status` (+ trigger de sincronización permanente), scoping multi-org en las 10 APIs de seguimientos y reactivación que ya no infla Cat A. Diseño completo: `docs/research/seguimientos-genericos-core.md`.
 > - **Sistema de presupuestos multi-perfil (v0.15.23, migs 180-181)**: las 7 plantillas FIV del plugin Vitra completas (CRIO/IIU/TED/OVODON/DUO STIM/ROPA + FIV) con honorarios múltiples y reparto proporcional del ajuste; **modos de presupuesto por org** en `org_budget_pdf_settings` — `documents_enabled=false` (solo asignación y seguimiento, sin PDF, con guards server-side) y `pricing_mode='single'` (precio único por tratamiento, UI sin tiers, `tier='A'` interno sin cambios de contrato). Perfil clínica chica (Dra. Patricia) onboardeable sin imponerle el modelo Vitra.
 > - **2 pilotos comerciales activos** desde 2026-07-03 (Vitra — fertilidad + Dra. Quispe); trials extendidos al 07-sep, mecanismo de cobro Wave 2 MP pendiente.
 > - **Facturación electrónica SUNAT** vía Nubefact (boletas/facturas/notas de crédito desde la cita, pagos parciales, mapeo Catálogo 59, warning bancarización Ley 28194).
@@ -395,10 +396,12 @@ Botón "Imprimir Receta" en el panel de prescripciones (visible cuando hay presc
 - Componente: `scheduler/prescription-print.tsx`
 
 #### Panel Centralizado de Seguimientos (`/scheduler/follow-ups`)
-Vista dedicada de seguimientos clínicos accesible desde el sidebar (bajo Agenda). Muestra todos los seguimientos de la organización con:
-- Filtros por estado (pendientes/resueltos) y prioridad (semáforo)
-- Nombre del paciente, doctor, servicio, fecha de seguimiento
-- Acciones rápidas para resolver seguimientos
+Vista dedicada de seguimientos accesible desde el sidebar (bajo Agenda), **para todas las orgs desde v0.15.24** (antes gateada por el addon de fertilidad). Una sola página con revelación progresiva:
+- 3 tabs: Pendientes / Recuperados / Sin respuesta, con paginación (20 por página)
+- Cards con **badge de origen**: azul "Control" (`core.service_followup`), violeta "Automatizado" (reglas del addon), gris "Manual"
+- Acciones por card: contactar (WhatsApp manual), posponer, cerrar, reactivar
+- Solo con addon de fertilidad: KPIs de ingreso atribuido (LTV), filtro por regla, stepper de etapa del journey
+- Creación core sin configuración: `services.followup_after_days` (default por servicio) + control "Requiere control" del doctor al completar la cita; cierre automático vía categoría centinela `core.next_visit` (mig 183) cuando el paciente agenda cualquier cita futura
 - Ruta: `/scheduler/follow-ups`
 
 #### Administración de Plantillas
