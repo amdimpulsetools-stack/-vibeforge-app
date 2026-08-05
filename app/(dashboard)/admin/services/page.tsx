@@ -973,6 +973,10 @@ function ServiceForm({
       igv_affectation: (service as { igv_affectation?: number })?.igv_affectation ?? 1,
       is_budget_eligible:
         (service as { is_budget_eligible?: boolean })?.is_budget_eligible ?? false,
+      // mig 182 — el campo no está en types/database.ts todavía.
+      followup_after_days:
+        (service as { followup_after_days?: number | null })
+          ?.followup_after_days ?? null,
     },
   });
 
@@ -1079,6 +1083,9 @@ function ServiceForm({
       pre_appointment_instructions: values.pre_appointment_instructions || null,
       requires_consent: values.requires_consent,
       is_active: values.is_active,
+      // Seguimientos core (mig 182) — sin gate de addon: NULL = sin
+      // seguimiento automático, que es el comportamiento actual.
+      followup_after_days: values.followup_after_days ?? null,
     };
 
     // Budget eligibility flag — only persist when the addon is active.
@@ -1246,6 +1253,31 @@ function ServiceForm({
           </div>
         </div>
       </label>
+
+      {/* Seguimientos core (mig 182) — visible para todas las orgs, sin
+          gate de addon. Vacío = comportamiento actual (sin seguimiento). */}
+      <div className="space-y-1.5">
+        <label className="text-sm font-medium">
+          Sugerir control a los ___ días
+        </label>
+        <input
+          type="number"
+          min={1}
+          max={365}
+          placeholder="Ej: 30"
+          {...register("followup_after_days")}
+          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors sm:max-w-[12rem]"
+        />
+        <p className="text-xs text-muted-foreground">
+          Al completar una cita de este servicio se creará un seguimiento
+          automático. Vacío = sin seguimiento.
+        </p>
+        {errors.followup_after_days && (
+          <p className="text-xs text-destructive">
+            {errors.followup_after_days.message}
+          </p>
+        )}
+      </div>
 
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" {...register("is_active")} className="rounded" />

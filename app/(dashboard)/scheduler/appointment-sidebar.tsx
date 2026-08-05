@@ -270,20 +270,53 @@ export function AppointmentSidebar({
   const [consentUploading, setConsentUploading] = useState(false);
   const consentInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Control "Requiere control" al completar la cita (seguimientos
+  // core, Fase 1). Se pre-marca con `services.followup_after_days` del
+  // servicio de la cita; si el servicio no tiene default aparece
+  // desmarcado. Si el doctor no toca nada y hay default, se manda el
+  // default — así se captura la deserción silenciosa.
+  const [serviceFollowupDays, setServiceFollowupDays] = useState<number | null>(
+    null
+  );
+  const [followupEnabled, setFollowupEnabled] = useState(false);
+  const [followupDays, setFollowupDays] = useState<number>(15);
+  const [followupReason, setFollowupReason] = useState("");
+  const followupTouchedRef = useRef(false);
+  const markFollowupTouched = () => {
+    followupTouchedRef.current = true;
+  };
+
   const fetchConsentContext = useCallback(async () => {
     const supabase = createClient();
-    // Service's requires_consent flag
+    // Otra cita en el mismo sidebar = otra decisión: el control vuelve a
+    // tomar el default de su servicio.
+    followupTouchedRef.current = false;
+    setFollowupReason("");
+    // Service's requires_consent flag + core followup default (mig 182).
     if (appointment.service_id) {
       const { data: svc } = await supabase
         .from("services")
-        .select("requires_consent")
+        .select("requires_consent, followup_after_days")
         .eq("id", appointment.service_id)
         .maybeSingle();
-      setConsentRequired(
-        (svc as { requires_consent?: boolean } | null)?.requires_consent === true
-      );
+      // `followup_after_days` aún no está en types/database.ts (no se
+      // puede regenerar sin la migración aplicada) — cast local.
+      const row = svc as {
+        requires_consent?: boolean;
+        followup_after_days?: number | null;
+      } | null;
+      setConsentRequired(row?.requires_consent === true);
+      const defaultDays = row?.followup_after_days ?? null;
+      setServiceFollowupDays(defaultDays);
+      // Pre-marcado con el default del servicio. Si el doctor ya tocó el
+      // control no le pisamos su elección.
+      if (!followupTouchedRef.current) {
+        setFollowupEnabled(defaultDays !== null);
+        setFollowupDays(defaultDays ?? 15);
+      }
     } else {
       setConsentRequired(false);
+      setServiceFollowupDays(null);
     }
     // Existing consent-type attachments for this appointment
     if (appointment.patient_id) {
@@ -659,10 +692,19 @@ export function AppointmentSidebar({
     toast.success(t("scheduler.save_success"));
 
     // Fire-and-forget: si la cita pasó a completed, dispara la creación
-    // de seguimientos automáticos del addon fertility (sec. G del spec).
+    // de seguimientos (reglas del addon fertility + control core).
     // No bloquea la UX y silencia errores.
     if (newStatus === "completed") {
-      fireAppointmentCompletedFollowupTrigger(appointment.id);
+      fireAppointmentCompletedFollowupTrigger(
+        appointment.id,
+        followupEnabled
+          ? {
+              followup_days: followupDays,
+              followup_reason: followupReason.trim() || undefined,
+            }
+          : // Desmarcado → decisión explícita de no crear el control.
+            { followup_days: null }
+      );
     }
 
     // Mirror to Google Calendar (best-effort, no-op if not connected).
@@ -1196,14 +1238,98 @@ export function AppointmentSidebar({
                   </button>
                 )}
                 {(appointment.status === "scheduled" || appointment.status === "confirmed") && (
-                  <button
-                    onClick={() => updateStatus("completed")}
-                    disabled={updating}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50 transition-colors"
-                  >
-                    {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                    {t("scheduler.complete")}
-                  </button>
+                  <>
+                    {/* Control de seguimiento core (Fase 1). Se muestra
+                        junto al botón de completar para que la decisión
+                        se tome en el mismo gesto. Pre-marcado con el
+                        default del servicio; si el doctor no lo toca se
+                        envía ese default. */}
+                    {appointment.patient_id && (
+                      <div className="space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+                        <label className="flex items-start gap-2 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={followupEnabled}
+                            onChange={(e) => {
+                              markFollowupTouched();
+                              setFollowupEnabled(e.target.checked);
+                            }}
+                            className="mt-0.5 rounded accent-emerald-500"
+                          />
+                          <div className="flex-1">
+                            <div className="font-medium">Requiere control</div>
+                            <div className="text-xs text-muted-foreground">
+                              {serviceFollowupDays !== null
+                                ? `Este servicio sugiere control a los ${serviceFollowupDays} días.`
+                                : "Crea un seguimiento para llamar al paciente si no vuelve a agendar."}
+                            </div>
+                          </div>
+                        </label>
+
+                        {followupEnabled && (
+                          <div className="space-y-2 border-t border-border/60 pt-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {[7, 15, 30].map((d) => (
+                                <button
+                                  key={d}
+                                  type="button"
+                                  onClick={() => {
+                                    markFollowupTouched();
+                                    setFollowupDays(d);
+                                  }}
+                                  className={cn(
+                                    "rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors",
+                                    followupDays === d
+                                      ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                      : "border-border text-muted-foreground hover:border-muted-foreground/40"
+                                  )}
+                                >
+                                  {d} días
+                                </button>
+                              ))}
+                              <input
+                                type="number"
+                                min={1}
+                                max={365}
+                                value={followupDays}
+                                onChange={(e) => {
+                                  markFollowupTouched();
+                                  const v = Number(e.target.value);
+                                  if (Number.isFinite(v)) {
+                                    setFollowupDays(
+                                      Math.min(365, Math.max(1, Math.round(v)))
+                                    );
+                                  }
+                                }}
+                                aria-label="Días hasta el control"
+                                className="w-20 rounded-lg border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
+                              />
+                            </div>
+                            <input
+                              type="text"
+                              value={followupReason}
+                              onChange={(e) => {
+                                markFollowupTouched();
+                                setFollowupReason(e.target.value);
+                              }}
+                              maxLength={300}
+                              placeholder="Motivo (opcional)"
+                              className="w-full rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <button
+                      onClick={() => updateStatus("completed")}
+                      disabled={updating}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-600 disabled:opacity-50 transition-colors"
+                    >
+                      {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      {t("scheduler.complete")}
+                    </button>
+                  </>
                 )}
                 {(appointment.status === "scheduled" || appointment.status === "confirmed") && (
                   <button

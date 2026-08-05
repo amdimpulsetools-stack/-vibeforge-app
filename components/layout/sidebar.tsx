@@ -88,10 +88,11 @@ const navSections: NavSection[] = [
         items: [
           { titleKey: "nav.scheduler_calendar", href: "/scheduler", icon: CalendarDays },
           {
+            // Seguimientos son capacidad core desde Fase 1: sin gate de
+            // addon. Presupuestos sí sigue siendo del Pack Fertilidad.
             titleKey: "nav.scheduler_followups",
             href: "/scheduler/follow-ups",
             icon: ClipboardCheck,
-            requiresAnyAddon: ["fertility_basic", "fertility_premium"],
           },
           {
             titleKey: "nav.scheduler_budgets",

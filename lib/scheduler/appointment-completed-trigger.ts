@@ -13,8 +13,21 @@
  * No retorna nada y nunca lanza: cualquier fallo se silencia para que
  * no afecte la UX del scheduler.
  */
+
+export interface CompletedFollowupOptions {
+  /**
+   * Días hasta el control (1-365). `null` = el doctor desmarcó
+   * "Requiere control" → no se crea el seguimiento core. Omitido = se
+   * usa el default del servicio.
+   */
+  followup_days?: number | null;
+  /** Motivo opcional escrito por el doctor. */
+  followup_reason?: string;
+}
+
 export function fireAppointmentCompletedFollowupTrigger(
-  appointmentId: string
+  appointmentId: string,
+  options?: CompletedFollowupOptions
 ): void {
   if (!appointmentId) return;
   if (typeof fetch !== "function") return;
@@ -27,6 +40,7 @@ export function fireAppointmentCompletedFollowupTrigger(
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(options ?? {}),
       }
     ).catch(() => {
       // Silencioso: no afecta UX ni rompe nada.
