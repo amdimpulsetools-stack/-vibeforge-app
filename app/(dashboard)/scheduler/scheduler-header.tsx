@@ -142,9 +142,11 @@ export function SchedulerHeader({
       ? format(currentDate, "EEE d MMM", { locale: es })
       : `${format(currentDate, "d MMM", { locale: es })} — ${format(addDays(currentDate, 6), "d MMM", { locale: es })}`;
 
-  // Acciones secundarias: en <md viven dentro del menú "⋯" para que
-  // "Nueva cita" (la acción principal de recepción) nunca quede cortada.
-  const hasSecondaryActions = Boolean(onNewBlock || onBreakTime || onShareAvailableSlots);
+  // Acciones secundarias en <md: "Compartir horarios" es de uso frecuente
+  // (recepción lo manda por WhatsApp varias veces al día) → botón inline en
+  // la fila. Bloquear/Break Time son ocasionales → viven en el menú "⋯".
+  // Regla de no-duplicación: cada acción vive en UN solo lugar por breakpoint.
+  const hasMenuActions = Boolean(onNewBlock || onBreakTime);
 
   return (
     <div className="border-b border-border px-3 py-3 md:px-4 space-y-2 md:space-y-3">
@@ -317,9 +319,24 @@ export function SchedulerHeader({
             </div>
           )}
 
+          {/* Compartir horarios — inline en <md (mismo lenguaje visual que
+              el botón de consultorios: 40px, rounded-lg, borde + tinte).
+              Tokens primary, no emerald hardcodeado. Con 4 elementos en la
+              fila el justify-between queda equilibrado sin aire muerto. */}
+          {onShareAvailableSlots && (
+            <button
+              onClick={onShareAvailableSlots}
+              aria-label="Compartir horarios disponibles"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 text-primary transition-colors hover:bg-primary/20 md:hidden"
+            >
+              <Clock className="h-4 w-4" />
+            </button>
+          )}
+
           {/* Acciones secundarias — visibles sueltas solo desde md.
-              En móvil se colapsan al menú "⋯" de más abajo, para que la
-              fila no supere el ancho del card (que es overflow-hidden). */}
+              En móvil, Bloquear/Break Time se colapsan al menú "⋯" de más
+              abajo, para que la fila no supere el ancho del card (que es
+              overflow-hidden). */}
           <div className="hidden md:flex md:items-center md:gap-2">
           {/* Bloquear button */}
           {onNewBlock && (
@@ -379,9 +396,10 @@ export function SchedulerHeader({
           )}
           </div>
 
-          {/* Menú "⋯" — mismas acciones secundarias, con label visible
-              (en touch los tooltips group-hover nunca aparecen). */}
-          {hasSecondaryActions && (
+          {/* Menú "⋯" — acciones terciarias (Bloquear/Break Time) con label
+              visible (en touch los tooltips group-hover nunca aparecen).
+              "Compartir horarios" NO se duplica acá: ya es botón inline. */}
+          {hasMenuActions && (
             <div className="md:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -406,15 +424,6 @@ export function SchedulerHeader({
                       )}
                     </DropdownMenuItem>
                   )}
-                  {onShareAvailableSlots && (
-                    <DropdownMenuItem
-                      onSelect={() => onShareAvailableSlots()}
-                      className="gap-2 py-2.5"
-                    >
-                      <Clock className="h-4 w-4 text-emerald-500" />
-                      Compartir horarios
-                    </DropdownMenuItem>
-                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -433,19 +442,22 @@ export function SchedulerHeader({
         </div>
       </div>
 
-      {/* Overview counters — wrap + labels ocultos en <sm (icono + número) */}
-      <div className="flex flex-wrap gap-2 md:gap-4">
-        <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5">
+      {/* Overview counters — labels ocultos en <sm (icono + número).
+          Móvil: grid de 3 columnas iguales → los chips cubren el ancho del
+          contenedor sin aire muerto a la derecha (cada chip centra su
+          contenido). md+ vuelve al flex de siempre, pixel-idéntico. */}
+      <div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap md:gap-4">
+        <div className="flex items-center justify-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5 sm:justify-start">
           <CalendarDays className="h-4 w-4 text-primary" />
           <span className="hidden text-sm text-muted-foreground sm:inline">{t("scheduler.overview_total")}:</span>
           <span className="text-sm font-semibold">{todayAppointments.length}</span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5">
+        <div className="flex items-center justify-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5 sm:justify-start">
           <Clock className="h-4 w-4 text-blue-500" />
           <span className="hidden text-sm text-muted-foreground sm:inline">{t("scheduler.overview_pending")}:</span>
           <span className="text-sm font-semibold">{pending}</span>
         </div>
-        <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5">
+        <div className="flex items-center justify-center gap-2 rounded-lg bg-muted/50 px-3 py-1.5 sm:justify-start">
           <Percent className="h-4 w-4 text-emerald-500" />
           <span className="hidden text-sm text-muted-foreground sm:inline">{t("scheduler.overview_occupation")}:</span>
           <span className="text-sm font-semibold">{occupationPercent}%</span>
