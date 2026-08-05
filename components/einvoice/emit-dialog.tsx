@@ -564,7 +564,7 @@ export function EInvoiceEmitDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-2xl max-h-[92vh] overflow-hidden p-0 gap-0 flex flex-col [&>button]:hidden">
+      <DialogContent className="w-full max-w-2xl max-h-[92dvh] overflow-hidden p-0 gap-0 flex flex-col [&>button]:hidden">
         {/* Header */}
         <div className="border-b border-border px-6 py-4">
           <div className="flex items-center gap-3">

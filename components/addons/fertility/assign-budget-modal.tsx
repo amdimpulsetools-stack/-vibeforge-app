@@ -398,7 +398,7 @@ function AssignBudgetModalInner({
           desktop; tope de altura con scroll interno para que el modal
           nunca toque los bordes de la pantalla. */}
       <DialogContent className="w-full max-w-3xl p-0 [&>button]:top-4 [&>button]:right-4">
-        <div className="max-h-[85vh] space-y-4 overflow-y-auto p-5">
+        <div className="max-h-[85dvh] space-y-4 overflow-y-auto p-5">
           <div className="flex items-start gap-2">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600">
               <Receipt className="h-4 w-4" />

@@ -197,7 +197,7 @@ export function WhatsAppWizard({ open, onClose, onConnected }: WhatsAppWizardPro
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="relative w-full max-w-4xl max-h-[92vh] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl flex flex-col">
+      <div className="relative w-full max-w-4xl max-h-[92dvh] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl flex flex-col">
         {/* Header */}
         <div className="flex items-start justify-between gap-4 border-b border-border/60 px-6 py-4">
           <div className="flex items-center gap-3">

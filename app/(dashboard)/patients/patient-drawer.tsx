@@ -1303,7 +1303,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
       {/* Expanded Patient View Modal */}
       {expandedView && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-2 md:p-6">
-          <div className="w-full max-w-6xl max-h-[95vh] rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
+          <div className="w-full max-w-6xl max-h-[95dvh] rounded-2xl border border-border bg-card shadow-2xl flex flex-col overflow-hidden">
             {/* Expanded Header */}
             <div className="shrink-0 border-b border-border px-6 py-4">
               <div className="flex items-start justify-between">

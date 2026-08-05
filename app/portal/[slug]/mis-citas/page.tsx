@@ -1583,7 +1583,7 @@ function BottomSheet({
         animate: { y: 0 },
         exit: { y: "100%" },
         className:
-          "fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[90vh] max-w-md overflow-y-auto rounded-t-3xl bg-[#F2F2F7] shadow-2xl",
+          "fixed inset-x-0 bottom-0 z-50 mx-auto max-h-[90dvh] max-w-md overflow-y-auto rounded-t-3xl bg-[#F2F2F7] shadow-2xl",
       };
 
   return (

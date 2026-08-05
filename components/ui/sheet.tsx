@@ -39,7 +39,11 @@ const SheetContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed z-50 flex h-full w-full max-w-md flex-col gap-4 border-border bg-card p-6 shadow-lg",
+        // dvh en vez de `h-full` (= 100vh en un fixed): en iOS Safari
+        // 100vh incluye la barra de URL colapsable, así que el pie del
+        // sheet quedaba bajo el chrome del navegador. `overflow-y-auto` +
+        // safe-area para que el contenido largo se pueda alcanzar entero.
+        "fixed z-50 flex h-[100dvh] w-full max-w-md flex-col gap-4 overflow-y-auto border-border bg-card p-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-lg",
         side === "right" && "animate-sheet-right right-0 top-0 border-l",
         side === "left" && "animate-sheet-left left-0 top-0 border-r",
         className
@@ -47,7 +51,8 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none">
+      {/* Área tocable de 44 px en <md sin cambiar el icono de 16 px. */}
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none before:absolute before:-inset-3.5 before:content-[''] md:before:content-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Cerrar</span>
       </DialogPrimitive.Close>

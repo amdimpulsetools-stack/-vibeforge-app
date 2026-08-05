@@ -810,7 +810,7 @@ export default function ServicesPage() {
             const onlyAddon =
               clean.length === 0 && inUse.length === 0 && addon.length > 0;
             return (
-              <DialogContent className="max-h-[85vh] overflow-y-auto">
+              <DialogContent className="max-h-[85dvh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>{t("services.delete_selected_title")}</DialogTitle>
                 </DialogHeader>

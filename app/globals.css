@@ -307,6 +307,26 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   iOS SAFARI — ZOOM AUTOMÁTICO AL ENFOCAR UN CAMPO
+   Safari hace zoom (y descoloca el modal) cuando el control enfocado
+   tiene font-size < 16 px. Los primitivos input.tsx/textarea.tsx ya usan
+   `text-base md:text-sm`, pero la app tiene ~35 pantallas con <select> e
+   <input> nativos que traen su propio `text-sm`; esta regla los cubre
+   todos de una vez.
+   Va FUERA de @layer a propósito: en Tailwind v4 las utilidades viven en
+   `@layer utilities` y ganarían por orden de capa a cualquier regla
+   layered, sin importar la especificidad. Solo bajo md → la densidad de
+   escritorio queda intacta.
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    GLASS MORPHISM UTILITIES
    ═══════════════════════════════════════════════════════════════════ */
 .glass {

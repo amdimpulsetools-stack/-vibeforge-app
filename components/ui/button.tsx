@@ -19,7 +19,9 @@ const buttonVariants = cva(
         default: "h-9 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
         lg: "h-10 rounded-md px-8",
-        icon: "h-9 w-9",
+        // Icon-only: 36 px es demasiado poco para el dedo. En móvil sube a
+        // 44 px (recomendación WCAG/HIG); desde md vuelve al 9×9 de siempre.
+        icon: "h-11 w-11 md:h-9 md:w-9",
       },
     },
     defaultVariants: {

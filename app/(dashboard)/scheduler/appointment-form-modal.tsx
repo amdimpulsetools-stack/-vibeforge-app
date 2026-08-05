@@ -1084,7 +1084,7 @@ export function AppointmentFormModal({
            100dvh al abrir el teclado y el footer de "Guardar" quedaba
            debajo de él. Desktop (md:) conserva exactamente el layout
            anterior. */
-        className="flex w-full max-w-2xl flex-col p-0 gap-0 [&>button]:hidden top-0 left-0 translate-x-0 translate-y-0 h-[100dvh] max-h-[100dvh] rounded-none sm:rounded-none md:grid md:h-auto md:max-h-[95dvh] md:overflow-y-auto md:top-[50%] md:left-[50%] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-xl"
+        className="flex w-full max-w-2xl flex-col overflow-hidden p-0 gap-0 [&>button]:hidden top-0 left-0 translate-x-0 translate-y-0 h-[100dvh] max-h-[100dvh] rounded-none sm:rounded-none md:grid md:h-auto md:max-h-[95dvh] md:overflow-y-auto md:top-[50%] md:left-[50%] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-xl"
         style={
           mobileViewport
             ? { height: mobileViewport.height, maxHeight: mobileViewport.height, top: mobileViewport.top }
@@ -1108,7 +1108,7 @@ export function AppointmentFormModal({
         {/* Form */}
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="min-h-0 flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4 md:max-h-[70vh] md:flex-none"
+          className="min-h-0 flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4 md:max-h-[70dvh] md:flex-none"
         >
           {/* Conflict warning */}
           {conflict && (
@@ -1125,7 +1125,9 @@ export function AppointmentFormModal({
               <select
                 value={docType}
                 onChange={(e) => setDocType(e.target.value as "DNI" | "CE" | "Pasaporte")}
-                className="w-[80px] sm:w-[100px] shrink-0 rounded-lg border border-input bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                /* 104 px en móvil: con los 16 px que exige iOS para no hacer
+                   zoom, "Pasaporte" ya no entraba en los 80 px de antes. */
+                className="w-[104px] sm:w-[100px] shrink-0 rounded-lg border border-input bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               >
                 <option value="DNI">DNI</option>
                 <option value="CE">CE</option>

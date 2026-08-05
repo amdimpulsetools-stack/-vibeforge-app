@@ -321,7 +321,7 @@ export function EInvoiceSetupDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-full max-w-2xl max-h-[90vh] overflow-hidden p-0 gap-0 flex flex-col [&>button]:hidden">
+      <DialogContent className="w-full max-w-2xl max-h-[90dvh] overflow-hidden p-0 gap-0 flex flex-col [&>button]:hidden">
         {/* Header */}
         <div className="border-b border-border px-6 py-4">
           <DialogTitle className="text-base font-semibold">

@@ -34,13 +34,25 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        "animate-dialog fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border border-border bg-card p-6 shadow-lg sm:rounded-xl",
+        // `max-h` + `overflow-auto` por defecto: sin ellos, cualquier caller
+        // que no los parcheara a mano producía un dialog más alto que el
+        // viewport, centrado, con cabecera y pie fuera de pantalla y sin
+        // forma de scrollear. `dvh` en vez de `vh` porque en iOS Safari
+        // 100vh incluye la barra de URL colapsable.
+        // Nota de composición: se usa `overflow-auto` (no `overflow-y-auto`)
+        // a propósito — así los ~10 callers que pasan `overflow-hidden` +
+        // `flex flex-col` y scrollean en un hijo lo siguen ganando por
+        // tailwind-merge (mismo grupo) y no aparece un doble scroll.
+        // Los callers que ya declaran su propio max-h también mandan.
+        "animate-dialog fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg max-h-[calc(100dvh-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-auto border border-border bg-card p-6 shadow-lg sm:rounded-xl",
         className
       )}
       {...props}
     >
       {children}
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground">
+      {/* El icono mide 16 px: el pseudo-elemento lleva el área tocable a
+          44 px en <md sin cambiar nada visual (ni en desktop). */}
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground before:absolute before:-inset-3.5 before:content-[''] md:before:content-none">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
