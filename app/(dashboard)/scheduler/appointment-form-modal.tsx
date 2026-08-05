@@ -1087,9 +1087,14 @@ export function AppointmentFormModal({
         </div>
 
         {/* Form */}
+        {/* overflow-x-hidden: con solo overflow-y-auto, overflow-x computa a
+            `auto` → cualquier fila que sume de más vuelve el form paneable en
+            horizontal (el "espacio blanco fantasma" de los screenshots).
+            Clampearlo elimina esa clase de bug de raíz; las filas ya son
+            fluidas así que no recorta nada. */}
         <form
           onSubmit={handleSubmit(onSubmit)}
-          className="min-h-0 flex-1 overflow-y-auto px-4 md:px-6 py-4 space-y-4 md:max-h-[70dvh] md:flex-none"
+          className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-6 py-4 space-y-4 md:max-h-[70dvh] md:flex-none"
         >
           {/* Conflict warning */}
           {conflict && (
@@ -1116,7 +1121,11 @@ export function AppointmentFormModal({
               </select>
               <input
                 {...register("patient_dni")}
-                className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                /* min-w-0: sin él, `min-width:auto` del flex item impone el
+                   ancho intrínseco del input (size=20 ≈ 205px con los 16px
+                   forzados en móvil) y la fila suma más que el contenedor →
+                   la lupa se salía por la derecha a 390px. */
+                className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                 placeholder="12345678"
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
@@ -1129,7 +1138,8 @@ export function AppointmentFormModal({
                 type="button"
                 onClick={() => searchPatientByDni(watch("patient_dni") ?? "")}
                 disabled={searchingPatient}
-                className="flex items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
+                aria-label="Buscar paciente por documento"
+                className="flex shrink-0 items-center gap-1.5 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-50 transition-colors"
               >
                 {searchingPatient ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -1403,7 +1413,13 @@ export function AppointmentFormModal({
                 type="time"
                 step="900"
                 {...register("start_time")}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                /* max-md:appearance-none: iOS Safari pinta los inputs time
+                   como control nativo con ancho intrínseco (formato "hh:mm
+                   a. m." a 16px ≈ más que la celda de 171px a 390px) y NO lo
+                   encoge aunque tenga w-full → "Hora fin" se salía del modal.
+                   Sin appearance nativo el input obedece la caja CSS. Scope
+                   max-md → desktop pixel-idéntico. min-w-0 de defensa. */
+                className="w-full min-w-0 max-md:appearance-none rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               />
               {errors.start_time && (
                 <p className="text-xs text-destructive">{errors.start_time.message}</p>
@@ -1415,7 +1431,8 @@ export function AppointmentFormModal({
                 type="time"
                 value={endTime}
                 disabled
-                className="w-full rounded-lg border border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
+                /* Mismo fix anti-desborde iOS que el input de inicio. */
+                className="w-full min-w-0 max-md:appearance-none rounded-lg border border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
               />
               <p className="text-xs text-muted-foreground">{duration} {t("common.minutes_short")}</p>
             </div>
@@ -1615,7 +1632,10 @@ export function AppointmentFormModal({
                       min="0"
                       step="0.50"
                       placeholder={servicePrice.toFixed(2)}
-                      className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                      /* min-w-0: mismo patrón anti-desborde que el DNI —
+                         sin él, el ancho intrínseco del input (16px móvil)
+                         desborda la fila en viewports de 320-375px. */
+                      className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                     />
                   </div>
                   <p className="text-[11px] text-muted-foreground">
@@ -1710,7 +1730,7 @@ export function AppointmentFormModal({
                         max={discountMode === "percent" ? 100 : effectivePrice}
                         step={discountMode === "percent" ? "1" : "0.50"}
                         placeholder={discountMode === "percent" ? "10" : "0.00"}
-                        className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                        className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                       />
                       {discountMode === "percent" && (
                         <span className="text-sm font-medium text-muted-foreground">
@@ -1788,19 +1808,19 @@ export function AppointmentFormModal({
                         min="0"
                         max={totalAfterDiscount}
                         step="0.50"
-                        className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                        className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                       />
                       <button
                         type="button"
                         onClick={() => setDepositAmount((totalAfterDiscount * 0.5).toFixed(2))}
-                        className="rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
+                        className="shrink-0 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
                       >
                         50%
                       </button>
                       <button
                         type="button"
                         onClick={() => setDepositAmount(totalAfterDiscount.toFixed(2))}
-                        className="rounded-lg bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent transition-colors"
+                        className="shrink-0 rounded-lg bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent transition-colors"
                       >
                         100%
                       </button>
