@@ -212,14 +212,14 @@ export function AvailableSlotsModal({
 
             {/* Filters */}
             <div className="flex flex-wrap gap-3 border-b border-border px-5 py-3 bg-muted/30">
-              <div className="flex flex-col gap-1">
+              <div className="flex w-full flex-col gap-1 sm:w-auto">
                 <label className="text-[10px] font-semibold uppercase text-muted-foreground tracking-wide">
                   Doctor
                 </label>
                 <select
                   value={selectedDoctorId}
                   onChange={(e) => setSelectedDoctorId(e.target.value)}
-                  className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm min-w-[200px]"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm sm:w-auto sm:min-w-[200px]"
                 >
                   {doctors.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -261,7 +261,7 @@ export function AvailableSlotsModal({
                     const today = format(new Date(), "yyyy-MM-dd");
                     setStartDate(v && v >= today ? v : today);
                   }}
-                  className="w-[150px] [&>input]:py-1.5 [&>input]:text-xs"
+                  className="w-[150px] max-w-full [&>input]:py-1.5 [&>input]:text-xs"
                 />
               </div>
 

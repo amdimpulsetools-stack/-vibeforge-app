@@ -346,14 +346,17 @@ export function DoctorDashboard({ userName }: { userName: string }) {
           color="cyan"
           subtitle={stats.new_patients_month > 0 ? `+${stats.new_patients_month} nuevos` : undefined}
         />
-        <KpiCard
-          title="Tasa de completados"
-          value={`${completionRateMonth}%`}
-          icon={Target}
-          color="amber"
-          subtitle={`${stats.month_completed}/${stats.month_total ?? 0} citas este mes`}
-          isText
-        />
+        {/* El 5º KPI ocupa la fila completa en móvil (2 col) para no quedar huérfano */}
+        <div className="col-span-2 lg:col-span-1">
+          <KpiCard
+            title="Tasa de completados"
+            value={`${completionRateMonth}%`}
+            icon={Target}
+            color="amber"
+            subtitle={`${stats.month_completed}/${stats.month_total ?? 0} citas este mes`}
+            isText
+          />
+        </div>
       </motion.div>
 
       {/* ── Main Grid: Agenda + Sidebar ── */}

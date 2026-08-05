@@ -10,6 +10,7 @@ import { useUserAvatar } from "@/hooks/use-user-avatar";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useNotifications, type Notification } from "@/hooks/use-notifications";
+import { useHasHover } from "@/hooks/use-is-mobile";
 import { useLanguage } from "@/components/language-provider";
 import { createClient } from "@/lib/supabase/client";
 import { getInitials, greetingName } from "@/lib/utils";
@@ -124,6 +125,9 @@ export function Topbar() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // En táctil el hover emulado de iOS "gasta" el primer tap: solo lo activamos
+  // en dispositivos con puntero fino (mouse/trackpad).
+  const hasHover = useHasHover();
 
   const cancelClose = () => {
     if (closeTimerRef.current) {
@@ -260,11 +264,15 @@ export function Topbar() {
             ref={userMenuRef}
             data-tour-step="topbar-user"
             className="relative"
-            onMouseEnter={() => {
-              cancelClose();
-              setUserMenuOpen(true);
-            }}
-            onMouseLeave={scheduleClose}
+            onMouseEnter={
+              hasHover
+                ? () => {
+                    cancelClose();
+                    setUserMenuOpen(true);
+                  }
+                : undefined
+            }
+            onMouseLeave={hasHover ? scheduleClose : undefined}
           >
             <button
               type="button"

@@ -290,7 +290,7 @@ export const RetentionReport = forwardRef<ReportExportHandle, RetentionReportPro
             {trendChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={260}>
                 <BarChart data={trendChartData} barCategoryGap="25%">
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip content={<ChartTooltip />} cursor={false} />
                   <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
@@ -315,7 +315,7 @@ export const RetentionReport = forwardRef<ReportExportHandle, RetentionReportPro
                       <stop offset="100%" stopColor={accent} stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} domain={[0, 100]} tickFormatter={(v: number) => `${v}%`} />
                   <Tooltip content={<PercentTooltip />} cursor={false} />
                   <Area type="monotone" dataKey={t("retention.retention_rate")} stroke={accent} strokeWidth={2} fill="url(#retentionGradient)" animationDuration={1000} />

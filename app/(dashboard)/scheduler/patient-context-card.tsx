@@ -355,7 +355,7 @@ function InlineAddForm({
       </div>
 
       {type === "allergy" && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <input placeholder="Sustancia *" className={inputCls} value={fields.substance ?? ""} onChange={(e) => update("substance", e.target.value)} />
           <select className={inputCls} value={fields.severity ?? "moderada"} onChange={(e) => update("severity", e.target.value)}>
             <option value="leve">Leve</option>
@@ -367,7 +367,7 @@ function InlineAddForm({
       )}
 
       {type === "condition" && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <input placeholder="Condición *" className={inputCls} value={fields.condition_name ?? ""} onChange={(e) => update("condition_name", e.target.value)} />
           <select className={inputCls} value={fields.condition_type ?? "chronic"} onChange={(e) => update("condition_type", e.target.value)}>
             <option value="chronic">Crónica</option>
@@ -379,7 +379,7 @@ function InlineAddForm({
       )}
 
       {type === "medication" && (
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
           <input placeholder="Medicamento *" className={inputCls} value={fields.medication_name ?? ""} onChange={(e) => update("medication_name", e.target.value)} />
           <input placeholder="Dosis (ej: 500mg)" className={inputCls} value={fields.dosage ?? ""} onChange={(e) => update("dosage", e.target.value)} />
           <input placeholder="Frecuencia (ej: c/8h)" className={inputCls} value={fields.frequency ?? ""} onChange={(e) => update("frequency", e.target.value)} />

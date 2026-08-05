@@ -277,7 +277,7 @@ export const OperationalReport = forwardRef<ReportExportHandle, OperationalRepor
           <h3 className="text-sm font-semibold mb-3">{t("reports.peak_hours")}</h3>
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={peakHoursData} barCategoryGap="25%">
-              <XAxis dataKey="hour" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} />
+              <XAxis dataKey="hour" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
               <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
               <Tooltip content={<CustomTooltip />} cursor={false} />
               <Bar dataKey="citas" name="Citas" fill={accent} radius={999} maxBarSize={56} background={{ fill: "rgba(128,128,128,0.1)", radius: 999 }} animationDuration={1000} animationEasing="ease-out" />

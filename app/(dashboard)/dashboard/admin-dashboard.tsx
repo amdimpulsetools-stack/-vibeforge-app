@@ -269,7 +269,7 @@ export function AdminDashboard({
               {isEs ? "Citas" : "Appointments"}
             </span>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
             <div className="text-center">
               <div className="flex justify-center mb-1">
                 <CheckCircle2 className="h-4 w-4 text-success-500" />
@@ -317,7 +317,7 @@ export function AdminDashboard({
               {isEs ? "Pacientes nuevos vs recurrentes" : "New vs recurring patients"}
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-3 sm:gap-4">
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <div className="h-3 w-3 rounded-sm bg-emerald-500/20" />

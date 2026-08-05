@@ -534,7 +534,7 @@ export default function AccountPage() {
         {/* LEFT COLUMN: Avatar + Personal data + Password (single card) */}
         <div className="rounded-2xl border border-border/60 bg-card px-5 py-8 space-y-4">
           {/* Avatar row */}
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4 sm:flex-nowrap">
             <div className="relative group shrink-0">
               <BorderAvatar
                 src={avatarUrl}
@@ -593,14 +593,14 @@ export default function AccountPage() {
             </div>
             {/* Silhouette picker — compact inline */}
             {!avatarUrl && (
-              <div className="hidden sm:flex gap-1.5 shrink-0">
+              <div className="flex w-full flex-wrap gap-1.5 sm:w-auto sm:flex-nowrap sm:shrink-0">
                 {AVATAR_OPTIONS.map(({ key }) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => handleAvatarOptionSelect(key)}
                     className={cn(
-                      "flex items-center justify-center rounded-lg border p-1.5 transition-all",
+                      "flex items-center justify-center rounded-lg border p-2.5 transition-all sm:p-1.5",
                       avatarOption === key
                         ? "border-primary bg-primary/5 ring-1 ring-primary/20"
                         : "border-border/60 hover:bg-accent/50"

@@ -252,7 +252,7 @@ export default function SecurityPage() {
                   </p>
                 </div>
               </div>
-              <ul className="grid grid-cols-2 gap-1.5 font-mono text-sm bg-card rounded-lg p-3 mb-3">
+              <ul className="grid grid-cols-1 min-[380px]:grid-cols-2 gap-1.5 font-mono text-sm bg-card rounded-lg p-3 mb-3">
                 {regeneratedCodes.map((c, i) => (
                   <li key={c}>
                     <span className="text-muted-foreground mr-1">

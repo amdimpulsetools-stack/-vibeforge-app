@@ -70,7 +70,10 @@ export function UbigeoCombobox({
           <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[--radix-popover-trigger-width] min-w-[320px]" align="start">
+      <PopoverContent
+        className="p-0 w-[--radix-popover-trigger-width] min-w-[min(320px,calc(100vw-2rem))]"
+        align="start"
+      >
         <div className="flex flex-col">
           <div className="flex items-center gap-2 border-b border-border px-3 py-2">
             <Search className="h-4 w-4 text-muted-foreground shrink-0" />

@@ -413,7 +413,7 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
           {conversionByOrigin.length > 0 ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={conversionByOrigin} barCategoryGap="25%">
-                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "..." : v} />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} interval="preserveStartEnd" tickFormatter={(v: string) => v.length > 12 ? v.slice(0, 12) + "..." : v} />
                 <YAxis tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }} tickLine={false} axisLine={false} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} cursor={false} />
                 <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12 }} />
