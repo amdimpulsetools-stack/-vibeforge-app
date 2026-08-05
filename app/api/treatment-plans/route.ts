@@ -193,6 +193,12 @@ export async function POST(request: NextRequest) {
     organization_id: membership.organization_id,
     patient_id: parsed.data.patient_id,
     doctor_id: parsed.data.doctor_id,
+    // mig 184 — el vínculo plan → seguimiento que faltaba. Hasta ahora
+    // este seguimiento nacía huérfano: si el plan se cancelaba nadie
+    // podía saber qué seguimientos cerrar. Con el origen guardado, el
+    // trigger de mig 188 los cierra solo.
+    source_type: "treatment_plan",
+    source_id: data.id,
   });
 
   logClinicalAccess({

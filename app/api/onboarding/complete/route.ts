@@ -63,6 +63,34 @@ export async function POST() {
     return NextResponse.json({ error: "Error al completar el onboarding" }, { status: 500 });
   }
 
+  // Ajustes de seguimientos por defecto — SOLO para orgs nuevas
+  // (mig 185). La tabla NO tiene backfill a propósito: ausencia de fila
+  // = automatismos nuevos apagados, que es lo que protege a los pilotos
+  // ya en producción. La fila nace aquí, en el momento exacto en que una
+  // org termina su onboarding, así que los defaults (missed_session_
+  // followup=true, delay=3, close_on_any_appointment=true,
+  // default_followup_days=NULL) solo aplican a quien empieza de cero.
+  //
+  // Idempotente por PK (organization_id): re-completar el onboarding —
+  // o el "Skip setup" seguido del wizard — no pisa lo que el admin haya
+  // cambiado luego en Settings.
+  //
+  // Best-effort: si falla (p.ej. la migración aún no está aplicada en
+  // ese entorno) NO se rompe el onboarding.
+  try {
+    const { error: settingsErr } = await supabase
+      .from("organization_followup_settings")
+      .upsert({ organization_id: orgId }, {
+        onConflict: "organization_id",
+        ignoreDuplicates: true,
+      });
+    if (settingsErr) {
+      console.error("Followup settings seed error:", settingsErr);
+    }
+  } catch (settingsErr) {
+    console.error("Followup settings seed error:", settingsErr);
+  }
+
   // Auto-activate addon modules that match the org's specialty
   try {
     const { data: orgSpecs } = await supabase

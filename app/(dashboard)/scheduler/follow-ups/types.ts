@@ -1,5 +1,5 @@
 import type { ClinicalFollowupWithRelations } from "@/types/clinical-history";
-import type { FollowupSource, FollowupStatus, BudgetTreatmentType } from "@/types/fertility";
+import type { FollowupSource, FollowupStatus, BudgetTreatmentType, FollowupSourceType } from "@/types/fertility";
 
 /**
  * Local extension of the existing followup type with the columns added in
@@ -18,6 +18,11 @@ export interface FollowupWithDetails extends ClinicalFollowupWithRelations {
   closure_reason: string | null;
   closed_at: string | null;
   status: FollowupStatus;
+  /** mig 184 — origen polimórfico. Opcional: las filas anteriores al
+   *  backfill (y las creadas por rutas que aún no lo pueblan) lo traen
+   *  en null. */
+  source_type?: FollowupSourceType | null;
+  source_id?: string | null;
   days_diff?: number;
   /** Budget record vinculado vía budget_records.followup_id, si el followup
    *  fue creado por la regla `fertility.budget_pending_acceptance`. Permite

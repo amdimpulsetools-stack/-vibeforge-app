@@ -19,6 +19,25 @@ export type FollowupStatus =
 
 export type FollowupSource = "manual" | "rule" | "system";
 
+/**
+ * mig 184 — origen polimórfico del seguimiento
+ * (`clinical_followups.source_type` / `source_id`).
+ *
+ * Ortogonal a `FollowupSource`: aquel dice QUIÉN lo creó (persona,
+ * regla, plataforma); éste dice DE QUÉ ENTIDAD nació. Un mismo
+ * `source='rule'` puede venir de una cita o de un plan de tratamiento.
+ *
+ * `source_id` no tiene FK a propósito (la tabla destino depende del
+ * tipo). NULL cuando el tipo es 'manual' o cuando no se pudo determinar.
+ */
+export type FollowupSourceType =
+  | "appointment"
+  | "clinical_note"
+  | "treatment_plan"
+  | "treatment_session"
+  | "budget_record"
+  | "manual";
+
 export type FollowupClosureReason =
   | "agendado_via_contacto"
   | "agendado_organico_dentro_ventana"
@@ -78,7 +97,18 @@ export interface FollowupRuleRow {
   organization_id: string | null;
   addon_key: string;
   rule_key: string;
-  trigger_event: "appointment_completed" | "treatment_plan_created" | "plan_status_changed";
+  // mig 186 — vocabulario ampliado. Los tres primeros son de mig 127;
+  // los tres últimos se añaden en Fase 2a. `budget_accepted` es el que
+  // corrige el abuso documentado de mig 142
+  // (`fertility.budget_accepted_pending_start` llevaba
+  // 'treatment_plan_created' por falta de un valor honesto).
+  trigger_event:
+    | "appointment_completed"
+    | "treatment_plan_created"
+    | "plan_status_changed"
+    | "appointment_no_show"
+    | "treatment_session_missed"
+    | "budget_accepted";
   trigger_category_key: string | null;
   target_category_key: string | null;
   delay_days: number;
