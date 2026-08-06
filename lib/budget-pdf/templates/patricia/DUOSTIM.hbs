@@ -1,0 +1,141 @@
+{{!--
+  Yenda · Presupuesto Dra. Patricia Quispe — DUO STIM
+  Fuente: …/PRESUPUESTO DUOSTIM.docx
+  Datos: lib/budget-pdf/patricia/data/duostim.ts  ·  Total S/ 37,100
+
+  Dos estimulaciones ováricas completas en un mismo ciclo + una
+  transferencia. La 2.ª estimulación es más barata que la 1.ª
+  (honorarios 2,500 vs 3,000 · aspiración+FIV 5,400 vs 5,800): la
+  paciente ya está estudiada. Así viene en el original.
+--}}
+{{> head}}
+
+  <!-- ============== PÁGINA 1 ============================== -->
+  <section class="sheet" data-screen-label="01">
+    <div class="sheet-body">
+{{> sheetHead}}
+{{> titleRow}}
+{{> meta}}
+
+      <section class="phases">
+        <div class="tx-group">Primera estimulación ovárica</div>
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">1</div>
+            <div class="phase-name">Fecundación in Vitro</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.primera.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Consulta médica y controles ovulatorios</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.primera.consulta}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Medicación hormonal para estimulación ovárica
+                  <span class="hint">Costo aproximado</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.primera.medicacion}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Honorarios médicos
+                  <span class="hint">Pago en efectivo o transferencia bancaria</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.primera.honorarios}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Aspiración folicular + procedimiento de FIV-ICSI</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.primera.aspiracion_fiv}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Vitrificación de embriones</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.primera.vitrificacion}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="tx-group">Segunda estimulación ovárica</div>
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">2</div>
+            <div class="phase-name">Fecundación in Vitro</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.segunda.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Consulta médica y controles ovulatorios</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.segunda.consulta}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Medicación hormonal para estimulación ovárica
+                  <span class="hint">Costo aproximado</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.segunda.medicacion}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Honorarios médicos
+                  <span class="hint">Pago en efectivo o transferencia bancaria</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.segunda.honorarios}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Aspiración folicular + procedimiento de FIV-ICSI</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.segunda.aspiracion_fiv}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Vitrificación de embriones</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.segunda.vitrificacion}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="tx-group">Transferencia</div>
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">3</div>
+            <div class="phase-name">Transferencia embrionaria</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.transferencia.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Honorarios médicos
+                  <span class="hint">Pago en efectivo o transferencia bancaria</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.transferencia.honorarios}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Control endometrial, desvitrificación de embriones y transferencia embrionaria</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.transferencia.control_endometrial}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+{{> total}}
+      </section>
+
+    </div>
+{{> pageFooter}}
+  </section>
+
+  <!-- ============== PÁGINA 2 ============================== -->
+  <section class="sheet" data-screen-label="02">
+    <div class="sheet-body">
+{{> runHead}}
+{{> consideracionesEmbriones}}
+{{> ngs}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+  <!-- ============== PÁGINA 3 ============================== -->
+  <section class="sheet" data-screen-label="03">
+    <div class="sheet-body">
+{{> runHead}}
+{{> evaluaciones mujerCompleta=true hombre=true}}
+{{> terminos}}
+{{> firmas}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+{{> docEnd}}

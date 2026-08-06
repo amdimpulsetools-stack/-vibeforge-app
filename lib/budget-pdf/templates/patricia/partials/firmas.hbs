@@ -1,0 +1,29 @@
+{{!--
+  Partial · bloque de firmas.
+
+  Los .docx alternan dos rótulos a la izquierda ("REPROFERTILIDAD EIRL"
+  en FIV y transferencia embrionaria, "Asesora de Fertilidad" en el
+  resto). Se unifica en la razón social de la organización —
+  `{{org.legal_name}}`, nunca un literal — y la asesora asignada queda
+  en su propia línea al pie, con su celular real de perfil.
+
+  La colegiatura (`doctor.license`) solo se imprime si está cargada en
+  `org_plugins.config`; ninguno de los .docx la trae.
+--}}
+      <div class="signs">
+        <div class="sign">
+          <div class="line"></div>
+          <div class="who">{{org.legal_name}}</div>
+          <div class="role">Representante legal</div>
+        </div>
+        <div class="sign">
+          <div class="line"></div>
+          <div class="who">Nombre y firma de la paciente</div>
+          <div class="role">{{patient.full_name}}</div>
+        </div>
+      </div>
+
+      <div class="advisor-line">
+        Médico tratante: <b>{{doctor.full_name}}</b>{{#if doctor.license}} · {{doctor.license}}{{/if}}<br>
+        Asesora de fertilidad: <b>{{advisor.full_name}}</b>{{#if advisor.phone}} · <span class="cel">{{advisor.phone}}</span>{{/if}}
+      </div>

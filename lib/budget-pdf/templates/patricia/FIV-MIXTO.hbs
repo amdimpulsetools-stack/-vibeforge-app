@@ -1,0 +1,134 @@
+{{!--
+  Yenda · Presupuesto Dra. Patricia Quispe — FIV MIXTA
+  (óvulos propios + óvulos donados)
+  Fuente: …/presupuesto FIV mixto.docx
+  Datos: lib/budget-pdf/patricia/data/fiv-mixto.ts  ·  Total S/ 40,550
+
+  Único presupuesto del lote con cuatro bloques: se estimula a la
+  donante y a la paciente en paralelo, se fecunda todo junto y se
+  transfiere.
+--}}
+{{> head}}
+
+  <!-- ============== PÁGINA 1 ============================== -->
+  <section class="sheet" data-screen-label="01">
+    <div class="sheet-body">
+{{> sheetHead}}
+{{> titleRow}}
+{{> meta}}
+
+      <section class="phases">
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">1</div>
+            <div class="phase-name">Estimulación ovárica de la donante</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.donante.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Óvulos de la donante
+                  <span class="hint">Incluye medicación, exámenes, evaluaciones y aspiración folicular</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.donante.ovulos_donante}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Honorarios médicos
+                  <span class="hint">Pago en efectivo o transferencia bancaria</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.donante.honorarios}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">2</div>
+            <div class="phase-name">Estimulación ovárica de la paciente</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.paciente.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Consulta médica y controles ovulatorios</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.paciente.consulta}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Medicación hormonal para estimulación ovárica
+                  <span class="hint">Costo aproximado</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.paciente.medicacion}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Honorarios médicos
+                  <span class="hint">Pago en efectivo o transferencia bancaria</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.paciente.honorarios}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">3</div>
+            <div class="phase-name">Fecundación in Vitro</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.fiv.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Procedimiento de FIV-ICSI + vitrificación de embriones</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.fiv.subtotal}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">4</div>
+            <div class="phase-name">Transferencia embrionaria</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.transferencia.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Honorarios médicos
+                  <span class="hint">Pago en efectivo o transferencia bancaria</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.transferencia.honorarios}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Control endometrial, desvitrificación de embriones y transferencia embrionaria</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.transferencia.control_endometrial}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+{{> total}}
+      </section>
+
+    </div>
+{{> pageFooter}}
+  </section>
+
+  <!-- ============== PÁGINA 2 ============================== -->
+  <section class="sheet" data-screen-label="02">
+    <div class="sheet-body">
+{{> runHead}}
+{{> consideracionesEmbriones}}
+{{> ngs}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+  <!-- ============== PÁGINA 3 ============================== -->
+  <section class="sheet" data-screen-label="03">
+    <div class="sheet-body">
+{{> runHead}}
+{{> evaluaciones mujerCompleta=true hombre=true}}
+{{> terminos}}
+{{> firmas}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+{{> docEnd}}

@@ -1,0 +1,14 @@
+{{!--
+  Partial · cabecera de página 1: logo de la org + bloque de datos.
+  Cada línea se omite si el dato correspondiente está vacío.
+--}}
+      <header class="head">
+        <div class="head-logo"><img src="{{org.logo_url}}" alt="{{org.legal_name}}"></div>
+        <div class="head-org">
+          <div class="org-name">{{org.legal_name}}</div>
+          {{#if org.tax_id}}<div class="org-line">RUC {{org.tax_id}}</div>{{/if}}
+          {{#if org.address}}<div class="org-line">{{org.address}}</div>{{/if}}
+          {{#if org.contact_line}}<div class="org-line">{{org.contact_line}}</div>{{/if}}
+          {{#if org.website}}<div class="org-line">{{org.website}}</div>{{/if}}
+        </div>
+      </header>

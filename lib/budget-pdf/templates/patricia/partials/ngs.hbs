@@ -1,0 +1,36 @@
+{{!--
+  Partial · test genético preimplantacional (PGT-A / NGS) — opcional.
+  Aparece en 8 de los 12 presupuestos (todos los que llegan a embrión:
+  FIV, FIV con semen donado, FIV mixta, las tres ovodonaciones,
+  DUO STIM y ROPA). Tarifario idéntico en todos los .docx.
+
+  La biopsia se cobra en soles (pago único) y el screening en dólares.
+--}}
+      <section class="section">
+        <h2>Test genético preimplantacional (PGT-A) — opcional</h2>
+        <table class="grid" style="margin-bottom:12px">
+          <tbody>
+            <tr><td>Biopsia embrionaria <span class="note">(pago único)</span></td><td class="amt">S/ {{ngs.biopsia}}</td></tr>
+            <tr><td>Screening genético NGS</td><td class="amt">Según tabla</td></tr>
+          </tbody>
+        </table>
+        <table class="grid">
+          <caption>Se realiza solo a los embriones que lleguen entre el día 5 y 6 del desarrollo embrionario, mediante una biopsia. Precios referenciales en dólares americanos.</caption>
+          <thead>
+            <tr><th>Screening genético NGS</th><th style="text-align:right">Precio (US$)</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Embrión 1</td><td class="amt">US$ {{ngs.embrion_1}}</td></tr>
+            <tr><td>Embrión 2</td><td class="amt">US$ {{ngs.embrion_2}}</td></tr>
+            <tr><td>Embrión 3</td><td class="amt">US$ {{ngs.embrion_3}}</td></tr>
+            <tr><td>Embrión 4</td><td class="amt">US$ {{ngs.embrion_4}}</td></tr>
+            <tr><td>Embrión 5</td><td class="amt">US$ {{ngs.embrion_5}}</td></tr>
+            <tr><td>Embrión 6</td><td class="amt">US$ {{ngs.embrion_6}}</td></tr>
+            <tr><td>Embrión 7</td><td class="amt">US$ {{ngs.embrion_7}}</td></tr>
+            <tr><td>Embrión 8</td><td class="amt">US$ {{ngs.embrion_8}}</td></tr>
+          </tbody>
+          <tfoot>
+            <tr><td>Embrión adicional</td><td class="amt">US$ {{ngs.embrion_adicional}}</td></tr>
+          </tfoot>
+        </table>
+      </section>

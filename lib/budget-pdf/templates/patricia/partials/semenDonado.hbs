@@ -1,0 +1,18 @@
+{{!--
+  Partial · bloque "SEMEN DONADO" (4 presupuestos: FIV con semen
+  donado, FIV óvulos donados + semen donado, IIU con semen donado y
+  Método ROPA). Aparece verbatim en los cuatro .docx.
+
+  El costo NO está incluido en el total del presupuesto: la muestra se
+  compra directamente al banco. Los datos vienen de `data/shared.ts`.
+--}}
+      <div class="callout">
+        <h3>Semen donado</h3>
+        <p class="lead">Costo referencial: <span class="price">US$ {{semen.rango_usd}}</span> aproximadamente.</p>
+        <ul>
+          {{#each semen.bancos}}
+          <li>{{this.nombre}}<span class="det">{{this.detalle}}</span></li>
+          {{/each}}
+        </ul>
+        <p class="disclaimer">La muestra se adquiere directamente en el banco de semen; su costo <b>no está incluido</b> en el total de este presupuesto y puede variar según el catálogo y el tipo de donante.</p>
+      </div>

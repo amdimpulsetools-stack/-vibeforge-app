@@ -1,0 +1,62 @@
+{{!--
+  Yenda · Presupuesto Dra. Patricia Quispe — TRANSFERENCIA EMBRIONARIA
+  Fuente: …/TRANSFERENCIA EMBRIONARIA.docx
+  Datos: lib/budget-pdf/patricia/data/ted.ts  ·  Total S/ 5,000
+
+  Presupuesto suelto para pacientes que ya tienen embriones
+  vitrificados. Ojo: los honorarios (S/ 1,200) son más altos que la
+  línea de transferencia embebida en los ciclos FIV / DUO STIM / ROPA
+  (S/ 800), donde va bonificada dentro del paquete. Así viene en el
+  original.
+--}}
+{{> head}}
+
+  <!-- ============== PÁGINA 1 ============================== -->
+  <section class="sheet" data-screen-label="01">
+    <div class="sheet-body">
+{{> sheetHead}}
+{{> titleRow}}
+{{> meta}}
+
+      <section class="phases">
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">1</div>
+            <div class="phase-name">Transferencia embrionaria</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.transferencia.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Honorarios médicos
+                  <span class="hint">Pago en efectivo o transferencia bancaria</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.transferencia.honorarios}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Control endometrial, desvitrificación de embriones y transferencia embrionaria</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.transferencia.control_endometrial}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+{{> total}}
+      </section>
+
+{{> evaluaciones mujerSerologia=true conOrina=true}}
+
+    </div>
+{{> pageFooter}}
+  </section>
+
+  <!-- ============== PÁGINA 2 ============================== -->
+  <section class="sheet" data-screen-label="02">
+    <div class="sheet-body">
+{{> runHead}}
+{{> terminos}}
+{{> firmas}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+{{> docEnd}}

@@ -1,0 +1,14 @@
+{{!--
+  Partial · <head> completo + apertura de <body> y del contenedor .doc.
+  Requiere `doc.title` (título del tratamiento) y `org.*`.
+  Se cierra con el partial `docEnd`.
+--}}
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="UTF-8">
+<title>Presupuesto · {{doc.title}} · {{org.legal_name}}</title>
+{{> styles}}
+</head>
+<body>
+<!-- El color de marca se inyecta por org en --brand. Cada .sheet = una página A4. -->
+<div class="doc" style="--brand: {{org.brand_color}};">

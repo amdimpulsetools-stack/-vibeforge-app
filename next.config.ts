@@ -26,15 +26,22 @@ const nextConfig: NextConfig = {
   // with: "The input directory '/var/task/node_modules/@sparticuz/chromium/bin'
   // does not exist". Force them into the bundle here.
   // ref: https://github.com/Sparticuz/chromium#bundler-configuration
+  //
+  // El segundo glob es redundante con el primero (`**` casa cero o más
+  // directorios), pero se deja explícito: las plantillas de Patricia y
+  // sus partials viven en un subdirectorio y un fallo silencioso del
+  // tracer se manifestaría en producción como un PDF que no genera.
   outputFileTracingIncludes: {
     "/api/budgets/[id]/pdf": [
       "./lib/budget-pdf/templates/**/*.hbs",
+      "./lib/budget-pdf/templates/patricia/**/*.hbs",
       "./node_modules/@sparticuz/chromium/bin/**",
     ],
     // Same as above — /send genera el PDF cuando el canal es email o
     // whatsapp (necesita el link firmado para el cuerpo del mensaje).
     "/api/budgets/[id]/send": [
       "./lib/budget-pdf/templates/**/*.hbs",
+      "./lib/budget-pdf/templates/patricia/**/*.hbs",
       "./node_modules/@sparticuz/chromium/bin/**",
     ],
   },

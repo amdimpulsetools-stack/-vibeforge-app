@@ -1,0 +1,79 @@
+{{!--
+  Yenda · Presupuesto Dra. Patricia Quispe — CRIOPRESERVACIÓN DE OVOCITOS
+  Fuente: …/PRESUPUESTO DE CRIO DE OVOCITOS.docx
+  Datos: lib/budget-pdf/patricia/data/crio.ts  ·  Total S/ 14,000
+
+  Fase única. En el original, "consulta y controles ovulatorios",
+  "aspiración folicular" y "vitrificación de ovocitos" comparten un
+  único importe de S/ 7,200: aquí se agrupan bajo ese monto en vez de
+  inventar un reparto por línea.
+
+  Sin bloque de PGT-A: no se llega a embrión.
+--}}
+{{> head}}
+
+  <!-- ============== PÁGINA 1 ============================== -->
+  <section class="sheet" data-screen-label="01">
+    <div class="sheet-body">
+{{> sheetHead}}
+{{> titleRow}}
+{{> meta}}
+
+      <section class="phases">
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">1</div>
+            <div class="phase-name">Criopreservación de ovocitos</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.fase.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Consulta médica y controles ovulatorios · aspiración folicular · vitrificación de ovocitos
+                  <span class="hint">Los tres procedimientos van comprendidos en este importe</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.fase.procedimiento}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Medicinas para estimulación ovárica
+                  <span class="hint">Costo aproximado</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.fase.medicacion}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Honorarios médicos
+                  <span class="hint">Pago en efectivo o transferencia bancaria</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.fase.honorarios}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+{{> total}}
+      </section>
+
+      <section class="section">
+        <h2>Consideraciones</h2>
+        <ul class="notes">
+          <li>No incluye la legalización del consentimiento informado.</li>
+          <li>No incluye los exámenes previos al tratamiento <span class="note">(vigencia de 6 meses)</span>.</li>
+          <li>No incluye el mantenimiento de la criopreservación de los ovocitos (<span class="price">S/ {{extras.mantenimiento_mensual}}</span> mensuales).</li>
+          <li class="k">Si en la primera visita no se llega a iniciar el tratamiento, deberá cancelar <span class="price">S/ {{extras.control_ecografico}}</span> por el control ecográfico.</li>
+          <li><b>Nota:</b> los análisis se deben realizar antes de iniciar el tratamiento como requisito primordial; sin ellos no se podrá empezar la estimulación.</li>
+        </ul>
+      </section>
+
+    </div>
+{{> pageFooter}}
+  </section>
+
+  <!-- ============== PÁGINA 2 ============================== -->
+  <section class="sheet" data-screen-label="02">
+    <div class="sheet-body">
+{{> runHead}}
+{{> evaluaciones mujerCompleta=true sinPsico=true}}
+{{> terminos}}
+{{> firmas}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+{{> docEnd}}
