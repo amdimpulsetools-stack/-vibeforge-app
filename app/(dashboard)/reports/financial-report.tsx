@@ -158,7 +158,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-6 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
           <div className="rounded-xl border border-border bg-card p-4">
             <CardTitle icon={DollarSign} label={t("reports.total_billed")} tooltip={t("reports.tooltip_total_billed")} />
             <p className="mt-2 text-2xl font-bold">S/. {totalRevenue.toFixed(2)}</p>
@@ -185,7 +185,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
           <div className="rounded-xl border border-border bg-card p-4">
             <h3 className="text-sm font-semibold mb-3">{t("reports.appointments_by_doctor")}</h3>
             {chartData.length > 0 ? (

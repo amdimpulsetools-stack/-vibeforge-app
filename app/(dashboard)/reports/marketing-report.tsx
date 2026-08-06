@@ -335,7 +335,7 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
         <div className="rounded-xl border border-border bg-card p-4">
           <CardTitle icon={Target} label={t("reports.conversion_rate")} tooltip={t("reports.tooltip_conversion_rate")} />
           <p className="mt-2 text-2xl font-bold text-success-600">{conversionData.conversionRate}%</p>
@@ -361,7 +361,7 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
       </div>
 
       {/* Charts row */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
         {/* Origin donut chart */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.origin_distribution")}</h3>
@@ -475,7 +475,7 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
           </span>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
           {/* Departamento donut chart */}
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground mb-3">Distribución por Departamento</h4>
@@ -558,7 +558,7 @@ export const MarketingReport = forwardRef<ReportExportHandle, MarketingReportPro
           </p>
         ) : (
           <>
-            <div className="grid gap-4 md:grid-cols-3 mb-5">
+            <div className="grid gap-4 md:grid-cols-3 mb-5 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
               <div className="rounded-lg border border-border bg-muted/20 p-3">
                 <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   Edad promedio

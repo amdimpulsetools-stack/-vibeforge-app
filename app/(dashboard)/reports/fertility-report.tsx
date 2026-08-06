@@ -193,7 +193,7 @@ export function FertilityReport({
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
               <KpiCard
                 icon={Users}
                 label="Primeras consultas (rango)"
@@ -245,7 +245,7 @@ export function FertilityReport({
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Presupuestos
         </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
           <KpiCard
             icon={Receipt}
             label="Enviados (rango)"
@@ -276,7 +276,7 @@ export function FertilityReport({
           />
         </div>
 
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
           {/* Por asesora */}
           <div className="rounded-xl border border-border bg-card p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">

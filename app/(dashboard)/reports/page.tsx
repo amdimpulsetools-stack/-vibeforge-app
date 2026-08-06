@@ -192,7 +192,13 @@ export default function ReportsPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        {/* `overflow-y-auto` por sí solo hace que overflow-x compute a
+            `auto`: cualquier KPI o gráfico que se pasara de ancho abría
+            una barra horizontal justo en el pie del viewport. Los anchos
+            ya están saneados en los reportes (min-w-0 + wrap), así que en
+            móvil se clava a `hidden`; las tablas anchas siguen scrolleando
+            en su propio wrapper. Desde md nada cambia. */}
+        <div className="flex-1 overflow-y-auto p-4 max-md:overflow-x-hidden md:p-6">
           {/* AI Summary Panel (appears when active) */}
           <AiSummaryPanel reportType={activeTab} dateFrom={dateFrom} dateTo={dateTo} />
 

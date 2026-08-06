@@ -256,7 +256,7 @@ export const RetentionReport = forwardRef<ReportExportHandle, RetentionReportPro
     return (
       <div className="space-y-6">
         {/* KPI Cards */}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-5 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
           <div className="rounded-xl border border-border bg-card p-4">
             <CardTitle icon={UserCheck} label={t("retention.returning_patients")} tooltip={t("retention.tooltip_returning")} iconClass="text-emerald-500" />
             <p className="mt-2 text-2xl font-bold text-emerald-600">{overview?.returning_patients ?? 0}</p>
@@ -283,7 +283,7 @@ export const RetentionReport = forwardRef<ReportExportHandle, RetentionReportPro
         </div>
 
         {/* Charts */}
-        <div className="grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
           {/* Monthly new vs returning */}
           <div className="rounded-xl border border-border bg-card p-4">
             <h3 className="text-sm font-semibold mb-3">{t("retention.monthly_breakdown")}</h3>

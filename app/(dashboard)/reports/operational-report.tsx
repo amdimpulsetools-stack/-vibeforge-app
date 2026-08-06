@@ -210,7 +210,7 @@ export const OperationalReport = forwardRef<ReportExportHandle, OperationalRepor
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
         <div className="rounded-xl border border-border bg-card p-4">
           <CardTitle icon={Calendar} label={t("reports.avg_daily")} tooltip={t("reports.tooltip_avg_daily")} />
           <p className="mt-2 text-2xl font-bold">{avgDailyAppointments}</p>
@@ -233,7 +233,7 @@ export const OperationalReport = forwardRef<ReportExportHandle, OperationalRepor
       </div>
 
       {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
         {/* Daily trend area chart */}
         <div className="rounded-xl border border-border bg-card p-4">
           <h3 className="text-sm font-semibold mb-3">{t("reports.daily_trend")}</h3>
@@ -287,7 +287,7 @@ export const OperationalReport = forwardRef<ReportExportHandle, OperationalRepor
       </div>
 
       {/* Bottom row: Top services + Office occupancy */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
         {/* Top services table */}
         <div className="rounded-xl border border-border bg-card">
           <div className="border-b border-border px-5 py-3">
