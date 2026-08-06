@@ -51,6 +51,16 @@ const DEFAULT_FILTERS: FollowupFilters = {
   date_to: null,
 };
 
+/**
+ * Móvil: los 3 tabs reparten el ancho completo (`flex-1`) con tipografía
+ * y gaps comprimidos para que "Recuperados 12" entre en ~103px; el
+ * `truncate` es solo la red de seguridad para pantallas de 360px con
+ * contadores de 3 dígitos. Desde `md:` se restauran exactamente los
+ * valores del primitivo (px-3, text-sm, gap-2, ancho intrínseco).
+ */
+const TAB_TRIGGER_CLASS =
+  "min-w-0 flex-1 gap-1 overflow-hidden px-1.5 text-xs md:flex-none md:gap-2 md:overflow-visible md:px-3 md:text-sm";
+
 const TAB_TO_VARIANT: Record<string, FollowupVariant> = {
   pending: "pending",
   recovered: "recovered",
@@ -474,11 +484,13 @@ export default function FollowUpsPage() {
        main ×2 = 6rem. Desde md se conserva el valor anterior. */
     <div className="flex h-[calc(100dvh-6rem)] flex-col md:h-[calc(100vh-3.5rem)]">
       {/* Header */}
-      <div className="border-b border-border bg-card px-6 py-4">
+      {/* En móvil el `main` del layout ya aporta 16px por lado: con `px-6`
+          aquí se acumulaban 40px (10% del viewport por lado). */}
+      <div className="border-b border-border bg-card px-4 py-3 md:px-6 md:py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <h1 className="text-lg font-bold">Seguimientos</h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="pr-2 text-[13px] text-muted-foreground md:pr-0 md:text-sm">
               {hasJourney
                 ? "Pacientes pendientes de contactar para agendar próxima cita"
                 : "Pacientes que esperan tu contacto para volver"}
@@ -487,7 +499,7 @@ export default function FollowUpsPage() {
           <div className="flex items-center gap-2">
             <button
               onClick={refresh}
-              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent"
+              className="flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm hover:bg-accent md:h-auto md:py-2"
               aria-label="Recargar"
             >
               <RefreshCcw className="h-4 w-4" />
@@ -497,9 +509,11 @@ export default function FollowUpsPage() {
                 deep-link del dashboard ve una bandeja recortada sin
                 pista de por qué. Con "Todos" volvemos al estado base. */}
             {filters.doctor_id !== "all" && (
-              <span className="flex items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary">
-                {doctors.find((d) => d.id === filters.doctor_id)?.full_name ??
-                  "Doctor"}
+              <span className="flex min-w-0 max-w-[45vw] items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary md:max-w-none">
+                <span className="truncate">
+                  {doctors.find((d) => d.id === filters.doctor_id)?.full_name ??
+                    "Doctor"}
+                </span>
                 <button
                   type="button"
                   onClick={() =>
@@ -508,7 +522,7 @@ export default function FollowUpsPage() {
                   className="rounded p-0.5 hover:bg-primary/20"
                   aria-label="Quitar filtro de doctor"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-3 w-3 shrink-0" />
                 </button>
               </span>
             )}
@@ -520,7 +534,7 @@ export default function FollowUpsPage() {
               }}
             >
               <SheetTrigger asChild>
-                <button className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent">
+                <button className="flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-sm hover:bg-accent md:h-auto md:py-2">
                   <Filter className="h-4 w-4" />
                   Filtros
                 </button>
@@ -564,24 +578,29 @@ export default function FollowUpsPage() {
       </div>
 
       {/* Tabs */}
-      <div className="px-6 pt-4">
+      <div className="px-4 pt-3 md:px-6 md:pt-4">
         <Tabs
           value={tab}
           onValueChange={(v) =>
             setTab(v as "pending" | "recovered" | "no_response")
           }
         >
-          <TabsList>
-            <TabsTrigger value="pending">
-              Pendientes
+          {/* En móvil los 3 triggers reparten el ancho completo: el
+              primitivo es `inline-flex` + `whitespace-nowrap`, así que sin
+              esto el último tab quedaba cortado. */}
+          <TabsList className="w-full md:w-auto">
+            <TabsTrigger value="pending" className={TAB_TRIGGER_CLASS}>
+              <span className="truncate">Pendientes</span>
               <CountBadge count={counts.pending} />
             </TabsTrigger>
-            <TabsTrigger value="recovered">
-              Recuperados
-              <CountBadge count={counts.recovered} tone="emerald" />
+            <TabsTrigger value="recovered" className={TAB_TRIGGER_CLASS}>
+              <span className="truncate">Recuperados</span>
+              <CountBadge count={counts.recovered} tone="success" />
             </TabsTrigger>
-            <TabsTrigger value="no_response">
-              Sin respuesta
+            <TabsTrigger value="no_response" className={TAB_TRIGGER_CLASS}>
+              {/* Etiqueta corta solo en móvil: preferible a truncar. */}
+              <span className="truncate md:hidden">Sin resp.</span>
+              <span className="hidden truncate md:inline">Sin respuesta</span>
               <CountBadge count={counts.no_response} tone="amber" />
             </TabsTrigger>
           </TabsList>
@@ -700,7 +719,7 @@ function PendingTabContent({
     );
   }
   return (
-    <div className="space-y-2 pb-12">
+    <div className="space-y-3 pb-12 md:space-y-2">
       {state.items.map((f) => (
         <FollowupCard
           key={f.id}
@@ -747,7 +766,7 @@ function RecoveredTabContent({
           description="No se registraron recuperaciones en los últimos 30 días."
         />
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3 md:space-y-2">
           {state.items.map((f) => (
             <FollowupCard key={f.id} followup={f} variant="recovered" />
           ))}
@@ -793,7 +812,7 @@ function NoResponseTabContent({
     );
   }
   return (
-    <div className="space-y-2 pb-12">
+    <div className="space-y-3 pb-12 md:space-y-2">
       {state.items.map((f) => (
         <FollowupCard
           key={f.id}
@@ -826,7 +845,7 @@ function RecoveredKpiHeader({
   return (
     <div
       className={cn(
-        "grid grid-cols-2 gap-3",
+        "grid grid-cols-2 gap-2 md:gap-3",
         showRevenue ? "lg:grid-cols-4" : "lg:grid-cols-3"
       )}
     >
@@ -835,7 +854,7 @@ function RecoveredKpiHeader({
         label="Recuperaciones atribuibles"
         value={String(kpis.recovered_attributable)}
         helper="últimos 30 días"
-        tone="emerald"
+        tone="success"
       />
       <KpiCard
         icon={<Users className="h-4 w-4" />}
@@ -849,7 +868,7 @@ function RecoveredKpiHeader({
         label="Tasa de recuperación"
         value={`${Math.round(kpis.recovery_rate_pct)}%`}
         helper="recuperados / cerrados"
-        tone="emerald"
+        tone="success"
       />
       {showRevenue && (
         <KpiCard
@@ -875,22 +894,22 @@ function KpiCard({
   label: string;
   value: string;
   helper: string;
-  tone: "emerald" | "violet" | "muted";
+  tone: "success" | "violet" | "muted";
 }) {
   const toneClass =
-    tone === "emerald"
-      ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-600"
+    tone === "success"
+      ? "border-success-500/20 bg-success-500/5 text-success-600"
       : tone === "violet"
         ? "border-violet-500/20 bg-violet-500/5 text-violet-600"
         : "border-border bg-card text-foreground";
 
   return (
     <div className={`rounded-xl border p-3 ${toneClass}`}>
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wider opacity-80">
-        {icon}
-        <span>{label}</span>
+      <div className="flex items-start gap-2 text-xs font-medium uppercase tracking-wider opacity-80 md:items-center">
+        <span className="mt-0.5 shrink-0 md:mt-0">{icon}</span>
+        <span className="min-w-0">{label}</span>
       </div>
-      <div className="mt-2 text-2xl font-bold">{value}</div>
+      <div className="mt-2 text-xl font-bold md:text-2xl">{value}</div>
       <div className="text-[11px] opacity-70">{helper}</div>
     </div>
   );
@@ -927,7 +946,7 @@ function LoadMoreButton({
       <button
         onClick={onClick}
         disabled={loading}
-        className="flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm hover:bg-accent disabled:opacity-50"
+        className="flex h-11 w-full max-w-xs items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 text-sm hover:bg-accent disabled:opacity-50 md:h-auto md:w-auto md:py-2"
       >
         {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
         Cargar más
@@ -941,18 +960,21 @@ function CountBadge({
   tone = "primary",
 }: {
   count: number;
-  tone?: "primary" | "emerald" | "amber";
+  tone?: "primary" | "success" | "amber";
 }) {
   if (count === 0) return null;
   const cls =
-    tone === "emerald"
-      ? "bg-emerald-500/15 text-emerald-600"
+    tone === "success"
+      ? "bg-success-500/15 text-success-600"
       : tone === "amber"
         ? "bg-amber-500/15 text-amber-600"
         : "bg-primary/15 text-primary";
   return (
     <span
-      className={`ml-1.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-semibold ${cls}`}
+      className={cn(
+        "ml-1 inline-flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-semibold md:ml-1.5 md:h-5 md:min-w-5 md:px-1.5 md:text-[11px]",
+        cls
+      )}
     >
       {count > 99 ? "99+" : count}
     </span>

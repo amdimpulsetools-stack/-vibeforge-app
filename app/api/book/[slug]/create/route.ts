@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyOrgMembers } from "@/lib/live-notifications/notify";
 import { rateLimit } from "@/lib/rate-limit";
 import { buildEmailHtml } from "@/lib/email-template";
 import { sendEmail, isEmailConfigured } from "@/lib/resend";
@@ -154,7 +155,9 @@ export async function POST(
   // 6. Verify doctor exists and is active
   const { data: doctor } = await supabase
     .from("doctors")
-    .select("id, full_name")
+    // user_id: destinatario de la notificación en vivo cuando el evento
+    // "reserva online" está configurado con alcance "sólo sus citas".
+    .select("id, full_name, user_id")
     .eq("id", data.doctor_id)
     .eq("organization_id", org.id)
     .eq("is_active", true)
@@ -330,19 +333,16 @@ export async function POST(
   }
 
   // 13. Create in-app notification (fire-and-forget)
+  // Fan-out por rol vía RPC (mig 192) en lugar del broadcast a toda la org.
   const formattedTime = data.start_time.slice(0, 5);
-  supabase
-    .from("notifications")
-    .insert({
-      organization_id: org.id,
-      type: "appointment_created",
-      title: "Nueva reserva en línea",
-      body: `${fullName} reservó con ${doctor.full_name} el ${data.appointment_date} a las ${formattedTime}`,
-      action_url: `/scheduler?date=${data.appointment_date}`,
-    })
-    .then(({ error: nErr }) => {
-      if (nErr) console.error("[Public Booking] Notification insert error:", nErr);
-    });
+  void notifyOrgMembers(supabase, {
+    organizationId: org.id,
+    event: "booking_created",
+    title: "Nueva reserva en línea",
+    body: `${fullName} reservó con ${doctor.full_name} el ${data.appointment_date} a las ${formattedTime}`,
+    actionUrl: `/scheduler?date=${data.appointment_date}`,
+    doctorUserId: doctor.user_id ?? null,
+  });
 
   // 14. Send confirmation email (fire-and-forget)
   if (data.patient_email) {

@@ -19,6 +19,7 @@ import {
   Bell,
   CalendarPlus,
   CalendarX2,
+  UserX,
   Banknote,
   Info,
   Check,
@@ -34,6 +35,7 @@ import { useMobileNav } from "./mobile-nav-context";
 const TYPE_CONFIG: Record<string, { icon: typeof Bell; className: string }> = {
   appointment_created: { icon: CalendarPlus, className: "text-emerald-500" },
   appointment_cancelled: { icon: CalendarX2, className: "text-red-400" },
+  appointment_no_show: { icon: UserX, className: "text-amber-500" },
   payment_received: { icon: Banknote, className: "text-amber-400" },
   info: { icon: Info, className: "text-blue-400" },
 };

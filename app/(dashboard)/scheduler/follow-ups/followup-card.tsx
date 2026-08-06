@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -182,7 +182,6 @@ export function FollowupCard({
   const [busy, setBusy] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [closeReason, setCloseReason] = useState("");
-  const [isMobile, setIsMobile] = useState(false);
   const [reagendarOpen, setReagendarOpen] = useState(false);
   const [reagendarDate, setReagendarDate] = useState("");
   const [agendoOpen, setAgendoOpen] = useState(false);
@@ -190,18 +189,6 @@ export function FollowupCard({
   const [assignBudgetOpen, setAssignBudgetOpen] = useState(false);
   const { organization } = useOrganization();
   const { isReceptionist } = useOrgRole();
-
-  // Track viewport so the WA/Copy button styling reflows on resize. The
-  // initial state is `false` (desktop-first) — if we're actually on
-  // mobile the effect flips it on the next paint.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mql = window.matchMedia("(max-width: 768px)");
-    const update = () => setIsMobile(mql.matches);
-    update();
-    mql.addEventListener("change", update);
-    return () => mql.removeEventListener("change", update);
-  }, []);
 
   const patient = followup.patients;
   const patientName = patient
@@ -337,6 +324,69 @@ export function FollowupCard({
     }
   };
 
+  /**
+   * Ir al scheduler con paciente y doctor precargados. Extraído del
+   * `onClick` inline porque ahora tiene dos call-sites: el botón
+   * "Agendar" del clúster de desktop y el ítem del menú "···" (en móvil
+   * el clúster está oculto y el menú es la única vía).
+   */
+  const handleAgendarCita = () => {
+    const params = new URLSearchParams();
+    if (patient)
+      params.set("patient_name", `${patient.first_name} ${patient.last_name}`);
+    if (followup.doctor_id) params.set("doctor_id", followup.doctor_id);
+    window.location.href = `/scheduler?new=1&${params}`;
+  };
+
+  /**
+   * Menú "···" de acciones secundarias. Se renderiza dos veces con el
+   * mismo contenido: dentro del clúster de desktop (donde vivía) y en la
+   * fila del nombre en móvil, donde el clúster pasa a `hidden md:flex`.
+   * "Copiar mensaje" y "Agendar cita" están también como botones en el
+   * clúster de desktop; aquí van sin gate porque en desktop no estorban
+   * y en móvil son la única vía.
+   */
+  const renderMoreMenu = (triggerClassName: string) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className={triggerClassName} aria-label="Más acciones">
+          <MoreHorizontal className="h-4 w-4 md:h-3.5 md:w-3.5" />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[200px]">
+        <DropdownMenuItem
+          disabled={!waPhone}
+          onSelect={() => void handleCopyMessage()}
+        >
+          Copiar mensaje
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={handleAgendarCita}>
+          Agendar cita
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => wrap(() => onSnooze?.(7))}>
+          Posponer 7 días
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => wrap(() => onSnooze?.(15))}>
+          Posponer 15 días
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => wrap(() => onSnooze?.(30))}>
+          Posponer 30 días
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => wrap(onMarkNoResponse)}>
+          Marcar como sin respuesta
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => setCloseOpen(true)}
+          className="text-destructive focus:text-destructive"
+        >
+          Cerrar sin agendar
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   const stepActiveIdx = ruleStepperActiveIdx(followup.rule_key);
 
   // ── Cascade state (Sprint 1) ───────────────────────────────────────
@@ -350,6 +400,17 @@ export function FollowupCard({
     followup.status === "pendiente" || followup.status === "pospuesto";
   const canReagendar = attemptCount < maxAttempts;
   const isLastAttempt = attemptCount === maxAttempts - 1;
+
+  // ¿Hay algo que pintar en la fila de chips? En móvil esa fila es un
+  // bloque propio bajo el nombre: si va vacía dejaría un hueco muerto.
+  const showAttemptChip = variant === "pending" && isOpen;
+  const showPriorityChip = variant === "pending" && showPriorityDot;
+  const hasChips =
+    showAttemptChip ||
+    showPriorityChip ||
+    originBadge !== null ||
+    linkedBudget !== null ||
+    stepActiveIdx !== null;
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const ninetyDaysStr = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
@@ -400,153 +461,218 @@ export function FollowupCard({
     <>
       <div
         className={cn(
-          "rounded-xl border p-4 transition-all hover:shadow-md",
+          "rounded-xl border p-3.5 transition-all hover:shadow-md md:p-4",
           borderClass,
           justMoved && "ring-2 ring-blue-500/60 ring-offset-2 ring-offset-background"
         )}
       >
-        <div className="flex items-start justify-between gap-4">
-          {/* Left: Info */}
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="flex items-center gap-2 flex-wrap">
-              {variant === "recovered" ? (
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-success-500" />
-              ) : variant === "no_response" ? (
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-              ) : (
-                <User className="h-4 w-4 shrink-0 text-muted-foreground" />
-              )}
-              <span className="text-sm font-semibold">{patientName}</span>
-
-              {variant === "pending" && (
-                <>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-4">
+          {/* Left: Info.
+              Móvil: columna flex para poder reordenar (el motivo sube por
+              delante del teléfono, que es la última cosa que se lee antes
+              de marcar). Desktop: `md:block` ignora los `order-*` y deja
+              el orden del DOM y el `space-y-2` de siempre. */}
+          <div className="flex min-w-0 flex-1 flex-col gap-2 md:block md:space-y-2">
+            {/*
+              Móvil: dos filas apiladas — (A) nombre + señal principal +
+              menú "···", (B) chips. Desktop: `md:contents` disuelve los
+              dos wrappers y todos los hijos vuelven a la MISMA fila
+              `flex-wrap` de siempre, así que md+ no cambia.
+            */}
+            <div className="order-1 flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+              {/* Bloque A — nombre + badge principal (+ "···" en móvil) */}
+              <div className="flex items-start justify-between gap-2 md:contents">
+                <div className="flex min-w-0 items-center gap-2 md:contents">
+                  {variant === "recovered" ? (
+                    <CheckCircle2 className="h-5 w-5 shrink-0 text-success-500" />
+                  ) : variant === "no_response" ? (
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
+                  ) : (
+                    <User className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
                   <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                      urgency.bgLight,
-                      urgency.textColor
-                    )}
-                    title={urgency.title}
+                    title={patientName}
+                    className="min-w-0 truncate text-[15px] font-semibold leading-snug md:overflow-visible md:whitespace-normal md:text-sm"
                   >
-                    <UrgencyIcon className="h-3 w-3" />
-                    {urgency.label}
+                    {patientName}
                   </span>
-                  {showPriorityDot && (
+                </div>
+
+                <div className="flex shrink-0 items-center gap-1.5 md:contents">
+                  {variant === "pending" && (
                     <span
                       className={cn(
-                        "h-2 w-2 shrink-0 rounded-full",
-                        priorityConfig.color
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium whitespace-nowrap",
+                        urgency.bgLight,
+                        urgency.textColor
                       )}
+                      title={urgency.title}
+                    >
+                      <UrgencyIcon className="h-3 w-3 shrink-0" />
+                      {urgency.label}
+                    </span>
+                  )}
+
+                  {/* `md:order-1` devuelve el badge al final de la fila de
+                      desktop (donde lo dejaba el `ml-auto`), detrás de los
+                      chips del bloque B. */}
+                  {variant === "recovered" && (
+                    <span
+                      className={cn(
+                        "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium md:order-1",
+                        followup.status === "agendado_via_contacto"
+                          ? "bg-success-500/10 text-success-600"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {followup.status === "agendado_via_contacto"
+                        ? "Recuperada"
+                        : "Volvió por iniciativa propia"}
+                    </span>
+                  )}
+
+                  {variant === "no_response" && (
+                    <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-amber-600 md:order-1">
+                      Sin respuesta
+                    </span>
+                  )}
+
+                  {variant === "pending" &&
+                    renderMoreMenu(
+                      "-mr-1 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
+                    )}
+                </div>
+              </div>
+
+              {/* Bloque B — chips */}
+              {hasChips && (
+                <div className="flex flex-wrap items-center gap-1.5 md:contents">
+                  {/* Prioridad clínica: en móvil chip etiquetado (un dot de
+                      8px suelto es ilegible en el pulgar); en desktop el
+                      chip se desviste y queda el dot de siempre. */}
+                  {showPriorityChip && (
+                    <span
+                      className="order-last inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground md:order-none md:gap-0 md:border-0 md:bg-transparent md:p-0"
                       title={`Prioridad clínica: ${priorityConfig.label}`}
                       aria-label={`Prioridad clínica: ${priorityConfig.label}`}
-                    />
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "h-2 w-2 shrink-0 rounded-full",
+                          priorityConfig.color
+                        )}
+                      />
+                      <span className="md:hidden">{priorityConfig.label}</span>
+                    </span>
                   )}
-                </>
-              )}
 
-              {variant === "pending" && isOpen && (
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                    attemptChipClass
+                  {showAttemptChip && (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap",
+                        attemptChipClass
+                      )}
+                      title={`Intento ${currentAttempt} de ${maxAttempts}`}
+                    >
+                      Intento {currentAttempt}/{maxAttempts}
+                    </span>
                   )}
-                  title={`Intento ${currentAttempt} de ${maxAttempts}`}
-                >
-                  Intento {currentAttempt}/{maxAttempts}
-                </span>
-              )}
 
-              {originBadge?.kind === "automated" && (
-                <span
-                  className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium"
-                  style={{
-                    borderColor: `${VIOLET}55`,
-                    color: VIOLET,
-                    backgroundColor: `${VIOLET}14`,
-                  }}
-                >
-                  <Sparkles className="h-3 w-3" />
-                  Automatizado
-                </span>
-              )}
-
-              {originBadge?.kind === "control" && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium text-blue-600 dark:text-blue-400">
-                  <CalendarClock className="h-3 w-3" />
-                  Control
-                </span>
-              )}
-
-              {originBadge?.kind === "manual" && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                  <Stethoscope className="h-3 w-3" />
-                  Manual
-                </span>
-              )}
-
-              {linkedBudget && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-700 dark:text-cyan-400">
-                  <Receipt className="h-3 w-3" />
-                  Presupuesto {BUDGET_TREATMENT_TYPE_LABELS[linkedBudget.treatment_type] ?? linkedBudget.treatment_type}
-                </span>
-              )}
-
-              {variant === "recovered" && (
-                <span
-                  className={cn(
-                    "ml-auto inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium",
-                    followup.status === "agendado_via_contacto"
-                      ? "bg-success-500/10 text-success-600"
-                      : "bg-muted text-muted-foreground"
+                  {originBadge?.kind === "automated" && (
+                    <span
+                      className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium whitespace-nowrap"
+                      style={{
+                        borderColor: `${VIOLET}55`,
+                        color: VIOLET,
+                        backgroundColor: `${VIOLET}14`,
+                      }}
+                    >
+                      <Sparkles className="h-3 w-3 shrink-0" />
+                      Automatizado
+                    </span>
                   )}
-                >
-                  {followup.status === "agendado_via_contacto"
-                    ? "Recuperada"
-                    : "Volvió por iniciativa propia"}
-                </span>
-              )}
 
-              {variant === "no_response" && (
-                <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-600">
-                  Sin respuesta
-                </span>
+                  {originBadge?.kind === "control" && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-blue-600 dark:text-blue-400">
+                      <CalendarClock className="h-3 w-3 shrink-0" />
+                      Control
+                    </span>
+                  )}
+
+                  {originBadge?.kind === "manual" && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground">
+                      <Stethoscope className="h-3 w-3 shrink-0" />
+                      Manual
+                    </span>
+                  )}
+
+                  {linkedBudget && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/40 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-cyan-700 dark:text-cyan-400">
+                      <Receipt className="h-3 w-3 shrink-0" />
+                      Presupuesto {BUDGET_TREATMENT_TYPE_LABELS[linkedBudget.treatment_type] ?? linkedBudget.treatment_type}
+                    </span>
+                  )}
+
+                  {/* Etapa del journey. En móvil, chip con contexto ("Etapa
+                      2/3"); en desktop sigue pegado al motivo, como hoy. */}
+                  {stepActiveIdx !== null && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground md:hidden">
+                      <MiniStepper activeIdx={stepActiveIdx} />
+                      Etapa {stepActiveIdx + 1}/3
+                    </span>
+                  )}
+                </div>
               )}
             </div>
 
-            {/* Phone — clickable to open wa.me directly */}
+            {/* Phone — clickable to open wa.me directly. `order-3` lo deja
+                por DEBAJO del motivo en móvil (es lo último que se lee
+                antes de marcar); en desktop el orden del DOM manda y
+                queda donde siempre, encima del motivo. */}
             {displayPhone && waPhone ? (
               <a
                 href={`https://wa.me/${waPhone}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Abrir en WhatsApp"
-                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-emerald-600 transition-colors"
+                className="order-3 inline-flex min-h-11 w-fit items-center gap-1.5 whitespace-nowrap text-sm tabular-nums text-foreground/80 transition-colors hover:text-success-600 md:min-h-0 md:text-xs md:text-muted-foreground"
               >
-                <Phone className="h-3.5 w-3.5" />
+                <Phone className="h-3.5 w-3.5 shrink-0" />
                 {displayPhone}
               </a>
             ) : (
-              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/70">
-                <Phone className="h-3.5 w-3.5" />
+              <span className="order-3 inline-flex min-h-11 w-fit items-center gap-1.5 whitespace-nowrap text-sm text-muted-foreground/70 md:min-h-0 md:text-xs">
+                <Phone className="h-3.5 w-3.5 shrink-0" />
                 Sin teléfono
               </span>
             )}
 
-            <div className="flex items-center gap-2">
-              <p className="text-sm text-muted-foreground line-clamp-1">
+            {/* Motivo: en móvil es EL texto que la asesora lee antes de
+                llamar, así que respira a dos líneas; en desktop sigue a una. */}
+            <div className="order-2 flex items-center gap-2">
+              <p className="text-sm leading-relaxed text-muted-foreground line-clamp-2 md:line-clamp-1">
                 {followup.reason}
               </p>
-              {stepActiveIdx !== null && <MiniStepper activeIdx={stepActiveIdx} />}
+              {/* El stepper solo aquí en desktop: en móvil vive como chip
+                  "Etapa n/3" en la fila de chips. */}
+              {stepActiveIdx !== null && (
+                <span className="hidden md:inline-flex">
+                  <MiniStepper activeIdx={stepActiveIdx} />
+                </span>
+              )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1">
-                <Stethoscope className="h-3 w-3" />
-                {followup.doctors?.full_name ?? "—"}
+            <div className="order-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground md:gap-x-4">
+              <span className="flex min-w-0 max-w-full items-center gap-1 whitespace-nowrap">
+                <Stethoscope className="h-3 w-3 shrink-0" />
+                <span className="truncate">
+                  {followup.doctors?.full_name ?? "—"}
+                </span>
               </span>
               {dueDateLabel && (
-                <span className="flex items-center gap-1">
-                  <CalendarCheck className="h-3 w-3" />
+                <span className="flex items-center gap-1 whitespace-nowrap">
+                  <CalendarCheck className="h-3 w-3 shrink-0" />
                   {variant === "pending" ? "Vence" : "Fecha"} {dueDateLabel}
                 </span>
               )}
@@ -556,7 +682,7 @@ export function FollowupCard({
                 followup.days_diff > 0 && (
                   <span
                     className={cn(
-                      "font-medium",
+                      "font-medium whitespace-nowrap",
                       followup.days_diff <= 7
                         ? "text-amber-500"
                         : "text-success-500"
@@ -569,27 +695,27 @@ export function FollowupCard({
               {variant === "pending" && (
                 <span
                   className={cn(
-                    "flex items-center gap-1",
+                    "flex items-center gap-1 whitespace-nowrap",
                     followup.last_contacted_at
                       ? "text-muted-foreground"
                       : "text-muted-foreground/70"
                   )}
                   title="El orden de la bandeja pone primero a quien lleva más tiempo sin contacto"
                 >
-                  <History className="h-3 w-3" />
+                  <History className="h-3 w-3 shrink-0" />
                   {formatLastContacted(followup.last_contacted_at)}
                 </span>
               )}
               {variant === "recovered" && followup.closed_at && (
-                <span className="flex items-center gap-1 text-success-600">
-                  <Sparkles className="h-3 w-3" />
+                <span className="flex items-center gap-1 whitespace-nowrap text-success-600">
+                  <Sparkles className="h-3 w-3 shrink-0" />
                   {followup.status === "agendado_via_contacto"
                     ? "Vía contacto automático"
                     : "Sin contacto previo"}
                 </span>
               )}
               {variant === "no_response" && (
-                <span className="flex items-center gap-1 text-amber-600">
+                <span className="flex items-center gap-1 whitespace-nowrap text-amber-600">
                   {followup.attempt_count} intento
                   {followup.attempt_count === 1 ? "" : "s"} sin éxito
                 </span>
@@ -597,55 +723,89 @@ export function FollowupCard({
             </div>
           </div>
 
-          {/* Right: Actions */}
-          <div className="flex shrink-0 items-center gap-1.5">
+          {/* Acciones primarias de móvil. En <md el clúster de la derecha
+              está oculto: "Enviar WhatsApp" es la acción de la asesora, así
+              que se cobra una fila entera con target de 44px. */}
+          {variant === "pending" && (
+            <button
+              onClick={handleSendWhatsApp}
+              disabled={!waPhone}
+              title={
+                waPhone
+                  ? "Enviar por WhatsApp"
+                  : "El paciente no tiene teléfono registrado"
+              }
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-success-500 text-sm font-medium text-white transition-colors hover:bg-success-600 disabled:cursor-not-allowed disabled:opacity-50 md:hidden"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Enviar WhatsApp
+            </button>
+          )}
+
+          {variant === "no_response" && (
+            <div className="grid grid-cols-2 gap-2 md:hidden">
+              <button
+                onClick={() => wrap(onReactivate)}
+                disabled={busy}
+                className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-success-500/30 px-2.5 text-[13px] text-success-600 hover:bg-success-500/10 disabled:opacity-50"
+              >
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-4 w-4" />
+                )}
+                Reactivar
+              </button>
+              <button
+                onClick={() => setCloseOpen(true)}
+                className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 text-[13px] text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <XCircle className="h-4 w-4" />
+                Cerrar caso
+              </button>
+            </div>
+          )}
+
+          {/* Right: Actions (desktop). En móvil, 5 botones-icono
+              `shrink-0` ≈ 200px estrangulaban la columna de info: aquí se
+              ocultan y sus acciones se redistribuyen entre el botón de
+              WhatsApp de arriba, la cascada 2×2 y el menú "···". */}
+          <div className="hidden shrink-0 items-center gap-1.5 md:flex">
             {variant === "pending" && (
               <>
                 {/*
-                  WA + Copy buttons. Device-aware: on mobile the WA send
-                  button is the visual primary; on desktop the Copy
-                  button is. Both stay visible in both layouts. When
-                  there's no phone, both are disabled with a tooltip.
+                  Copy (primaria) + WA. En desktop el flujo real es copiar
+                  y pegar en WhatsApp Web; el envío directo vive en el link
+                  del teléfono y en el botón de móvil. Sin phone, ambos
+                  deshabilitados con tooltip.
                 */}
-                {(() => {
-                  const noPhoneTitle = "El paciente no tiene teléfono registrado";
-                  const sendPrimary = isMobile;
-                  const sendBtn = (
-                    <button
-                      key="send"
-                      onClick={handleSendWhatsApp}
-                      disabled={!waPhone}
-                      title={waPhone ? "Enviar por WhatsApp" : noPhoneTitle}
-                      className={cn(
-                        "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                        sendPrimary
-                          ? "bg-emerald-500 text-white hover:bg-emerald-600"
-                          : "border border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
-                      )}
-                    >
-                      <MessageCircle className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Enviar</span>
-                    </button>
-                  );
-                  const copyBtn = (
-                    <button
-                      key="copy"
-                      onClick={handleCopyMessage}
-                      disabled={!waPhone}
-                      title={waPhone ? "Copiar mensaje" : noPhoneTitle}
-                      className={cn(
-                        "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                        !sendPrimary
-                          ? "bg-emerald-500 text-white hover:bg-emerald-600"
-                          : "border border-border text-muted-foreground hover:bg-accent hover:text-foreground"
-                      )}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Copiar</span>
-                    </button>
-                  );
-                  return sendPrimary ? [sendBtn, copyBtn] : [copyBtn, sendBtn];
-                })()}
+                <button
+                  onClick={handleCopyMessage}
+                  disabled={!waPhone}
+                  title={
+                    waPhone
+                      ? "Copiar mensaje"
+                      : "El paciente no tiene teléfono registrado"
+                  }
+                  className="flex items-center gap-1 rounded-lg bg-success-500 px-2.5 py-1.5 text-xs text-white transition-colors hover:bg-success-600 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Copiar</span>
+                </button>
+
+                <button
+                  onClick={handleSendWhatsApp}
+                  disabled={!waPhone}
+                  title={
+                    waPhone
+                      ? "Enviar por WhatsApp"
+                      : "El paciente no tiene teléfono registrado"
+                  }
+                  className="flex items-center gap-1 rounded-lg border border-success-500/30 px-2.5 py-1.5 text-xs text-success-600 transition-colors hover:bg-success-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Enviar</span>
+                </button>
 
                 <button
                   onClick={() => wrap(onContact)}
@@ -662,17 +822,7 @@ export function FollowupCard({
                 </button>
 
                 <button
-                  onClick={() => {
-                    const params = new URLSearchParams();
-                    if (patient)
-                      params.set(
-                        "patient_name",
-                        `${patient.first_name} ${patient.last_name}`
-                      );
-                    if (followup.doctor_id)
-                      params.set("doctor_id", followup.doctor_id);
-                    window.location.href = `/scheduler?new=1&${params}`;
-                  }}
+                  onClick={handleAgendarCita}
                   className="flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1.5 text-xs text-primary hover:bg-primary/20"
                   title="Agendar cita"
                 >
@@ -680,43 +830,9 @@ export function FollowupCard({
                   <span className="hidden sm:inline">Agendar</span>
                 </button>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="flex items-center justify-center rounded-lg border border-border px-2 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
-                      aria-label="Más acciones"
-                    >
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="min-w-[200px]">
-                    <DropdownMenuItem
-                      onSelect={() => wrap(() => onSnooze?.(7))}
-                    >
-                      Posponer 7 días
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => wrap(() => onSnooze?.(15))}
-                    >
-                      Posponer 15 días
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => wrap(() => onSnooze?.(30))}
-                    >
-                      Posponer 30 días
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onSelect={() => wrap(onMarkNoResponse)}>
-                      Marcar como sin respuesta
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onSelect={() => setCloseOpen(true)}
-                      className="text-destructive focus:text-destructive"
-                    >
-                      Cerrar sin agendar
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {renderMoreMenu(
+                  "flex items-center justify-center rounded-lg border border-border px-2 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+                )}
               </>
             )}
 
@@ -725,7 +841,7 @@ export function FollowupCard({
                 <button
                   onClick={() => wrap(onReactivate)}
                   disabled={busy}
-                  className="flex items-center gap-1 rounded-lg border border-emerald-500/30 px-2.5 py-1.5 text-xs text-emerald-600 hover:bg-emerald-500/10 disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-lg border border-success-500/30 px-2.5 py-1.5 text-xs text-success-600 hover:bg-success-500/10 disabled:opacity-50"
                 >
                   {busy ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -754,11 +870,11 @@ export function FollowupCard({
           es la variante "pending" y el caller pasó `onAdvance`.
         */}
         {variant === "pending" && isOpen && onAdvance && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-3 md:flex md:flex-wrap md:items-center">
             <button
               onClick={() => setAgendoOpen(true)}
               disabled={busy}
-              className="flex items-center gap-1 rounded-lg bg-success-500 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-success-600 disabled:opacity-50"
+              className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-success-500 px-2.5 text-[13px] font-medium text-white hover:bg-success-600 disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
               title="La paciente agendó cita"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -770,7 +886,7 @@ export function FollowupCard({
                 handleAdvance({ kind: "mark_contacted" })
               }
               disabled={busy || !canMarkContacted}
-              className="flex items-center gap-1 rounded-lg border border-blue-500/40 px-2.5 py-1.5 text-xs text-blue-600 hover:bg-blue-500/10 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-blue-500/40 px-2.5 text-[13px] text-blue-600 hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
               title={
                 canMarkContacted
                   ? "Marcar como contactada (sin decisión todavía)"
@@ -788,7 +904,7 @@ export function FollowupCard({
               }}
               disabled={busy || !canReagendar}
               className={cn(
-                "flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs disabled:opacity-50 disabled:cursor-not-allowed",
+                "flex h-11 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[13px] disabled:cursor-not-allowed disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs",
                 isLastAttempt
                   ? "border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
                   : "border-violet-500/40 text-violet-600 hover:bg-violet-500/10"
@@ -808,7 +924,7 @@ export function FollowupCard({
             <button
               onClick={() => setSinRespuestaOpen(true)}
               disabled={busy}
-              className="flex items-center gap-1 rounded-lg border border-red-500/40 px-2.5 py-1.5 text-xs text-red-600 hover:bg-red-500/10 disabled:opacity-50"
+              className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-red-500/40 px-2.5 text-[13px] text-red-600 hover:bg-red-500/10 disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
               title="Cerrar caso sin respuesta"
             >
               <ThumbsDown className="h-3.5 w-3.5" />
@@ -816,12 +932,12 @@ export function FollowupCard({
             </button>
 
             {isLastAttempt && (
-              <span className="text-[11px] text-amber-600/80">
+              <span className="col-span-2 text-[11px] text-amber-600/80 md:col-span-1">
                 Último intento — si reagendas otra vez se cierra automáticamente.
               </span>
             )}
             {busy && (
-              <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+              <Loader2 className="col-span-2 h-3.5 w-3.5 animate-spin justify-self-center text-muted-foreground md:col-span-1" />
             )}
           </div>
         )}
@@ -843,7 +959,7 @@ export function FollowupCard({
               <button
                 onClick={() => setAssignBudgetOpen(true)}
                 disabled={busy}
-                className="flex items-center gap-1 rounded-lg border border-emerald-500/40 bg-emerald-500/5 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-500/15 disabled:opacity-50 dark:text-emerald-400"
+                className="flex h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-success-500/40 bg-success-500/5 px-2.5 text-[13px] font-medium text-success-700 hover:bg-success-500/15 disabled:opacity-50 md:h-auto md:w-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs dark:text-success-400"
                 title="Asignar presupuesto al paciente"
               >
                 <Receipt className="h-3.5 w-3.5" />
@@ -1079,10 +1195,12 @@ function ruleStepperActiveIdx(ruleKey: string | null): number | null {
 }
 
 function MiniStepper({ activeIdx }: { activeIdx: number }) {
+  // Vía CSS vars del tema: los hex fijos desentonaban con los acentos
+  // océano/arena, y `success-*` es verde en todos los temas por diseño.
   const colors = [0, 1, 2].map((i) => {
-    if (i < activeIdx) return "#86efac"; // completed (light green)
-    if (i === activeIdx) return "#10b981"; // active (strong green)
-    return "#e5e7eb"; // pending (gray)
+    if (i < activeIdx) return "var(--color-success-300)"; // completed
+    if (i === activeIdx) return "var(--color-success-500)"; // active
+    return "var(--color-border)"; // pending
   });
   return (
     <svg

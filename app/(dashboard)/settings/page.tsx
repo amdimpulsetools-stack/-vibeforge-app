@@ -74,6 +74,7 @@ const TabLoader = () => (
 );
 
 const EmailSettingsTab = dynamic(() => import("./email-settings-tab"), { loading: TabLoader });
+const LiveNotificationsSection = dynamic(() => import("./live-notifications-section"), { loading: TabLoader });
 const PermissionsSettingsTab = dynamic(() => import("./permissions-settings-tab"), { loading: TabLoader });
 const WhatsAppClipboardTab = dynamic(() => import("./whatsapp-clipboard-tab"), { loading: TabLoader });
 const WhatsAppConfigTab = dynamic(() => import("./whatsapp-config-tab"), { loading: TabLoader });
@@ -1864,7 +1865,16 @@ export default function SettingsPage() {
       {activeTab === "reservas" && <BookingSettingsTab />}
 
       {/* ── Correos tab ──────────────────────────────────────────────────────── */}
-      {activeTab === "correos" && <EmailSettingsTab />}
+      {activeTab === "correos" && (
+        <div className="space-y-6">
+          <EmailSettingsTab />
+          {/* Campanita del panel. Va aparte de la matriz evento × canal
+              porque no comparte nada con ella: otro transporte (Realtime),
+              otro destinatario (el equipo, no el paciente) y otra config
+              (rol, no plantilla). */}
+          <LiveNotificationsSection />
+        </div>
+      )}
 
       {/* ── Plantillas HC tab ────────────────────────────────────────────────── */}
       {activeTab === "plantillas-hc" && <ClinicalTemplatesTab />}

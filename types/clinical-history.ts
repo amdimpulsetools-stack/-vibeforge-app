@@ -201,7 +201,10 @@ export interface FollowupDashboardItem extends ClinicalFollowupWithRelations {
 export const FOLLOWUP_PRIORITY_CONFIG = {
   red: { label: "Urgente", color: "bg-red-500", textColor: "text-red-600", bgLight: "bg-red-500/10" },
   yellow: { label: "Moderado", color: "bg-amber-500", textColor: "text-amber-600", bgLight: "bg-amber-500/10" },
-  green: { label: "Rutina", color: "bg-emerald-500", textColor: "text-emerald-600", bgLight: "bg-emerald-500/10" },
+  // Verde de SIGNIFICADO ("rutina, sin urgencia"), no de marca: usa la
+  // escala `success-*` para que no lo recoloreen los temas de acento por
+  // organización (ver app/globals.css).
+  green: { label: "Rutina", color: "bg-success-500", textColor: "text-success-600", bgLight: "bg-success-500/10" },
 } as const;
 
 // ── Clinical Note Versions ───────────────────────────────────────────────────
