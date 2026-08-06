@@ -407,24 +407,29 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     <div className="w-full border-l border-border bg-card md:w-[480px] lg:w-[580px] shrink-0 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="border-b border-border px-5 py-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
+        {/* A 390px el bloque de identidad (avatar + nombre + DNI/edad/estado)
+            se pasaba del borde derecho y empujaba los botones fuera de la
+            pantalla: los flex items traen `min-width:auto`, así que nada
+            podía encogerse. Con `min-w-0` + wrap el texto reparte líneas y
+            el avatar y las acciones se quedan fijos donde tocan. */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
             <div
-              className="flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold text-white"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
               style={{
                 backgroundColor: PATIENT_STATUS_COLORS[patient.status] ?? "#9ca3af",
               }}
             >
               {patient.first_name[0]}{patient.last_name[0]}
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-bold">
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <h3 className="min-w-0 break-words text-base font-bold">
                   {patient.first_name} {patient.last_name}
                 </h3>
                 {patient.is_recurring && <RecurringBadge size="xs" />}
               </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                 {patient.dni && <span>{patient.document_type ?? "DNI"}: {patient.dni}</span>}
                 {patient.birth_date && (() => {
                   const age = calculateAge(patient.birth_date);
@@ -442,7 +447,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex shrink-0 items-center gap-1">
             {/* Vista expandida — pensada para escritorio (modal de dos
                 columnas); en móvil el drawer YA ocupa toda la pantalla. */}
             <button
@@ -469,15 +474,18 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         </div>
 
         {/* Contact info */}
+        {/* `break-all` en el email: un correo largo es una sola "palabra"
+            y sin esto se salía por la derecha aunque el contenedor envuelva. */}
         <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
           {patient.phone && (
-            <span className="flex items-center gap-1">
-              <Phone className="h-3 w-3" /> {patient.phone}
+            <span className="flex min-w-0 items-center gap-1">
+              <Phone className="h-3 w-3 shrink-0" /> {patient.phone}
             </span>
           )}
           {patient.email && (
-            <span className="flex items-center gap-1">
-              <Mail className="h-3 w-3" /> {patient.email}
+            <span className="flex min-w-0 max-w-full items-center gap-1">
+              <Mail className="h-3 w-3 shrink-0" />{" "}
+              <span className="min-w-0 break-all">{patient.email}</span>
             </span>
           )}
         </div>
@@ -563,26 +571,52 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-border overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-1.5 py-2.5 text-xs font-medium transition-colors border-b-2 shrink-0",
-              activeTab === tab.key
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <tab.icon className="h-3.5 w-3.5" />
-            {tab.label}
-          </button>
-        ))}
+      {/* Móvil: tira de "pills" en vez del subrayado apretado. Cada tab es
+          un objetivo táctil de 40px con px propio, la tira hace snap para
+          que ninguno quede cortado a medias al soltar el dedo, la barra de
+          scroll se oculta (en iOS es un adorno que además tapa contenido) y
+          en su lugar un degradado a la derecha avisa de que hay más — el
+          `pr-8` iguala la anchura del fundido, así que al llegar al final
+          el último tab queda entero y nítido. Sin JS: todo es CSS.
+          Todos los añadidos van con `max-md:`, así que desde md no existe
+          ni una regla nueva y el render es idéntico al de siempre
+          (subrayado a ancho repartido con barra nativa). */}
+      <div className="border-b border-border">
+        <div
+          className={cn(
+            "flex overflow-x-auto",
+            "max-md:snap-x max-md:snap-mandatory max-md:gap-1.5 max-md:py-2 max-md:pl-3 max-md:pr-8",
+            "max-md:[-ms-overflow-style:none] max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden",
+            "max-md:[mask-image:linear-gradient(to_right,#000_calc(100%_-_2rem),transparent)]",
+            "max-md:[-webkit-mask-image:linear-gradient(to_right,#000_calc(100%_-_2rem),transparent)]"
+          )}
+        >
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={cn(
+                "flex items-center justify-center gap-1.5 text-xs font-medium transition-colors shrink-0",
+                "max-md:h-10 max-md:snap-start max-md:whitespace-nowrap max-md:rounded-full max-md:px-3.5",
+                "md:flex-1 md:border-b-2 md:py-2.5",
+                activeTab === tab.key
+                  ? "text-primary max-md:bg-primary/10 md:border-primary"
+                  : "text-muted-foreground hover:text-foreground md:border-transparent"
+              )}
+            >
+              <tab.icon className="h-3.5 w-3.5 shrink-0" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-y-auto p-4">
+      {/* `overflow-y-auto` a solas hace que overflow-x compute a `auto`, así
+          que cualquier campo pasado de ancho abría una barra lateral fea en
+          la ficha. Los anchos ya están saneados arriba; en móvil se clava a
+          `hidden` y las tablas anchas siguen scrolleando en su wrapper. */}
+      <div className="flex-1 overflow-y-auto p-4 max-md:overflow-x-hidden">
 
         {/* ===== INFO TAB (EDIT PATIENT) ===== */}
         {activeTab === "info" && (
@@ -823,16 +857,16 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     className="rounded-lg border border-border p-3"
                     style={{ borderLeftWidth: "4px", borderLeftColor: statusColor }}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <StatusIcon className="h-4 w-4" style={{ color: statusColor }} />
+                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                        <StatusIcon className="h-4 w-4 shrink-0" style={{ color: statusColor }} />
                         <span className="text-xs font-semibold">{appt.appointment_date.split("-").reverse().join("/")}</span>
                         <span className="text-xs text-muted-foreground">
                           {appt.start_time.slice(0, 5)} — {appt.end_time.slice(0, 5)}
                         </span>
                       </div>
                       <span
-                        className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                        className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium"
                         style={{
                           backgroundColor: statusColor + "20",
                           color: statusColor,
@@ -841,11 +875,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         {t(`scheduler.status_${appt.status}`)}
                       </span>
                     </div>
-                    <div className="mt-1.5 text-xs text-muted-foreground">
+                    <div className="mt-1.5 text-xs text-muted-foreground [&_p]:break-words">
                       <p>{appt.services?.name} — {appt.offices?.name}</p>
                       <p className="flex items-center gap-1">
                         <span
-                          className="inline-block h-2 w-2 rounded-full"
+                          className="inline-block h-2 w-2 shrink-0 rounded-full"
                           style={{ backgroundColor: appt.doctors?.color }}
                         />
                         {appt.doctors?.full_name}
@@ -904,7 +938,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <Stethoscope className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                        <span className="text-xs font-semibold">
+                        <span className="shrink-0 text-xs font-semibold">
                           {new Date(cn_note.created_at).toLocaleDateString("es-PE", {
                             day: "2-digit",
                             month: "short",
@@ -912,12 +946,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                           })}
                         </span>
                         {doctorInfo && (
-                          <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                          <span className="flex min-w-0 items-center gap-1 text-[10px] text-muted-foreground">
                             <span
                               className="h-2 w-2 rounded-full shrink-0"
                               style={{ backgroundColor: doctorInfo.color }}
                             />
-                            {doctorInfo.full_name}
+                            <span className="truncate">{doctorInfo.full_name}</span>
                           </span>
                         )}
                       </div>
@@ -959,7 +993,10 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                                   {label}
                                 </span>
                               </div>
-                              <p className="text-xs text-foreground pl-[22px] whitespace-pre-wrap">
+                              {/* `break-words`: las notas clínicas se pegan
+                                  desde otros sistemas y una URL o un código
+                                  largo sin espacios se salía por la derecha. */}
+                              <p className="text-xs text-foreground pl-[22px] whitespace-pre-wrap break-words">
                                 {content}
                               </p>
                             </div>
@@ -987,14 +1024,14 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                                   <span
                                     key={d.code}
                                     className={cn(
-                                      "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]",
+                                      "inline-flex max-w-full min-w-0 items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]",
                                       i === 0
                                         ? "border-primary/40 bg-primary/10 text-primary"
                                         : "border-border bg-muted/40 text-foreground"
                                     )}
                                   >
-                                    <span className="font-mono font-semibold">{d.code}</span>
-                                    <span className="opacity-80">{d.label}</span>
+                                    <span className="shrink-0 font-mono font-semibold">{d.code}</span>
+                                    <span className="min-w-0 break-words opacity-80">{d.label}</span>
                                   </span>
                                 ))}
                               </div>
@@ -1201,9 +1238,9 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     {payments.map((p) => (
                       <div
                         key={p.id}
-                        className="flex items-center justify-between rounded-lg border border-border px-3 py-2"
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
                       >
-                        <div>
+                        <div className="min-w-0 [&_p]:break-words">
                           <p className="text-xs font-medium">S/. {Number(p.amount).toFixed(2)}</p>
                           <p className="text-[10px] text-muted-foreground">
                             {p.payment_date.split("-").reverse().join("/")} {p.payment_method && `• ${p.payment_method}`}
@@ -1212,7 +1249,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                             <p className="text-[10px] text-muted-foreground">{p.notes}</p>
                           )}
                         </div>
-                        <Coins className="h-4 w-4 text-emerald-500" />
+                        <Coins className="h-4 w-4 shrink-0 text-emerald-500" />
                       </div>
                     ))}
                   </div>

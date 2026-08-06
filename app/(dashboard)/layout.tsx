@@ -110,7 +110,21 @@ export default async function DashboardLayout({
             <Sidebar />
             <div className="flex flex-1 flex-col overflow-hidden">
               <Topbar />
-              <main className="flex-1 overflow-auto p-4 md:p-7">{children}</main>
+              {/* El gutter de página vive en un div interno, NO en el
+                  scroller. Un scroll container añade su propio padding
+                  del lado final al área desplazable, así que con `p-4`
+                  aquí las páginas full-bleed (que cancelan ese gutter
+                  con `-mx-4`) dejaban su borde derecho justo en el borde
+                  del scrollport y esos 16px se convertían en scroll
+                  horizontal de TODA la página: la franja vacía a la
+                  derecha que se veía en móvil. Con el padding en un
+                  bloque normal el ancho cuadra exacto y no sobra nada.
+                  `overflow-x-hidden` queda solo como red de seguridad —
+                  los scrolls laterales legítimos (tab-lists, tablas
+                  anchas) viven en sus propios contenedores internos. */}
+              <main className="flex-1 overflow-y-auto overflow-x-hidden">
+                <div className="p-4 md:p-7">{children}</div>
+              </main>
             </div>
             <AiAssistantPanel />
           </div>
