@@ -6,7 +6,8 @@ import { useOrganization } from "@/components/organization-provider";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { getInitials } from "@/lib/utils";
+import { cn, getInitials } from "@/lib/utils";
+import { WhatsAppIcon, waSolidButton } from "@/components/icons/whatsapp-icon";
 import {
   Users,
   Plus,
@@ -22,7 +23,6 @@ import {
   GraduationCap,
   BriefcaseMedical,
   Headset,
-  MessageCircle,
   ExternalLink,
   Ban,
   RotateCcw,
@@ -711,9 +711,12 @@ export default function MembersPage() {
                         href="https://wa.me/18094039726"
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                        className={cn(
+                          "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium",
+                          waSolidButton
+                        )}
                       >
-                        <MessageCircle className="h-3.5 w-3.5" />
+                        <WhatsAppIcon className="h-3.5 w-3.5" />
                         {t("members.contact_support")}
                       </a>
                     </div>

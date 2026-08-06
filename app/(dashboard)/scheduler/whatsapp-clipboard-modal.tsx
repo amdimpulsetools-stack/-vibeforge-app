@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, X, Copy, Check, MessageCircle } from "lucide-react";
+import { CheckCircle2, X, Copy, Check } from "lucide-react";
+import {
+  WhatsAppIcon,
+  waSolidButton,
+  waOutlineButton,
+} from "@/components/icons/whatsapp-icon";
 import { cn } from "@/lib/utils";
 import {
   loadWaClipboardConfig,
@@ -70,12 +75,26 @@ export function WhatsAppClipboardModal({
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // Style classes for the two action buttons. On mobile, "Enviar por WA"
-  // is the primary visual; on desktop, "Copiar" is primary.
-  const primaryBtn =
-    "flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-600 active:bg-emerald-700";
-  const secondaryBtn =
-    "flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-accent active:bg-accent/80";
+  // Style classes for the action buttons. On mobile, "Enviar por WA" is
+  // the primary visual; on desktop, "Copiar" is primary.
+  //
+  // Ojo con el reparto de color: "Copiar mensaje" NO abre WhatsApp (deja
+  // el texto en el portapapeles para que lo pegues donde quieras), así
+  // que se queda en la marca del tema aunque el modal se llame
+  // "WhatsApp clipboard". El verde de WhatsApp está reservado para los
+  // dos botones que sí hacen window.open a wa.me.
+  const shell =
+    "flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm";
+  const brandBtn = cn(
+    shell,
+    "bg-primary font-semibold text-primary-foreground transition-colors hover:opacity-90 active:opacity-80"
+  );
+  const neutralBtn = cn(
+    shell,
+    "border border-border font-medium text-foreground transition-colors hover:bg-accent active:bg-accent/80"
+  );
+  const waPrimaryBtn = cn(shell, "font-semibold", waSolidButton);
+  const waSecondaryBtn = cn(shell, "font-medium", waOutlineButton);
 
   return (
     <AnimatePresence>
@@ -123,28 +142,30 @@ export function WhatsAppClipboardModal({
             {/* Actions */}
             <div className="space-y-2">
               {canSend && isMobile && (
-                <button onClick={handleSendWa} className={primaryBtn}>
-                  <MessageCircle className="h-4 w-4" />
+                <button onClick={handleSendWa} className={waPrimaryBtn}>
+                  <WhatsAppIcon className="h-4 w-4" />
                   Enviar por WhatsApp
                 </button>
               )}
 
               <button
                 onClick={handleCopy}
-                className={cn(canSend && !isMobile ? primaryBtn : secondaryBtn)}
+                className={cn(canSend && !isMobile ? brandBtn : neutralBtn)}
               >
                 {copied ? (
                   <>
                     <Check
                       className={cn(
                         "h-4 w-4",
-                        canSend && !isMobile ? "text-white" : "text-emerald-500"
+                        canSend && !isMobile
+                          ? "text-primary-foreground"
+                          : "text-emerald-500"
                       )}
                     />
                     <span
                       className={cn(
                         canSend && !isMobile
-                          ? "text-white"
+                          ? "text-primary-foreground"
                           : "text-emerald-600 dark:text-emerald-400"
                       )}
                     >
@@ -160,8 +181,8 @@ export function WhatsAppClipboardModal({
               </button>
 
               {canSend && !isMobile && (
-                <button onClick={handleSendWa} className={secondaryBtn}>
-                  <MessageCircle className="h-4 w-4" />
+                <button onClick={handleSendWa} className={waSecondaryBtn}>
+                  <WhatsAppIcon className="h-4 w-4" />
                   Enviar por WhatsApp
                 </button>
               )}

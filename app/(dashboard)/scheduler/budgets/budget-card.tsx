@@ -11,7 +11,6 @@ import {
   FileDown,
   Loader2,
   Mail,
-  MessageCircle,
   Play,
   Send,
   Share2,
@@ -29,6 +28,7 @@ import {
   type BudgetRecord,
   type BudgetTreatmentType,
 } from "@/types/fertility";
+import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useBudgetDocSettings } from "@/hooks/use-budget-doc-settings";
 
@@ -558,18 +558,20 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
               </div>
             </button>
 
-            {/* WhatsApp */}
+            {/* WhatsApp — este canal termina en window.open(wa.me) (ver
+                sendViaChannel), así que lleva el verde y el glifo de
+                WhatsApp; email y "otro medio" se quedan en la marca. */}
             <button
               type="button"
               onClick={() => sendViaChannel("whatsapp")}
               disabled={sendLoading || !patientPhone}
-              className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:border-emerald-500/40 hover:bg-emerald-500/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:bg-transparent"
+              className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:border-wa-500/50 hover:bg-wa-500/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-border disabled:hover:bg-transparent"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-wa-500/15 text-wa-700 dark:text-wa-500">
                 {sendLoading && sendChannel === "whatsapp" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
-                  <MessageCircle className="h-4 w-4" />
+                  <WhatsAppIcon className="h-4 w-4" />
                 )}
               </div>
               <div className="min-w-0 flex-1">

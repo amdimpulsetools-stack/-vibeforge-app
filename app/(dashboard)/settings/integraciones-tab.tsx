@@ -24,6 +24,11 @@ import { GCalDescriptionDialog } from "@/components/integrations/gcal-descriptio
 import { EInvoiceSetupDialog } from "@/components/integrations/einvoice-setup-dialog";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+// El glifo vive en components/icons: es el mismo que usan los botones
+// que abren wa.me. Aquí es el LOGO de la tarjeta de integración (no una
+// acción), pero igual va en wa-500 y no en emerald-*: el logo de
+// WhatsApp no se recolorea con el acento de la organización.
+import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
 
 type IntegrationStatus = "connected" | "available" | "coming-soon";
 
@@ -35,17 +40,6 @@ interface Integration {
   iconNode: React.ReactNode;
   status: IntegrationStatus;
   onConnect?: () => void;
-}
-
-function WhatsAppIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-6 w-6 text-emerald-500">
-      <path
-        fill="currentColor"
-        d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm5.81 14.07c-.25.7-1.43 1.34-2.01 1.42-.51.08-1.16.11-1.87-.12-.43-.14-.99-.32-1.7-.63-2.99-1.29-4.95-4.31-5.1-4.51-.15-.2-1.21-1.61-1.21-3.07 0-1.46.77-2.18 1.04-2.48.27-.3.59-.37.79-.37.2 0 .39.01.57.01.18 0 .42-.07.66.5.25.59.84 2.05.91 2.2.07.15.12.32.02.52-.1.2-.15.32-.3.5-.15.18-.31.4-.45.54-.15.15-.3.31-.13.6.17.3.77 1.27 1.65 2.05 1.13 1 2.08 1.32 2.38 1.47.3.15.47.13.65-.07.18-.2.74-.86.94-1.16.2-.3.4-.25.67-.15.27.1 1.71.81 2 .96.3.15.49.22.56.34.07.13.07.74-.18 1.45z"
-      />
-    </svg>
-  );
 }
 
 function GoogleCalendarIcon() {
@@ -328,7 +322,7 @@ export default function IntegracionesTab() {
         es: "Envía recordatorios, confirmaciones y campañas a tus pacientes vía WhatsApp oficial de Meta.",
         en: "Send reminders, confirmations and campaigns to your patients via Meta's official WhatsApp.",
       },
-      iconNode: <WhatsAppIcon />,
+      iconNode: <WhatsAppIcon className="h-6 w-6 text-wa-500" />,
       status: whatsappConnected ? "connected" : "available",
       onConnect: whatsappConnected
         ? handleDisconnectWhatsApp

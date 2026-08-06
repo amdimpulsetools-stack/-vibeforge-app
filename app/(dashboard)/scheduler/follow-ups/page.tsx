@@ -479,10 +479,11 @@ export default function FollowUpsPage() {
   }
 
   return (
-    /* Móvil: dvh (100vh en iOS incluye la barra de URL colapsable) y la
-       resta calibrada al layout real de <md — topbar 4rem + el p-4 del
-       main ×2 = 6rem. Desde md se conserva el valor anterior. */
-    <div className="flex h-[calc(100dvh-6rem)] flex-col md:h-[calc(100vh-3.5rem)]">
+    /* Móvil: full-bleed — los márgenes negativos cancelan el p-4 del main
+       (el marco "flotante" restaba ~32px de ancho útil a 390px, pedido del
+       founder). La altura se recalibra: topbar 4rem + solo el p-4 inferior
+       = 5rem. Desde md se conserva todo como estaba. */
+    <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] flex-col md:mx-0 md:mt-0 md:h-[calc(100vh-3.5rem)]">
       {/* Header */}
       {/* En móvil el `main` del layout ya aporta 16px por lado: con `px-6`
           aquí se acumulaban 40px (10% del viewport por lado). */}

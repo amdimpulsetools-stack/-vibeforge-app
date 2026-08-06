@@ -115,40 +115,48 @@ export default function ReportsPage() {
 
   return (
     <AiReportProvider reportType={activeTab} dateFrom={dateFrom} dateTo={dateTo}>
-      <div className="flex h-[calc(100dvh-6rem)] flex-col md:h-[calc(100vh-3.5rem)]">
+      {/* Móvil: full-bleed. Los márgenes negativos cancelan el p-4 del
+          `main` (arriba y a los lados; el p-4 inferior se conserva) y la
+          altura se recalibra: topbar 4rem + solo el p-4 inferior = 5rem.
+          `dvh` porque 100vh en iOS incluye la barra de URL colapsable.
+          Desde md se conserva todo como estaba. */}
+      <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] flex-col md:mx-0 md:mt-0 md:h-[calc(100vh-3.5rem)]">
         {/* Header */}
-        <div className="border-b border-border bg-card px-6 py-4">
+        <div className="border-b border-border bg-card px-4 py-3 md:px-6 md:py-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-xl font-bold">{t("reports.title")}</h1>
+              <h1 className="text-lg font-bold md:text-xl">{t("reports.title")}</h1>
               <p className="text-sm text-muted-foreground">{t("reports.subtitle")}</p>
             </div>
 
             {/* Date Range + AI Button */}
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="flex items-center gap-2">
-                <CalendarRange className="h-4 w-4 text-muted-foreground" />
+              {/* En móvil los date-inputs de iOS son anchos: se reparten el
+                  espacio (flex-1) y el separador se esconde. Desde sm, todo
+                  vuelve al ancho intrínseco de antes. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <CalendarRange className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <input
                   type="date"
                   value={dateFrom}
                   onChange={(e) => setDateFrom(e.target.value)}
-                  className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  className="min-w-0 flex-1 rounded-lg border border-input bg-background px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors sm:flex-none md:py-1.5"
                 />
-                <span className="text-xs text-muted-foreground">—</span>
+                <span className="hidden text-xs text-muted-foreground sm:inline">—</span>
                 <input
                   type="date"
                   value={dateTo}
                   onChange={(e) => setDateTo(e.target.value)}
-                  className="rounded-lg border border-input bg-background px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                  className="min-w-0 flex-1 rounded-lg border border-input bg-background px-2.5 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors sm:flex-none md:py-1.5"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <div className="flex gap-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap gap-1">
                   {DATE_PRESETS.map((preset) => (
                     <button
                       key={preset.key}
                       onClick={() => applyPreset(preset)}
-                      className="rounded-md bg-muted px-2 py-1 text-[10px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                      className="rounded-md bg-muted px-2.5 py-2 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors md:px-2 md:py-1 md:text-[10px]"
                     >
                       {t(`reports.preset_${preset.key}`)}
                     </button>
@@ -161,7 +169,10 @@ export default function ReportsPage() {
           </div>
 
           {/* Tabs */}
-          <div className="mt-4 flex gap-1 overflow-x-auto -mx-6 px-6 pb-1">
+          {/* Los -mx/px de la fila de tabs deben seguir al padding del
+              header (px-4 en móvil, px-6 desde md) para que el scroll
+              lateral sangre hasta el borde sin descuadrar el gutter. */}
+          <div className="mt-4 flex gap-1 overflow-x-auto -mx-4 px-4 pb-1 md:-mx-6 md:px-6">
             {tabs.map((tab) => (
               <button
                 key={tab.key}

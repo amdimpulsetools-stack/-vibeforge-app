@@ -252,6 +252,11 @@ DROP POLICY IF EXISTS "Users can view own org notifications"   ON notifications;
 DROP POLICY IF EXISTS "Users can update own notifications"     ON notifications;
 DROP POLICY IF EXISTS "Service role can insert notifications"  ON notifications;
 DROP POLICY IF EXISTS "Users can delete own read notifications" ON notifications;
+-- Variante con otro nombre detectada en PRODUCCIÓN al aplicar esta
+-- migración (venía de una migración posterior a 062): mismo hueco (c),
+-- INSERT abierto a cualquier miembro autenticado. Sin este DROP, el
+-- cierre del INSERT directo no cierra nada en los entornos que la tengan.
+DROP POLICY IF EXISTS "Org members can insert notifications"   ON notifications;
 
 DROP POLICY IF EXISTS "notifications_select_own_or_legacy"      ON notifications;
 DROP POLICY IF EXISTS "notifications_update_own_or_legacy"      ON notifications;
