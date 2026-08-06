@@ -37,6 +37,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  WhatsAppIcon,
+  waSolidButton,
+  waOutlineButton,
+} from "@/components/icons/whatsapp-icon";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
@@ -636,9 +641,9 @@ export function FollowupCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 title="Abrir en WhatsApp"
-                className="order-3 inline-flex min-h-11 w-fit items-center gap-1.5 whitespace-nowrap text-sm tabular-nums text-foreground/80 transition-colors hover:text-success-600 md:min-h-0 md:text-xs md:text-muted-foreground"
+                className="order-3 inline-flex min-h-11 w-fit items-center gap-1.5 whitespace-nowrap text-sm tabular-nums text-foreground/80 transition-colors hover:text-wa-700 dark:hover:text-wa-500 md:min-h-0 md:text-xs md:text-muted-foreground"
               >
-                <Phone className="h-3.5 w-3.5 shrink-0" />
+                <WhatsAppIcon className="h-3.5 w-3.5 shrink-0" />
                 {displayPhone}
               </a>
             ) : (
@@ -735,9 +740,12 @@ export function FollowupCard({
                   ? "Enviar por WhatsApp"
                   : "El paciente no tiene teléfono registrado"
               }
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-success-500 text-sm font-medium text-white transition-colors hover:bg-success-600 disabled:cursor-not-allowed disabled:opacity-50 md:hidden"
+              className={cn(
+                "flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium md:hidden",
+                waSolidButton
+              )}
             >
-              <MessageCircle className="h-4 w-4" />
+              <WhatsAppIcon className="h-4 w-4" />
               Enviar WhatsApp
             </button>
           )}
@@ -787,7 +795,7 @@ export function FollowupCard({
                       ? "Copiar mensaje"
                       : "El paciente no tiene teléfono registrado"
                   }
-                  className="flex items-center gap-1 rounded-lg bg-success-500 px-2.5 py-1.5 text-xs text-white transition-colors hover:bg-success-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex items-center gap-1 rounded-lg bg-primary px-2.5 py-1.5 text-xs text-primary-foreground transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Copy className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Copiar</span>
@@ -801,9 +809,12 @@ export function FollowupCard({
                       ? "Enviar por WhatsApp"
                       : "El paciente no tiene teléfono registrado"
                   }
-                  className="flex items-center gap-1 rounded-lg border border-success-500/30 px-2.5 py-1.5 text-xs text-success-600 transition-colors hover:bg-success-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className={cn(
+                    "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs",
+                    waOutlineButton
+                  )}
                 >
-                  <MessageCircle className="h-3.5 w-3.5" />
+                  <WhatsAppIcon className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Enviar</span>
                 </button>
 

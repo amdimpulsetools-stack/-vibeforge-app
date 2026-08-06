@@ -139,6 +139,46 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   ESCALA DE MARCA "WA" — verde WhatsApp, tampoco se temiza
+   ═══════════════════════════════════════════════════════════════════
+   Mismo razonamiento que success-*, pero un escalón más arriba: esto
+   no es "significado", es la marca de OTRA plataforma. Un botón que
+   abre wa.me tiene que verse igual en Océano que en Arena, porque lo
+   que promete es "esto te lleva a WhatsApp", no "esto es de tu clínica".
+   Por eso vive fuera de --color-emerald-* (que los temas de acento
+   sobrescriben en lib/theme/accent-themes.ts).
+
+   Regla al escribir UI nueva — la línea divisoria es la ACCIÓN, no la
+   pantalla en la que está el botón:
+     - la acción abre/envía por WhatsApp (deep-link wa.me,
+       api.whatsapp.com, window.open a WhatsApp) → wa-* + <WhatsAppIcon/>
+     - todo lo demás, aunque viva dentro de una pantalla de WhatsApp
+       (Copiar texto, Guardar configuración, wizards, tabs) → primary /
+       emerald-* (se temiza solo)
+
+   Contraste (WCAG 2.1, ratio contra blanco puro):
+     wa-500 #25D366 → 1.98:1  ✗ NUNCA como fondo de texto blanco.
+                               Es el verde del logo: sirve para el
+                               glifo, bordes, rings y tints (bg-wa-500/10).
+     wa-700 #0B7C41 → 5.29:1  ✓ AA. Es el fondo de los botones sólidos.
+     wa-800 #076B37 → 6.63:1  ✓ AA. Hover/active del sólido.
+   La escala salta de 500 a 700 a propósito: el hover clásico de
+   WhatsApp (#1DA851) da 3.10:1 con blanco — no llega a AA para texto
+   normal — así que no existe como token para que nadie lo use de fondo.
+   Como TEXTO sobre fondo de tarjeta:
+     claro  (--card #ffffff)          → text-wa-700  (5.29:1) ✓
+     oscuro (--card oklch(0.1 …))     → text-wa-500  (~8.9:1) ✓
+   De ahí el par canónico `text-wa-700 dark:text-wa-500` en los botones
+   outline, y `bg-wa-700 text-white hover:bg-wa-800` en los sólidos.
+   #25D366 con texto blanco (lo que hace la app de WhatsApp) da 1.98:1
+   y no se usa en ningún botón: se queda en el icono. */
+@theme {
+  --color-wa-500: #25d366;
+  --color-wa-700: #0b7c41;
+  --color-wa-800: #076b37;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    LANDING PAGE ANIMATIONS
    ═══════════════════════════════════════════════════════════════════ */
 @keyframes fadeUp {

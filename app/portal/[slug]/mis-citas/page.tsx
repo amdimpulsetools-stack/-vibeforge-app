@@ -33,6 +33,7 @@ import {
   MessageSquare,
   PhoneCall,
 } from "lucide-react";
+import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
@@ -2271,8 +2272,12 @@ function ContactSheet({
               className="flex w-full items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-black/5 transition hover:shadow-md active:scale-[0.99]"
             >
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#25D366]/15">
-                  <MessageSquare className="h-4 w-4 text-[#25D366]" />
+                {/* Verde WhatsApp de los tokens wa-* (globals.css), no
+                    el acento de la org: el enlace sale a wa.me. El tint
+                    conserva el #25D366 del logo; el glifo baja a wa-700
+                    para leerse sobre la tarjeta blanca (5.29:1). */}
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-wa-500/15">
+                  <WhatsAppIcon className="h-4 w-4 text-wa-700" />
                 </div>
                 <div>
                   <p className="text-[14px] font-semibold text-zinc-900">
