@@ -18,17 +18,10 @@ import {
   Coffee,
   Building2,
   Check,
-  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
 
 interface SchedulerHeaderProps {
   currentDate: Date;
@@ -130,6 +123,31 @@ export function SchedulerHeader({
     }
   };
 
+  // Escape cierra el calendario (en <md es un modal propio, no el Popover
+  // de Radix, así que el manejo de teclado no viene gratis).
+  useEffect(() => {
+    if (!calendarOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCalendarOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [calendarOpen]);
+
+  // Estilo compartido por el trigger de "Hoy" en ambos breakpoints (en <md
+  // abre un modal centrado; en md+ el Popover anclado de siempre).
+  const todayTriggerClass = cn(
+    "shrink-0 rounded-lg border px-3 py-2 text-sm font-medium transition-colors md:py-1.5",
+    isToday(currentDate)
+      ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
+      : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+  );
+
+  // Botones de acción de la fila móvil: cuadrado de 40×40 (área táctil
+  // mínima) con el mismo lenguaje visual del filtro de consultorios.
+  const mobileActionClass =
+    "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors";
+
   // Móvil: fecha corta (la larga desborda a 390 px y empujaba "Nueva cita"
   // fuera del card, que es `overflow-hidden`). Desktop mantiene el formato
   // completo de siempre.
@@ -141,12 +159,6 @@ export function SchedulerHeader({
     viewMode === "day"
       ? format(currentDate, "EEE d MMM", { locale: es })
       : `${format(currentDate, "d MMM", { locale: es })} — ${format(addDays(currentDate, 6), "d MMM", { locale: es })}`;
-
-  // Acciones secundarias en <md: "Compartir horarios" es de uso frecuente
-  // (recepción lo manda por WhatsApp varias veces al día) → botón inline en
-  // la fila. Bloquear/Break Time son ocasionales → viven en el menú "⋯".
-  // Regla de no-duplicación: cada acción vive en UN solo lugar por breakpoint.
-  const hasMenuActions = Boolean(onNewBlock || onBreakTime);
 
   return (
     <div className="border-b border-border px-3 py-3 md:px-4 space-y-2 md:space-y-3">
@@ -174,55 +186,74 @@ export function SchedulerHeader({
             <ChevronRight className="h-5 w-5" />
           </button>
 
-          <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-            <PopoverTrigger asChild>
-              <button
-                className={cn(
-                  "shrink-0 rounded-lg border px-3 py-2 text-sm font-medium transition-colors md:py-1.5",
-                  isToday(currentDate)
-                    ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
-                    : "border-border text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-                )}
-              >
-                {t("scheduler.today")}
-              </button>
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-auto p-0">
-              <div className="flex flex-col">
-                <Calendar
-                  mode="single"
-                  selected={currentDate}
-                  onSelect={handleCalendarSelect}
-                  defaultMonth={currentDate}
-                  locale={es}
-                />
-                <div className="border-t border-border p-2">
-                  <button
-                    onClick={() => {
-                      onDateChange(new Date());
-                      setCalendarOpen(false);
-                    }}
-                    className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-                  >
-                    {t("scheduler.today")}
-                  </button>
+          {/* Selector de fecha — <md: trigger suelto que abre un modal
+              centrado (abajo). El Popover de Radix se anclaba al trigger y,
+              estando éste pegado al borde derecho de la fila, el calendario
+              se salía de la pantalla a 390 px. */}
+          <button
+            onClick={() => setCalendarOpen(true)}
+            aria-label="Abrir calendario"
+            aria-haspopup="dialog"
+            aria-expanded={calendarOpen}
+            className={cn(todayTriggerClass, "md:hidden")}
+          >
+            {t("scheduler.today")}
+          </button>
+
+          {/* md+ — posicionamiento anclado de siempre, intacto. */}
+          <div className="hidden shrink-0 md:block">
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <button className={todayTriggerClass}>{t("scheduler.today")}</button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-auto p-0">
+                <div className="flex flex-col">
+                  <Calendar
+                    mode="single"
+                    selected={currentDate}
+                    onSelect={handleCalendarSelect}
+                    defaultMonth={currentDate}
+                    locale={es}
+                  />
+                  <div className="border-t border-border p-2">
+                    <button
+                      onClick={() => {
+                        onDateChange(new Date());
+                        setCalendarOpen(false);
+                      }}
+                      className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+                    >
+                      {t("scheduler.today")}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
 
         {/* Fila de controles. En <md "Nueva cita" vive en el FAB (ver
-            scheduler/page.tsx), así que los controles restantes se reparten
-            a lo ancho del contenedor con justify-between en vez de quedar
-            amontonados a la derecha. md+ conserva el justify-end de siempre. */}
-        <div className="flex w-full flex-wrap items-center justify-between gap-2 md:w-auto md:flex-nowrap md:justify-end">
+            scheduler/page.tsx) y TODAS las acciones restantes son botones
+            inline (ya no hay menú "⋯"): [toggle · consultorios · compartir ·
+            bloquear · break]. Reparto sin aire muerto: gap fijo chico
+            (gap-1.5) y el toggle con flex-1 absorbiendo el sobrante, en vez
+            de justify-between empujando 35 px entre cada control.
+            Cuentas a 390 px (main p-4 → card 358, header px-3 → 334 útiles):
+            4 botones de 40 + 3 gaps de 6 = 178 para el grupo de iconos,
+            + 6 de gap → el toggle recibe 150 px (mínimo real ~136). Entra
+            en una línea. A 320 px quedan 264 útiles → el grupo no cabe
+            junto al toggle y baja limpio a una segunda línea (los 4 iconos
+            juntos, porque viven en su propio contenedor). md+ conserva el
+            justify-end de siempre: el wrapper del grupo usa `md:contents`,
+            así que sus hijos vuelven a ser hijos directos de la fila y el
+            layout de escritorio queda pixel-idéntico. */}
+        <div className="flex w-full flex-wrap items-center gap-1.5 md:w-auto md:flex-nowrap md:justify-end md:gap-2">
           {/* View toggle */}
-          <div className="flex gap-1 rounded-lg bg-muted p-1">
+          <div className="flex min-w-[8.5rem] flex-1 gap-1 rounded-lg bg-muted p-1 md:min-w-0 md:flex-none">
             <button
               onClick={() => onViewModeChange("day")}
               className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium transition-colors md:py-1.5",
+                "flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors md:flex-none md:py-1.5",
                 viewMode === "day"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -233,7 +264,7 @@ export function SchedulerHeader({
             <button
               onClick={() => onViewModeChange("week")}
               className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium transition-colors md:py-1.5",
+                "flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors md:flex-none md:py-1.5",
                 viewMode === "week"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -243,13 +274,18 @@ export function SchedulerHeader({
             </button>
           </div>
 
+          {/* Grupo de acciones. En <md es un bloque propio para que, si hay
+              wrap (≤320 px), los iconos bajen juntos y no se desparramen.
+              En md+ `contents` lo disuelve y sus hijos son hijos directos
+              de la fila, exactamente como antes. */}
+          <div className="flex items-center gap-1.5 md:contents">
           {/* Office filter */}
           {offices.length > 1 && (
             <div className="relative shrink-0" ref={dropdownRef}>
               <button
                 onClick={() => setOfficeDropdownOpen((o) => !o)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                  "relative flex h-10 items-center gap-1.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors md:h-auto",
                   !allSelected
                     ? "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20"
                     : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
@@ -263,8 +299,11 @@ export function SchedulerHeader({
                       ? offices.find((o) => o.id === selectedOfficeIds[0])?.name ?? "1"
                       : `${selectedOfficeIds.length} consultorios`}
                 </span>
+                {/* Contador de <sm: badge superpuesto, no inline — inline
+                    ensanchaba el botón de 40 a ~62 px al filtrar y eso
+                    hacía saltar de línea la fila a 390 px. */}
                 {!allSelected && (
-                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground sm:hidden">
+                  <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground sm:hidden">
                     {selectedOfficeIds.length}
                   </span>
                 )}
@@ -319,24 +358,65 @@ export function SchedulerHeader({
             </div>
           )}
 
-          {/* Compartir horarios — inline en <md (mismo lenguaje visual que
-              el botón de consultorios: 40px, rounded-lg, borde + tinte).
-              Tokens primary, no emerald hardcodeado. Con 4 elementos en la
-              fila el justify-between queda equilibrado sin aire muerto. */}
+          {/* Acciones inline de <md — las tres viven acá como cuadrados de
+              40×40 con el mismo lenguaje visual del filtro de consultorios
+              (rounded-lg, borde + tinte). Antes Bloquear y Break Time
+              estaban escondidas tras un menú "⋯"; caben en la fila, así
+              que se muestran. Cada acción sigue viviendo en UN solo lugar
+              por breakpoint (estos son md:hidden; los equivalentes de
+              escritorio están en el bloque `hidden md:flex` de abajo). */}
           {onShareAvailableSlots && (
             <button
               onClick={onShareAvailableSlots}
               aria-label="Compartir horarios disponibles"
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary/40 bg-primary/10 text-primary transition-colors hover:bg-primary/20 md:hidden"
+              title="Compartir horarios disponibles"
+              className={cn(
+                mobileActionClass,
+                "border-primary/40 bg-primary/10 text-primary hover:bg-primary/20 md:hidden"
+              )}
             >
               <Clock className="h-4 w-4" />
             </button>
           )}
 
-          {/* Acciones secundarias — visibles sueltas solo desde md.
-              En móvil, Bloquear/Break Time se colapsan al menú "⋯" de más
-              abajo, para que la fila no supere el ancho del card (que es
-              overflow-hidden). */}
+          {onNewBlock && (
+            <button
+              onClick={onNewBlock}
+              aria-label="Bloquear agenda"
+              title="Bloquear agenda"
+              className={cn(
+                mobileActionClass,
+                "border-amber-500/40 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 dark:text-amber-400 md:hidden"
+              )}
+            >
+              <Lock className="h-4 w-4" />
+            </button>
+          )}
+
+          {onBreakTime && (
+            <button
+              onClick={onBreakTime}
+              aria-label={
+                breakTimeEnabled ? "Break Time (activo)" : "Break Time"
+              }
+              title="Break Time"
+              aria-pressed={Boolean(breakTimeEnabled)}
+              className={cn(
+                mobileActionClass,
+                "relative md:hidden",
+                breakTimeEnabled
+                  ? "border-blue-500/40 bg-blue-500/10 text-blue-600 hover:bg-blue-500/20 dark:text-blue-400"
+                  : "border-border bg-muted/50 text-muted-foreground hover:bg-muted"
+              )}
+            >
+              <Coffee className="h-4 w-4" />
+              {breakTimeEnabled && (
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-blue-500" />
+              )}
+            </button>
+          )}
+
+          {/* Acciones de escritorio — visibles sueltas solo desde md. */}
           <div className="hidden md:flex md:items-center md:gap-2">
           {/* Bloquear button */}
           {onNewBlock && (
@@ -396,39 +476,6 @@ export function SchedulerHeader({
           )}
           </div>
 
-          {/* Menú "⋯" — acciones terciarias (Bloquear/Break Time) con label
-              visible (en touch los tooltips group-hover nunca aparecen).
-              "Compartir horarios" NO se duplica acá: ya es botón inline. */}
-          {hasMenuActions && (
-            <div className="md:hidden">
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  aria-label="Más acciones"
-                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-muted/50 text-muted-foreground transition-colors hover:bg-muted"
-                >
-                  <MoreHorizontal className="h-5 w-5" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-[13rem]">
-                  {onNewBlock && (
-                    <DropdownMenuItem onSelect={() => onNewBlock()} className="gap-2 py-2.5">
-                      <Lock className="h-4 w-4 text-amber-500" />
-                      Bloquear horario
-                    </DropdownMenuItem>
-                  )}
-                  {onBreakTime && (
-                    <DropdownMenuItem onSelect={() => onBreakTime()} className="gap-2 py-2.5">
-                      <Coffee className="h-4 w-4 text-blue-500" />
-                      Break Time
-                      {breakTimeEnabled && (
-                        <span className="ml-auto h-2 w-2 rounded-full bg-blue-500" />
-                      )}
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
-
           {/* Nueva cita — en <md se oculta: la reemplaza el FAB circular de
               la página (así la segunda fila del header no se desperdicia
               con un botón que ocupaba la línea entera). */}
@@ -439,6 +486,7 @@ export function SchedulerHeader({
             <Plus className="h-4 w-4" />
             {t("scheduler.new_appointment")}
           </button>
+          </div>
         </div>
       </div>
 
@@ -463,6 +511,52 @@ export function SchedulerHeader({
           <span className="text-sm font-semibold">{occupationPercent}%</span>
         </div>
       </div>
+
+      {/* Date picker de <md — modal centrado en pantalla.
+          El Popover de Radix se ancla al trigger y éste queda pegado al
+          borde derecho de la fila de navegación, así que el calendario se
+          cortaba por el borde de la pantalla a 390 px. Acá va `fixed`
+          centrado con ancho acotado (nunca más ancho que la pantalla menos
+          2rem) y alto máximo en dvh con scroll interno, de modo que el
+          botón "Hoy" del pie siempre queda alcanzable. Escritorio: este
+          bloque es `md:hidden`, el Popover anclado sigue igual. */}
+      {calendarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setCalendarOpen(false)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Seleccionar fecha"
+            className="absolute left-1/2 top-1/2 flex max-h-[calc(100dvh-3rem)] w-[min(340px,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl border border-border bg-popover text-popover-foreground shadow-lg"
+          >
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <Calendar
+                mode="single"
+                selected={currentDate}
+                onSelect={handleCalendarSelect}
+                defaultMonth={currentDate}
+                locale={es}
+                className="mx-auto p-3"
+              />
+            </div>
+            <div className="shrink-0 border-t border-border p-2">
+              <button
+                onClick={() => {
+                  onDateChange(new Date());
+                  setCalendarOpen(false);
+                }}
+                className="w-full rounded-md bg-primary px-3 py-2.5 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90"
+              >
+                {t("scheduler.today")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

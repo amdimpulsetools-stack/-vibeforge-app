@@ -1,7 +1,7 @@
 # Coming Updates — Yenda Core (no addon)
 
 > **Estado:** roadmap activo
-> **Última actualización:** 2026-07-17
+> **Última actualización:** 2026-08-06
 > **Doc fertilidad separado:** `docs/coming-updates-fertility-addon.md`
 > **Owner:** Oscar (Founder, Yenda)
 
@@ -182,6 +182,21 @@ Con el split PRD/CHANGELOG, el roadmap vive SOLO aquí. Estos cuatro estaban ún
 #### Multi-gateway de pagos (Culqi → Openpay → MercadoPago)
 
 Ver `docs/research/openpay-pe-evaluation.md`. Recomendación: iniciar con Culqi como primer gateway adicional (Yape nativo). Estimado 3-4 días para abstracción + Culqi.
+
+---
+
+#### Notificaciones en vivo
+
+**Estado**: en evaluación (registrado 2026-08-06).
+
+Activar y asignar por rol qué notificaciones aparecen en tiempo real dentro de la app, configurable desde **Settings → Notificaciones**: la clínica elige qué eventos notifica y a quién (owner, admin, doctor, recepción), sin que cada rol reciba ruido que no le toca. El catálogo arranca chico y va creciendo con cada módulo nuevo — nueva cita agendada / cancelada, paciente que llegó, presupuesto aceptado, cobro registrado, seguimiento vencido.
+
+**Plan**:
+1. Catálogo de tipos de notificación en código (clave + descripción + roles elegibles), consumido por la UI de Settings.
+2. Tabla de preferencias por org (evento × rol activado/desactivado) con RLS y defaults sensatos al crear la org.
+3. Entrega in-app en vivo: reusar el lean poll ya existente de la agenda o migrar a Supabase realtime filtrado por org+rol si la latencia lo pide.
+
+**Prioridad**: P2 — evaluar contra el feedback del piloto antes de comprometer alcance.
 
 ---
 
