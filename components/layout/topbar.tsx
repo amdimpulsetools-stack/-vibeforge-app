@@ -211,7 +211,10 @@ export function Topbar() {
 
           {/* Dropdown */}
           {open && (
-            <div className="absolute right-0 top-full z-[100] mt-2 w-[calc(100vw-2rem)] sm:w-[360px] max-w-[360px] rounded-xl border border-border bg-background shadow-xl">
+            /* <sm: fixed centrado al viewport — anclado a la campana con
+               right-0 el panel (100vw-2rem) se salía por el borde izquierdo,
+               porque la campana está a ~3.5rem del borde derecho. */
+            <div className="fixed left-1/2 top-16 z-[100] w-[calc(100vw-2rem)] max-w-[360px] -translate-x-1/2 rounded-xl border border-border bg-background shadow-xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[360px] sm:translate-x-0">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-border px-4 py-3">
                 <h3 className="text-sm font-semibold">Notificaciones</h3>

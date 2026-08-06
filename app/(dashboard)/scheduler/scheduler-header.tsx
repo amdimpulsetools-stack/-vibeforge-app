@@ -115,6 +115,11 @@ export function SchedulerHeader({
   };
 
   const [calendarOpen, setCalendarOpen] = useState(false);
+  // Estado propio del Popover md+: PopoverContent se monta en un portal
+  // (document.body), así que el wrapper `hidden md:block` no lo oculta —
+  // con estado compartido, abrir el modal móvil abría también el Popover
+  // y se veían dos calendarios superpuestos.
+  const [desktopCalendarOpen, setDesktopCalendarOpen] = useState(false);
 
   const handleCalendarSelect = (date: Date | undefined) => {
     if (date) {
@@ -202,7 +207,7 @@ export function SchedulerHeader({
 
           {/* md+ — posicionamiento anclado de siempre, intacto. */}
           <div className="hidden shrink-0 md:block">
-            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+            <Popover open={desktopCalendarOpen} onOpenChange={setDesktopCalendarOpen}>
               <PopoverTrigger asChild>
                 <button className={todayTriggerClass}>{t("scheduler.today")}</button>
               </PopoverTrigger>
@@ -219,7 +224,7 @@ export function SchedulerHeader({
                     <button
                       onClick={() => {
                         onDateChange(new Date());
-                        setCalendarOpen(false);
+                        setDesktopCalendarOpen(false);
                       }}
                       className="w-full rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
                     >
