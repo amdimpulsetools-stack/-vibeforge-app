@@ -399,10 +399,13 @@ export default function PatientsPage() {
   }
 
   return (
-    /* Móvil: dvh (100vh en iOS incluye la barra de URL colapsable) y la
-       resta calibrada al layout real de <md — topbar 4rem + el p-4 del
-       main ×2 = 6rem. Desde md se conserva el valor anterior. */
-    <div className="flex h-[calc(100dvh-6rem)] md:h-[calc(100vh-3.5rem)]">
+    /* Móvil: full-bleed. Los márgenes negativos cancelan el p-4 del `main`
+       (arriba y a los lados; el p-4 inferior se conserva) y la altura se
+       recalibra: topbar 4rem + solo el p-4 inferior = 5rem. `dvh` porque
+       100vh en iOS incluye la barra de URL colapsable. El PatientDrawer,
+       que en móvil sustituye a la lista, gana también esos 32px. Desde md
+       se conserva todo como estaba. */
+    <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] md:mx-0 md:mt-0 md:h-[calc(100vh-3.5rem)]">
       {/* Main List */}
       <div className={cn("flex flex-1 flex-col overflow-hidden", selectedPatient && "hidden md:flex")}>
         {/* Header */}
@@ -471,7 +474,7 @@ export default function PatientsPage() {
                   key={f}
                   onClick={() => setStatusFilter(f)}
                   className={cn(
-                    "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                    "rounded-lg px-3 py-2 text-xs font-medium transition-colors md:py-1.5",
                     statusFilter === f
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground hover:bg-accent"
@@ -492,7 +495,7 @@ export default function PatientsPage() {
                       setRecurrenceFilter(active ? "all" : f)
                     }
                     className={cn(
-                      "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                      "rounded-lg px-3 py-2 text-xs font-medium transition-colors md:py-1.5",
                       active
                         ? f === "recurring"
                           ? "bg-emerald-500 text-white"
@@ -508,7 +511,7 @@ export default function PatientsPage() {
               <button
                 onClick={() => setShowFilters(!showFilters)}
                 className={cn(
-                  "relative flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                  "relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors md:py-1.5",
                   showFilters || activeFilterCount > 0
                     ? "bg-primary text-primary-foreground"
                     : "bg-muted text-muted-foreground hover:bg-accent"
@@ -663,7 +666,8 @@ export default function PatientsPage() {
                   className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary"
                 >
                   {tag}
-                  <button onClick={() => toggleTag(tag)} className="hover:text-primary/70">
+                  {/* -m-1 p-1: área táctil de ~18px sin alterar el layout del chip. */}
+                  <button onClick={() => toggleTag(tag)} className="-m-1 p-1 hover:text-primary/70">
                     <X className="h-2.5 w-2.5" />
                   </button>
                 </span>
@@ -671,7 +675,7 @@ export default function PatientsPage() {
               {serviceFilter && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 px-2 py-0.5 text-[10px] font-medium text-blue-500">
                   {services.find((s) => s.id === serviceFilter)?.name}
-                  <button onClick={() => setServiceFilter("")} className="hover:text-blue-400">
+                  <button onClick={() => setServiceFilter("")} className="-m-1 p-1 hover:text-blue-400">
                     <X className="h-2.5 w-2.5" />
                   </button>
                 </span>
@@ -679,7 +683,7 @@ export default function PatientsPage() {
               {(dateFrom || dateTo) && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 px-2 py-0.5 text-[10px] font-medium text-orange-500">
                   {dateFrom || "..."} — {dateTo || "..."}
-                  <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="hover:text-orange-400">
+                  <button onClick={() => { setDateFrom(""); setDateTo(""); }} className="-m-1 p-1 hover:text-orange-400">
                     <X className="h-2.5 w-2.5" />
                   </button>
                 </span>
@@ -687,7 +691,7 @@ export default function PatientsPage() {
               {debtFilter && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] font-medium text-red-500">
                   {t("patients.filter_with_debt")}
-                  <button onClick={() => setDebtFilter(false)} className="hover:text-red-400">
+                  <button onClick={() => setDebtFilter(false)} className="-m-1 p-1 hover:text-red-400">
                     <X className="h-2.5 w-2.5" />
                   </button>
                 </span>
@@ -695,7 +699,7 @@ export default function PatientsPage() {
               {origenFilter && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-500">
                   {origenFilter}
-                  <button onClick={() => setOrigenFilter("")} className="hover:text-violet-400">
+                  <button onClick={() => setOrigenFilter("")} className="-m-1 p-1 hover:text-violet-400">
                     <X className="h-2.5 w-2.5" />
                   </button>
                 </span>
@@ -730,7 +734,7 @@ export default function PatientsPage() {
                     key={patient.id}
                     onClick={() => setSelectedPatient(patient)}
                     className={cn(
-                      "flex w-full items-center gap-4 px-6 py-3 text-left transition-colors hover:bg-accent/50",
+                      "flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-accent/50 md:px-6",
                       isSelected && "bg-primary/5 border-l-2 border-l-primary"
                     )}
                   >
@@ -752,7 +756,7 @@ export default function PatientsPage() {
                         </p>
                         {patient.is_recurring && <RecurringBadge size="xs" />}
                       </div>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                         {patient.dni && <span>DNI: {patient.dni}</span>}
                         {patient.phone && <span>{patient.phone}</span>}
                         {patient.birth_date && (() => {
@@ -817,7 +821,7 @@ export default function PatientsPage() {
         </div>
 
         {/* Footer count */}
-        <div className="border-t border-border bg-card px-6 py-2 text-xs text-muted-foreground flex items-center gap-2">
+        <div className="border-t border-border bg-card px-4 md:px-6 py-2 text-xs text-muted-foreground flex items-center gap-2">
           {totalCount} {totalCount === 1 ? "paciente" : "pacientes"}{totalPages > 1 ? ` · Página ${page + 1} de ${totalPages}` : ""}
           {loadingExtra && (
             <span className="flex items-center gap-1 text-primary">

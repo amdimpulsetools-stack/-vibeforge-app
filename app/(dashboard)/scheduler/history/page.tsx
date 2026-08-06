@@ -240,14 +240,18 @@ export default function AppointmentHistoryPage() {
   const cancelledCount = sorted.filter((a) => a.status === "cancelled").length;
 
   return (
-    /* Móvil: dvh (100vh en iOS incluye la barra de URL colapsable) y la
-       resta calibrada al layout real de <md — topbar 4rem + el p-4 del
-       main ×2 = 6rem. Desde md se conserva el valor anterior. */
-    <div className="flex h-[calc(100dvh-6rem)] flex-col md:h-[calc(100vh-3.5rem)]">
+    /* Móvil: full-bleed. Los márgenes negativos cancelan el p-4 del `main`
+       (arriba y a los lados; el p-4 inferior se conserva) y la altura se
+       recalibra: topbar 4rem + solo el p-4 inferior = 5rem. `dvh` porque
+       100vh en iOS incluye la barra de URL colapsable. Desde md se
+       conserva todo como estaba. */
+    <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] flex-col md:mx-0 md:mt-0 md:h-[calc(100vh-3.5rem)]">
       {/* Header */}
-      <div className="border-b border-border bg-card px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div>
+      {/* En móvil el `main` del layout ya no aporta gutter lateral: el px-4
+          de aquí es el único margen del contenido. */}
+      <div className="border-b border-border bg-card px-4 py-3 md:px-6 md:py-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             <h1 className="text-lg font-bold">{t("history.title")}</h1>
             <p className="text-sm text-muted-foreground">{t("history.subtitle")}</p>
           </div>
@@ -255,7 +259,7 @@ export default function AppointmentHistoryPage() {
             <button
               onClick={handleExport}
               disabled={exporting || loading}
-              className="flex items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="flex h-10 items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors md:h-auto"
               title="Exportar CSV"
             >
               {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -263,7 +267,7 @@ export default function AppointmentHistoryPage() {
             </button>
             <button
               onClick={() => setShowFilters(!showFilters)}
-              className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent transition-colors"
+              className="flex h-10 items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm hover:bg-accent transition-colors md:h-auto"
             >
               <Filter className="h-4 w-4" />
               {t("history.filters")}
@@ -348,7 +352,7 @@ export default function AppointmentHistoryPage() {
               className="w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-colors"
             />
           </div>
-          <div className="flex gap-4 text-xs text-muted-foreground">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span>{totalCount} {t("history.records")}</span>
             <span className="text-success-500">{completedCount} {t("scheduler.status_completed").toLowerCase()}</span>
             <span className="text-red-500">{cancelledCount} {t("scheduler.status_cancelled").toLowerCase()}</span>
@@ -358,7 +362,11 @@ export default function AppointmentHistoryPage() {
       </div>
 
       {/* Table */}
-      <div className="flex-1 overflow-auto">
+      {/* El scroll vertical vive en el MISMO contenedor que el horizontal
+          (el div de abajo): si no, el `thead sticky` no tiene su scroller
+          como ancestro y nunca se queda fijo. La paginación cuelga fuera
+          de ese scroller para no viajar con el scroll horizontal. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-40">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -369,8 +377,9 @@ export default function AppointmentHistoryPage() {
             <p className="text-sm">{t("common.no_results")}</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-          <table className="w-full text-sm min-w-[900px]">
+          <>
+          <div className="min-h-0 flex-1 overflow-auto">
+          <table className="w-full text-sm min-w-[780px] md:min-w-[900px]">
             <thead className="sticky top-0 z-10 bg-card border-b border-border">
               <tr className="text-xs text-muted-foreground">
                 <th
@@ -411,7 +420,9 @@ export default function AppointmentHistoryPage() {
                     {t("scheduler.service")}
                   </span>
                 </th>
-                <th className="px-4 py-3 text-left font-medium">
+                {/* Consultorio: se oculta solo por debajo de md para
+                    acortar el scroll lateral en móvil. Desde md, idéntico. */}
+                <th className="hidden px-4 py-3 text-left font-medium md:table-cell">
                   <span className="flex items-center gap-1">
                     <Building2 className="h-3 w-3" />
                     {t("scheduler.office")}
@@ -452,7 +463,7 @@ export default function AppointmentHistoryPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{appt.services?.name}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{appt.offices?.name}</td>
+                    <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{appt.offices?.name}</td>
                     <td className="px-4 py-3 text-right font-medium tabular-nums">
                       S/. {displayPrice.toFixed(2)}
                       {appt.price_snapshot != null && (
@@ -475,8 +486,9 @@ export default function AppointmentHistoryPage() {
               })}
             </tbody>
           </table>
+          </div>
           {totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-border px-4 py-3">
+            <div className="flex shrink-0 items-center justify-between border-t border-border bg-card px-4 py-3">
               <span className="text-xs text-muted-foreground">
                 {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, totalCount)} de {totalCount}
               </span>
@@ -501,7 +513,7 @@ export default function AppointmentHistoryPage() {
               </div>
             </div>
           )}
-          </div>
+          </>
         )}
       </div>
     </div>

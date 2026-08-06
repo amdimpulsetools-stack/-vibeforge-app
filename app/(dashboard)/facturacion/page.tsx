@@ -244,7 +244,9 @@ export default function FacturacionPage() {
   // Empty state — module not connected yet. Render this and bail.
   if (!einvoice.loading && !einvoice.connected) {
     return (
-      <div className="flex flex-col gap-6 p-6">
+      /* En móvil el p-6 se sumaba al p-4 del `main` (40px por lado): aquí
+         el único gutter pasa a ser el del layout. Desde md, idéntico. */
+      <div className="flex flex-col gap-6 p-0 md:p-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Receipt className="h-6 w-6 text-primary" />
@@ -279,7 +281,10 @@ export default function FacturacionPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
+    /* En móvil el p-6 propio se sumaba al p-4 del `main` (40px por lado, la
+       peor de las páginas del dashboard): aquí el único gutter pasa a ser
+       el del layout y el gap se aprieta. Desde md, idéntico. */
+    <div className="flex flex-col gap-4 p-0 md:gap-6 md:p-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -389,7 +394,9 @@ export default function FacturacionPage() {
             ))}
           </select>
         </FilterField>
-        <div className="flex-1 min-w-[180px]">
+        {/* order-first solo en móvil: "Buscar" es el campo más usado y no
+            debe quedar bajo 3 filas de selects. Desde md, orden original. */}
+        <div className="flex-1 min-w-[180px] order-first md:order-none">
           <FilterField label="Buscar">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
@@ -406,7 +413,10 @@ export default function FacturacionPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl border border-border bg-card overflow-hidden">
+      {/* Única card a sangre en móvil: es la que necesita el ancho. Sin
+          bordes laterales cuando toca el edge; desde md vuelve a la card
+          redondeada de siempre. */}
+      <div className="-mx-4 rounded-none border-y border-x-0 border-border bg-card overflow-hidden md:mx-0 md:rounded-xl md:border-x">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
@@ -430,7 +440,9 @@ export default function FacturacionPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            {/* min-w: sin él las 7 columnas se comprimen (nombres partidos
+                carácter a carácter) en vez de activar el overflow-x. */}
+            <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <Th>Fecha</Th>
@@ -592,7 +604,7 @@ function Kpi({
     muted: "bg-muted text-muted-foreground",
   };
   return (
-    <div className="rounded-xl border border-border bg-card p-4 flex items-start gap-3">
+    <div className="rounded-xl border border-border bg-card p-3 md:p-4 flex items-start gap-3">
       <div
         className={cn(
           "flex h-10 w-10 items-center justify-center rounded-lg shrink-0",
@@ -605,7 +617,9 @@ function Kpi({
         <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
           {label}
         </div>
-        <div className="text-xl font-bold tabular-nums truncate mt-0.5">
+        {/* text-lg en móvil: a 2 columnas, "PEN 12,345.67" en text-xl se
+            comía con truncate el dato principal. */}
+        <div className="text-lg md:text-xl font-bold tabular-nums truncate mt-0.5">
           {value}
         </div>
         <div className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</div>
@@ -673,7 +687,7 @@ function IconLink({
       rel="noopener noreferrer"
       title={title}
       onClick={(e) => e.stopPropagation()}
-      className="inline-flex items-center justify-center rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+      className="inline-flex items-center justify-center rounded-md border border-border bg-background p-2.5 md:p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
     >
       {children}
     </a>
