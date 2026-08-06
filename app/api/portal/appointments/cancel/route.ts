@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPortalSession } from "@/lib/portal-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyOrgMembers } from "@/lib/live-notifications/notify";
 import { z } from "zod";
 
 export const runtime = "nodejs";
@@ -47,7 +48,9 @@ export async function POST(req: NextRequest) {
 
   const { data: appointment } = await supabase
     .from("appointments")
-    .select("id, appointment_date, start_time, status")
+    // doctors(user_id): destinatario de la notificación en vivo cuando el
+    // evento "cita cancelada" está configurado con alcance "sólo sus citas".
+    .select("id, appointment_date, start_time, status, doctors(user_id)")
     .eq("id", appointment_id)
     .eq("patient_id", session.patient_id)
     .eq("organization_id", session.organization_id)
@@ -96,16 +99,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  supabase
-    .from("notifications")
-    .insert({
-      organization_id: session.organization_id,
-      type: "appointment_cancelled",
-      title: "Cita cancelada por paciente",
-      body: `Un paciente canceló su cita del ${appointment.appointment_date} a las ${appointment.start_time} desde el portal`,
-      action_url: `/scheduler?date=${appointment.appointment_date}`,
-    })
-    .then(() => {});
+  // Fan-out por rol vía RPC (mig 192) en lugar del broadcast a toda la org.
+  // El embed llega como objeto o array según la cardinalidad que infiera
+  // PostgREST; se normaliza para no depender de eso.
+  const apptDoctor = (
+    Array.isArray(appointment.doctors) ? appointment.doctors[0] : appointment.doctors
+  ) as { user_id?: string | null } | null;
+
+  void notifyOrgMembers(supabase, {
+    organizationId: session.organization_id,
+    event: "appointment_cancelled",
+    title: "Cita cancelada por paciente",
+    body: `Un paciente canceló su cita del ${appointment.appointment_date} a las ${appointment.start_time} desde el portal`,
+    actionUrl: `/scheduler?date=${appointment.appointment_date}`,
+    doctorUserId: apptDoctor?.user_id ?? null,
+  });
 
   return NextResponse.json({ success: true });
 }

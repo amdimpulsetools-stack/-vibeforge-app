@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
+import { emitLiveNotification } from "@/lib/live-notifications/emit-client";
 import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
 import { patientSchema, type PatientFormData } from "@/lib/validations/patient";
@@ -108,16 +109,11 @@ export function PatientFormModal({ onClose, onSaved }: PatientFormModalProps) {
       return;
     }
 
-    // In-app notification for new patient
-    supabase.from("notifications").insert({
-      organization_id: organizationId,
-      type: "info",
-      title: "Nuevo paciente registrado",
-      body: `${values.first_name} ${values.last_name}`,
-      action_url: "/patients",
-    }).then(({ error: nErr }) => {
-      if (nErr) console.error("[Notification] insert error:", nErr);
-    });
+    // In-app notification for new patient — fan-out por rol (mig 192).
+    // El texto lo reconstruye el servidor desde la fila del paciente.
+    if (newPatient?.id) {
+      emitLiveNotification({ event: "patient_created", patient_id: newPatient.id });
+    }
 
     // Send welcome email (fire and forget, only if patient has email)
     if (newPatient?.id && values.email) {

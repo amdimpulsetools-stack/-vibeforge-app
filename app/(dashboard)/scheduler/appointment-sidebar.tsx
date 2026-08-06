@@ -9,6 +9,7 @@ import type { AppointmentWithRelations, Doctor, Service, LookupValue, PatientPay
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { sendNotification } from "@/lib/send-notification";
+import { emitLiveNotification } from "@/lib/live-notifications/emit-client";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import { fireAppointmentCompletedFollowupTrigger } from "@/lib/scheduler/appointment-completed-trigger";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
@@ -576,8 +577,10 @@ export function AppointmentSidebar({
     setSavingPayment(true);
     const supabase = createClient();
 
+    // Se pide el id de vuelta: la notificación en vivo se emite por id y el
+    // servidor reconstruye el texto desde la fila real (mig 192).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await supabase
+    const { data: newPayment, error } = await supabase
       .from("patient_payments")
       .insert({
         patient_id: appointment.patient_id || null,
@@ -588,7 +591,9 @@ export function AppointmentSidebar({
         notes: payRef || null,
         payment_date: new Date().toISOString().split("T")[0],
         organization_id: (appointment as any).organization_id,
-      } as any);
+      } as any)
+      .select("id")
+      .single();
 
     setSavingPayment(false);
     if (error) {
@@ -597,17 +602,9 @@ export function AppointmentSidebar({
     }
     toast.success("Pago registrado");
 
-    // In-app notification for payment
-    if (appointment.organization_id) {
-      supabase.from("notifications").insert({
-        organization_id: (appointment as any).organization_id,
-        type: "payment_received",
-        title: "Pago registrado",
-        body: `S/. ${Number(payAmount).toFixed(2)} — ${appointment.patient_name}`,
-        action_url: `/scheduler?date=${appointment.appointment_date}`,
-      }).then(({ error: nErr }) => {
-        if (nErr) console.error("[Notification] insert error:", nErr);
-      });
+    // In-app notification for payment — fan-out por rol (mig 192).
+    if (newPayment?.id) {
+      emitLiveNotification({ event: "payment_registered", payment_id: newPayment.id });
     }
 
     // Send payment receipt notification
@@ -761,17 +758,13 @@ export function AppointmentSidebar({
       });
     }
 
-    // In-app notification for cancellations
-    if (newStatus === "cancelled" && appointment.organization_id) {
-      supabase.from("notifications").insert({
-        organization_id: appointment.organization_id,
-        type: "appointment_cancelled",
-        title: "Cita cancelada",
-        body: `${appointment.patient_name} — ${appointment.appointment_date} ${appointment.start_time?.slice(0, 5)}`,
-        action_url: `/scheduler?date=${appointment.appointment_date}`,
-      }).then(({ error: nErr }) => {
-        if (nErr) console.error("[Notification] insert error:", nErr);
-      });
+    // In-app notification for cancellations / no-shows — fan-out por rol
+    // (mig 192). El doctor asignado sólo la recibe si es SU cita; el RPC lo
+    // resuelve desde el doctor_id de la fila.
+    if (newStatus === "cancelled") {
+      emitLiveNotification({ event: "appointment_cancelled", appointment_id: appointment.id });
+    } else if (newStatus === "no_show") {
+      emitLiveNotification({ event: "appointment_no_show", appointment_id: appointment.id });
     }
 
     onUpdate();

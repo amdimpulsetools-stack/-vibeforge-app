@@ -11,6 +11,7 @@ import { useUser } from "@/hooks/use-user";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/send-notification";
+import { emitLiveNotification } from "@/lib/live-notifications/emit-client";
 import { buildAppointmentSchema, type AppointmentFormData } from "@/lib/validations/appointment";
 import type { AppointmentRequiredFields } from "@/lib/scheduler-config";
 import { CustomFieldsBlock } from "@/components/custom-fields/custom-fields-block";
@@ -953,7 +954,9 @@ export function AppointmentFormModal({
     // Register advance deposit if configured
     if (!error && newAppt && depositEnabled && Number(depositAmount) > 0) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: payError } = await supabase
+      // Se pide el id de vuelta: la notificación en vivo se emite por id y el
+      // servidor reconstruye el texto desde la fila real (mig 192).
+      const { data: newPayment, error: payError } = await supabase
         .from("patient_payments")
         .insert({
           patient_id: patientId || null,
@@ -963,19 +966,15 @@ export function AppointmentFormModal({
           notes: depositRef ? `Anticipo — ${depositRef}` : "Anticipo",
           payment_date: new Date().toISOString().split("T")[0],
           organization_id: organizationId,
-        } as any);
+        } as any)
+        .select("id")
+        .single();
 
       if (payError) {
         toast.error("Cita creada. No se pudo registrar el anticipo — regístralo manualmente en el panel.");
-      } else {
+      } else if (newPayment?.id) {
         // Notification: payment registered at appointment creation
-        supabase.from("notifications").insert({
-          organization_id: organizationId,
-          type: "payment_received",
-          title: "Pago registrado",
-          body: `S/. ${Number(depositAmount).toFixed(2)} — ${fullName}`,
-          action_url: `/scheduler`,
-        }).then(({ error: nErr }) => { if (nErr) console.error("[Notification] insert error:", nErr); });
+        emitLiveNotification({ event: "payment_registered", payment_id: newPayment.id });
       }
     }
 
@@ -986,16 +985,11 @@ export function AppointmentFormModal({
       return;
     }
 
-    // Notification: new appointment created
+    // Notification: new appointment created — fan-out por rol (mig 192).
+    // El doctor asignado sólo la recibe si es SU cita: eso lo resuelve el RPC
+    // a partir del doctor_id de la fila, no el cliente.
     if (newAppt) {
-      const doctor = doctors.find((d) => d.id === values.doctor_id);
-      supabase.from("notifications").insert({
-        organization_id: organizationId,
-        type: "appointment_created",
-        title: "Nueva cita agendada",
-        body: `${fullName} — ${values.appointment_date} ${values.start_time?.slice(0, 5)}${doctor ? ` · ${doctor.full_name}` : ""}`,
-        action_url: `/scheduler`,
-      }).then(({ error: nErr }) => { if (nErr) console.error("[Notification] insert error:", nErr); });
+      emitLiveNotification({ event: "appointment_created", appointment_id: newAppt.id });
 
       // Best-effort push to Google Calendar (no-op if integration not connected).
       syncAppointmentToGoogle(newAppt.id, "upsert");
