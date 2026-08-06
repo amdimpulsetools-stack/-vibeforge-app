@@ -1,0 +1,70 @@
+{{!--
+  Yenda · Presupuesto Dra. Patricia Quispe — INSEMINACIÓN INTRAUTERINA
+  Fuente: …/PRESUPUESTO INSEMINACION INTRAUTERINA.docx
+  Datos: lib/budget-pdf/patricia/data/iiu.ts  ·  Total S/ 2,750
+
+  FORMATO PROPIO: paquete cerrado, ítems SIN precio por línea. El
+  original lista lo que incluye y cierra con un único TOTAL; no se
+  reparte el monto entre ítems porque la clínica no publica ese
+  desglose (ver `partials/styles.hbs` → `.pkg`).
+
+  Nótese que la medicación de disparo (Ovidrel) va INCLUIDA; la de
+  estimulación ovárica, si la paciente la requiere, es aparte.
+--}}
+{{> head}}
+
+  <!-- ============== PÁGINA 1 ============================== -->
+  <section class="sheet" data-screen-label="01">
+    <div class="sheet-body">
+{{> sheetHead}}
+{{> titleRow}}
+{{> meta}}
+
+      <section class="phases">
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">1</div>
+            <div class="phase-name">Inseminación intrauterina</div>
+            <div class="phase-sub"><small>Precio del paquete</small>S/ {{budget.total_formatted}}</div>
+          </div>
+          <ul class="pkg">
+            <li>Consulta médica y controles ovulatorios</li>
+            <li>Ovidrel 1 ampolla SC
+              <span class="hint">Medicación de disparo ovulatorio — incluida</span></li>
+            <li>Capacitación espermática</li>
+            <li>Inseminación intrauterina</li>
+            <li>Honorarios médicos
+              <span class="hint">Pago en efectivo o transferencia bancaria</span></li>
+          </ul>
+          <div class="pkg-note">Precio cerrado: los procedimientos listados van comprendidos en el total, sin costo por línea.</div>
+        </div>
+
+{{> total}}
+      </section>
+
+      <section class="section">
+        <h2>Consideraciones</h2>
+        <ul class="notes">
+          <li>No incluye los exámenes previos al tratamiento <span class="note">(vigencia de 6 meses)</span>.</li>
+          <li>No incluye las medicinas para la estimulación ovárica si la paciente las requiere (<span class="price">S/ {{extras.iiu_medicacion}}</span>).</li>
+          <li class="k">Si en la primera visita no se llega a iniciar el tratamiento, deberá cancelar <span class="price">S/ {{extras.control_ecografico}}</span> por el control ecográfico.</li>
+          <li><b>Nota:</b> los análisis se deben realizar antes de iniciar el tratamiento como requisito primordial; sin ellos no se podrá empezar la estimulación.</li>
+        </ul>
+      </section>
+
+    </div>
+{{> pageFooter}}
+  </section>
+
+  <!-- ============== PÁGINA 2 ============================== -->
+  <section class="sheet" data-screen-label="02">
+    <div class="sheet-body">
+{{> runHead}}
+{{> evaluaciones mujerSerologia=true hombre=true sinSemen=true}}
+{{> terminos}}
+{{> firmas}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+{{> docEnd}}

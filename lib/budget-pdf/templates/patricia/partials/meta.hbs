@@ -1,0 +1,15 @@
+{{!--
+  Partial · rejilla de metadatos.
+
+  Paciente, documento y fechas vienen SIEMPRE del presupuesto real del
+  sistema — los .docx originales traían nombres de pacientes escritos a
+  mano y ninguno de esos datos vive en el repo.
+--}}
+      <section class="meta">
+        <div class="cell"><div class="lbl">Paciente</div><div class="val">{{patient.full_name}}</div></div>
+        <div class="cell"><div class="lbl">Documento</div><div class="val meta-val">{{patient.document_label}}</div></div>
+        <div class="cell"><div class="lbl">Fecha de emisión</div><div class="val meta-val">{{budget.issued_at_short}}</div></div>
+        <div class="cell"><div class="lbl">Médico tratante</div><div class="val">{{doctor.full_name}}</div></div>
+        <div class="cell"><div class="lbl">Asesora de fertilidad</div><div class="val">{{advisor.full_name}}</div></div>
+        <div class="cell"><div class="lbl">Vigencia</div><div class="val meta-val">{{budget.valid_until_short}}</div></div>
+      </section>

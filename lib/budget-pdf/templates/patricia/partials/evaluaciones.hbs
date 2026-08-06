@@ -1,0 +1,102 @@
+{{!--
+  Partial · "EVALUACIONES PREVIAS AL TRATAMIENTO DE REPRODUCCIÓN
+  ASISTIDA".
+
+  Los .docx traen tres perfiles distintos de analítica para la mujer y
+  uno para el hombre; cada plantilla elige el suyo con parámetros de
+  hash, p. ej.:
+
+      {{> evaluaciones mujerCompleta=true hombre=true}}
+      {{> evaluaciones mujerSerologia=true}}
+
+  Perfiles de mujer (excluyentes):
+    · mujerCompleta   ciclos con aspiración folicular — FIV, FIV con
+                      semen donado, FIV mixta, DUO STIM, ROPA, CRIO
+                      (CRIO sin evaluación psicológica: `sinPsico=true`).
+    · mujerOvodon     ovodonación — la paciente no se estimula, así que
+                      no lleva hemograma, coagulación ni riesgo
+                      quirúrgico.
+    · mujerSerologia  solo serología — inseminación y transferencia
+                      embrionaria (`conOrina=true` añade el examen de
+                      orina, como en transferencia embrionaria).
+
+  `hombre=true` añade la columna del varón (serología + examen de
+  semen). Se omite en los tratamientos con semen donado.
+--}}
+      <section class="section">
+        <h2>Evaluaciones previas al tratamiento de reproducción asistida</h2>
+        <div class="checks{{#unless hombre}} checks-1{{/unless}}">
+
+          {{#if mujerCompleta}}
+          <div class="ck-group mujer">
+            <h3>Mujer <span class="vig">· vigencia 6 meses</span></h3>
+            <ul>
+              <li>Hemograma <span class="note">(vigencia 1 mes)</span></li>
+              <li>Coagulación y sangría</li>
+              <li>Examen completo de orina</li>
+              <li>Grupo sanguíneo y factor</li>
+              <li>Glucosa</li>
+              <li>HIV I y II</li>
+              <li>Hepatitis B (HBsAg)</li>
+              <li>Hepatitis C (anticuerpos)</li>
+              <li>VDRL</li>
+              <li>Chlamydia trachomatis IgM</li>
+              <li class="chk">Riesgo quirúrgico</li>
+              {{#unless sinPsico}}<li class="chk">Evaluación psicológica</li>{{/unless}}
+            </ul>
+          </div>
+          {{/if}}
+
+          {{#if mujerOvodon}}
+          <div class="ck-group mujer">
+            <h3>Mujer <span class="vig">· vigencia 6 meses</span></h3>
+            <ul>
+              <li>Examen completo de orina</li>
+              <li>Grupo sanguíneo y factor</li>
+              <li>Glucosa</li>
+              <li>HIV I y II</li>
+              <li>Hepatitis B (HBsAg)</li>
+              <li>Hepatitis C (anticuerpos)</li>
+              <li>VDRL</li>
+              <li>Chlamydia trachomatis IgM</li>
+              {{#if conRiesgoQx}}<li class="chk">Riesgo quirúrgico</li>{{/if}}
+              <li class="chk">Evaluación psicológica</li>
+            </ul>
+          </div>
+          {{/if}}
+
+          {{#if mujerSerologia}}
+          <div class="ck-group mujer">
+            <h3>Mujer <span class="vig">· vigencia 6 meses</span></h3>
+            <ul>
+              {{#if conOrina}}<li>Examen completo de orina</li>{{/if}}
+              <li>HIV I y II</li>
+              <li>Hepatitis B (HBsAg)</li>
+              <li>Hepatitis C (anticuerpos)</li>
+              <li>VDRL</li>
+              <li>Chlamydia trachomatis IgM</li>
+            </ul>
+          </div>
+          {{/if}}
+
+          {{#if hombre}}
+          <div class="ck-group">
+            <h3>Hombre <span class="vig">· vigencia 6 meses</span></h3>
+            <ul>
+              <li>HIV I y II</li>
+              <li>Hepatitis B (HBsAg)</li>
+              <li>Hepatitis C (anticuerpos)</li>
+              <li>VDRL</li>
+              <li>Chlamydia trachomatis IgM</li>
+              {{#unless sinSemen}}
+              <li class="ck-head">Examen de semen</li>
+              <li class="sub">Espermocultivo <span class="note">(no requiere abstinencia · vigencia 3 meses)</span></li>
+              <li class="sub">Espermatograma <span class="note">(abstinencia 3–5 días)</span></li>
+              <li class="sub">Test de fragmentación <span class="note">(abstinencia 3–5 días)</span></li>
+              {{/unless}}
+            </ul>
+          </div>
+          {{/if}}
+
+        </div>
+      </section>

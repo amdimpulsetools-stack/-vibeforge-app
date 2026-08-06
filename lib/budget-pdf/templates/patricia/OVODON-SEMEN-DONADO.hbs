@@ -1,0 +1,99 @@
+{{!--
+  Yenda · Presupuesto Dra. Patricia Quispe — FIV CON ÓVULOS DONADOS
+  Y SEMEN DONADO
+  Fuente: …/PRESUPUESTO FIV CON OVULOS DONADOS Y SEMEN DONADO.docx
+  Datos: lib/budget-pdf/patricia/data/ovodon-semen-donado.ts
+  Total S/ 29,250  (el .docx decía 29,350 — errata aritmética
+  corregida a la suma real de los ítems; ver el data file)
+
+  Añade el bloque informativo de semen donado (fuera del total) y
+  omite la columna del varón en las evaluaciones previas.
+--}}
+{{> head}}
+
+  <!-- ============== PÁGINA 1 ============================== -->
+  <section class="sheet" data-screen-label="01">
+    <div class="sheet-body">
+{{> sheetHead}}
+{{> titleRow}}
+{{> meta}}
+
+      <section class="phases">
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">1</div>
+            <div class="phase-name">Fecundación in Vitro con óvulos donados</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.fiv.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Óvulos de la donante
+                  <span class="hint">Incluye medicación, exámenes, evaluaciones y aspiración folicular</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.fiv.ovulos_donante}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Procedimiento de FIV-ICSI + vitrificación de embriones</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.fiv.procedimiento}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Honorarios médicos
+                  <span class="hint">Pago en efectivo o transferencia bancaria</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.fiv.honorarios}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="phase">
+          <div class="phase-head">
+            <div class="phase-num">2</div>
+            <div class="phase-name">Transferencia embrionaria</div>
+            <div class="phase-sub"><small>Subtotal</small>S/ {{phases.transferencia.subtotal}}</div>
+          </div>
+          <table class="items">
+            <tbody>
+              <tr>
+                <td class="desc">Honorarios médicos
+                  <span class="hint">Pago en efectivo o transferencia bancaria</span></td>
+                <td class="amt"><span class="cur">S/</span> {{phases.transferencia.honorarios}}</td>
+              </tr>
+              <tr>
+                <td class="desc">Control endometrial, desvitrificación de embriones y transferencia embrionaria</td>
+                <td class="amt"><span class="cur">S/</span> {{phases.transferencia.control_endometrial}}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+{{> total}}
+      </section>
+
+{{> semenDonado}}
+
+    </div>
+{{> pageFooter}}
+  </section>
+
+  <!-- ============== PÁGINA 2 ============================== -->
+  <section class="sheet" data-screen-label="02">
+    <div class="sheet-body">
+{{> runHead}}
+{{> consideracionesEmbriones}}
+{{> ngs}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+  <!-- ============== PÁGINA 3 ============================== -->
+  <section class="sheet" data-screen-label="03">
+    <div class="sheet-body">
+{{> runHead}}
+{{> evaluaciones mujerOvodon=true conRiesgoQx=true}}
+{{> terminos}}
+{{> firmas}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+{{> docEnd}}

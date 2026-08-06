@@ -1,0 +1,9 @@
+{{!--
+  Partial · pie repetido en cada hoja. `org.footer_html` es HTML raw
+  construido desde los datos reales de la organización (dirección,
+  teléfonos, email, web); si la org no los tiene cargados en Ajustes,
+  el pie sale vacío — nunca con datos de otra clínica.
+--}}
+    <footer class="page-footer">
+      <div class="pf-addr">{{{org.footer_html}}}</div>
+    </footer>

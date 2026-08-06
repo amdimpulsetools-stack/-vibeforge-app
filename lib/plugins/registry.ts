@@ -19,6 +19,12 @@ import {
   resolveVitraConfig,
   VITRA_DEFAULT_CONFIG,
 } from "@/lib/budget-pdf/data/vitra-overrides";
+import { renderPatriciaBudgetPdf } from "@/lib/budget-pdf/patricia/render";
+import {
+  resolvePatriciaConfig,
+  PATRICIA_DEFAULT_CONFIG,
+} from "@/lib/budget-pdf/patricia/overrides";
+import { PATRICIA_TREATMENT_TYPES } from "@/lib/budget-pdf/patricia/routing";
 import type { Plugin } from "./types";
 
 // ── budget_pdf_vitra ──────────────────────────────────────────────
@@ -53,8 +59,41 @@ const budgetPdfVitra: Plugin = {
     renderBudgetHtmlPdf(props, resolveVitraConfig(config, props.org)),
 };
 
+// ── budget_pdf_patricia ───────────────────────────────────────────
+// Second Capa-2 PDF plugin — REPROFERTILIDAD EIRL (Dra. Patricia
+// Quispe). Doce plantillas sobre siete tipos de tratamiento, así que
+// a diferencia de Vitra el routing NO se resuelve solo con
+// `treatment_type`: `lib/budget-pdf/patricia/routing.ts` enruta por
+// NOMBRE de servicio y usa el tipo como red de seguridad. La lista de
+// abajo sigue siendo el filtro grueso del resolver.
+//
+// Precios fijos cerrados (`pricing_mode='single'`, mig 181): sin
+// tiers A/B/C ni ajuste manual de honorarios.
+//
+// Pendiente: "Banking de ovocitos" — el .docx trae dos totales y el
+// founder debe confirmar si es un presupuesto o dos. El router lo
+// intercepta a propósito para no imprimir precios de otro tratamiento.
+const budgetPdfPatricia: Plugin = {
+  family: "budget_pdf",
+  key: "budget_pdf_patricia",
+  name: "Presupuestos Dra. Patricia Quispe",
+  description:
+    "Templates HTML personalizados para REPROFERTILIDAD EIRL — 12 presupuestos de precio único (FIV y variantes, ovodonación, DUO STIM, criopreservación, transferencia embrionaria, inseminación y ROPA).",
+  requires_addons: ["fertility_basic", "fertility_premium"],
+  applies_to: { treatment_types: PATRICIA_TREATMENT_TYPES },
+  default_config: PATRICIA_DEFAULT_CONFIG as unknown as Record<
+    string,
+    unknown
+  >,
+  // Misma cadena de resolución que Vitra: config JSONB explícita →
+  // datos reales de la org (Ajustes) → vacío. Nada seedeado.
+  render: (props, config) =>
+    renderPatriciaBudgetPdf(props, resolvePatriciaConfig(config, props.org)),
+};
+
 export const PLUGINS: Record<string, Plugin> = {
   [budgetPdfVitra.key]: budgetPdfVitra,
+  [budgetPdfPatricia.key]: budgetPdfPatricia,
 };
 
 /**

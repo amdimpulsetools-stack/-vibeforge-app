@@ -1,0 +1,9 @@
+{{!--
+  Partial · barra de total. `budget.total_formatted` SIEMPRE es la suma
+  real de los ítems del data file (ver las erratas documentadas en
+  `data/ropa.ts` y `data/ovodon-semen-donado.ts`).
+--}}
+        <div class="total">
+          <div class="t-lbl">Total<small>Total en soles · pago en efectivo o transferencia</small></div>
+          <div class="t-fig"><span class="cur">S/</span>{{budget.total_formatted}}</div>
+        </div>
