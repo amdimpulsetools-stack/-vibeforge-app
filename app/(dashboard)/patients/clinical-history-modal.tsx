@@ -346,8 +346,21 @@ export function ClinicalHistoryModal({
               Historial Clínico Completo
             </h3>
             <div className="space-y-6">
-              <VitalsTrendsChart patientId={patient.id} />
-              <DiagnosisHistoryPanel patientId={patient.id} />
+              {/* El modal ya trae las notas clínicas (fetchNotes arriba); sin
+                  pasárselas, estos dos paneles repetían LA MISMA petición a
+                  /api/clinical-notes — tres descargas del historial completo y
+                  tres escrituras de auditoría por apertura. Mismo patrón que
+                  usa el drawer. */}
+              <VitalsTrendsChart
+                patientId={patient.id}
+                clinicalNotes={clinicalNotes}
+                notesLoading={loading}
+              />
+              <DiagnosisHistoryPanel
+                patientId={patient.id}
+                clinicalNotes={clinicalNotes}
+                notesLoading={loading}
+              />
               <TreatmentPlansPanel
                 patientId={patient.id}
                 doctorId={doctorId ?? undefined}

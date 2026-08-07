@@ -19,6 +19,13 @@ import { VITALS_FIELDS, type Vitals } from "@/types/clinical-notes";
 interface VitalsTrendsChartProps {
   patientId: string;
   clinicalNotes?: ClinicalNote[];
+  /**
+   * Solo para padres que YA están trayendo las notas: mientras esté en true,
+   * el componente mantiene su spinner en vez de pintar el estado vacío con
+   * el array todavía sin llenar. Sin esta prop el comportamiento es el de
+   * siempre (el padre pasa notas ya resueltas, o ninguna y las pedimos).
+   */
+  notesLoading?: boolean;
 }
 
 const VITAL_COLORS: Record<string, string> = {
@@ -32,18 +39,18 @@ const VITAL_COLORS: Record<string, string> = {
   height: "#84cc16",
 };
 
-export function VitalsTrendsChart({ patientId, clinicalNotes }: VitalsTrendsChartProps) {
+export function VitalsTrendsChart({ patientId, clinicalNotes, notesLoading = false }: VitalsTrendsChartProps) {
   const [notes, setNotes] = useState<ClinicalNote[]>([]);
-  const [loading, setLoading] = useState(!clinicalNotes);
+  const [loading, setLoading] = useState(!clinicalNotes || notesLoading);
   const [selectedVital, setSelectedVital] = useState<string>("heart_rate");
 
   // Use passed-in notes if available (avoids duplicate fetch)
   useEffect(() => {
     if (clinicalNotes) {
       setNotes(clinicalNotes);
-      setLoading(false);
+      setLoading(notesLoading);
     }
-  }, [clinicalNotes]);
+  }, [clinicalNotes, notesLoading]);
 
   const fetchNotes = useCallback(async () => {
     if (clinicalNotes) return; // Skip if notes provided via props

@@ -67,11 +67,9 @@ import { ClinicalAttachmentsPanel } from "./clinical-attachments-panel";
 import { ConsentsUnifiedPanel } from "./consents-unified-panel";
 import { ClinicalFollowupsPanel } from "./clinical-followups-panel";
 import { ExamOrdersPanel } from "./exam-orders-panel";
-import { VitalsTrendsChart } from "./vitals-trends-chart";
 import { DiagnosisHistoryPanel } from "./diagnosis-history-panel";
 import { ClinicalHistoryModal } from "./clinical-history-modal";
 import { RecurringBadge } from "@/components/patients/recurring-badge";
-import { GrowthCurvesPanel } from "./growth-curves-panel";
 import type { Sex } from "@/lib/growth-curves";
 import { TrendingUp, Maximize2 } from "lucide-react";
 
@@ -79,6 +77,41 @@ import { TrendingUp, Maximize2 } from "lucide-react";
 const BeforeAfterPhotosPanel = dynamic(
   () => import("@/components/dermatology/before-after-photos-panel").then((m) => m.BeforeAfterPhotosPanel),
   { ssr: false }
+);
+
+// Mismo patrón para los dos únicos consumidores de recharts del drawer
+// (~103 kB gz). Ninguno vive en la pestaña por defecto ("info"): el de
+// signos vitales está en "clinical" y las curvas en "growth". Los fallbacks
+// son los mismos spinners que cada componente pinta mientras carga sus
+// datos, y además el drawer precarga ambos chunks en idle nada más montarse
+// (ver useEffect de preloadClinicalCharts), así que en la práctica el
+// fallback no llega a verse: cuando el usuario cambia de pestaña el módulo
+// ya está en memoria.
+const loadVitalsTrendsChart = () => import("./vitals-trends-chart");
+const loadGrowthCurvesPanel = () => import("./growth-curves-panel");
+
+const VitalsTrendsChart = dynamic(
+  () => loadVitalsTrendsChart().then((m) => m.VitalsTrendsChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center py-6">
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
+);
+
+const GrowthCurvesPanel = dynamic(
+  () => loadGrowthCurvesPanel().then((m) => m.GrowthCurvesPanel),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    ),
+  },
 );
 
 interface PatientDrawerProps {
@@ -105,6 +138,25 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const einvoiceConfig = useEInvoiceConfig();
   const { enabled: insuranceEnabled } = useOrgInsurance();
   const { doctorId: currentDoctorId } = useCurrentDoctor();
+
+  // Los charts de recharts ya no entran en el bundle de /patients, pero el
+  // usuario que abre un paciente casi siempre acaba pasando por "clinical" o
+  // "growth". Los bajamos en cuanto el navegador está ocioso, con el drawer
+  // ya pintado, para que el cambio de pestaña sea instantáneo y el fallback
+  // de carga no llegue a verse.
+  useEffect(() => {
+    const preload = () => {
+      void loadVitalsTrendsChart();
+      void loadGrowthCurvesPanel();
+    };
+    if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(preload, { timeout: 3000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(preload, 1200);
+    return () => clearTimeout(t);
+  }, []);
+
   const [activeTab, setActiveTab] = useState<DrawerTab>("info");
   const patientSex = (patient as PatientWithSex).sex ?? null;
   const [appointments, setAppointments] = useState<AppointmentWithDetails[]>([]);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import type { PatientWithTags } from "@/types/admin";
@@ -29,11 +30,28 @@ import { cn } from "@/lib/utils";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrganization } from "@/components/organization-provider";
 import { usePlan } from "@/hooks/use-plan";
-import { PatientDrawer } from "./patient-drawer";
-import { PatientFormModal } from "./patient-form-modal";
-import { BulkImportModal } from "./bulk-import-modal";
 import { RecurringBadge } from "@/components/patients/recurring-badge";
 import { exportToCSV, calculateAge } from "@/lib/export";
+
+// Los tres se renderizan SOLO tras una interacción (abrir un paciente, "Nuevo
+// paciente", "Importar"), pero se importaban de forma estática: el drawer
+// arrastraba recharts entero (~103 kB gz) al listado y los dos modales
+// sumaban RHF+zod y 670 líneas de parser CSV. Con next/dynamic salen del
+// First Load y bajan en el momento en que hacen falta — el drawer, además,
+// se precarga al pasar el puntero por una fila, así que el clic no espera.
+const loadPatientDrawer = () => import("./patient-drawer");
+const PatientDrawer = dynamic(
+  () => loadPatientDrawer().then((m) => m.PatientDrawer),
+  { ssr: false },
+);
+const PatientFormModal = dynamic(
+  () => import("./patient-form-modal").then((m) => m.PatientFormModal),
+  { ssr: false },
+);
+const BulkImportModal = dynamic(
+  () => import("./bulk-import-modal").then((m) => m.BulkImportModal),
+  { ssr: false },
+);
 
 type StatusFilter = "all" | "active" | "inactive";
 type RecurrenceFilter = "all" | "new" | "recurring";
@@ -318,6 +336,12 @@ export default function PatientsPage() {
           if (data) setSelectedPatient(data as unknown as PatientWithTags);
         });
     }
+  };
+
+  // Precarga del chunk del drawer al primer indicio de intención sobre una
+  // fila (webpack deduplica la promesa, así que llamarlo N veces es gratis).
+  const preloadPatientDrawer = () => {
+    void loadPatientDrawer();
   };
 
   const toggleTag = (tag: string) => {
@@ -742,6 +766,8 @@ export default function PatientsPage() {
                   <button
                     key={patient.id}
                     onClick={() => setSelectedPatient(patient)}
+                    onPointerEnter={preloadPatientDrawer}
+                    onFocus={preloadPatientDrawer}
                     className={cn(
                       "flex w-full items-center gap-4 px-4 py-3 text-left transition-colors hover:bg-accent/50 md:px-6",
                       isSelected && "bg-primary/5 border-l-2 border-l-primary"
