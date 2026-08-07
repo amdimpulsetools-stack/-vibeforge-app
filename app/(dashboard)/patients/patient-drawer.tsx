@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
@@ -159,9 +160,6 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
   const [activeTab, setActiveTab] = useState<DrawerTab>("info");
   const patientSex = (patient as PatientWithSex).sex ?? null;
-  const [appointments, setAppointments] = useState<AppointmentWithDetails[]>([]);
-  const [payments, setPayments] = useState<PatientPayment[]>([]);
-  const [loading, setLoading] = useState(true);
   const [newTag, setNewTag] = useState("");
   const [addingTag, setAddingTag] = useState(false);
   const [tagMenuOpen, setTagMenuOpen] = useState(false);
@@ -211,30 +209,69 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [paymentAppointmentId, setPaymentAppointmentId] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
 
-  const fetchHistory = useCallback(async () => {
-    const supabase = createClient();
-    const [apptRes, payRes] = await Promise.all([
-      supabase
-        .from("appointments")
-        .select("id, appointment_date, start_time, end_time, status, patient_id, notes, doctors(id, full_name, color), services(id, name, base_price), offices(id, name)")
-        .eq("patient_id", patient.id)
-        .order("appointment_date", { ascending: false })
-        .order("start_time", { ascending: false }),
-      supabase
-        .from("patient_payments")
-        .select("id, patient_id, appointment_id, amount, payment_method, payment_date, notes, organization_id, created_at")
-        .eq("patient_id", patient.id)
-        .order("payment_date", { ascending: false }),
-    ]);
+  // Antes el drawer bajaba TODO el historial (citas con 3 joins + pagos) en
+  // cuanto se abría, solo para el badge de deuda y los contadores. Ahora al
+  // abrir se pide únicamente el resumen agregado (get_patient_summary, mig
+  // 202) y el historial completo baja solo al entrar a Historial/Finanzas —
+  // mismo patrón lazy que la pestaña Clínico. Ambas queries quedan cacheadas
+  // por paciente (staleTime 5 min): reabrir la misma ficha no repite nada.
+  const queryClient = useQueryClient();
 
-    setAppointments((apptRes.data as unknown as AppointmentWithDetails[]) ?? []);
-    setPayments((payRes.data as PatientPayment[]) ?? []);
-    setLoading(false);
-  }, [patient.id]);
+  const { data: summaryData } = useQuery({
+    queryKey: ["patient-summary", patient.id],
+    queryFn: async () => {
+      const { data } = await createClient().rpc("get_patient_summary", {
+        p_patient_id: patient.id,
+      });
+      const row = (Array.isArray(data) ? data[0] : data) as
+        | {
+            total_billed: number;
+            total_paid: number;
+            appointments_count: number;
+            completed_count: number;
+            first_appointment_date: string | null;
+            last_appointment_date: string | null;
+            payments_count: number;
+          }
+        | undefined;
+      return row ?? null;
+    },
+  });
 
-  useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+  const needsHistory = activeTab === "history" || activeTab === "finances";
+  const { data: historyData, isLoading: historyLoading } = useQuery({
+    queryKey: ["patient-history", patient.id],
+    enabled: needsHistory,
+    queryFn: async () => {
+      const supabase = createClient();
+      const [apptRes, payRes] = await Promise.all([
+        supabase
+          .from("appointments")
+          .select("id, appointment_date, start_time, end_time, status, patient_id, notes, doctors(id, full_name, color), services(id, name, base_price), offices(id, name)")
+          .eq("patient_id", patient.id)
+          .order("appointment_date", { ascending: false })
+          .order("start_time", { ascending: false }),
+        supabase
+          .from("patient_payments")
+          .select("id, patient_id, appointment_id, amount, payment_method, payment_date, notes, organization_id, created_at")
+          .eq("patient_id", patient.id)
+          .order("payment_date", { ascending: false }),
+      ]);
+      return {
+        appointments: (apptRes.data as unknown as AppointmentWithDetails[]) ?? [],
+        payments: (payRes.data as PatientPayment[]) ?? [],
+      };
+    },
+  });
+
+  const appointments = historyData?.appointments ?? [];
+  const payments = historyData?.payments ?? [];
+  const loading = historyLoading;
+
+  const invalidatePatientData = () => {
+    queryClient.invalidateQueries({ queryKey: ["patient-summary", patient.id] });
+    queryClient.invalidateQueries({ queryKey: ["patient-history", patient.id] });
+  };
 
   // Fetch clinical notes when clinical tab is selected
   useEffect(() => {
@@ -296,11 +333,10 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
       });
   }, [patient.organization_id]);
 
-  // Financial calculations
-  const totalServiceCost = appointments
-    .filter((a) => a.status !== "cancelled")
-    .reduce((sum, a) => sum + Number(a.services?.base_price ?? 0), 0);
-  const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+  // Financial calculations — del RPC agregado; mismos números que el reduce
+  // en JS de antes (SUM de base_price sin canceladas − SUM de pagos).
+  const totalServiceCost = Number(summaryData?.total_billed ?? 0);
+  const totalPaid = Number(summaryData?.total_paid ?? 0);
   const pendingBalance = totalServiceCost - totalPaid;
 
   // ===== HANDLERS =====
@@ -426,7 +462,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     setPaymentMethod("");
     setPaymentNotes("");
     setPaymentAppointmentId("");
-    fetchHistory();
+    invalidatePatientData();
   };
 
   const showGrowthTab = hasAddon("growth_curves") && (isAdmin || !!currentDoctorId);
@@ -1491,12 +1527,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Resumen</h3>
                     <div className="grid grid-cols-3 gap-2 sm:gap-3">
                       <div className="rounded-xl border border-border bg-muted/30 p-3 sm:p-4 text-center">
-                        <p className="text-xl sm:text-2xl font-bold text-primary">{appointments.length}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-primary">{summaryData?.appointments_count ?? 0}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">Citas</p>
                       </div>
                       <div className="rounded-xl border border-border bg-muted/30 p-3 sm:p-4 text-center">
                         <p className="text-xl sm:text-2xl font-bold text-success-600">
-                          S/. {payments.reduce((s, p) => s + Number(p.amount), 0).toFixed(0)}
+                          S/. {totalPaid.toFixed(0)}
                         </p>
                         <p className="text-xs text-muted-foreground mt-0.5">Pagado</p>
                       </div>
@@ -1523,7 +1559,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               {activeTab === "history" && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                    Historial de citas ({appointments.length})
+                    Historial de citas ({summaryData?.appointments_count ?? appointments.length})
                   </h3>
                   {loading ? (
                     <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
@@ -1670,9 +1706,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               {activeTab === "finances" && (
                 <div className="space-y-4">
                   <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
-                    Finanzas ({payments.length} pagos)
+                    Finanzas ({summaryData?.payments_count ?? payments.length} pagos)
                   </h3>
-                  {payments.length === 0 ? (
+                  {loading ? (
+                    <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                  ) : payments.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-4">Sin pagos registrados</p>
                   ) : (
                     <div className="overflow-x-auto">
@@ -1701,11 +1739,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   <div className="rounded-xl border border-border bg-muted/30 p-4">
                     <div className="grid grid-cols-2 gap-4 text-center">
                       <div>
-                        <p className="text-xl sm:text-2xl font-bold text-success-600">S/. {payments.reduce((s, p) => s + Number(p.amount), 0).toFixed(2)}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-success-600">S/. {totalPaid.toFixed(2)}</p>
                         <p className="text-xs text-muted-foreground">Total pagado</p>
                       </div>
                       <div>
-                        <p className="text-xl sm:text-2xl font-bold text-muted-foreground">{payments.length}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-muted-foreground">{summaryData?.payments_count ?? payments.length}</p>
                         <p className="text-xs text-muted-foreground">Transacciones</p>
                       </div>
                     </div>
@@ -1730,15 +1768,15 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     <div className="space-y-3">
                       <div className="rounded-xl border border-border bg-muted/30 p-4">
                         <p className="text-xs text-muted-foreground">Primera cita</p>
-                        <p className="text-sm font-medium">{appointments.length > 0 ? appointments[appointments.length - 1]?.appointment_date.split("-").reverse().join("/") : "—"}</p>
+                        <p className="text-sm font-medium">{summaryData?.first_appointment_date ? summaryData.first_appointment_date.split("-").reverse().join("/") : "—"}</p>
                       </div>
                       <div className="rounded-xl border border-border bg-muted/30 p-4">
                         <p className="text-xs text-muted-foreground">Última cita</p>
-                        <p className="text-sm font-medium">{appointments.length > 0 ? appointments[0]?.appointment_date.split("-").reverse().join("/") : "—"}</p>
+                        <p className="text-sm font-medium">{summaryData?.last_appointment_date ? summaryData.last_appointment_date.split("-").reverse().join("/") : "—"}</p>
                       </div>
                       <div className="rounded-xl border border-border bg-muted/30 p-4">
                         <p className="text-xs text-muted-foreground">Total de visitas</p>
-                        <p className="text-sm font-medium">{appointments.filter(a => a.status === "completed").length} completadas de {appointments.length}</p>
+                        <p className="text-sm font-medium">{summaryData?.completed_count ?? 0} completadas de {summaryData?.appointments_count ?? 0}</p>
                       </div>
                     </div>
                   </div>

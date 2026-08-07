@@ -3,7 +3,9 @@ import * as Sentry from "@sentry/nextjs";
 if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    tracesSampleRate: 0.1,
+    // Sin tracing de navegador: nadie consume esos spans y cuestan ~25-35 kB
+    // gz en el bundle compartido. El tracing de server/edge sigue activo en
+    // sus configs. Reactivable añadiendo tracesSampleRate aquí.
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
   });

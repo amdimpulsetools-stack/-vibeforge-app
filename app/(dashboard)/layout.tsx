@@ -1,6 +1,6 @@
 import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
-import { AiAssistantPanel } from "@/components/ai-assistant-panel";
+import { AiAssistantPanelLazy } from "@/components/ai-assistant-panel-lazy";
 import { OrganizationProvider } from "@/components/organization-provider";
 import { PlanLimitWarner } from "@/components/plan-limit-warner";
 import { MobileNavProvider } from "@/components/layout/mobile-nav-context";
@@ -126,7 +126,7 @@ export default async function DashboardLayout({
                 <div className="p-4 md:p-7">{children}</div>
               </main>
             </div>
-            <AiAssistantPanel />
+            <AiAssistantPanelLazy />
           </div>
         </TourProvider>
       </MobileNavProvider>

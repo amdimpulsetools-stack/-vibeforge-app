@@ -8,6 +8,7 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign, Video } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, getScheduleStartMinutes, getScheduleEndMinutes, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
 // Color helpers shared with the day view — single source of truth in
 // appointment-card.tsx so the palettes can't drift apart.
@@ -68,11 +69,15 @@ export function WeekView({
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
-  // Scheduler config — instant from localStorage, DB sync in background
-  const [schedulerConfig, setSchedulerConfig] = useState(() => loadSchedulerConfig());
-  useEffect(() => {
-    fetchSchedulerConfig().then(setSchedulerConfig).catch(() => {});
-  }, []);
+  // Scheduler config — pinta al instante desde localStorage (placeholder) y
+  // sincroniza con la BD vía React Query. La key es compartida entre las
+  // vistas día/semana: alternar de vista ya no repite el fetch de sync (una
+  // sola query por staleTime para ambas).
+  const { data: schedulerConfig = loadSchedulerConfig() } = useQuery({
+    queryKey: ["scheduler-config"],
+    queryFn: () => fetchSchedulerConfig(),
+    placeholderData: () => loadSchedulerConfig(),
+  });
   const TIME_SLOTS = useMemo(
     () => generateTimeSlots(getScheduleStartMinutes(schedulerConfig), getScheduleEndMinutes(schedulerConfig), getActiveInterval(schedulerConfig)),
     [schedulerConfig]

@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useOrganization } from "@/components/organization-provider";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import type {
   AppointmentWithRelations,
@@ -83,6 +85,7 @@ const DATE_PRESETS = [
 
 export default function ReportsPage() {
   const { t } = useLanguage();
+  const { organizationId } = useOrganization();
   const { hasAnyAddon } = useOrgAddons();
   const fertilityActive = hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY]);
   const [activeTab, setActiveTab] = useState<ReportTab>("financial");
@@ -91,9 +94,18 @@ export default function ReportsPage() {
   useEffect(() => {
     void REPORT_LOADERS[activeTab]();
   }, [activeTab]);
-  const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
+
+  // Debounce de los inputs de fecha (300 ms): editarlas con el teclado
+  // dispara un evento por tecla/flecha, y cada uno era un fetch triple. Los
+  // reportes reciben las fechas debounced, así que retención/fertilidad
+  // (que fetchean por su cuenta al cambiar de rango) también se benefician.
+  const [debounced, setDebounced] = useState({ dateFrom, dateTo });
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced({ dateFrom, dateTo }), 300);
+    return () => clearTimeout(timer);
+  }, [dateFrom, dateTo]);
 
   // Data
   //
@@ -106,56 +118,54 @@ export default function ReportsPage() {
   // Las filas crudas que quedan alimentan solo el reporte de marketing:
   // columnas explícitas (las únicas que ese reporte lee) y límite EXPLÍCITO
   // de 1000 — el mismo tope que PostgREST ya aplicaba, pero visible.
-  const [overview, setOverview] = useState<ReportsOverview | null>(null);
-  const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
-
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    const supabase = createClient();
-
-    const [overviewRes, apptRes, patRes] = await Promise.all([
-      supabase.rpc("get_reports_overview", {
-        p_date_from: dateFrom,
-        p_date_to: dateTo,
-      }),
-      supabase
-        .from("appointments")
-        .select("id, appointment_date, status, origin, patients(origin)")
-        .gte("appointment_date", dateFrom)
-        .lte("appointment_date", dateTo)
-        .order("appointment_date")
-        .limit(1000),
-      supabase
-        .from("patients")
-        .select("id, departamento, distrito, birth_date")
-        .gte("created_at", dateFrom)
-        .lte("created_at", dateTo + "T23:59:59")
-        .order("created_at")
-        .limit(1000),
-    ]);
-
-    setOverview((overviewRes.data as ReportsOverview | null) ?? null);
-    setAppointments((apptRes.data as unknown as AppointmentWithRelations[]) ?? []);
-    setPatients((patRes.data as Patient[]) ?? []);
-    setLoading(false);
-  }, [dateFrom, dateTo]);
-
-  // El fetch solo se dispara cuando el tab activo lo consume (financiero,
-  // marketing u operativo) y el rango de fechas cambió desde la última vez.
-  // Retención y fertilidad traen sus propios agregados por RPC: estando en
-  // esos tabs, cambiar fechas ya no lanza el fetch triple en vano.
+  //
+  // `enabled` solo cuando el tab activo consume estos datos (financiero,
+  // marketing u operativo) — retención y fertilidad traen sus propios
+  // agregados por RPC. React Query cachea por rango de fechas: volver a un
+  // rango ya visto dentro del staleTime es instantáneo, sin fetch.
   const needsSharedData =
     activeTab === "financial" || activeTab === "marketing" || activeTab === "operational";
-  const lastFetchedRange = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (!needsSharedData) return;
-    const rangeKey = dateFrom + "|" + dateTo;
-    if (lastFetchedRange.current === rangeKey) return;
-    lastFetchedRange.current = rangeKey;
-    void fetchData();
-  }, [needsSharedData, dateFrom, dateTo, fetchData]);
+  const { data: sharedData, isPending: sharedPending } = useQuery({
+    queryKey: ["reports", "shared", organizationId, debounced],
+    enabled: !!organizationId && needsSharedData,
+    queryFn: async () => {
+      const supabase = createClient();
+
+      const [overviewRes, apptRes, patRes] = await Promise.all([
+        supabase.rpc("get_reports_overview", {
+          p_date_from: debounced.dateFrom,
+          p_date_to: debounced.dateTo,
+        }),
+        supabase
+          .from("appointments")
+          .select("id, appointment_date, status, origin, patients(origin)")
+          .gte("appointment_date", debounced.dateFrom)
+          .lte("appointment_date", debounced.dateTo)
+          .order("appointment_date")
+          .limit(1000),
+        supabase
+          .from("patients")
+          .select("id, departamento, distrito, birth_date")
+          .gte("created_at", debounced.dateFrom)
+          .lte("created_at", debounced.dateTo + "T23:59:59")
+          .order("created_at")
+          .limit(1000),
+      ]);
+
+      return {
+        overview: (overviewRes.data as ReportsOverview | null) ?? null,
+        appointments:
+          (apptRes.data as unknown as AppointmentWithRelations[]) ?? [],
+        patients: (patRes.data as Patient[]) ?? [],
+      };
+    },
+  });
+
+  const overview = sharedData?.overview ?? null;
+  const appointments = sharedData?.appointments ?? [];
+  const patients = sharedData?.patients ?? [];
+  const loading = needsSharedData && (!organizationId || sharedPending);
 
   const applyPreset = (preset: typeof DATE_PRESETS[number]) => {
     const today = new Date();
@@ -184,7 +194,7 @@ export default function ReportsPage() {
   ];
 
   return (
-    <AiReportProvider reportType={activeTab} dateFrom={dateFrom} dateTo={dateTo}>
+    <AiReportProvider reportType={activeTab} dateFrom={debounced.dateFrom} dateTo={debounced.dateTo}>
       {/* Full-bleed en los dos ejes de breakpoint (pedido del founder:
           fuera el marco flotante también en escritorio).
 
@@ -281,7 +291,7 @@ export default function ReportsPage() {
             en su propio wrapper. Desde md nada cambia. */}
         <div className="flex-1 overflow-y-auto p-4 max-md:overflow-x-hidden md:p-6">
           {/* AI Summary Panel (appears when active) */}
-          <AiSummaryPanel reportType={activeTab} dateFrom={dateFrom} dateTo={dateTo} />
+          <AiSummaryPanel reportType={activeTab} dateFrom={debounced.dateFrom} dateTo={debounced.dateTo} />
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
@@ -290,30 +300,30 @@ export default function ReportsPage() {
           ) : activeTab === "financial" ? (
             <FinancialReport
               overview={overview}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
+              dateFrom={debounced.dateFrom}
+              dateTo={debounced.dateTo}
             />
           ) : activeTab === "marketing" ? (
             <MarketingReport
               appointments={appointments}
               patients={patients}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
+              dateFrom={debounced.dateFrom}
+              dateTo={debounced.dateTo}
             />
           ) : activeTab === "operational" ? (
             <OperationalReport
               overview={overview}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
+              dateFrom={debounced.dateFrom}
+              dateTo={debounced.dateTo}
             />
           ) : activeTab === "fertility" ? (
             // Self-contained: fetches its own server-side aggregates,
             // doesn't depend on the shared raw-row fetch above.
-            <FertilityReport dateFrom={dateFrom} dateTo={dateTo} />
+            <FertilityReport dateFrom={debounced.dateFrom} dateTo={debounced.dateTo} />
           ) : (
             <RetentionReport
-              dateFrom={dateFrom}
-              dateTo={dateTo}
+              dateFrom={debounced.dateFrom}
+              dateTo={debounced.dateTo}
             />
           )}
         </div>

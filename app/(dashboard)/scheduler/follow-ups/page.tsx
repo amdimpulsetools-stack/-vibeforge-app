@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -101,8 +102,37 @@ export default function FollowUpsPage() {
     recovered: 0,
     no_response: 0,
   });
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [rules, setRules] = useState<FollowupRuleLite[]>([]);
+
+  // Catálogos para el panel de filtros, cacheados 5 min por org: volver a la
+  // bandeja (o reabrir los filtros) no repite estos fetches.
+  const { data: doctorsData } = useQuery({
+    queryKey: ["doctors", "filter-names", organizationId],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      // We only need (id, full_name) for the doctor filter dropdown — avoid
+      // pulling heavy fields like `bio` or `signature_url` that ship with `*`.
+      const { data } = await createClient()
+        .from("doctors")
+        .select("id, full_name")
+        .eq("is_active", true)
+        .order("full_name");
+      return (data ?? []) as Doctor[];
+    },
+  });
+  const doctors = doctorsData ?? [];
+
+  // El catálogo de reglas es del Pack Fertilidad: una org core no tiene
+  // ninguna, así que ni siquiera pedimos el endpoint (`enabled`).
+  const { data: rulesData } = useQuery({
+    queryKey: ["fertility-rules", organizationId],
+    enabled: !!organizationId && hasStepTemplates,
+    queryFn: async () => {
+      const r = await fetch("/api/admin/fertility/rules", { cache: "no-store" });
+      const j: { rules?: FollowupRuleLite[] } = r.ok ? await r.json() : { rules: [] };
+      return j.rules ?? [];
+    },
+  });
+  const rules = hasStepTemplates ? (rulesData ?? []) : [];
   const [filters, setFilters] = useState<FollowupFilters>(() =>
     initialDoctorId
       ? { ...DEFAULT_FILTERS, doctor_id: initialDoctorId }
@@ -133,32 +163,6 @@ export default function FollowUpsPage() {
     },
     []
   );
-
-  // Initial doctors + rules
-  useEffect(() => {
-    const supabase = createClient();
-    // We only need (id, full_name) for the doctor filter dropdown — avoid
-    // pulling heavy fields like `bio` or `signature_url` that ship with `*`.
-    supabase
-      .from("doctors")
-      .select("id, full_name")
-      .eq("is_active", true)
-      .order("full_name")
-      .then(({ data }) => setDoctors((data ?? []) as Doctor[]));
-  }, []);
-
-  // El catálogo de reglas es del Pack Fertilidad: una org core no tiene
-  // ninguna, así que ni siquiera pedimos el endpoint.
-  useEffect(() => {
-    if (!hasStepTemplates) {
-      setRules([]);
-      return;
-    }
-    fetch("/api/admin/fertility/rules", { cache: "no-store" })
-      .then((r) => (r.ok ? r.json() : { rules: [] }))
-      .then((j: { rules?: FollowupRuleLite[] }) => setRules(j.rules ?? []))
-      .catch(() => setRules([]));
-  }, [hasStepTemplates]);
 
   // Apply counts coming from any bucket response. Used by `fetchTab` so we
   // don't need a separate `bucket=counts` round-trip on mount or after
@@ -344,8 +348,138 @@ export default function FollowUpsPage() {
     fetchTab(variant, filters, true, keep);
   };
 
+  // ── Aplicación local de acciones (sin refetch de la bandeja) ─────────────
+  //
+  // Antes, CADA acción de la asesora recargaba el tab completo (hasta 100
+  // filas + 3 counts): 400-800 ms de espera percibida por clic. Los PATCH
+  // ya devuelven la fila actualizada en `data`, así que reproducimos el
+  // efecto en el estado: misma fila (merge), misma posición (el comparador
+  // replica el ORDER BY del bucket Pendientes del endpoint) y mismos
+  // contadores. Si la fila cambia de bucket, el tab destino se marca como
+  // no cargado y su lazy-load lo trae fresco al entrar (0 requests ahora).
+
+  const PENDING_STATUSES = ["pendiente", "contactado", "pospuesto"];
+  const RECOVERED_STATUSES = [
+    "agendado_via_contacto",
+    "agendado_organico_dentro_ventana",
+  ];
+  const NO_RESPONSE_STATUSES = [
+    "desistido_silencioso",
+    "vencido",
+    "cerrado_manual",
+  ];
+
+  const bucketForStatus = (
+    status: string | null | undefined
+  ): FollowupVariant | null =>
+    !status
+      ? null
+      : PENDING_STATUSES.includes(status)
+        ? "pending"
+        : RECOVERED_STATUSES.includes(status)
+          ? "recovered"
+          : NO_RESPONSE_STATUSES.includes(status)
+            ? "no_response"
+            : null;
+
+  // Réplica del orden "cola de trabajo" del endpoint (dashboard/route.ts):
+  // last_contacted_at ASC NULLS FIRST, expected_by ASC NULLS LAST,
+  // created_at ASC, id ASC. Los ISO strings comparan bien lexicográficamente.
+  const pendingOrder = (a: FollowupWithDetails, b: FollowupWithDetails) => {
+    const ac = a.last_contacted_at ?? null;
+    const bc = b.last_contacted_at ?? null;
+    if (ac !== bc) {
+      if (ac === null) return -1;
+      if (bc === null) return 1;
+      return ac < bc ? -1 : 1;
+    }
+    const ae = a.expected_by ?? null;
+    const be = b.expected_by ?? null;
+    if (ae !== be) {
+      if (ae === null) return 1;
+      if (be === null) return -1;
+      return ae < be ? -1 : 1;
+    }
+    if (a.created_at !== b.created_at) return a.created_at < b.created_at ? -1 : 1;
+    return a.id < b.id ? -1 : 1;
+  };
+
+  // Los PATCH embeben menos que el listado (doctors sin id, sin
+  // budget_records): se mergean los escalares y se conservan los embeds
+  // que la card ya tenía.
+  const mergeRow = (
+    item: FollowupWithDetails,
+    updated: FollowupWithDetails
+  ): FollowupWithDetails => ({
+    ...item,
+    ...updated,
+    doctors: item.doctors,
+    patients: item.patients ?? updated.patients,
+    budget_records: item.budget_records,
+  });
+
+  const applyActionLocally = (
+    id: string,
+    updated: FollowupWithDetails | null
+  ) => {
+    const target = bucketForStatus(updated?.status);
+    if (!updated || !target) {
+      // Payload inesperado — la recarga completa sigue siendo el fallback.
+      refresh();
+      return;
+    }
+
+    const states: Record<FollowupVariant, TabState> = {
+      pending,
+      recovered,
+      no_response: noResponse,
+    };
+    const setters: Record<
+      FollowupVariant,
+      React.Dispatch<React.SetStateAction<TabState>>
+    > = {
+      pending: setPending,
+      recovered: setRecovered,
+      no_response: setNoResponse,
+    };
+    const source =
+      (Object.keys(states) as FollowupVariant[]).find((k) =>
+        states[k].items.some((i) => i.id === id)
+      ) ?? null;
+
+    if (source === target) {
+      setters[source]((prev) => {
+        const items = prev.items.map((i) =>
+          i.id === id ? mergeRow(i, updated) : i
+        );
+        if (source === "pending") items.sort(pendingOrder);
+        return { ...prev, items };
+      });
+      return;
+    }
+
+    if (source) {
+      setters[source]((prev) => ({
+        ...prev,
+        items: prev.items.filter((i) => i.id !== id),
+      }));
+    }
+    // El bucket destino queda marcado como no cargado: su lazy-load (efecto
+    // de cambio de tab) lo refresca —con KPIs incluidos— la próxima vez que
+    // la asesora entre.
+    setters[target]((prev) => (prev.loaded || prev.loading ? emptyTab() : prev));
+    if (target === "recovered") setRecoveredKpis(null);
+    setCounts((prev) => {
+      const next = { ...prev };
+      if (source) next[source] = Math.max(0, next[source] - 1);
+      next[target] = next[target] + 1;
+      return next;
+    });
+  };
+
   // Action handlers — call PATCH subroute endpoints (owned by Agente 2).
   const requestAction = async (
+    id: string,
     path: string,
     method: "PATCH" | "POST",
     body: Record<string, unknown> | null,
@@ -366,7 +500,11 @@ export default function FollowUpsPage() {
         throw new Error(errMsg);
       }
       toast.success(successMsg);
-      refresh();
+      const updated =
+        payload && typeof payload === "object" && "data" in payload
+          ? ((payload as { data: FollowupWithDetails | null }).data ?? null)
+          : null;
+      applyActionLocally(id, updated);
       return { ok: true, payload };
     } catch (err) {
       toast.error(
@@ -377,16 +515,18 @@ export default function FollowUpsPage() {
   };
 
   const patchAction = async (
+    id: string,
     path: string,
     body: Record<string, unknown> | null,
     successMsg: string
   ): Promise<boolean> => {
-    const r = await requestAction(path, "PATCH", body, successMsg);
+    const r = await requestAction(id, path, "PATCH", body, successMsg);
     return r.ok;
   };
 
   const onContact = async (id: string) => {
     const ok = await patchAction(
+      id,
       `/api/clinical-followups/${id}/contact`,
       { type: "manual_contacted" },
       "Contactada — la movimos al final de tu cola"
@@ -397,6 +537,7 @@ export default function FollowUpsPage() {
 
   const onSnooze = async (id: string, days: number) => {
     const ok = await patchAction(
+      id,
       `/api/clinical-followups/${id}/snooze`,
       { days },
       `Pospuesto ${days} días — vence en la nueva fecha`
@@ -407,6 +548,7 @@ export default function FollowUpsPage() {
 
   const onMarkNoResponse = (id: string) =>
     patchAction(
+      id,
       `/api/clinical-followups/${id}/close-no-response`,
       null,
       "Movido a sin respuesta"
@@ -414,6 +556,7 @@ export default function FollowUpsPage() {
 
   const onCloseManual = (id: string, reason: string) =>
     patchAction(
+      id,
       `/api/clinical-followups/${id}/close-manual`,
       { reason },
       "Caso cerrado"
@@ -421,6 +564,7 @@ export default function FollowUpsPage() {
 
   const onReactivate = (id: string) =>
     patchAction(
+      id,
       `/api/clinical-followups/${id}/reactivate`,
       null,
       "Seguimiento reactivado"
@@ -441,6 +585,7 @@ export default function FollowUpsPage() {
             ? "Reagendado — la movimos al final de tu cola"
             : "Cerrado sin respuesta";
     const res = await requestAction(
+      id,
       `/api/clinical-followups/${id}/advance`,
       "POST",
       action,

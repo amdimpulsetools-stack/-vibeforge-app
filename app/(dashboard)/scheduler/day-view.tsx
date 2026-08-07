@@ -7,6 +7,7 @@ import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
 import { Plus, Lock, LockOpen, Coffee } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, getScheduleStartMinutes, getScheduleEndMinutes, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
 import { AppointmentCard } from "./appointment-card";
 import { useNow } from "./now-provider";
@@ -169,11 +170,15 @@ export function DayView({
   const [dragOverSlot, setDragOverSlot] = useState<{ time: string; officeId: string } | null>(null);
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
 
-  // Scheduler config — instant from localStorage, DB sync in background (non-blocking)
-  const [schedulerConfig, setSchedulerConfig] = useState(() => loadSchedulerConfig());
-  useEffect(() => {
-    fetchSchedulerConfig().then(setSchedulerConfig).catch(() => {});
-  }, []);
+  // Scheduler config — pinta al instante desde localStorage (placeholder) y
+  // sincroniza con la BD vía React Query. La key es compartida entre las
+  // vistas día/semana: alternar de vista ya no repite el fetch de sync (una
+  // sola query por staleTime para ambas).
+  const { data: schedulerConfig = loadSchedulerConfig() } = useQuery({
+    queryKey: ["scheduler-config"],
+    queryFn: () => fetchSchedulerConfig(),
+    placeholderData: () => loadSchedulerConfig(),
+  });
   const TIME_SLOTS = useMemo(
     () => generateTimeSlots(getScheduleStartMinutes(schedulerConfig), getScheduleEndMinutes(schedulerConfig), getActiveInterval(schedulerConfig)),
     [schedulerConfig]

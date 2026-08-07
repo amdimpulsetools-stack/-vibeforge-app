@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useForm } from "react-hook-form";
@@ -185,6 +186,7 @@ export default function SettingsPage() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const VALID_TABS: Tab[] = ["general", "agenda", "reservas", "correos", "plantillas-hc", "presupuestos", "whatsapp", "whatsapp-api", "integraciones", "modulos", "permisos"];
   const tabParam = searchParams.get("tab") as Tab | null;
   const activeTab: Tab = tabParam && VALID_TABS.includes(tabParam) ? tabParam : "general";
@@ -251,14 +253,17 @@ export default function SettingsPage() {
   const iconInputRef = useRef<HTMLInputElement>(null);
 
   // ── WhatsApp integration status ──────────────────────────────────────────
-  const [waConnected, setWaConnected] = useState(false);
-  useEffect(() => {
-    if (!organizationId) return;
-    fetch("/api/whatsapp/config")
-      .then((r) => r.ok ? r.json() : null)
-      .then((d) => { if (d?.is_active) setWaConnected(true); })
-      .catch(() => {});
-  }, [organizationId]);
+  // Cacheado 5 min: volver a /settings dentro del staleTime no repite el
+  // roundtrip a /api/whatsapp/config.
+  const { data: waConfigData } = useQuery({
+    queryKey: ["whatsapp-config-status", organizationId],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const r = await fetch("/api/whatsapp/config");
+      return r.ok ? ((await r.json()) as { is_active?: boolean }) : null;
+    },
+  });
+  const waConnected = !!waConfigData?.is_active;
 
   // ── Revenue goal ─────────────────────────────────────────────────────────
   const [revenueGoal, setRevenueGoal] = useState<string>("");
@@ -271,24 +276,27 @@ export default function SettingsPage() {
   const [contactLoaded, setContactLoaded] = useState(false);
   const [savingContact, setSavingContact] = useState(false);
 
+  const { data: contactData } = useQuery({
+    queryKey: ["clinic-contact", organizationId],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const { data } = await createClient()
+        .from("global_variables")
+        .select("id, key, name, value, sort_order, is_active")
+        .eq("organization_id", organizationId as string)
+        .in("key", ["clinic_phone", "clinic_email"]);
+      return data ?? [];
+    },
+  });
+
   useEffect(() => {
-    if (!organizationId || contactLoaded) return;
-    const supabase = createClient();
-    supabase
-      .from("global_variables")
-      .select("key, value")
-      .eq("organization_id", organizationId)
-      .in("key", ["clinic_phone", "clinic_email"])
-      .then(({ data }) => {
-        if (data) {
-          for (const v of data) {
-            if (v.key === "clinic_phone") setClinicPhone(v.value ?? "");
-            if (v.key === "clinic_email") setClinicEmail(v.value ?? "");
-          }
-        }
-        setContactLoaded(true);
-      });
-  }, [organizationId, contactLoaded]);
+    if (!contactData || contactLoaded) return;
+    for (const v of contactData) {
+      if (v.key === "clinic_phone") setClinicPhone(v.value ?? "");
+      if (v.key === "clinic_email") setClinicEmail(v.value ?? "");
+    }
+    setContactLoaded(true);
+  }, [contactData, contactLoaded]);
 
   const handleSaveContact = async () => {
     if (!organizationId) return;
@@ -300,38 +308,27 @@ export default function SettingsPage() {
       { key: "clinic_email", name: "Email de contacto", value: clinicEmail.trim() },
     ];
 
-    // Las dos variables (teléfono y email) no dependen la una de la otra:
-    // el bucle secuencial hacía 4 roundtrips (select+write ×2) para guardar
-    // dos campos. En paralelo son 2, y el botón Guardar responde en la mitad
-    // de tiempo.
-    await Promise.all(
-      upserts.map(async (u) => {
-        const { data: existing } = await supabase
-          .from("global_variables")
-          .select("id")
-          .eq("organization_id", organizationId)
-          .eq("key", u.key)
-          .maybeSingle();
-
-        if (existing) {
-          await supabase
-            .from("global_variables")
-            .update({ value: u.value })
-            .eq("id", existing.id);
-        } else {
-          await supabase.from("global_variables").insert({
-            organization_id: organizationId,
-            key: u.key,
-            name: u.name,
-            value: u.value,
-            sort_order: 0,
-            is_active: true,
-          });
-        }
+    // Un solo upsert para las dos variables (antes: select+write por cada
+    // una — 4 roundtrips; luego 2 en paralelo; ahora 1). Las filas ya
+    // cacheadas por la query de arriba aportan id/name/sort_order/is_active,
+    // así que el upsert por PK solo pisa `value` y no toca lo que el usuario
+    // pudiera haber personalizado.
+    const byKey = new Map((contactData ?? []).map((r) => [r.key, r]));
+    const { error } = await supabase.from("global_variables").upsert(
+      upserts.map((u) => {
+        const ex = byKey.get(u.key);
+        return ex
+          ? { id: ex.id, organization_id: organizationId, key: u.key, name: ex.name, value: u.value, sort_order: ex.sort_order, is_active: ex.is_active }
+          : { organization_id: organizationId, key: u.key, name: u.name, value: u.value, sort_order: 0, is_active: true };
       }),
     );
 
     setSavingContact(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ["clinic-contact", organizationId] });
     toast.success(t("settings.org_save_success"));
   };
 
@@ -373,10 +370,13 @@ export default function SettingsPage() {
     loadSchedulerConfig()
   );
 
-  // Load from DB on mount (localStorage is the fast fallback)
+  // Load from DB (localStorage is the fast fallback) — solo al entrar al tab
+  // Agenda, que es el único que lee/edita esta config. Antes se pedía al
+  // montar /settings aunque el usuario nunca pasara por ese tab.
   useEffect(() => {
+    if (activeTab !== "agenda") return;
     fetchSchedulerConfig().then(setSchedulerConfig);
-  }, []);
+  }, [activeTab]);
 
   const updateSchedulerConfig = (patch: Partial<SchedulerConfig>) => {
     const next = { ...schedulerConfig, ...patch };

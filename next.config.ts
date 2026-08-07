@@ -3,6 +3,18 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["recharts"],
+  // El cliente ya no hace tracing (sentry.client.config.ts sin
+  // tracesSampleRate); este define elimina además el código de spans del
+  // bundle del navegador. Solo cliente: server/edge SÍ trazan al 0.1 y el
+  // flag global bundleSizeOptimizations.excludeTracing los rompería.
+  webpack: (config, { isServer, webpack }) => {
+    if (!isServer) {
+      config.plugins.push(
+        new webpack.DefinePlugin({ __SENTRY_TRACING__: false })
+      );
+    }
+    return config;
+  },
   images: {
     remotePatterns: [
       {

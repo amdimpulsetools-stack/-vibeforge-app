@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import { useLanguage } from "@/components/language-provider";
@@ -22,7 +23,12 @@ import { SchedulerHeader } from "./scheduler-header";
 import { DayView } from "./day-view";
 import { WeekView } from "./week-view";
 import { NowProvider } from "./now-provider";
-import { WhatsAppClipboardModal } from "./whatsapp-clipboard-modal";
+// Solo se renderiza al copiar un mensaje de WhatsApp — fuera del First Load.
+const WhatsAppClipboardModal = dynamic(
+  () =>
+    import("./whatsapp-clipboard-modal").then((m) => m.WhatsAppClipboardModal),
+  { ssr: false }
+);
 import type { AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
 import {
   loadBreakTimeConfig,
@@ -107,11 +113,9 @@ export default function SchedulerPage() {
   const { isAdvisor } = useIsFertilityAdvisor();
   const restrictedDoctor = isDoctor && !isAdvisor;
   const schedulerConfig = useMemo(() => loadSchedulerConfig(), []);
+  const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
-  const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
-  const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
-  const [loadingAppts, setLoadingAppts] = useState(true);
   const [totalApptCount, setTotalApptCount] = useState<number | null>(null);
 
   // ── Master data (cached via React Query — survives page navigations) ──
@@ -124,7 +128,6 @@ export default function SchedulerPage() {
   const lookupOrigins = masterData?.lookupOrigins ?? [];
   const lookupPayments = masterData?.lookupPayments ?? [];
   const lookupResponsibles = masterData?.lookupResponsibles ?? [];
-  const loading = loadingMaster || loadingAppts;
 
   // Sidebar & form state
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithRelations | null>(null);
@@ -197,72 +200,81 @@ export default function SchedulerPage() {
     };
   }, [currentDate, viewMode]);
 
-  // Payment totals per appointment (for visual indicators)
-  const [paymentTotals, setPaymentTotals] = useState<Record<string, number>>({});
+  // ── Citas + bloqueos sobre React Query ───────────────────────────────
+  // Key = rango visible: navegar a un día/semana ya visitada dentro del
+  // staleTime (5 min) pinta desde caché sin query. `placeholderData` mantiene
+  // el rango anterior en pantalla mientras baja el nuevo — exactamente el
+  // comportamiento que ya tenía la agenda (no vaciaba la grilla al navegar).
+  // Las mutaciones invalidan el prefijo y el poll de live-status escribe
+  // directamente en la caché vía setQueryData.
+  const { startDate: rangeStartKey, endDate: rangeEndKey } = getDateRange();
 
-  // Fetch appointments + their payments (filtered by date range)
-  const fetchAppointments = useCallback(async () => {
-    const supabase = createClient();
-    const { startDate, endDate } = getDateRange();
+  const { data: apptsData, isPending: apptsPending } = useQuery({
+    queryKey: ["scheduler", "appts", organizationId, rangeStartKey, rangeEndKey],
+    enabled: !!organizationId,
+    placeholderData: (prev) => prev,
+    queryFn: async () => {
+      const supabase = createClient();
+      // PERF: explicit column list instead of `select("*", ...)` — the
+      // scheduler only reads ~20 fields per row, not the full 40+. Saves
+      // ~50% network transfer and JSON parse time at 500+ appointments/day.
+      // Los montos de pagos vienen embebidos en el mismo select vía la FK
+      // anidada (respaldada por idx_patient_payments_appt_amt, mig 103).
+      const apptRes = await supabase
+        .from("appointments")
+        .select("id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price), patients(is_recurring, dni, birth_date), patient_payments(amount)")
+        .gte("appointment_date", rangeStartKey)
+        .lte("appointment_date", rangeEndKey)
+        .neq("status", "cancelled")
+        .order("start_time");
 
-    // 1. Fetch appointments for the visible date range.
-    // PERF: explicit column list instead of `select("*", ...)` — the scheduler
-    // only reads ~20 fields per row, not the full 40+. Saves ~50% network
-    // transfer and JSON parse time at 500+ appointments/day.
-    const apptRes = await supabase
-      .from("appointments")
-      .select("id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price), patients(is_recurring, dni, birth_date), patient_payments(amount)")
-      .gte("appointment_date", startDate)
-      .lte("appointment_date", endDate)
-      .neq("status", "cancelled")
-      .order("start_time");
+      // Supabase types the joined relations as arrays when an explicit column
+      // list is used; at runtime they are single objects for to-one FKs. Cast
+      // through unknown is the standard escape hatch for this mismatch.
+      return (apptRes.data as unknown as AppointmentWithRelations[]) ?? [];
+    },
+  });
+  const appointments = apptsData ?? [];
 
-    // Supabase types the joined relations as arrays when an explicit column
-    // list is used; at runtime they are single objects for to-one FKs. Cast
-    // through unknown is the standard escape hatch for this mismatch.
-    const appts = (apptRes.data as unknown as AppointmentWithRelations[]) ?? [];
-    setAppointments(appts);
-
-    // 2. Payment totals. Antes era un SEGUNDO roundtrip en serie
-    // (appointments → .in(apptIds) sobre patient_payments), que en la página
-    // más usada de la app se pagaba en cada carga y en cada cambio de fecha;
-    // los indicadores de deuda además "popeaban" un frame tarde. Ahora los
-    // montos vienen embebidos en el mismo select vía la FK anidada
-    // (respaldada por idx_patient_payments_appt_amt, mig 103) y se agregan
-    // en cliente.
+  // Payment totals per appointment (for visual indicators) — derivado del
+  // embed patient_payments(amount) del mismo select.
+  const paymentTotals = useMemo(() => {
     const totals: Record<string, number> = {};
-    for (const a of apptRes.data ?? []) {
+    for (const a of appointments) {
       const payments = (a as unknown as { patient_payments?: { amount: number | string }[] | null })
         .patient_payments;
       if (!payments || payments.length === 0) continue;
-      totals[(a as unknown as { id: string }).id] = payments.reduce(
-        (sum, p) => sum + Number(p.amount),
-        0,
-      );
+      totals[a.id] = payments.reduce((sum, p) => sum + Number(p.amount), 0);
     }
-    setPaymentTotals(totals);
+    return totals;
+  }, [appointments]);
 
-    setLoadingAppts(false);
-  }, [getDateRange]);
+  const { data: blocksData } = useQuery({
+    queryKey: ["scheduler", "blocks", organizationId, rangeStartKey, rangeEndKey],
+    enabled: !!organizationId,
+    placeholderData: (prev) => prev,
+    queryFn: async () => {
+      const { data } = await createClient()
+        .from("schedule_blocks")
+        .select("id, block_date, start_time, end_time, office_id, all_day, reason, organization_id, created_at")
+        .gte("block_date", rangeStartKey)
+        .lte("block_date", rangeEndKey);
+      return (data as ScheduleBlock[]) ?? [];
+    },
+  });
+  const blocks = blocksData ?? [];
 
-  // Fetch schedule blocks
-  const fetchBlocks = useCallback(async () => {
-    const supabase = createClient();
-    const { startDate, endDate } = getDateRange();
+  // Mismos nombres que las antiguas funciones de fetch: ahora invalidan la
+  // caché (el rango visible refetchea al instante; los demás, al volver).
+  const fetchAppointments = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["scheduler", "appts"] });
+  }, [queryClient]);
 
-    const { data } = await supabase
-      .from("schedule_blocks")
-      .select("id, block_date, start_time, end_time, office_id, all_day, reason, organization_id, created_at")
-      .gte("block_date", startDate)
-      .lte("block_date", endDate);
+  const fetchBlocks = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["scheduler", "blocks"] });
+  }, [queryClient]);
 
-    setBlocks((data as ScheduleBlock[]) ?? []);
-  }, [getDateRange]);
-
-  useEffect(() => {
-    fetchAppointments();
-    fetchBlocks();
-  }, [fetchAppointments, fetchBlocks]);
+  const loading = loadingMaster || apptsPending;
 
   // ── Live status lean poll (Part E) ────────────────────────────────
   // Every 30 s, fetch ONLY the live-status columns for the visible
@@ -293,22 +305,28 @@ export default function SchedulerPage() {
       const byId = new Map(
         data.map((r) => [r.id as string, r] as const),
       );
-      setAppointments((prev) => {
-        let changed = false;
-        const next = prev.map((a) => {
-          const fresh = byId.get(a.id);
-          if (!fresh || fresh.updated_at === a.updated_at) return a;
-          changed = true;
-          return {
-            ...a,
-            arrived_at: fresh.arrived_at,
-            consultation_started_at: fresh.consultation_started_at,
-            consultation_ended_at: fresh.consultation_ended_at,
-            updated_at: fresh.updated_at,
-          };
-        });
-        return changed ? next : prev;
-      });
+      // Merge directo en la caché de React Query del rango visible — los
+      // consumidores re-renderizan solo si alguna fila cambió de verdad.
+      queryClient.setQueryData<AppointmentWithRelations[]>(
+        ["scheduler", "appts", organizationId, startDate, endDate],
+        (prev) => {
+          if (!prev) return prev;
+          let changed = false;
+          const next = prev.map((a) => {
+            const fresh = byId.get(a.id);
+            if (!fresh || fresh.updated_at === a.updated_at) return a;
+            changed = true;
+            return {
+              ...a,
+              arrived_at: fresh.arrived_at,
+              consultation_started_at: fresh.consultation_started_at,
+              consultation_ended_at: fresh.consultation_ended_at,
+              updated_at: fresh.updated_at,
+            };
+          });
+          return changed ? next : prev;
+        },
+      );
     };
 
     const interval = setInterval(() => void poll(), 30_000);
@@ -316,7 +334,7 @@ export default function SchedulerPage() {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [liveStatusEnabled, getDateRange]);
+  }, [liveStatusEnabled, getDateRange, queryClient, organizationId]);
 
   // Lightweight org-wide appointments count — used only to decide whether to
   // show the first-time empty state.

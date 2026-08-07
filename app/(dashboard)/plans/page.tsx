@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { usePlan } from "@/hooks/use-plan";
 import { useLanguage } from "@/components/language-provider";
@@ -103,8 +104,6 @@ function PlansContent() {
     refetch,
   } = usePlan();
 
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState<string | null>(null);
   const [cadence, setCadence] = useState<"monthly" | "semiannual" | "annual">("monthly");
 
@@ -128,17 +127,19 @@ function PlansContent() {
     }
   }, [searchParams, refetch, router]);
 
-  useEffect(() => {
-    const fetchPlans = async () => {
+  // El catálogo de planes es casi estático: cacheado 1 h — revisitar la
+  // página no repite el fetch ni muestra spinner.
+  const { data: plansData, isPending: plansPending } = useQuery({
+    queryKey: ["plans-catalog"],
+    staleTime: 60 * 60 * 1000,
+    queryFn: async () => {
       const res = await fetch("/api/plans");
-      if (res.ok) {
-        const data = await res.json();
-        setPlans(data);
-      }
-      setLoading(false);
-    };
-    fetchPlans();
-  }, []);
+      if (!res.ok) return [] as Plan[];
+      return (await res.json()) as Plan[];
+    },
+  });
+  const plans = plansData ?? [];
+  const loading = plansPending;
 
   const handleChangePlan = async (planId: string) => {
     if (!currentPlan || planId === currentPlan.id) return;

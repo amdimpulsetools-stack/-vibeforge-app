@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   Filter,
@@ -82,9 +83,8 @@ export default function BudgetsPage() {
   const { hasAnyAddon, loading: addonsLoading } = useOrgAddons();
   const fertilityActive = hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY]);
 
+  const queryClient = useQueryClient();
   const [tab, setTab] = useState<"pending" | "accepted" | "rejected">("pending");
-  const [data, setData] = useState<ListResponse | null>(null);
-  const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [filters, setFilters] = useState<BudgetFilters>(DEFAULT_FILTERS);
   const [draftFilters, setDraftFilters] = useState<BudgetFilters>(DEFAULT_FILTERS);
@@ -95,7 +95,11 @@ export default function BudgetsPage() {
       const sp = new URLSearchParams();
       sp.set("bucket", bucket);
       sp.set("limit", "20");
-      if (f.treatment_types.length === 1) sp.set("treatment_type", f.treatment_types[0]);
+      // Uno o varios tipos separados por coma — el filtrado es SQL (3.13);
+      // antes el multi-select se filtraba client-side tras paginar y las
+      // páginas salían incompletas.
+      if (f.treatment_types.length > 0)
+        sp.set("treatment_type", f.treatment_types.join(","));
       if (f.doctor_id !== "all") sp.set("doctor_id", f.doctor_id);
       if (f.date_from) sp.set("from", f.date_from);
       if (f.date_to) sp.set("to", f.date_to);
@@ -111,41 +115,35 @@ export default function BudgetsPage() {
   // así que podemos disparar ambas cosas a la vez. Si la org no tiene el
   // addon, el 403 se descarta en silencio y se pinta exactamente el mismo
   // gate de siempre — la UI no cambia en ningún caso.
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
+  //
+  // Listado sobre React Query, key = tab + filtros: cambiar de tab y volver
+  // dentro del staleTime (5 min) es instantáneo desde caché (antes: cada
+  // cambio de tab refetcheaba TODO — listado, 7 counts y KPIs). Las
+  // mutaciones invalidan el prefijo ["budgets"] y refetchean lo visible.
+  const { data: queryData, isPending: listPending } = useQuery({
+    queryKey: ["budgets", "list", tab, filters],
+    queryFn: async () => {
       const res = await fetch(`/api/budgets?${buildQuery(tab, filters)}`, {
         cache: "no-store",
       });
       if (res.status === 403) {
         // Org sin Pack Fertilidad: lo cuenta el gate, no un toast de error.
-        setData(null);
-        return;
+        return null;
       }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error ?? "No se pudieron cargar los presupuestos");
-        setData(null);
-        return;
+        return null;
       }
-      const json = (await res.json()) as ListResponse;
+      return (await res.json()) as ListResponse;
+    },
+  });
+  const data = queryData ?? null;
+  const loading = listPending;
 
-      // Client-side multi-treatment-type filter (the API only takes one).
-      let items = json.items;
-      if (filters.treatment_types.length > 1) {
-        const set = new Set(filters.treatment_types);
-        items = items.filter((b) => set.has(b.treatment_type));
-      }
-
-      setData({ ...json, items });
-    } finally {
-      setLoading(false);
-    }
-  }, [tab, filters, buildQuery]);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
+  const refresh = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["budgets"] });
+  }, [queryClient]);
 
   const counts = data?.counts ?? {
     pending: 0,
