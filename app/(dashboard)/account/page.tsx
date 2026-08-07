@@ -1554,13 +1554,17 @@ function PlanSection({
                         {label}
                       </span>
                     </div>
+                    {/* Los "+" de límites del plan son acciones de
+                        monetización (añadir doctor / comprar cupo) y medían
+                        20px: por debajo del mínimo táctil. 32px en móvil,
+                        desde md los 20px de siempre. */}
                     <div className="flex items-center gap-2">
                       {/* Not at limit: navigate to add page */}
                       {addHref && !atLimit && (
                         <a
                           href={addHref}
                           title={addLabel}
-                          className="flex h-5 w-5 items-center justify-center rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                          className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors md:h-5 md:w-5"
                         >
                           <Plus className="h-3 w-3" />
                         </a>
@@ -1570,7 +1574,7 @@ function PlanSection({
                         <button
                           onClick={() => setAddonModal(addonKey)}
                           title={`Comprar más ${label.toLowerCase()}`}
-                          className="flex h-5 w-5 items-center justify-center rounded-md bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors"
+                          className="flex h-8 w-8 items-center justify-center rounded-md bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 transition-colors md:h-5 md:w-5"
                         >
                           <Plus className="h-3 w-3" />
                         </button>

@@ -735,7 +735,14 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab navigation */}
-      <div className="flex gap-1 rounded-xl border border-border bg-muted/30 p-1 overflow-x-auto">
+      {/* En móvil el scroll de los 11 tabs se cortaba a 16px del borde
+          (dentro del gutter del layout) y parecía roto. Mismo molde que
+          live-notifications-section.tsx: el scroller sangra hasta el borde
+          físico (`-mx-4`) y recupera el gutter como padding propio
+          (`px-4`), así que la tira ocupa todo el ancho pero los tabs siguen
+          alineados con el resto del contenido. Sin bordes laterales ni
+          radio mientras toca el edge; desde md, la card de siempre. */}
+      <div className="-mx-4 flex gap-1 rounded-none border-y border-x-0 border-border bg-muted/30 px-4 py-1 overflow-x-auto md:mx-0 md:rounded-xl md:border-x md:p-1">
         {tabs.map((tab) => {
           // Solo el tab WA Business (Meta API) requiere integración conectada.
           // El tab "whatsapp" (clipboard config) siempre disponible — es la
@@ -1803,7 +1810,11 @@ export default function SettingsPage() {
                   : "Disable the days you don't work. Disabled days won't appear in the scheduler and won't count toward occupancy."}
               </p>
             </div>
-            <div className="grid grid-cols-7 gap-2">
+            {/* A 390px, siete celdas dejaban ~42px cada una: con el `p-3`
+                (24px) el texto "Cerrado"/"Abierto" no cabía y se solapaba
+                con las vecinas. En móvil se reparten 4+3; desde sm vuelve
+                la fila de siete de siempre. */}
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
               {([
                 { day: 1 as Weekday, es: "Lun", en: "Mon" },
                 { day: 2 as Weekday, es: "Mar", en: "Tue" },
