@@ -19,7 +19,14 @@ export interface AiQuota {
   percentage: number;
 }
 
-export function useAiQuota() {
+/**
+ * @param enabled  Permite a superficies que montan el hook con su UI cerrada
+ *                 (el panel del asistente vive siempre en el DOM, escondido
+ *                 con un translate) posponer el RPC de cuota hasta que el
+ *                 usuario abra el panel. Por defecto true: el resto de
+ *                 consumidores no cambia.
+ */
+export function useAiQuota(enabled: boolean = true) {
   const { organizationId } = useOrganization();
   const { plan, loading: planLoading } = usePlan();
   const [used, setUsed] = useState(0);
@@ -35,10 +42,13 @@ export function useAiQuota() {
     setLoading(false);
   }, [organizationId]);
 
+  // El RPC de uso no necesita nada del plan: esperar a `planLoading` solo
+  // encadenaba dos roundtrips que pueden ir a la vez. El plan se usa más
+  // abajo, para el límite, y hasta que llegue `loading` sigue siendo true.
   useEffect(() => {
-    if (planLoading || !organizationId) return;
+    if (!enabled || !organizationId) return;
     fetchUsage();
-  }, [organizationId, planLoading, fetchUsage]);
+  }, [enabled, organizationId, fetchUsage]);
 
   const limit = plan?.max_ai_queries ?? PLAN_AI_LIMITS[plan?.slug ?? "starter"] ?? 50;
   const remaining = Math.max(0, limit - used);

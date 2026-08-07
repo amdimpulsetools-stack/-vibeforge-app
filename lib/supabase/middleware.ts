@@ -42,6 +42,63 @@ const securityHeaders = {
   "Content-Security-Policy": csp,
 } as const;
 
+// ── Caché in-memory del RPC get_user_session_check ──────────────
+// Mismo patrón (y mismo TTL) que getCachedSessionStatus en
+// lib/auth/session-limits.ts. Sin esto el RPC corre una vez por
+// navegación Y una vez por prefetch de <Link>: con ~20 links
+// prefetcheables en el sidebar son decenas de roundtrips a la DB por
+// sesión, todos devolviendo lo mismo.
+//
+// REGLA DE SEGURIDAD: solo se cachea el resultado cuando TODAS las
+// puertas pasan (usuario onboardeado, términos al día, suscripción
+// activa, sin suspensión). Un resultado que provoca redirect NO se
+// cachea nunca — así, en cuanto el usuario remedia el estado (acepta
+// términos, completa onboarding, contrata plan), la siguiente
+// navegación consulta la DB fresca y no queda atrapado en un bucle de
+// redirects durante el TTL. El coste es que una revocación/expiración
+// tarda como mucho SESSION_CHECK_TTL_MS en aplicarse, igual que la
+// caché de device-limits que ya está en producción.
+type SessionCheck = {
+  has_whatsapp: boolean;
+  onboarding_completed: boolean;
+  organization_id: string | null;
+  role: string | null;
+  is_founder: boolean;
+  has_active_subscription: boolean;
+  all_memberships_inactive?: boolean;
+  membership_count?: number;
+  accepted_terms_at?: string | null;
+  accepted_terms_version?: string | null;
+};
+
+const SESSION_CHECK_TTL_MS = 30_000;
+const SESSION_CHECK_MAX_ENTRIES = 500;
+const sessionCheckCache = new Map<
+  string,
+  { session: SessionCheck; checkedAt: number }
+>();
+
+function getCachedSessionCheck(userId: string): SessionCheck | null {
+  const cached = sessionCheckCache.get(userId);
+  if (!cached) return null;
+  if (Date.now() - cached.checkedAt > SESSION_CHECK_TTL_MS) {
+    sessionCheckCache.delete(userId);
+    return null;
+  }
+  return cached.session;
+}
+
+function setCachedSessionCheck(userId: string, session: SessionCheck): void {
+  // Cota simple para que la instancia no acumule usuarios indefinidamente:
+  // al llegar al tope se descarta la entrada más antigua (inserción = orden
+  // de iteración en Map).
+  if (sessionCheckCache.size >= SESSION_CHECK_MAX_ENTRIES) {
+    const oldest = sessionCheckCache.keys().next();
+    if (!oldest.done) sessionCheckCache.delete(oldest.value);
+  }
+  sessionCheckCache.set(userId, { session, checkedAt: Date.now() });
+}
+
 function applySecurityHeaders(response: NextResponse): NextResponse {
   for (const [key, value] of Object.entries(securityHeaders)) {
     response.headers.set(key, value);
@@ -178,9 +235,18 @@ export async function updateSession(request: NextRequest) {
   // ── Onboarding + Plan check para rutas protegidas del dashboard ──
   // Single RPC replaces 3 sequential queries (profile, membership, subscription)
   if (user && !isPublic && !isOnboardingFlow && !isFounderPanel) {
-    const { data: session } = await supabase.rpc("get_user_session_check", {
-      p_user_id: user.id,
-    });
+    // Caché de 30 s: solo guarda resultados que pasaron todas las puertas
+    // (ver setCachedSessionCheck más abajo), así ningún redirect se sirve
+    // de caché.
+    let session = getCachedSessionCheck(user.id) as SessionCheck | null;
+    const fromCache = session !== null;
+
+    if (!session) {
+      const { data } = await supabase.rpc("get_user_session_check", {
+        p_user_id: user.id,
+      });
+      session = (data ?? null) as SessionCheck | null;
+    }
 
     // No membership found → no org
     if (!session) {
@@ -189,18 +255,7 @@ export async function updateSession(request: NextRequest) {
       return applySecurityHeaders(NextResponse.redirect(url));
     }
 
-    const s = session as {
-      has_whatsapp: boolean;
-      onboarding_completed: boolean;
-      organization_id: string | null;
-      role: string | null;
-      is_founder: boolean;
-      has_active_subscription: boolean;
-      all_memberships_inactive?: boolean;
-      membership_count?: number;
-      accepted_terms_at?: string | null;
-      accepted_terms_version?: string | null;
-    };
+    const s = session;
 
     // 0. Suspended account — every membership is deactivated. Founders
     // skip this check (they can act as platform superuser even without
@@ -249,6 +304,10 @@ export async function updateSession(request: NextRequest) {
       }
       return applySecurityHeaders(NextResponse.redirect(url));
     }
+
+    // Llegamos aquí ⇒ todas las puertas pasaron. Solo este estado se
+    // cachea (ver comentario del bloque de caché arriba).
+    if (!fromCache) setCachedSessionCheck(user.id, s);
   }
 
   return applySecurityHeaders(supabaseResponse);
