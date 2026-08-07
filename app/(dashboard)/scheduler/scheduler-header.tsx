@@ -21,7 +21,19 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import dynamic from "next/dynamic";
+
+// react-day-picker (~22 kB gz) entraba en el First Load de /scheduler aunque
+// el calendario solo se ve al abrir el popover/modal de fecha. Se difiere y
+// se precarga en tres momentos: al acercar el puntero a cualquiera de los dos
+// disparadores, al enfocarlos y —como red de seguridad— cuando el navegador
+// queda ocioso tras montar la cabecera. En la práctica el módulo ya está en
+// memoria antes del primer clic, así que el placeholder no llega a verse.
+const loadCalendar = () => import("@/components/ui/calendar");
+const Calendar = dynamic(() => loadCalendar().then((m) => m.Calendar), {
+  ssr: false,
+  loading: () => <div className="h-[19.25rem] w-[18.5rem]" />,
+});
 
 interface SchedulerHeaderProps {
   currentDate: Date;
@@ -121,6 +133,20 @@ export function SchedulerHeader({
   // y se veían dos calendarios superpuestos.
   const [desktopCalendarOpen, setDesktopCalendarOpen] = useState(false);
 
+  const preloadCalendar = () => {
+    void loadCalendar();
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(preloadCalendar, { timeout: 4000 });
+      return () => window.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(preloadCalendar, 2000);
+    return () => clearTimeout(t);
+  }, []);
+
   const handleCalendarSelect = (date: Date | undefined) => {
     if (date) {
       onDateChange(date);
@@ -197,6 +223,8 @@ export function SchedulerHeader({
               se salía de la pantalla a 390 px. */}
           <button
             onClick={() => setCalendarOpen(true)}
+            onPointerEnter={preloadCalendar}
+            onFocus={preloadCalendar}
             aria-label="Abrir calendario"
             aria-haspopup="dialog"
             aria-expanded={calendarOpen}
@@ -209,7 +237,13 @@ export function SchedulerHeader({
           <div className="hidden shrink-0 md:block">
             <Popover open={desktopCalendarOpen} onOpenChange={setDesktopCalendarOpen}>
               <PopoverTrigger asChild>
-                <button className={todayTriggerClass}>{t("scheduler.today")}</button>
+                <button
+                  className={todayTriggerClass}
+                  onPointerEnter={preloadCalendar}
+                  onFocus={preloadCalendar}
+                >
+                  {t("scheduler.today")}
+                </button>
               </PopoverTrigger>
               <PopoverContent align="start" className="w-auto p-0">
                 <div className="flex flex-col">

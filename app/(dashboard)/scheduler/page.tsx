@@ -211,7 +211,7 @@ export default function SchedulerPage() {
     // transfer and JSON parse time at 500+ appointments/day.
     const apptRes = await supabase
       .from("appointments")
-      .select("id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price), patients(is_recurring, dni, birth_date)")
+      .select("id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price), patients(is_recurring, dni, birth_date), patient_payments(amount)")
       .gte("appointment_date", startDate)
       .lte("appointment_date", endDate)
       .neq("status", "cancelled")
@@ -223,21 +223,22 @@ export default function SchedulerPage() {
     const appts = (apptRes.data as unknown as AppointmentWithRelations[]) ?? [];
     setAppointments(appts);
 
-    // 2. Fetch payments ONLY for the visible appointments (not all payments in history)
-    const apptIds = appts.map((a) => a.id);
+    // 2. Payment totals. Antes era un SEGUNDO roundtrip en serie
+    // (appointments → .in(apptIds) sobre patient_payments), que en la página
+    // más usada de la app se pagaba en cada carga y en cada cambio de fecha;
+    // los indicadores de deuda además "popeaban" un frame tarde. Ahora los
+    // montos vienen embebidos en el mismo select vía la FK anidada
+    // (respaldada por idx_patient_payments_appt_amt, mig 103) y se agregan
+    // en cliente.
     const totals: Record<string, number> = {};
-
-    if (apptIds.length > 0) {
-      const payRes = await supabase
-        .from("patient_payments")
-        .select("appointment_id, amount")
-        .in("appointment_id", apptIds);
-
-      for (const p of payRes.data ?? []) {
-        if (p.appointment_id) {
-          totals[p.appointment_id] = (totals[p.appointment_id] ?? 0) + Number(p.amount);
-        }
-      }
+    for (const a of apptRes.data ?? []) {
+      const payments = (a as unknown as { patient_payments?: { amount: number | string }[] | null })
+        .patient_payments;
+      if (!payments || payments.length === 0) continue;
+      totals[(a as unknown as { id: string }).id] = payments.reduce(
+        (sum, p) => sum + Number(p.amount),
+        0,
+      );
     }
     setPaymentTotals(totals);
 
@@ -318,15 +319,25 @@ export default function SchedulerPage() {
   }, [liveStatusEnabled, getDateRange]);
 
   // Lightweight org-wide appointments count — used only to decide whether to
-  // show the first-time empty state. Runs once per mount.
+  // show the first-time empty state.
+  //
+  // PERF: el COUNT exact recorre TODAS las citas históricas de la org y solo
+  // sirve para un empty-state que además exige `isAdmin && services.length
+  // === 0`. Se dispara únicamente cuando esas condiciones ya se cumplen: una
+  // clínica con catálogo configurado (el 99% de las cargas) deja de pagar la
+  // query. El empty-state se pinta exactamente igual en el caso que sí
+  // aplica.
+  const needsEmptyStateCount =
+    !!organizationId && isAdmin && !loadingMaster && services.length === 0;
+
   useEffect(() => {
-    if (!organizationId) return;
+    if (!needsEmptyStateCount) return;
     const supabase = createClient();
     supabase
       .from("appointments")
       .select("id", { count: "exact", head: true })
       .then(({ count }) => setTotalApptCount(count ?? 0));
-  }, [organizationId]);
+  }, [needsEmptyStateCount]);
 
   // Office filter handler
   const handleOfficeFilterChange = useCallback((officeIds: string[]) => {

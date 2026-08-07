@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
@@ -80,9 +80,20 @@ export default function AppointmentHistoryPage() {
     const from = pageNum * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
+    // PERF: columnas explícitas en lugar de `*`. La tabla del historial solo
+    // lee estos 7 campos (+ las relaciones, que ya eran explícitas); `*` traía
+    // los 40+ de la fila, incluido `notes` (TEXT libre, el campo más pesado).
+    //
+    // El COUNT exact solo se pide en la primera página: recorre todo el rango
+    // filtrado y su resultado no cambia al paginar, así que repetirlo en cada
+    // "siguiente" era trabajo tirado. Al cambiar filtros siempre se vuelve a
+    // page 0, o sea que el total mostrado en el pie sigue siendo correcto.
+    const columns =
+      "id, appointment_date, start_time, end_time, patient_name, status, price_snapshot, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)";
+
     let query = supabase
       .from("appointments")
-      .select("*, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)", { count: "exact" })
+      .select(columns, pageNum === 0 ? { count: "exact" } : undefined)
       .gte("appointment_date", dateFrom)
       .lte("appointment_date", dateTo)
       .order("appointment_date", { ascending: sortDir === "asc" })
@@ -102,21 +113,32 @@ export default function AppointmentHistoryPage() {
     }
 
     const { data, count } = await query;
-    setAppointments((data as AppointmentWithRelations[]) ?? []);
-    setTotalCount(count ?? 0);
+    setAppointments((data as unknown as AppointmentWithRelations[]) ?? []);
+    if (count != null) setTotalCount(count);
     setLoading(false);
   }, [dateFrom, dateTo, filterStatus, filterDoctor, filterService, sortDir]);
 
-  // Reset pagination when filters change
-  useEffect(() => {
-    setPage(0);
-    fetchHistory(0);
-  }, [fetchHistory]);
+  // Un solo efecto de fetch. Antes había dos —uno con deps [fetchHistory] y
+  // otro con [page]— y AMBOS disparaban fetchHistory(0) al montar: cada
+  // visita a la página hacía la misma query dos veces.
+  //
+  // Aquí, un cambio de filtros que ocurra estando en una página > 0 primero
+  // resetea a la página 0 y sale sin fetchear (el propio cambio de `page`
+  // vuelve a entrar en el efecto), de modo que nunca se pide la página vieja
+  // con los filtros nuevos. El comportamiento visible es idéntico.
+  const filtersKey = `${dateFrom}|${dateTo}|${filterStatus}|${filterDoctor}|${filterService}|${sortDir}`;
+  const prevFiltersKey = useRef(filtersKey);
 
-  // Fetch when page changes
   useEffect(() => {
+    if (prevFiltersKey.current !== filtersKey) {
+      prevFiltersKey.current = filtersKey;
+      if (page !== 0) {
+        setPage(0);
+        return;
+      }
+    }
     fetchHistory(page);
-  }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filtersKey, page, fetchHistory]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
   const canPrev = page > 0;
