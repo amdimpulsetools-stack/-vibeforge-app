@@ -131,10 +131,10 @@ export default function ReportsPage() {
           escritorio dvh == vh. */}
       <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] flex-col md:-mx-7 md:-mb-7 md:-mt-7 md:h-[calc(100dvh-4rem)]">
         {/* Header */}
-        <div className="border-b border-border bg-card px-4 py-3 md:px-6 md:py-4">
+        <div className="border-b border-border bg-background px-4 py-3 md:px-6 md:py-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-lg font-bold md:text-xl">{t("reports.title")}</h1>
+              <h1 className="text-xl font-bold">{t("reports.title")}</h1>
               <p className="text-sm text-muted-foreground">{t("reports.subtitle")}</p>
             </div>
 

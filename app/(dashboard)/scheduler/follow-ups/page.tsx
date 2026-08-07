@@ -498,10 +498,10 @@ export default function FollowUpsPage() {
       {/* Header */}
       {/* En móvil el `main` del layout ya aporta 16px por lado: con `px-6`
           aquí se acumulaban 40px (10% del viewport por lado). */}
-      <div className="border-b border-border bg-card px-4 py-3 md:px-6 md:py-4">
+      <div className="border-b border-border bg-background px-4 py-3 md:px-6 md:py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-lg font-bold">Seguimientos</h1>
+            <h1 className="text-xl font-bold">Seguimientos</h1>
             <p className="pr-2 text-[13px] text-muted-foreground md:pr-0 md:text-sm">
               {hasJourney
                 ? "Pacientes pendientes de contactar para agendar próxima cita"
