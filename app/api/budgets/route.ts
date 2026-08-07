@@ -237,7 +237,15 @@ export async function GET(request: NextRequest) {
     | "accepted"
     | "rejected"
     | null;
-  const treatmentType = sp.get("treatment_type");
+  // Acepta uno o varios tipos separados por coma (3.13): antes la UI solo
+  // podía mandar UN tipo y el multi-select se filtraba client-side DESPUÉS
+  // de paginar — páginas incompletas y has_more engañoso. Se validan contra
+  // el enum para descartar basura de la URL.
+  const treatmentTypes = (sp.get("treatment_type") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => treatmentTypeEnum.safeParse(s).success);
+  const treatmentType = treatmentTypes.length === 1 ? treatmentTypes[0] : null;
   const doctorId = sp.get("doctor_id");
   const patientFilter = sp.get("patient_id");
   const from = sp.get("from");
@@ -287,10 +295,14 @@ export async function GET(request: NextRequest) {
     // Completados using these fields.
     "started_at, started_by_user_id, completed_at, " +
     "created_at, updated_at";
+  // Con búsqueda por nombre (q) el embed del paciente pasa a !inner: sin él,
+  // PostgREST solo anula el embed en las filas que no matchean pero devuelve
+  // la fila padre igual — el filtro debe recortar el listado.
+  const hasTextSearch = !!(q && q.trim());
   const BUDGET_SELECT =
     // `email` feeds the send-channel modal (shows it next to the Email
     // button and disables the channel when missing).
-    `${BUDGET_COLUMNS}, patient:patients(id, first_name, last_name, phone, email), followup:clinical_followups!followup_id(id, expected_by, status)`;
+    `${BUDGET_COLUMNS}, patient:patients${hasTextSearch ? "!inner" : ""}(id, first_name, last_name, phone, email), followup:clinical_followups!followup_id(id, expected_by, status)`;
 
   // Fetch limit+1 so we can detect `has_more` without a separate
   // `count: "exact"` round-trip on the listing — the per-bucket counts
@@ -316,11 +328,30 @@ export async function GET(request: NextRequest) {
   if (acceptanceStatus) query = query.eq("acceptance_status", acceptanceStatus);
   if (acceptanceStatusIn)
     query = query.in("acceptance_status", acceptanceStatusIn);
-  if (treatmentType) query = query.eq("treatment_type", treatmentType);
+  if (treatmentTypes.length === 1) query = query.eq("treatment_type", treatmentTypes[0]);
+  else if (treatmentTypes.length > 1) query = query.in("treatment_type", treatmentTypes);
   if (doctorId) query = query.eq("sent_by_user_id", doctorId);
   if (patientFilter) query = query.eq("patient_id", patientFilter);
   if (from) query = query.gte("sent_at", from);
   if (to) query = query.lte("sent_at", to);
+
+  // 3.13 — búsqueda por nombre en SQL, ANTES de paginar (antes se filtraba
+  // el resultado ya paginado: una página de 20 podía quedarse en 3 filas y
+  // has_more mentía). Cada palabra del término debe matchear nombre O
+  // apellido (ilike); "maria perez" → maria contra first_name y perez
+  // contra last_name. Los caracteres con significado en la sintaxis de
+  // PostgREST se descartan del token.
+  if (hasTextSearch) {
+    const tokens = (q as string).trim().split(/\s+/).slice(0, 5);
+    for (const tok of tokens) {
+      const esc = tok.replace(/[%_,().]/g, "");
+      if (!esc) continue;
+      query = query.or(
+        `first_name.ilike.%${esc}%,last_name.ilike.%${esc}%`,
+        { referencedTable: "patient" },
+      );
+    }
+  }
 
   // KPIs: 90-day window (agregación server-side, mig 201).
   const now = Date.now();
@@ -356,22 +387,7 @@ export async function GET(request: NextRequest) {
 
   const fetched = (listingRes.data ?? []) as Record<string, unknown>[];
   const hasMore = fetched.length > limit;
-  let items = hasMore ? fetched.slice(0, limit) : fetched;
-
-  if (q && q.trim()) {
-    const needle = q.trim().toLowerCase();
-    items = items.filter((r) => {
-      const raw = (r as unknown as {
-        patient?:
-          | { first_name: string | null; last_name: string | null }
-          | { first_name: string | null; last_name: string | null }[]
-          | null;
-      }).patient;
-      const p = Array.isArray(raw) ? raw[0] : raw;
-      const name = `${p?.first_name ?? ""} ${p?.last_name ?? ""}`.toLowerCase();
-      return name.includes(needle);
-    });
-  }
+  const items = hasMore ? fetched.slice(0, limit) : fetched;
 
   // Wave 3: resolve "sent_by" + "assigned_by" display names via admin
   // client (bypass RLS on profiles). One round-trip for both id sets.

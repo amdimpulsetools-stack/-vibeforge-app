@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
+import { useOrganization } from "@/components/organization-provider";
 import { format, subDays, addDays } from "date-fns";
 import type { AppointmentWithRelations, Doctor, Service } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
@@ -38,10 +40,7 @@ const EXPORT_CAP = 5000;
 export default function AppointmentHistoryPage() {
   const { t, language } = useLanguage();
   const es = language === "es";
-  const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
-  const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { organizationId } = useOrganization();
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -59,86 +58,113 @@ export default function AppointmentHistoryPage() {
   const [sortField, setSortField] = useState<"date" | "patient" | "price">("date");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  // Fetch master data
-  useEffect(() => {
-    const fetchMaster = async () => {
-      const supabase = createClient();
-      const [doctorsRes, servicesRes] = await Promise.all([
-        supabase.from("doctors").select("*").order("full_name"),
-        supabase.from("services").select("*").order("name"),
-      ]);
-      setDoctors(doctorsRes.data ?? []);
-      setServices(servicesRes.data ?? []);
-    };
-    fetchMaster();
-  }, []);
+  // Master data para los dropdowns de filtros — solo las columnas que usan
+  // los <option> (antes `*`: doctors arrastra bio/signature_url y services
+  // toda la config). Cacheado 5 min por org: volver a la página no lo repite.
+  const { data: doctorsData } = useQuery({
+    queryKey: ["doctors", "filter-names", organizationId],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const { data } = await createClient()
+        .from("doctors")
+        .select("id, full_name")
+        .order("full_name");
+      return (data ?? []) as Doctor[];
+    },
+  });
+  const doctors = doctorsData ?? [];
 
-  // Fetch appointments with pagination
-  const fetchHistory = useCallback(async (pageNum = 0) => {
-    setLoading(true);
-    const supabase = createClient();
-    const from = pageNum * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
+  const { data: servicesData } = useQuery({
+    queryKey: ["services", "filter-names", organizationId],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const { data } = await createClient()
+        .from("services")
+        .select("id, name")
+        .order("name");
+      return (data ?? []) as Service[];
+    },
+  });
+  const services = servicesData ?? [];
 
-    // PERF: columnas explícitas en lugar de `*`. La tabla del historial solo
-    // lee estos 7 campos (+ las relaciones, que ya eran explícitas); `*` traía
-    // los 40+ de la fila, incluido `notes` (TEXT libre, el campo más pesado).
-    //
-    // El COUNT exact solo se pide en la primera página: recorre todo el rango
-    // filtrado y su resultado no cambia al paginar, así que repetirlo en cada
-    // "siguiente" era trabajo tirado. Al cambiar filtros siempre se vuelve a
-    // page 0, o sea que el total mostrado en el pie sigue siendo correcto.
-    const columns =
-      "id, appointment_date, start_time, end_time, patient_name, status, price_snapshot, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)";
+  // El ORDER BY del servidor solo depende de la dirección cuando se ordena
+  // por fecha; ordenar por paciente/precio es client-side sobre la página
+  // cargada, así que alternar esos sorts NO refetchea (antes sí: sortDir
+  // estaba en la key del fetch y cada toggle repetía la query).
+  const dateSortAsc = sortField === "date" && sortDir === "asc";
 
-    let query = supabase
-      .from("appointments")
-      .select(columns, pageNum === 0 ? { count: "exact" } : undefined)
-      .gte("appointment_date", dateFrom)
-      .lte("appointment_date", dateTo)
-      .order("appointment_date", { ascending: sortDir === "asc" })
-      .order("start_time", { ascending: sortDir === "asc" })
-      .range(from, to);
-
-    if (filterStatus !== "all") {
-      query = query.eq("status", filterStatus);
-    }
-
-    if (filterDoctor !== "all") {
-      query = query.eq("doctor_id", filterDoctor);
-    }
-
-    if (filterService !== "all") {
-      query = query.eq("service_id", filterService);
-    }
-
-    const { data, count } = await query;
-    setAppointments((data as unknown as AppointmentWithRelations[]) ?? []);
-    if (count != null) setTotalCount(count);
-    setLoading(false);
-  }, [dateFrom, dateTo, filterStatus, filterDoctor, filterService, sortDir]);
-
-  // Un solo efecto de fetch. Antes había dos —uno con deps [fetchHistory] y
-  // otro con [page]— y AMBOS disparaban fetchHistory(0) al montar: cada
-  // visita a la página hacía la misma query dos veces.
+  // Listado sobre React Query: key = filtros + página. Volver a una
+  // combinación ya vista dentro del staleTime renderiza desde caché sin
+  // query ni spinner; una página/filtro nuevo muestra el mismo spinner de
+  // siempre (sin keepPreviousData a propósito — comportamiento idéntico).
   //
-  // Aquí, un cambio de filtros que ocurra estando en una página > 0 primero
-  // resetea a la página 0 y sale sin fetchear (el propio cambio de `page`
-  // vuelve a entrar en el efecto), de modo que nunca se pide la página vieja
-  // con los filtros nuevos. El comportamiento visible es idéntico.
-  const filtersKey = `${dateFrom}|${dateTo}|${filterStatus}|${filterDoctor}|${filterService}|${sortDir}`;
-  const prevFiltersKey = useRef(filtersKey);
+  // PERF: columnas explícitas en lugar de `*`. La tabla del historial solo
+  // lee estos 7 campos (+ las relaciones, que ya eran explícitas); `*` traía
+  // los 40+ de la fila, incluido `notes` (TEXT libre, el campo más pesado).
+  //
+  // El COUNT exact solo se pide en la primera página: recorre todo el rango
+  // filtrado y su resultado no cambia al paginar, así que repetirlo en cada
+  // "siguiente" era trabajo tirado. Al cambiar filtros siempre se vuelve a
+  // page 0, o sea que el total mostrado en el pie sigue siendo correcto.
+  const { data: listData, isPending: listPending } = useQuery({
+    queryKey: [
+      "history",
+      "list",
+      organizationId,
+      { dateFrom, dateTo, filterStatus, filterDoctor, filterService, dateSortAsc, page },
+    ],
+    enabled: !!organizationId,
+    queryFn: async () => {
+      const supabase = createClient();
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-  useEffect(() => {
-    if (prevFiltersKey.current !== filtersKey) {
-      prevFiltersKey.current = filtersKey;
-      if (page !== 0) {
-        setPage(0);
-        return;
+      const columns =
+        "id, appointment_date, start_time, end_time, patient_name, status, price_snapshot, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)";
+
+      let query = supabase
+        .from("appointments")
+        .select(columns, page === 0 ? { count: "exact" } : undefined)
+        .gte("appointment_date", dateFrom)
+        .lte("appointment_date", dateTo)
+        .order("appointment_date", { ascending: dateSortAsc })
+        .order("start_time", { ascending: dateSortAsc })
+        .range(from, to);
+
+      if (filterStatus !== "all") {
+        query = query.eq("status", filterStatus);
       }
-    }
-    fetchHistory(page);
-  }, [filtersKey, page, fetchHistory]);
+
+      if (filterDoctor !== "all") {
+        query = query.eq("doctor_id", filterDoctor);
+      }
+
+      if (filterService !== "all") {
+        query = query.eq("service_id", filterService);
+      }
+
+      const { data, count } = await query;
+      return {
+        rows: (data as unknown as AppointmentWithRelations[]) ?? [],
+        count: count ?? null,
+      };
+    },
+  });
+
+  const appointments = listData?.rows ?? [];
+  const loading = !organizationId || listPending;
+
+  // El total llega solo con la página 0; se conserva mientras se pagina.
+  useEffect(() => {
+    const c = listData?.count;
+    if (c != null) setTotalCount(c);
+  }, [listData]);
+
+  // Cambio de filtros (o de dirección del sort por fecha) → página 0.
+  const filtersKey = `${dateFrom}|${dateTo}|${filterStatus}|${filterDoctor}|${filterService}|${dateSortAsc}`;
+  useEffect(() => {
+    setPage(0);
+  }, [filtersKey]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
   const canPrev = page > 0;

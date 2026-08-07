@@ -11,7 +11,9 @@
 // Las acciones de anular (NC) y reintentar viven en otros lugares —
 // aquí solo se observa.
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -36,7 +38,15 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { EInvoiceCreditNoteDialog } from "@/components/einvoice/credit-note-dialog";
+// Solo se renderiza tras "Emitir nota de crédito" en el drawer de detalle —
+// con next/dynamic su chunk (RHF + zod del formulario) sale del First Load.
+const EInvoiceCreditNoteDialog = dynamic(
+  () =>
+    import("@/components/einvoice/credit-note-dialog").then(
+      (m) => m.EInvoiceCreditNoteDialog
+    ),
+  { ssr: false }
+);
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -149,10 +159,7 @@ export default function FacturacionPage() {
     }
   }, [isDoctor, roleLoading, router]);
 
-  const [rows, setRows] = useState<EInvoiceRow[]>([]);
-  const [kpis, setKpis] = useState<EInvoiceKpis | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [selected, setSelected] = useState<EInvoiceRow | null>(null);
 
   // Filters
@@ -165,57 +172,76 @@ export default function FacturacionPage() {
   const [filterSeries, setFilterSeries] = useState<string>("all");
   const [searchText, setSearchText] = useState("");
 
-  const fetchInvoices = useCallback(async () => {
-    // 2.7a — la query se lanza YA, en paralelo con /api/einvoices/status
-    // (que dispara useEInvoiceConfig por su cuenta): antes se esperaba a que
-    // status resolviera `connected` para recién consultar — una cascada de
-    // dos roundtrips y, de paso, un flash de "Sin comprobantes" mientras
-    // connected aún era false. RLS protege: si la org no tiene comprobantes
-    // la query solo devuelve vacío. Si status termina en "no conectado", el
-    // empty-state de abajo se pinta igual y estas filas nunca se muestran.
-    setLoading(true);
-    setError(null);
-    const supabase = createClient();
-
-    let q = supabase
-      .from("einvoices")
-      .select(
-        "id, doc_type, series, number, status, customer_doc_type, customer_doc_number, customer_name, currency, total, igv_amount, issued_at, pdf_url, xml_url, cdr_url, provider_link, sunat_accepted, sunat_response_code, sunat_description, last_error, appointment_id"
-      )
-      .gte("issued_at", dateFrom + "T00:00:00")
-      .lte("issued_at", dateTo + "T23:59:59")
-      .order("issued_at", { ascending: false })
-      .limit(PAGE_SIZE);
-
-    if (filterType !== "all") q = q.eq("doc_type", Number(filterType));
-    if (filterStatus !== "all") q = q.eq("status", filterStatus);
-    if (filterSeries !== "all") q = q.eq("series", filterSeries);
-
-    // 2.7b — KPIs agregados con los MISMOS filtros, en paralelo con la
-    // página de 50 filas. Con ≤50 comprobantes en el filtro los números son
-    // idénticos a los de antes; con más, ahora salen los correctos.
-    const kpiPromise = supabase.rpc("get_einvoices_kpis", {
-      p_date_from: dateFrom + "T00:00:00",
-      p_date_to: dateTo + "T23:59:59",
-      p_doc_type: filterType !== "all" ? Number(filterType) : null,
-      p_status: filterStatus !== "all" ? filterStatus : null,
-      p_series: filterSeries !== "all" ? filterSeries : null,
-    });
-
-    const [{ data, error: qErr }, kpiRes] = await Promise.all([q, kpiPromise]);
-    if (qErr) {
-      setError(qErr.message);
-      setRows([]);
-    } else {
-      setRows((data as unknown as EInvoiceRow[]) ?? []);
-    }
-    setKpis((kpiRes.data as EInvoiceKpis | null) ?? null);
-    setLoading(false);
-  }, [dateFrom, dateTo, filterType, filterStatus, filterSeries]);
-
+  // Debounce de los inputs de fecha (300 ms): editarlas con el teclado
+  // dispara un evento por tecla/flecha, y cada uno era una query nueva.
+  const [debouncedDates, setDebouncedDates] = useState({ dateFrom, dateTo });
   useEffect(() => {
-    void fetchInvoices();
-  }, [fetchInvoices]);
+    const timer = setTimeout(() => setDebouncedDates({ dateFrom, dateTo }), 300);
+    return () => clearTimeout(timer);
+  }, [dateFrom, dateTo]);
+
+  // 2.7a — la query se lanza YA, en paralelo con /api/einvoices/status
+  // (que dispara useEInvoiceConfig por su cuenta): antes se esperaba a que
+  // status resolviera `connected` para recién consultar — una cascada de
+  // dos roundtrips y, de paso, un flash de "Sin comprobantes" mientras
+  // connected aún era false. RLS protege: si la org no tiene comprobantes
+  // la query solo devuelve vacío. Si status termina en "no conectado", el
+  // empty-state de abajo se pinta igual y estas filas nunca se muestran.
+  //
+  // Sobre React Query: volver a la página (o a una combinación de filtros ya
+  // vista) dentro del staleTime renderiza desde caché, sin query ni spinner.
+  const { data: invoicesData, isPending: listPending } = useQuery({
+    queryKey: [
+      "einvoices",
+      "list",
+      { ...debouncedDates, filterType, filterStatus, filterSeries },
+    ],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { dateFrom: from, dateTo: to } = debouncedDates;
+
+      let q = supabase
+        .from("einvoices")
+        .select(
+          "id, doc_type, series, number, status, customer_doc_type, customer_doc_number, customer_name, currency, total, igv_amount, issued_at, pdf_url, xml_url, cdr_url, provider_link, sunat_accepted, sunat_response_code, sunat_description, last_error, appointment_id"
+        )
+        .gte("issued_at", from + "T00:00:00")
+        .lte("issued_at", to + "T23:59:59")
+        .order("issued_at", { ascending: false })
+        .limit(PAGE_SIZE);
+
+      if (filterType !== "all") q = q.eq("doc_type", Number(filterType));
+      if (filterStatus !== "all") q = q.eq("status", filterStatus);
+      if (filterSeries !== "all") q = q.eq("series", filterSeries);
+
+      // 2.7b — KPIs agregados con los MISMOS filtros, en paralelo con la
+      // página de 50 filas. Con ≤50 comprobantes en el filtro los números son
+      // idénticos a los de antes; con más, ahora salen los correctos.
+      const kpiPromise = supabase.rpc("get_einvoices_kpis", {
+        p_date_from: from + "T00:00:00",
+        p_date_to: to + "T23:59:59",
+        p_doc_type: filterType !== "all" ? Number(filterType) : null,
+        p_status: filterStatus !== "all" ? filterStatus : null,
+        p_series: filterSeries !== "all" ? filterSeries : null,
+      });
+
+      const [{ data, error: qErr }, kpiRes] = await Promise.all([q, kpiPromise]);
+      return {
+        rows: qErr ? [] : ((data as unknown as EInvoiceRow[]) ?? []),
+        error: qErr?.message ?? null,
+        kpis: (kpiRes.data as EInvoiceKpis | null) ?? null,
+      };
+    },
+  });
+
+  const rows = invoicesData?.rows ?? [];
+  const kpis = invoicesData?.kpis ?? null;
+  const error = invoicesData?.error ?? null;
+  const loading = listPending;
+
+  const refetchInvoices = () => {
+    queryClient.invalidateQueries({ queryKey: ["einvoices", "list"] });
+  };
 
   // Derived: list of unique series in current results (for the series filter
   // dropdown — populated dynamically so users only see what they actually
@@ -582,7 +608,7 @@ export default function FacturacionPage() {
           onClose={() => setSelected(null)}
           onCreditNoteEmitted={() => {
             setSelected(null);
-            void fetchInvoices();
+            refetchInvoices();
           }}
         />
       )}
