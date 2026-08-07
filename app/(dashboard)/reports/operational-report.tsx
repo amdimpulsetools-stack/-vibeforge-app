@@ -3,7 +3,7 @@
 import { useMemo, forwardRef, useImperativeHandle } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { useBrandAccent } from "@/hooks/use-brand-accent";
-import type { AppointmentWithRelations } from "@/types/admin";
+import type { ReportsOverview } from "@/types/reports";
 import {
   Clock,
   Building2,
@@ -25,7 +25,10 @@ import {
 } from "recharts";
 
 interface OperationalReportProps {
-  appointments: AppointmentWithRelations[];
+  // Agregados server-side (RPC get_reports_overview, mig 198). Antes este
+  // componente recibía las filas crudas de citas y agregaba en JS — con
+  // >1000 filas en el rango, PostgREST truncaba y los números salían mal.
+  overview: ReportsOverview | null;
   dateFrom: string;
   dateTo: string;
 }
@@ -76,17 +79,21 @@ function CardTitle({
 
 
 export const OperationalReport = forwardRef<ReportExportHandle, OperationalReportProps>(
-  function OperationalReport({ appointments, dateFrom, dateTo }, ref) {
+  function OperationalReport({ overview, dateFrom, dateTo }, ref) {
   const { t } = useLanguage();
   // Color de marca del chart (sigue el tema de acento de la org).
   const accent = useBrandAccent();
 
-  const activeAppointments = useMemo(
-    () => appointments.filter((a) => a.status !== "cancelled"),
-    [appointments]
+  // Citas activas (no canceladas) — derivadas de la serie diaria del RPC:
+  // por día, scheduled + completed son exactamente los status != cancelled.
+  const activeAppointmentsCount = useMemo(
+    () => (overview?.daily ?? []).reduce((sum, d) => sum + d.scheduled + d.completed, 0),
+    [overview]
   );
 
-  // Peak hours analysis
+  // Peak hours analysis — mismos buckets fijos 08:00-19:00 de siempre; el
+  // RPC entrega el conteo por hora (sin canceladas) y lo demás se descarta,
+  // igual que hacía el filtro sobre start_time.
   const peakHoursData = useMemo(() => {
     const hourMap = new Map<string, number>();
     for (let h = 8; h <= 19; h++) {
@@ -94,11 +101,10 @@ export const OperationalReport = forwardRef<ReportExportHandle, OperationalRepor
       hourMap.set(label, 0);
     }
 
-    activeAppointments.forEach((a) => {
-      const hour = a.start_time.slice(0, 2);
-      const label = `${hour}:00`;
+    (overview?.peak_hours ?? []).forEach((ph) => {
+      const label = `${String(ph.hour).padStart(2, "0")}:00`;
       if (hourMap.has(label)) {
-        hourMap.set(label, (hourMap.get(label) ?? 0) + 1);
+        hourMap.set(label, (hourMap.get(label) ?? 0) + ph.count);
       }
     });
 
@@ -106,68 +112,52 @@ export const OperationalReport = forwardRef<ReportExportHandle, OperationalRepor
       hour,
       citas: count,
     }));
-  }, [activeAppointments]);
+  }, [overview]);
 
-  // Top services (revenue only from completed appointments)
-  const topServicesData = useMemo(() => {
-    const map = new Map<string, { count: number; revenue: number }>();
-    activeAppointments.forEach((a) => {
-      const name = a.services?.name ?? "Sin servicio";
-      const entry = map.get(name) ?? { count: 0, revenue: 0 };
-      entry.count++;
-      if (a.status === "completed") {
-        entry.revenue += Number(a.services?.base_price ?? 0);
-      }
-      map.set(name, entry);
-    });
-    return Array.from(map.entries())
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.count - a.count);
-  }, [activeAppointments]);
+  // Top services — ya agrupados y ordenados por count desc en el RPC
+  // (revenue solo de citas completed, como antes).
+  const topServicesData = useMemo(
+    () =>
+      (overview?.services ?? []).map((s) => ({
+        name: s.name,
+        count: s.count,
+        revenue: Number(s.revenue),
+      })),
+    [overview]
+  );
 
-  // Office occupancy
-  const officeData = useMemo(() => {
-    const map = new Map<string, { total: number; completed: number }>();
-    appointments.forEach((a) => {
-      const name = a.offices?.name ?? "Sin consultorio";
-      if (!map.has(name)) map.set(name, { total: 0, completed: 0 });
-      const entry = map.get(name)!;
-      if (a.status !== "cancelled") entry.total++;
-      if (a.status === "completed") entry.completed++;
-    });
-    return Array.from(map.entries())
-      .map(([name, data]) => ({
-        name,
-        total: data.total,
-        completed: data.completed,
-        rate: data.total > 0 ? Number(((data.completed / data.total) * 100).toFixed(1)) : 0,
-      }))
-      .sort((a, b) => b.total - a.total);
-  }, [appointments]);
+  // Office occupancy — el RPC agrupa sobre TODAS las citas (total excluye
+  // canceladas) y ordena por total desc; la tasa se calcula aquí con la
+  // misma fórmula de antes.
+  const officeData = useMemo(
+    () =>
+      (overview?.offices ?? []).map((o) => ({
+        name: o.name,
+        total: o.total,
+        completed: o.completed,
+        rate: o.total > 0 ? Number(((o.completed / o.total) * 100).toFixed(1)) : 0,
+      })),
+    [overview]
+  );
 
-  // Daily trend
-  const dailyTrend = useMemo(() => {
-    const map = new Map<string, { scheduled: number; completed: number; cancelled: number }>();
-    appointments.forEach((a) => {
-      const date = a.appointment_date;
-      if (!map.has(date)) map.set(date, { scheduled: 0, completed: 0, cancelled: 0 });
-      const entry = map.get(date)!;
-      if (a.status === "completed") entry.completed++;
-      else if (a.status === "cancelled") entry.cancelled++;
-      else entry.scheduled++;
-    });
-    return Array.from(map.entries())
-      .map(([date, data]) => ({
-        date: date.slice(5), // MM-DD
-        ...data,
-        total: data.scheduled + data.completed + data.cancelled,
-      }))
-      .sort((a, b) => a.date.localeCompare(b.date));
-  }, [appointments]);
+  // Daily trend — misma transformación visual de antes (MM-DD + sort).
+  const dailyTrend = useMemo(
+    () =>
+      (overview?.daily ?? [])
+        .map((d) => ({
+          date: d.date.slice(5), // MM-DD
+          scheduled: d.scheduled,
+          completed: d.completed,
+          cancelled: d.cancelled,
+          total: d.scheduled + d.completed + d.cancelled,
+        }))
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    [overview]
+  );
 
   // KPI calculations
   const avgDailyAppointments = dailyTrend.length > 0
-    ? (activeAppointments.length / dailyTrend.length).toFixed(1)
+    ? (activeAppointmentsCount / dailyTrend.length).toFixed(1)
     : "0";
   const busiestHour = peakHoursData.reduce(
     (max, h) => (h.citas > max.citas ? h : max),

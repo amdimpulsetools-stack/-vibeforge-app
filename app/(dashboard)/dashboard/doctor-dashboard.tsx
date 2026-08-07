@@ -100,7 +100,10 @@ interface DoctorDashboardStats {
   recent_completed: RecentCompleted[];
 }
 
-interface DoctorStatsResponse {
+// Exportado: el Server Component de /dashboard llama al mismo RPC y pasa el
+// resultado como initialData (import type — no arrastra este módulo cliente
+// al bundle del servidor más allá del tipo).
+export interface DoctorStatsResponse {
   has_doctor_record: boolean;
   doctor_id: string | null;
   stats: DoctorDashboardStats | null;
@@ -167,11 +170,21 @@ function daysUntil(dateStr: string): number {
 
 // ── Main Component ─────────────────────────────────────────────────
 
-export function DoctorDashboard({ userName }: { userName: string }) {
+export function DoctorDashboard({
+  userName,
+  initialData,
+}: {
+  userName: string;
+  // Resultado de get_doctor_dashboard_enhanced obtenido en el Server
+  // Component (2.6): el doctor ve contenido en el primer render en vez de
+  // esperar hidratar → user → org → RPC. El efecto de abajo se conserva tal
+  // cual como refetch (repone datos frescos al montar y si cambia la org).
+  initialData?: DoctorStatsResponse | null;
+}) {
   const { user } = useUser();
   const { organizationId } = useOrganization();
-  const [data, setData] = useState<DoctorStatsResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<DoctorStatsResponse | null>(initialData ?? null);
+  const [loading, setLoading] = useState(!initialData);
 
   useEffect(() => {
     if (!user || !organizationId) return;

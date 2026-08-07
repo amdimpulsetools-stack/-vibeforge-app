@@ -3,7 +3,7 @@
 import { useMemo, forwardRef, useImperativeHandle } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { useBrandAccent } from "@/hooks/use-brand-accent";
-import type { AppointmentWithRelations, PatientPayment } from "@/types/admin";
+import type { ReportsOverview } from "@/types/reports";
 import {
   DollarSign,
   Users,
@@ -26,8 +26,10 @@ export interface ReportExportHandle {
 }
 
 interface FinancialReportProps {
-  appointments: AppointmentWithRelations[];
-  payments: PatientPayment[];
+  // Agregados server-side (RPC get_reports_overview, mig 198). Antes este
+  // componente recibía las filas crudas de citas/pagos y agregaba en JS —
+  // con >1000 filas en el rango, PostgREST truncaba y los KPIs salían mal.
+  overview: ReportsOverview | null;
   dateFrom: string;
   dateTo: string;
 }
@@ -90,43 +92,39 @@ function CardTitle({ icon: Icon, label, tooltip, iconClass }: { icon: typeof Dol
 }
 
 export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportProps>(
-  function FinancialReport({ appointments, payments, dateFrom, dateTo }, ref) {
+  function FinancialReport({ overview, dateFrom, dateTo }, ref) {
     const { t } = useLanguage();
     // Color de marca del chart (sigue el tema de acento de la org).
     const accent = useBrandAccent();
 
-    const doctorData = useMemo(() => {
-      const map = new Map<string, DoctorProductivity>();
-      appointments.forEach((appt) => {
-        const doctorName = appt.doctors?.full_name ?? "Sin doctor";
-        const doctorColor = appt.doctors?.color ?? "#9ca3af";
-        if (!map.has(doctorName)) {
-          map.set(doctorName, { name: doctorName, color: doctorColor, totalAppointments: 0, attended: 0, cancelled: 0, confirmed: 0, scheduled: 0, revenue: 0, avgPerAppointment: 0 });
-        }
-        const doc = map.get(doctorName)!;
-        doc.totalAppointments++;
-        if (appt.status === "completed") { doc.attended++; doc.revenue += Number(appt.services?.base_price ?? 0); }
-        else if (appt.status === "cancelled") { doc.cancelled++; }
-        else if (appt.status === "confirmed") { doc.confirmed++; doc.revenue += Number(appt.services?.base_price ?? 0); }
-        else { doc.scheduled++; }
+    // El RPC ya entrega la productividad agrupada por doctor y ordenada por
+    // revenue desc (mismos buckets de status que el reduce anterior); aquí
+    // solo se calcula el promedio por cita, con la misma fórmula de antes.
+    const doctorData = useMemo<DoctorProductivity[]>(() => {
+      return (overview?.doctors ?? []).map((d) => {
+        const revenue = Number(d.revenue);
+        const activeAppts = d.attended + d.confirmed;
+        return {
+          name: d.name,
+          color: d.color,
+          totalAppointments: d.total,
+          attended: d.attended,
+          cancelled: d.cancelled,
+          confirmed: d.confirmed,
+          scheduled: d.scheduled,
+          revenue,
+          avgPerAppointment: activeAppts > 0 ? revenue / activeAppts : 0,
+        };
       });
-      map.forEach((doc) => {
-        const activeAppts = doc.attended + doc.confirmed;
-        doc.avgPerAppointment = activeAppts > 0 ? doc.revenue / activeAppts : 0;
-      });
-      return Array.from(map.values()).sort((a, b) => b.revenue - a.revenue);
-    }, [appointments]);
+    }, [overview]);
 
     const totalRevenue = doctorData.reduce((sum, d) => sum + d.revenue, 0);
     const totalAttended = doctorData.reduce((sum, d) => sum + d.attended, 0);
     const totalCancelled = doctorData.reduce((sum, d) => sum + d.cancelled, 0);
-    const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
+    const totalPaid = Number(overview?.totals.payments_amount ?? 0);
     const totalPending = totalRevenue - totalPaid;
-    const today = new Date().toISOString().slice(0, 10);
-    const totalNoShows = useMemo(
-      () => appointments.filter((a) => a.appointment_date < today && (a.status === "scheduled" || a.status === "confirmed")).length,
-      [appointments, today]
-    );
+    const totalAppointments = overview?.totals.appointments ?? 0;
+    const totalNoShows = overview?.totals.no_shows ?? 0;
 
     // Expose export config via ref
     useImperativeHandle(ref, () => ({
@@ -146,12 +144,12 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
           headers: ["Doctor", "Total", "Atendidos", "Confirmados", "Programados", "Cancelados", "Facturado (S/.)", "Prom/Cita (S/.)"],
           rows: [
             ...doctorData.map((d) => [d.name, d.totalAppointments, d.attended, d.confirmed, d.scheduled, d.cancelled, d.revenue.toFixed(2), d.avgPerAppointment.toFixed(2)]),
-            ["TOTAL", appointments.length, totalAttended, doctorData.reduce((s, d) => s + d.confirmed, 0), doctorData.reduce((s, d) => s + d.scheduled, 0), totalCancelled, totalRevenue.toFixed(2), ""],
+            ["TOTAL", totalAppointments, totalAttended, doctorData.reduce((s, d) => s + d.confirmed, 0), doctorData.reduce((s, d) => s + d.scheduled, 0), totalCancelled, totalRevenue.toFixed(2), ""],
           ],
         }],
         filename: `reporte_financiero_${dateFrom}_${dateTo}`,
       }),
-    }), [doctorData, appointments, totalRevenue, totalPaid, totalPending, totalAttended, totalCancelled, totalNoShows, dateFrom, dateTo]);
+    }), [doctorData, totalAppointments, totalRevenue, totalPaid, totalPending, totalAttended, totalCancelled, totalNoShows, dateFrom, dateTo]);
 
     const chartData = doctorData.map((d) => ({ name: d.name, Atendidos: d.attended, Confirmados: d.confirmed, Cancelados: d.cancelled }));
     const revenueChartData = doctorData.map((d) => ({ name: d.name, Facturado: Number(d.revenue.toFixed(2)) }));
@@ -253,7 +251,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
                 {doctorData.length > 0 && (
                   <tr className="bg-muted/50 font-bold">
                     <td className="px-4 py-2.5">TOTAL</td>
-                    <td className="px-4 py-2.5 text-center">{appointments.length}</td>
+                    <td className="px-4 py-2.5 text-center">{totalAppointments}</td>
                     <td className="px-4 py-2.5 text-center text-success-600">{totalAttended}</td>
                     <td className="px-4 py-2.5 text-center text-blue-600">{doctorData.reduce((s, d) => s + d.confirmed, 0)}</td>
                     <td className="px-4 py-2.5 text-center text-red-600">{totalCancelled}</td>

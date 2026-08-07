@@ -76,15 +76,29 @@ export default async function DashboardPage() {
 
   // Doctor role: show personal dashboard
   if (role === "doctor") {
-    const [{ data: profile }, { DoctorDashboardWrapper }] = await Promise.all([
-      profileQuery,
-      import("./doctor-dashboard-wrapper"),
-    ]);
+    // 2.6 — el RPC del dashboard de doctor se dispara YA aquí, en el Server
+    // Component (user.id y organization_id están resueltos), en paralelo con
+    // el perfil. Antes el cliente esperaba hidratar → user → org → RPC para
+    // pintar contenido. Solo se llama en esta rama (rol doctor no-asesora):
+    // el split por rol del Lote 1 se respeta y los demás roles no pagan el
+    // RPC. Si falla, initialData va null y el cliente hace su fetch de
+    // siempre (spinner + fallback a get_doctor_personal_stats).
+    const [{ data: profile }, doctorStatsRes, { DoctorDashboardWrapper }] =
+      await Promise.all([
+        profileQuery,
+        supabase.rpc("get_doctor_dashboard_enhanced", {
+          p_user_id: user.id,
+          org_id: membership.organization_id,
+        }),
+        import("./doctor-dashboard-wrapper"),
+      ]);
+    type DoctorStatsResponse = import("./doctor-dashboard").DoctorStatsResponse;
     return (
       <>
         <WelcomeInvitedToast role={role} />
         <DoctorDashboardWrapper
           userName={nameFrom(profile?.full_name)}
+          initialData={(doctorStatsRes.data as DoctorStatsResponse | null) ?? null}
         />
       </>
     );
@@ -101,23 +115,26 @@ export default async function DashboardPage() {
   const prevWeekStart = format(subDays(now, 13), "yyyy-MM-dd");
   const prevWeekEnd = format(subDays(now, 7), "yyyy-MM-dd");
   const yesterday = format(subDays(now, 1), "yyyy-MM-dd");
-  const seriesStart = format(subDays(now, 29), "yyyy-MM-dd");
 
-  // Las cuatro consultas del dashboard admin son independientes entre sí
+  // Las tres consultas del dashboard admin son independientes entre sí
   // (solo dependen de user.id / organization_id, que ya tenemos): perfil,
-  // RPC de stats, serie diaria de 30 días y la ficha de doctor vinculada.
-  // Antes se encadenaban en serie — cinco rondas de red antes del primer
-  // byte. Ahora son tres (auth → membership → estas cuatro en paralelo).
+  // RPC de stats y la ficha de doctor vinculada.
+  //
+  // 2.9 — el RPC es ahora la v3 (mig 200): sin los ~8 bloques que esta
+  // página nunca leía (heatmap de 90 días, top_treatments,
+  // upcoming_appointments…) y con la serie diaria de 30 días agregada
+  // dentro del propio RPC. Antes se traía UNA FILA POR CITA
+  // (select("appointment_date")) solo para contarlas por día en JS —
+  // ~50-100 kB de payload con volumen; ahora son <2 kB de conteos.
   const [
     { data: profile },
     { data: stats },
-    { data: seriesRows },
     { data: linkedDoctor },
     { AdminDashboard },
   ] = await Promise.all([
     profileQuery,
-    // Single RPC call for all dashboard data
-    supabase.rpc("get_admin_dashboard_stats", {
+    // Single RPC call for all dashboard data (incl. daily series)
+    supabase.rpc("get_admin_dashboard_stats_v3", {
       p_today: today,
       p_month_start: monthStart,
       p_month_end: monthEnd,
@@ -128,14 +145,6 @@ export default async function DashboardPage() {
       p_prev_week_end: prevWeekEnd,
       p_yesterday: yesterday,
     }),
-    // ── Daily appointment series (last 30 days, excluding cancelled) ──
-    supabase
-      .from("appointments")
-      .select("appointment_date")
-      .eq("organization_id", membership.organization_id)
-      .gte("appointment_date", seriesStart)
-      .lte("appointment_date", today)
-      .neq("status", "cancelled"),
     // Check if the owner/admin also has a linked doctor record
     supabase
       .from("doctors")
@@ -273,10 +282,14 @@ export default async function DashboardPage() {
     total: number;
   }>;
 
+  // La serie llega ya agregada por día desde el RPC (solo días con citas);
+  // el relleno de días vacíos con 0 se conserva igual que antes.
   const seriesCounts = new Map<string, number>();
-  for (const row of seriesRows ?? []) {
-    const d = row.appointment_date as string;
-    seriesCounts.set(d, (seriesCounts.get(d) ?? 0) + 1);
+  for (const row of (stats.daily_series ?? []) as Array<{
+    date: string;
+    count: number;
+  }>) {
+    seriesCounts.set(row.date, Number(row.count));
   }
   const dailySeries = eachDayOfInterval({ start: subDays(now, 29), end: now }).map(
     (d) => {
