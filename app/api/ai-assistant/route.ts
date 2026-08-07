@@ -591,6 +591,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Sin esto el LLM asume la fecha de su entrenamiento (llegó a responder
+    // "estamos en febrero de 2025" y a tratar meses reales como futuros).
+    // La clínica opera en Perú: la fecha se ancla a America/Lima, no a UTC.
+    const todayLima = new Intl.DateTimeFormat("es-PE", {
+      timeZone: "America/Lima",
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }).format(new Date());
+    const dateContext = `\nFECHA ACTUAL: hoy es ${todayLima} (zona horaria America/Lima). Esta es la única referencia temporal válida — ignora cualquier suposición propia sobre qué fecha es.`;
+    const schemaSystem = SCHEMA_CONTEXT + dateContext;
+    const answerSystem = ANSWER_CONTEXT + dateContext;
+
     // ── PASO 1: Generar SQL ──────────────────────────────────────────────────
     // Include conversation history for context (e.g. "y el mes pasado?")
     const sqlMessages: Array<{ role: "user" | "assistant"; content: string }> = [
@@ -599,7 +613,7 @@ export async function POST(req: NextRequest) {
     ];
     // 768 (no 512): las CTEs analíticas de presupuestos/seguimientos son
     // notablemente más largas y a 512 se truncaba el bloque ```sql.
-    const sqlGenResult = await callAnthropic(apiKey, SCHEMA_CONTEXT, sqlMessages, 768);
+    const sqlGenResult = await callAnthropic(apiKey, schemaSystem, sqlMessages, 768);
 
     if (!sqlGenResult.text) {
       return NextResponse.json(
@@ -612,7 +626,7 @@ export async function POST(req: NextRequest) {
     if (sqlGenResult.text.includes("NO_SQL_NEEDED")) {
       const directResult = await callAnthropic(
         apiKey,
-        ANSWER_CONTEXT,
+        answerSystem,
         [
           ...recentHistory,
           { role: "user", content: `Pregunta: ${message}\n\nNo se requiere consultar la base de datos para responder esto.` },
@@ -678,7 +692,7 @@ export async function POST(req: NextRequest) {
         // Retry once: feed the error back to the LLM so it can self-correct.
         const retryResult = await callAnthropic(
           apiKey,
-          SCHEMA_CONTEXT,
+          schemaSystem,
           [
             ...recentHistory,
             { role: "user", content: message },
@@ -755,7 +769,7 @@ export async function POST(req: NextRequest) {
 
     const answerResult = await callAnthropic(
       apiKey,
-      ANSWER_CONTEXT,
+      answerSystem,
       [
         ...recentHistory,
         { role: "user", content: `Pregunta del usuario: "${message}"\n\n${dataContext}` },
