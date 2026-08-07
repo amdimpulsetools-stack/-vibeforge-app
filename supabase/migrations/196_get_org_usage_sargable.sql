@@ -64,7 +64,8 @@ BEGIN
 
   RETURN result;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE
+SET search_path = public, pg_temp;
 
 -- Índice que hace posible el range scan. Los índices existentes sobre
 -- appointments van por (organization_id, appointment_date) — la FECHA DE LA

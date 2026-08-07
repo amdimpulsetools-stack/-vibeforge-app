@@ -39,6 +39,7 @@ CREATE OR REPLACE FUNCTION get_retention_trend(
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER
+SET search_path = public, pg_temp
 AS $$
 DECLARE
   result JSON;
