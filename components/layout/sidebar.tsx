@@ -291,7 +291,7 @@ export function Sidebar() {
           )}
         </button>
         {!collapsed && isExpanded && (
-          <div className="ml-[18px] mt-0.5 space-y-0.5 pl-3">
+          <div className="ml-[18px] mt-1 space-y-1 pl-3">
             {group.items.map(renderNavItem)}
           </div>
         )}
@@ -400,7 +400,7 @@ export function Sidebar() {
                   {t(section.labelKey)}
                 </div>
               )}
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {visibleEntries.map((entry) =>
                   isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)
                 )}
@@ -423,7 +423,7 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="relative border-t border-border/40 p-2.5 space-y-0.5">
+      <div className="relative border-t border-border/40 p-2.5 space-y-1">
         <Link href="/support">
           <span
             className={cn(
