@@ -119,6 +119,17 @@ const STATUS_META: Record<
 
 const PAGE_SIZE = 50;
 
+// Payload del RPC get_einvoices_kpis (mig 199): KPIs agregados server-side
+// con los mismos filtros que la query paginada. Antes se calculaban sobre
+// las 50 filas de la página — con más comprobantes en el filtro, salían mal.
+interface EInvoiceKpis {
+  emitted_count: number;
+  total_amount: number;
+  total_count: number;
+  pending_count: number;
+  rejected_count: number;
+}
+
 // ── Component ──────────────────────────────────────────────────────────
 
 export default function FacturacionPage() {
@@ -139,6 +150,7 @@ export default function FacturacionPage() {
   }, [isDoctor, roleLoading, router]);
 
   const [rows, setRows] = useState<EInvoiceRow[]>([]);
+  const [kpis, setKpis] = useState<EInvoiceKpis | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<EInvoiceRow | null>(null);
@@ -154,14 +166,13 @@ export default function FacturacionPage() {
   const [searchText, setSearchText] = useState("");
 
   const fetchInvoices = useCallback(async () => {
-    // Skip the query when the org hasn't connected Nubefact yet — the
-    // empty-state below covers the UI; running the query would just
-    // return an empty list and cost a roundtrip.
-    if (!einvoice.connected) {
-      setLoading(false);
-      setRows([]);
-      return;
-    }
+    // 2.7a — la query se lanza YA, en paralelo con /api/einvoices/status
+    // (que dispara useEInvoiceConfig por su cuenta): antes se esperaba a que
+    // status resolviera `connected` para recién consultar — una cascada de
+    // dos roundtrips y, de paso, un flash de "Sin comprobantes" mientras
+    // connected aún era false. RLS protege: si la org no tiene comprobantes
+    // la query solo devuelve vacío. Si status termina en "no conectado", el
+    // empty-state de abajo se pinta igual y estas filas nunca se muestran.
     setLoading(true);
     setError(null);
     const supabase = createClient();
@@ -180,15 +191,27 @@ export default function FacturacionPage() {
     if (filterStatus !== "all") q = q.eq("status", filterStatus);
     if (filterSeries !== "all") q = q.eq("series", filterSeries);
 
-    const { data, error: qErr } = await q;
+    // 2.7b — KPIs agregados con los MISMOS filtros, en paralelo con la
+    // página de 50 filas. Con ≤50 comprobantes en el filtro los números son
+    // idénticos a los de antes; con más, ahora salen los correctos.
+    const kpiPromise = supabase.rpc("get_einvoices_kpis", {
+      p_date_from: dateFrom + "T00:00:00",
+      p_date_to: dateTo + "T23:59:59",
+      p_doc_type: filterType !== "all" ? Number(filterType) : null,
+      p_status: filterStatus !== "all" ? filterStatus : null,
+      p_series: filterSeries !== "all" ? filterSeries : null,
+    });
+
+    const [{ data, error: qErr }, kpiRes] = await Promise.all([q, kpiPromise]);
     if (qErr) {
       setError(qErr.message);
       setRows([]);
     } else {
       setRows((data as unknown as EInvoiceRow[]) ?? []);
     }
+    setKpis((kpiRes.data as EInvoiceKpis | null) ?? null);
     setLoading(false);
-  }, [dateFrom, dateTo, filterType, filterStatus, filterSeries, einvoice.connected]);
+  }, [dateFrom, dateTo, filterType, filterStatus, filterSeries]);
 
   useEffect(() => {
     void fetchInvoices();
@@ -217,22 +240,13 @@ export default function FacturacionPage() {
     );
   }, [rows, searchText]);
 
-  // KPIs computed from the current (filtered-by-server) result set.
-  const kpis = useMemo(() => {
-    const totalAmount = rows
-      .filter((r) => r.status === "accepted" || r.status === "sending")
-      .reduce((sum, r) => sum + Number(r.total), 0);
-    const totalCount = rows.filter(
-      (r) => r.status === "accepted" || r.status === "sending"
-    ).length;
-    const pendingCount = rows.filter(
-      (r) => r.status === "sending" || (r.status === "accepted" && !r.sunat_accepted)
-    ).length;
-    const rejectedCount = rows.filter(
-      (r) => r.status === "rejected" || r.status === "error" || r.status === "cancelled"
-    ).length;
-    return { totalAmount, totalCount, pendingCount, rejectedCount };
-  }, [rows]);
+  // KPIs: vienen del RPC agregado (estado `kpis`); mientras resuelve se
+  // muestran ceros, igual que antes con `rows` vacío.
+  const totalAmount = Number(kpis?.total_amount ?? 0);
+  const totalCount = kpis?.total_count ?? 0;
+  const pendingCount = kpis?.pending_count ?? 0;
+  const rejectedCount = kpis?.rejected_count ?? 0;
+  const emittedCount = kpis?.emitted_count ?? 0;
 
   // While role resolves OR if user is a doctor, render nothing (the
   // useEffect above will redirect doctors). This prevents a flash of
@@ -313,33 +327,35 @@ export default function FacturacionPage() {
         <Kpi
           icon={TrendingUp}
           label="Emitido en el período"
-          value={`PEN ${kpis.totalAmount.toLocaleString("es-PE", {
+          value={`PEN ${totalAmount.toLocaleString("es-PE", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
           })}`}
-          subtitle={`${kpis.totalCount} comprobantes`}
+          subtitle={`${totalCount} comprobantes`}
           tone="success"
         />
         <Kpi
           icon={Hash}
           label="Total emitidos"
-          value={String(rows.length)}
+          // Antes: rows.length — con >50 comprobantes en el filtro mostraba
+          // 50 (el tamaño de página). El RPC cuenta todos los del filtro.
+          value={String(emittedCount)}
           subtitle="en el rango filtrado"
           tone="blue"
         />
         <Kpi
           icon={Clock}
           label="Pendientes SUNAT"
-          value={String(kpis.pendingCount)}
-          subtitle={kpis.pendingCount > 0 ? "Esperando confirmación" : "Sin pendientes"}
-          tone={kpis.pendingCount > 0 ? "amber" : "muted"}
+          value={String(pendingCount)}
+          subtitle={pendingCount > 0 ? "Esperando confirmación" : "Sin pendientes"}
+          tone={pendingCount > 0 ? "amber" : "muted"}
         />
         <Kpi
           icon={XCircle}
           label="Rechazados / anulados"
-          value={String(kpis.rejectedCount)}
-          subtitle={kpis.rejectedCount > 0 ? "Requieren atención" : "Sin incidencias"}
-          tone={kpis.rejectedCount > 0 ? "rose" : "muted"}
+          value={String(rejectedCount)}
+          subtitle={rejectedCount > 0 ? "Requieren atención" : "Sin incidencias"}
+          tone={rejectedCount > 0 ? "rose" : "muted"}
         />
       </div>
 
@@ -427,7 +443,12 @@ export default function FacturacionPage() {
           que la tabla toca el borde físico del scrollport y no lleva
           bordes laterales en ningún tamaño. */}
       <div className="-mx-4 rounded-none border-y border-x-0 border-border bg-card overflow-hidden md:-mx-7">
-        {loading ? (
+        {/* 2.7a — el spinner se mantiene hasta que TAMBIÉN resuelva
+            /api/einvoices/status: si la org resulta no conectada, el
+            empty-state de arriba reemplaza la página entera; sin esta
+            condición se veía un flash de "Sin comprobantes" con los datos
+            de una query aún no autorizada a mostrarse. */}
+        {loading || einvoice.loading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
             Cargando comprobantes…

@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOrganization } from "@/components/organization-provider";
 
 export interface Addon {
@@ -19,31 +20,49 @@ export interface Addon {
   recommended: boolean;
 }
 
+// Referencia estable para no crear un [] nuevo en cada render sin data.
+const EMPTY_ADDONS: Addon[] = [];
+
 export function useOrgAddons() {
   const { organizationId } = useOrganization();
-  const [addons, setAddons] = useState<Addon[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+
+  // Deduplicado y cacheado vía React Query (staleTime 5 min del QueryProvider):
+  // los ~10 consumidores comparten un único fetch a /api/addons por org.
+  const { data, isPending } = useQuery<Addon[]>({
+    queryKey: ["addons", organizationId],
+    enabled: !!organizationId,
+    queryFn: () =>
+      // BUG FIX (2026-05-14): we used to call /api/addons without
+      // org_id. The endpoint then fell back to .limit(1).single() and
+      // picked an arbitrary membership — for a doctor with multi-org
+      // access, that could resolve to the wrong org and report the
+      // wrong addon state. Pass the active org explicitly.
+      fetch(`/api/addons?org_id=${encodeURIComponent(organizationId as string)}`)
+        .then((r) => (r.ok ? r.json() : []))
+        .catch(() => [] as Addon[]),
+  });
+
+  const addons = data ?? EMPTY_ADDONS;
+
+  // Semántica de loading idéntica a la versión anterior: sin org el hook
+  // nunca resolvía (refetch hacía early-return y loading quedaba en true).
+  const loading = !organizationId || isPending;
 
   const refetch = useCallback(() => {
     if (!organizationId) return;
-    setLoading(true);
-    // BUG FIX (2026-05-14): we used to call /api/addons without
-    // org_id. The endpoint then fell back to .limit(1).single() and
-    // picked an arbitrary membership — for a doctor with multi-org
-    // access, that could resolve to the wrong org and report the
-    // wrong addon state. Pass the active org explicitly.
-    fetch(`/api/addons?org_id=${encodeURIComponent(organizationId)}`)
-      .then((r) => (r.ok ? r.json() : []))
-      .then((data: Addon[]) => {
-        setAddons(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, [organizationId]);
+    queryClient.invalidateQueries({ queryKey: ["addons", organizationId] });
+  }, [queryClient, organizationId]);
 
-  useEffect(() => {
-    refetch();
-  }, [refetch]);
+  /** Actualiza el caché de la key ['addons', orgId] con un patch por addon_key. */
+  const patchAddon = useCallback(
+    (key: string, patch: (a: Addon) => Addon) => {
+      queryClient.setQueryData<Addon[]>(["addons", organizationId], (prev) =>
+        prev?.map((a) => (a.key === key ? patch(a) : a))
+      );
+    },
+    [queryClient, organizationId]
+  );
 
   const hasAddon = useCallback(
     (key: string) => addons.some((a) => a.key === key && a.enabled),
@@ -78,17 +97,15 @@ export function useOrgAddons() {
         body: JSON.stringify({ addon_key: key, enabled }),
       });
       if (res.ok) {
-        setAddons((prev) =>
-          prev.map((a) =>
-            a.key === key
-              ? { ...a, enabled, activated_at: enabled ? new Date().toISOString() : a.activated_at }
-              : a
-          )
-        );
+        patchAddon(key, (a) => ({
+          ...a,
+          enabled,
+          activated_at: enabled ? new Date().toISOString() : a.activated_at,
+        }));
       }
       return res.ok;
     },
-    []
+    [patchAddon]
   );
 
   /**
@@ -114,13 +131,11 @@ export function useOrgAddons() {
       });
       const body = await res.json().catch(() => ({}));
       if (res.ok) {
-        setAddons((prev) =>
-          prev.map((a) =>
-            a.key === key
-              ? { ...a, enabled: true, activated_at: new Date().toISOString() }
-              : a
-          )
-        );
+        patchAddon(key, (a) => ({
+          ...a,
+          enabled: true,
+          activated_at: new Date().toISOString(),
+        }));
         return {
           ok: true,
           addon_key: body.addon_key ?? key,
@@ -136,7 +151,7 @@ export function useOrgAddons() {
         conflicting_addon_key: body.conflicting_addon_key,
       };
     },
-    []
+    [patchAddon]
   );
 
   const deactivateAddon = useCallback(
@@ -145,13 +160,11 @@ export function useOrgAddons() {
         method: "POST",
       });
       if (res.ok) {
-        setAddons((prev) =>
-          prev.map((a) => (a.key === key ? { ...a, enabled: false } : a))
-        );
+        patchAddon(key, (a) => ({ ...a, enabled: false }));
       }
       return res.ok;
     },
-    []
+    [patchAddon]
   );
 
   return {

@@ -250,20 +250,14 @@ export async function GET(request: NextRequest) {
   // restricted to records they personally sent OR linked to appointments
   // they are the assigned doctor on. Everyone else (owner, admin,
   // receptionist read-only, and fertility advisors) sees the whole org.
-  let restrictToCallerScope = false;
-  let callerDoctorId: string | null = null;
-  if (membership.role === "doctor" && !membership.is_fertility_advisor) {
-    restrictToCallerScope = true;
-    const { data: doc } = await supabase
-      .from("doctors")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("organization_id", membership.organization_id)
-      .eq("is_active", true)
-      .limit(1)
-      .maybeSingle();
-    callerDoctorId = doc?.id ?? null;
-  }
+  //
+  // 2.11b — el scope vive ahora en SQL (mig 201): la función
+  // budget_records_in_caller_scope() y los RPCs de counts/KPIs expresan
+  // "sus citas" con un EXISTS resuelto vía auth.uid(). Desapareció el fetch
+  // SIN LÍMITE de todos los appointments del doctor y la lista de UUIDs
+  // interpolada en el `.or()` de 9 queries.
+  const restrictToCallerScope =
+    membership.role === "doctor" && !membership.is_fertility_advisor;
 
   // For "accepted" bucket we now return 3 sub-states (accepted/
   // in_progress/completed) so the UI can split the column. The
@@ -274,21 +268,6 @@ export async function GET(request: NextRequest) {
   else if (bucket === "accepted")
     acceptanceStatusIn = ["accepted", "in_progress", "completed"];
   else if (bucket === "rejected") acceptanceStatus = "rejected";
-
-  // Build the patient ID set when caller is restricted: their assigned
-  // appointments + records they personally sent. Cheaper than a giant
-  // OR with a join in postgrest.
-  let scopedPatientIds: string[] | null = null;
-  if (restrictToCallerScope && callerDoctorId) {
-    const { data: appts } = await supabase
-      .from("appointments")
-      .select("patient_id")
-      .eq("organization_id", membership.organization_id)
-      .eq("doctor_id", callerDoctorId);
-    scopedPatientIds = Array.from(
-      new Set((appts ?? []).map((a) => a.patient_id as string).filter(Boolean)),
-    );
-  }
 
   // Explicit column whitelist for the listing. The card and the patient
   // detail panel both consume `notes` and `rejection_reason`; everything in
@@ -316,9 +295,20 @@ export async function GET(request: NextRequest) {
   // Fetch limit+1 so we can detect `has_more` without a separate
   // `count: "exact"` round-trip on the listing — the per-bucket counts
   // below already give us the totals for the badges.
-  let query = supabase
-    .from("budget_records")
-    .select(BUDGET_SELECT)
+  //
+  // Fuente del listado: para el doctor restringido se consulta la función
+  // budget_records_in_caller_scope() (SETOF budget_records, mig 201) en vez
+  // de la tabla — PostgREST admite los mismos embeds/filtros/order/range
+  // sobre funciones que devuelven SETOF de una tabla, y el scope queda como
+  // EXISTS en SQL en lugar de una lista de UUIDs interpolada. En runtime
+  // .select() tras .rpc() devuelve el mismo builder de filtros; el tipado de
+  // supabase-js lo estrecha de más, de ahí el cast.
+  /* eslint-disable @typescript-eslint/no-explicit-any */
+  let query: any = restrictToCallerScope
+    ? (supabase.rpc("budget_records_in_caller_scope") as any).select(BUDGET_SELECT)
+    : supabase.from("budget_records").select(BUDGET_SELECT);
+  /* eslint-enable @typescript-eslint/no-explicit-any */
+  query = query
     .eq("organization_id", membership.organization_id)
     .order("sent_at", { ascending: false })
     .range(offset, offset + limit);
@@ -332,108 +322,39 @@ export async function GET(request: NextRequest) {
   if (from) query = query.gte("sent_at", from);
   if (to) query = query.lte("sent_at", to);
 
-  if (restrictToCallerScope) {
-    if (scopedPatientIds && scopedPatientIds.length > 0) {
-      query = query.or(
-        `sent_by_user_id.eq.${user.id},patient_id.in.(${scopedPatientIds.join(",")})`,
-      );
-    } else {
-      query = query.eq("sent_by_user_id", user.id);
-    }
-  }
-
-  // Counts per bucket (org-wide, ignoring filters except scope+treatment_type+doctor).
-  const baseCountQuery = (status: BudgetAcceptanceStatus) => {
-    let q2 = supabase
-      .from("budget_records")
-      .select("id", { count: "exact", head: true })
-      .eq("organization_id", membership.organization_id)
-      .eq("acceptance_status", status);
-    if (treatmentType) q2 = q2.eq("treatment_type", treatmentType);
-    if (doctorId) q2 = q2.eq("sent_by_user_id", doctorId);
-    if (restrictToCallerScope) {
-      if (scopedPatientIds && scopedPatientIds.length > 0) {
-        q2 = q2.or(
-          `sent_by_user_id.eq.${user.id},patient_id.in.(${scopedPatientIds.join(",")})`,
-        );
-      } else {
-        q2 = q2.eq("sent_by_user_id", user.id);
-      }
-    }
-    return q2;
-  };
-
-  // Phase 3 — split the "pending_acceptance" bucket into:
-  //   - pending_unsent: sent_at IS NULL (Sin procesar)
-  //   - pending_sent:   sent_at IS NOT NULL (Esperando respuesta)
-  // The kanban "Pendientes" column renders these as two sub-groups.
-  const pendingUnsentCountQuery = () =>
-    baseCountQuery("pending_acceptance").is("sent_at", null);
-  const pendingSentCountQuery = () =>
-    baseCountQuery("pending_acceptance").not("sent_at", "is", null);
-
-  // Phase 5 prep — split "Aceptados" into 3 visual sub-buckets:
-  //   - accepted_unstarted: acceptance_status='accepted' (still pre-start)
-  //   - in_progress:        acceptance_status='in_progress'
-  //   - completed:          acceptance_status='completed'
-  // The kanban "Aceptados" tab badge surfaces accepted_unstarted so
-  // the team sees pending starts at a glance.
-  const inProgressCountQuery = () => baseCountQuery("in_progress");
-  const completedCountQuery = () => baseCountQuery("completed");
-
-  // KPIs query: 90-day window, lightweight projection.
+  // KPIs: 90-day window (agregación server-side, mig 201).
   const now = Date.now();
   const since30d = new Date(now - 30 * 24 * 3600 * 1000).toISOString();
   const since90d = new Date(now - 90 * 24 * 3600 * 1000).toISOString();
 
-  const buildKpiQuery = () => {
-    let qq = supabase
-      .from("budget_records")
-      .select("acceptance_status, sent_at, accepted_at")
-      .eq("organization_id", membership.organization_id)
-      .gte("sent_at", since90d);
-    if (restrictToCallerScope) {
-      if (scopedPatientIds && scopedPatientIds.length > 0) {
-        qq = qq.or(
-          `sent_by_user_id.eq.${user.id},patient_id.in.(${scopedPatientIds.join(",")})`,
-        );
-      } else {
-        qq = qq.eq("sent_by_user_id", user.id);
-      }
-    }
-    return qq;
-  };
-
-  // Wave 2: listing + 3 counts + KPI in a single Promise.all. None of these
-  // queries depend on each other; they all share the same org/role/scope
-  // filters. The senders lookup must be sequential (Wave 3) because it
-  // needs the unique `sent_by_user_id` values from the listing rows.
-  const [
-    listingRes,
-    pendCount,
-    accCount,
-    rejCount,
-    pendUnsentCount,
-    pendSentCount,
-    inProgressCount,
-    completedCount,
-    kpiRes,
-  ] = await Promise.all([
+  // Wave 2: listing + counts + KPI in a single Promise.all.
+  //
+  // 2.11a — los 7 counts head+exact y la query de KPIs que traía TODAS las
+  // filas de 90 días para agregar en JS se reemplazan por dos RPCs con
+  // COUNT(*)/AVG FILTER (get_budget_bucket_counts y get_budget_kpis,
+  // mig 201): mismos filtros (treatment_type, doctor) y mismo scope, con el
+  // índice idx_budget_records_org_status_sent (mig 136) por debajo. De 9
+  // queries por request a 3.
+  const [listingRes, countsRes, kpiRes] = await Promise.all([
     query,
-    baseCountQuery("pending_acceptance"),
-    baseCountQuery("accepted"),
-    baseCountQuery("rejected"),
-    pendingUnsentCountQuery(),
-    pendingSentCountQuery(),
-    inProgressCountQuery(),
-    completedCountQuery(),
-    buildKpiQuery(),
+    supabase.rpc("get_budget_bucket_counts", {
+      p_org_id: membership.organization_id,
+      p_treatment_type: treatmentType ?? null,
+      p_sent_by: doctorId ?? null,
+      p_restrict_to_caller: restrictToCallerScope,
+    }),
+    supabase.rpc("get_budget_kpis", {
+      p_org_id: membership.organization_id,
+      p_since_30d: since30d,
+      p_since_90d: since90d,
+      p_restrict_to_caller: restrictToCallerScope,
+    }),
   ]);
 
   if (listingRes.error)
     return NextResponse.json({ error: listingRes.error.message }, { status: 500 });
 
-  const fetched = listingRes.data ?? [];
+  const fetched = (listingRes.data ?? []) as Record<string, unknown>[];
   const hasMore = fetched.length > limit;
   let items = hasMore ? fetched.slice(0, limit) : fetched;
 
@@ -460,7 +381,7 @@ export async function GET(request: NextRequest) {
   const personIds = Array.from(
     new Set(
       items.flatMap((r) => {
-        const row = r as BudgetRecord;
+        const row = r as unknown as BudgetRecord;
         return [row.sent_by_user_id, row.assigned_by_user_id].filter(Boolean) as string[];
       }),
     ),
@@ -478,7 +399,7 @@ export async function GET(request: NextRequest) {
   }
 
   const enriched = items.map((r) => {
-    const row = r as BudgetRecord;
+    const row = r as unknown as BudgetRecord;
     return {
       ...r,
       sent_by: row.sent_by_user_id
@@ -490,30 +411,32 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  const kpiAll = kpiRes.data ?? [];
-  const kpiSent30d = kpiAll.filter((r) => r.sent_at >= since30d);
-  const totalSent30d = kpiSent30d.length;
-  const accepted30d = kpiSent30d.filter((r) => r.acceptance_status === "accepted").length;
-  const rejected30d = kpiSent30d.filter((r) => r.acceptance_status === "rejected").length;
+  // KPIs agregados en SQL (mismos números que la agregación JS anterior);
+  // los porcentajes se siguen redondeando aquí con la misma fórmula.
+  const kpiData = (kpiRes.data ?? null) as {
+    total_sent_30d: number;
+    accepted_30d: number;
+    rejected_30d: number;
+    avg_time_to_acceptance_days: number | null;
+  } | null;
+  const totalSent30d = kpiData?.total_sent_30d ?? 0;
+  const accepted30d = kpiData?.accepted_30d ?? 0;
+  const rejected30d = kpiData?.rejected_30d ?? 0;
   const decided30d = accepted30d + rejected30d;
   const acceptanceRatePct = decided30d > 0 ? Math.round((accepted30d / decided30d) * 100) : 0;
   const rejectionRatePct = decided30d > 0 ? Math.round((rejected30d / decided30d) * 100) : 0;
+  const avgTimeToAcceptanceDays =
+    kpiData?.avg_time_to_acceptance_days ?? null;
 
-  const acceptedRows = kpiAll.filter(
-    (r) => r.acceptance_status === "accepted" && r.accepted_at,
-  );
-  let avgTimeToAcceptanceDays: number | null = null;
-  if (acceptedRows.length > 0) {
-    const sumMs = acceptedRows.reduce((acc, r) => {
-      const dt =
-        new Date(r.accepted_at as string).getTime() -
-        new Date(r.sent_at).getTime();
-      return acc + Math.max(0, dt);
-    }, 0);
-    avgTimeToAcceptanceDays = Math.round(
-      (sumMs / acceptedRows.length / (24 * 3600 * 1000)) * 10,
-    ) / 10;
-  }
+  const countsData = (countsRes.data ?? null) as {
+    pending: number;
+    accepted: number;
+    rejected: number;
+    pending_unsent: number;
+    pending_sent: number;
+    in_progress: number;
+    completed: number;
+  } | null;
 
   // `hasMore` was computed by fetching `limit + 1` rows from the listing.
   // The bucket counts give us the total per bucket without counting on the
@@ -522,19 +445,19 @@ export async function GET(request: NextRequest) {
     items: enriched,
     has_more: hasMore,
     counts: {
-      pending: pendCount.count ?? 0,
-      accepted: accCount.count ?? 0,
-      rejected: rejCount.count ?? 0,
+      pending: countsData?.pending ?? 0,
+      accepted: countsData?.accepted ?? 0,
+      rejected: countsData?.rejected ?? 0,
       // Phase 3 — split of the "pending_acceptance" bucket into two
       // visual sub-groups in the kanban "Pendientes" column.
-      pending_unsent: pendUnsentCount.count ?? 0,
-      pending_sent: pendSentCount.count ?? 0,
+      pending_unsent: countsData?.pending_unsent ?? 0,
+      pending_sent: countsData?.pending_sent ?? 0,
       // Phase 5 prep — split of the "Aceptados" tab into 3 sub-buckets.
       // `accepted` is the "Por iniciar" count (pre-start). `in_progress`
       // and `completed` mirror the new acceptance_status values.
-      accepted_unstarted: accCount.count ?? 0,
-      in_progress: inProgressCount.count ?? 0,
-      completed: completedCount.count ?? 0,
+      accepted_unstarted: countsData?.accepted ?? 0,
+      in_progress: countsData?.in_progress ?? 0,
+      completed: countsData?.completed ?? 0,
     },
     kpis: {
       total_sent_30d: totalSent30d,

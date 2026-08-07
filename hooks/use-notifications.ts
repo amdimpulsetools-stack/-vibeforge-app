@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
+import { useUser } from "@/hooks/use-user";
 import { toast } from "sonner";
 
 export interface Notification {
@@ -43,22 +44,14 @@ const ICON_MAP: Record<string, string> = {
  */
 export function useNotifications() {
   const { organizationId } = useOrganization();
+  // Usuario deduplicado vía React Query (key ['auth','user']) — antes este
+  // hook disparaba su propio supabase.auth.getUser() al montar.
+  const { user } = useUser();
+  const userId = user?.id ?? null;
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [userId, setUserId] = useState<string | null>(null);
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const supabase = createClient();
-    supabase.auth.getUser().then(({ data }) => {
-      if (!cancelled) setUserId(data.user?.id ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Fetch recent notifications: las mías + el histórico broadcast de la org.
   const fetchNotifications = useCallback(async () => {

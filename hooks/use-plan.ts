@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
 
@@ -84,111 +85,126 @@ const RESOURCE_TO_PLAN_KEY: Partial<Record<keyof OrgUsage, keyof PlanInfo>> = {
   doctor_members: "max_doctor_members",
 };
 
+interface PlanQueryData {
+  plan: PlanInfo | null;
+  subscription: SubscriptionInfo | null;
+  usage: OrgUsage | null;
+}
+
+async function fetchPlanData(organizationId: string): Promise<PlanQueryData> {
+  const supabase = createClient();
+
+  const [planRes, usageRes] = await Promise.all([
+    supabase.rpc("get_org_plan", { org_id: organizationId }),
+    supabase.rpc("get_org_usage", { org_id: organizationId }),
+  ]);
+
+  let plan: PlanInfo | null = null;
+  let subscription: SubscriptionInfo | null = null;
+  let usage: OrgUsage | null = null;
+
+  if (planRes.data) {
+    // RPC returns flat JSON — map to PlanInfo + SubscriptionInfo
+    const d = planRes.data as Record<string, unknown>;
+    plan = {
+      id: d.plan_id as string,
+      slug: d.plan_slug as string,
+      name: d.plan_name as string,
+      description: (d.description as string) ?? null,
+      price_monthly: d.price_monthly as number,
+      max_members: (d.max_members as number) ?? null,
+      max_doctors: (d.max_doctors as number) ?? null,
+      max_offices: (d.max_offices as number) ?? null,
+      max_patients: (d.max_patients as number) ?? null,
+      max_appointments_per_month: (d.max_appointments_per_month as number) ?? null,
+      max_storage_mb: (d.max_storage_mb as number) ?? null,
+      max_admins: (d.max_admins as number) ?? null,
+      max_receptionists: (d.max_receptionists as number) ?? null,
+      max_doctor_members: (d.max_doctor_members as number) ?? null,
+      addon_price_per_office: (d.addon_price_per_office as number) ?? null,
+      addon_price_per_member: (d.addon_price_per_member as number) ?? null,
+      target_audience: (d.target_audience as string) ?? null,
+      feature_reports: !!d.feature_reports,
+      feature_export: !!d.feature_export,
+      feature_custom_roles: !!d.feature_custom_roles,
+      feature_api_access: !!d.feature_api_access,
+      feature_priority_support: !!d.feature_priority_support,
+      feature_ai_assistant: !!d.feature_ai_assistant,
+      feature_custom_fields: !!d.feature_custom_fields,
+      feature_insurance: !!d.feature_insurance,
+      max_ai_queries: (d.max_ai_queries as number) ?? null,
+    };
+    subscription = {
+      id: (d.subscription_id as string) ?? (d.plan_id as string),
+      status: d.subscription_status as SubscriptionInfo["status"],
+      started_at: d.started_at as string,
+      expires_at: (d.expires_at as string) ?? (d.trial_ends_at as string) ?? null,
+      trial_ends_at: (d.trial_ends_at as string) ?? null,
+    };
+  }
+
+  if (usageRes.data) {
+    // RPC returns monthly_appointments, map to appointments_this_month
+    const u = usageRes.data as Record<string, unknown>;
+
+    // extra_offices / extra_members: prefer direct fields from RPC (migration 063+),
+    // fall back to parsing addons array (migration 031 format)
+    let extraOffices = (u.extra_offices as number) ?? 0;
+    let extraMembers = (u.extra_members as number) ?? 0;
+    if (!extraOffices && !extraMembers && Array.isArray(u.addons)) {
+      const addons = u.addons as { addon_type: string; quantity: number }[];
+      extraOffices = addons
+        .filter((a) => a.addon_type === "extra_office")
+        .reduce((sum, a) => sum + (a.quantity ?? 0), 0);
+      extraMembers = addons
+        .filter((a) => a.addon_type === "extra_member")
+        .reduce((sum, a) => sum + (a.quantity ?? 0), 0);
+    }
+
+    usage = {
+      members: (u.members as number) ?? 0,
+      doctors: (u.doctors as number) ?? 0,
+      offices: (u.offices as number) ?? 0,
+      patients: (u.patients as number) ?? 0,
+      appointments_this_month:
+        (u.monthly_appointments as number) ?? (u.appointments_this_month as number) ?? 0,
+      admins: (u.admins as number) ?? 0,
+      receptionists: (u.receptionists as number) ?? 0,
+      doctor_members: (u.doctor_members as number) ?? 0,
+      extra_offices: extraOffices,
+      extra_members: extraMembers,
+    };
+  }
+
+  return { plan, subscription, usage };
+}
+
 export function usePlan(): UsePlanReturn {
   const { organizationId, loading: orgLoading } = useOrganization();
-  const [plan, setPlan] = useState<PlanInfo | null>(null);
-  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [usage, setUsage] = useState<OrgUsage | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  const fetchData = useCallback(async () => {
-    if (!organizationId) return;
+  // Deduplicado y cacheado vía React Query (staleTime 5 min del QueryProvider):
+  // los ~13 consumidores de usePlan comparten un único par de RPCs por org
+  // en vez de disparar get_org_plan/get_org_usage en cada montaje.
+  const { data, isPending } = useQuery<PlanQueryData>({
+    queryKey: ["org-plan", organizationId],
+    enabled: !!organizationId,
+    queryFn: () => fetchPlanData(organizationId as string),
+  });
 
-    const supabase = createClient();
+  const plan = data?.plan ?? null;
+  const subscription = data?.subscription ?? null;
+  const usage = data?.usage ?? null;
 
-    const [planRes, usageRes] = await Promise.all([
-      supabase.rpc("get_org_plan", { org_id: organizationId }),
-      supabase.rpc("get_org_usage", { org_id: organizationId }),
-    ]);
+  // Semántica de loading idéntica a la versión anterior:
+  // - true mientras la org resuelve (estado inicial previo)
+  // - true mientras la primera carga del plan está en vuelo
+  // - false si no hay org (antes: setLoading(false) sin fetch)
+  const loading = orgLoading || (!!organizationId && isPending);
 
-
-
-    if (planRes.data) {
-      // RPC returns flat JSON — map to PlanInfo + SubscriptionInfo
-      const d = planRes.data as Record<string, unknown>;
-      setPlan({
-        id: d.plan_id as string,
-        slug: d.plan_slug as string,
-        name: d.plan_name as string,
-        description: (d.description as string) ?? null,
-        price_monthly: d.price_monthly as number,
-        max_members: (d.max_members as number) ?? null,
-        max_doctors: (d.max_doctors as number) ?? null,
-        max_offices: (d.max_offices as number) ?? null,
-        max_patients: (d.max_patients as number) ?? null,
-        max_appointments_per_month: (d.max_appointments_per_month as number) ?? null,
-        max_storage_mb: (d.max_storage_mb as number) ?? null,
-        max_admins: (d.max_admins as number) ?? null,
-        max_receptionists: (d.max_receptionists as number) ?? null,
-        max_doctor_members: (d.max_doctor_members as number) ?? null,
-        addon_price_per_office: (d.addon_price_per_office as number) ?? null,
-        addon_price_per_member: (d.addon_price_per_member as number) ?? null,
-        target_audience: (d.target_audience as string) ?? null,
-        feature_reports: !!d.feature_reports,
-        feature_export: !!d.feature_export,
-        feature_custom_roles: !!d.feature_custom_roles,
-        feature_api_access: !!d.feature_api_access,
-        feature_priority_support: !!d.feature_priority_support,
-        feature_ai_assistant: !!d.feature_ai_assistant,
-        feature_custom_fields: !!d.feature_custom_fields,
-        feature_insurance: !!d.feature_insurance,
-        max_ai_queries: (d.max_ai_queries as number) ?? null,
-      });
-      setSubscription({
-        id: d.subscription_id as string ?? d.plan_id as string,
-        status: d.subscription_status as SubscriptionInfo["status"],
-        started_at: d.started_at as string,
-        expires_at: (d.expires_at as string) ?? (d.trial_ends_at as string) ?? null,
-        trial_ends_at: (d.trial_ends_at as string) ?? null,
-      });
-    } else {
-      setPlan(null);
-      setSubscription(null);
-    }
-
-    if (usageRes.data) {
-      // RPC returns monthly_appointments, map to appointments_this_month
-      const u = usageRes.data as Record<string, unknown>;
-
-      // extra_offices / extra_members: prefer direct fields from RPC (migration 063+),
-      // fall back to parsing addons array (migration 031 format)
-      let extraOffices = (u.extra_offices as number) ?? 0;
-      let extraMembers = (u.extra_members as number) ?? 0;
-      if (!extraOffices && !extraMembers && Array.isArray(u.addons)) {
-        const addons = u.addons as { addon_type: string; quantity: number }[];
-        extraOffices = addons
-          .filter((a) => a.addon_type === "extra_office")
-          .reduce((sum, a) => sum + (a.quantity ?? 0), 0);
-        extraMembers = addons
-          .filter((a) => a.addon_type === "extra_member")
-          .reduce((sum, a) => sum + (a.quantity ?? 0), 0);
-      }
-
-      setUsage({
-        members: (u.members as number) ?? 0,
-        doctors: (u.doctors as number) ?? 0,
-        offices: (u.offices as number) ?? 0,
-        patients: (u.patients as number) ?? 0,
-        appointments_this_month: (u.monthly_appointments as number) ?? (u.appointments_this_month as number) ?? 0,
-        admins: (u.admins as number) ?? 0,
-        receptionists: (u.receptionists as number) ?? 0,
-        doctor_members: (u.doctor_members as number) ?? 0,
-        extra_offices: extraOffices,
-        extra_members: extraMembers,
-      });
-    }
-
-    setLoading(false);
-  }, [organizationId]);
-
-  useEffect(() => {
-    if (orgLoading) return;
-    if (!organizationId) {
-      setLoading(false);
-      return;
-    }
-    fetchData();
-  }, [organizationId, orgLoading, fetchData]);
+  const refetch = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["org-plan", organizationId] });
+  }, [queryClient, organizationId]);
 
   const needsPlan = !loading && !subscription;
 
@@ -238,6 +254,6 @@ export function usePlan(): UsePlanReturn {
     isNearLimit,
     isAtLimit,
     getLimit,
-    refetch: fetchData,
+    refetch,
   };
 }

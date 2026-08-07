@@ -1,15 +1,15 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
 import type {
   AppointmentWithRelations,
-  PatientPayment,
   Patient,
 } from "@/types/admin";
+import type { ReportsOverview } from "@/types/reports";
 import {
   BarChart3,
   Megaphone,
@@ -96,44 +96,66 @@ export default function ReportsPage() {
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
 
   // Data
+  //
+  // Los agregados financiero/operativo vienen del RPC get_reports_overview
+  // (mig 198): el fetch anterior de citas con select("*") + 4 joins y SIN
+  // .limit() se truncaba en silencio a 1000 filas (default de PostgREST), así
+  // que una org con >1000 citas en el rango veía KPIs incorrectos. El RPC
+  // agrega server-side sobre TODAS las filas del rango.
+  //
+  // Las filas crudas que quedan alimentan solo el reporte de marketing:
+  // columnas explícitas (las únicas que ese reporte lee) y límite EXPLÍCITO
+  // de 1000 — el mismo tope que PostgREST ya aplicaba, pero visible.
+  const [overview, setOverview] = useState<ReportsOverview | null>(null);
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
-  const [payments, setPayments] = useState<PatientPayment[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
     const supabase = createClient();
 
-    const [apptRes, payRes, patRes] = await Promise.all([
+    const [overviewRes, apptRes, patRes] = await Promise.all([
+      supabase.rpc("get_reports_overview", {
+        p_date_from: dateFrom,
+        p_date_to: dateTo,
+      }),
       supabase
         .from("appointments")
-        .select("*, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price), patients(id, origin)")
+        .select("id, appointment_date, status, origin, patients(origin)")
         .gte("appointment_date", dateFrom)
         .lte("appointment_date", dateTo)
-        .order("appointment_date"),
-      supabase
-        .from("patient_payments")
-        .select("id, amount, payment_date, payment_method, appointment_id, patient_id, organization_id")
-        .gte("payment_date", dateFrom)
-        .lte("payment_date", dateTo)
-        .order("payment_date"),
+        .order("appointment_date")
+        .limit(1000),
       supabase
         .from("patients")
-        .select("id, first_name, last_name, origin, departamento, distrito, birth_date, created_at")
+        .select("id, departamento, distrito, birth_date")
         .gte("created_at", dateFrom)
         .lte("created_at", dateTo + "T23:59:59")
-        .order("created_at"),
+        .order("created_at")
+        .limit(1000),
     ]);
 
-    setAppointments((apptRes.data as AppointmentWithRelations[]) ?? []);
-    setPayments((payRes.data as PatientPayment[]) ?? []);
+    setOverview((overviewRes.data as ReportsOverview | null) ?? null);
+    setAppointments((apptRes.data as unknown as AppointmentWithRelations[]) ?? []);
     setPatients((patRes.data as Patient[]) ?? []);
     setLoading(false);
   }, [dateFrom, dateTo]);
 
+  // El fetch solo se dispara cuando el tab activo lo consume (financiero,
+  // marketing u operativo) y el rango de fechas cambió desde la última vez.
+  // Retención y fertilidad traen sus propios agregados por RPC: estando en
+  // esos tabs, cambiar fechas ya no lanza el fetch triple en vano.
+  const needsSharedData =
+    activeTab === "financial" || activeTab === "marketing" || activeTab === "operational";
+  const lastFetchedRange = useRef<string | null>(null);
+
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (!needsSharedData) return;
+    const rangeKey = dateFrom + "|" + dateTo;
+    if (lastFetchedRange.current === rangeKey) return;
+    lastFetchedRange.current = rangeKey;
+    void fetchData();
+  }, [needsSharedData, dateFrom, dateTo, fetchData]);
 
   const applyPreset = (preset: typeof DATE_PRESETS[number]) => {
     const today = new Date();
@@ -267,8 +289,7 @@ export default function ReportsPage() {
             </div>
           ) : activeTab === "financial" ? (
             <FinancialReport
-              appointments={appointments}
-              payments={payments}
+              overview={overview}
               dateFrom={dateFrom}
               dateTo={dateTo}
             />
@@ -281,7 +302,7 @@ export default function ReportsPage() {
             />
           ) : activeTab === "operational" ? (
             <OperationalReport
-              appointments={appointments}
+              overview={overview}
               dateFrom={dateFrom}
               dateTo={dateTo}
             />

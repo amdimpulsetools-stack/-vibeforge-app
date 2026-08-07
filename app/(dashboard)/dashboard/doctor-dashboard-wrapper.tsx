@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { DoctorStatsResponse } from "./doctor-dashboard";
 
 // Este wrapper existe solo como frontera cliente para el Server Component de
 // /dashboard. El import dinámico está AQUÍ y no en page.tsx a propósito: en
@@ -18,6 +19,14 @@ const DoctorDashboard = dynamic(() =>
   import("./doctor-dashboard").then((m) => m.DoctorDashboard),
 );
 
-export function DoctorDashboardWrapper({ userName }: { userName: string }) {
-  return <DoctorDashboard userName={userName} />;
+export function DoctorDashboardWrapper({
+  userName,
+  initialData,
+}: {
+  userName: string;
+  // Datos del RPC ya resueltos en el Server Component (2.6); JSON plano, así
+  // que cruza la frontera server→client sin problema.
+  initialData?: DoctorStatsResponse | null;
+}) {
+  return <DoctorDashboard userName={userName} initialData={initialData} />;
 }
