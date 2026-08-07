@@ -8,6 +8,9 @@ import type { ClinicalNote } from "@/types/clinical-notes";
 interface DiagnosisHistoryPanelProps {
   patientId: string;
   clinicalNotes?: ClinicalNote[];
+  /** Ver VitalsTrendsChart: evita el flash de estado vacío mientras el padre
+   *  aún tiene la petición de notas en vuelo. */
+  notesLoading?: boolean;
 }
 
 interface DiagnosisEntry {
@@ -48,19 +51,19 @@ function buildDiagnoses(notes: (ClinicalNote & { doctors?: { full_name: string }
   return out;
 }
 
-export function DiagnosisHistoryPanel({ patientId, clinicalNotes }: DiagnosisHistoryPanelProps) {
+export function DiagnosisHistoryPanel({ patientId, clinicalNotes, notesLoading = false }: DiagnosisHistoryPanelProps) {
   const [diagnoses, setDiagnoses] = useState<DiagnosisEntry[]>(() =>
     clinicalNotes ? buildDiagnoses(clinicalNotes as any) : []
   );
-  const [loading, setLoading] = useState(!clinicalNotes);
+  const [loading, setLoading] = useState(!clinicalNotes || notesLoading);
 
   // Update when clinicalNotes prop changes
   useEffect(() => {
     if (clinicalNotes) {
       setDiagnoses(buildDiagnoses(clinicalNotes as any));
-      setLoading(false);
+      setLoading(notesLoading);
     }
-  }, [clinicalNotes]);
+  }, [clinicalNotes, notesLoading]);
 
   const fetchDiagnoses = useCallback(async () => {
     if (clinicalNotes) return; // Skip if notes provided via props

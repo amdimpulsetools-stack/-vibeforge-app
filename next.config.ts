@@ -52,4 +52,13 @@ export default withSentryConfig(nextConfig, {
   sourcemaps: {
     disable: !process.env.SENTRY_DSN,
   },
+  // Tree-shaking de partes del SDK que no usamos: los mensajes de debug del
+  // propio Sentry y las rutas de Replay para shadow DOM / iframes (la app no
+  // renderiza ninguno de los dos). Recorta el bundle cliente sin cambiar el
+  // comportamiento observable.
+  bundleSizeOptimizations: {
+    excludeDebugStatements: true,
+    excludeReplayShadowDom: true,
+    excludeReplayIframe: true,
+  },
 });

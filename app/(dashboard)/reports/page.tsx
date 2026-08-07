@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import dynamic from "next/dynamic";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
 import { format, subDays, startOfMonth, endOfMonth } from "date-fns";
@@ -19,16 +20,58 @@ import {
   Baby,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { FinancialReport } from "./financial-report";
-import { MarketingReport } from "./marketing-report";
-import { OperationalReport } from "./operational-report";
-import { RetentionReport } from "./retention-report";
-import { FertilityReport } from "./fertility-report";
 import { AiReportProvider, AiSummaryButton, AiSummaryPanel } from "./ai-summary-panel";
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY } from "@/types/fertility";
 
 type ReportTab = "financial" | "marketing" | "operational" | "retention" | "fertility";
+
+// Los cinco reportes son excluyentes (solo se ve uno) y cuatro de ellos
+// importan recharts, pero los cinco entraban estáticos en el First Load de
+// /reports. Cargados con next/dynamic, cada uno baja cuando se selecciona su
+// pestaña.
+//
+// El fallback es EXACTAMENTE el mismo spinner que la página ya muestra
+// mientras trae los datos (ver `loading ?` más abajo), así que el usuario no
+// distingue "cargando datos" de "cargando módulo". Además:
+//   · REPORT_LOADERS[activeTab] se precarga en un efecto, en paralelo con el
+//     fetch de datos → el reporte por defecto (financial) no añade ni un ms
+//     al primer render.
+//   · Se precarga también al pasar el puntero por cada pestaña.
+const REPORT_LOADERS: Record<ReportTab, () => Promise<unknown>> = {
+  financial: () => import("./financial-report"),
+  marketing: () => import("./marketing-report"),
+  operational: () => import("./operational-report"),
+  retention: () => import("./retention-report"),
+  fertility: () => import("./fertility-report"),
+};
+
+const ReportChunkFallback = () => (
+  <div className="flex items-center justify-center py-20">
+    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+  </div>
+);
+
+const FinancialReport = dynamic(
+  () => import("./financial-report").then((m) => m.FinancialReport),
+  { ssr: false, loading: ReportChunkFallback },
+);
+const MarketingReport = dynamic(
+  () => import("./marketing-report").then((m) => m.MarketingReport),
+  { ssr: false, loading: ReportChunkFallback },
+);
+const OperationalReport = dynamic(
+  () => import("./operational-report").then((m) => m.OperationalReport),
+  { ssr: false, loading: ReportChunkFallback },
+);
+const RetentionReport = dynamic(
+  () => import("./retention-report").then((m) => m.RetentionReport),
+  { ssr: false, loading: ReportChunkFallback },
+);
+const FertilityReport = dynamic(
+  () => import("./fertility-report").then((m) => m.FertilityReport),
+  { ssr: false, loading: ReportChunkFallback },
+);
 
 const DATE_PRESETS = [
   { key: "today", days: 0 },
@@ -43,6 +86,11 @@ export default function ReportsPage() {
   const { hasAnyAddon } = useOrgAddons();
   const fertilityActive = hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY]);
   const [activeTab, setActiveTab] = useState<ReportTab>("financial");
+
+  // Baja el chunk del reporte activo en paralelo con su fetch de datos.
+  useEffect(() => {
+    void REPORT_LOADERS[activeTab]();
+  }, [activeTab]);
   const [loading, setLoading] = useState(true);
   const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -186,6 +234,8 @@ export default function ReportsPage() {
               <button
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key)}
+                onPointerEnter={() => void REPORT_LOADERS[tab.key]()}
+                onFocus={() => void REPORT_LOADERS[tab.key]()}
                 className={cn(
                   "flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-medium transition-colors whitespace-nowrap shrink-0",
                   activeTab === tab.key

@@ -56,39 +56,51 @@ export async function GET() {
     return NextResponse.json({ subscription: null, payments: [] });
   }
 
-  // Get payment history
-  const { data: payments } = await supabase
-    .from("payment_history")
-    .select("id, organization_id, amount, currency, status, payment_method, mp_payment_id, created_at")
-    .eq("organization_id", membership.organization_id)
-    .order("created_at", { ascending: false })
-    .limit(10);
-
-  // Active add-ons the org has purchased (cupos extra de doctores /
-  // recepcionistas / consultorios). Exposed so /account can render the
-  // "cancelar cupo" UI introduced in Wave 2 Sprint 1.
-  const { data: addons } = await supabase
-    .from("plan_addons")
-    .select("id, addon_type, quantity, unit_price, created_at")
-    .eq("organization_id", membership.organization_id)
-    .eq("is_active", true)
-    .order("created_at", { ascending: false });
-
-  // If we have a MP preapproval, fetch latest status from MP
-  let mpStatus = null;
-  if (sub.mp_preapproval_id) {
-    try {
-      const preApproval = getPreApprovalClient();
-      mpStatus = await preApproval.get({ id: sub.mp_preapproval_id });
-    } catch (error) {
-      console.error("Error fetching MP subscription status:", error);
-    }
-  }
+  // Historial de pagos, addons activos y el estado en Mercado Pago solo
+  // dependen de `sub` (ya resuelto), no unos de otros. Antes se encadenaban
+  // en serie — tres esperas, y la de MP es una llamada a un tercero que puede
+  // tardar cientos de ms. En paralelo, el TTFB del endpoint pasa a ser el del
+  // más lento de los tres.
+  const [paymentsRes, addonsRes, mpStatus] = await Promise.all([
+    // Get payment history
+    supabase
+      .from("payment_history")
+      .select("id, organization_id, amount, currency, status, payment_method, mp_payment_id, created_at")
+      .eq("organization_id", membership.organization_id)
+      .order("created_at", { ascending: false })
+      .limit(10),
+    // Active add-ons the org has purchased (cupos extra de doctores /
+    // recepcionistas / consultorios). Exposed so /account can render the
+    // "cancelar cupo" UI introduced in Wave 2 Sprint 1.
+    supabase
+      .from("plan_addons")
+      .select("id, addon_type, quantity, unit_price, created_at")
+      .eq("organization_id", membership.organization_id)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false }),
+    // If we have a MP preapproval, fetch latest status from MP
+    (async () => {
+      if (!sub.mp_preapproval_id) return null;
+      try {
+        const preApproval = getPreApprovalClient();
+        const preApprovalData = await preApproval.get({ id: sub.mp_preapproval_id });
+        // Solo estos dos campos se usan aguas abajo; el objeto completo de MP
+        // son varios kB de payload que nadie lee.
+        return {
+          status: preApprovalData?.status ?? null,
+          next_payment_date: preApprovalData?.next_payment_date ?? null,
+        };
+      } catch (error) {
+        console.error("Error fetching MP subscription status:", error);
+        return null;
+      }
+    })(),
+  ]);
 
   return NextResponse.json({
     subscription: sub,
-    payments: payments || [],
-    addons: addons || [],
+    payments: paymentsRes.data || [],
+    addons: addonsRes.data || [],
     mp_status: mpStatus,
   });
 }

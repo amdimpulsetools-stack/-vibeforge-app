@@ -137,7 +137,13 @@ export const RetentionReport = forwardRef<ReportExportHandle, RetentionReportPro
     const { t } = useLanguage();
     // Color de marca del chart (sigue el tema de acento de la org).
     const accent = useBrandAccent();
-    const [loading, setLoading] = useState(true);
+    // El estado de carga se compone de tres grupos independientes; `loading`
+    // sigue siendo true mientras cualquiera esté en vuelo, así que el spinner
+    // de la vista aparece exactamente en los mismos momentos que antes.
+    const [loadingRange, setLoadingRange] = useState(true);
+    const [loadingRisk, setLoadingRisk] = useState(true);
+    const [loadingStatic, setLoadingStatic] = useState(true);
+    const loading = loadingRange || loadingRisk || loadingStatic;
     const [overview, setOverview] = useState<RetentionOverview | null>(null);
     const [frequency, setFrequency] = useState<VisitFrequency | null>(null);
     const [atRisk, setAtRisk] = useState<AtRiskData | null>(null);
@@ -145,39 +151,73 @@ export const RetentionReport = forwardRef<ReportExportHandle, RetentionReportPro
     const [trend, setTrend] = useState<RetentionTrendMonth[]>([]);
     const [riskMonths, setRiskMonths] = useState(3);
 
-    const fetchData = useCallback(async () => {
-      setLoading(true);
-      const supabase = createClient();
+    // Los cinco RPCs se disparaban juntos y con las mismas dependencias, así
+    // que mover el selector "sin visita en X meses" relanzaba los cinco —
+    // incluidos dos que escanean el historial completo y NO dependen de ese
+    // umbral. Ahora cada grupo se refresca solo cuando cambia algo que le
+    // incumbe: cambiar el umbral pasa de 5 RPCs a 1.
 
-      const [overviewRes, freqRes, riskRes, ltvRes, trendRes] =
-        await Promise.all([
-          supabase.rpc("get_retention_overview", {
-            p_date_from: dateFrom,
-            p_date_to: dateTo,
-          }),
-          supabase.rpc("get_visit_frequency", {
-            p_date_from: dateFrom,
-            p_date_to: dateTo,
-          }),
-          supabase.rpc("get_at_risk_patients", {
-            p_months_threshold: riskMonths,
-          }),
-          supabase.rpc("get_patient_ltv", { p_limit: 20 }),
-          supabase.rpc("get_retention_trend", { p_months: 6 }),
-        ]);
-
-      if (overviewRes.data) setOverview(overviewRes.data as RetentionOverview);
-      if (freqRes.data) setFrequency(freqRes.data as VisitFrequency);
-      if (riskRes.data) setAtRisk(riskRes.data as AtRiskData);
-      if (ltvRes.data) setLtv(ltvRes.data as PatientLTV);
-      if (trendRes.data) setTrend(trendRes.data as RetentionTrendMonth[]);
-
-      setLoading(false);
-    }, [dateFrom, dateTo, riskMonths]);
-
+    // Grupo 1 — dependen del rango de fechas.
     useEffect(() => {
-      fetchData();
-    }, [fetchData]);
+      let cancelled = false;
+      setLoadingRange(true);
+      const supabase = createClient();
+      Promise.all([
+        supabase.rpc("get_retention_overview", {
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
+        }),
+        supabase.rpc("get_visit_frequency", {
+          p_date_from: dateFrom,
+          p_date_to: dateTo,
+        }),
+      ]).then(([overviewRes, freqRes]) => {
+        if (cancelled) return;
+        if (overviewRes.data) setOverview(overviewRes.data as RetentionOverview);
+        if (freqRes.data) setFrequency(freqRes.data as VisitFrequency);
+        setLoadingRange(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [dateFrom, dateTo]);
+
+    // Grupo 2 — depende solo del umbral de meses sin visita.
+    useEffect(() => {
+      let cancelled = false;
+      setLoadingRisk(true);
+      const supabase = createClient();
+      supabase
+        .rpc("get_at_risk_patients", { p_months_threshold: riskMonths })
+        .then((riskRes) => {
+          if (cancelled) return;
+          if (riskRes.data) setAtRisk(riskRes.data as AtRiskData);
+          setLoadingRisk(false);
+        });
+      return () => {
+        cancelled = true;
+      };
+    }, [riskMonths]);
+
+    // Grupo 3 — sin dependencias: LTV top-20 y tendencia de 6 meses son
+    // agregados globales. Se piden una sola vez por montaje.
+    useEffect(() => {
+      let cancelled = false;
+      setLoadingStatic(true);
+      const supabase = createClient();
+      Promise.all([
+        supabase.rpc("get_patient_ltv", { p_limit: 20 }),
+        supabase.rpc("get_retention_trend", { p_months: 6 }),
+      ]).then(([ltvRes, trendRes]) => {
+        if (cancelled) return;
+        if (ltvRes.data) setLtv(ltvRes.data as PatientLTV);
+        if (trendRes.data) setTrend(trendRes.data as RetentionTrendMonth[]);
+        setLoadingStatic(false);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, []);
 
     const trendChartData = useMemo(
       () =>

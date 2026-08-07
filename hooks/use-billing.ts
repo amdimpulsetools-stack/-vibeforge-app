@@ -44,25 +44,82 @@ interface UseBillingReturn {
   refetch: () => void;
 }
 
-export function useBilling(): UseBillingReturn {
-  const { organizationId } = useOrganization();
-  const [billing, setBilling] = useState<BillingInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+// ── Caché + deduplicación de /api/mercadopago/subscription ──────
+//
+// El hook se usa tres veces en /account (la página, ActiveAddonsCard y el
+// modal de compra de cupos) y cada instancia hacía su propio GET. Ese
+// endpoint llama a Mercado Pago —un tercero— y tiene un rate limit de 5
+// req/min por usuario: navegar a /account un par de veces seguidas bastaba
+// para que devolviera 429 y la UI de facturación se quedara en el estado de
+// fallback.
+//
+// Con la deduplicación, N instancias montadas a la vez comparten UNA
+// petición, y una revisita dentro del TTL no genera ninguna. Las mutaciones
+// (addAddon/cancelAddon) y `refetch` siguen forzando datos frescos, así que
+// no cambia nada de lo que el usuario ve.
+const BILLING_TTL_MS = 30_000;
+const billingCache = new Map<string, { value: BillingInfo; at: number }>();
+const billingInFlight = new Map<string, Promise<BillingInfo | null>>();
 
-  const fetchBilling = useCallback(async () => {
-    if (!organizationId) return;
+function getCachedBilling(organizationId: string): BillingInfo | null {
+  const hit = billingCache.get(organizationId);
+  if (!hit) return null;
+  if (Date.now() - hit.at > BILLING_TTL_MS) {
+    billingCache.delete(organizationId);
+    return null;
+  }
+  return hit.value;
+}
 
+function loadBilling(
+  organizationId: string,
+  force: boolean,
+): Promise<BillingInfo | null> {
+  if (!force) {
+    const cached = getCachedBilling(organizationId);
+    if (cached) return Promise.resolve(cached);
+    const pending = billingInFlight.get(organizationId);
+    if (pending) return pending;
+  }
+
+  const request = (async (): Promise<BillingInfo | null> => {
     try {
       const res = await fetch("/api/mercadopago/subscription");
-      if (res.ok) {
-        const data = await res.json();
-        setBilling(data);
-      }
+      if (!res.ok) return null;
+      const data = (await res.json()) as BillingInfo;
+      billingCache.set(organizationId, { value: data, at: Date.now() });
+      return data;
     } catch {
       // handled silently — billing UI shows fallback state
+      return null;
     }
-    setLoading(false);
-  }, [organizationId]);
+  })().finally(() => {
+    if (billingInFlight.get(organizationId) === request) {
+      billingInFlight.delete(organizationId);
+    }
+  });
+
+  billingInFlight.set(organizationId, request);
+  return request;
+}
+
+export function useBilling(): UseBillingReturn {
+  const { organizationId } = useOrganization();
+  const [billing, setBilling] = useState<BillingInfo | null>(() =>
+    organizationId ? getCachedBilling(organizationId) : null,
+  );
+  const [loading, setLoading] = useState(true);
+
+  const fetchBilling = useCallback(
+    async (force = false) => {
+      if (!organizationId) return;
+
+      const data = await loadBilling(organizationId, force);
+      if (data) setBilling(data);
+      setLoading(false);
+    },
+    [organizationId],
+  );
 
   useEffect(() => {
     if (organizationId) {
@@ -93,7 +150,7 @@ export function useBilling(): UseBillingReturn {
         };
       }
 
-      await fetchBilling();
+      await fetchBilling(true);
 
       return {
         success: true,
@@ -126,7 +183,7 @@ export function useBilling(): UseBillingReturn {
         };
       }
 
-      await fetchBilling();
+      await fetchBilling(true);
 
       return {
         success: true,
@@ -146,6 +203,8 @@ export function useBilling(): UseBillingReturn {
     loading,
     addAddon,
     cancelAddon,
-    refetch: fetchBilling,
+    refetch: () => {
+      void fetchBilling(true);
+    },
   };
 }

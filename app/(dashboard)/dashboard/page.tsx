@@ -1,9 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
-import { AdminDashboard } from "./admin-dashboard";
-import { DoctorDashboardWrapper } from "./doctor-dashboard-wrapper";
-import { AdvisorDashboard } from "./advisor-dashboard";
-import { OwnerDoctorSection } from "./owner-doctor-section";
 import { WelcomeInvitedToast } from "./welcome-invited-toast";
 import {
   format,
@@ -32,15 +28,6 @@ export default async function DashboardPage() {
 
   if (!membership) redirect("/login");
 
-  // Get display name from user_profiles (updated by user in account page)
-  const { data: profile } = await supabase
-    .from("user_profiles")
-    .select("full_name")
-    .eq("id", user.id)
-    .single();
-
-  const displayName = profile?.full_name || user.user_metadata?.full_name || user.email?.split("@")[0] || "";
-
   const role = membership.role as "owner" | "admin" | "receptionist" | "doctor";
 
   // Asesoras de fertilidad (obstetras coordinadoras, mig 137): su rol
@@ -50,29 +37,58 @@ export default async function DashboardPage() {
   // cero; el de asesora refleja su cola real. Owner/admin asesoras
   // conservan el dashboard admin (visión completa de la clínica).
   const isAdvisor = Boolean(membership.is_fertility_advisor);
+
+  // Receptionist (no asesora): redirect to scheduler (their primary
+  // workspace). Se comprueba antes de pedir el perfil — su nombre no llega
+  // a usarse nunca.
+  if (role === "receptionist" && !isAdvisor) redirect("/scheduler");
+
+  // Get display name from user_profiles (updated by user in account page)
+  const profileQuery = supabase
+    .from("user_profiles")
+    .select("full_name")
+    .eq("id", user.id)
+    .single();
+
+  const nameFrom = (fullName: string | null | undefined) =>
+    fullName || user.user_metadata?.full_name || user.email?.split("@")[0] || "";
+
+  // Los tres dashboards de rol son excluyentes. El import dinámico por rama
+  // evita evaluar en el servidor el módulo de los otros dos roles.
+  //
+  // OJO: esto NO basta para sacarlos del bundle cliente — en el App Router,
+  // un `await import()` dentro de un Server Component no saca al componente
+  // cliente del entrypoint de la ruta. El split real de los árboles pesados
+  // está donde toca, en la frontera cliente: doctor-dashboard-wrapper.tsx
+  // (framer-motion), admin-dashboard.tsx (recharts) y owner-doctor-section.tsx.
   if (isAdvisor && (role === "doctor" || role === "receptionist")) {
+    const [{ data: profile }, { AdvisorDashboard }] = await Promise.all([
+      profileQuery,
+      import("./advisor-dashboard"),
+    ]);
     return (
       <>
         <WelcomeInvitedToast role={role} />
-        <AdvisorDashboard userName={displayName} />
+        <AdvisorDashboard userName={nameFrom(profile?.full_name)} />
       </>
     );
   }
 
   // Doctor role: show personal dashboard
   if (role === "doctor") {
+    const [{ data: profile }, { DoctorDashboardWrapper }] = await Promise.all([
+      profileQuery,
+      import("./doctor-dashboard-wrapper"),
+    ]);
     return (
       <>
         <WelcomeInvitedToast role={role} />
         <DoctorDashboardWrapper
-          userName={displayName}
+          userName={nameFrom(profile?.full_name)}
         />
       </>
     );
   }
-
-  // Receptionist: redirect to scheduler (their primary workspace)
-  if (role === "receptionist") redirect("/scheduler");
 
   // Date ranges
   const now = new Date();
@@ -85,19 +101,52 @@ export default async function DashboardPage() {
   const prevWeekStart = format(subDays(now, 13), "yyyy-MM-dd");
   const prevWeekEnd = format(subDays(now, 7), "yyyy-MM-dd");
   const yesterday = format(subDays(now, 1), "yyyy-MM-dd");
+  const seriesStart = format(subDays(now, 29), "yyyy-MM-dd");
 
-  // Single RPC call for all dashboard data
-  const { data: stats } = await supabase.rpc("get_admin_dashboard_stats", {
-    p_today: today,
-    p_month_start: monthStart,
-    p_month_end: monthEnd,
-    p_last_month_start: lastMonthStart,
-    p_last_month_end: lastMonthEnd,
-    p_week_start: weekStart,
-    p_prev_week_start: prevWeekStart,
-    p_prev_week_end: prevWeekEnd,
-    p_yesterday: yesterday,
-  });
+  // Las cuatro consultas del dashboard admin son independientes entre sí
+  // (solo dependen de user.id / organization_id, que ya tenemos): perfil,
+  // RPC de stats, serie diaria de 30 días y la ficha de doctor vinculada.
+  // Antes se encadenaban en serie — cinco rondas de red antes del primer
+  // byte. Ahora son tres (auth → membership → estas cuatro en paralelo).
+  const [
+    { data: profile },
+    { data: stats },
+    { data: seriesRows },
+    { data: linkedDoctor },
+    { AdminDashboard },
+  ] = await Promise.all([
+    profileQuery,
+    // Single RPC call for all dashboard data
+    supabase.rpc("get_admin_dashboard_stats", {
+      p_today: today,
+      p_month_start: monthStart,
+      p_month_end: monthEnd,
+      p_last_month_start: lastMonthStart,
+      p_last_month_end: lastMonthEnd,
+      p_week_start: weekStart,
+      p_prev_week_start: prevWeekStart,
+      p_prev_week_end: prevWeekEnd,
+      p_yesterday: yesterday,
+    }),
+    // ── Daily appointment series (last 30 days, excluding cancelled) ──
+    supabase
+      .from("appointments")
+      .select("appointment_date")
+      .eq("organization_id", membership.organization_id)
+      .gte("appointment_date", seriesStart)
+      .lte("appointment_date", today)
+      .neq("status", "cancelled"),
+    // Check if the owner/admin also has a linked doctor record
+    supabase
+      .from("doctors")
+      .select("id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle(),
+    import("./admin-dashboard"),
+  ]);
+
+  const displayName = nameFrom(profile?.full_name);
 
   // Fallback if RPC fails
   if (!stats) redirect("/scheduler");
@@ -224,16 +273,6 @@ export default async function DashboardPage() {
     total: number;
   }>;
 
-  // ── Daily appointment series (last 30 days, excluding cancelled) ──
-  const seriesStart = format(subDays(now, 29), "yyyy-MM-dd");
-  const { data: seriesRows } = await supabase
-    .from("appointments")
-    .select("appointment_date")
-    .eq("organization_id", membership.organization_id)
-    .gte("appointment_date", seriesStart)
-    .lte("appointment_date", today)
-    .neq("status", "cancelled");
-
   const seriesCounts = new Map<string, number>();
   for (const row of seriesRows ?? []) {
     const d = row.appointment_date as string;
@@ -246,15 +285,13 @@ export default async function DashboardPage() {
     }
   );
 
-  // Check if the owner/admin also has a linked doctor record
-  const { data: linkedDoctor } = await supabase
-    .from("doctors")
-    .select("id")
-    .eq("user_id", user.id)
-    .limit(1)
-    .maybeSingle();
-
   const userName = displayName;
+
+  // OwnerDoctorSection solo se monta si el admin tiene ficha de doctor; su
+  // import dinámico evita arrastrar ese árbol al resto de admins.
+  const OwnerDoctorSection = linkedDoctor
+    ? (await import("./owner-doctor-section")).OwnerDoctorSection
+    : null;
 
   return (
     <>
@@ -270,7 +307,7 @@ export default async function DashboardPage() {
         dailySeries={dailySeries}
         monthlyRevenueGoal={Number(stats.monthly_revenue_goal ?? 0)}
       />
-      {linkedDoctor && (
+      {OwnerDoctorSection && (
         <OwnerDoctorSection userName={userName} />
       )}
     </>

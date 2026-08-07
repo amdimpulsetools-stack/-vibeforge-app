@@ -173,8 +173,16 @@ const EXAMPLE_QUERIES = [
 
 export function AiAssistantPanel() {
   const { isOrgAdmin } = useOrganization();
-  const { quota, loading: quotaLoading, refetch: refetchQuota } = useAiQuota();
   const [open, setOpen] = useState(false);
+  // El panel está SIEMPRE montado (se esconde con un translate), así que el
+  // RPC de cuota se disparaba en cada carga del dashboard aunque nadie
+  // abriera el asistente. Lo armamos en la primera apertura y ya no se
+  // desarma: a partir de ahí el badge se comporta exactamente igual que antes.
+  const [quotaArmed, setQuotaArmed] = useState(false);
+  useEffect(() => {
+    if (open) setQuotaArmed(true);
+  }, [open]);
+  const { quota, loading: quotaLoading, refetch: refetchQuota } = useAiQuota(quotaArmed);
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "welcome",

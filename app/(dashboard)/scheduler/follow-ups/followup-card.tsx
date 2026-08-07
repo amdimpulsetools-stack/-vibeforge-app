@@ -45,7 +45,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
-import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
+import dynamic from "next/dynamic";
 import { FOLLOWUP_PRIORITY_CONFIG } from "@/types/clinical-history";
 import {
   formatLastContacted,
@@ -53,6 +53,17 @@ import {
 } from "@/lib/followups/urgency";
 import { BUDGET_TREATMENT_TYPE_LABELS } from "@/types/fertility";
 import { Receipt } from "lucide-react";
+
+// El modal se montaba SIEMPRE (cerrado) en cada tarjeta de la bandeja. Radix
+// Dialog no lo necesita: con `open=false` no pinta nada, pero sus hooks sí
+// corrían — cada tarjeta disparaba su propio fetch a /api/addons (y en orgs
+// fertility, algunos más), o sea decenas de peticiones idénticas solo por
+// pintar la lista. Ahora se monta al abrirlo, y además el módulo (803
+// líneas) sale del bundle de la página.
+const AssignBudgetModal = dynamic(
+  () => import("@/components/addons/fertility/assign-budget-modal").then((m) => m.AssignBudgetModal),
+  { ssr: false },
+);
 import {
   buildMessage,
   loadTemplateFromDb,
@@ -1007,7 +1018,7 @@ export function FollowupCard({
           by <FertilityAddonGate> internally. The followup row carries
           `patient_id` directly (the joined `patients` projection only
           exposes name/phone, no id). */}
-      {followup.patient_id && (
+      {followup.patient_id && assignBudgetOpen && (
         <AssignBudgetModal
           open={assignBudgetOpen}
           onClose={() => setAssignBudgetOpen(false)}

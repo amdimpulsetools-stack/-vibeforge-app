@@ -1,9 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { useUser } from "@/hooks/use-user";
 import { useUserAvatar } from "@/hooks/use-user-avatar";
@@ -25,12 +24,19 @@ import {
   Check,
   CheckCheck,
   Menu,
-  UserCircle,
-  Settings,
-  LogOut,
   ChevronDown,
 } from "lucide-react";
 import { useMobileNav } from "./mobile-nav-context";
+
+// framer-motion (~36 kB gz) entraba en el First Load de TODAS las páginas del
+// dashboard solo por este menú. Lo cargamos bajo demanda: el topbar "arma" el
+// menú (montándolo cerrado, invisible) en cuanto el puntero se acerca al
+// avatar o el botón recibe foco, así el chunk ya está listo para el primer
+// clic. La animación sigue siendo la de framer, idéntica.
+const UserMenuDropdown = dynamic(
+  () => import("./user-menu-dropdown").then((m) => m.UserMenuDropdown),
+  { ssr: false },
+);
 
 const TYPE_CONFIG: Record<string, { icon: typeof Bell; className: string }> = {
   appointment_created: { icon: CalendarPlus, className: "text-emerald-500" },
@@ -125,6 +131,10 @@ export function Topbar() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  // Monta (cerrado) el chunk del menú del avatar. Se activa al primer indicio
+  // de intención — hover/pointer/foco — para que el clic no espere la red.
+  const [userMenuArmed, setUserMenuArmed] = useState(false);
+  const armUserMenu = () => setUserMenuArmed(true);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // En táctil el hover emulado de iOS "gasta" el primer tap: solo lo activamos
@@ -269,6 +279,8 @@ export function Topbar() {
             ref={userMenuRef}
             data-tour-step="topbar-user"
             className="relative"
+            onPointerEnter={armUserMenu}
+            onFocus={armUserMenu}
             onMouseEnter={
               hasHover
                 ? () => {
@@ -281,7 +293,10 @@ export function Topbar() {
           >
             <button
               type="button"
-              onClick={() => setUserMenuOpen((v) => !v)}
+              onClick={() => {
+                armUserMenu();
+                setUserMenuOpen((v) => !v);
+              }}
               aria-haspopup="menu"
               aria-expanded={userMenuOpen}
               className="group flex items-center gap-2 rounded-full pl-2 pr-1 py-1 transition-all duration-200 ease-out hover:bg-accent/60 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
@@ -311,65 +326,16 @@ export function Topbar() {
               />
             </button>
 
-            <AnimatePresence>
-              {userMenuOpen && (
-                <motion.div
-                  role="menu"
-                  initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                  transition={{ duration: 0.16, ease: [0.16, 1, 0.3, 1] }}
-                  style={{ willChange: "transform, opacity" }}
-                  className="absolute right-0 top-full z-[100] mt-2 w-56 origin-top-right overflow-hidden rounded-xl border border-border bg-background/95 shadow-xl backdrop-blur-sm"
-                >
-                  {/* Header */}
-                  <div className="border-b border-border/60 px-3 py-2.5">
-                    {displayName && (
-                      <p className="text-sm font-semibold leading-tight">
-                        {displayName}
-                      </p>
-                    )}
-                    <p className="truncate text-[11px] text-muted-foreground">
-                      {user?.email}
-                    </p>
-                  </div>
-
-                  {/* Items */}
-                  <div className="p-1">
-                    <Link
-                      href="/account"
-                      role="menuitem"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-foreground/90 transition-colors duration-150 hover:bg-accent hover:text-foreground"
-                    >
-                      <UserCircle className="h-4 w-4 text-muted-foreground" />
-                      {t("nav.account")}
-                    </Link>
-                    {isAdmin && (
-                      <Link
-                        href="/settings"
-                        role="menuitem"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-foreground/90 transition-colors duration-150 hover:bg-accent hover:text-foreground"
-                      >
-                        <Settings className="h-4 w-4 text-muted-foreground" />
-                        {t("nav.settings")}
-                      </Link>
-                    )}
-                    <div className="my-1 h-px bg-border/60" />
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={handleLogout}
-                      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-red-500 transition-colors duration-150 hover:bg-red-500/10"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      {t("nav.logout")}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {userMenuArmed && (
+              <UserMenuDropdown
+                open={userMenuOpen}
+                displayName={displayName}
+                email={user?.email}
+                isAdmin={isAdmin}
+                onClose={() => setUserMenuOpen(false)}
+                onLogout={handleLogout}
+              />
+            )}
           </div>
         )}
       </div>
