@@ -406,6 +406,20 @@ export function FollowupCard({
   const canReagendar = attemptCount < maxAttempts;
   const isLastAttempt = attemptCount === maxAttempts - 1;
 
+  // ── Fila de acciones (resultado + asignar presupuesto) ─────────────
+  // Ambos bloques comparten una sola fila: los botones de resultado a la
+  // izquierda y "Asignar presupuesto" empujado a la derecha (`ml-auto`),
+  // porque es otra categoría de acción (navega a crear presupuesto, no
+  // registra resultado). Cada uno conserva su condición de render
+  // original; la fila se pinta si al menos uno de los dos aplica.
+  const showResultActions = variant === "pending" && isOpen && !!onAdvance;
+  const showAssignBudget =
+    (variant === "pending" || variant === "no_response") &&
+    !linkedBudget &&
+    !isReceptionist &&
+    !!followup.patient_id &&
+    !!followup.rule_key?.startsWith("fertility.");
+
   // ¿Hay algo que pintar en la fila de chips? En móvil esa fila es un
   // bloque propio bajo el nombre: si va vacía dejaría un hueco muerto.
   const showAttemptChip = variant === "pending" && isOpen;
@@ -879,105 +893,114 @@ export function FollowupCard({
           intentos sin abrir menus: Agendó, Contactado, Reagendar,
           Sin respuesta. Solo se renderiza si el card está abierto,
           es la variante "pending" y el caller pasó `onAdvance`.
+
+          La misma fila hospeda "Asignar presupuesto" a la derecha
+          (`md:ml-auto`), con su propia condición de render: son
+          categorías distintas de acción y la separación izquierda /
+          derecha lo comunica sin necesidad de un divisor extra.
         */}
-        {variant === "pending" && isOpen && onAdvance && (
+        {(showResultActions || showAssignBudget) && (
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-3 md:flex md:flex-wrap md:items-center">
-            <button
-              onClick={() => setAgendoOpen(true)}
-              disabled={busy}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-success-500 px-2.5 text-[13px] font-medium text-white hover:bg-success-600 disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
-              title="La paciente agendó cita"
-            >
-              <CheckCircle2 className="h-3.5 w-3.5" />
-              Agendó
-            </button>
+            {showResultActions && (
+              <>
+                <button
+                  onClick={() => setAgendoOpen(true)}
+                  disabled={busy}
+                  className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-success-500 px-2.5 text-[13px] font-medium text-white hover:bg-success-600 disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
+                  title="La paciente agendó cita"
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Agendó
+                </button>
 
-            <button
-              onClick={() =>
-                handleAdvance({ kind: "mark_contacted" })
-              }
-              disabled={busy || !canMarkContacted}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-blue-500/40 px-2.5 text-[13px] text-blue-600 hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
-              title={
-                canMarkContacted
-                  ? "Marcar como contactada (sin decisión todavía)"
-                  : "Solo aplicable desde estados pendiente o pospuesto"
-              }
-            >
-              <MessageCircle className="h-3.5 w-3.5" />
-              Contactada
-            </button>
+                <button
+                  onClick={() => handleAdvance({ kind: "mark_contacted" })}
+                  disabled={busy || !canMarkContacted}
+                  className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-blue-500/40 px-2.5 text-[13px] text-blue-600 hover:bg-blue-500/10 disabled:cursor-not-allowed disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
+                  title={
+                    canMarkContacted
+                      ? "Marcar como contactada (sin decisión todavía)"
+                      : "Solo aplicable desde estados pendiente o pospuesto"
+                  }
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                  Contactada
+                </button>
 
-            <button
-              onClick={() => {
-                setReagendarDate("");
-                setReagendarOpen(true);
-              }}
-              disabled={busy || !canReagendar}
-              className={cn(
-                "flex h-11 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[13px] disabled:cursor-not-allowed disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs",
-                isLastAttempt
-                  ? "border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
-                  : "border-violet-500/40 text-violet-600 hover:bg-violet-500/10"
-              )}
-              title={
-                !canReagendar
-                  ? "Ya se alcanzó el máximo de intentos"
-                  : isLastAttempt
-                    ? "Último intento. Si vuelves a reagendar, se cerrará automáticamente."
-                    : "La paciente pidió más tiempo — elige nueva fecha"
-              }
-            >
-              <CalendarClock className="h-3.5 w-3.5" />
-              Reagendar
-            </button>
+                <button
+                  onClick={() => {
+                    setReagendarDate("");
+                    setReagendarOpen(true);
+                  }}
+                  disabled={busy || !canReagendar}
+                  className={cn(
+                    "flex h-11 items-center justify-center gap-1.5 rounded-lg border px-2.5 text-[13px] disabled:cursor-not-allowed disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs",
+                    isLastAttempt
+                      ? "border-amber-500/50 text-amber-600 hover:bg-amber-500/10"
+                      : "border-violet-500/40 text-violet-600 hover:bg-violet-500/10"
+                  )}
+                  title={
+                    !canReagendar
+                      ? "Ya se alcanzó el máximo de intentos"
+                      : isLastAttempt
+                        ? "Último intento. Si vuelves a reagendar, se cerrará automáticamente."
+                        : "La paciente pidió más tiempo — elige nueva fecha"
+                  }
+                >
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  Reagendar
+                </button>
 
-            <button
-              onClick={() => setSinRespuestaOpen(true)}
-              disabled={busy}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-red-500/40 px-2.5 text-[13px] text-red-600 hover:bg-red-500/10 disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
-              title="Cerrar caso sin respuesta"
-            >
-              <ThumbsDown className="h-3.5 w-3.5" />
-              Sin respuesta
-            </button>
+                <button
+                  onClick={() => setSinRespuestaOpen(true)}
+                  disabled={busy}
+                  className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-red-500/40 px-2.5 text-[13px] text-red-600 hover:bg-red-500/10 disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
+                  title="Cerrar caso sin respuesta"
+                >
+                  <ThumbsDown className="h-3.5 w-3.5" />
+                  Sin respuesta
+                </button>
 
-            {isLastAttempt && (
-              <span className="col-span-2 text-[11px] text-amber-600/80 md:col-span-1">
-                Último intento — si reagendas otra vez se cierra automáticamente.
-              </span>
+                {isLastAttempt && (
+                  <span className="col-span-2 text-[11px] text-amber-600/80 md:col-span-1">
+                    Último intento — si reagendas otra vez se cierra automáticamente.
+                  </span>
+                )}
+                {busy && (
+                  <Loader2 className="col-span-2 h-3.5 w-3.5 animate-spin justify-self-center text-muted-foreground md:col-span-1" />
+                )}
+              </>
             )}
-            {busy && (
-              <Loader2 className="col-span-2 h-3.5 w-3.5 animate-spin justify-self-center text-muted-foreground md:col-span-1" />
-            )}
-          </div>
-        )}
 
-        {/* Phase 3 Budget Tiers — "Asignar presupuesto". Renders for the
-            "pending" and "no_response" variants only, and only when:
-              - There's NO existing linked budget (otherwise the cyan
-                "Presupuesto …" chip is already shown in the header).
-              - The user is not a receptionist (advisors with non-
-                receptionist base role pass; advisors flagged on a
-                receptionist row are gated by the backend).
-              - We have a patient row to target. */}
-        {(variant === "pending" || variant === "no_response") &&
-          !linkedBudget &&
-          !isReceptionist &&
-          followup.patient_id &&
-          followup.rule_key?.startsWith("fertility.") && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/50 pt-3">
+            {/* Phase 3 Budget Tiers — "Asignar presupuesto". Comparte fila
+                con los botones de resultado pero vive a la derecha
+                (`md:ml-auto`): no registra un resultado, navega a crear
+                presupuesto. En móvil ocupa su propia línea a lo ancho
+                (`col-span-2`), que es el wrap natural de la rejilla.
+                Se renderiza para las variantes "pending" y "no_response"
+                solo cuando:
+                  - No hay presupuesto vinculado (si lo hay, el chip cyan
+                    "Presupuesto …" ya se muestra en la cabecera).
+                  - El usuario no es recepción (los asesores con rol base
+                    distinto de recepción pasan; los asesores marcados
+                    sobre una fila de recepción los frena el backend).
+                  - Tenemos una ficha de paciente a la que apuntar. */}
+            {showAssignBudget && (
               <button
                 onClick={() => setAssignBudgetOpen(true)}
                 disabled={busy}
-                className="flex h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-success-500/40 bg-success-500/5 px-2.5 text-[13px] font-medium text-success-700 hover:bg-success-500/15 disabled:opacity-50 md:h-auto md:w-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs dark:text-success-400"
+                className={cn(
+                  "col-span-2 flex h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-success-500/40 bg-success-500/5 px-2.5 text-[13px] font-medium text-success-700 hover:bg-success-500/15 disabled:opacity-50 md:col-span-1 md:h-auto md:w-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs dark:text-success-400",
+                  showResultActions && "md:ml-auto"
+                )}
                 title="Asignar presupuesto al paciente"
               >
                 <Receipt className="h-3.5 w-3.5" />
                 Asignar presupuesto
               </button>
-            </div>
-          )}
+            )}
+          </div>
+        )}
       </div>
 
       {/* Phase 3 Budget Tiers — Asignar presupuesto modal. Self-gated

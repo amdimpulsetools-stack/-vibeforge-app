@@ -418,7 +418,7 @@ export default function PatientsPage() {
       {/* Main List */}
       <div className={cn("flex flex-1 flex-col overflow-hidden", selectedPatient && "hidden md:flex")}>
         {/* Header */}
-        <div className="border-b border-border bg-card px-4 md:px-6 py-4">
+        <div className="border-b border-border bg-background px-4 md:px-6 py-4">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <h1 className="text-xl font-bold">{t("patients.title")}</h1>
