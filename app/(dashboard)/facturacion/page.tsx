@@ -244,9 +244,10 @@ export default function FacturacionPage() {
   // Empty state — module not connected yet. Render this and bail.
   if (!einvoice.loading && !einvoice.connected) {
     return (
-      /* En móvil el p-6 se sumaba al p-4 del `main` (40px por lado): aquí
-         el único gutter pasa a ser el del layout. Desde md, idéntico. */
-      <div className="flex flex-col gap-6 p-0 md:p-6">
+      /* Sin padding propio: el gutter del layout es el único margen, como
+         en Presupuestos. Antes el `p-6` se sumaba al del `main` (40px por
+         lado en móvil, 52px desde md). */
+      <div className="flex flex-col gap-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Receipt className="h-6 w-6 text-primary" />
@@ -281,10 +282,17 @@ export default function FacturacionPage() {
   }
 
   return (
-    /* En móvil el p-6 propio se sumaba al p-4 del `main` (40px por lado, la
-       peor de las páginas del dashboard): aquí el único gutter pasa a ser
-       el del layout y el gap se aprieta. Desde md, idéntico. */
-    <div className="flex flex-col gap-4 p-0 md:gap-6 md:p-6">
+    /* Facturación no es un panel de altura fija como Seguimientos o
+       Pacientes: es una página de flujo, igual que Presupuestos. Por eso
+       NO se bleedea la raíz — se replica literalmente el molde de
+       Presupuestos (`space-y`/`gap` sin padding propio, el gutter del
+       layout como único margen) y es la card de la tabla, que es "el
+       panel" de esta página, la que va a sangre.
+
+       El `p-6` propio se sumaba antes al gutter del layout: 40px por lado
+       en móvil y 52px en escritorio, la peor de las páginas del
+       dashboard. */
+    <div className="flex flex-col gap-4 md:gap-6">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -413,10 +421,12 @@ export default function FacturacionPage() {
       </div>
 
       {/* Table */}
-      {/* Única card a sangre en móvil: es la que necesita el ancho. Sin
-          bordes laterales cuando toca el edge; desde md vuelve a la card
-          redondeada de siempre. */}
-      <div className="-mx-4 rounded-none border-y border-x-0 border-border bg-card overflow-hidden md:mx-0 md:rounded-xl md:border-x">
+      {/* Única card a sangre: es la que necesita el ancho y la que el
+          founder ve enmarcada. Los márgenes negativos cancelan el gutter
+          del layout en cada breakpoint (`p-4` móvil / `p-7` desde md), así
+          que la tabla toca el borde físico del scrollport y no lleva
+          bordes laterales en ningún tamaño. */}
+      <div className="-mx-4 rounded-none border-y border-x-0 border-border bg-card overflow-hidden md:-mx-7">
         {loading ? (
           <div className="flex items-center justify-center py-20 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />

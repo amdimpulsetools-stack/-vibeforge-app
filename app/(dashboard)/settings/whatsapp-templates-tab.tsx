@@ -470,8 +470,13 @@ function TemplateRow({
       </div>
 
       {/* Actions */}
+      {/* En touch no hay hover: con `opacity-0 group-hover` las acciones de
+          cada plantilla (Enviar / Sincronizar / Editar / Eliminar) eran
+          literalmente invisibles en el teléfono y no había forma de
+          descubrirlas. Visibles por defecto; desde md vuelve el
+          comportamiento hover de siempre. */}
       {isAdmin && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <div className="flex items-center gap-1 opacity-100 transition-opacity shrink-0 md:opacity-0 md:group-hover:opacity-100">
           {["DRAFT", "REJECTED"].includes(template.status) && (
             <button
               type="button"
@@ -930,7 +935,11 @@ function TemplateEditor({
 
               <div className="space-y-3">
                 {variableNumbers.map((num) => (
-                  <div key={num} className="grid grid-cols-[80px,1fr,1fr] gap-3 items-center">
+                  // A 390px las tres columnas dejaban ~103px al select y al
+                  // ejemplo, ilegibles. En móvil se parte en dos filas
+                  // (variable + select arriba, ejemplo a lo ancho debajo);
+                  // desde sm vuelve la rejilla de tres columnas de siempre.
+                  <div key={num} className="grid grid-cols-[56px,1fr] gap-3 items-center sm:grid-cols-[80px,1fr,1fr]">
                     <span className="text-sm font-mono font-bold text-emerald-600 dark:text-emerald-400">
                       {`{{${num}}}`}
                     </span>
@@ -979,7 +988,7 @@ function TemplateEditor({
                         })
                       }
                       placeholder={es ? "Valor de ejemplo" : "Sample value"}
-                      className={inputClass + " text-xs"}
+                      className={inputClass + " col-span-2 text-xs sm:col-span-1"}
                     />
                   </div>
                 ))}

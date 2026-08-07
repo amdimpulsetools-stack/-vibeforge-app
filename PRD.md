@@ -1,9 +1,13 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-08-05
-> **Versión:** 0.15.25
+> **Última actualización:** 2026-08-07
+> **Versión:** 0.15.26
 > **Estado (resumen ejecutivo):**
 > - **MVP en producción** multi-tenant (RLS), 4 roles + Founder, agenda día/semana con precisión al minuto, pacientes, historia clínica/SOAP completa, reportes, planes 3-tiers (S/129 / S/349 / S/649).
+> - **Notificaciones en vivo por rol (v0.15.26, mig 192 — activo en producción)**: la campanita del panel deja de ser un broadcast a toda la org. La RPC `notify_org_members()` (SECURITY DEFINER, único camino de escritura) hace fan-out **una fila por usuario destinatario** con routing por rol, y en los eventos de agenda el doctor recibe únicamente los de SUS citas. Matriz de preferencias evento × rol en Settings → Notificaciones (persistida en `organizations.settings.live_notifications`), catálogo en `lib/live-notifications/catalog.ts` y RLS de `notifications` endurecido: cada quien ve y marca solo lo suyo (las filas previas a la migración quedan como LEGACY con `user_id` NULL, visibles para toda la org).
+> - **Plugin de presupuestos de la Dra. Patricia (v0.15.26, mig 191)**: 12 plantillas de precio único (`budget_pdf_patricia`) sobre la Capa 2 de plugins per-org, con `service_budget_tiers` sincronizado a los totales que imprime el PDF — la asesora ve al asignar el mismo monto que firma la paciente. Fuente canónica: los `.docx` de la doctora (decisión del founder 2026-08-06: el xlsx de octubre 2025 se ignora). **Pendiente de la doctora**: precios definitivos, datos de Banking y número de colegiatura.
+> - **Barrido responsive completo (v0.15.25-26)**: rediseño móvil de Seguimientos + branding WhatsApp (el verde oficial solo en acciones que abren WhatsApp, nunca como acento genérico), full-bleed móvil en las 5 páginas tipo app, fix estructural del overflow horizontal del layout (el gutter de página vive en un div interno, no en el scroller), tabs de la ficha de paciente en pills scrolleables y ~25 fixes de touch targets y wraps. **Escritorio (v0.15.26)**: a pedido explícito del founder, esas 5 páginas pierden también el margen exterior en ≥md y quedan borde-a-borde, como Presupuestos.
+> - **Cierre de la superficie RPC (v0.15.26, mig 193 — aplicada en producción)**: 47 funciones `SECURITY DEFINER` de `public` eran ejecutables por `anon` (varias con fugas cross-tenant). Se revoca `EXECUTE` a `PUBLIC`/`anon` salvo una allowlist mínima (el flujo pre-login por token y los helpers de policies RLS keyed en `auth.uid()`), se fija `search_path` en todas y se revocan los default privileges para que ninguna función futura nazca abierta.
 > - **Addon vertical Fertilidad end-to-end** (`fertility_basic`): seguimientos automatizados con atribución honesta (categorías A/B/C), embudo de presupuestos con tiers A/B/C, generador de PDF per-org, lifecycle de tratamiento (por iniciar → en curso → completado) y crons de recordatorio.
 > - **Seguimientos core para todas las orgs (v0.15.24-25, migs 182-188)**: la bandeja `/scheduler/follow-ups` deja de estar gateada por el addon — cualquier org tiene seguimientos de primera clase sin configuración: default "control a los N días" por servicio + checkbox del doctor al completar la cita + cierre automático vía categoría centinela `core.next_visit` cuando el paciente agenda cualquier cita futura (atribución honesta Cat A/B intacta). Fase 2 (v0.15.25): origen polimórfico `source_type`/`source_id` (cada seguimiento sabe de qué nació), sesión de plan perdida → seguimiento automático (trigger DB, apagado por defecto para orgs existentes vía `organization_followup_settings` sin backfill, toggle en Settings → Agenda), plan cancelado/completado cierra sus seguimientos (`plan_cancelled`/`plan_completed`), chip de seguimientos abiertos en la ficha de la cita, deep-link del widget del doctor, y módulo genérico renombrado a `lib/followups/` + `useFollowupCapabilities()`. Revelación progresiva: KPIs de revenue, filtro por regla y journey multi-etapa siguen siendo del addon. Diseño completo: `docs/research/seguimientos-genericos-core.md`.
 > - **Sistema de presupuestos multi-perfil (v0.15.23, migs 180-181)**: las 7 plantillas FIV del plugin Vitra completas (CRIO/IIU/TED/OVODON/DUO STIM/ROPA + FIV) con honorarios múltiples y reparto proporcional del ajuste; **modos de presupuesto por org** en `org_budget_pdf_settings` — `documents_enabled=false` (solo asignación y seguimiento, sin PDF, con guards server-side) y `pricing_mode='single'` (precio único por tratamiento, UI sin tiers, `tier='A'` interno sin cambios de contrato). Perfil clínica chica (Dra. Patricia) onboardeable sin imponerle el modelo Vitra.
@@ -187,7 +191,7 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 |-------|----------|
 | `auth.users` | Usuarios de Supabase Auth (email + Google OAuth) |
 | `user_profiles` | Extensión: full_name, avatar_url, avatar_option, phone, whatsapp_phone, professional_title, is_founder |
-| `organizations` | Tenant: name, slug, logo_url, organization_type, is_active, settings (JSONB: restrict_doctor_patients, etc.) |
+| `organizations` | Tenant: name, slug, logo_url, organization_type, is_active, accent_theme (mig 190), settings (JSONB: restrict_doctor_patients, `live_notifications` — matriz evento × rol de la campanita, etc.) |
 | `organization_members` | Relación user↔org con role (owner/admin/receptionist/doctor) |
 | `organization_invitations` | Invitaciones pendientes con token, email, role |
 
@@ -285,6 +289,9 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 | `get_own_is_founder()` | SECURITY DEFINER: retorna is_founder del usuario actual (evita recursión RLS en UPDATE de user_profiles) |
 | `org_select_patients(org_id)` | Pacientes visibles para el doctor actual (todos o solo created_by según config org) |
 | `get_user_session_check()` | Validación de sesión: retorna memberships ordenadas por org con suscripción activa |
+| `notify_org_members(...)` | SECURITY DEFINER (mig 192): único camino de escritura en `notifications`. Fan-out de una fila por usuario destinatario según el routing por rol de la org; en eventos de agenda filtra al doctor dueño de la cita |
+
+> **Superficie de ejecución (mig 193, 2026-08-07):** todas las funciones `SECURITY DEFINER` de `public` tienen `EXECUTE` revocado a `PUBLIC`/`anon` salvo la allowlist mínima (`get_invitation_by_token` para el flujo pre-login por token, y los helpers usados dentro de policies RLS que se resuelven contra `auth.uid()`). `search_path` fijado en todas y default privileges revocados: **cualquier función nueva nace cerrada** y debe otorgar `EXECUTE` explícitamente a `authenticated`.
 
 ---
 
@@ -485,9 +492,11 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ├── /dashboard ............... Dashboard (varía por rol)
 ├── /scheduler ............... Calendario de citas (día/semana)
 │   ├── /follow-ups .......... Panel de seguimientos clínicos (vista centralizada)
+│   ├── /budgets ............. Embudo de presupuestos (gateado por el addon Fertilidad)
 │   └── /history ............. Historial de citas pasadas
 ├── /patients ................ Gestión de pacientes
 ├── /reports ................. Reportes (financiero, marketing, operacional)
+├── /facturacion ............. Comprobantes electrónicos SUNAT (gateado por Nubefact conectado)
 ├── /settings ................ Configuración de org (admin only)
 ├── /account ................. Perfil de usuario + plan actual
 ├── /plans ................... Ver/cambiar plan de suscripción
@@ -551,9 +560,10 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | Sección | Ítems | Visible para |
 |---------|-------|-------------|
 | Dashboard | Dashboard | Todos |
-| Agenda | Calendario, Seguimientos, Historial | Todos |
+| Agenda | Calendario, Seguimientos, Presupuestos (addon Fertilidad), Historial | Todos |
 | Pacientes | Pacientes | Todos |
 | Reportes | Reportes | Admin/Owner |
+| Reportes | Facturación | Admin/Owner + recepción (oculto para doctores) |
 | Administración | Consultorios, Doctores, Servicios, Catálogos, Variables, Miembros | Admin/Owner |
 | — | Configuración | Admin/Owner |
 | — | Mi Cuenta | Todos |
@@ -583,6 +593,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ### Settings (Notificaciones) — ex-"Correos"
 - Configuración de email (remitente, templates)
 - Matriz evento × canal (📧 Email / 📱 WhatsApp): el toggle Email actúa como interruptor maestro del evento; WA se deshabilita si falta plantilla aprobada+vinculada. Detalle: [CHANGELOG.md](CHANGELOG.md) (v0.15.22)
+- **Matriz evento × rol de notificaciones en vivo (v0.15.26)**: quién recibe cada aviso en la campanita del panel (owner / admin / recepción / doctor). No afecta a email ni WhatsApp. Apagar todas las columnas de un evento lo desactiva para toda la clínica; en los eventos de agenda el doctor solo recibe los de SUS citas. Se persiste en `organizations.settings.live_notifications` y el catálogo de eventos vive en `lib/live-notifications/catalog.ts`
 
 ### Settings (Integraciones)
 - Marketplace visual de integraciones externas (WhatsApp Business API, Mercado Pago, Google Calendar, etc.)
@@ -744,6 +755,12 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Followup card con teléfono visible + dual button device-aware** — v0.15.3 · detalle: [CHANGELOG.md](CHANGELOG.md)
 - [x] **Phase 1 perf: `/scheduler/follow-ups` y `/scheduler/budgets`** — v0.15.3 · detalle: [CHANGELOG.md](CHANGELOG.md)
 - [x] **Research: evaluación Openpay PE para integración multi-gateway de payment-link** — v0.15.3 · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Notificaciones en vivo por rol (RPC `notify_org_members` + fan-out por usuario + matriz en Settings + RLS endurecido)** — v0.15.26 (mig 192, activo en producción) · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Plugin de presupuestos de la Dra. Patricia — 12 plantillas de precio único + sincronización de `service_budget_tiers`** — v0.15.26 (mig 191) · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Rediseño móvil de Seguimientos + branding WhatsApp acotado a las acciones que abren WhatsApp** — v0.15.25 · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Barrido responsive: full-bleed móvil en las 5 páginas tipo app, fix estructural del overflow del layout, tabs de ficha de paciente en pills scrolleables, ~25 fixes de touch targets y wraps** — v0.15.25-26 · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Escritorio sin margen exterior en las 5 páginas tipo app (borde-a-borde en ≥md, como Presupuestos)** — v0.15.26 · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Seguridad BD: cierre de la superficie RPC — 47 funciones fuera del alcance de `anon`, `search_path` fijado, default privileges revocados** — v0.15.26 (mig 193, aplicada en producción) · detalle: [CHANGELOG.md](CHANGELOG.md)
 
 ### Pendiente / Por Mejorar
 - [x] **Facturación electrónica SUNAT vía Nubefact (MVP completo)** — v0.13.0 → v0.13.1. Cierre del módulo de facturación electrónica multi-tenant para clínicas peruanas. Componentes:
@@ -799,6 +816,10 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ### Roadmap (Coming Updates)
 
 > El roadmap detallado vive en `docs/coming-updates-core.md` (core) y `docs/coming-updates-fertility-addon.md` (addon fertilidad). Esta sección solo conserva lo ya entregado y los ítems que aún **no** están reflejados en esos docs.
+
+**Bloqueantes del piloto (semana del 2026-08-10):**
+- [ ] **Upgrade a Supabase Pro antes de arrancar el piloto** — habilita backups diarios y leaked password protection. Es requisito de arranque, no un nice-to-have: hoy el proyecto corre sin backups automáticos
+- [ ] **Datos pendientes de la Dra. Patricia** — precios definitivos, datos de Banking y número de colegiatura. El plugin `budget_pdf_patricia` y la mig 191 ya están, pero los documentos no se pueden emitir en firme hasta tenerlos
 
 **Entregado:**
 - [x] Etiqueta "Paciente Recurrente" automática — v0.11.0 · detalle: [CHANGELOG.md](CHANGELOG.md)
@@ -972,6 +993,9 @@ MP_TEST_PAYER_EMAIL=      # Email del comprador de prueba MP (solo test mode)
 - **Mercado Pago como gateway único** — Sin soporte para Stripe por ahora
 - **Español como idioma principal** — Interfaz y seeds en español, con soporte i18n para inglés
 - **Plugins per-org (mig 169)** — Capa 2 de features ultra-específicos (templates de PDF custom, etc.) se activa por org desde el Founder Panel. No expuesto al admin de la clínica. Cada plugin declara sus `requires_addons` y se valida en runtime contra `organization_addons`.
+- **El gutter de página vive en un div interno del `main`, no en el scroller** — un scroll container suma su padding del lado final al área desplazable, así que con el padding en el propio `main` las páginas full-bleed (que lo cancelan con `-mx-4`) generaban scroll horizontal de toda la página. `overflow-x-hidden` en el `main` queda solo como red de seguridad: los scrolls laterales legítimos (tab-lists, tablas anchas, matrices de settings) viven en sus propios contenedores internos.
+- **Responsive: desktop ≥md idéntico, con una excepción acotada** — los fixes móviles se hacen con clases base + variantes `sm:`/`md:` que restauran exactamente el layout de escritorio. La única excepción autorizada (founder, 2026-08-07) es el **marco exterior** de las 5 páginas tipo app (Seguimientos, Histórico, Pacientes, Reportes, Facturación), que en ≥md cancelan el gutter del layout y quedan borde-a-borde. El gutter visible pasa a ser el `px-4 md:px-6` de sus headers internos.
+- **Escritura de `notifications` solo vía `notify_org_members()`** (mig 192) — no se insertan filas a mano desde el cliente ni desde API routes. El routing por rol y el filtrado del doctor por sus propias citas viven dentro de la RPC; saltárselo rompe el aislamiento que la RLS de la tabla asume.
 
 ## 17.5. Roadmap — Visual Builder de Templates de Presupuesto
 
@@ -1118,7 +1142,7 @@ Medicina General, Odontología, Ginecología y Obstetricia, Pediatría, Dermatol
 
 ## 19. Historial de cambios
 
-El registro cronológico completo de cambios (49+ entradas de changelog, desde 2026-03-23 hasta v0.15.21) se movió a **[CHANGELOG.md](CHANGELOG.md)** para mantener este PRD enfocado en el estado canónico del producto.
+El registro cronológico completo de cambios (49+ entradas de changelog, desde 2026-03-23 hasta v0.15.26 / 2026-08-07) se movió a **[CHANGELOG.md](CHANGELOG.md)** para mantener este PRD enfocado en el estado canónico del producto.
 
 - **[CHANGELOG.md](CHANGELOG.md)** — todas las sesiones de desarrollo en orden cronológico ascendente, más el hito del pilot de Vitra y el apéndice con el detalle de features implementadas.
 - Convención de versionado: `v0.MAYOR.MENOR`; las colisiones históricas de numeración están anotadas en el propio CHANGELOG (sufijos `b`).

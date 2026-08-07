@@ -234,7 +234,11 @@ export default function LiveNotificationsSection() {
                           type="button"
                           onClick={() => toggle(event, audience)}
                           disabled={saving}
-                          className="disabled:cursor-not-allowed"
+                          // `p-2 -m-2`: el icono mide 24px, por debajo del
+                          // mínimo táctil, y es LA interacción de la
+                          // sección. El padding crea la hit-area de 40px y
+                          // el margen negativo la descuenta del layout.
+                          className="p-2 -m-2 disabled:cursor-not-allowed"
                           title={`${label} — ${
                             on ? (es ? "recibe" : "receives") : es ? "no recibe" : "does not receive"
                           }`}

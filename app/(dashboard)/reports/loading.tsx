@@ -1,9 +1,11 @@
 export default function ReportsLoading() {
   return (
-    // El skeleton acompaña el full-bleed de la página: cancela el p-4 del
-    // `main` en móvil y aporta su propio gutter, para que no haya salto
-    // visual al hidratar. Desde md, idéntico a antes.
-    <div className="-mx-4 -mt-4 space-y-4 p-4 animate-pulse md:mx-0 md:mt-0 md:p-0">
+    // El skeleton acompaña el full-bleed de la página en los dos
+    // breakpoints: cancela el gutter del div interno del `main` (`p-4`
+    // móvil / `p-7` desde md) y aporta el suyo propio (`p-4 md:p-6`, el
+    // mismo que los headers de la página real), para que no haya salto
+    // visual al hidratar.
+    <div className="-mx-4 -mt-4 space-y-4 p-4 animate-pulse md:-mx-7 md:-mt-7 md:p-6">
       <div className="h-8 w-36 rounded-lg bg-muted" />
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (

@@ -307,7 +307,10 @@ export default function EmailSettingsTab() {
       />
 
       {/* Notifications matrix (event × channel) */}
-      <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-5">
+      {/* `p-4 sm:p-6`: a 390px el p-6 se comía 48px del ancho útil, justo
+          los que necesita la matriz. Mismo molde que
+          live-notifications-section.tsx. */}
+      <div className="rounded-2xl border border-border/60 bg-card p-4 sm:p-6 space-y-5">
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" />
           <div>
@@ -395,6 +398,15 @@ export default function EmailSettingsTab() {
           );
         })()}
 
+        {/* A 390px las tres columnas fijas de la matriz (w-16 + w-36 + w-16
+            + 3 gaps = 316px) no dejaban NADA para el nombre del evento: la
+            columna `flex-1 min-w-0` colapsaba a ~0px y los nombres eran
+            invisibles. El scroll se contiene AQUÍ (no en el body de la
+            página) y el min-width mantiene las celdas alineadas con su
+            cabecera — mismo molde que live-notifications-section.tsx.
+            Desde sm (≥640px) el scroller es inerte: desktop idéntico. */}
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div className="min-w-[560px] space-y-5">
         {/* Column headers — the two channel columns of the matrix. Widths must
             match the per-row cells in TemplateRow. */}
         {templates.length > 0 && (
@@ -483,6 +495,8 @@ export default function EmailSettingsTab() {
             />
           );
         })}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -962,7 +976,10 @@ function TemplateRow({
           type="button"
           onClick={onToggle}
           disabled={!isAdmin || locked}
-          className="disabled:cursor-not-allowed"
+          // `p-2 -m-2`: el icono mide 24px, por debajo del mínimo táctil.
+          // El padding crea la hit-area de 40px y el margen negativo la
+          // descuenta del layout, así que no se mueve nada.
+          className="p-2 -m-2 disabled:cursor-not-allowed"
           title={t("email.event_active_tip")}
           aria-label={t("email.event_active")}
         >
@@ -980,7 +997,9 @@ function TemplateRow({
           type="button"
           onClick={onToggleWa}
           disabled={!waToggleEnabled}
-          className="disabled:cursor-not-allowed"
+          // Ver nota del toggle de email: hit-area de 40px sin mover el
+          // layout (el icono es de 20px).
+          className="p-2 -m-2 disabled:cursor-not-allowed"
           title={waTooltip}
           aria-label={waTooltip}
         >
@@ -1013,7 +1032,7 @@ function TemplateRow({
           <button
             type="button"
             onClick={onEdit}
-            className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            className="flex items-center gap-1 rounded-lg px-2.5 py-2.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors md:py-1.5"
           >
             {t("common.edit")}
             <ChevronRight className="h-3.5 w-3.5" />
@@ -1314,7 +1333,9 @@ function TemplateEditor({
 
         {/* Actions */}
         {!isLocked && (
-          <div className="flex items-center gap-3 pt-2">
+          // "Guardar plantilla" + "Enviar prueba" suman ~300px: a 390px
+          // quedaban justo al límite. `flex-wrap` como red de seguridad.
+          <div className="flex flex-wrap items-center gap-3 pt-2">
             <button
               type="button"
               onClick={handleSave}

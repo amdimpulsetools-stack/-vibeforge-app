@@ -114,15 +114,17 @@ function PlansContent() {
     if (payment === "success") {
       toast.success("Pago procesado correctamente. Tu plan se activara en breve.");
       refetch();
-      // Clean up URL
-      router.replace("/dashboard/plans", { scroll: false });
+      // Clean up URL. La ruta real es `/plans` (grupo `(dashboard)`, que no
+      // aparece en la URL): con "/dashboard/plans" el replace apuntaba a una
+      // ruta inexistente al volver de Mercado Pago.
+      router.replace("/plans", { scroll: false });
     } else if (payment === "failure" || payment === "pending") {
       toast.info(
         payment === "failure"
           ? "El pago no pudo completarse. Intenta de nuevo."
           : "Tu pago esta pendiente de confirmacion."
       );
-      router.replace("/dashboard/plans", { scroll: false });
+      router.replace("/plans", { scroll: false });
     }
   }, [searchParams, refetch, router]);
 
@@ -224,12 +226,16 @@ function PlansContent() {
         </p>
 
         {/* Billing cadence toggle */}
-        <div className="mt-4 inline-flex items-center gap-1 rounded-full bg-muted p-1">
+        {/* A 390px los tres pills con sus badges sumaban ~350px y partían
+            el grupo en dos líneas desiguales: en móvil se reparten el ancho
+            completo (patrón PeriodSegmented del Escritorio) y los badges de
+            descuento se ocultan por debajo de 420px. Desde sm, idéntico. */}
+        <div className="mt-4 flex w-full items-center gap-1 rounded-full bg-muted p-1 sm:inline-flex sm:w-auto">
           <button
             type="button"
             onClick={() => setCadence("monthly")}
             className={cn(
-              "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all",
+              "flex-1 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all sm:flex-initial",
               cadence === "monthly"
                 ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
@@ -241,14 +247,14 @@ function PlansContent() {
             type="button"
             onClick={() => setCadence("semiannual")}
             className={cn(
-              "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all",
+              "flex-1 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all sm:flex-initial",
               cadence === "semiannual"
                 ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
             Semestral
-            <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="ml-1.5 hidden min-[420px]:inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
               ½ mes gratis
             </span>
           </button>
@@ -256,14 +262,14 @@ function PlansContent() {
             type="button"
             onClick={() => setCadence("annual")}
             className={cn(
-              "rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all",
+              "flex-1 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all sm:flex-initial",
               cadence === "annual"
                 ? "bg-card text-foreground shadow-sm"
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
             Anual
-            <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="ml-1.5 hidden min-[420px]:inline-flex items-center rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[9px] font-bold text-emerald-600 dark:text-emerald-400">
               2 meses gratis
             </span>
           </button>

@@ -247,12 +247,17 @@ export function DoctorDashboard({ userName }: { userName: string }) {
       animate="visible"
     >
       {/* ── Header ── */}
-      <motion.div variants={itemVariants} className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-4">
+      {/* A 390px, con el badge "N sin firmar" presente, el saludo (icono de
+          48px + h1 con el nombre) se comprimía contra las acciones porque
+          nada envolvía ni cedía. Con `flex-wrap` + `min-w-0`/`shrink-0` las
+          acciones bajan a su propia línea antes de aplastar el título;
+          desde sm todo vuelve a la fila única de siempre. */}
+      <motion.div variants={itemVariants} className="flex flex-wrap items-start justify-between gap-3 sm:gap-4">
+        <div className="flex min-w-0 items-center gap-4">
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20">
             <Stethoscope className="h-6 w-6 text-primary" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
               {getGreeting()}, {firstName}
             </h1>
@@ -266,7 +271,7 @@ export function DoctorDashboard({ userName }: { userName: string }) {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {stats.unsigned_notes_count > 0 && (
             <Link
               href="/scheduler"

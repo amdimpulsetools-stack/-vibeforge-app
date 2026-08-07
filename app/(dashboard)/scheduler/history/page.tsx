@@ -240,12 +240,21 @@ export default function AppointmentHistoryPage() {
   const cancelledCount = sorted.filter((a) => a.status === "cancelled").length;
 
   return (
-    /* Móvil: full-bleed. Los márgenes negativos cancelan el p-4 del `main`
-       (arriba y a los lados; el p-4 inferior se conserva) y la altura se
-       recalibra: topbar 4rem + solo el p-4 inferior = 5rem. `dvh` porque
-       100vh en iOS incluye la barra de URL colapsable. Desde md se
-       conserva todo como estaba. */
-    <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] flex-col md:mx-0 md:mt-0 md:h-[calc(100vh-3.5rem)]">
+    /* Full-bleed en los dos ejes de breakpoint (pedido del founder: fuera
+       el marco flotante también en escritorio).
+
+       Móvil: los márgenes negativos cancelan el `p-4` del div interno del
+       `main` (arriba y a los lados; el p-4 inferior se conserva) y la
+       altura se recalibra: topbar 4rem + solo el p-4 inferior = 5rem.
+
+       Desde md: se cancela el `p-7` por los cuatro lados (incluido el
+       inferior) y la altura pasa a ser exactamente la del `main`
+       (100dvh − topbar 4rem). El `px-4 md:px-6` de los headers internos
+       queda como único gutter visible, igual que en Presupuestos.
+
+       `dvh` porque 100vh en iOS incluye la barra de URL colapsable; en
+       escritorio dvh == vh. */
+    <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] flex-col md:-mx-7 md:-mb-7 md:-mt-7 md:h-[calc(100dvh-4rem)]">
       {/* Header */}
       {/* En móvil el `main` del layout ya no aporta gutter lateral: el px-4
           de aquí es el único margen del contenido. */}

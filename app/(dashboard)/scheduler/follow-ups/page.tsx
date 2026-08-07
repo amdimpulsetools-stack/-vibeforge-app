@@ -479,11 +479,22 @@ export default function FollowUpsPage() {
   }
 
   return (
-    /* Móvil: full-bleed — los márgenes negativos cancelan el p-4 del main
-       (el marco "flotante" restaba ~32px de ancho útil a 390px, pedido del
-       founder). La altura se recalibra: topbar 4rem + solo el p-4 inferior
-       = 5rem. Desde md se conserva todo como estaba. */
-    <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] flex-col md:mx-0 md:mt-0 md:h-[calc(100vh-3.5rem)]">
+    /* Full-bleed en los dos ejes de breakpoint (el marco "flotante"
+       restaba ~32px de ancho útil a 390px y en escritorio se leía como un
+       margen alrededor del panel; ambos pedidos del founder).
+
+       Móvil: los márgenes negativos cancelan el `p-4` del div interno del
+       `main` (arriba y a los lados; el p-4 inferior se conserva) y la
+       altura se recalibra: topbar 4rem + solo el p-4 inferior = 5rem.
+
+       Desde md: se cancela el `p-7` por los cuatro lados (incluido el
+       inferior) y la altura pasa a ser exactamente la del `main`
+       (100dvh − topbar 4rem). El `px-4 md:px-6` de los headers internos
+       queda como único gutter visible, igual que en Presupuestos.
+
+       `dvh` porque 100vh en iOS incluye la barra de URL colapsable; en
+       escritorio dvh == vh. */
+    <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] flex-col md:-mx-7 md:-mb-7 md:-mt-7 md:h-[calc(100dvh-4rem)]">
       {/* Header */}
       {/* En móvil el `main` del layout ya aporta 16px por lado: con `px-6`
           aquí se acumulaban 40px (10% del viewport por lado). */}

@@ -300,8 +300,12 @@ export function AdminDashboard({
               {isEs ? "Cobranza pendiente" : "Pending debt"}
             </span>
           </div>
-          <div className="flex items-baseline gap-4">
-            <div>
+          {/* Dos cifras `text-3xl` lado a lado sin ceder: con montos largos
+              (S/ 12,345.67) el bloque desbordaba la card a 390px (≈318px
+              internos). `flex-wrap` + `min-w-0` dejan que la segunda cifra
+              baje de línea en vez de reventar la card. */}
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
+            <div className="min-w-0">
               <p className="text-3xl font-extrabold tracking-tight text-orange-600 dark:text-orange-400">
                 {formatCurrency(data.pendingDebt)}
               </p>
@@ -309,7 +313,7 @@ export function AdminDashboard({
                 {isEs ? "por cobrar" : "to collect"}
               </p>
             </div>
-            <div className="border-l border-border pl-4">
+            <div className="min-w-0 border-l border-border pl-4">
               <p className="text-3xl font-extrabold tracking-tight">
                 {data.debtorCount}
               </p>
