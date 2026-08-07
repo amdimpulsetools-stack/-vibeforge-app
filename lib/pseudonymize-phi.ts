@@ -57,6 +57,12 @@ const REDACT_KEYS = new Set<string>([
   "diagnosis_label",
   "consent_notes",
   "reason",
+  // Texto libre que escribe el equipo al marcar un presupuesto como
+  // rechazado ("se separó de su pareja", "problemas económicos"): es
+  // contexto personal, no un enum. `closure_reason` NO se redacta — ese
+  // sí es un valor controlado que escriben los triggers y sirve para
+  // analítica de seguimientos.
+  "rejection_reason",
   "symptoms",
 
   // Prescriptions / exam orders (can contain patient-identifying context)
