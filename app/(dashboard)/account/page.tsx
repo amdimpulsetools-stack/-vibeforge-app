@@ -299,41 +299,47 @@ export default function AccountPage() {
     setSaving(true);
 
     const supabase = createClient();
-    const { error } = await supabase.from("user_profiles").upsert({
-      id: user.id,
-      full_name: values.full_name,
-      phone: values.phone || null,
-      whatsapp_phone: values.whatsapp_phone || null,
-    });
 
-    // professional_title is per-org (mig 146): a narrow RPC updates the
-    // title on the caller's own doctor membership in the current org. We
-    // can't UPDATE organization_members directly because the table policy
-    // is admin-only (mig 013) and widening it would allow role escalation.
-    if (organizationId && orgRole === "doctor") {
-      const { error: titleErr } = await supabase.rpc(
-        "update_my_professional_title",
-        {
-          p_org_id: organizationId,
-          p_title: values.professional_title || null,
-        },
-      );
-      if (titleErr) console.error("Failed to update professional_title:", titleErr);
+    // Las cuatro escrituras son independientes entre sí (ninguna lee lo que
+    // escribe otra), pero iban encadenadas: el botón Guardar costaba ~4
+    // roundtrips en serie. En paralelo baja a uno solo de espera percibida.
+    const [{ error }, titleRes] = await Promise.all([
+      supabase.from("user_profiles").upsert({
+        id: user.id,
+        full_name: values.full_name,
+        phone: values.phone || null,
+        whatsapp_phone: values.whatsapp_phone || null,
+      }),
+
+      // professional_title is per-org (mig 146): a narrow RPC updates the
+      // title on the caller's own doctor membership in the current org. We
+      // can't UPDATE organization_members directly because the table policy
+      // is admin-only (mig 013) and widening it would allow role escalation.
+      organizationId && orgRole === "doctor"
+        ? supabase.rpc("update_my_professional_title", {
+            p_org_id: organizationId,
+            p_title: values.professional_title || null,
+          })
+        : Promise.resolve(null),
+
+      // Sync name to linked doctor record (trigger handles this too,
+      // but explicit update ensures it works even without the trigger)
+      supabase
+        .from("doctors")
+        .update({ full_name: values.full_name })
+        .eq("user_id", user.id),
+
+      // Sync name to auth metadata so otros componentes que leen
+      // user.user_metadata.full_name (sidebar/topbar/displayName del header)
+      // se refrescan inmediatamente sin esperar al próximo refresh.
+      supabase.auth.updateUser({
+        data: { full_name: values.full_name },
+      }),
+    ]);
+
+    if (titleRes?.error) {
+      console.error("Failed to update professional_title:", titleRes.error);
     }
-
-    // Sync name to linked doctor record (trigger handles this too,
-    // but explicit update ensures it works even without the trigger)
-    await supabase
-      .from("doctors")
-      .update({ full_name: values.full_name })
-      .eq("user_id", user.id);
-
-    // Sync name to auth metadata so otros componentes que leen
-    // user.user_metadata.full_name (sidebar/topbar/displayName del header)
-    // se refrescan inmediatamente sin esperar al próximo refresh.
-    await supabase.auth.updateUser({
-      data: { full_name: values.full_name },
-    });
 
     setSaving(false);
 

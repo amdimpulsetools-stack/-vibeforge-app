@@ -79,7 +79,33 @@ export async function GET(request: NextRequest) {
     date_to: sp.get("date_to"),
   };
 
-  const counts = await loadBucketCounts(supabase, orgId, filters);
+  // Los tres COUNT exact de `loadBucketCounts` alimentan los badges de las
+  // pestañas: son totales del bucket completo, idénticos para cualquier
+  // página. Recalcularlos en cada "Cargar más" era trabajo puro tirado, y
+  // además iban EN SERIE antes de la query de items.
+  //
+  // Ahora solo se piden en la primera página (offset 0), y en paralelo con
+  // los items. El cliente ya tolera respuestas sin `counts` y sin `kpis`
+  // (page.tsx: applyCountsFromResponse hace early-return, y los kpis solo se
+  // aplican si vienen), así que los badges y KPIs simplemente conservan el
+  // valor que ya tenían al paginar.
+  const wantsCounts = bucket === "counts" || offset === 0;
+
+  const [counts, items] = await Promise.all([
+    wantsCounts
+      ? loadBucketCounts(supabase, orgId, filters)
+      : Promise.resolve(undefined),
+    bucket === "counts"
+      ? Promise.resolve([] as Awaited<ReturnType<typeof loadBucketItems>>)
+      : loadBucketItems(
+          supabase,
+          orgId,
+          bucket as "pending" | "recovered" | "no_response",
+          filters,
+          offset,
+          limit
+        ),
+  ]);
 
   if (bucket === "counts") {
     const res = NextResponse.json({ counts });
@@ -87,22 +113,13 @@ export async function GET(request: NextRequest) {
     return res;
   }
 
-  const items = await loadBucketItems(
-    supabase,
-    orgId,
-    bucket as "pending" | "recovered" | "no_response",
-    filters,
-    offset,
-    limit
-  );
-
   const hasMore = items.length > limit;
   const trimmed = hasMore ? items.slice(0, limit) : items;
 
   const responseBody: {
     items: unknown[];
     has_more: boolean;
-    counts: BucketCounts;
+    counts?: BucketCounts;
     kpis?: RecoveredKpis;
   } = {
     items: trimmed,
@@ -110,7 +127,7 @@ export async function GET(request: NextRequest) {
     counts,
   };
 
-  if (bucket === "recovered") {
+  if (bucket === "recovered" && counts) {
     responseBody.kpis = await loadRecoveredKpis(supabase, orgId, counts);
   }
 

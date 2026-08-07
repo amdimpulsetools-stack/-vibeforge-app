@@ -105,13 +105,23 @@ export default function BudgetsPage() {
     [],
   );
 
+  // Antes esperábamos a que resolviera el gate de addons para pedir los
+  // presupuestos: dos roundtrips en serie (300-600 ms de espera en blanco).
+  // El endpoint revalida el addon server-side y devuelve 403 (route.ts),
+  // así que podemos disparar ambas cosas a la vez. Si la org no tiene el
+  // addon, el 403 se descarta en silencio y se pinta exactamente el mismo
+  // gate de siempre — la UI no cambia en ningún caso.
   const refresh = useCallback(async () => {
-    if (!fertilityActive) return;
     setLoading(true);
     try {
       const res = await fetch(`/api/budgets?${buildQuery(tab, filters)}`, {
         cache: "no-store",
       });
+      if (res.status === 403) {
+        // Org sin Pack Fertilidad: lo cuenta el gate, no un toast de error.
+        setData(null);
+        return;
+      }
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error ?? "No se pudieron cargar los presupuestos");
@@ -131,7 +141,7 @@ export default function BudgetsPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, filters, fertilityActive, buildQuery]);
+  }, [tab, filters, buildQuery]);
 
   useEffect(() => {
     refresh();

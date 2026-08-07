@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { WhatsAppWizard } from "@/components/integrations/whatsapp-wizard";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -91,6 +90,15 @@ const FollowupSettingsSection = dynamic(() => import("./followup-settings-sectio
 // "Vista previa del membrete". Keeps the first paint of /settings small.
 const ClinicHeaderPreviewModal = dynamic(
   () => import("./clinic-header-preview-modal").then((m) => m.ClinicHeaderPreviewModal),
+  { ssr: false }
+);
+// Único componente grande de /settings que seguía siendo estático (850
+// líneas) y solo se abre por clic. Se mantiene renderizado siempre —el
+// wizard ya devuelve null cuando `open` es false, y así conserva su paso
+// interno si el usuario lo cierra y lo vuelve a abrir—, pero su chunk sale
+// del First Load y baja después del primer pintado.
+const WhatsAppWizard = dynamic(
+  () => import("@/components/integrations/whatsapp-wizard").then((m) => m.WhatsAppWizard),
   { ssr: false }
 );
 
@@ -292,50 +300,55 @@ export default function SettingsPage() {
       { key: "clinic_email", name: "Email de contacto", value: clinicEmail.trim() },
     ];
 
-    for (const u of upserts) {
-      const { data: existing } = await supabase
-        .from("global_variables")
-        .select("id")
-        .eq("organization_id", organizationId)
-        .eq("key", u.key)
-        .maybeSingle();
-
-      if (existing) {
-        await supabase
+    // Las dos variables (teléfono y email) no dependen la una de la otra:
+    // el bucle secuencial hacía 4 roundtrips (select+write ×2) para guardar
+    // dos campos. En paralelo son 2, y el botón Guardar responde en la mitad
+    // de tiempo.
+    await Promise.all(
+      upserts.map(async (u) => {
+        const { data: existing } = await supabase
           .from("global_variables")
-          .update({ value: u.value })
-          .eq("id", existing.id);
-      } else {
-        await supabase.from("global_variables").insert({
-          organization_id: organizationId,
-          key: u.key,
-          name: u.name,
-          value: u.value,
-          sort_order: 0,
-          is_active: true,
-        });
-      }
-    }
+          .select("id")
+          .eq("organization_id", organizationId)
+          .eq("key", u.key)
+          .maybeSingle();
+
+        if (existing) {
+          await supabase
+            .from("global_variables")
+            .update({ value: u.value })
+            .eq("id", existing.id);
+        } else {
+          await supabase.from("global_variables").insert({
+            organization_id: organizationId,
+            key: u.key,
+            name: u.name,
+            value: u.value,
+            sort_order: 0,
+            is_active: true,
+          });
+        }
+      }),
+    );
 
     setSavingContact(false);
     toast.success(t("settings.org_save_success"));
   };
 
+  // `monthly_revenue_goal` ya viene en el objeto `organization` del provider
+  // (que hace `organizations(*)`): pedirlo otra vez era un roundtrip extra en
+  // cada visita a /settings para un dato que ya estaba en memoria.
+  //
+  // El cast es necesario porque types/database.ts todavía no incluye la
+  // columna; en runtime está presente (la escribe handleSaveGoal más abajo y
+  // la lee el RPC del dashboard).
   useEffect(() => {
-    if (!organizationId || goalLoaded) return;
-    const supabase = createClient();
-    supabase
-      .from("organizations")
-      .select("monthly_revenue_goal")
-      .eq("id", organizationId)
-      .single()
-      .then(({ data }) => {
-        if (data?.monthly_revenue_goal != null) {
-          setRevenueGoal(String(data.monthly_revenue_goal));
-        }
-        setGoalLoaded(true);
-      });
-  }, [organizationId, goalLoaded]);
+    if (!organization || goalLoaded) return;
+    const goal = (organization as unknown as { monthly_revenue_goal?: number | null })
+      .monthly_revenue_goal;
+    if (goal != null) setRevenueGoal(String(goal));
+    setGoalLoaded(true);
+  }, [organization, goalLoaded]);
 
   const handleSaveGoal = async () => {
     if (!organizationId) return;
