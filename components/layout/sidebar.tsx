@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
+import { useUser } from "@/hooks/use-user";
 import {
   LayoutDashboard,
   Settings,
@@ -170,21 +171,23 @@ export function Sidebar() {
     setMobileOpen(false);
   }, [pathname, setMobileOpen]);
 
-  // Check founder status once
+  // Check founder status once. El usuario llega deduplicado por la key
+  // ['auth','user'] de useUser() — antes esto disparaba su propio getUser().
+  const { user } = useUser();
+  const authUserId = user?.id ?? null;
   useEffect(() => {
+    if (!authUserId) return;
     const checkFounder = async () => {
       const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
       const { data } = await supabase
         .from("user_profiles")
         .select("is_founder")
-        .eq("id", user.id)
+        .eq("id", authUserId)
         .single();
       if (data?.is_founder) setIsFounder(true);
     };
     checkFounder();
-  }, []);
+  }, [authUserId]);
 
   const isPathActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
