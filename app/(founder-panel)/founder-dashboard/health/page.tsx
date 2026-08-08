@@ -146,8 +146,7 @@ export default function HealthPage() {
         <p className="mt-3 text-[11px] text-muted-foreground">
           &quot;Sin registro aún&quot; = cron no instrumentado con cron_runs (mig 204) o sin
           corrida desde el deploy. Los instrumentados hoy: billing, recordatorios y
-          fertilidad. El pausado requiere triage del backlog con la asesora antes de
-          reactivarse.
+          fertilidad (reactivado 2026-08-08 — vigilar sus primeras corridas).
         </p>
       </div>
 

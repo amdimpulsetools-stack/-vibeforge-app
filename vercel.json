@@ -1,5 +1,7 @@
 {
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "crons": [
     {
       "path": "/api/cron/reminders",
@@ -28,6 +30,10 @@
     {
       "path": "/api/cron/sheets-mirror",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/fertility-followup-contact",
+      "schedule": "0 16 * * *"
     }
   ]
 }
