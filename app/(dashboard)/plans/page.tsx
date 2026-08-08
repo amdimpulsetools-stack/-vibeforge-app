@@ -8,6 +8,7 @@ import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useRouter, useSearchParams } from "next/navigation";
+import { exceedsMpPreapprovalCap } from "@/lib/billing/constants";
 import {
   Loader2,
   Check,
@@ -146,6 +147,18 @@ function PlansContent() {
 
     const target = plans.find((p) => p.id === planId);
     if (!target) return;
+
+    // Espejo del gate del botón: por si el estado de la UI quedó desfasado.
+    const charged =
+      cadence === "annual" && target.price_yearly != null
+        ? Number(target.price_yearly)
+        : cadence === "semiannual" && target.price_semiannual != null
+        ? Number(target.price_semiannual)
+        : Number(target.price_monthly);
+    if (exceedsMpPreapprovalCap(charged)) {
+      toast.info("Esta modalidad de pago estará disponible pronto — elige el plan mensual.");
+      return;
+    }
 
     setSelecting(planId);
 
@@ -391,37 +404,68 @@ function PlansContent() {
               </ul>
 
               {/* CTA button */}
-              <div className="mt-6">
-                <button
-                  onClick={() => handleChangePlan(plan.id)}
-                  disabled={isCurrent || selecting !== null}
-                  className={cn(
-                    "flex w-full h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed",
-                    isCurrent
-                      ? "border border-border bg-card text-muted-foreground"
-                      : isPopular
-                        ? "gradient-primary text-white shadow-md hover:opacity-90 hover:shadow-lg"
-                        : "border border-border bg-card text-foreground hover:bg-accent/50 hover:border-emerald-300 dark:hover:border-emerald-500/40"
-                  )}
-                >
-                  {selecting === plan.id ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : isCurrent ? (
-                    <Check className="h-4 w-4" />
-                  ) : null}
-                  {action.label}
-                  {!isCurrent &&
-                    (() => {
-                      const upfrontLabel =
-                        cadence === "annual" && plan.price_yearly != null
-                          ? `S/${Number(plan.price_yearly).toLocaleString("es-PE")}/año`
-                          : cadence === "semiannual" && plan.price_semiannual != null
-                          ? `S/${Number(plan.price_semiannual).toLocaleString("es-PE")}/semestre`
-                          : `S/${plan.price_monthly}/mes`;
-                      return ` — ${upfrontLabel}`;
-                    })()}
-                </button>
-              </div>
+              {/* Gate del tope de MP: si el cobro por período de la cadencia
+                  elegida supera S/1,500, Mercado Pago rechaza crear la
+                  suscripción (límite de la cuenta, ver lib/billing/constants).
+                  El precio con descuento se sigue mostrando como ancla, pero
+                  el botón pasa a "Próximamente" para que nadie se estrelle
+                  contra el error crudo de MP. Mensual nunca se bloquea. */}
+              {(() => {
+                const chargedForCadence =
+                  cadence === "annual" && plan.price_yearly != null
+                    ? Number(plan.price_yearly)
+                    : cadence === "semiannual" && plan.price_semiannual != null
+                    ? Number(plan.price_semiannual)
+                    : Number(plan.price_monthly);
+                const cadenceCapped =
+                  !isCurrent && exceedsMpPreapprovalCap(chargedForCadence);
+                return (
+                  <div className="mt-6">
+                    <button
+                      onClick={() => handleChangePlan(plan.id)}
+                      disabled={isCurrent || selecting !== null || cadenceCapped}
+                      className={cn(
+                        "flex w-full h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed",
+                        isCurrent || cadenceCapped
+                          ? "border border-border bg-card text-muted-foreground"
+                          : isPopular
+                            ? "gradient-primary text-white shadow-md hover:opacity-90 hover:shadow-lg"
+                            : "border border-border bg-card text-foreground hover:bg-accent/50 hover:border-emerald-300 dark:hover:border-emerald-500/40"
+                      )}
+                    >
+                      {selecting === plan.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : isCurrent ? (
+                        <Check className="h-4 w-4" />
+                      ) : null}
+                      {cadenceCapped
+                        ? "Próximamente"
+                        : (
+                          <>
+                            {action.label}
+                            {!isCurrent &&
+                              (() => {
+                                const upfrontLabel =
+                                  cadence === "annual" && plan.price_yearly != null
+                                    ? `S/${Number(plan.price_yearly).toLocaleString("es-PE")}/año`
+                                    : cadence === "semiannual" && plan.price_semiannual != null
+                                    ? `S/${Number(plan.price_semiannual).toLocaleString("es-PE")}/semestre`
+                                    : `S/${plan.price_monthly}/mes`;
+                                return ` — ${upfrontLabel}`;
+                              })()}
+                          </>
+                        )}
+                    </button>
+                    {cadenceCapped && (
+                      <p className="mt-2 text-center text-[11px] text-muted-foreground">
+                        El pago {cadence === "annual" ? "anual" : "semestral"} para
+                        este plan estará disponible pronto — mientras tanto puedes
+                        suscribirte mensual.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           );
         })}

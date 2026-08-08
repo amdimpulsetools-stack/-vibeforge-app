@@ -27,6 +27,8 @@ export type BillingEmailKind =
   | "payment_failed"
   | "grace_ending"
   | "access_suspended"
+  | "trial_ending_7d"
+  | "trial_ending_2d"
   | "account_deletion_requested"
   | "account_deletion_completed"
   | "account_deletion_grace_reminder"
@@ -52,13 +54,14 @@ interface BillingEmailResult {
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://yenda.app";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "soporte@yenda.app";
 const BILLING_URL = `${APP_URL}/account`;
+const PLANS_URL = `${APP_URL}/plans`;
 
 function formatCurrencyPEN(value: number | null | undefined): string {
   if (typeof value !== "number" || isNaN(value)) return "S/ —";
   return `S/ ${value.toFixed(2)}`;
 }
 
-function formatDateEsPE(iso: string | null | undefined): string {
+export function formatDateEsPE(iso: string | null | undefined): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (isNaN(d.getTime())) return "";
@@ -84,6 +87,48 @@ function renderTemplate(
     for (const [k, v] of Object.entries(vars)) out = out.replaceAll(k, v);
     return out;
   };
+
+  if (kind === "trial_ending_7d") {
+    return {
+      subject: replace("Tu período de prueba termina el {{grace_until}}"),
+      body: replace(
+        `Hola {{org_name}},
+
+Tu período de prueba de Yenda termina el {{grace_until}}. Esperamos que estas semanas te hayan servido para ver todo lo que puedes gestionar desde un solo lugar: agenda, pacientes, historias clínicas, seguimientos y facturación.
+
+Para no interrumpir tu trabajo, elige tu plan antes de esa fecha:
+
+{{plans_url}}
+
+Importante: si el período de prueba termina sin un plan activo, el acceso se pausa — pero tus datos NO se borran. Todo queda guardado y se restablece apenas actives tu plan.
+
+¿Dudas sobre qué plan te conviene o problemas con el pago? Responde este correo o escríbenos a {{support_email}} y te ayudamos.
+
+— Equipo Yenda`,
+      ),
+    };
+  }
+
+  if (kind === "trial_ending_2d") {
+    return {
+      subject: replace("Últimos 2 días de tu período de prueba"),
+      body: replace(
+        `Hola {{org_name}},
+
+Tu período de prueba de Yenda termina el {{grace_until}} — quedan menos de 2 días.
+
+Si aún no elegiste tu plan, este es el momento: al vencer la prueba el acceso se pausa hasta que actives uno. Tus datos (pacientes, citas, historias clínicas) NO se borran en ningún caso.
+
+Activa tu plan en un minuto:
+
+{{plans_url}}
+
+Si tuviste algún problema con el pago o quieres conversar sobre qué plan te conviene, escríbenos a {{support_email}} — respondemos rápido.
+
+— Equipo Yenda`,
+      ),
+    };
+  }
 
   if (kind === "payment_failed") {
     return {
@@ -246,6 +291,7 @@ async function sendBillingEmail(
     "{{amount}}": ctx.amount,
     "{{grace_until}}": ctx.graceUntil ?? "",
     "{{billing_url}}": BILLING_URL,
+    "{{plans_url}}": PLANS_URL,
     "{{support_email}}": SUPPORT_EMAIL,
   };
 
@@ -300,6 +346,13 @@ async function sendBillingEmail(
     console.warn(`[billing-emails:${kind}] failed:`, msg);
     return { ok: false, error: msg };
   }
+}
+
+export async function sendTrialEndingEmail(
+  ctx: BillingEmailContext,
+  window: "7d" | "2d",
+): Promise<BillingEmailResult> {
+  return sendBillingEmail(ctx, window === "7d" ? "trial_ending_7d" : "trial_ending_2d");
 }
 
 export async function sendPaymentFailedEmail(

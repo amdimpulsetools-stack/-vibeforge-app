@@ -3,6 +3,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { AiAssistantPanelLazy } from "@/components/ai-assistant-panel-lazy";
 import { OrganizationProvider } from "@/components/organization-provider";
 import { PlanLimitWarner } from "@/components/plan-limit-warner";
+import { TrialExpiryBanner } from "@/components/trial-expiry-banner";
 import { MobileNavProvider } from "@/components/layout/mobile-nav-context";
 import { TourProvider } from "@/components/onboarding/tour-provider";
 import { TourAutostart } from "@/components/onboarding/tour-autostart";
@@ -110,6 +111,9 @@ export default async function DashboardLayout({
             <Sidebar />
             <div className="flex flex-1 flex-col overflow-hidden">
               <Topbar />
+              {/* Franja de fin de trial: entre topbar y contenido para que
+                  persista en TODAS las páginas sin tapar nada. */}
+              <TrialExpiryBanner />
               {/* El gutter de página vive en un div interno, NO en el
                   scroller. Un scroll container añade su propio padding
                   del lado final al área desplazable, así que con `p-4`

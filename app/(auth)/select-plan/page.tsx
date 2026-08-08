@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { exceedsMpPreapprovalCap } from "@/lib/billing/constants";
 import { createClient } from "@/lib/supabase/client";
 import { APP_NAME } from "@/lib/constants";
 import { toast } from "sonner";
@@ -244,8 +245,26 @@ function SelectPlanPage() {
   };
 
   const handleSelect = async (planId: string) => {
-    setSelecting(planId);
     const selectedPlan = plans.find((p) => p.id === planId);
+
+    // Gate del tope de MP (ver lib/billing/constants): espejo del botón,
+    // por si el estado de la UI quedó desfasado.
+    if (selectedPlan) {
+      const charged =
+        cadence === "annual" && selectedPlan.price_yearly != null
+          ? Number(selectedPlan.price_yearly)
+          : cadence === "semiannual" && selectedPlan.price_semiannual != null
+          ? Number(selectedPlan.price_semiannual)
+          : Number(selectedPlan.price_monthly);
+      if (exceedsMpPreapprovalCap(charged)) {
+        toast.info(
+          "Esta modalidad de pago estará disponible pronto — elige el plan mensual.",
+        );
+        return;
+      }
+    }
+
+    setSelecting(planId);
 
     // All plans go through Mercado Pago checkout
     try {
@@ -524,7 +543,36 @@ function SelectPlanPage() {
                      `btn-popular-cta` style). Trial is demoted to a
                      ghost secondary on plans that offer it. Enterprise
                      has no trial, so only the paid CTA renders. */}
+                {(() => {
+                  // Gate del tope de MP para suscripciones (S/1,500 por
+                  // período — ver lib/billing/constants): la cadencia cuyo
+                  // cobro supera el tope se ofrece como "Próximamente" en
+                  // vez de estrellarse contra el error crudo de MP. El
+                  // trial de 14 días no se toca.
+                  const chargedForCadence =
+                    cadence === "annual" && plan.price_yearly != null
+                      ? Number(plan.price_yearly)
+                      : cadence === "semiannual" && plan.price_semiannual != null
+                      ? Number(plan.price_semiannual)
+                      : Number(plan.price_monthly);
+                  const cadenceCapped = exceedsMpPreapprovalCap(chargedForCadence);
+                  return (
                 <div className="mt-6 space-y-2">
+                  {cadenceCapped ? (
+                    <>
+                      <button
+                        disabled
+                        className="flex w-full h-11 items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-semibold text-muted-foreground opacity-60 cursor-not-allowed"
+                      >
+                        Próximamente
+                      </button>
+                      <p className="text-center text-[11px] text-muted-foreground">
+                        El pago {cadence === "annual" ? "anual" : "semestral"} para
+                        este plan estará disponible pronto — puedes suscribirte
+                        mensual o iniciar la prueba.
+                      </p>
+                    </>
+                  ) : (
                   <button
                     onClick={() => handleSelect(plan.id)}
                     disabled={selecting !== null}
@@ -546,6 +594,7 @@ function SelectPlanPage() {
                     })()}
                     <ArrowRight className="h-3.5 w-3.5" />
                   </button>
+                  )}
                   {plan.slug !== "enterprise" && (
                     <button
                       onClick={() => handleStartTrial(plan.id)}
@@ -559,6 +608,8 @@ function SelectPlanPage() {
                     </button>
                   )}
                 </div>
+                  );
+                })()}
               </div>
             );
           })}
