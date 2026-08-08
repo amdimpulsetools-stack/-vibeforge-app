@@ -23,14 +23,46 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://yenda.app";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "soporte@yenda.app";
 const FOUNDER_INBOX_URL = `${APP_URL}/founder-dashboard/support`;
 
+export type FounderAlertKind =
+  | "new_ticket"
+  | "new_message"
+  | "new_org"
+  | "payment";
+
+const ALERT_TOGGLE_COLUMN: Record<FounderAlertKind, string> = {
+  new_ticket: "notify_new_ticket",
+  new_message: "notify_new_message",
+  new_org: "notify_new_org",
+  payment: "notify_payment",
+};
+
 /**
- * Destinatario de las alertas de founder. Se resuelve desde la base
- * (user_profiles.is_founder) para no depender de una variable de entorno
- * que nadie recuerde configurar; FOUNDER_ALERT_EMAIL la puede sobreescribir.
+ * Destinatario de las alertas del founder, por orden de precedencia:
+ *   1. founder_settings.alert_email — lo que el founder configuró en Ajustes
+ *   2. FOUNDER_ALERT_EMAIL — escotilla de emergencia por entorno
+ *   3. user_profiles.is_founder — el default que funciona sin configurar nada
+ *
+ * Devuelve null si el tipo de alerta está apagado en Ajustes, de modo que
+ * los toggles se respetan en un solo sitio y no en cada call site.
  */
 export async function resolveFounderEmail(
   admin: SupabaseClient,
+  kind?: FounderAlertKind,
 ): Promise<string | null> {
+  const { data: settings } = await admin
+    .from("founder_settings")
+    .select("alert_email, notify_new_ticket, notify_new_message, notify_new_org, notify_payment")
+    .eq("id", true)
+    .maybeSingle();
+
+  if (kind && settings) {
+    const column = ALERT_TOGGLE_COLUMN[kind];
+    if ((settings as Record<string, unknown>)[column] === false) return null;
+  }
+
+  const configured = ((settings?.alert_email as string | null) || "").trim();
+  if (configured) return configured;
+
   const override = (process.env.FOUNDER_ALERT_EMAIL || "").trim();
   if (override) return override;
 
@@ -59,7 +91,7 @@ interface FounderTicketEmailInput {
 export async function notifyFounder(input: FounderTicketEmailInput): Promise<void> {
   const { admin, orgName, authorName, subject, body, ticketId, isNew } = input;
   try {
-    const to = await resolveFounderEmail(admin);
+    const to = await resolveFounderEmail(admin, isNew ? "new_ticket" : "new_message");
     if (!to) return;
 
     const heading = isNew
@@ -165,7 +197,7 @@ export async function notifyFounderNewOrg(
   ownerName: string | null,
 ): Promise<void> {
   try {
-    const to = await resolveFounderEmail(admin);
+    const to = await resolveFounderEmail(admin, "new_org");
     if (!to) return;
 
     const text = `Se registró una organización nueva en Yenda.

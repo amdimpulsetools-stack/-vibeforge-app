@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { founderFetch } from "@/lib/founder-fetch";
 import { Loader2, DollarSign, TrendingUp, Users, CreditCard } from "lucide-react";
+import { MoneySubNav } from "../subnav";
 
 export default function RevenuePage() {
   const [loading, setLoading] = useState(true);
@@ -47,6 +48,7 @@ export default function RevenuePage() {
         <h1 className="text-2xl font-bold tracking-tight">Revenue</h1>
         <p className="text-sm text-muted-foreground mt-1">Ingresos y suscripciones de la plataforma</p>
       </div>
+      <MoneySubNav />
 
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-border/60 bg-card p-4">

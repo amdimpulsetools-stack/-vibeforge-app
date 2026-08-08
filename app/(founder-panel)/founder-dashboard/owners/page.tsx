@@ -17,6 +17,7 @@ import {
   Sparkles,
   ArrowRight,
 } from "lucide-react";
+import { ClinicsSubNav } from "../subnav";
 
 interface Owner {
   id: string;
@@ -146,6 +147,7 @@ export default function OwnersPage() {
           Seguimiento de cada dueño de clínica en la plataforma
         </p>
       </div>
+      <ClinicsSubNav />
 
       {/* Summary */}
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-6">

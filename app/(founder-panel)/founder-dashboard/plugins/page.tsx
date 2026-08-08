@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Plug, Plus, Power, Trash2, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { SystemSubNav } from "../subnav";
 
 // ──────────────────────────────────────────────────────────────────
 // Founder Panel — Plugins
@@ -152,6 +153,7 @@ export default function FounderPluginsPage() {
             PDF custom, etc.). No se exponen al admin de la clínica.
           </p>
         </div>
+      <SystemSubNav />
         <button
           type="button"
           onClick={() => setInstallOpen(true)}

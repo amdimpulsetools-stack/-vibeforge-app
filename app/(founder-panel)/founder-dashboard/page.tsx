@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { founderFetch } from "@/lib/founder-fetch";
 import { Suspense } from "react";
@@ -237,6 +238,7 @@ function StatCard({
 }
 
 function FounderDashboardContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const needsSetup = searchParams.get("setup") === "true";
   const needsVerify = searchParams.get("verify") === "true";
@@ -258,16 +260,33 @@ function FounderDashboardContent() {
     setLoading(false);
   }, []);
 
+  // Verificado y sin puerta que mostrar → al panel CEO, que es la pantalla
+  // de trabajo real. Ya no se cargan las métricas de Overview.
   useEffect(() => {
-    if (verified) loadStats();
-  }, [verified, loadStats]);
+    if (verified && !needsSetup && !needsVerify) {
+      router.replace("/founder-dashboard/ceo");
+    }
+  }, [verified, needsSetup, needsVerify, router]);
 
+  // Esta ruta sigue existiendo SOLO como puerta del 2FA: el layout redirige
+  // aquí con ?setup=true / ?verify=true. Superada la puerta, el destino es el
+  // panel CEO — Overview salió de la nav porque CEO ya lo cubre y su tarjeta
+  // de "revenue del mes" significaba lo contrario que la de CEO (volumen de
+  // las clínicas vs. lo cobrado por Yenda), un riesgo de leer mal el negocio.
   if (needsSetup && !verified) {
-    return <TOTPSetup onComplete={() => { setVerified(true); window.history.replaceState({}, "", "/founder-dashboard"); }} />;
+    return <TOTPSetup onComplete={() => { setVerified(true); router.replace("/founder-dashboard/ceo"); }} />;
   }
 
   if (needsVerify && !verified) {
-    return <TOTPVerify onComplete={() => { setVerified(true); window.history.replaceState({}, "", "/founder-dashboard"); }} />;
+    return <TOTPVerify onComplete={() => { setVerified(true); router.replace("/founder-dashboard/ceo"); }} />;
+  }
+
+  if (verified && !needsSetup && !needsVerify) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
   }
 
   if (loadError) {
