@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { notifyFounderNewOrg } from "@/lib/support-emails";
 import { NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { seedFertilityAddon } from "@/lib/fertility/seed-fertility-addon";
@@ -146,6 +147,29 @@ export async function POST() {
     }
   } catch (addonErr) {
     console.error("Addon auto-activation error:", addonErr);
+  }
+
+  // Aviso al founder: hasta ahora una org nueva se registraba en absoluto
+  // silencio (auditoría 2026-08-08) y solo se descubría entrando al panel.
+  // Best-effort — nunca bloquea el onboarding del cliente.
+  try {
+    const adminNotify = createAdminClient();
+    const [{ data: orgRow }, { data: ownerProfile }] = await Promise.all([
+      adminNotify.from("organizations").select("name").eq("id", orgId).maybeSingle(),
+      adminNotify
+        .from("user_profiles")
+        .select("full_name, email")
+        .eq("id", user.id)
+        .maybeSingle(),
+    ]);
+    await notifyFounderNewOrg(
+      adminNotify,
+      orgRow?.name ?? "Clínica sin nombre",
+      (ownerProfile?.email as string | undefined) ?? null,
+      (ownerProfile?.full_name as string | undefined) ?? null,
+    );
+  } catch (notifyErr) {
+    console.error("Founder new-org notification failed:", notifyErr);
   }
 
   return NextResponse.json({ success: true });

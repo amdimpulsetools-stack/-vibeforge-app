@@ -15,6 +15,7 @@ import {
   Crown,
   RotateCcw,
   Plug,
+  Headphones,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
   { label: "Revenue", href: "/founder-dashboard/revenue", icon: DollarSign },
   { label: "Reembolsos", href: "/founder-dashboard/refunds", icon: RotateCcw },
   { label: "Usuarios", href: "/founder-dashboard/users", icon: Users },
+  { label: "Soporte", href: "/founder-dashboard/support", icon: Headphones },
   { label: "Plugins", href: "/founder-dashboard/plugins", icon: Plug },
   { label: "Health", href: "/founder-dashboard/health", icon: Activity },
 ];
