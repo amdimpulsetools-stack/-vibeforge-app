@@ -230,8 +230,9 @@ function PlansContent() {
         {/* A 390px los tres pills con sus badges sumaban ~350px y partían
             el grupo en dos líneas desiguales: en móvil se reparten el ancho
             completo (patrón PeriodSegmented del Escritorio) y los badges de
-            descuento se ocultan por debajo de 420px. Desde sm, idéntico. */}
-        <div className="mt-4 flex w-full items-center gap-1 rounded-full bg-muted p-1 sm:inline-flex sm:w-auto">
+            descuento se ocultan por debajo de 420px. Desde sm se ajusta al
+            contenido y se centra en el mismo eje que las cards. */}
+        <div className="mt-4 flex w-full items-center gap-1 rounded-full bg-muted p-1 sm:mx-auto sm:w-fit">
           <button
             type="button"
             onClick={() => setCadence("monthly")}

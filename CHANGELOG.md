@@ -65,6 +65,8 @@
 - [Changelog — Sesiones 2026-07-23 a 2026-08-03 (v0.15.23) — Plantillas FIV completas + jerarquía de precios + modos de presupuesto por org (migs 180-181)](#changelog-sesiones-2026-07-23-a-2026-08-03-v01523-plantillas-fiv-completas-jerarquía-de-precios-modos-de-presupuesto-por-org-migs-180-181)
 - [Changelog — Sesiones 2026-08-03 a 2026-08-05 (v0.15.24) — Seguimientos core para todas las orgs (migs 182-183) + fixes de integridad del módulo](#changelog-sesiones-2026-08-03-a-2026-08-05-v01524-seguimientos-core-para-todas-las-orgs-migs-182-183-fixes-de-integridad-del-módulo)
 - [Changelog — Sesión 2026-08-05 (v0.15.25) — Fase 2 de seguimientos: orígenes ricos, sesiones perdidas y settings por org (migs 184-188)](#changelog-sesión-2026-08-05-v01525-fase-2-de-seguimientos-orígenes-ricos-sesiones-perdidas-y-settings-por-org-migs-184-188)
+- [Changelog — Sesiones 2026-08-06/07 (v0.15.26) — Notificaciones por rol + Plugin Patricia + Lockdown RPC + IA ampliada](#changelog-sesiones-2026-080607-v01526--notificaciones-por-rol--plugin-patricia--lockdown-rpc--ia-ampliada)
+- [Changelog — Sesión 2026-08-07 (v0.15.27) — Plan de performance completo: 3 lotes, migs 196-203](#changelog-sesión-2026-08-07-v01527--plan-de-performance-completo-3-lotes-migs-196-203)
 
 ---
 
@@ -4210,6 +4212,72 @@ Plantilla WhatsApp clipboard editable para seguimientos core (confirmado: requie
 
 ---
 
+## Changelog — Sesiones 2026-08-06/07 (v0.15.26) — Notificaciones por rol + Plugin Patricia + Lockdown RPC + IA ampliada
+
+> Entrada de consolidación (las sesiones se documentaron primero en el resumen ejecutivo del PRD; detalle por PR en GitHub #247-#253).
+
+- **Notificaciones en vivo por rol (mig 192)**: fan-out una fila por destinatario vía RPC `notify_org_members()` (SECURITY DEFINER, único camino de escritura), routing por rol (el doctor solo recibe eventos de SUS citas), matriz evento × rol en Settings → Notificaciones y RLS de `notifications` endurecido.
+- **Plugin de presupuestos Dra. Patricia (mig 191)**: 12 plantillas de precio único (`budget_pdf_patricia`) sobre la Capa 2 de plugins per-org, `service_budget_tiers` sincronizado a los totales del PDF. Pendiente de la doctora: precios definitivos, Banking y colegiatura.
+- **Lockdown de la superficie RPC (mig 193)**: 47 funciones DEFINER ejecutables por `anon` (varias con fugas cross-tenant) → REVOKE a PUBLIC/anon salvo allowlist mínima, `search_path` fijado en todas, default privileges revocados (ninguna función futura nace abierta).
+- **Asistente IA ampliado (migs 194-195)**: presupuestos/seguimientos/analítica en el asistente con `ai_readonly_query` SECURITY INVOKER (la RLS del caller aplica) y word-boundaries en la validación de solo-lectura.
+- **UI**: barrido responsive de Seguimientos + full-bleed escritorio en las 5 páginas tipo app, headers estilo Presupuestos, tabs de ficha de paciente en pills scrolleables, WhatsApp branding correcto.
+
+---
+
+## Changelog — Sesión 2026-08-07 (v0.15.27) — Plan de performance completo: 3 lotes, migs 196-203
+
+Auditoría de performance con 11 especialistas (83 hallazgos → `scratchpad/plan-consolidado-performance.md`) ejecutada completa el mismo día en 3 lotes. Diagnóstico: la BD estaba sana; el problema era **bundle** (Sentry Replay + framer-motion en el baseline de TODAS las páginas, recharts eager) y **datos redundantes** (mismos fetches repetidos por página y por navegación). Restricción del founder respetada: **cero cambio visual**. PRs #255 (mergeado), #256 (mergeado) y #257 (Fase C + Lote 3).
+
+### Lote 1 — 25 quick wins de bundle y fetch (PR #255, migs 196-197)
+- **Sentry Replay diferido** (~38 kB gz fuera del First Load de las 265 páginas, carga en idle vía import dinámico same-origin — compatible con el CSP `script-src 'self'`) + tree-shaking flags (`excludeReplayShadowDom/Iframe`, debug statements).
+- **framer-motion fuera del layout** (~36 kB gz): el dropdown del avatar del topbar a `next/dynamic` con precarga en hover.
+- **/dashboard**: split por rol (solo baja el dashboard del rol activo), OwnerDoctorSection y AreaChart del admin lazy, 5 awaits del Server Component paralelizados.
+- **/patients**: PatientDrawer lazy con precarga en hover de fila (recharts ~103 kB gz fuera del listado), modales lazy, fetch triplicado de historia clínica eliminado (2 requests + 2 asientos de auditoría menos por apertura).
+- **/reports**: los 5 tabs a `next/dynamic` con precarga del tab activo y en hover de pestaña.
+- **Scheduler**: columnas explícitas (~50% menos payload), pagos embebidos en el mismo select (un roundtrip menos), COUNT del empty-state solo cuando aplica, live-poll lean.
+- **migs 196-197**: `get_org_usage` sargable (range scan en vez de scan completo) y `get_retention_trend` sin correlación (segundos → decenas de ms con volumen).
+
+### Lote 2 Fase A — caché de hooks (PR #256)
+- `usePlan` (13 call sites) y `useOrgAddons` (10 usos) sobre React Query con key por org: de 4x/página y 3-5x/página a 1 fetch por staleTime. `getUser()` deduplicado en el arranque del shell (6 → 1 roundtrips).
+- supabase-js (chunk ~54 kB gz con realtime) fuera del funnel público: InviteTokenHandler condicional por token en URL y ThemeProvider cookie-first.
+
+### Lote 2 Fase B — agregaciones a SQL (PR #256, migs 198-201)
+- **mig 198 `get_reports_overview`**: KPIs financiero/operativo agregados server-side. **Corrige bug de datos**: el `select("*")` + 4 joins sin límite se truncaba en silencio a 1000 filas — una org con >1000 citas en el rango reportaba cifras incorrectas.
+- **mig 199 `get_einvoices_kpis`**: KPIs de facturación con los mismos filtros que la tabla. **Corrige bug de datos**: antes se calculaban sobre las 50 filas de la página. Cascada de /facturacion paralelizada (query + status a la vez).
+- **mig 200 `get_admin_dashboard_stats_v3`**: RPC slim sin los ~8 bloques que el dashboard nunca leía + serie de 30 días agregada en SQL (payload de ~50-100 kB a <2 kB). Doctor: RPC llamado desde el Server Component (−500-1500 ms hasta contenido).
+- **mig 201 — /api/budgets a SQL**: `budget_records_in_caller_scope()` (scope del doctor como EXISTS en vez de lista de UUIDs interpolada en 9 queries — el punto con riesgo real de degradación al crecer), `get_budget_bucket_counts()` (7 counts → 1 pasada con COUNT FILTER) y `get_budget_kpis()` (agregación 90/30 días server-side). De 9 queries por request a 3.
+- Seguridad: todas con `search_path` fijado; DEFINER con verificación de membresía activa; GRANT explícito solo a `authenticated`.
+
+### Lote 2 Fase C — la app tiene memoria (PR #257, mig 202)
+- **React Query en páginas de lista (2.4)**: patients, scheduler (citas+bloqueos con `placeholderData` para no vaciar la grilla al navegar; el poll de live-status escribe en caché vía `setQueryData`), budgets, facturación, history, reports (fetch solo en el tab que lo consume) y catálogos de filtros. Volver a cualquier página/rango/tab ya visto dentro del staleTime (5 min) = render instantáneo, 0 queries, 0 spinner.
+- **Seguimientos: acciones locales (2.8)**: cada acción de la asesora mergea la fila que devuelve el PATCH, un comparador replica el `ORDER BY` "cola de trabajo" del endpoint y los counts se ajustan en memoria; si la fila cambia de bucket, el tab destino se marca stale y se recarga lazy al entrar. Latencia percibida por acción: ~400-800 ms → ~0.
+- **Ficha de paciente liviana (2.12, mig 202)**: `get_patient_summary()` (SECURITY INVOKER — la RLS aplica por debajo) devuelve los 7 agregados de badge/contadores/marketing; el historial completo con 3 joins baja solo al entrar a Historial/Finanzas. `/patients` con SSR de la página 0 como `initialData` del listado (server component nuevo + `patients-client.tsx`).
+- **Sentry sin tracing de navegador (2.13, decisión del founder)**: fuera `tracesSampleRate` del config cliente + `__SENTRY_TRACING__: false` solo en el bundle del navegador (server/edge siguen trazando al 0.1). Baseline compartido: **190 → 165 kB gz**.
+
+### Lote 3 — menores (PR #257, mig 203)
+- Debounce 300 ms en inputs de fecha (facturación, reports — este último propaga fechas debounced también a retención/fertilidad).
+- History: master data con columnas explícitas y sort por paciente/precio 100% client-side (alternarlo ya no refetchea).
+- Config de agenda compartida entre vistas día/semana (key única de React Query; alternar vista no repite el fetch).
+- Panel IA del layout, WhatsAppClipboardModal y EInvoiceCreditNoteDialog a `next/dynamic`.
+- Catálogo de /plans cacheado 1 h; contacto de Settings en un solo upsert (4 roundtrips → 2); fetchSchedulerConfig solo al entrar al tab Agenda.
+- **mig 203**: índices `patients(organization_id, last_name, first_name)` y `appointments(organization_id, service_id, appointment_date)` — preventivos para el crecimiento.
+- **Fix de corrección (3.13)**: búsqueda `q` (tokens contra nombre/apellido con `!inner` embed) y multi-treatment_type de `/api/budgets` filtran en SQL ANTES de paginar — antes una página de 20 podía quedar en 3 filas y `has_more` mentía.
+- **Omitidos a propósito** (marginales vs. riesgo, señalados así en la auditoría): split del diccionario i18n (3.1), extracción del AddonPurchaseModal (3.12) y columnas explícitas en organization-provider (3.15 — enumerar mal una columna podía romper en silencio la restricción de doctores).
+
+### Resultado (First Load gz, build real)
+| Página | Antes | Ahora |
+|---|---|---|
+| Baseline compartido | 219 kB | 165 kB |
+| /dashboard | 485 kB | 294 kB |
+| /patients | 548 kB | 260 kB |
+| /reports | 457 kB | 279 kB |
+| /scheduler | 422 kB | 316 kB |
+| /settings | 377 kB | 325 kB |
+
+Migraciones 196-203 aplicadas en producción y verificadas (grants, `search_path`, `anon` sin acceso). Bonus de la auditoría: 2 bugs de datos reales corregidos (reports >1000 filas, KPI facturación sobre 50 filas) + paginación de presupuestos.
+
+---
+
 ## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)
 
 > Detalle largo de cada feature implementada, movido verbatim desde la Sección 12 del PRD (que ahora es un checklist de una línea). Se conserva aquí para no perder contenido único.
@@ -4369,7 +4437,7 @@ Plantilla WhatsApp clipboard editable para seguimientos core (confirmado: requie
 - [ ] Add-ons de plan (UI frontend para comprar extras desde el panel)
 - [x] Bloqueo de usuario desactivado (modal "Su usuario ha sido desactivado") — ✅ implementado en v0.14.1 (mig 118): página `/account-suspended` + gate en middleware cuando todas las membresías están inactivas
 - [ ] Tests automatizados (unit, integration, e2e)
-- [ ] Optimización de performance y caching
+- [x] Optimización de performance y caching — ✅ plan completo de 3 lotes ejecutado en v0.15.27 (auditoría de 11 especialistas, migs 196-203, React Query en toda la app). Ver Changelog v0.15.27
 - [ ] Custom SMTP en Supabase Auth (para envío de invitaciones sin rate limit)
 - [x] Especialidades: primer módulo vertical entregado — Curvas de crecimiento OMS (Endocrinología Pediátrica / Pediatría)
 - [x] Especialidades: select editable en Settings (solo Owner) — ✅ implementado en v0.14.1 (mig 119, `org-specialty-section.tsx`)
