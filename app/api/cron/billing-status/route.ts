@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { startCronRun, finishCronRun } from "@/lib/cron-runs";
 import {
   resolveBillingEmailContext,
   sendGraceEndingEmail,
@@ -53,6 +54,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createAdminClient();
+  const runId = await startCronRun(supabase, "billing-status");
   const now = new Date();
   const nowIso = now.toISOString();
   const twoDaysFromNow = new Date(now.getTime() + 2 * 24 * 3600 * 1000).toISOString();
@@ -308,14 +310,19 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({
-    ok: true,
-    timestamp: nowIso,
+  const summary = {
     trial_ending_reminded: trialEndingReminded,
     trials_expired: trialsExpired,
     grace_reminded: graceReminded,
     grace_suspended: graceSuspended,
     past_due_terminated: pastDueTerminated,
     deletion_grace_reminded: deletionGraceReminded,
+  };
+  await finishCronRun(supabase, runId, true, summary);
+
+  return NextResponse.json({
+    ok: true,
+    timestamp: nowIso,
+    ...summary,
   });
 }

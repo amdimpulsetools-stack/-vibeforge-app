@@ -10,25 +10,37 @@ export async function GET() {
   const now = new Date();
   const monthStartIso = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-  // founder_revenue_compact (mig 155) computes total + monthly in a
-  // single round trip server-side instead of shipping every row of
-  // patient_payments. Drops this endpoint from O(rows) → O(1).
-  const [subsRes, revenueRes] = await Promise.all([
+  // INGRESO YENDA = payment_history (lo que las clínicas nos pagan por sus
+  // suscripciones), NO patient_payments. El RPC founder_revenue_compact
+  // (mig 155) sumaba patient_payments — el GMV de las clínicas — y el
+  // founder veía "su revenue" mezclado con la facturación de sus clientes
+  // (auditoría 2026-08-08). payment_history tiene 2 filas hoy: sumar en
+  // memoria es trivial; si crece a miles, mover a RPC.
+  const [subsRes, paymentsRes] = await Promise.all([
     admin
       .from("organization_subscriptions")
       .select("status, plans(name, price_monthly)"),
-    admin.rpc("founder_revenue_compact", {
-      p_current_month_start: monthStartIso,
-    }),
+    admin
+      .from("payment_history")
+      .select("amount, status, created_at"),
   ]);
 
   const subs = (subsRes.data ?? []) as unknown as {
     status: string;
     plans: { name: string; price_monthly: number } | null;
   }[];
-  const rev = (revenueRes.data ?? { total_revenue: 0, monthly_revenue: 0 }) as {
-    total_revenue: number;
-    monthly_revenue: number;
+
+  const payments = paymentsRes.data ?? [];
+  const sumApproved = (rows: typeof payments) =>
+    rows
+      .filter((p) => p.status === "approved")
+      .reduce((s, p) => s + Number(p.amount), 0) -
+    rows
+      .filter((p) => p.status === "refunded")
+      .reduce((s, p) => s + Number(p.amount), 0);
+  const rev = {
+    total_revenue: sumApproved(payments),
+    monthly_revenue: sumApproved(payments.filter((p) => p.created_at >= monthStartIso)),
   };
 
   const planMap = new Map<string, { count: number; revenue: number }>();

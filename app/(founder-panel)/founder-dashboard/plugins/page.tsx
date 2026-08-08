@@ -63,23 +63,20 @@ export default function FounderPluginsPage() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
-    const [pluginsRes, orgsClient] = await Promise.all([
-      fetch("/api/founder/plugins", { cache: "no-store" }),
-      // Founders have wide RLS access; this returns all orgs for
-      // the installer dropdown.
-      createClient()
-        .from("organizations")
-        .select("id, name, legal_name")
-        .order("name"),
-    ]);
+    // Las orgs vienen en el MISMO payload del API (admin client server-side):
+    // el fetch anterior con el browser client dependía de una "RLS amplia de
+    // founder" que no existe — solo listaba las orgs de las que el founder
+    // es owner, no las 100+ del sistema.
+    const pluginsRes = await fetch("/api/founder/plugins", { cache: "no-store" });
     if (pluginsRes.ok) {
       const data = await pluginsRes.json();
       setRows(data.rows ?? []);
       setAvailable(data.available_plugins ?? []);
+      setOrgs((data.organizations as OrgOption[] | null) ?? []);
     } else {
       toast.error("No se pudieron cargar los plugins");
     }
-    setOrgs((orgsClient.data as OrgOption[] | null) ?? []);
+
     setLoading(false);
   }, []);
 

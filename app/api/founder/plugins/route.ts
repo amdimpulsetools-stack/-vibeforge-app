@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
+import { requireFounder } from "@/lib/require-founder";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PLUGINS } from "@/lib/plugins/registry";
 
@@ -17,24 +17,17 @@ export const runtime = "nodejs";
 // table also has founder-only RLS as defense in depth.
 // ──────────────────────────────────────────────────────────────────
 
+// Auditoría 2026-08-08: este guard propio omitía la capa 3 (cookie 2FA) —
+// un session cookie robado del founder podía operar plugins sin 2FA,
+// exactamente lo que requireFounder se creó para impedir. Ahora delega en
+// el guard canónico de 3 capas. Devuelve la lista de orgs vía este mismo
+// route (GET ?with_orgs=1) porque el browser client NO tiene RLS de
+// founder sobre organizations (el comentario "wide RLS access" del page
+// era falso: solo veía las orgs de las que el founder es owner).
 async function assertFounder(): Promise<{ userId: string } | NextResponse> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const admin = createAdminClient();
-  const { data: profile } = await admin
-    .from("user_profiles")
-    .select("is_founder")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!profile?.is_founder) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-  return { userId: user.id };
+  const result = await requireFounder();
+  if ("error" in result) return result.error;
+  return { userId: result.userId };
 }
 
 interface OrgPluginListRow {
@@ -88,7 +81,15 @@ export async function GET() {
     };
   });
 
+  // Lista de orgs para el dropdown del instalador — vía admin client
+  // porque el browser client solo ve las orgs del propio founder.
+  const { data: orgRows } = await admin
+    .from("organizations")
+    .select("id, name, legal_name")
+    .order("name");
+
   return NextResponse.json({
+    organizations: orgRows ?? [],
     rows,
     available_plugins: Object.values(PLUGINS).map((p) => ({
       key: p.key,

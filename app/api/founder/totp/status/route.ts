@@ -30,11 +30,16 @@ export async function GET() {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // Check if 2FA session cookie is valid
+    // Check if 2FA session cookie is valid.
+    // OJO: validateFounder2FASession es async — sin el await, `verified` era
+    // un Promise que se serializaba como {} (truthy en el cliente) y el
+    // layout creía que el 2FA estaba verificado aunque la sesión hubiera
+    // expirado. Ese bug tuvo el panel entero devolviendo 403 sin ofrecer
+    // nunca la pantalla de re-verificación (auditoría 2026-08-08).
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get(FOUNDER_SESSION_COOKIE)?.value;
     const verified = sessionToken
-      ? validateFounder2FASession(sessionToken)
+      ? await validateFounder2FASession(sessionToken)
       : false;
 
     return NextResponse.json({

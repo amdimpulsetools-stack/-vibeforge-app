@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
+import { founderFetch } from "@/lib/founder-fetch";
 import { Suspense } from "react";
 import {
   Shield,
@@ -243,11 +244,17 @@ function FounderDashboardContent() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
   const loadStats = useCallback(async () => {
-    const res = await fetch("/api/founder/stats");
-    if (!res.ok) { setLoading(false); return; }
-    const data = await res.json();
-    setStats(data);
+    setLoadError(null);
+    try {
+      const data = await founderFetch<PlatformStats>("/api/founder/stats");
+      setStats(data);
+    } catch (e) {
+      // Antes un !res.ok dejaba `stats` null con loading false → el guard
+      // `loading || !stats` mostraba spinner INFINITO. Ahora: error visible.
+      setLoadError(e instanceof Error ? e.message : "Error");
+    }
     setLoading(false);
   }, []);
 
@@ -261,6 +268,16 @@ function FounderDashboardContent() {
 
   if (needsVerify && !verified) {
     return <TOTPVerify onComplete={() => { setVerified(true); window.history.replaceState({}, "", "/founder-dashboard"); }} />;
+  }
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-8 text-center">
+        <p className="text-sm font-semibold text-red-500">No se pudieron cargar las métricas</p>
+        <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+        <button onClick={() => { setLoading(true); void loadStats(); }} className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Reintentar</button>
+      </div>
+    );
   }
 
   if (loading || !stats) {
@@ -297,7 +314,7 @@ function FounderDashboardContent() {
 
         <div className="rounded-xl border border-border/60 bg-card p-4 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Revenue este mes</span>
+            <span className="text-xs font-medium text-muted-foreground">Volumen clínicas este mes (no es ingreso Yenda)</span>
             <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${deltaPositive ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"}`}>
               {deltaPositive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
             </div>
