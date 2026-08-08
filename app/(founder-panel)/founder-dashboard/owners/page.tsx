@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { founderFetch } from "@/lib/founder-fetch";
 import Link from "next/link";
 import {
   Loader2,
@@ -55,14 +56,21 @@ export default function OwnersPage() {
   const [sortKey, setSortKey] = useState<SortKey>("created_at");
   const [sortAsc, setSortAsc] = useState(false);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
-    fetch("/api/founder/stats/owners")
-      .then((r) => r.json())
+    // Antes: .then(r => r.json()) sin chequear res.ok — un 403 metía
+    // {error} como si fuera el array y owners.filter reventaba con
+    // TypeError ("Algo salió mal"). founderFetch lanza en error y
+    // redirige a verificación si la sesión 2FA expiró.
+    founderFetch<Owner[]>("/api/founder/stats/owners")
       .then((data) => {
-        setOwners(data);
+        setOwners(Array.isArray(data) ? data : []);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((e) => {
+        setLoadError(e instanceof Error ? e.message : "Error");
+        setLoading(false);
+      });
   }, []);
 
   const toggleSort = (key: SortKey) => {
@@ -110,6 +118,16 @@ export default function OwnersPage() {
     (acc, o) => { acc[o.health_status] = (acc[o.health_status] ?? 0) + 1; return acc; },
     {} as Record<string, number>
   );
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-8 text-center">
+        <p className="text-sm font-semibold text-red-500">No se pudieron cargar los datos</p>
+        <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+        <button onClick={() => window.location.reload()} className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Reintentar</button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

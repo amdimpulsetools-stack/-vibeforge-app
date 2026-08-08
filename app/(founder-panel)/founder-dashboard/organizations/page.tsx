@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { founderFetch } from "@/lib/founder-fetch";
 import { Loader2, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -20,16 +21,30 @@ export default function OrganizationsPage() {
   const [orgs, setOrgs] = useState<OrgRow[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
   useEffect(() => {
     const load = async () => {
-      const res = await fetch("/api/founder/stats/organizations");
-      if (!res.ok) { setLoading(false); return; }
-      const data = await res.json();
-      setOrgs(data);
+      try {
+        const data = await founderFetch<OrgRow[]>("/api/founder/stats/organizations");
+        setOrgs(Array.isArray(data) ? data : []);
+      } catch (e) {
+        // Antes un !res.ok dejaba el [] inicial → "0 organizaciones" falso.
+        setLoadError(e instanceof Error ? e.message : "Error");
+      }
       setLoading(false);
     };
     load();
   }, []);
+
+  if (loadError) {
+    return (
+      <div className="rounded-2xl border border-red-500/30 bg-red-500/5 p-8 text-center">
+        <p className="text-sm font-semibold text-red-500">No se pudieron cargar los datos</p>
+        <p className="mt-1 text-xs text-muted-foreground">{loadError}</p>
+        <button onClick={() => window.location.reload()} className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">Reintentar</button>
+      </div>
+    );
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>;

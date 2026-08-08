@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { startCronRun, finishCronRun } from "@/lib/cron-runs";
 import { buildEmailHtml } from "@/lib/email-template";
 import { sendEmail, isEmailConfigured } from "@/lib/resend";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
@@ -33,6 +34,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createAdminClient();
+  const runId = await startCronRun(supabase, "reminders");
   const now = new Date();
 
   // 3. Define reminder windows
@@ -476,6 +478,7 @@ export async function GET(req: NextRequest) {
   }
 
   console.log("[Cron Reminders] Completed:", JSON.stringify(results));
+  await finishCronRun(supabase, runId, true, { results });
 
   return NextResponse.json({
     success: true,

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { startCronRun, finishCronRun } from "@/lib/cron-runs";
 import { sendEmail, isEmailConfigured } from "@/lib/resend";
 import { buildEmailHtml } from "@/lib/email-template";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
@@ -95,6 +96,7 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createAdminClient();
+  const runId = await startCronRun(supabase, "fertility-followup-contact");
   const now = new Date();
 
   let orgsProcessed = 0;
@@ -662,6 +664,14 @@ export async function GET(req: NextRequest) {
       if (!insertErr) acceptedPendingStartCreated++;
     }
   }
+
+  await finishCronRun(supabase, runId, true, {
+    orgs_processed: orgsProcessed,
+    followups_processed: followupsProcessed,
+    sent_email: sentEmail,
+    sent_whatsapp: sentWhatsapp,
+    failed,
+  });
 
   return NextResponse.json({
     ok: true,

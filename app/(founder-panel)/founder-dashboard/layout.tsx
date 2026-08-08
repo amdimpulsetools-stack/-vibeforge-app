@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
+  { label: "CEO", href: "/founder-dashboard/ceo", icon: Crown },
   { label: "Overview", href: "/founder-dashboard", icon: LayoutDashboard },
   { label: "Owners", href: "/founder-dashboard/owners", icon: Crown },
   { label: "Organizaciones", href: "/founder-dashboard/organizations", icon: Building2 },
@@ -65,13 +66,34 @@ export default function FounderDashboardLayout({
       const res = await fetch("/api/founder/totp/status");
       const status = await res.json();
 
+      // Las pantallas TOTPSetup/TOTPVerify viven en la página raíz y solo se
+      // renderizan con ?setup=true / ?verify=true. Antes NADIE redirigía con
+      // esos params: cuando la sesión 2FA expiraba (TTL 4h), el panel entero
+      // quedaba respondiendo 403 sin ofrecer jamás la re-verificación
+      // (auditoría 2026-08-08). Ahora el layout es quien te lleva ahí.
+      const params = new URLSearchParams(window.location.search);
+      const onAuthScreen =
+        pathname === "/founder-dashboard" &&
+        (params.get("verify") === "true" || params.get("setup") === "true");
+
       if (!status.totpEnabled) {
-        setAuthorized(true);
+        // requireFounder exige la cookie 2FA SIEMPRE — sin TOTP configurado
+        // el panel no funciona, así que forzamos el setup en vez de dejar
+        // pasar a páginas que morirán en 403.
+        if (!onAuthScreen) {
+          router.replace("/founder-dashboard?setup=true");
+          return;
+        }
+        setAuthorized(false);
         setChecking(false);
         return;
       }
 
       if (!status.verified) {
+        if (!onAuthScreen) {
+          router.replace("/founder-dashboard?verify=true");
+          return;
+        }
         setAuthorized(false);
         setChecking(false);
         return;
@@ -82,7 +104,7 @@ export default function FounderDashboardLayout({
     };
     check();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [pathname]);
 
   if (checking) {
     return (
