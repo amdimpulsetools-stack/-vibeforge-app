@@ -53,7 +53,13 @@ interface CeoPayload {
     conteos: { total_orgs: number; activas: number; vacias: number; sospechosas_bot: number };
   };
   orgs: CeoOrg[];
-  alerts: { severity: "rojo" | "ambar"; title: string; detail: string; org_id?: string }[];
+  alerts: {
+    severity: "rojo" | "ambar";
+    title: string;
+    detail: string;
+    org_id?: string;
+    href?: string;
+  }[];
   generated_at: string;
 }
 
@@ -179,6 +185,14 @@ export default function CeoPanelPage() {
               >
                 <span className="font-semibold">{a.title}</span>
                 <span className="ml-2 text-muted-foreground">{a.detail}</span>
+                {a.href && (
+                  <a
+                    href={a.href}
+                    className="ml-2 font-medium text-primary hover:underline"
+                  >
+                    Abrir →
+                  </a>
+                )}
               </li>
             ))}
           </ul>

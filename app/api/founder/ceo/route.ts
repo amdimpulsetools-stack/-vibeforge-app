@@ -289,7 +289,14 @@ export async function GET() {
   };
 
   // ── Alertas accionables ───────────────────────────────────────────────
-  type Alert = { severity: "rojo" | "ambar"; title: string; detail: string; org_id?: string };
+  type Alert = {
+    severity: "rojo" | "ambar";
+    title: string;
+    detail: string;
+    org_id?: string;
+    /** Link a la pantalla donde se resuelve la alerta. */
+    href?: string;
+  };
   const alerts: Alert[] = [];
 
   for (const r of trialRows) {
@@ -341,6 +348,7 @@ export async function GET() {
       title: `Ticket abierto hace más de 48h${org ? ` — ${org.name}` : ""}`,
       detail: t.subject || "Sin asunto",
       org_id: t.organization_id,
+      href: "/founder-dashboard/support",
     });
   }
   alerts.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "rojo" ? -1 : 1));

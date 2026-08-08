@@ -13,7 +13,7 @@ export const runtime = "nodejs";
  * sale de la base:
  *   · última corrida por cron (cron_runs, mig 204) + alerta si un cron
  *     diario lleva >36h sin correr — los no instrumentados se listan como
- *     "sin registro" y el de fertilidad como pausado deliberadamente
+ *     "sin registro" y los pausados (hoy ninguno) marcados como tales
  *   · comprobantes SUNAT rechazados/error últimos 7d
  *   · WhatsApps y recordatorios de email fallidos últimos 7d
  *   · actividad reciente de billing (billing_events = evidencia indirecta
@@ -29,20 +29,17 @@ const DAY_MS = 24 * 3600 * 1000;
 // "pausado", no como falla.
 const EXPECTED_CRONS = [
   { name: "billing-status", label: "Billing (trials, gracia, cobros)" },
+  { name: "fertility-followup-contact", label: "Contacto automático de seguimientos (fertilidad)" },
   { name: "reminders", label: "Recordatorios de citas" },
   { name: "daily-summary", label: "Resumen diario" },
   { name: "sheets-mirror", label: "Espejo Google Sheets" },
   { name: "live-status-eod-sweep", label: "Cierre de estados en vivo" },
   { name: "account-deletion-process", label: "Eliminación de cuentas" },
 ];
-const PAUSED_CRONS = [
-  {
-    name: "fertility-followup-contact",
-    label: "Contacto automático de seguimientos (fertilidad)",
-    reason:
-      "Pausado deliberadamente (2026-07-21): requiere triage del backlog con la asesora antes de reactivar.",
-  },
-];
+// Sin crons pausados por ahora. fertility-followup-contact estuvo aquí
+// (pausa de la auditoría 2026-07-21); reactivado el 2026-08-08 por decisión
+// del founder — los datos de los pilotos aún son de prueba.
+const PAUSED_CRONS: { name: string; label: string; reason: string }[] = [];
 
 export async function GET() {
   const ctx = await requireFounder();

@@ -146,43 +146,35 @@ export function SupportPageContent() {
     }
     setSending(true);
 
-    const { data: ticket, error: ticketError } = await supabase
-      .from("support_tickets")
-      .insert({
-        organization_id: organization.id,
-        created_by: userId,
-        subject: newSubject.trim(),
-        status: "open",
-        priority: "normal",
-      })
-      .select()
-      .single();
+    // Vía API en vez de insert directo: el endpoint escribe con la sesión
+    // (misma RLS) y AVISA AL FOUNDER por email — antes el ticket se guardaba
+    // y nadie se enteraba (uno estuvo 67 días sin respuesta).
+    try {
+      const res = await fetch("/api/support/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          organization_id: organization.id,
+          subject: newSubject.trim(),
+          body: newMessage.trim(),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
 
-    if (ticketError || !ticket) {
-      console.error("Ticket creation error:", ticketError);
-      toast.error(ticketError?.message || t("support.create_error"));
-      setSending(false);
-      return;
-    }
+      if (!res.ok) {
+        toast.error(data.error || t("support.create_error"));
+        setSending(false);
+        return;
+      }
 
-    // Add first message
-    const { error: msgError } = await supabase.from("support_messages").insert({
-      ticket_id: ticket.id,
-      sender_id: userId,
-      sender_type: "user",
-      body: newMessage.trim(),
-    });
-
-    if (msgError) {
-      console.error("Message creation error:", msgError);
-      toast.error(msgError.message || t("support.send_error"));
-    } else {
       toast.success(t("support.ticket_created"));
       setNewSubject("");
       setNewMessage("");
-      setSelectedTicket(ticket);
+      setSelectedTicket(data.ticket as SupportTicket);
       setViewMode("chat");
       loadTickets();
+    } catch {
+      toast.error(t("support.create_error"));
     }
     setSending(false);
   };
@@ -192,18 +184,23 @@ export function SupportPageContent() {
     if (!selectedTicket || !userId || !messageText.trim()) return;
     setSending(true);
 
-    const { error } = await supabase.from("support_messages").insert({
-      ticket_id: selectedTicket.id,
-      sender_id: userId,
-      sender_type: "user",
-      body: messageText.trim(),
-    });
-
-    if (error) {
+    try {
+      const res = await fetch("/api/support/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ticket_id: selectedTicket.id,
+          body: messageText.trim(),
+        }),
+      });
+      if (!res.ok) {
+        toast.error(t("support.send_error"));
+      } else {
+        setMessageText("");
+        textareaRef.current?.focus();
+      }
+    } catch {
       toast.error(t("support.send_error"));
-    } else {
-      setMessageText("");
-      textareaRef.current?.focus();
     }
     setSending(false);
   };

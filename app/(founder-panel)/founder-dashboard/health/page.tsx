@@ -146,8 +146,7 @@ export default function HealthPage() {
         <p className="mt-3 text-[11px] text-muted-foreground">
           &quot;Sin registro aún&quot; = cron no instrumentado con cron_runs (mig 204) o sin
           corrida desde el deploy. Los instrumentados hoy: billing, recordatorios y
-          fertilidad. El pausado requiere triage del backlog con la asesora antes de
-          reactivarse.
+          fertilidad (reactivado 2026-08-08 — vigilar sus primeras corridas).
         </p>
       </div>
 
@@ -176,6 +175,12 @@ export default function HealthPage() {
       <div className="rounded-2xl border border-border/60 bg-card p-5">
         <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-muted-foreground">
           <Headphones className="h-4 w-4" /> Tickets abiertos ({data.open_tickets.length})
+          <a
+            href="/founder-dashboard/support"
+            className="ml-auto text-xs font-medium normal-case tracking-normal text-primary hover:underline"
+          >
+            Ir a la bandeja →
+          </a>
         </h2>
         {data.open_tickets.length === 0 ? (
           <p className="text-sm text-muted-foreground">Sin tickets pendientes. 🎉</p>
