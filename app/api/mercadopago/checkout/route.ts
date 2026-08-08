@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getPreApprovalClient } from "@/lib/mercadopago/client";
+import { exceedsMpPreapprovalCap } from "@/lib/billing/constants";
 import { NextResponse } from "next/server";
 import { paymentLimiter } from "@/lib/rate-limit";
 import { parseBody } from "@/lib/api-utils";
@@ -94,6 +95,22 @@ export async function POST(request: Request) {
   if (!price || Number(price) < 2) {
     return NextResponse.json(
       { error: `Plan "${plan.name}" tiene precio S/ ${price} — MP requiere mínimo S/ 2.00` },
+      { status: 400 }
+    );
+  }
+
+  // Tope de MP para el monto por período de una preapproval (límite de la
+  // cuenta, ver lib/billing/constants). Sin este guard, MP revienta con
+  // "Cannot pay an amount greater than S/ 1500.00" en inglés y crudo. La UI
+  // ya ofrece estas cadencias como "Próximamente"; esto cubre UI cacheada
+  // vieja y llamadas directas al API.
+  if (exceedsMpPreapprovalCap(Number(price))) {
+    return NextResponse.json(
+      {
+        error: "cadence_amount_over_limit",
+        message:
+          "Esta modalidad de pago aún no está disponible. Elige el plan mensual — el pago semestral/anual llegará pronto.",
+      },
       { status: 400 }
     );
   }

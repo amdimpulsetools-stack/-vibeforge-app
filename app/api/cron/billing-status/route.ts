@@ -5,6 +5,8 @@ import {
   sendGraceEndingEmail,
   sendAccessSuspendedEmail,
   sendAccountDeletionGraceReminderEmail,
+  sendTrialEndingEmail,
+  formatDateEsPE,
 } from "@/lib/billing-emails";
 
 export const runtime = "nodejs";
@@ -58,11 +60,76 @@ export async function GET(req: NextRequest) {
   const thirtySixHoursAgo = new Date(now.getTime() - 36 * 3600 * 1000).toISOString();
 
   let trialsExpired = 0;
+  let trialEndingReminded = 0;
   let graceReminded = 0;
   let graceSuspended = 0;
   let pastDueTerminated = 0;
   let deletionGraceReminded = 0;
   const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 3600 * 1000).toISOString();
+
+  // ── 0. trial por vencer → email de recordatorio ───────────────
+  // Sin este paso, el día que trial_ends_at pasa la org amanece
+  // past_due y el middleware la expulsa a /select-plan SIN NINGÚN
+  // AVISO previo (hallazgo #1 de la auditoría de billing 2026-08-07).
+  // Dos ventanas: ≤7d ("elige tu plan") y ≤2d (urgente). Una org que
+  // entra directo en la ventana de 2d recibe solo ese. Idempotencia
+  // por (kind + trial_ends_at) en billing_events: si el founder
+  // extiende el trial, la fecha cambia y los recordatorios se rearman
+  // solos para la nueva fecha.
+  const { data: endingTrials } = await supabase
+    .from("organization_subscriptions")
+    .select("id, organization_id, trial_ends_at")
+    .eq("status", "trialing")
+    .not("trial_ends_at", "is", null)
+    .gt("trial_ends_at", nowIso)
+    .lte("trial_ends_at", sevenDaysFromNow);
+
+  for (const sub of endingTrials ?? []) {
+    const window: "7d" | "2d" =
+      sub.trial_ends_at! <= twoDaysFromNow ? "2d" : "7d";
+    const kind = window === "2d" ? "trial_ending_2d" : "trial_ending_7d";
+
+    const { data: priorEmails } = await supabase
+      .from("billing_events")
+      .select("id, metadata")
+      .eq("organization_id", sub.organization_id)
+      .eq("event_type", "email_sent")
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    const alreadySentForThisDate = (priorEmails ?? []).some((e) => {
+      const md = e.metadata as { kind?: string; trial_ends_at?: string } | null;
+      return md?.kind === kind && md?.trial_ends_at === sub.trial_ends_at;
+    });
+    if (alreadySentForThisDate) continue;
+
+    const ctx = await resolveBillingEmailContext(
+      supabase,
+      sub.organization_id,
+      sub.id,
+    );
+    if (!ctx) continue;
+    // El template usa {{grace_until}} como "la fecha límite" — aquí es
+    // el fin del trial, formateado DD/MM/AAAA como el resto de emails.
+    ctx.graceUntil = formatDateEsPE(sub.trial_ends_at);
+
+    const result = await sendTrialEndingEmail(ctx, window);
+    if (result.ok) {
+      // sendBillingEmail ya registró email_sent con {kind}; añadimos un
+      // evento propio con trial_ends_at para la clave de idempotencia.
+      await supabase.from("billing_events").insert({
+        organization_id: sub.organization_id,
+        subscription_id: sub.id,
+        event_type: "email_sent",
+        metadata: {
+          kind,
+          trial_ends_at: sub.trial_ends_at,
+          dedupe_marker: true,
+        },
+      });
+      trialEndingReminded++;
+    }
+  }
 
   // ── 1. trialing → past_due when trial elapses ─────────────────
   const { data: expiredTrials } = await supabase
@@ -223,7 +290,8 @@ export async function GET(req: NextRequest) {
 
     const ctx = await resolveBillingEmailContext(supabase, org.id, null);
     if (!ctx) continue;
-    ctx.graceUntil = org.delete_grace_until;
+    // DD/MM/AAAA como el resto de emails (antes se colaba el ISO crudo).
+    ctx.graceUntil = formatDateEsPE(org.delete_grace_until);
 
     const result = await sendAccountDeletionGraceReminderEmail(ctx);
     if (result.ok) {
@@ -243,6 +311,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     ok: true,
     timestamp: nowIso,
+    trial_ending_reminded: trialEndingReminded,
     trials_expired: trialsExpired,
     grace_reminded: graceReminded,
     grace_suspended: graceSuspended,
