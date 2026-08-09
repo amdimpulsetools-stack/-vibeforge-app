@@ -15,6 +15,7 @@ import {
   Headphones,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SystemSubNav } from "../subnav";
 
 /* Espejo del payload de /api/founder/stats/health (versión real, sin
    hardcodes — antes esta página mostraba "webhook ok" escrito en el
@@ -88,6 +89,7 @@ export default function HealthPage() {
           decorativo: todo sale de la base.
         </p>
       </div>
+      <SystemSubNav />
 
       {/* Fallos 7d */}
       <div className="grid gap-3 sm:grid-cols-3">

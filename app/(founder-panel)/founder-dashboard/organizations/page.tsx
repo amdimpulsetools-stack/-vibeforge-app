@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { founderFetch } from "@/lib/founder-fetch";
 import { Loader2, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ClinicsSubNav } from "../subnav";
 
 interface OrgRow {
   id: string;
@@ -64,6 +65,7 @@ export default function OrganizationsPage() {
         <h1 className="text-2xl font-bold tracking-tight">Organizaciones</h1>
         <p className="text-sm text-muted-foreground mt-1">{orgs.length} organizaciones registradas</p>
       </div>
+      <ClinicsSubNav />
 
       <div className="rounded-xl border border-border/60 overflow-hidden">
         <table className="w-full text-sm">

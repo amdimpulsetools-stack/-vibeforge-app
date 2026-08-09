@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { founderFetch } from "@/lib/founder-fetch";
 import { Loader2, Users, UserCheck, Stethoscope, ShieldCheck, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ClinicsSubNav } from "../subnav";
 
 interface UserRow {
   id: string;
@@ -108,6 +109,7 @@ export default function UsersPage() {
         <h1 className="text-2xl font-bold tracking-tight">Usuarios</h1>
         <p className="text-sm text-muted-foreground mt-1">{data.totalUsers} usuarios registrados en la plataforma</p>
       </div>
+      <ClinicsSubNav />
 
       {/* Stats row */}
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">

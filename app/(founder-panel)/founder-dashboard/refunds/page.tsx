@@ -10,6 +10,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { MoneySubNav } from "../subnav";
 
 interface PaymentRow {
   id: string;
@@ -129,6 +130,7 @@ export default function RefundsPage() {
           Procesa reembolsos sobre los últimos 100 pagos. La acción llama a Mercado Pago y notifica al owner por correo.
         </p>
       </div>
+      <MoneySubNav />
 
       <div className="rounded-xl border border-border/60 bg-card overflow-hidden">
         <table className="w-full text-sm">

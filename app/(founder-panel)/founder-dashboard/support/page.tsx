@@ -119,9 +119,15 @@ function SupportInbox() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [selected]);
 
+  // El ticket abierto sigue en la lista aunque el filtro ya no lo incluya:
+  // al responder deja de estar "pendiente" y desaparecía de la izquierda
+  // mientras seguía mostrándose a la derecha — se veía incoherente.
   const visible = useMemo(
-    () => (onlyPending ? tickets.filter((t) => t.awaiting_us) : tickets),
-    [tickets, onlyPending],
+    () =>
+      onlyPending
+        ? tickets.filter((t) => t.awaiting_us || t.id === selectedId)
+        : tickets,
+    [tickets, onlyPending, selectedId],
   );
   const pendingCount = tickets.filter((t) => t.awaiting_us).length;
 
