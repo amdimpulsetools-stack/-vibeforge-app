@@ -70,6 +70,7 @@
 - [Changelog — Sesión 2026-08-08 (v0.15.28) — Panel CEO + Soporte end-to-end + Nav founder 10→5 + Limpieza de bots (migs 204-205)](#changelog--sesión-2026-08-08-v01528--panel-ceo--soporte-end-to-end--nav-founder-105--limpieza-de-bots-migs-204-205)
 - [Changelog — Sesión 2026-08-12 (v0.15.29) — Módulo Captación (F1+F2, migs 206-207) + Preparación App Review de Meta](#changelog--sesión-2026-08-12-v01529--módulo-captación-f1f2-migs-206-207--preparación-app-review-de-meta)
 - [Changelog — Sesión 2026-08-12 noche (v0.15.30) — Módulo Almacén construido (migs 208-210) + Facturación de módulos de pago](#changelog--sesión-2026-08-12-noche-v01530--módulo-almacén-construido-migs-208-210--facturación-de-módulos-de-pago)
+- [Changelog — Sesión 2026-08-12 cierre (v0.15.31) — Almacén ACTIVADO en beta (founder + Patricia) + evaluación de alertas live y auditoría por usuario](#changelog--sesión-2026-08-12-cierre-v01531--almacén-activado-en-beta-founder--patricia--evaluación-de-alertas-live-y-auditoría-por-usuario)
 
 ---
 
@@ -4358,6 +4359,23 @@ Se construye el **módulo Almacén** de punta a punta en un día (evaluado esa m
 
 ### Roadmap Almacén (F2)
 Venta mostrador ligada a caja, vínculo movimiento↔paciente/cita, alertas de vencimiento (tab + notificación `stock_low`), selector de lote en salidas, rentabilidad por producto, import desde Excel para el onboarding de Patricia.
+
+---
+
+## Changelog — Sesión 2026-08-12 cierre (v0.15.31) — Almacén ACTIVADO en beta (founder + Patricia) + evaluación de alertas live y auditoría por usuario
+
+El founder adelantó la activación (el plan decía 1-sep): **PR #268 mergeado a main** y addon `almacen` activo para las 2 orgs del founder y **la org real de la Dra. Patricia** (la de `patriciaquispefertilidad@gmail.com` como owner — se detectó y evitó el clon de prueba homónimo creado con alias `oscarfiverr+`). Gratis 12 meses, términos Founding Partner.
+
+### Evaluación con agentes: ¿alertas live? ¿auditoría por usuario?
+Dos agentes evaluaron las preguntas del founder sobre el módulo recién desplegado:
+
+- **Alertas de stock bajo / vencimiento**: hoy son 100% visuales dentro de `/almacen` (semáforos por fila, banners resumen, filtros "Stock bajo (N)"/"Por vencer (N)", umbral `min_stock` por producto y `expiry_alert_days` por org) — **ninguna llega a la campanita**. La infra de notificaciones live por rol (mig 192) las soporta sin migración: `stock_low` se emite en el cruce de umbral dentro de la mutación (sin cron, ~medio día) y `expiry_soon` necesita un cron semanal clonando `daily-summary` con dedupe (~1 día). Programado sem. 18-25 ago.
+- **Auditoría por usuario**: la BD ya es un rastro de auditoría genuino — `created_by` forzado a `auth.uid()` por policy (nadie firma como otro), doble fecha (kardex vs digitación), motivos CHECK, y el trigger append-only impide borrar/reescribir la autoría incluso a service_role. El kardex **ya muestra el nombre** de quien hizo cada movimiento (vista global de la org). Gaps de presentación programados: autor como columna con fallback a email, tooltip anti-encubrimiento cuando la fecha de kardex difiere de la de digitación, filtros por usuario/tipo/motivo/fecha y card "Por usuario" (mermas/salidas por persona) para admin/owner. Cero cambios de BD necesarios.
+
+### Docs
+- PRD: §6 tablas migs 209-210 + flujo de activación con cobro, mapa de rutas y sidebar con `/almacen`, checklist v0.15.30-31.
+- COMING-UPDATES: sección Almacén reescrita al estado real (F1 hecha y activada) con las fases 3-4 nuevas (alertas live + auditoría UI); fila "Facturación de módulos" marcada en prod (pendiente: una activación de pago real con org de test antes de abrir al público).
+- Pendiente de datos: el Excel de inventario de Patricia no está en el repo (vivía en la sesión anterior) — se pidió de nuevo al founder para la carga inicial con limpieza ortográfica.
 
 ---
 
