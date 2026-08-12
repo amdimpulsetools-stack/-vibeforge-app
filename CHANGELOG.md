@@ -4375,7 +4375,9 @@ Dos agentes evaluaron las preguntas del founder sobre el módulo recién despleg
 ### Docs
 - PRD: §6 tablas migs 209-210 + flujo de activación con cobro, mapa de rutas y sidebar con `/almacen`, checklist v0.15.30-31.
 - COMING-UPDATES: sección Almacén reescrita al estado real (F1 hecha y activada) con las fases 3-4 nuevas (alertas live + auditoría UI); fila "Facturación de módulos" marcada en prod (pendiente: una activación de pago real con org de test antes de abrir al público).
-- Pendiente de datos: el Excel de inventario de Patricia no está en el repo (vivía en la sesión anterior) — se pidió de nuevo al founder para la carga inicial con limpieza ortográfica.
+
+### Carga del inventario de Patricia (mismo día)
+El founder subió el Excel "DESCUENTO DE MEDICAMENTOS 2026" (7 hojas ene-jul). De la hoja JULIO (stock final) se cargaron a su org los **35 productos** (20 hormonales + 15 vitaminas/suplementos) con ortografía normalizada (LET LETROZOL→Letrozol, GONAPEPTIL→Gonapeptyl, espacios dobles, "0.0" como fecha→NULL), cada uno con lote SIN-LOTE (vencimiento + costo congelado) y movimiento `saldo_inicial`: 753 unidades, **capital a costo S/79,060.82 — cuadra al céntimo con la valorización del Excel auditado (S/79,061)**. Import idempotente por nombre único activo. Alertas visibles desde el día 1: Saizen y Miositol Men vencen 09/2026, Orgalutran 11/2026.
 
 ---
 
