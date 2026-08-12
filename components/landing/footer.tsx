@@ -11,6 +11,7 @@ const links = [
 const legalLinks = [
   { label: "Términos", href: "/terms" },
   { label: "Privacidad", href: "/privacy" },
+  { label: "Eliminación de datos", href: "/data-deletion" },
 ];
 
 export function Footer() {

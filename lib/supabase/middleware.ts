@@ -192,8 +192,12 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
-  // Rutas públicas que no requieren auth
-  const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/api", "/auth", "/book", "/portal", "/producto", "/blog", "/base-conocimientos", "/calculadora-whatsapp", "/contacto", "/socios", "/soporte"];
+  // Rutas públicas que no requieren auth.
+  // /privacy, /terms y /data-deletion DEBEN ser públicas: el App Review
+  // de Meta las visita como anónimo — con redirect a login, rechazo
+  // automático (auditoría 12-ago-2026; estaban fuera de esta lista y
+  // producción mandaba las páginas legales al login).
+  const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/api", "/auth", "/book", "/portal", "/producto", "/blog", "/base-conocimientos", "/calculadora-whatsapp", "/contacto", "/socios", "/soporte", "/privacy", "/terms", "/data-deletion"];
   const isPublic = publicPaths.some((path) =>
     pathname === path || pathname.startsWith(path + "/")
   );
