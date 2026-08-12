@@ -5,6 +5,34 @@
 
 ---
 
+## 📦 Módulo Almacén — decisión cerrada y plan (2026-08-12)
+
+> Pedido por la Dra. Patricia (piloto). Evaluado por 5 especialistas sobre su Excel real de 7 meses.
+> Síntesis completa: artifact "Módulo Almacén" · Espec UI: artifact "Especificación UI — Módulo Almacén".
+> Hallazgo estrella de la auditoría: la ganancia del Excel está inflada 6.3× (reporta S/220,479 ene-jul;
+> real S/40,999) porque nunca resta el costo de lo vendido. ANDROFERTI perdió S/16.60 en julio y el
+> Excel reportó +S/1,530. SAIZEN (S/2,220) vence en 20 días sin alerta.
+
+**Decisión comercial (founder, 12-ago):** addon S/39/mes en Independiente (nivel básico) · incluido en
+Centro Médico (básico) · incluido COMPLETO en Clínica (lotes + vencimientos + rentabilidad real = el
+argumento de upgrade +S/300). Pilotos: nivel completo gratis de por vida, por escrito con valor nombrado.
+Nombre: "Almacén". Tabs: Productos · Movimientos · Vencimientos · Rentabilidad (candado fuera de Clínica).
+
+| Fase | Cuándo | Qué | Esfuerzo |
+|------|--------|-----|----------|
+| ✅ mig 208 | HECHO 12-ago | 4 addons fantasma ocultados (inventory/lab/telehealth/advanced_reports eran activables sin código detrás) | 30 min |
+| 0 | Hasta viernes 14 | CERO código — foco en instalación del piloto. Viernes: guion del compromiso datado + pedir Excel actualizado | — |
+| 1 | Sem. 18-ago | "Diagnóstico de Almacén" entregado a la doctora con SUS números (90% hecho — la auditoría) | ~2h pulir |
+| 2 | Desde 1-sep | F1 MVP oculto (patrón mig 207): mig 209 (products, movements append-only, lots, price_history, settings) + página con descuento en ≤3 taps. 100% aditivo, sin RPC/cron | 1.5-2 días |
+| 3 | Sep | F2: descuento desde cita (idempotente) + venta mostrador espejando patient_payments | 4-6 días |
+| 4 | Sep/oct | F3: recetas por servicio, cierre mensual + caja conciliable, importador del Excel (7 hojas), tab Rentabilidad | 5-8 días |
+
+Principios de esquema no negociables: sin columna stock ni costo editables (se derivan/congelan);
+movimientos append-only con contra-asiento; negativos permitidos pero ruidosos; NULL en fecha
+desconocida (jamás "0.0"); soft-delete siempre. Línea roja ERP: sin OC, proveedores-entidad,
+multi-almacén, SUNAT 13.1, DIGEMID, barras ni DELETE. Desplaza a Captación F5 (especulativo);
+NO desplaza CAPTCHA P0 ni trámites Meta. Validar cada campo del MVP contra Vitra (anti-sobreajuste).
+
 ## 🎯 Módulo Captación — fases pendientes (2026-08-12)
 
 > F1 (capturador silencioso, mig 206) y F2 (addon beta oculto + panel de campañas, mig 207) **entregadas** en v0.15.29. Spec completa y wireframes en el artifact "Módulo Captación". Beta activa solo para las orgs del founder.
