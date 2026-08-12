@@ -56,6 +56,7 @@ export async function GET() {
     remindersFailedRes,
     billingEventsRes,
     ticketsOpenRes,
+    waCapturedRes,
   ] = await Promise.all([
     admin
       .from("cron_runs")
@@ -87,6 +88,12 @@ export async function GET() {
       .select("subject, created_at, priority")
       .in("status", ["open", "waiting"])
       .order("created_at", { ascending: true }),
+    // Captación F1: entrantes capturados en 24h — si marca cero con
+    // campañas activas, el capturador está roto o Meta nos desactivó.
+    admin
+      .from("wa_inbound_messages")
+      .select("id", { count: "exact", head: true })
+      .gte("received_at", new Date(now - 24 * 3600000).toISOString()),
   ]);
 
   // Última corrida por cron
@@ -122,6 +129,7 @@ export async function GET() {
     paused_crons: PAUSED_CRONS,
     einvoices_bad_7d: (einvBadRes.data ?? []).length,
     whatsapp_failed_7d: waFailedRes.count ?? 0,
+    wa_captured_24h: waCapturedRes.count ?? 0,
     email_reminders_failed_7d: remindersFailedRes.count ?? 0,
     recent_billing_events: billingEventsRes.data ?? [],
     open_tickets: (ticketsOpenRes.data ?? []).map((t) => ({

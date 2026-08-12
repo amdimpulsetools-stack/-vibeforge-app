@@ -31,6 +31,7 @@ interface HealthPayload {
   paused_crons: { name: string; label: string; reason: string }[];
   einvoices_bad_7d: number;
   whatsapp_failed_7d: number;
+  wa_captured_24h: number;
   email_reminders_failed_7d: number;
   recent_billing_events: { event_type: string; created_at: string }[];
   open_tickets: { subject: string; priority: string; hours_open: number }[];
@@ -92,7 +93,7 @@ export default function HealthPage() {
       <SystemSubNav />
 
       {/* Fallos 7d */}
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <FailCard
           icon={Receipt}
           label="Comprobantes SUNAT rechazados (7d)"
@@ -108,6 +109,17 @@ export default function HealthPage() {
           label="Emails de recordatorio fallidos (7d)"
           value={data.email_reminders_failed_7d}
         />
+        {/* Captación: informativa, no de fallo — un capturador sano con
+            campañas activas nunca debería marcar 0 dos días seguidos. */}
+        <div className="rounded-2xl border border-border/60 bg-card p-4">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <MessageCircle className="h-3.5 w-3.5" />
+            WhatsApps entrantes capturados (24h)
+          </div>
+          <p className="mt-1 text-2xl font-extrabold tabular-nums">
+            {data.wa_captured_24h}
+          </p>
+        </div>
       </div>
 
       {/* Crons */}
