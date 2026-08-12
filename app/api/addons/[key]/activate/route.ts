@@ -7,6 +7,19 @@ import {
   FERTILITY_BASIC_KEY,
   FERTILITY_PREMIUM_KEY,
 } from "@/types/fertility";
+import {
+  moduleAddonType,
+  resolveModuleBilling,
+} from "@/lib/billing/module-pricing";
+import {
+  cancelModuleAddonCharge,
+  findActiveModuleCharge,
+  getOrgPlanContext,
+} from "@/lib/billing/module-addon-billing";
+import {
+  computeSubscriptionAmount,
+  updatePreApprovalAmount,
+} from "@/lib/mercadopago/update-preapproval";
 
 /**
  * POST /api/addons/[key]/activate
@@ -14,6 +27,25 @@ import {
  * Activates an addon for the current org. When the addon belongs to a
  * tier_group (fertility_basic / fertility_premium share `fertility`),
  * enforces mutual exclusion with the other active tier in the same group.
+ *
+ * ── Módulos de pago (mig 210) ────────────────────────────────────
+ * Si el addon tiene `monthly_price` en el catálogo y el plan de la org
+ * NO lo incluye (`included_from_plan`), la activación NO es directa:
+ * primero se COBRA, sumando el precio al monto de la suscripción de
+ * Mercado Pago. El flujo reusa exactamente la maquinaria de los cupos
+ * extra (PUT /api/mercadopago/subscription, mig 152):
+ *
+ *   1. purchase_addon_atomic(addon_type = 'module_<key>', qty 1) →
+ *      reserva bajo lock con status 'pending_mp_sync' y devuelve el
+ *      total nuevo calculado DENTRO del lock.
+ *   2. updatePreApprovalAmount(preapproval, nuevo total).
+ *   3. Solo si MP acepta: la reserva pasa a 'active' y RECIÉN entonces
+ *      se hace el upsert en organization_addons (enabled = true).
+ *   4. Si MP falla: se libera la reserva y se devuelve 502 — la org no
+ *      se queda ni con el módulo ni con el cobro.
+ *
+ * El precio SIEMPRE sale del catálogo en base; el cliente no envía
+ * montos y este endpoint no lee ninguno del body.
  *
  * For fertility_basic / fertility_premium specifically it also seeds:
  *   - per-org clones of the 3 global followup_rules (with email_template_key
@@ -71,16 +103,30 @@ export async function POST(
 
   const orgId = membership.organization_id;
 
-  // Verify addon exists.
+  // Verify addon exists. monthly_price / included_from_plan (mig 210)
+  // definen si esta activación pasa por caja.
   const { data: addon, error: addonErr } = await supabase
     .from("addons")
-    .select("key, tier_group, is_active")
+    .select("key, name, tier_group, is_active, monthly_price, included_from_plan")
     .eq("key", addonKey)
     .single();
   if (addonErr || !addon) {
     return NextResponse.json({ error: "Addon no encontrado" }, { status: 404 });
   }
-  if (addon.is_active === false) {
+
+  // Grant explícito de la org sobre este addon. Misma semántica que el
+  // GET de /api/addons: un addon oculto (is_active=false, en beta) sigue
+  // sin existir para el resto del mundo, pero la org con grant puede
+  // operarlo — antes de esto una org beta veía el módulo en su listado
+  // y recibía 400 al activarlo.
+  const { data: orgAddonRow } = await supabase
+    .from("organization_addons")
+    .select("addon_key")
+    .eq("organization_id", orgId)
+    .eq("addon_key", addonKey)
+    .maybeSingle();
+
+  if (addon.is_active === false && !orgAddonRow) {
     return NextResponse.json(
       { error: "Este addon no está disponible" },
       { status: 400 }
@@ -118,6 +164,192 @@ export async function POST(
     }
   }
 
+  // ── ¿Este módulo pasa por caja? ──────────────────────────────────
+  const planCtx = await getOrgPlanContext(supabase, orgId);
+  const billing = resolveModuleBilling(addon, planCtx?.planSlug ?? null);
+
+  let charge: {
+    addon_id: string;
+    unit_price: number;
+    /** null cuando el cobro ya existía (re-activación sin nuevo cargo). */
+    new_monthly_total: number | null;
+  } | null = null;
+  /** true solo si este request creó el cargo (para saber qué revertir). */
+  let chargeIsNew = false;
+
+  if (billing.requiresPayment && billing.price !== null) {
+    const admin = createAdminClient();
+
+    // Reactivación de un módulo que ya se está cobrando (el owner lo
+    // desactivó desde la UI pero la baja de cobro falló, o lo apagó
+    // dentro del mismo ciclo): NO se vuelve a cobrar, solo se re-habilita.
+    const existingCharge = await findActiveModuleCharge(admin, orgId, addonKey);
+
+    if (!existingCharge) {
+      // Sin preapproval no hay nada que actualizar en MP: la org está en
+      // trial o dejó el checkout a medias. Cobrar sería imposible y
+      // activar gratis sería regalar el módulo.
+      if (!planCtx || !planCtx.mpPreapprovalId) {
+        return NextResponse.json(
+          {
+            code: "subscription_required",
+            error:
+              "Activa tu suscripción primero. Este módulo se cobra dentro de tu suscripción mensual y todavía no tienes un método de pago activo.",
+            monthly_price: billing.price,
+          },
+          { status: 409 }
+        );
+      }
+
+      // 1. Reserva atómica (lock sobre la suscripción + índice único
+      //    parcial contra dobles clics). Mismo RPC que los cupos extra.
+      const { data: reservation, error: rpcErr } = await admin.rpc(
+        "purchase_addon_atomic",
+        {
+          p_org_id: orgId,
+          p_user_id: user.id,
+          p_addon_type: moduleAddonType(addonKey),
+          p_quantity: 1,
+          p_unit_price: billing.price,
+        }
+      );
+
+      if (rpcErr) {
+        const msg = rpcErr.message || "";
+        if (msg.includes("addon_purchase_in_progress")) {
+          return NextResponse.json(
+            {
+              code: "addon_purchase_in_progress",
+              error:
+                "Ya hay una activación de este módulo en proceso. Espera unos segundos y reintenta.",
+            },
+            { status: 409 }
+          );
+        }
+        if (msg.includes("no_active_subscription") || msg.includes("subscription_required")) {
+          return NextResponse.json(
+            {
+              code: "subscription_required",
+              error:
+                "Activa tu suscripción primero. Este módulo se cobra dentro de tu suscripción mensual.",
+            },
+            { status: 409 }
+          );
+        }
+        console.error("[addons/activate] purchase_addon_atomic error:", msg);
+        return NextResponse.json({ error: "No pudimos registrar el cobro del módulo" }, { status: 500 });
+      }
+
+      const reservationData = reservation as {
+        addon_id: string;
+        subscription_id: string;
+        mp_preapproval_id: string;
+        new_total: number;
+      };
+
+      // 2. Empujar el total nuevo a Mercado Pago. Aplica desde el
+      //    siguiente ciclo (MP no prorratea el ciclo en curso).
+      try {
+        await updatePreApprovalAmount(
+          reservationData.mp_preapproval_id,
+          Number(reservationData.new_total)
+        );
+      } catch (error) {
+        // Reversa: se borra la reserva; la org no queda ni cobrada ni
+        // con el módulo activo.
+        await admin.from("plan_addons").delete().eq("id", reservationData.addon_id);
+        await admin.from("billing_events").insert({
+          organization_id: orgId,
+          subscription_id: reservationData.subscription_id,
+          event_type: "module_addon_mp_sync_failed",
+          metadata: {
+            operation: "activate",
+            addon_key: addonKey,
+            addon_type: moduleAddonType(addonKey),
+            unit_price: billing.price,
+            attempted_total: reservationData.new_total,
+            rolled_back_addon_id: reservationData.addon_id,
+            error: error instanceof Error ? error.message : String(error),
+          },
+        });
+        console.error("[addons/activate] MP sync failed:", error);
+        return NextResponse.json(
+          {
+            code: "mp_sync_failed",
+            error:
+              "No pudimos actualizar tu suscripción en Mercado Pago. No se te cobró nada; intenta de nuevo en unos minutos.",
+          },
+          { status: 502 }
+        );
+      }
+
+      // 3. MP aceptó → confirmar la reserva ANTES de habilitar el módulo.
+      const { error: confirmErr } = await admin
+        .from("plan_addons")
+        .update({ is_active: true, status: "active" })
+        .eq("id", reservationData.addon_id);
+
+      if (confirmErr) {
+        // Caso patológico (índice único de módulo activo). Se deshace la
+        // reserva y se devuelve MP a su monto real para no dejar a la org
+        // pagando un módulo que no quedó registrado.
+        await admin.from("plan_addons").delete().eq("id", reservationData.addon_id);
+        try {
+          const restored = await getOrgPlanContext(admin, orgId);
+          if (restored?.mpPreapprovalId && restored.planId) {
+            const realTotal = await computeSubscriptionAmount(admin, orgId, restored.planId);
+            await updatePreApprovalAmount(restored.mpPreapprovalId, realTotal);
+          }
+        } catch (restoreErr) {
+          console.error("[addons/activate] restore MP amount failed:", restoreErr);
+        }
+        await admin.from("billing_events").insert({
+          organization_id: orgId,
+          subscription_id: reservationData.subscription_id,
+          event_type: "module_addon_mp_sync_failed",
+          metadata: {
+            operation: "confirm",
+            addon_key: addonKey,
+            addon_type: moduleAddonType(addonKey),
+            error: confirmErr.message,
+          },
+        });
+        return NextResponse.json(
+          { error: "No pudimos confirmar la activación del módulo. Intenta de nuevo." },
+          { status: 500 }
+        );
+      }
+
+      charge = {
+        addon_id: reservationData.addon_id,
+        unit_price: billing.price,
+        new_monthly_total: Number(reservationData.new_total),
+      };
+      chargeIsNew = true;
+
+      await admin.from("billing_events").insert({
+        organization_id: orgId,
+        subscription_id: reservationData.subscription_id,
+        event_type: "module_addon_added",
+        metadata: {
+          addon_key: addonKey,
+          addon_type: moduleAddonType(addonKey),
+          addon_id: reservationData.addon_id,
+          unit_price: billing.price,
+          added_by: user.id,
+          plan_slug: planCtx.planSlug,
+          new_monthly_total: reservationData.new_total,
+        },
+      });
+    } else {
+      charge = {
+        addon_id: existingCharge.id,
+        unit_price: existingCharge.unit_price,
+        new_monthly_total: null,
+      };
+    }
+  }
+
   // Upsert organization_addons enabled=true.
   const { error: upsertErr } = await supabase
     .from("organization_addons")
@@ -133,8 +365,25 @@ export async function POST(
     );
 
   if (upsertErr) {
+    // El cobro ya está hecho pero el módulo no quedó habilitado: se
+    // revierte el cargo para no dejar a la clínica pagando algo que no
+    // tiene. cancelModuleAddonCharge baja también el monto en MP.
+    if (charge && chargeIsNew) {
+      await cancelModuleAddonCharge(createAdminClient(), {
+        orgId,
+        addonKey,
+        actorUserId: user.id,
+      });
+    }
     return NextResponse.json({ error: upsertErr.message }, { status: 500 });
   }
+
+  const billingPayload = {
+    charged: Boolean(charge),
+    monthly_price: billing.price,
+    included_in_plan: billing.includedInPlan,
+    new_monthly_total: charge?.new_monthly_total ?? null,
+  };
 
   const isFertilityTier =
     addonKey === FERTILITY_BASIC_KEY || addonKey === FERTILITY_PREMIUM_KEY;
@@ -145,6 +394,7 @@ export async function POST(
         activated: true,
         addon_key: addonKey,
         requires_setup: false,
+        billing: billingPayload,
       },
       { status: 201 }
     );
@@ -163,6 +413,7 @@ export async function POST(
       requires_setup: true,
       setup_url: "/admin/addon-config/fertility/canonical-mapping",
       warnings,
+      billing: billingPayload,
     },
     { status: 201 }
   );
