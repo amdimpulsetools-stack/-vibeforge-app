@@ -334,10 +334,11 @@ export default function PrivacyPage() {
             title="Inscripción ante la Autoridad Nacional de Protección de Datos Personales (ANPD)"
           >
             <p>
-              {APP_NAME} mantiene inscritos sus bancos de datos personales ante
-              la ANPD del Ministerio de Justicia conforme al art. 29 de la Ley
-              29733. Códigos de inscripción:{" "}
-              <strong>[PENDIENTE: INSERTAR CÓDIGOS RNPDP]</strong>. El Cliente,
+              {APP_NAME} gestiona la inscripción de sus bancos de datos
+              personales ante la ANPD del Ministerio de Justicia conforme al
+              art. 29 de la Ley 29733; los códigos de inscripción se
+              publicarán en esta página una vez emitidos por la autoridad. El
+              Cliente,
               como Titular del Banco de Datos de pacientes, debe inscribir su
               propio banco cuando corresponda (más de 5,000 titulares o
               tratamientos sistemáticos de Categoría Especial); {APP_NAME}{" "}
@@ -629,15 +630,15 @@ export default function PrivacyPage() {
             <div className="not-prose mt-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 text-sm leading-relaxed text-muted-foreground">
               <p>
                 <strong className="text-foreground">Razón social:</strong>{" "}
-                [PENDIENTE: INSERTAR RAZÓN SOCIAL S.A.C.]
+                AMD IMPULSE S.R.L.
               </p>
               <p>
                 <strong className="text-foreground">RUC:</strong>{" "}
-                [PENDIENTE: INSERTAR]
+                20610621849
               </p>
               <p>
                 <strong className="text-foreground">Domicilio fiscal:</strong>{" "}
-                [PENDIENTE: INSERTAR DIRECCIÓN COMPLETA EN LIMA, PERÚ]
+                Cal. Los Abetos Nro. 219, Urb. Javier Prado Etapa Seis, Ate, Lima, Perú
               </p>
               <p>
                 <strong className="text-foreground">Correo legal:</strong>{" "}
