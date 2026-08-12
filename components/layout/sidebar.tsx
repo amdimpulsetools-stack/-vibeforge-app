@@ -40,6 +40,7 @@ import {
   ListPlus,
   ShieldPlus,
   type LucideIcon,
+  Megaphone,
 } from "lucide-react";
 
 interface NavItem {
@@ -103,6 +104,13 @@ const navSections: NavSection[] = [
           },
           { titleKey: "nav.scheduler_history", href: "/scheduler/history", icon: History },
         ],
+      },
+      {
+        // Módulo Captación (beta oculta): solo orgs con grant del addon.
+        titleKey: "nav.captacion",
+        href: "/captacion",
+        icon: Megaphone,
+        requiresAnyAddon: ["captacion"],
       },
       { titleKey: "nav.patients", href: "/patients", icon: Users },
     ],
