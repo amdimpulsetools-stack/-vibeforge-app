@@ -5,6 +5,64 @@
 
 ---
 
+## 📦 Módulo Almacén — decisión cerrada y plan (2026-08-12)
+
+> Pedido por la Dra. Patricia (piloto). Evaluado por 5 especialistas sobre su Excel real de 7 meses.
+> Síntesis completa: artifact "Módulo Almacén" · Espec UI: artifact "Especificación UI — Módulo Almacén".
+> Hallazgo estrella de la auditoría: la ganancia del Excel está inflada 6.3× (reporta S/220,479 ene-jul;
+> real S/40,999) porque nunca resta el costo de lo vendido. ANDROFERTI perdió S/16.60 en julio y el
+> Excel reportó +S/1,530. SAIZEN (S/2,220) vence en 20 días sin alerta.
+
+**Decisión comercial (founder, 12-ago):** addon S/39/mes en Independiente (nivel básico) · incluido en
+Centro Médico (básico) · incluido COMPLETO en Clínica (lotes + vencimientos + rentabilidad real = el
+argumento de upgrade +S/300). Pilotos (términos del founder, 12-ago): VITRA — incluido de por vida
+mientras mantenga plan Centro Médico o superior; PATRICIA — nivel completo GRATIS 12 MESES (hasta
+~sep-2027) y luego se cobra. En ambos casos: por escrito y con el valor nombrado desde el día 1
+("valor S/300/mes"), para que el cobro del año 2 a Patricia no sea sorpresa sino vencimiento anunciado.
+Nombre: "Almacén". Tabs: Productos · Movimientos · Vencimientos · Rentabilidad (candado fuera de Clínica).
+
+| Fase | Cuándo | Qué | Esfuerzo |
+|------|--------|-----|----------|
+| ✅ mig 208 | HECHO 12-ago | 4 addons fantasma ocultados (inventory/lab/telehealth/advanced_reports eran activables sin código detrás) | 30 min |
+| 0 | Hasta viernes 14 | CERO código — foco en instalación del piloto. Viernes: guion del compromiso datado + pedir Excel actualizado | — |
+| 1 | Sem. 18-ago | "Diagnóstico de Almacén" entregado a la doctora con SUS números (90% hecho — la auditoría) | ~2h pulir |
+| 2 | Desde 1-sep | F1 MVP oculto (patrón mig 207): mig 209 (products, movements append-only, lots, price_history, settings) + página con descuento en ≤3 taps. 100% aditivo, sin RPC/cron | 1.5-2 días |
+| 3 | Sep | F2: descuento desde cita (idempotente) + venta mostrador espejando patient_payments | 4-6 días |
+| 4 | Sep/oct | F3: recetas por servicio, cierre mensual + caja conciliable, importador del Excel (7 hojas), tab Rentabilidad | 5-8 días |
+
+Principios de esquema no negociables: sin columna stock ni costo editables (se derivan/congelan);
+movimientos append-only con contra-asiento; negativos permitidos pero ruidosos; NULL en fecha
+desconocida (jamás "0.0"); soft-delete siempre. Línea roja ERP: sin OC, proveedores-entidad,
+multi-almacén, SUNAT 13.1, DIGEMID, barras ni DELETE. Desplaza a Captación F5 (especulativo);
+NO desplaza CAPTCHA P0 ni trámites Meta. Validar cada campo del MVP contra Vitra (anti-sobreajuste).
+
+## 🎯 Módulo Captación — fases pendientes (2026-08-12)
+
+> F1 (capturador silencioso, mig 206) y F2 (addon beta oculto + panel de campañas, mig 207) **entregadas** en v0.15.29. Spec completa y wireframes en el artifact "Módulo Captación". Beta activa solo para las orgs del founder.
+
+| Ítem | Detalle | Estado |
+|------|---------|--------|
+| Conectar número peruano real de pruebas | Chip secundario del founder, libre de WhatsApp, alta manual en Meta → primera captura end-to-end | ⏳ esperando chip |
+| F3 — Chat con panel de acciones | Bandeja de conversaciones, botón Agendar con teléfono precargado (atribución explícita), programar mensaje con regla de ventana 24h (plantilla + costo si venció), estados del lead | Pendiente |
+| F4 — Embedded Signup **v4** | Alta autoasistida del número desde Yenda. Requiere Tech Provider aprobado. ⚠️ v2 muere el 15-oct-2026: implementar directo v4. Habilita **Coexistence** (app Business + API en el mismo número — elimina la objeción #1 de venta) | Bloqueado por trámite Meta |
+| F5 — IA de no-conversión + LTV | Clasificar POR QUÉ no agendaron (precio/horario/lentitud) — la IA no mide conversión (eso lo hace el cruce con la agenda), la explica. LTV por campaña a 6-12 meses | Posterior |
+| Facturación de módulos | ⚡ DESCUBRIMIENTO 12-ago: la maquinaria YA EXISTE (mig 152: plan_addons con unit_price + estado pending_mp_sync/active, RPC purchase_addon_atomic con lock anti doble-click, updatePreApprovalAmount que sube el monto de la suscripción MP en vivo, /api/addons/cancel que lo baja). Construida para asientos extra (office/member). Falta SOLO el puente: (1) precio en los addons de módulo (almacen S/39, captacion S/99), (2) botón "Activar — S/XX/mes" en Módulos que llame al flujo existente y al confirmar MP haga el grant en organization_addons, (3) skip del cobro cuando el plan ya lo incluye (CM+ para almacén básico), (4) decisión de prorrateo (recomendado: sin prorrateo, el nuevo monto aplica desde el siguiente ciclo). Esfuerzo real: 1-2 días, no una semana. ⚠️ Es BILLING: no se toca antes del viernes; sprint semana del 18-25 ago para que esté listo antes de Almacén F1 (1-sep) y del lanzamiento de Captación | Programado sem. 18-ago |
+| Lanzamiento público del addon | Voltear `is_active` de `captacion` + teaser (volumen gratis, resultado de pago) | Tras validar con datos del piloto |
+
+## 📄 Trámites Meta / App Review (2026-08-12)
+
+| Ítem | Estado |
+|------|--------|
+| App configurada (ID 1059167543290484): URLs legales, DPO, categoría, ícono | ✅ |
+| Páginas `/privacy` `/terms` `/data-deletion` públicas + datos fiscales AMD IMPULSE | ✅ (PRs #265-#266) |
+| Verificación del negocio en Business Manager (RUC 20610621849, ficha SUNAT) | ⏳ iniciar/en curso — el trámite lento |
+| App Review `whatsapp_business_management` + `whatsapp_business_messaging` (video + credenciales de prueba) | Pendiente de la verificación |
+| Inscripción RNPDP ante ANPD (Ley 29733) | 📌 post-piloto (la política ya lo redacta como trámite en curso) |
+
+## 🔐 Seguridad del registro (P0 próximo sprint)
+
+- [ ] **CAPTCHA + verificación de email en el registro** — la limpieza del 2026-08-08 eliminó 86 orgs bot; la puerta sigue abierta y pueden volver. Primer ítem al cerrar la semana de arranque del piloto.
+
 ## 📊 /reports/fertility — fast-follows post-launch (2026-06-12)
 
 Tab Fertilidad ya en producción (PRs #198/#199): embudo 1ª→2ª con doble vista (eventos y cohorte), KPIs de presupuestos, ranking por asesora, breakdown por tier A/B/C. Lo que sigue:
