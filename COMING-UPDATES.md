@@ -5,6 +5,33 @@
 
 ---
 
+## 🎯 Módulo Captación — fases pendientes (2026-08-12)
+
+> F1 (capturador silencioso, mig 206) y F2 (addon beta oculto + panel de campañas, mig 207) **entregadas** en v0.15.29. Spec completa y wireframes en el artifact "Módulo Captación". Beta activa solo para las orgs del founder.
+
+| Ítem | Detalle | Estado |
+|------|---------|--------|
+| Conectar número peruano real de pruebas | Chip secundario del founder, libre de WhatsApp, alta manual en Meta → primera captura end-to-end | ⏳ esperando chip |
+| F3 — Chat con panel de acciones | Bandeja de conversaciones, botón Agendar con teléfono precargado (atribución explícita), programar mensaje con regla de ventana 24h (plantilla + costo si venció), estados del lead | Pendiente |
+| F4 — Embedded Signup **v4** | Alta autoasistida del número desde Yenda. Requiere Tech Provider aprobado. ⚠️ v2 muere el 15-oct-2026: implementar directo v4. Habilita **Coexistence** (app Business + API en el mismo número — elimina la objeción #1 de venta) | Bloqueado por trámite Meta |
+| F5 — IA de no-conversión + LTV | Clasificar POR QUÉ no agendaron (precio/horario/lentitud) — la IA no mide conversión (eso lo hace el cruce con la agenda), la explica. LTV por campaña a 6-12 meses | Posterior |
+| Facturación de módulos | Precio por addon sumado a la suscripción MP; badge con precio literal ("S/99 /mes"), nunca "Premium". Prerrequisito para cobrar Captación y futuros módulos. Módulos actuales quedan "Incluido" | Pendiente (diseño listo) |
+| Lanzamiento público del addon | Voltear `is_active` de `captacion` + teaser (volumen gratis, resultado de pago) | Tras validar con datos del piloto |
+
+## 📄 Trámites Meta / App Review (2026-08-12)
+
+| Ítem | Estado |
+|------|--------|
+| App configurada (ID 1059167543290484): URLs legales, DPO, categoría, ícono | ✅ |
+| Páginas `/privacy` `/terms` `/data-deletion` públicas + datos fiscales AMD IMPULSE | ✅ (PRs #265-#266) |
+| Verificación del negocio en Business Manager (RUC 20610621849, ficha SUNAT) | ⏳ iniciar/en curso — el trámite lento |
+| App Review `whatsapp_business_management` + `whatsapp_business_messaging` (video + credenciales de prueba) | Pendiente de la verificación |
+| Inscripción RNPDP ante ANPD (Ley 29733) | 📌 post-piloto (la política ya lo redacta como trámite en curso) |
+
+## 🔐 Seguridad del registro (P0 próximo sprint)
+
+- [ ] **CAPTCHA + verificación de email en el registro** — la limpieza del 2026-08-08 eliminó 86 orgs bot; la puerta sigue abierta y pueden volver. Primer ítem al cerrar la semana de arranque del piloto.
+
 ## 📊 /reports/fertility — fast-follows post-launch (2026-06-12)
 
 Tab Fertilidad ya en producción (PRs #198/#199): embudo 1ª→2ª con doble vista (eventos y cohorte), KPIs de presupuestos, ranking por asesora, breakdown por tier A/B/C. Lo que sigue:

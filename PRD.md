@@ -296,6 +296,20 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 
 ---
 
+### Operación interna (founder) y Captación — migs 204-207
+
+| Tabla | Propósito |
+|-------|----------|
+| `cron_runs` (mig 204) | Instrumentación de crons: nombre, started/finished, ok, summary — alimenta Health con corridas reales |
+| `founder_settings` (mig 205) | Singleton (id=true) de alertas del founder: alert_email + toggles por tipo. RLS sin policies: solo service role tras requireFounder+2FA |
+| `wa_conversations` (mig 206) | Captación F1: una conversación WhatsApp entrante por teléfono×org; PRIMER referral de anuncio Meta congelado (ad_id, headline), lead_status, patient_id (se llena al cruzar) |
+| `wa_inbound_messages` (mig 206) | Mensajes entrantes crudos del webhook; `UNIQUE(wamid)` = idempotencia ante reintentos de Meta. Escritura solo service role |
+| RPC `captacion_summary` (mig 207) | Motor de atribución en SQL: cruce por últimos 9 dígitos del teléfono, cita ≤30 días del primer contacto, asistencia y facturado (patient_payments desde el primer contacto). SECURITY DEFINER, solo service_role |
+
+> El addon `captacion` (mig 207) está registrado con `is_active=false` (beta oculta): no aparece en el marketplace; solo las orgs con grant explícito en `organization_addons` lo ven (hoy: las 2 del founder).
+
+---
+
 ## 7. Flujos Principales
 
 ### 7.1 Registro e Onboarding
@@ -480,6 +494,8 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ```
 / ............................ Landing page (pública)
 /book/[slug] ................. Página pública de reserva de citas
+/privacy · /terms ............ Páginas legales (públicas — publicPaths del middleware)
+/data-deletion ............... Instrucciones públicas de eliminación de datos (App Review Meta)
 
 (auth) — Páginas públicas de autenticación
 ├── /login ................... Login (email + Google OAuth)
@@ -493,6 +509,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ├── /dashboard ............... Dashboard (varía por rol)
 ├── /scheduler ............... Calendario de citas (día/semana)
 │   ├── /follow-ups .......... Panel de seguimientos clínicos (vista centralizada)
+├── /captacion ............... Módulo Captación (beta oculta — addon `captacion` con grant)
 │   ├── /budgets ............. Embudo de presupuestos (gateado por el addon Fertilidad)
 │   └── /history ............. Historial de citas pasadas
 ├── /patients ................ Gestión de pacientes
@@ -562,6 +579,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 |---------|-------|-------------|
 | Dashboard | Dashboard | Todos |
 | Agenda | Calendario, Seguimientos, Presupuestos (addon Fertilidad), Historial | Todos |
+| Agenda | Captación (beta) | Orgs con grant del addon `captacion` (hoy: founder) |
 | Pacientes | Pacientes | Todos |
 | Reportes | Reportes | Admin/Owner |
 | Reportes | Facturación | Admin/Owner + recepción (oculto para doctores) |
@@ -569,6 +587,8 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | — | Configuración | Admin/Owner |
 | — | Mi Cuenta | Todos |
 | — | Founder Dashboard | Solo founder |
+
+> **Founder panel (nav propia, 2026-08-08)**: Hoy (CEO) · Soporte (badge de pendientes) · Clínicas (Owners+Organizaciones+Equipos) · Dinero (Revenue+Reembolsos) · Sistema (Salud+Plugins+Ajustes), con sub-pestañas en `subnav.tsx` y hamburguesa móvil. Overview eliminado; `/founder-dashboard` queda solo como puerta 2FA y redirige a `/ceo`.
 
 ---
 
@@ -632,6 +652,9 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | **SMTP (Nodemailer)** | Envío de emails transaccionales (invitaciones, notificaciones) | Implementado (Gmail SMTP, migración a servicio pago pendiente) |
 | **AI Assistant** | Chat con AI para consultas sobre datos | Implementado (básico) |
 | **Sentry** | Monitoreo de errores en cliente, servidor y edge | Implementado (se activa con `SENTRY_DSN`) |
+| **WhatsApp Cloud API (Meta)** | Bidireccional: plantillas salientes (recordatorios/seguimientos) + **capturador de entrantes con referral de campaña** (Captación F1, mig 206). Config por org (`whatsapp_config`), webhook global con firma HMAC | Implementado (1 org conectada; captura activa para todas las conectadas) |
+| **Resend** | Emails transaccionales vía `lib/resend.ts` (soporte, alertas founder, billing) | Implementado |
+| **App de Meta (developers.facebook.com)** | Requisito de Embedded Signup v4 + Coexistence. App ID 1059167543290484 configurada (URLs legales, DPO, categoría); verificación del negocio (RUC AMD IMPULSE S.R.L.) en trámite; App Review de `whatsapp_business_management/messaging` pendiente | En trámite (2026-08-12) |
 
 ---
 
@@ -640,6 +663,15 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 > Checklist de una línea por feature. El detalle histórico completo de cada una vive en [CHANGELOG.md](CHANGELOG.md) (ver el Apéndice "Detalle de Features Implementadas").
 
 ### Completado
+
+**Agosto 2026 (v0.15.28 – v0.15.29):**
+- [x] Panel CEO del founder: pulso del negocio (MRR/cobrado real), salud por clínica, alertas accionables + Health con `cron_runs` (mig 204)
+- [x] Soporte end-to-end: bandeja del founder con respuesta inline + emails a ambos lados (antes: agujero negro, ticket 67 días sin respuesta)
+- [x] Nav del founder panel 10→5 con badge de soporte, sub-pestañas y móvil; Ajustes de alertas con correo de prueba (mig 205)
+- [x] Limpieza de 86 orgs bot + 86 cuentas en producción (whitelist founder/pilotos)
+- [x] Módulo Captación F1: capturador silencioso de WhatsApp entrante con referral de campaña Meta (mig 206)
+- [x] Módulo Captación F2: addon beta oculto + panel de campañas con atribución automática campaña→cita→soles (mig 207, RPC `captacion_summary`)
+- [x] Páginas legales públicas (`/privacy`, `/terms`, `/data-deletion`) + datos fiscales AMD IMPULSE S.R.L. — preparación App Review de Meta
 
 - [x] Autenticación (email + Google OAuth)
 - [x] Registro con creación automática de org y datos seed
@@ -1143,7 +1175,7 @@ Medicina General, Odontología, Ginecología y Obstetricia, Pediatría, Dermatol
 
 ## 19. Historial de cambios
 
-El registro cronológico completo de cambios (49+ entradas de changelog, desde 2026-03-23 hasta v0.15.26 / 2026-08-07) se movió a **[CHANGELOG.md](CHANGELOG.md)** para mantener este PRD enfocado en el estado canónico del producto.
+El registro cronológico completo de cambios (51+ entradas de changelog, desde 2026-03-23 hasta v0.15.29 / 2026-08-12) se movió a **[CHANGELOG.md](CHANGELOG.md)** para mantener este PRD enfocado en el estado canónico del producto.
 
 - **[CHANGELOG.md](CHANGELOG.md)** — todas las sesiones de desarrollo en orden cronológico ascendente, más el hito del pilot de Vitra y el apéndice con el detalle de features implementadas.
 - Convención de versionado: `v0.MAYOR.MENOR`; las colisiones históricas de numeración están anotadas en el propio CHANGELOG (sufijos `b`).

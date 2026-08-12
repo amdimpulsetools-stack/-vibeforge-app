@@ -67,6 +67,8 @@
 - [Changelog — Sesión 2026-08-05 (v0.15.25) — Fase 2 de seguimientos: orígenes ricos, sesiones perdidas y settings por org (migs 184-188)](#changelog-sesión-2026-08-05-v01525-fase-2-de-seguimientos-orígenes-ricos-sesiones-perdidas-y-settings-por-org-migs-184-188)
 - [Changelog — Sesiones 2026-08-06/07 (v0.15.26) — Notificaciones por rol + Plugin Patricia + Lockdown RPC + IA ampliada](#changelog-sesiones-2026-080607-v01526--notificaciones-por-rol--plugin-patricia--lockdown-rpc--ia-ampliada)
 - [Changelog — Sesión 2026-08-07 (v0.15.27) — Plan de performance completo: 3 lotes, migs 196-203](#changelog-sesión-2026-08-07-v01527--plan-de-performance-completo-3-lotes-migs-196-203)
+- [Changelog — Sesión 2026-08-08 (v0.15.28) — Panel CEO + Soporte end-to-end + Nav founder 10→5 + Limpieza de bots (migs 204-205)](#changelog--sesión-2026-08-08-v01528--panel-ceo--soporte-end-to-end--nav-founder-105--limpieza-de-bots-migs-204-205)
+- [Changelog — Sesión 2026-08-12 (v0.15.29) — Módulo Captación (F1+F2, migs 206-207) + Preparación App Review de Meta](#changelog--sesión-2026-08-12-v01529--módulo-captación-f1f2-migs-206-207--preparación-app-review-de-meta)
 
 ---
 
@@ -4275,6 +4277,58 @@ Auditoría de performance con 11 especialistas (83 hallazgos → `scratchpad/pla
 | /settings | 377 kB | 325 kB |
 
 Migraciones 196-203 aplicadas en producción y verificadas (grants, `search_path`, `anon` sin acceso). Bonus de la auditoría: 2 bugs de datos reales corregidos (reports >1000 filas, KPI facturación sobre 50 filas) + paginación de presupuestos.
+
+---
+
+## Changelog — Sesión 2026-08-08 (v0.15.28) — Panel CEO + Soporte end-to-end + Nav founder 10→5 + Limpieza de bots (migs 204-205)
+
+Sesión de preparación del piloto (arranque oficial semana del 10-ago). PRs #259-#262, todos mergeados.
+
+### Fix pack — el founder panel llevaba semanas muerto (PR #259/#260)
+- `await` faltante en `totp/status`: el layout nunca detectaba la sesión 2FA expirada (TTL 4h) y el panel entero quedaba en 403 sin ofrecer re-verificación; el layout ahora redirige a las pantallas TOTP (`?verify=true`/`?setup=true`), que existían pero eran inalcanzables.
+- `founderFetch` en las 7 páginas: error visible con "Reintentar" en vez de ceros falsos ("0 organizaciones" habiendo 105). Plugins delegó su guard en `requireFounder` (omitía la capa 2FA).
+
+### Panel CEO (`/founder-dashboard/ceo`) + Health real (mig 204)
+- MRR e ingresos reales desde `payment_history` (antes se mostraba el GMV de las clínicas como "revenue"), salud por clínica con última actividad real (`auth_sessions`), citas 7d, features conectadas, semáforo de churn, filtros activa/vacía/bot y alertas accionables con deep-links.
+- **mig 204 `cron_runs`**: instrumentación de crons (billing, reminders, fertilidad) — Health muestra última corrida real por cron, fallos de mensajería/SUNAT 7d y actividad de billing, en vez de checks decorativos.
+
+### Limpieza de bots + cron de fertilidad
+- **86 organizaciones bot** (nombres aleatorios `^[A-Za-z]{14,}$`, 0 pacientes/citas/subs) y sus 86 cuentas eliminadas de producción en una transacción con whitelist founder/pilotos. Quedan 19 orgs, todas reconocibles. Pendiente P0 del próximo sprint: CAPTCHA/verificación de email en el registro (la puerta sigue abierta).
+- Cron `fertility-followup-contact` **reactivado** (pausado desde auditoría 21-jul): decisión del founder — los datos de los pilotos aún eran de prueba, el backlog no tocaba pacientes reales. Agendado 16:00 UTC en vercel.json + Cron Bridge, vigilado por Health.
+
+### Soporte end-to-end (PR #260/#261) — cierre de un agujero negro
+- Evidencia: un ticket real de LuisClinic llevaba **67 días abierto sin una sola respuesta** — la clínica escribía, se guardaba en la base y nadie se enteraba; el founder no tenía forma de responder (la RLS de mig 064 le bloquea el chat al no ser miembro).
+- Lado clínica: `POST /api/support/tickets|messages` — la página deja de insertar directo desde el navegador; escribe con el client de sesión (misma RLS) y **avisa al founder por email**. Cliente responde un ticket `waiting`/`resolved` → vuelve a `open`.
+- Lado founder: **bandeja `/founder-dashboard/support`** con filtro "pendientes de respuesta", conversación completa, respuesta inline (`sender_type='support'` vía `requireFounder` + admin client), deep-link `?ticket=` desde el email. Emails nuevos en `lib/support-emails.ts`: al founder (ticket/mensaje nuevo, org nueva registrada) y a la clínica ("Respondimos tu consulta").
+
+### Nav founder 10→5 + Ajustes de alertas (PR #262, mig 205)
+- Auditoría UX: el header no cabía en NINGÚN ancho (10 ítems ≈1412px en contenedor de 1248px), bajo 768px no existía navegación alguna, y Soporte (diario) estaba en la posición 8. Nav nueva: **Hoy · Soporte(badge pendientes) · Clínicas · Dinero · Sistema**, con sub-pestañas (`subnav.tsx`) que conservan todas las rutas. Overview eliminado (CEO lo cubre; su "revenue del mes" significaba lo contrario que el de CEO). `<a>`→`<Link>` (cada click recargaba la app + 3 roundtrips de auth). Hamburguesa con Sheet en móvil.
+- **mig 205 `founder_settings`**: singleton de alertas del founder — destinatario efectivo visible y editable en `/founder-dashboard/settings` (precedencia ajustes > env > perfil founder), toggles por tipo de aviso y **correo de prueba** que confirma la entrega o denuncia la configuración faltante.
+
+---
+
+## Changelog — Sesión 2026-08-12 (v0.15.29) — Módulo Captación (F1+F2, migs 206-207) + Preparación App Review de Meta
+
+Nace el **módulo Captación**: atribución de pacientes a campañas de Meta vía WhatsApp API (qué anuncio trajo cada conversación, cuáles terminaron en cita y cuánto facturó cada campaña). Decisiones de producto: se vende por el resultado (nunca "CRM de WhatsApp"), add-on de pago independiente (~S/99/mes por validar), teaser gratis con volumen / de pago el resultado, atribución **sin IA** (cruce contra la agenda: el dato duro que Kommo/Leadsales no tienen). Spec completa + wireframes en el artifact "Módulo Captación". PRs #263-#266.
+
+### Fase 1 — Capturador silencioso (PR #263, mig 206)
+- El webhook de WhatsApp solo procesaba acuses de recibo y **descartaba los mensajes entrantes** (un "confirmo" de paciente se perdía en el vacío). Ahora `lib/whatsapp/capture.ts` los persiste: **mig 206** `wa_conversations` (una por teléfono×org, con el PRIMER referral de anuncio congelado — la campaña que trajo a esa persona) y `wa_inbound_messages` (`UNIQUE(wamid)`: Meta reintenta webhooks y varias apps suscritas a la misma WABA multiplican reintentos). RLS: SELECT miembros; escritura solo service role.
+- Captura para TODAS las orgs con número conectado — el addon gobierna qué se VE, no qué se OYE; el dato no es retroactivo. Health: tarjeta "WhatsApps entrantes capturados (24h)".
+- Verificado con payload calcado de la doc de Meta (referral ad_id + titular + teléfono + nombre de contacto).
+
+### Fase 2 — Addon beta oculto + panel de campañas (PR #264, mig 207)
+- Addon `captacion` con `is_active=false` (**no existe** en el marketplace de ninguna clínica) + grant directo a las 2 orgs del founder; `/api/addons` incluye addons ocultos solo con grant (patrón beta). Sidebar "Captación" gateado con `requiresAnyAddon` (mecanismo del Pack Fertilidad). Para lanzar: voltear `is_active` y poner precio.
+- **RPC `captacion_summary`** (mig 207, SECURITY DEFINER solo service_role): atribución en SQL — cruce conversación↔paciente por últimos 9 dígitos del teléfono, cita no cancelada dentro de 30 días del primer contacto, asistencia (`completed`) y facturado = `patient_payments` desde el primer contacto (proto-LTV: el origen se pega al paciente).
+- Página `/captacion` con 3 estados (sin número / esperando datos / dashboard): 5 KPIs, alerta de leads sin responder ("inversión desperdiciada"), tabla por campaña, conversaciones recientes con badge de paciente cruzado.
+- Investigación verificada: **Coexistence** (Meta, mayo 2025) permite app Business + Cloud API en el mismo número (elimina la objeción #1 de venta), pero requiere Embedded Signup (Tech Provider) y número con historial — no sirve para el chip de pruebas. **Embedded Signup v2 muere el 15-oct-2026: implementar directo v4.**
+
+### Preparación App Review de Meta (PRs #265-#266)
+- **Bloqueante corregido**: `/privacy` y `/terms` no estaban en `publicPaths` del middleware — todo visitante anónimo (incluido el revisor de Meta) era redirigido a `/login`. Añadidas junto con la nueva **`/data-deletion`** (instrucciones públicas de eliminación que exige el campo de Meta; documenta el flujo existente de mig 149).
+- Política de privacidad: cláusula de **WhatsApp Business Platform** completa (mensajería bidireccional, referral de anuncio, rol de proveedor tecnológico sobre cuentas propiedad de cada clínica). Datos fiscales reales: AMD IMPULSE S.R.L., RUC 20610621849, domicilio en Ate — cero `[PENDIENTE]` visibles. RNPDP: redacción de trámite en curso.
+- App de Meta configurada (ID 1059167543290484): URLs legales, categoría "Negocios y páginas", DPO con `privacidad@yenda.app` (reenvío comodín del dominio verificado con prueba real), ícono 1024×1024 generado desde el SVG. Pendiente: verificación del negocio en Business Manager (trámite lento, en curso) y App Review con video para `whatsapp_business_management|messaging`.
+
+### Roadmap Captación (fases pendientes)
+F3: chat con panel de acciones (agendar precargado, programar mensaje con regla de ventana 24h, estados del lead). F4: Embedded Signup v4 (requiere Tech Provider aprobado). F5: IA de no-conversión (clasificar POR QUÉ no agendaron — la IA no mide conversión, la explica) + LTV por campaña. Facturación de módulos con precio visible en badge ("S/99 /mes", nunca "Premium") — prerrequisito para cobrar este y futuros módulos.
 
 ---
 
