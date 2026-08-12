@@ -420,8 +420,8 @@ export default function PrivacyPage() {
                 icon={Mail}
               />
               <SubProcessorCard
-                name="WhatsApp (Meta)"
-                purpose="Envío de recordatorios de citas (solo cuando el profesional lo activa)."
+                name="WhatsApp Business Platform (Meta)"
+                purpose="Mensajería de la clínica con sus pacientes a través de la API oficial de WhatsApp: recordatorios de citas y recepción de mensajes entrantes (incluido, cuando aplica, el identificador del anuncio de Meta desde el que el paciente inició la conversación). Cada clínica conecta y es titular de su propia cuenta de WhatsApp Business; Yenda actúa como proveedor tecnológico que procesa estos mensajes en su nombre."
                 region="US/EU"
                 policyUrl="https://www.whatsapp.com/legal/privacy-policy"
                 icon={MessageCircle}
