@@ -310,6 +310,24 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 
 ---
 
+### Módulo Almacén y facturación de módulos — migs 209-210
+
+| Tabla | Propósito |
+|-------|----------|
+| `inventory_products` (mig 209) | Catálogo clínico: presentación (lapicero/ampolla/vial…), unidad base, factor caja↔unidad, `min_stock`, precio de venta. **Sin columna de stock ni de costo** (a propósito: el stock se deriva, el costo se congela por movimiento). Baja = descontinuar, nunca DELETE |
+| `inventory_movements` (mig 209) | **Kardex append-only**: entrada+/salida− con costo/precio congelados, `reason_code` (15 motivos CHECK), doble fecha (`movement_date` de kardex vs `created_at` de digitación), `created_by` forzado a `auth.uid()` por policy, contra-movimientos vía `reverses_movement_id UNIQUE`. Trigger prohíbe UPDATE/DELETE **incluso a service_role** |
+| `inventory_lots` (mig 209) | Lotes con vencimiento y costo POR LOTE (se muestra en plan Clínica). Fecha desconocida = NULL |
+| `inventory_price_history` (mig 209) | Historial de precios escrito por trigger al cambiar el precio del producto |
+| `inventory_settings` (mig 209) | Config por org: `expiry_alert_days` (default 90), `warn_on_negative` |
+| `addons.monthly_price` + `included_from_plan` (mig 210) | Precio y política comercial de módulos EN LA BASE (almacen 39.00/'professional', captacion 99.00/NULL). El endpoint de activación jamás lee montos del cliente |
+| `plan_addons.addon_type = 'module_<key>'` (mig 210) | Cobro mensual del módulo por la maquinaria MP existente (mig 152). Índice único parcial: imposible doble cobro del mismo módulo por org |
+
+> Flujo de activación de módulo de pago (`/api/addons/[key]/activate`): valida owner/admin → resuelve precio vs plan (incluido = gratis) → `purchase_addon_atomic` → `updatePreApprovalAmount` en MP → grant en `organization_addons`. Si MP falla, se revierte la reserva (502, sin cobro ni módulo). Sin prorrateo: el nuevo monto aplica al siguiente ciclo. Desactivar cancela el cobro ANTES de apagar el módulo.
+>
+> El addon `almacen` (mig 209) está en beta oculta (`is_active=false`) con grants a: las 2 orgs del founder + **la org real de la Dra. Patricia** (activado 12-ago, gratis 12 meses — términos Founding Partner).
+
+---
+
 ## 7. Flujos Principales
 
 ### 7.1 Registro e Onboarding
@@ -510,6 +528,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ├── /scheduler ............... Calendario de citas (día/semana)
 │   ├── /follow-ups .......... Panel de seguimientos clínicos (vista centralizada)
 ├── /captacion ............... Módulo Captación (beta oculta — addon `captacion` con grant)
+├── /almacen ................. Módulo Almacén: kardex de inventario clínico (beta oculta — addon `almacen` con grant)
 │   ├── /budgets ............. Embudo de presupuestos (gateado por el addon Fertilidad)
 │   └── /history ............. Historial de citas pasadas
 ├── /patients ................ Gestión de pacientes
@@ -580,6 +599,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | Dashboard | Dashboard | Todos |
 | Agenda | Calendario, Seguimientos, Presupuestos (addon Fertilidad), Historial | Todos |
 | Agenda | Captación (beta) | Orgs con grant del addon `captacion` (hoy: founder) |
+| Agenda | Almacén (beta) | Orgs con grant del addon `almacen` (hoy: founder + Dra. Patricia) |
 | Pacientes | Pacientes | Todos |
 | Reportes | Reportes | Admin/Owner |
 | Reportes | Facturación | Admin/Owner + recepción (oculto para doctores) |
@@ -672,6 +692,11 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] Módulo Captación F1: capturador silencioso de WhatsApp entrante con referral de campaña Meta (mig 206)
 - [x] Módulo Captación F2: addon beta oculto + panel de campañas con atribución automática campaña→cita→soles (mig 207, RPC `captacion_summary`)
 - [x] Páginas legales públicas (`/privacy`, `/terms`, `/data-deletion`) + datos fiscales AMD IMPULSE S.R.L. — preparación App Review de Meta
+
+**Agosto 2026 (v0.15.30 – v0.15.31):**
+- [x] Módulo Almacén completo: kardex append-only (stock derivado, costos congelados, contra-movimientos), página `/almacen` con entrada/salida/merma/ajuste y semáforos de stock y vencimiento (migs 209, PR #268)
+- [x] Facturación de módulos de pago: precio en la base, activación con cobro vía MP (reserva atómica + sync preapproval + rollback), anti doble cobro (mig 210)
+- [x] Almacén activado en beta: orgs del founder + org real de la Dra. Patricia (gratis 12 meses, términos Founding Partner)
 
 - [x] Autenticación (email + Google OAuth)
 - [x] Registro con creación automática de org y datos seed
