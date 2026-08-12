@@ -396,15 +396,15 @@ export default function TermsPage() {
             <div className="not-prose mt-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 text-sm leading-relaxed text-muted-foreground">
               <p>
                 <strong className="text-foreground">Razón social:</strong>{" "}
-                [PENDIENTE: INSERTAR RAZÓN SOCIAL S.A.C.]
+                AMD IMPULSE S.R.L.
               </p>
               <p>
                 <strong className="text-foreground">RUC:</strong>{" "}
-                [PENDIENTE: INSERTAR]
+                20610621849
               </p>
               <p>
                 <strong className="text-foreground">Domicilio fiscal:</strong>{" "}
-                [PENDIENTE: INSERTAR DIRECCIÓN COMPLETA EN LIMA, PERÚ]
+                Cal. Los Abetos Nro. 219, Urb. Javier Prado Etapa Seis, Ate, Lima, Perú
               </p>
               <p>
                 <strong className="text-foreground">Correo legal:</strong>{" "}
