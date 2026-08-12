@@ -1,14 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { toast } from "sonner";
 import { useOrgAddons, type Addon } from "@/hooks/use-org-addons";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrganization } from "@/components/organization-provider";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { formatPen, planLabel } from "@/lib/billing/module-pricing";
 import {
   Loader2,
   Sparkles,
   Star,
   Lock,
+  ArrowRight,
+  AlertTriangle,
+  CreditCard,
   CheckCircle2,
   Scan,
   Smile,
@@ -65,11 +77,45 @@ const FERTILITY_PREMIUM_BULLETS = [
   "Reportes de conversion por medico",
 ];
 
-const PLAN_LABELS: Record<string, string> = {
-  starter: "Starter",
-  professional: "Professional",
-  enterprise: "Enterprise",
+/**
+ * Campos de facturación de módulos que /api/addons agrega a cada fila
+ * del catálogo (mig 210). No están en el tipo `Addon` del hook porque
+ * ese hook lo consumen ~10 pantallas que no saben de precios; acá se
+ * ensancha localmente.
+ */
+type CatalogAddon = Addon & {
+  monthly_price?: number | null;
+  included_from_plan?: string | null;
+  included_in_plan?: boolean;
+  requires_payment?: boolean;
+  org_plan_slug?: string | null;
 };
+
+/** Un módulo de pago que este plan NO incluye → activarlo cuesta. */
+function isPaidModule(addon: Addon): boolean {
+  const a = addon as CatalogAddon;
+  return Boolean(a.requires_payment && a.monthly_price);
+}
+
+/** Un módulo con precio que este plan SÍ cubre → activación gratis. */
+function isIncludedPaidModule(addon: Addon): boolean {
+  const a = addon as CatalogAddon;
+  return Boolean(a.monthly_price && a.included_in_plan);
+}
+
+function modulePrice(addon: Addon): number | null {
+  return (addon as CatalogAddon).monthly_price ?? null;
+}
+
+interface PricingPreview {
+  addon_name: string;
+  monthly_price: number | null;
+  requires_payment: boolean;
+  plan_name: string | null;
+  has_payment_method: boolean;
+  current_monthly_total: number | null;
+  new_monthly_total: number | null;
+}
 
 interface AddonMetadata {
   features: string[];
@@ -132,7 +178,8 @@ const TONE_CLASSES: Record<AddonMetadata["iconTone"], string> = {
 };
 
 export default function ModulosTab() {
-  const { addons, loading, activateAddon, deactivateAddon } = useOrgAddons();
+  const { addons, loading, activateAddon, deactivateAddon, refetch } =
+    useOrgAddons();
   const { isAdmin } = useOrgRole();
   const { organization } = useOrganization();
   // Si la org tiene specialty principal (típico tras onboarding), oculto la
@@ -145,7 +192,41 @@ export default function ModulosTab() {
   );
 
   const [activateTarget, setActivateTarget] = useState<Addon | null>(null);
+  const [paidTarget, setPaidTarget] = useState<Addon | null>(null);
   const [configTarget, setConfigTarget] = useState<Addon | null>(null);
+
+  /**
+   * Baja de un módulo cobrado: el endpoint cancela la fila de
+   * plan_addons y baja el monto del preapproval antes de apagar el
+   * módulo. Se usa en vez de `deactivateAddon` del hook para poder
+   * mostrar el total nuevo y el error de MP (el hook solo devuelve
+   * boolean).
+   */
+  const deactivateModule = useCallback(
+    async (addon: Addon): Promise<boolean> => {
+      if (!isPaidModule(addon)) {
+        return deactivateAddon(addon.key);
+      }
+      const res = await fetch(
+        `/api/addons/${encodeURIComponent(addon.key)}/deactivate`,
+        { method: "POST" },
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(body.error ?? "No pudimos desactivar el modulo");
+        return false;
+      }
+      refetch();
+      const newTotal = body?.billing?.new_monthly_total;
+      if (typeof newTotal === "number") {
+        toast.success(
+          `Cobro dado de baja. Tu suscripcion pasa a ${formatPen(newTotal)} al mes desde el proximo ciclo.`,
+        );
+      }
+      return true;
+    },
+    [deactivateAddon, refetch],
+  );
 
   if (loading) {
     return (
@@ -229,6 +310,12 @@ export default function ModulosTab() {
 
   const handleActivateClick = (addon: Addon) => {
     if (!isAdmin) return;
+    // Los módulos con cobro pasan por el diálogo de confirmación de
+    // precio ("tu suscripción pasará de S/X a S/Y") antes de tocar MP.
+    if (isPaidModule(addon)) {
+      setPaidTarget(addon);
+      return;
+    }
     setActivateTarget(addon);
   };
 
@@ -318,6 +405,18 @@ export default function ModulosTab() {
         />
       )}
 
+      {paidTarget && (
+        <ModulePaidActivateDialog
+          open={!!paidTarget}
+          onOpenChange={(open) => {
+            if (!open) setPaidTarget(null);
+          }}
+          addon={paidTarget}
+          activate={activateAddon}
+          onActivated={refetch}
+        />
+      )}
+
       {configTarget && configMeta && (
         <ModuleConfigDialog
           open={!!configTarget}
@@ -327,10 +426,192 @@ export default function ModulosTab() {
           addonKey={configTarget.key}
           addonName={configTarget.name}
           configLinks={configMeta.configLinks}
-          onDeactivate={async () => deactivateAddon(configTarget.key)}
+          onDeactivate={async () => deactivateModule(configTarget)}
         />
       )}
     </>
+  );
+}
+
+/**
+ * Confirmación de cobro para módulos de pago.
+ *
+ * El precio y los totales NO se calculan acá: se piden a
+ * /api/addons/[key]/pricing, que los resuelve desde el catálogo y la
+ * suscripción real. La UI solo los muestra — activar vuelve a resolver
+ * el precio en el servidor, así que nada de lo que pase en el navegador
+ * cambia lo que se cobra.
+ */
+function ModulePaidActivateDialog({
+  open,
+  onOpenChange,
+  addon,
+  activate,
+  onActivated,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  addon: Addon;
+  activate: ReturnType<typeof useOrgAddons>["activateAddon"];
+  onActivated: () => void;
+}) {
+  const [pricing, setPricing] = useState<PricingPreview | null>(null);
+  const [loadingPrice, setLoadingPrice] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoadingPrice(true);
+    setError(null);
+    fetch(`/api/addons/${encodeURIComponent(addon.key)}/pricing`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return;
+        setPricing(data);
+        setLoadingPrice(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLoadingPrice(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, addon.key]);
+
+  const price = pricing?.monthly_price ?? modulePrice(addon);
+  const noPaymentMethod = pricing !== null && !pricing.has_payment_method;
+
+  const handleConfirm = async () => {
+    setSubmitting(true);
+    setError(null);
+    const result = await activate(addon.key);
+    setSubmitting(false);
+
+    if (result.ok) {
+      toast.success(`Modulo ${addon.name} activado`);
+      onActivated();
+      onOpenChange(false);
+      return;
+    }
+    setError(result.error || "No pudimos activar el modulo");
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <CreditCard className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <DialogTitle className="text-base font-semibold">
+              Activar {addon.name}
+              {price ? ` — ${formatPen(price)}/mes` : ""}
+            </DialogTitle>
+            <DialogDescription className="mt-1 text-xs leading-relaxed">
+              {addon.description ??
+                "Este modulo se cobra dentro de tu suscripcion mensual."}
+            </DialogDescription>
+          </div>
+        </div>
+
+        <div className="mt-2 rounded-xl border border-border/60 bg-muted/20 p-4">
+          {loadingPrice ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Calculando tu nuevo total...
+            </div>
+          ) : pricing?.current_monthly_total != null &&
+            pricing?.new_monthly_total != null ? (
+            <>
+              <p className="text-[11px] uppercase tracking-wider font-semibold text-muted-foreground mb-2">
+                Tu suscripcion mensual
+              </p>
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-muted-foreground line-through">
+                  {formatPen(pricing.current_monthly_total)}
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-lg font-semibold text-foreground">
+                  {formatPen(pricing.new_monthly_total)}
+                </span>
+                <span className="text-[11px] text-muted-foreground">al mes</span>
+              </div>
+              {pricing.plan_name && (
+                <p className="mt-2 text-[11px] text-muted-foreground">
+                  Plan {pricing.plan_name} + {addon.name}{" "}
+                  {price ? formatPen(price) : ""}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Este modulo cuesta {price ? formatPen(price) : ""} al mes y se
+              suma a tu suscripcion.
+            </p>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          El cambio de monto se aplica en tu proximo ciclo de facturacion —
+          Mercado Pago no cobra ni devuelve la parte proporcional del ciclo en
+          curso. Puedes desactivar el modulo cuando quieras y el cobro baja en
+          el siguiente ciclo.
+        </p>
+
+        {noPaymentMethod && (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <div className="space-y-1">
+              <p className="font-semibold">Activa tu suscripcion primero</p>
+              <p className="leading-relaxed">
+                Todavia no tienes un metodo de pago activo, asi que no podemos
+                sumar este modulo a tu cobro mensual.{" "}
+                <Link href="/account" className="underline font-medium">
+                  Ir a mi suscripcion
+                </Link>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <p className="leading-relaxed">{error}</p>
+          </div>
+        )}
+
+        <div className="flex items-center justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+            className="inline-flex items-center rounded-lg border border-border bg-background px-4 py-2 text-xs font-medium hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={submitting || loadingPrice || noPaymentMethod}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Activando
+              </>
+            ) : (
+              `Confirmar y activar${price ? ` — ${formatPen(price)}/mes` : ""}`
+            )}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -352,6 +633,9 @@ function AddonCard({
   const isComingSoon = addon.key === "fertility_premium";
 
   const isActive = addon.enabled;
+  const price = modulePrice(addon);
+  const paid = isPaidModule(addon);
+  const includedPaid = isIncludedPaidModule(addon);
 
   return (
     <div
@@ -373,6 +657,19 @@ function AddonCard({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Precio del módulo (mig 210). El precio ES la información
+              útil: "Premium" no le dice a nadie cuánto cuesta. */}
+          {!isActive && paid && price !== null && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-0.5 text-[10px] font-semibold text-primary">
+              {formatPen(price)}/mes
+            </span>
+          )}
+          {!isActive && includedPaid && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="h-2.5 w-2.5" />
+              Incluido en tu plan
+            </span>
+          )}
           {isActive && (
             <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
               <CheckCircle2 className="h-2.5 w-2.5" />
@@ -461,8 +758,17 @@ function AddonCard({
             onClick={onActivate}
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
           >
-            <Sparkles className="h-3.5 w-3.5" />
-            Activar
+            {paid && price !== null ? (
+              <>
+                <CreditCard className="h-3.5 w-3.5" />
+                {`Activar — ${formatPen(price)}/mes`}
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-3.5 w-3.5" />
+                Activar
+              </>
+            )}
           </button>
         ) : (
           <button
@@ -478,8 +784,19 @@ function AddonCard({
       </div>
 
       <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
-        {addon.is_premium && !isComingSoon && (
-          <span>Plan {PLAN_LABELS[addon.min_plan] ?? addon.min_plan}+</span>
+        {/* Antes decía "Plan Enterprise+" / "Plan starter+": slugs
+            internos que no existen de cara al cliente (los planes se
+            llaman Independiente, Centro Médico y Clínica). Para los
+            módulos con precio propio el requisito de plan es ruido —
+            el precio ya está arriba —, así que solo se muestra en los
+            addons incluidos en plan. */}
+        {addon.is_premium && !isComingSoon && !paid && !includedPaid && (
+          <span>Requiere plan {planLabel(addon.min_plan)} o superior</span>
+        )}
+        {!isActive && includedPaid && (
+          <span>
+            Sin costo adicional en tu plan {planLabel((addon as CatalogAddon).org_plan_slug)}
+          </span>
         )}
       </div>
     </div>

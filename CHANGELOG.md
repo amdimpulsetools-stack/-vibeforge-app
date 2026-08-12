@@ -69,6 +69,7 @@
 - [Changelog — Sesión 2026-08-07 (v0.15.27) — Plan de performance completo: 3 lotes, migs 196-203](#changelog-sesión-2026-08-07-v01527--plan-de-performance-completo-3-lotes-migs-196-203)
 - [Changelog — Sesión 2026-08-08 (v0.15.28) — Panel CEO + Soporte end-to-end + Nav founder 10→5 + Limpieza de bots (migs 204-205)](#changelog--sesión-2026-08-08-v01528--panel-ceo--soporte-end-to-end--nav-founder-105--limpieza-de-bots-migs-204-205)
 - [Changelog — Sesión 2026-08-12 (v0.15.29) — Módulo Captación (F1+F2, migs 206-207) + Preparación App Review de Meta](#changelog--sesión-2026-08-12-v01529--módulo-captación-f1f2-migs-206-207--preparación-app-review-de-meta)
+- [Changelog — Sesión 2026-08-12 noche (v0.15.30) — Módulo Almacén construido (migs 208-210) + Facturación de módulos de pago](#changelog--sesión-2026-08-12-noche-v01530--módulo-almacén-construido-migs-208-210--facturación-de-módulos-de-pago)
 
 ---
 
@@ -4329,6 +4330,34 @@ Nace el **módulo Captación**: atribución de pacientes a campañas de Meta ví
 
 ### Roadmap Captación (fases pendientes)
 F3: chat con panel de acciones (agendar precargado, programar mensaje con regla de ventana 24h, estados del lead). F4: Embedded Signup v4 (requiere Tech Provider aprobado). F5: IA de no-conversión (clasificar POR QUÉ no agendaron — la IA no mide conversión, la explica) + LTV por campaña. Facturación de módulos con precio visible en badge ("S/99 /mes", nunca "Premium") — prerrequisito para cobrar este y futuros módulos.
+
+---
+
+## Changelog — Sesión 2026-08-12 noche (v0.15.30) — Módulo Almacén construido (migs 208-210) + Facturación de módulos de pago
+
+Se construye el **módulo Almacén** de punta a punta en un día (evaluado esa misma mañana con 5 agentes especializados sobre el Excel real de la Dra. Patricia) y, de paso, la **infraestructura genérica para cobrar módulos de pago** — el puente que faltaba sobre la maquinaria de Mercado Pago de la mig 152. Desarrollo por fases con agentes Opus 5 supervisados por Fable (el supervisor escribió las migraciones y verificó invariantes de cada entrega antes de integrar). Decisión de pricing del founder: **S/39/mes en Independiente, incluido desde Centro Médico**; pilotos: Vitra de por vida (mientras mantenga Centro Médico+), Patricia gratis 12 meses.
+
+### Fase A — Fundación (mig 209, en prod)
+- **5 tablas**: `inventory_products` (sin columna de stock NI de costo — a propósito), `inventory_price_history` (trigger automático al cambiar precio), `inventory_lots` (vencimiento por lote), `inventory_movements` (kardex), `inventory_settings`.
+- **Kardex append-only**: el stock nunca se guarda, se DERIVA (`SUM(quantity)` de movimientos firmados). Costos congelados por movimiento. Un trigger **bloquea UPDATE/DELETE incluso para service_role**: los errores se corrigen con contra-movimientos (`reverses_movement_id`), nunca editando historia. Esto elimina estructuralmente los tres males del Excel: stock desincronizado, precios pisados, historia reescrita.
+- CHECKs de dominio: entrada exige costo unitario, ajuste/merma exigen motivo, precio de venta solo en salidas. RLS: lectura miembros, catálogo/config solo admin, movimientos INSERT-only con `created_by = auth.uid()`.
+- Addon `almacen` **oculto** (patrón beta de Captación, mig 207) + grants a las 2 orgs del founder. Sidebar "Almacén" gateado por `requiresAnyAddon`.
+- **Mig 208** (hallazgo colateral): 4 addons fantasma de la mig 091 (inventory, lab_integration, telehealth, advanced_reports) prometían módulos inexistentes y eran activables desde Settings — ocultados antes del piloto del viernes.
+
+### Fase B — Página /almacen (agente Opus supervisado)
+- 7 archivos: tabla de productos con stock derivado y semáforo de mínimos, alta de producto (presentación/unidad base), **entrada** (compra con costo y lote opcional), **salida/consumo**, **merma con motivo obligatorio**, ajuste, y kardex por producto (lista de movimientos con deshacer = contra-movimiento, jamás borrado).
+- Invariantes verificados por el supervisor antes de aprobar: cero `.update()/.delete()` sobre movimientos; salidas siempre con signo negativo (`-Math.abs(...)`); deshacer invierte el signo como 'ajuste' con motivo 'error_registro'; `created_by` del usuario real.
+- Confirmación explícita si una salida deja stock negativo (configurable en `inventory_settings.warn_on_negative`). Tabs Vencimientos y Rentabilidad como placeholders para F2.
+
+### Fase C — Facturación de módulos (agente Opus supervisado, mig 210 en prod)
+- **Precio en la base, jamás en el cliente**: `addons.monthly_price` + `addons.included_from_plan` (almacén→39.00/'professional', captación→99.00/NULL). Cambiar la política comercial es un UPDATE, sin desplegar código.
+- `plan_addons` acepta `addon_type = 'module_<key>'` (namespace que no choca con los cupos extra) + índice único parcial: **imposible cobrar dos veces el mismo módulo** a una org, ni por bug del API.
+- `/api/addons/[key]/activate` ahora cobra: valida owner/admin → resuelve precio vs plan (incluido = gratis) → `purchase_addon_atomic` (candado por fila) → empuja el nuevo monto al preapproval de MP → recién entonces habilita el módulo. Si MP falla, se revierte la reserva (502, sin cobro ni módulo). Sin preapproval activo → 409. **Sin prorrateo** (aplica al siguiente ciclo, igual que los cupos extra).
+- Desactivación cobra-primero-apaga-después; el POST legacy de `/api/addons` ahora rechaza activaciones de módulos de pago (cerraba un hueco de activación gratis). UI de Settings→Módulos con badge de precio, "Incluido en tu plan" y diálogo "de S/X a S/Y". Nuevos `billing_events`: `module_addon_added/cancelled/mp_sync_failed` (verificado contra prod que el CHECK reconstruido cubre todos los valores existentes).
+- Etiquetas de `module_*` legibles en Mi Cuenta (antes mostraría "module_almacen" crudo).
+
+### Roadmap Almacén (F2)
+Venta mostrador ligada a caja, vínculo movimiento↔paciente/cita, alertas de vencimiento (tab + notificación `stock_low`), selector de lote en salidas, rentabilidad por producto, import desde Excel para el onboarding de Patricia.
 
 ---
 

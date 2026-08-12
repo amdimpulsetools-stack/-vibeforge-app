@@ -8,6 +8,7 @@ import {
   computeSubscriptionAmount,
   updatePreApprovalAmount,
 } from "@/lib/mercadopago/update-preapproval";
+import { moduleKeyFromAddonType } from "@/lib/billing/module-pricing";
 
 /**
  * POST /api/addons/cancel
@@ -186,11 +187,26 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // ── Módulos de pago (mig 210) ───────────────────────────────────
+  // Un addon_type 'module_<key>' no es un cupo: es el cobro de un
+  // módulo. Cancelar el cobro sin apagar el módulo dejaría a la clínica
+  // usando Almacén/Captación gratis para siempre, así que se sincroniza
+  // organization_addons en el mismo paso.
+  const moduleKey = moduleKeyFromAddonType(addon.addon_type);
+  if (moduleKey) {
+    await admin
+      .from("organization_addons")
+      .update({ enabled: false })
+      .eq("organization_id", membership.organization_id)
+      .eq("addon_key", moduleKey);
+  }
+
   await admin.from("billing_events").insert({
     organization_id: membership.organization_id,
     subscription_id: sub.id,
-    event_type: "addon_cancelled",
+    event_type: moduleKey ? "module_addon_cancelled" : "addon_cancelled",
     metadata: {
+      addon_key: moduleKey,
       addon_id: addon.id,
       addon_type: addon.addon_type,
       quantity: addon.quantity,
@@ -201,12 +217,15 @@ export async function POST(request: NextRequest) {
     },
   });
 
+  const label = moduleKey ? "Módulo desactivado" : "Cupo extra cancelado";
+
   return NextResponse.json({
     ok: true,
     addon_id: addon.id,
+    addon_key: moduleKey,
     new_monthly_total: newTotal,
     message: newTotal !== null
-      ? `Cupo extra cancelado. Nuevo total mensual: S/${newTotal}. El cambio aplica en tu próximo ciclo de facturación.`
-      : "Cupo extra cancelado.",
+      ? `${label}. Nuevo total mensual: S/${newTotal}. El cambio aplica en tu próximo ciclo de facturación.`
+      : `${label}.`,
   });
 }

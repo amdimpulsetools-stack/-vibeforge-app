@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { z } from "zod";
+import { resolveModuleBilling } from "@/lib/billing/module-pricing";
+import {
+  cancelModuleAddonCharge,
+  findActiveModuleCharge,
+  getOrgPlanContext,
+} from "@/lib/billing/module-addon-billing";
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
@@ -58,7 +65,14 @@ export async function GET(req: NextRequest) {
     orgId = membership.organization_id;
   }
 
-  const [catalogRes, orgAddonsRes, orgSpecRes, orgRes] = await Promise.all([
+  // Narrowing explícito: las dos ramas de arriba ya garantizan un org,
+  // pero TS no lo sabe y las queries de abajo son `any` (no lo habrían
+  // detectado nunca).
+  if (!orgId) {
+    return NextResponse.json({ error: "No organization" }, { status: 403 });
+  }
+
+  const [catalogRes, orgAddonsRes, orgSpecRes, orgRes, planCtx] = await Promise.all([
     // Sin filtro is_active: los addons ocultos (beta, ej. captacion)
     // se filtran abajo — solo pasan si la org tiene grant explícito.
     supabase
@@ -78,6 +92,10 @@ export async function GET(req: NextRequest) {
       .select("primary_specialty_id, specialties(slug)")
       .eq("id", orgId)
       .single(),
+    // Plan vigente: decide si un módulo de pago (mig 210) va incluido o
+    // se cobra. Se resuelve en el server para que la card nunca tenga
+    // que adivinar el precio ni la regla de inclusión.
+    getOrgPlanContext(supabase, orgId),
   ]);
 
   const orgAddons = orgAddonsRes.data ?? [];
@@ -103,12 +121,23 @@ export async function GET(req: NextRequest) {
     const recommended =
       Array.isArray(addon.specialties) &&
       addon.specialties.some((s: string) => orgSpecSlugs.has(s));
+    // Facturación de módulos (mig 210). Se devuelven campos planos para
+    // no romper la forma de array que consumen ~10 pantallas vía
+    // useOrgAddons; los addons sin precio salen con requires_payment
+    // false y included_in_plan true, exactamente como se comportaban
+    // antes de existir estas columnas.
+    const billing = resolveModuleBilling(addon, planCtx?.planSlug ?? null);
     return {
       ...addon,
       enabled: orgAddon?.enabled ?? false,
       activated_at: orgAddon?.activated_at ?? null,
       settings: orgAddon?.settings ?? {},
       recommended,
+      monthly_price: billing.price,
+      included_from_plan: billing.includedFromPlan,
+      included_in_plan: billing.includedInPlan,
+      requires_payment: billing.requiresPayment,
+      org_plan_slug: planCtx?.planSlug ?? null,
     };
   });
 
@@ -150,6 +179,63 @@ export async function POST(req: NextRequest) {
 
   const { addon_key, enabled } = parsed.data;
   const orgId = membership.organization_id;
+
+  // ── Guardas de facturación de módulos (mig 210) ──────────────────
+  // Este toggle es el camino legacy (switch simple) y NO sabe cobrar.
+  // Si el addon requiere pago en este plan, se rechaza y se manda al
+  // endpoint que sí pasa por caja: de lo contrario un POST directo
+  // activaría un módulo de S/99 gratis.
+  const { data: addonRow } = await supabase
+    .from("addons")
+    .select("key, monthly_price, included_from_plan")
+    .eq("key", addon_key)
+    .maybeSingle();
+
+  if (!addonRow) {
+    return NextResponse.json({ error: "Addon no encontrado" }, { status: 404 });
+  }
+
+  const planCtx = await getOrgPlanContext(supabase, orgId);
+  const billing = resolveModuleBilling(addonRow, planCtx?.planSlug ?? null);
+  const admin = billing.requiresPayment ? createAdminClient() : null;
+
+  if (enabled && billing.requiresPayment && admin) {
+    // Solo se deja pasar si el cobro YA existe (re-habilitar dentro del
+    // mismo ciclo). Si no, el alta tiene que ir por /activate.
+    const existingCharge = await findActiveModuleCharge(admin, orgId, addon_key);
+    if (!existingCharge) {
+      return NextResponse.json(
+        {
+          code: "payment_required",
+          error:
+            "Este módulo tiene costo mensual. Actívalo desde Configuración › Módulos para confirmar el cambio en tu suscripción.",
+          monthly_price: billing.price,
+        },
+        { status: 409 }
+      );
+    }
+  }
+
+  if (!enabled && billing.requiresPayment && admin) {
+    // Apagar el switch tiene que bajar el cobro, o la clínica sigue
+    // pagando un módulo que ya no usa (la fuga que /api/addons/cancel
+    // arregló para los cupos extra).
+    const cancellation = await cancelModuleAddonCharge(admin, {
+      orgId,
+      addonKey: addon_key,
+      actorUserId: user.id,
+    });
+    if (cancellation.status === "mp_failed") {
+      return NextResponse.json(
+        {
+          code: "mp_sync_failed",
+          error:
+            "No pudimos actualizar tu suscripción en Mercado Pago, así que dejamos el módulo activo. Intenta de nuevo en unos minutos.",
+        },
+        { status: 502 }
+      );
+    }
+  }
 
   if (enabled) {
     const { error } = await supabase.from("organization_addons").upsert(

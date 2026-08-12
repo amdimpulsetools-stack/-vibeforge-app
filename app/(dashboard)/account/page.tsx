@@ -2006,10 +2006,24 @@ function DeleteOrgCard({
    pushes the lower transaction_amount to Mercado Pago — the slot is
    only billed until the end of the current cycle. */
 
-const ADDON_TYPE_LABEL: Record<"extra_member" | "extra_office", string> = {
+const ADDON_TYPE_LABEL: Record<string, string> = {
   extra_member: "Miembro extra (doctor/recepcionista)",
   extra_office: "Consultorio extra",
+  // Módulos de pago (mig 210): plan_addons.addon_type = 'module_<key>'
+  module_almacen: "Módulo Almacén",
+  module_captacion: "Módulo Captación",
 };
+
+/** Etiqueta legible para un addon_type; los module_* no mapeados caen a
+ *  "Módulo <key>" en vez de mostrar el identificador crudo. */
+function addonTypeLabel(type: string): string {
+  if (ADDON_TYPE_LABEL[type]) return ADDON_TYPE_LABEL[type];
+  if (type.startsWith("module_")) {
+    const key = type.slice("module_".length).replace(/_/g, " ");
+    return `Módulo ${key.charAt(0).toUpperCase()}${key.slice(1)}`;
+  }
+  return type;
+}
 
 function ActiveAddonsCard() {
   const { billing, cancelAddon, loading } = useBilling();
@@ -2068,7 +2082,7 @@ function ActiveAddonsCard() {
       <ul className="space-y-2">
         {addons.map((a) => {
           const total = Number(a.unit_price) * Number(a.quantity);
-          const label = ADDON_TYPE_LABEL[a.addon_type] ?? a.addon_type;
+          const label = addonTypeLabel(a.addon_type);
           return (
             <li
               key={a.id}

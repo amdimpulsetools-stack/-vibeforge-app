@@ -41,6 +41,7 @@ import {
   ShieldPlus,
   type LucideIcon,
   Megaphone,
+  Warehouse,
 } from "lucide-react";
 
 interface NavItem {
@@ -111,6 +112,13 @@ const navSections: NavSection[] = [
         href: "/captacion",
         icon: Megaphone,
         requiresAnyAddon: ["captacion"],
+      },
+      {
+        // Módulo Almacén (beta oculta): solo orgs con grant del addon.
+        titleKey: "nav.almacen",
+        href: "/almacen",
+        icon: Warehouse,
+        requiresAnyAddon: ["almacen"],
       },
       { titleKey: "nav.patients", href: "/patients", icon: Users },
     ],
