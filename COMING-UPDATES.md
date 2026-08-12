@@ -15,7 +15,10 @@
 
 **Decisión comercial (founder, 12-ago):** addon S/39/mes en Independiente (nivel básico) · incluido en
 Centro Médico (básico) · incluido COMPLETO en Clínica (lotes + vencimientos + rentabilidad real = el
-argumento de upgrade +S/300). Pilotos: nivel completo gratis de por vida, por escrito con valor nombrado.
+argumento de upgrade +S/300). Pilotos (términos del founder, 12-ago): VITRA — incluido de por vida
+mientras mantenga plan Centro Médico o superior; PATRICIA — nivel completo GRATIS 12 MESES (hasta
+~sep-2027) y luego se cobra. En ambos casos: por escrito y con el valor nombrado desde el día 1
+("valor S/300/mes"), para que el cobro del año 2 a Patricia no sea sorpresa sino vencimiento anunciado.
 Nombre: "Almacén". Tabs: Productos · Movimientos · Vencimientos · Rentabilidad (candado fuera de Clínica).
 
 | Fase | Cuándo | Qué | Esfuerzo |
