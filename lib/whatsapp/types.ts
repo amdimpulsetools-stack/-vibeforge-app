@@ -146,12 +146,36 @@ export interface MetaSendMessageResponse {
   messages: Array<{ id: string }>;
 }
 
+/**
+ * Mensaje ENTRANTE de un paciente (change.value.messages). El bloque
+ * `referral` solo viene cuando la conversación nació de un anuncio
+ * click-to-WhatsApp de Meta — es el dato de atribución de Captación.
+ */
+export interface MetaInboundMessage {
+  id: string; // wamid — llave de idempotencia
+  from: string; // teléfono del paciente, solo dígitos con país
+  timestamp: string;
+  type: string; // text | image | audio | video | document | button | ...
+  text?: { body: string };
+  button?: { text: string; payload?: string };
+  referral?: {
+    source_url?: string;
+    source_id?: string; // ad_id de Meta
+    source_type?: string; // ad | post
+    headline?: string;
+    body?: string;
+    media_type?: string;
+  };
+}
+
 export interface MetaWebhookEntry {
   id: string;
   changes: Array<{
     value: {
       messaging_product: string;
       metadata: { display_phone_number: string; phone_number_id: string };
+      contacts?: Array<{ profile?: { name?: string }; wa_id: string }>;
+      messages?: MetaInboundMessage[];
       statuses?: Array<{
         id: string;
         status: "sent" | "delivered" | "read" | "failed";

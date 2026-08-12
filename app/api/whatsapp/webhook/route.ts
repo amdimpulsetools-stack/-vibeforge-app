@@ -4,6 +4,10 @@ import {
   parseWebhookStatusUpdates,
   verifyWebhookChallenge,
 } from "@/lib/whatsapp/webhook";
+import {
+  parseInboundMessages,
+  persistInboundMessages,
+} from "@/lib/whatsapp/capture";
 import type { MetaWebhookPayload } from "@/lib/whatsapp/types";
 
 export const runtime = "nodejs";
@@ -52,12 +56,25 @@ export async function GET(req: NextRequest) {
  */
 async function handleWebhookPayload(payload: MetaWebhookPayload) {
   const updates = parseWebhookStatusUpdates(payload);
+  // Captación F1: los mensajes ENTRANTES antes se descartaban aquí
+  // (solo se procesaban statuses). Ahora se capturan en silencio —
+  // best-effort, sin afectar jamás la vía de los acuses.
+  const inbound = parseInboundMessages(payload);
 
-  if (updates.length === 0) {
+  if (updates.length === 0 && inbound.length === 0) {
     return NextResponse.json({ received: true });
   }
 
   const supabase = createAdminClient();
+
+  let captured = 0;
+  if (inbound.length > 0) {
+    try {
+      captured = await persistInboundMessages(supabase, inbound);
+    } catch (err) {
+      console.error("[Captación] persistInboundMessages falló:", err);
+    }
+  }
 
   for (const update of updates) {
     const updatePayload: Record<string, unknown> = {
@@ -83,7 +100,11 @@ async function handleWebhookPayload(payload: MetaWebhookPayload) {
       .eq("wamid", update.wamid);
   }
 
-  return NextResponse.json({ received: true, processed: updates.length });
+  return NextResponse.json({
+    received: true,
+    processed: updates.length,
+    captured,
+  });
 }
 
 /**
