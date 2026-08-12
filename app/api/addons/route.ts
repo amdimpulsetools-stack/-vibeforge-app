@@ -59,10 +59,11 @@ export async function GET(req: NextRequest) {
   }
 
   const [catalogRes, orgAddonsRes, orgSpecRes, orgRes] = await Promise.all([
+    // Sin filtro is_active: los addons ocultos (beta, ej. captacion)
+    // se filtran abajo — solo pasan si la org tiene grant explícito.
     supabase
       .from("addons")
       .select("*")
-      .eq("is_active", true)
       .order("sort_order"),
     supabase
       .from("organization_addons")
@@ -79,8 +80,14 @@ export async function GET(req: NextRequest) {
       .single(),
   ]);
 
-  const catalog = catalogRes.data ?? [];
   const orgAddons = orgAddonsRes.data ?? [];
+  const grantedKeys = new Set(orgAddons.map((oa) => oa.addon_key));
+  // Los addons ocultos (is_active=false, beta como `captacion`) solo
+  // existen para las orgs con grant explícito en organization_addons;
+  // para el resto es como si no existieran.
+  const catalog = (catalogRes.data ?? []).filter(
+    (a) => a.is_active || grantedKeys.has(a.key),
+  );
   const orgSpecSlugs = new Set<string>();
 
   for (const row of orgSpecRes.data ?? []) {
