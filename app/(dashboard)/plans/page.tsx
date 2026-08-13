@@ -2,7 +2,6 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
 import { usePlan } from "@/hooks/use-plan";
 import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
@@ -14,7 +13,6 @@ import {
   Check,
   Sparkles,
   ArrowLeft,
-  AlertTriangle,
 } from "lucide-react";
 
 /* ───── Types ───── */
@@ -78,6 +76,19 @@ function buildFeatures(plan: Plan): string[] {
   return features;
 }
 
+/* Estados de suscripción en español. Sin este mapa, cualquier estado distinto
+   de trialing/active se pintaba con el valor crudo de la base de datos: una
+   clínica con un cobro fallido leía literalmente "past_due" en pantalla. */
+const SUBSCRIPTION_STATUS_LABELS: Record<string, string> = {
+  trialing: "periodo de prueba activo",
+  active: "suscripción activa",
+  past_due: "pago pendiente",
+  cancelled: "suscripción cancelada",
+  canceled: "suscripción cancelada",
+  expired: "suscripción vencida",
+  pending: "activación pendiente",
+};
+
 /* ───── Page ───── */
 export default function PlansPage() {
   return (
@@ -100,13 +111,27 @@ function PlansContent() {
   const {
     plan: currentPlan,
     subscription,
-    usage,
+    daysRemaining,
     loading: planLoading,
     refetch,
   } = usePlan();
 
   const [selecting, setSelecting] = useState<string | null>(null);
   const [cadence, setCadence] = useState<"monthly" | "semiannual" | "annual">("monthly");
+
+  // "15 de octubre (63 días)". Los días los calcula el hook; aquí sólo se
+  // formatea la fecha para Perú.
+  const trialEndsLabel = (() => {
+    if (!subscription?.trial_ends_at) return null;
+    const endsAt = new Date(subscription.trial_ends_at);
+    if (Number.isNaN(endsAt.getTime())) return null;
+    const formatted = endsAt.toLocaleDateString("es-PE", {
+      day: "numeric",
+      month: "long",
+    });
+    if (daysRemaining == null || daysRemaining <= 0) return formatted;
+    return `${formatted} (${daysRemaining} ${daysRemaining === 1 ? "día" : "días"})`;
+  })();
 
   // Handle payment callback from Mercado Pago
   useEffect(() => {
@@ -291,28 +316,6 @@ function PlansContent() {
         </div>
       </div>
 
-      {/* Current plan summary */}
-      {currentPlan && subscription && (
-        <div className="flex items-center gap-4 rounded-2xl border border-border/60 bg-card/50 px-6 py-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-            <Check className="h-5 w-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold">
-              Tu plan actual: <span className="text-primary">{currentPlan.name}</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {subscription.status === "trialing"
-                ? "Periodo de prueba activo"
-                : subscription.status === "active"
-                  ? "Suscripcion activa"
-                  : subscription.status}
-              {` — S/${currentPlan.price_monthly}/mes`}
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Plans Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start max-w-4xl mx-auto">
         {plans.map((plan) => {
@@ -476,6 +479,41 @@ function PlansContent() {
         <span className="font-medium text-foreground">addons flexibles</span>:
         agrega doctores, consultorios o miembros de equipo adicionales sin cambiar de plan.
       </p>
+
+      {/* Estado de la suscripción — cierre de página, no contexto de decisión.
+          Entre el selector de cadencia y las tarjetas rompía la relación
+          control→precio (es el selector el que gobierna los importes de las
+          cards), y en móvil empujaba la primera tarjeta fuera de pantalla: al
+          cambiar de cadencia no se veía moverse ningún número. Qué plan tienes
+          ya lo dicen el badge "Tu plan", el ring y el botón deshabilitado.
+          Sin importe: el que había era `price_monthly` fijo, así que con el
+          selector en Anual contradecía al precio de su propia tarjeta. */}
+      {currentPlan && subscription && (
+        <div className="mt-10 flex flex-wrap items-center gap-3 rounded-2xl border border-border/60 bg-card/50 px-4 py-3 max-w-4xl mx-auto">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Check className="h-4 w-4" />
+          </div>
+          <p className="flex-1 min-w-0 text-xs text-muted-foreground">
+            Tu plan actual:{" "}
+            <span className="font-semibold text-primary">{currentPlan.name}</span>
+            {" — "}
+            {SUBSCRIPTION_STATUS_LABELS[subscription.status] ?? subscription.status}
+            {/* El banner global de trial sólo aparece con 7 días o menos, así
+                que sin esto la fecha de fin de prueba no se ve en ningún sitio
+                de esta página. */}
+            {subscription.status === "trialing" && trialEndsLabel && (
+              <> · vence el {trialEndsLabel}</>
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push("/account")}
+            className="shrink-0 text-xs font-semibold text-primary hover:underline"
+          >
+            Gestionar suscripción
+          </button>
+        </div>
+      )}
     </div>
   );
 }
