@@ -313,6 +313,47 @@ export function nearestLotByProduct(
   return map;
 }
 
+/**
+ * Costo PROMEDIO PONDERADO vigente por producto (CPP, el método por defecto
+ * decidido en la spec — `inventory_settings.costing_method = 'promedio'`).
+ *
+ * Rolling clásico: cada entrada re-promedia contra el stock que había
+ * (3 Saizen a S/101 + 10 nuevos a S/99 → CPP S/99.46); las salidas bajan
+ * unidades sin tocar el promedio. Este número se CONGELA en `unit_cost`
+ * de cada salida/merma al registrarla — así el margen de una venta de hoy
+ * jamás cambia porque mañana compres más caro o más barato.
+ *
+ * Con stock ≤ 0 (descuadre) no hay base: cae al costo de la última entrada.
+ */
+export function avgCostByProduct(
+  movements: InventoryMovement[]
+): Record<string, number> {
+  const avg: Record<string, number> = {};
+  const units: Record<string, number> = {};
+  // `movements` llega DESC; el CPP se construye en orden cronológico.
+  for (let i = movements.length - 1; i >= 0; i--) {
+    const m = movements[i];
+    const q = Number(m.quantity);
+    const pid = m.product_id;
+    if (m.movement_type === "entrada" && m.unit_cost != null) {
+      const prevUnits = Math.max(0, units[pid] ?? 0);
+      const prevAvg = avg[pid] ?? Number(m.unit_cost);
+      const total = prevUnits + q;
+      avg[pid] =
+        total > 0
+          ? (prevUnits * prevAvg + q * Number(m.unit_cost)) / total
+          : Number(m.unit_cost);
+      units[pid] = total;
+    } else {
+      units[pid] = (units[pid] ?? 0) + q;
+    }
+  }
+  for (const pid of Object.keys(avg)) {
+    avg[pid] = Math.round(avg[pid] * 10000) / 10000;
+  }
+  return avg;
+}
+
 /** Último costo conocido del producto: la entrada más reciente con costo. */
 export function lastCostByProduct(
   movements: InventoryMovement[]

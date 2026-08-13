@@ -43,6 +43,7 @@ import {
   LOT_COLUMNS,
   MOVEMENT_COLUMNS,
   PRODUCT_COLUMNS,
+  avgCostByProduct,
   computeStock,
   fmtQty,
   lastCostByProduct,
@@ -181,6 +182,7 @@ export default function AlmacenPage() {
   const stockByProduct = useMemo(() => computeStock(movements), [movements]);
   const lotByProduct = useMemo(() => nearestLotByProduct(lots), [lots]);
   const lastCosts = useMemo(() => lastCostByProduct(movements), [movements]);
+  const avgCosts = useMemo(() => avgCostByProduct(movements), [movements]);
   const categories = useMemo(() => {
     const set = new Set<string>();
     for (const p of products) if (p.category?.trim()) set.add(p.category.trim());
@@ -267,6 +269,10 @@ export default function AlmacenPage() {
           lot_id: payload.lotId,
           movement_type: payload.movementType,
           quantity: qty,
+          // COGS congelado: el costo promedio ponderado VIGENTE al momento de
+          // la salida (fallback: última compra). Así el margen de esta venta
+          // no cambia aunque mañana el proveedor suba o baje el precio.
+          unit_cost: avgCosts[p.id] ?? lastCosts[p.id] ?? null,
           // El precio congelado solo existe en la venta: `inv_mov_price_chk`
           // prohíbe unit_sale_price fuera de una salida, y una aplicación en
           // consulta todavía no sabemos si se cobró (eso llega en F2).
@@ -310,7 +316,7 @@ export default function AlmacenPage() {
         },
       });
     },
-    [organizationId, user?.id, stockByProduct, undoMovement]
+    [organizationId, user?.id, stockByProduct, avgCosts, lastCosts, undoMovement]
   );
 
   // ── Entrada de mercadería ──────────────────────────────────────────────

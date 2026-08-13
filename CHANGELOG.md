@@ -4398,6 +4398,11 @@ El founder reportó bugs al vincular paciente. El agente encontró la causa raí
 - Campo de paciente movido ARRIBA de los motivos (tocar motivo confirma y cierra: debe ser el último gesto) + **auto-vínculo** si al confirmar hay exactamente 1 candidata cargada.
 - Deuda anotada: budget-record-modal.tsx y patients-client.tsx comparten los bugs de inyección/nombre completo → unificar en un componente compartido (roadmap).
 
+### Costo promedio ponderado congelado + reporte de rotación (13-ago)
+Pregunta del founder con el caso Saizen (lote viejo a S/101, lote nuevo a S/99, ¿qué costo usa el margen?):
+- **CPP congelado en la salida**: cada salida/merma ahora estampa `unit_cost` = costo promedio ponderado vigente (rolling: 3 und a 101 + 10 a 99 → CPP 99.46; las entradas re-promedian, las salidas no lo tocan). El margen de una venta de hoy jamás cambia porque mañana cambie el precio del proveedor — exactamente el mal que infló 6.3× el Excel. Las salidas anteriores a este cambio siguen usando el último costo conocido, marcadas "estimada". Costeo por lote (FIFO real) queda para plan Clínica con `track_lots` (spec original).
+- **Reporte de rotación**: en Rentabilidad, selector "Mayor ganancia / Más rotados" (rotación = vendidas + aplicadas, porque lo que se mueve y lo que deja plata son rankings distintos) + **export CSV** de la tabla por producto con el rango de fechas filtrado.
+
 ### Carga del inventario de Patricia (mismo día)
 El founder subió el Excel "DESCUENTO DE MEDICAMENTOS 2026" (7 hojas ene-jul). De la hoja JULIO (stock final) se cargaron a su org los **35 productos** (20 hormonales + 15 vitaminas/suplementos) con ortografía normalizada (LET LETROZOL→Letrozol, GONAPEPTIL→Gonapeptyl, espacios dobles, "0.0" como fecha→NULL), cada uno con lote SIN-LOTE (vencimiento + costo congelado) y movimiento `saldo_inicial`: 753 unidades, **capital a costo S/79,060.82 — cuadra al céntimo con la valorización del Excel auditado (S/79,061)**. Import idempotente por nombre único activo. Alertas visibles desde el día 1: Saizen y Miositol Men vencen 09/2026, Orgalutran 11/2026.
 
