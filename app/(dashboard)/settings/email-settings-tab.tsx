@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
@@ -1091,13 +1091,16 @@ function TemplateEditor({
     };
   }, [organizationId]);
 
-  const previewData: Record<string, string> = {
-    ...PREVIEW_DATA,
-    ...(clinicName ? { "{{clinica_nombre}}": clinicName } : {}),
-    ...(orgVars.clinic_phone
-      ? { "{{clinica_telefono}}": orgVars.clinic_phone }
-      : {}),
-  };
+  const previewData: Record<string, string> = useMemo(
+    () => ({
+      ...PREVIEW_DATA,
+      ...(clinicName ? { "{{clinica_nombre}}": clinicName } : {}),
+      ...(orgVars.clinic_phone
+        ? { "{{clinica_telefono}}": orgVars.clinic_phone }
+        : {}),
+    }),
+    [clinicName, orgVars]
+  );
 
   // Pre-existing templates seeded with plain text have `body_html = null`.
   // Convert them to HTML once so the rich editor can render them and so the
@@ -1156,11 +1159,20 @@ function TemplateEditor({
     editorRef.current?.insertText(variable);
   };
 
-  const previewBodyHtml = substituteVariables(form.body_html, previewData);
+  // Memoizado: sin esto, la sustitución de variables corría en CADA tecla
+  // aunque la vista previa estuviera cerrada.
+  const previewBodyHtml = useMemo(
+    () => substituteVariables(form.body_html, previewData),
+    [form.body_html, previewData]
+  );
 
-  const previewSubject = form.subject.replace(
-    /\{\{[a-z_]+\}\}/g,
-    (match) => previewData[match] ?? match
+  const previewSubject = useMemo(
+    () =>
+      form.subject.replace(
+        /\{\{[a-z_]+\}\}/g,
+        (match) => previewData[match] ?? match
+      ),
+    [form.subject, previewData]
   );
 
   const inputClass =

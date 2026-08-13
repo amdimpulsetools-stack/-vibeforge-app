@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useMemo, useState, forwardRef } from "react";
+import {
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  forwardRef,
+} from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -53,6 +60,12 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
     const [mode, setMode] = useState<Mode>("visual");
     const [fullscreen, setFullscreen] = useState(false);
     const [codeValue, setCodeValue] = useState(value);
+    // Último HTML que ESTE editor emitió vía onChange. El efecto de sync
+    // pregunta "¿este value lo emití yo?" — nunca "¿coincide byte a byte con
+    // mi serialización?": el saneado (br→br/, &nbsp;→ , estilos
+    // normalizados) hace que la comparación textual jamás converja, y cada
+    // tecla re-escribía el documento entero mandando el caret al final.
+    const lastEmittedRef = useRef<string | null>(null);
 
     const editor = useEditor({
       extensions: [
@@ -82,14 +95,20 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, RichTextEditorPro
       },
       onUpdate: ({ editor }) => {
         const html = sanitizeEmailHtml(editor.getHTML());
+        lastEmittedRef.current = html;
         onChange(html);
         setCodeValue(html);
       },
     });
 
-    // Keep editor in sync when parent sets value externally (e.g. loading a template)
+    // Keep editor in sync when parent sets value externally (e.g. loading a
+    // template). Un value que nosotros mismos emitimos NO se re-aplica (ver
+    // lastEmittedRef); y con el editor enfocado tampoco se pisa el DOM — un
+    // cambio externo real solo ocurre sin foco (cargar otra plantilla).
     useEffect(() => {
       if (!editor) return;
+      if (value === lastEmittedRef.current) return;
+      if (editor.isFocused) return;
       if (value !== editor.getHTML()) {
         editor.commands.setContent(value || "<p></p>", { emitUpdate: false });
         setCodeValue(value);
