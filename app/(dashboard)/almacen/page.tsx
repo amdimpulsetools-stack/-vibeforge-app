@@ -43,6 +43,7 @@ import {
   LOT_COLUMNS,
   MOVEMENT_COLUMNS,
   PRODUCT_COLUMNS,
+  avgCostByProduct,
   computeStock,
   fmtQty,
   lastCostByProduct,
@@ -181,6 +182,7 @@ export default function AlmacenPage() {
   const stockByProduct = useMemo(() => computeStock(movements), [movements]);
   const lotByProduct = useMemo(() => nearestLotByProduct(lots), [lots]);
   const lastCosts = useMemo(() => lastCostByProduct(movements), [movements]);
+  const avgCosts = useMemo(() => avgCostByProduct(movements), [movements]);
   const categories = useMemo(() => {
     const set = new Set<string>();
     for (const p of products) if (p.category?.trim()) set.add(p.category.trim());
@@ -201,6 +203,10 @@ export default function AlmacenPage() {
           lot_id: original.lot_id,
           movement_type: "ajuste",
           quantity: -Number(original.quantity),
+          // El contra-asiento hereda el costo del original: así el CPP se
+          // des-promedia exacto al deshacer una entrada (auditoría 13-ago)
+          // y la anulación queda valorizada en el kardex.
+          unit_cost: original.unit_cost,
           movement_date: today(),
           reason_code: "error_registro",
           notes: `Deshace mov. #${original.id.slice(0, 8)}`,
@@ -218,14 +224,22 @@ export default function AlmacenPage() {
       }
 
       const reversal = data as unknown as InventoryMovement;
-      setMovements((prev) => [reversal, ...prev]);
-      const restored =
-        (stockByProduct[original.product_id] ?? 0) - Number(original.quantity);
+      // El stock del toast se calcula sobre la lista NUEVA: el closure de un
+      // toast creado antes de la venta veía el stock viejo y decía "volvió a
+      // 12" cuando eran 10 (hallazgo menor de la auditoría).
+      let restored = 0;
+      setMovements((prev) => {
+        const next = [reversal, ...prev];
+        restored = next
+          .filter((m) => m.product_id === original.product_id)
+          .reduce((acc, m) => acc + Number(m.quantity), 0);
+        return next;
+      });
       toast.success("Movimiento deshecho", {
         description: `${productName} volvió a ${fmtQty(restored)} ${baseUnit.toLowerCase()}`,
       });
     },
-    [organizationId, user?.id, stockByProduct]
+    [organizationId, user?.id]
   );
 
   // ── El gesto de descuento ──────────────────────────────────────────────
@@ -267,6 +281,10 @@ export default function AlmacenPage() {
           lot_id: payload.lotId,
           movement_type: payload.movementType,
           quantity: qty,
+          // COGS congelado: el costo promedio ponderado VIGENTE al momento de
+          // la salida (fallback: última compra). Así el margen de esta venta
+          // no cambia aunque mañana el proveedor suba o baje el precio.
+          unit_cost: avgCosts[p.id] ?? lastCosts[p.id] ?? null,
           // El precio congelado solo existe en la venta: `inv_mov_price_chk`
           // prohíbe unit_sale_price fuera de una salida, y una aplicación en
           // consulta todavía no sabemos si se cobró (eso llega en F2).
@@ -310,7 +328,7 @@ export default function AlmacenPage() {
         },
       });
     },
-    [organizationId, user?.id, stockByProduct, undoMovement]
+    [organizationId, user?.id, stockByProduct, avgCosts, lastCosts, undoMovement]
   );
 
   // ── Entrada de mercadería ──────────────────────────────────────────────
@@ -550,6 +568,19 @@ export default function AlmacenPage() {
         </DropdownMenu>
       </div>
 
+      {/* Guard del tope de kardex (auditoría 13-ago): con el límite alcanzado,
+          los movimientos MÁS ANTIGUOS quedan fuera y stock/CPP dejarían de
+          ser confiables en silencio. Se avisa fuerte; el fix real es el
+          agregado en servidor (F2). */}
+      {movements.length >= MOVEMENT_FETCH_LIMIT && (
+        <div className="flex items-center gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-600 dark:text-red-400">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          El kardex superó los {MOVEMENT_FETCH_LIMIT.toLocaleString("es-PE")} movimientos:
+          los saldos mostrados pueden estar incompletos. Avisa a soporte para
+          activar el cálculo en servidor.
+        </div>
+      )}
+
       <Tabs value={tab} onValueChange={changeTab}>
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0 print:hidden">
           <TabsList>
@@ -601,6 +632,7 @@ export default function AlmacenPage() {
               lots={lots}
               movements={movements}
               lastCosts={lastCosts}
+              avgCosts={avgCosts}
               expiryAlertDays={settings.expiry_alert_days}
             />
           )}
@@ -615,6 +647,7 @@ export default function AlmacenPage() {
               movements={movements}
               stockByProduct={stockByProduct}
               lastCosts={lastCosts}
+              avgCosts={avgCosts}
             />
           )}
         </TabsContent>

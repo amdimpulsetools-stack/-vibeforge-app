@@ -313,6 +313,85 @@ export function nearestLotByProduct(
   return map;
 }
 
+/**
+ * Costo PROMEDIO PONDERADO vigente por producto (CPP, el método por defecto
+ * decidido en la spec — `inventory_settings.costing_method = 'promedio'`).
+ *
+ * Rolling clásico: cada entrada re-promedia contra el stock que había
+ * (3 Saizen a S/101 + 10 nuevos a S/99 → CPP S/99.46); las salidas bajan
+ * unidades sin tocar el promedio. Este número se CONGELA en `unit_cost`
+ * de cada salida/merma al registrarla — así el margen de una venta de hoy
+ * jamás cambia porque mañana compres más caro o más barato.
+ *
+ * Con stock ≤ 0 (descuadre) no hay base: cae al costo de la última entrada.
+ */
+export function avgCostByProduct(
+  movements: InventoryMovement[]
+): Record<string, number> {
+  const avg: Record<string, number> = {};
+  const units: Record<string, number> = {};
+  const byId = new Map(movements.map((m) => [m.id, m]));
+  // `movements` llega DESC; el CPP se construye en orden cronológico.
+  for (let i = movements.length - 1; i >= 0; i--) {
+    const m = movements[i];
+    const q = Number(m.quantity);
+    const pid = m.product_id;
+
+    // Movimientos que RE-PROMEDIAN: entradas con costo y ajustes con costo.
+    // Los contra-asientos de un "Deshacer entrada" llevan (o heredan del
+    // original) el costo de la entrada anulada — hallazgo crítico de la
+    // auditoría 13-ago: sin esto, deshacer una entrada equivocada dejaba el
+    // CPP contaminado para siempre (10@100 + 10@200 deshecha → CPP 150 en
+    // vez de 100). La fórmula funciona con q negativo: resta valor y
+    // unidades al mismo costo con que entraron.
+    let cost: number | null = null;
+    if (m.movement_type === "entrada" && m.unit_cost != null) {
+      cost = Number(m.unit_cost);
+    } else if (m.movement_type === "ajuste") {
+      if (m.unit_cost != null) {
+        cost = Number(m.unit_cost);
+      } else if (m.reverses_movement_id) {
+        const orig = byId.get(m.reverses_movement_id);
+        if (orig?.movement_type === "entrada" && orig.unit_cost != null) {
+          cost = Number(orig.unit_cost);
+        }
+      }
+    }
+
+    if (cost != null) {
+      const prevUnits = Math.max(0, units[pid] ?? 0);
+      const prevAvg = avg[pid] ?? cost;
+      const total = prevUnits + q;
+      avg[pid] = total > 0 ? (prevUnits * prevAvg + q * cost) / total : cost;
+      units[pid] = total;
+    } else {
+      units[pid] = (units[pid] ?? 0) + q;
+    }
+  }
+  for (const pid of Object.keys(avg)) {
+    avg[pid] = Math.round(avg[pid] * 10000) / 10000;
+  }
+  return avg;
+}
+
+/**
+ * Ids de movimientos ANULADOS y de sus contra-asientos. Un par deshecho
+ * netea a cero en el kardex (stock ✔) pero, como el contra-asiento es un
+ * `ajuste` sin precio, era invisible para los agregados monetarios: una
+ * venta deshecha inflaba "Ventas" y su ganancia para siempre (hallazgo
+ * crítico de la auditoría 13-ago). Todo reporte de dinero excluye este set.
+ */
+export function reversedPairIds(movements: InventoryMovement[]): Set<string> {
+  const ids = new Set<string>();
+  for (const m of movements) {
+    if (m.reverses_movement_id) {
+      ids.add(m.id);
+      ids.add(m.reverses_movement_id);
+    }
+  }
+  return ids;
+}
+
 /** Último costo conocido del producto: la entrada más reciente con costo. */
 export function lastCostByProduct(
   movements: InventoryMovement[]

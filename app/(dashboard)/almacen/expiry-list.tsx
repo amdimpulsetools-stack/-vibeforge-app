@@ -30,8 +30,10 @@ interface Props {
   products: InventoryProduct[];
   lots: InventoryLot[];
   movements: InventoryMovement[];
-  /** Último costo conocido por producto (fallback si el lote no tiene). */
+  /** Último costo conocido por producto (fallback final). */
   lastCosts: Record<string, number>;
+  /** CPP vigente — mismo método de valorización que Rentabilidad. */
+  avgCosts: Record<string, number>;
   expiryAlertDays: number;
 }
 
@@ -40,6 +42,7 @@ export function ExpiryList({
   lots,
   movements,
   lastCosts,
+  avgCosts,
   expiryAlertDays,
 }: Props) {
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
@@ -64,7 +67,7 @@ export function ExpiryList({
         const unitCost =
           lot.unit_cost != null
             ? Number(lot.unit_cost)
-            : (lastCosts[lot.product_id] ?? 0);
+            : (avgCosts[lot.product_id] ?? lastCosts[lot.product_id] ?? 0);
         return {
           lot,
           product,
@@ -82,7 +85,7 @@ export function ExpiryList({
       return av - bv || (b.capital - a.capital);
     });
     return out;
-  }, [lots, stockByLot, byId, lastCosts, expiryAlertDays]);
+  }, [lots, stockByLot, byId, avgCosts, lastCosts, expiryAlertDays]);
 
   const totals = useMemo(() => {
     let expired = 0;
