@@ -358,11 +358,11 @@ export function ProductTable({
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
-                  <th className="px-4 py-2.5 font-semibold">Producto</th>
-                  <th className="px-4 py-2.5 font-semibold">Stock</th>
-                  <th className="px-4 py-2.5 font-semibold">Lote / Vence</th>
-                  <th className="px-4 py-2.5 text-right font-semibold">Precio</th>
-                  <th className="w-16 px-4 py-2.5" />
+                  <th className="px-4 py-2 font-semibold">Producto</th>
+                  <th className="px-4 py-2 font-semibold">Stock</th>
+                  <th className="px-4 py-2 font-semibold">Lote / Vence</th>
+                  <th className="px-4 py-2 text-right font-semibold">Precio</th>
+                  <th className="w-16 px-4 py-2" />
                 </tr>
               </thead>
               <tbody>
@@ -374,13 +374,13 @@ export function ProductTable({
                       exp.days !== null && exp.days < 0 && "bg-red-500/[.04]"
                     )}
                   >
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2">
                       <p className="font-semibold">{p.name}</p>
                       <p className="truncate text-xs text-muted-foreground">
                         {[p.presentation, p.category].filter(Boolean).join(" · ")}
                       </p>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2">
                       <p
                         className={cn(
                           "font-bold tabular-nums",
@@ -403,9 +403,9 @@ export function ProductTable({
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2">
                       <p className="text-xs text-muted-foreground">
-                        {lot?.lot_code ?? "—"}
+                        {lot && lot.lot_code !== "SIN-LOTE" ? lot.lot_code : "—"}
                       </p>
                       {exp.chip ? (
                         <span
@@ -422,17 +422,17 @@ export function ProductTable({
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-right font-medium tabular-nums">
+                    <td className="px-4 py-2 text-right font-medium tabular-nums">
                       {formatPEN(Number(p.sale_price))}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2">
                       <div className="flex justify-end gap-1">
                         <button
                           type="button"
                           onClick={() => onDiscount(p)}
                           aria-label={`Registrar salida de ${p.name}`}
                           title="Registrar salida"
-                          className="grid h-10 w-10 place-items-center rounded-xl border border-primary/30 bg-primary/10 text-primary transition-colors hover:bg-primary/20 active:scale-95"
+                          className="grid h-9 w-9 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary transition-colors hover:bg-primary/20 active:scale-95"
                         >
                           <Minus className="h-4 w-4" />
                         </button>
@@ -441,7 +441,7 @@ export function ProductTable({
                           onClick={() => onEntry(p)}
                           aria-label={`Registrar entrada de ${p.name}`}
                           title="Registrar entrada"
-                          className="grid h-10 w-10 place-items-center rounded-xl border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                         >
                           <PackagePlus className="h-4 w-4" />
                         </button>
@@ -497,7 +497,7 @@ export function ProductTable({
                           {st.label}
                         </span>
                       )}
-                      {lot && (
+                      {lot && lot.lot_code !== "SIN-LOTE" && (
                         <span className="text-[10px] text-muted-foreground">
                           Lote {lot.lot_code}
                         </span>

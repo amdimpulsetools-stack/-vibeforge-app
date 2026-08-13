@@ -14,8 +14,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { ChevronLeft, Plus, UserPlus } from "lucide-react";
+import { Check, ChevronLeft, Plus, UserPlus, X } from "lucide-react";
 import {
   MERMA_REASONS,
   expiryStatus,
@@ -32,6 +33,8 @@ export interface DiscountPayload {
   movementType: Extract<MovementType, "salida" | "merma">;
   reasonCode: ReasonCode;
   lotId: string | null;
+  /** Paciente REAL vinculada (FK a patients) — la atribución que el Excel nunca tuvo. */
+  patientId: string | null;
   patientNote: string | null;
   /** Etiqueta corta del motivo, para el toast ("Aplicación", "Venta"…). */
   motiveLabel: string;
@@ -40,12 +43,18 @@ export interface DiscountPayload {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  organizationId: string | null;
   product: InventoryProduct | null;
   stock: number;
   lot: InventoryLot | null;
   expiryAlertDays: number;
   warnOnNegative: boolean;
   onSubmit: (payload: DiscountPayload) => void;
+}
+
+interface PatientOption {
+  id: string;
+  name: string;
 }
 
 type Motive = { key: "aplicacion" | "venta" | "merma"; label: string };
@@ -61,6 +70,7 @@ const QUICK_QTY = [1, 2, 3, 4];
 export function DiscountModal({
   open,
   onOpenChange,
+  organizationId,
   product,
   stock,
   lot,
@@ -76,6 +86,8 @@ export function DiscountModal({
   );
   const [showPatient, setShowPatient] = useState(false);
   const [patient, setPatient] = useState("");
+  const [patientId, setPatientId] = useState<string | null>(null);
+  const [patientOptions, setPatientOptions] = useState<PatientOption[]>([]);
   const customRef = useRef<HTMLInputElement>(null);
 
   // Cada apertura arranca limpia: la hoja no recuerda el descuento anterior.
@@ -87,11 +99,47 @@ export function DiscountModal({
     setPending(null);
     setShowPatient(false);
     setPatient("");
+    setPatientId(null);
+    setPatientOptions([]);
   }, [open, product?.id]);
 
   useEffect(() => {
     if (customQty) customRef.current?.focus();
   }, [customQty]);
+
+  // Autocomplete contra la tabla REAL de pacientes (patrón budget-record-modal):
+  // elegir una vincula el movimiento por patient_id; escribir sin elegir queda
+  // como nota de texto, para no bloquear a la asesora con una paciente nueva.
+  useEffect(() => {
+    const q = patient.trim();
+    if (patientId || q.length < 2 || !organizationId) {
+      setPatientOptions([]);
+      return;
+    }
+    let cancelled = false;
+    const handle = window.setTimeout(async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("patients")
+        .select("id, first_name, last_name")
+        .eq("organization_id", organizationId)
+        .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
+        .limit(6);
+      if (cancelled) return;
+      setPatientOptions(
+        ((data ?? []) as { id: string; first_name: string | null; last_name: string | null }[]).map(
+          (p) => ({
+            id: p.id,
+            name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim(),
+          })
+        )
+      );
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
+  }, [patient, patientId, organizationId]);
 
   if (!product) return null;
 
@@ -110,6 +158,8 @@ export function DiscountModal({
             ? "venta"
             : "uso_en_cita",
       lotId: lot?.id ?? null,
+      patientId,
+      // El nombre va también como nota: el kardex lo muestra sin resolver la FK.
       patientNote: patient.trim() || null,
       motiveLabel: motive.label,
     };
@@ -174,7 +224,7 @@ export function DiscountModal({
         <h2 className="pr-8 text-base font-bold leading-tight">{product.name}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Quedan {fmtQty(stock)} {product.base_unit.toLowerCase()}
-          {lot ? ` · Lote ${lot.lot_code}` : ""}
+          {lot && lot.lot_code !== "SIN-LOTE" ? ` · Lote ${lot.lot_code}` : ""}
           {exp.days !== null ? ` · ${exp.label}` : ""}
         </p>
 
@@ -299,12 +349,57 @@ export function DiscountModal({
             </div>
 
             {showPatient ? (
-              <input
-                value={patient}
-                onChange={(e) => setPatient(e.target.value)}
-                placeholder="Nombre de la paciente (opcional)"
-                className="mt-3 h-11 w-full rounded-xl border border-border bg-card px-3 text-base outline-none focus:border-primary/50 md:text-sm"
-              />
+              <div className="relative mt-3">
+                {patientId ? (
+                  <div className="flex h-11 items-center justify-between rounded-xl border border-primary/40 bg-primary/5 px-3">
+                    <span className="inline-flex items-center gap-1.5 truncate text-sm font-medium text-primary">
+                      <Check className="h-3.5 w-3.5 shrink-0" /> {patient}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPatientId(null);
+                        setPatient("");
+                      }}
+                      aria-label="Quitar paciente"
+                      className="rounded-md p-1 text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <input
+                    value={patient}
+                    onChange={(e) => setPatient(e.target.value)}
+                    placeholder="Buscar paciente (opcional)"
+                    className="h-11 w-full rounded-xl border border-border bg-card px-3 text-base outline-none focus:border-primary/50 md:text-sm"
+                  />
+                )}
+                {!patientId && patientOptions.length > 0 && (
+                  <ul className="absolute inset-x-0 top-full z-10 mt-1 max-h-44 overflow-y-auto rounded-xl border border-border bg-popover shadow-lg">
+                    {patientOptions.map((opt) => (
+                      <li key={opt.id}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPatientId(opt.id);
+                            setPatient(opt.name);
+                            setPatientOptions([]);
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
+                        >
+                          {opt.name}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {!patientId && patient.trim().length >= 2 && patientOptions.length === 0 && (
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    Sin coincidencias — quedará como nota de texto.
+                  </p>
+                )}
+              </div>
             ) : (
               <button
                 type="button"

@@ -107,9 +107,12 @@ export default async function DashboardLayout({
               URL colapsable, así que el shell medía más que la pantalla y
               el pie de las páginas quedaba debajo del chrome del
               navegador. En escritorio dvh == vh. */}
-          <div className="flex h-[100dvh] overflow-hidden">
+          {/* print:*: al imprimir (reporte de Almacén y futuros) el shell deja
+              de ser un viewport fijo — sin esto la impresión sale recortada a
+              una sola pantalla. Sidebar y topbar llevan print:hidden propio. */}
+          <div className="flex h-[100dvh] overflow-hidden print:h-auto print:overflow-visible">
             <Sidebar />
-            <div className="flex flex-1 flex-col overflow-hidden">
+            <div className="flex flex-1 flex-col overflow-hidden print:overflow-visible">
               <Topbar />
               {/* Franja de fin de trial: entre topbar y contenido para que
                   persista en TODAS las páginas sin tapar nada. */}
@@ -126,7 +129,7 @@ export default async function DashboardLayout({
                   `overflow-x-hidden` queda solo como red de seguridad —
                   los scrolls laterales legítimos (tab-lists, tablas
                   anchas) viven en sus propios contenedores internos. */}
-              <main className="flex-1 overflow-y-auto overflow-x-hidden">
+              <main className="flex-1 overflow-y-auto overflow-x-hidden print:overflow-visible">
                 <div className="p-4 md:p-7">{children}</div>
               </main>
             </div>

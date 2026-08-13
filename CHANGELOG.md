@@ -4376,6 +4376,15 @@ Dos agentes evaluaron las preguntas del founder sobre el módulo recién despleg
 - PRD: §6 tablas migs 209-210 + flujo de activación con cobro, mapa de rutas y sidebar con `/almacen`, checklist v0.15.30-31.
 - COMING-UPDATES: sección Almacén reescrita al estado real (F1 hecha y activada) con las fases 3-4 nuevas (alertas live + auditoría UI); fila "Facturación de módulos" marcada en prod (pendiente: una activación de pago real con org de test antes de abrir al público).
 
+### Almacén F1.5 — punch list del founder tras probar en prod (13-ago)
+Seis mejoras pedidas con capturas en mano:
+- **Selector/creador de categorías** en Nuevo producto (las existentes + "Nueva categoría…"); las categorías siguen siendo valores libres por org — cada rubro inventa su vocabulario sin migración.
+- **Precio de compra + stock inicial** al crear producto: genera la primera entrada `saldo_inicial` con el costo congelado en el movimiento (el producto sigue sin columna de costo — invariante mig 209). Stock inicial sin costo se rechaza con explicación.
+- **Paciente VINCULADA en salidas**: autocomplete contra la tabla real de pacientes (patrón budget-record-modal) → `patient_id` en el movimiento; texto libre sigue siendo válido como nota para no bloquear con pacientes nuevas.
+- **Densidad**: contenedor a 1500px, paddings de fila reducidos, placeholder "SIN-LOTE" oculto (se muestra "—").
+- **Autor en cada movimiento**: nombre (fallback email) destacado en el kardex + badge ámbar "digitado el X" cuando la fecha de kardex difiere >1 día de la digitación (anti-encubrimiento). Movimientos sin autor = "Importación / sistema".
+- **Tab Movimientos = reporte**: filtros por rango de fechas/tipo/producto/usuario, 6 KPIs del período (entradas, salidas, mermas, compras S/, ventas S/, ganancia estimada = ventas − costo congelado o último conocido), gráfica de barras por día (ventas vs compras), **export CSV** y **impresión** (print CSS: sidebar/topbar ocultos, shell sin viewport fijo — layout global preparado para futuros reportes imprimibles). Paginación de 50 con "Mostrar más" (antes: tope duro de 50 sin acceso al resto).
+
 ### Carga del inventario de Patricia (mismo día)
 El founder subió el Excel "DESCUENTO DE MEDICAMENTOS 2026" (7 hojas ene-jul). De la hoja JULIO (stock final) se cargaron a su org los **35 productos** (20 hormonales + 15 vitaminas/suplementos) con ortografía normalizada (LET LETROZOL→Letrozol, GONAPEPTIL→Gonapeptyl, espacios dobles, "0.0" como fecha→NULL), cada uno con lote SIN-LOTE (vencimiento + costo congelado) y movimiento `saldo_inicial`: 753 unidades, **capital a costo S/79,060.82 — cuadra al céntimo con la valorización del Excel auditado (S/79,061)**. Import idempotente por nombre único activo. Alertas visibles desde el día 1: Saizen y Miositol Men vencen 09/2026, Orgalutran 11/2026.
 

@@ -333,7 +333,7 @@ export function Sidebar() {
         className={cn(
           // h-[100dvh] para acompañar al shell del dashboard (100vh en iOS
           // incluye la barra de URL, y el drawer se pasaba de largo).
-          "flex h-[100dvh] flex-col bg-sidebar-bg border-r border-border/60 transition-all duration-300 relative",
+          "flex h-[100dvh] flex-col bg-sidebar-bg border-r border-border/60 transition-all duration-300 relative print:hidden",
           // Desktop: static sidebar with collapse
           "md:relative md:translate-x-0",
           collapsed ? "md:w-[64px]" : "md:w-[250px]",
