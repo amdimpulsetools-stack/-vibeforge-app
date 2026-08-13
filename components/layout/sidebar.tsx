@@ -223,6 +223,29 @@ export function Sidebar() {
     router.refresh();
   };
 
+  // Colapsado, el sidebar se pinta como un rail oscuro (ver la capa
+  // `sidebar-rail` más abajo), así que los estados de las pastillas se
+  // invierten a blancos. El ítem activo pasa a acento sólido: su texto usa
+  // `--primary-foreground`, que ya está definido por acento y por tema, de
+  // modo que un acento claro recibe glifos oscuros sin cablearlo aquí.
+  const pillState = (isActive: boolean) =>
+    collapsed
+      ? isActive
+        ? "bg-primary text-primary-foreground"
+        : "text-white/70 hover:bg-white/10 hover:text-white"
+      : isActive
+        ? "bg-primary/12 text-primary font-semibold nav-active-glow"
+        : "text-muted-foreground hover:bg-accent/60 hover:text-foreground";
+
+  const pillIcon = (isActive: boolean) =>
+    collapsed
+      ? isActive
+        ? "text-primary-foreground"
+        : "text-white/70 group-hover:text-white"
+      : isActive
+        ? "text-primary"
+        : "text-primary/70 group-hover:text-primary";
+
   const renderNavItem = (item: NavItem) => {
     if (item.adminOnly && !isAdmin) return null;
     if (item.hideForDoctor && isDoctor) return null;
@@ -241,20 +264,18 @@ export function Sidebar() {
     };
     const tourStep = tourStepByHref[item.href];
     return (
-      <Link key={item.href} href={item.href} data-tour-step={tourStep}>
+      <Link key={item.href} href={item.href} data-tour-step={tourStep} className="block">
         <span
           className={cn(
-            "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
-            isActive
-              ? "bg-primary/12 text-primary font-semibold nav-active-glow"
-              : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+            "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
+            pillState(isActive),
             collapsed && "justify-center px-2"
           )}
         >
           <item.icon
             className={cn(
               "h-[18px] w-[18px] shrink-0 transition-colors",
-              isActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
+              pillIcon(isActive)
             )}
           />
           {!collapsed && <span className="truncate">{t(item.titleKey)}</span>}
@@ -285,16 +306,23 @@ export function Sidebar() {
             }
           }}
           className={cn(
-            "group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
-            "hover:bg-accent/60 hover:text-foreground",
-            groupActive ? "text-primary font-semibold" : "text-muted-foreground",
+            "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
+            // Expandido el grupo nunca lleva fondo (solo el hijo activo lo
+            // tiene); colapsado sí, porque el hijo no se ve y el rail
+            // necesita señalar dónde estás.
+            collapsed
+              ? pillState(groupActive)
+              : cn(
+                  "hover:bg-accent/60 hover:text-foreground",
+                  groupActive ? "text-primary font-semibold" : "text-muted-foreground"
+                ),
             collapsed && "justify-center px-2"
           )}
         >
           <group.icon
             className={cn(
               "h-[18px] w-[18px] shrink-0 transition-colors",
-              groupActive ? "text-primary" : "text-primary/70 group-hover:text-primary"
+              pillIcon(groupActive)
             )}
           />
           {!collapsed && (
@@ -310,7 +338,7 @@ export function Sidebar() {
           )}
         </button>
         {!collapsed && isExpanded && (
-          <div className="ml-[18px] mt-1 space-y-1 pl-3">
+          <div className="ml-[18px] mt-1.5 flex flex-col gap-1.5 pl-3">
             {group.items.map(renderNavItem)}
           </div>
         )}
@@ -342,11 +370,30 @@ export function Sidebar() {
           mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         )}
       >
+      {/* Rail oscuro del modo colapsado.
+          Va como capa propia y se anima con `opacity` en lugar de transicionar
+          el `background-color` del panel: opacity la resuelve el compositor,
+          así que el fundido corre en la GPU sin repintar el sidebar en cada
+          frame. Prueba reversible — borrando este div y el token
+          `--sidebar-rail` todo vuelve al estado anterior. */}
+      <div
+        aria-hidden="true"
+        className={cn(
+          "pointer-events-none absolute inset-0 bg-sidebar-rail transition-opacity duration-200 ease-out",
+          collapsed ? "opacity-100" : "opacity-0"
+        )}
+      />
+
       {/* Subtle gradient overlay at top */}
       <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-primary/[0.03] to-transparent pointer-events-none" />
 
       {/* Header */}
-      <div className="relative flex h-16 items-center border-b border-border/40 px-3">
+      <div
+        className={cn(
+          "relative flex h-16 items-center border-b px-3 transition-colors duration-200",
+          collapsed ? "border-white/10" : "border-border/40"
+        )}
+      >
         {!collapsed && (
           <div className="flex items-center gap-2.5 min-w-0">
             {/* Prefer icon_url (mig 168 — compact square optimized
@@ -378,8 +425,10 @@ export function Sidebar() {
         <button
           onClick={() => setCollapsed(!collapsed)}
           className={cn(
-            "hidden md:flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/70 hover:bg-accent hover:text-foreground transition-all duration-200",
-            collapsed ? "mx-auto" : "ml-auto"
+            "hidden md:flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200",
+            collapsed
+              ? "mx-auto text-white/70 hover:bg-white/10 hover:text-white"
+              : "ml-auto text-muted-foreground/70 hover:bg-accent hover:text-foreground"
           )}
         >
           <ChevronLeft
@@ -419,7 +468,12 @@ export function Sidebar() {
                   {t(section.labelKey)}
                 </div>
               )}
-              <div className="space-y-1">
+              {/* flex+gap en vez de space-y: `space-y-*` aplica margen a los
+                  hijos, y los <Link> de Next renderizan un <a> inline, donde
+                  el margen vertical no tiene efecto — las pastillas quedaban
+                  pegadas a 0px. Los hijos de un flex se blockifican, así que
+                  el gap funciona pase lo que pase. */}
+              <div className="flex flex-col gap-1.5">
                 {visibleEntries.map((entry) =>
                   isNavGroup(entry) ? renderNavGroup(entry) : renderNavItem(entry)
                 )}
@@ -442,21 +496,24 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="relative border-t border-border/40 p-2.5 space-y-1">
-        <Link href="/support">
+      <div
+        className={cn(
+          "relative flex flex-col gap-1.5 border-t p-2.5 transition-colors duration-200",
+          collapsed ? "border-white/10" : "border-border/40"
+        )}
+      >
+        <Link href="/support" className="block">
           <span
             className={cn(
-              "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-all duration-200",
-              isPathActive("/support")
-                ? "bg-primary/12 text-primary font-semibold nav-active-glow"
-                : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
+              "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
+              pillState(isPathActive("/support")),
               collapsed && "justify-center px-2"
             )}
           >
             <Headphones
               className={cn(
                 "h-[18px] w-[18px] shrink-0 transition-colors",
-                isPathActive("/support") ? "text-primary" : "text-primary/70 group-hover:text-primary"
+                pillIcon(isPathActive("/support"))
               )}
             />
             {!collapsed && <span className="truncate">{t("nav.support")}</span>}
@@ -465,7 +522,8 @@ export function Sidebar() {
         <button
           onClick={handleLogout}
           className={cn(
-            "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-muted-foreground transition-all duration-200 hover:bg-destructive/10 hover:text-destructive",
+            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 hover:bg-destructive/10 hover:text-destructive",
+            collapsed ? "text-white/70" : "text-muted-foreground",
             collapsed && "justify-center px-2"
           )}
         >
