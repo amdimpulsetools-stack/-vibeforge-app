@@ -18,8 +18,10 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgAddons } from "@/hooks/use-org-addons";
 import { useUser } from "@/hooks/use-user";
 import { toast } from "sonner";
 import { AlertTriangle, Package, PackagePlus, Plus } from "lucide-react";
@@ -75,6 +77,8 @@ function today(): string {
 export default function AlmacenPage() {
   const { organizationId, isOrgAdmin } = useOrganization();
   const { user } = useUser();
+  const { hasAddon, loading: addonsLoading } = useOrgAddons();
+  const almacenEnabled = hasAddon("almacen");
 
   const [tab, setTab] = useState<TabKey>("productos");
   const [products, setProducts] = useState<InventoryProduct[]>([]);
@@ -497,6 +501,37 @@ export default function AlmacenPage() {
   );
 
   // ── Render ─────────────────────────────────────────────────────────────
+
+  // Gate del módulo. Hasta aquí el único freno era que el enlace no se pintara
+  // en el sidebar: escribiendo /almacen en la barra de direcciones, cualquier
+  // miembro de cualquier organización entraba y podía crear productos y
+  // movimientos sin tener el addon.
+  //
+  // OJO: esto es defensa de interfaz, no de datos. Las RLS de la migración 209
+  // siguen autorizando por pertenencia a la organización, así que una llamada
+  // directa a la API todavía pasaría. Endurecerlas con un EXISTS sobre
+  // `organization_addons` es el cierre definitivo y va aparte, para no tocar
+  // permisos de base con una clínica a punto de entrar en producción.
+  if (!addonsLoading && !almacenEnabled) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+        <Package className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+        <p className="text-sm font-semibold">Módulo Almacén no activo</p>
+        <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">
+          El control de inventario, stock y vencimientos se activa como módulo
+          desde la configuración de tu organización.
+        </p>
+        {isOrgAdmin && (
+          <Link href="/settings?tab=modulos" className="mt-4 inline-block">
+            <Button variant="outline" size="sm">
+              Ver módulos
+            </Button>
+          </Link>
+        )}
+      </div>
+    );
+  }
+
   if (loadError) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-16 text-center">

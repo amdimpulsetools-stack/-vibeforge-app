@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Sparkles, ArrowRight, Building2, Phone, Shield } from "lucide-react";
+import { exceedsMpPreapprovalCap } from "@/lib/billing/constants";
 
 type Cadence = "monthly" | "semiannual" | "annual";
 
@@ -89,6 +90,18 @@ function anchorFor(plan: (typeof plans)[number], cadence: Cadence) {
   if (cadence === "monthly") return plan.anchor;
   if (cadence === "semiannual") return plan.anchorSemiannual;
   return plan.anchorAnnual;
+}
+
+/**
+ * Cobro por período (lo que Mercado Pago intenta cobrar de una vez), no el
+ * precio mensual prorrateado que muestra la tarjeta.
+ */
+function periodTotal(plan: (typeof plans)[number], cadence: Cadence) {
+  const monthly = Number(priceFor(plan, cadence));
+  if (Number.isNaN(monthly)) return null;
+  if (cadence === "semiannual") return monthly * 6;
+  if (cadence === "annual") return monthly * 12;
+  return monthly;
 }
 
 export function Pricing() {
@@ -204,6 +217,17 @@ export function Pricing() {
                 <p className="text-xs text-slate-400 mt-1 motion-safe:animate-[fadeUp_0.35s_ease-out]">
                   {anchorFor(plan, cadence)}
                 </p>
+                {/* Mercado Pago no acepta cobros por período de más de
+                    S/1,500, así que estas cadencias salen como "Próximamente"
+                    en el checkout. Sin este aviso la landing las anunciaba con
+                    su descuento y el visitante se enteraba del muro después de
+                    registrarse. */}
+                {exceedsMpPreapprovalCap(periodTotal(plan, cadence)) && (
+                  <p className="mt-1.5 text-xs font-medium text-amber-600">
+                    Pago {cadence === "annual" ? "anual" : "semestral"} disponible
+                    próximamente — por ahora, mensual
+                  </p>
+                )}
               </div>
 
               {/* IA badge */}
