@@ -22,14 +22,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
 import { useUser } from "@/hooks/use-user";
 import { toast } from "sonner";
-import {
-  AlertTriangle,
-  CalendarClock,
-  Package,
-  PackagePlus,
-  Plus,
-  TrendingUp,
-} from "lucide-react";
+import { AlertTriangle, Package, PackagePlus, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -40,6 +33,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ProductTable } from "./product-table";
 import { MovementList } from "./movement-list";
+import { ExpiryList } from "./expiry-list";
+import { ProfitTab } from "./profit-tab";
 import { DiscountModal, type DiscountPayload } from "./discount-modal";
 import { EntryModal, type EntryPayload } from "./entry-modal";
 import { ProductModal, type ProductPayload } from "./product-modal";
@@ -598,19 +593,30 @@ export default function AlmacenPage() {
         </TabsContent>
 
         <TabsContent value="vencimientos" className="mt-4">
-          <ComingSoon
-            icon={CalendarClock}
-            title="Vencimientos"
-            body="Verás los lotes ordenados por fecha de vencimiento, con el dinero que representa cada uno. Por ahora, el semáforo de vencimiento vive en la fila del producto."
-          />
+          {loading ? (
+            <TableSkeleton />
+          ) : (
+            <ExpiryList
+              products={products}
+              lots={lots}
+              movements={movements}
+              lastCosts={lastCosts}
+              expiryAlertDays={settings.expiry_alert_days}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="rentabilidad" className="mt-4">
-          <ComingSoon
-            icon={TrendingUp}
-            title="Rentabilidad"
-            body="Calculará tu ganancia real restando el costo de cada lote, y te dirá cuánta plata tienes dormida en el anaquel y cuánta está por vencerse."
-          />
+          {loading ? (
+            <TableSkeleton />
+          ) : (
+            <ProfitTab
+              products={products}
+              movements={movements}
+              stockByProduct={stockByProduct}
+              lastCosts={lastCosts}
+            />
+          )}
         </TabsContent>
       </Tabs>
 
@@ -659,26 +665,6 @@ function TableSkeleton() {
           </div>
         ))}
       </div>
-    </div>
-  );
-}
-
-function ComingSoon({
-  icon: Icon,
-  title,
-  body,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  title: string;
-  body: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-border/60 bg-card p-12 text-center">
-      <Icon className="mx-auto mb-3 h-7 w-7 text-muted-foreground" />
-      <p className="text-sm font-semibold">
-        {title} · Disponible próximamente
-      </p>
-      <p className="mx-auto mt-1 max-w-md text-xs text-muted-foreground">{body}</p>
     </div>
   );
 }
