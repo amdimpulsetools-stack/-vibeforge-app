@@ -1061,7 +1061,43 @@ function TemplateEditor({
   onSave: (updated: EmailTemplate) => void;
 }) {
   const { t, language } = useLanguage();
+  const { organizationId } = useOrganization();
   const editorRef = useRef<RichTextEditorHandle>(null);
+
+  // La vista previa usa los datos REALES de la clínica cuando existen
+  // (nombre de la org + Variables globales). Con los mocks fijos, el
+  // "+51 999 000 000" de ejemplo era indistinguible del valor real y ya
+  // confundió a un founder configurando plantillas para una piloto.
+  const [orgVars, setOrgVars] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!organizationId) return;
+    let cancelled = false;
+    const supabase = createClient();
+    void supabase
+      .from("global_variables")
+      .select("key,value")
+      .eq("organization_id", organizationId)
+      .in("key", ["clinic_phone", "clinic_email"])
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        const map: Record<string, string> = {};
+        for (const row of data as { key: string; value: string | null }[]) {
+          if (row.value?.trim()) map[row.key] = row.value.trim();
+        }
+        setOrgVars(map);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [organizationId]);
+
+  const previewData: Record<string, string> = {
+    ...PREVIEW_DATA,
+    ...(clinicName ? { "{{clinica_nombre}}": clinicName } : {}),
+    ...(orgVars.clinic_phone
+      ? { "{{clinica_telefono}}": orgVars.clinic_phone }
+      : {}),
+  };
 
   // Pre-existing templates seeded with plain text have `body_html = null`.
   // Convert them to HTML once so the rich editor can render them and so the
@@ -1120,11 +1156,11 @@ function TemplateEditor({
     editorRef.current?.insertText(variable);
   };
 
-  const previewBodyHtml = substituteVariables(form.body_html, PREVIEW_DATA);
+  const previewBodyHtml = substituteVariables(form.body_html, previewData);
 
   const previewSubject = form.subject.replace(
     /\{\{[a-z_]+\}\}/g,
-    (match) => PREVIEW_DATA[match] ?? match
+    (match) => previewData[match] ?? match
   );
 
   const inputClass =
@@ -1312,7 +1348,7 @@ function TemplateEditor({
                   <span className="font-medium">
                     {language === "es" ? "De:" : "From:"}
                   </span>{" "}
-                  {PREVIEW_DATA["{{clinica_nombre}}"]}
+                  {previewData["{{clinica_nombre}}"]}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   <span className="font-medium">
