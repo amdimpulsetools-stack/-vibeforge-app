@@ -37,10 +37,12 @@
   --radius: 0.75rem;
   /* Extended tokens */
   --sidebar-bg: #ffffff;
-  /* Fondo del sidebar cuando está colapsado (rail). En tema claro vira a
-     oscuro para que el rail lea como una barra de herramientas; en oscuro
-     ya coincide con --sidebar-bg y no cambia nada. */
-  --sidebar-rail: oklch(0.055 0.02 265);
+  /* Fondo del sidebar cuando está colapsado (rail). Usa el extremo oscuro de
+     la rampa del acento —no un neutro— para que el rail sea del color de la
+     marca de cada organización: verde muy oscuro con Esmeralda, terracota
+     con Arena. El tema de acento redefine esta rampa (lib/theme/accent-themes),
+     así que el rail sigue al acento sin cablear ningún hex aquí. */
+  --sidebar-rail: var(--color-emerald-950, oklch(26.2% 0.051 172.552));
   --glow-primary: oklch(0.55 0.175 163 / 0.08);
   --warm-accent: oklch(0.72 0.14 75);
 }
