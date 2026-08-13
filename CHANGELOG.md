@@ -4390,6 +4390,14 @@ El founder preguntó por qué decían "próximamente" — eran fases de septiemb
 - **Vencimientos**: lotes con saldo (SUM de movimientos por lote) ordenados por fecha, con el **capital en riesgo por franja** (vencido / ≤90d / 90-180d / sin fecha registrada — la trampa CETROTIDE del Excel ahora es un KPI ámbar). Lote consumido desaparece: ya no es plata en riesgo.
 - **Rentabilidad**: la resta que el Excel nunca hizo — por producto: vendido, ventas S/, COGS (costo congelado en la salida o último conocido, marcado "estimada"), **ganancia real** y margen %, con rango de fechas. KPIs: ventas, costo, ganancia, margen, **capital en stock** (con "plata dormida" = sin movimiento en el período). Las aplicaciones en consulta se listan aparte sin sumar ganancia (el cobro se cruza en F2). Candado por plan Clínica: se implementa al vender el addon públicamente (beta = nivel completo para las 3 orgs).
 
+### Fix del buscador de pacientes en salidas (13-ago, evaluado con agente)
+El founder reportó bugs al vincular paciente. El agente encontró la causa raíz: **los atajos de teclado del modal (1-9 fija cantidad, A/V/M confirma motivo) se disparaban mientras se escribía en el campo de paciente** — tipear un DNI era imposible (los dígitos cambiaban la cantidad) y escribir "maria" confirmaba Aplicación y cerraba el modal. Fixes:
+- Guard en onKeyDown: cero atajos cuando el foco está en un input.
+- Búsqueda por **nombre completo** (tokens AND-eados: "maria perez" ahora encuentra) y por **DNI/CE/Pasaporte** (solo dígitos = prefijo de documento; los índices trigram de mig 103 ya lo soportaban). Saneo anti-inyección PostgREST por token (patrón budgets/route.ts — el input con coma rompía el .or() en silencio).
+- Dropdown con documento visible por opción (homónimas), en flujo (ya no lo recorta el overflow del Dialog), filtro status=active, orden por apellido, manejo de error.
+- Campo de paciente movido ARRIBA de los motivos (tocar motivo confirma y cierra: debe ser el último gesto) + **auto-vínculo** si al confirmar hay exactamente 1 candidata cargada.
+- Deuda anotada: budget-record-modal.tsx y patients-client.tsx comparten los bugs de inyección/nombre completo → unificar en un componente compartido (roadmap).
+
 ### Carga del inventario de Patricia (mismo día)
 El founder subió el Excel "DESCUENTO DE MEDICAMENTOS 2026" (7 hojas ene-jul). De la hoja JULIO (stock final) se cargaron a su org los **35 productos** (20 hormonales + 15 vitaminas/suplementos) con ortografía normalizada (LET LETROZOL→Letrozol, GONAPEPTIL→Gonapeptyl, espacios dobles, "0.0" como fecha→NULL), cada uno con lote SIN-LOTE (vencimiento + costo congelado) y movimiento `saldo_inicial`: 753 unidades, **capital a costo S/79,060.82 — cuadra al céntimo con la valorización del Excel auditado (S/79,061)**. Import idempotente por nombre único activo. Alertas visibles desde el día 1: Saizen y Miositol Men vencen 09/2026, Orgalutran 11/2026.
 

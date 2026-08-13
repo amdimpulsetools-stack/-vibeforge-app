@@ -55,6 +55,8 @@ interface Props {
 interface PatientOption {
   id: string;
   name: string;
+  /** "DNI 74123456" — imprescindible para distinguir homónimas. */
+  doc: string | null;
 }
 
 type Motive = { key: "aplicacion" | "venta" | "merma"; label: string };
@@ -107,9 +109,15 @@ export function DiscountModal({
     if (customQty) customRef.current?.focus();
   }, [customQty]);
 
-  // Autocomplete contra la tabla REAL de pacientes (patrón budget-record-modal):
-  // elegir una vincula el movimiento por patient_id; escribir sin elegir queda
-  // como nota de texto, para no bloquear a la asesora con una paciente nueva.
+  // Autocomplete contra la tabla REAL de pacientes. Busca por nombre COMPLETO
+  // (tokens AND-eados: "maria perez" matchea maria↔first_name Y perez↔
+  // last_name — un solo ilike sobre columnas partidas no encuentra nada) y
+  // por DNI/CE/Pasaporte (solo dígitos = prefijo de documento, aprovecha el
+  // índice trigram de mig 103). Cada token se sanea antes de entrar al .or():
+  // PostgREST parsea esa cadena y una coma del input la rompe en silencio
+  // (mismo saneo que budgets/route.ts). Elegir una opción vincula por
+  // patient_id; escribir sin elegir queda como nota de texto, para no
+  // bloquear a la asesora con una paciente nueva.
   useEffect(() => {
     const q = patient.trim();
     if (patientId || q.length < 2 || !organizationId) {
@@ -119,20 +127,50 @@ export function DiscountModal({
     let cancelled = false;
     const handle = window.setTimeout(async () => {
       const supabase = createClient();
-      const { data } = await supabase
+      const tokens = q
+        .split(/\s+/)
+        .slice(0, 5)
+        .map((t) => t.replace(/[%_,().\\]/g, ""))
+        .filter(Boolean);
+      if (tokens.length === 0) {
+        setPatientOptions([]);
+        return;
+      }
+      let query = supabase
         .from("patients")
-        .select("id, first_name, last_name")
+        .select("id, first_name, last_name, dni, document_type")
         .eq("organization_id", organizationId)
-        .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%`)
-        .limit(6);
+        .eq("status", "active");
+      const joined = tokens.join("");
+      if (/^\d+$/.test(joined)) {
+        query = query.ilike("dni", `${joined}%`);
+      } else {
+        for (const tok of tokens) {
+          query = query.or(
+            `first_name.ilike.%${tok}%,last_name.ilike.%${tok}%,dni.ilike.%${tok}%`
+          );
+        }
+      }
+      const { data, error } = await query.order("last_name").limit(8);
       if (cancelled) return;
+      if (error) {
+        setPatientOptions([]);
+        return;
+      }
       setPatientOptions(
-        ((data ?? []) as { id: string; first_name: string | null; last_name: string | null }[]).map(
-          (p) => ({
-            id: p.id,
-            name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim(),
-          })
-        )
+        (
+          (data ?? []) as {
+            id: string;
+            first_name: string | null;
+            last_name: string | null;
+            dni: string | null;
+            document_type: string | null;
+          }[]
+        ).map((p) => ({
+          id: p.id,
+          name: `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim(),
+          doc: p.dni ? `${p.document_type ?? "DNI"} ${p.dni}` : null,
+        }))
       );
     }, 250);
     return () => {
@@ -148,6 +186,14 @@ export function DiscountModal({
 
   function fire(motive: Motive, reasonCode?: ReasonCode) {
     if (!product) return;
+    // Confirmación rápida sin selección: si la búsqueda ya trajo EXACTAMENTE
+    // una candidata, se vincula sola — la asesora escribe "quispe" y toca
+    // "Venta" sin esperar el dropdown. Con 0 o varias candidatas, el texto
+    // queda como nota (ambigüedad no se adivina).
+    const autoOption =
+      !patientId && patient.trim() && patientOptions.length === 1
+        ? patientOptions[0]
+        : null;
     const payload: Omit<DiscountPayload, "product"> = {
       quantity: qty,
       movementType: motive.key === "merma" ? "merma" : "salida",
@@ -158,9 +204,9 @@ export function DiscountModal({
             ? "venta"
             : "uso_en_cita",
       lotId: lot?.id ?? null,
-      patientId,
+      patientId: patientId ?? autoOption?.id ?? null,
       // El nombre va también como nota: el kardex lo muestra sin resolver la FK.
-      patientNote: patient.trim() || null,
+      patientNote: autoOption ? autoOption.name : patient.trim() || null,
       motiveLabel: motive.label,
     };
 
@@ -191,6 +237,16 @@ export function DiscountModal({
   // Atajos de escritorio: 1–9 fija cantidad, A/V/M confirma.
   function onKeyDown(e: React.KeyboardEvent) {
     if (step !== "motive" || customQty) return;
+    // BUG histórico: sin este guard, los keydown del campo de paciente
+    // burbujeaban hasta acá — tipear "maria" confirmaba Aplicación/Merma y
+    // los dígitos de un DNI cambiaban la cantidad. Nada de atajos mientras
+    // se escribe en un input.
+    const el = e.target as HTMLElement | null;
+    if (
+      el &&
+      (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable)
+    )
+      return;
     if (e.key >= "1" && e.key <= "9") {
       setQty(Number(e.key));
       e.preventDefault();
@@ -331,25 +387,10 @@ export function DiscountModal({
               )}
             </div>
 
-            <p className="mb-2 mt-5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              ¿Por qué? — al tocar, se registra
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              {MOTIVES.map((m) => (
-                <button
-                  key={m.key}
-                  type="button"
-                  disabled={qty <= 0}
-                  onClick={() => onMotive(m)}
-                  className="h-14 rounded-xl border border-primary/30 bg-primary/10 text-sm font-bold text-primary transition-colors hover:bg-primary/20 active:scale-[.98] disabled:opacity-40"
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-
+            {/* Paciente ANTES de los motivos: tocar el motivo confirma y
+                cierra, así que tiene que ser el último gesto de la hoja. */}
             {showPatient ? (
-              <div className="relative mt-3">
+              <div className="relative mt-4">
                 {patientId ? (
                   <div className="flex h-11 items-center justify-between rounded-xl border border-primary/40 bg-primary/5 px-3">
                     <span className="inline-flex items-center gap-1.5 truncate text-sm font-medium text-primary">
@@ -371,12 +412,13 @@ export function DiscountModal({
                   <input
                     value={patient}
                     onChange={(e) => setPatient(e.target.value)}
-                    placeholder="Buscar paciente (opcional)"
+                    placeholder="Nombre, apellido o DNI (opcional)"
+                    autoFocus
                     className="h-11 w-full rounded-xl border border-border bg-card px-3 text-base outline-none focus:border-primary/50 md:text-sm"
                   />
                 )}
                 {!patientId && patientOptions.length > 0 && (
-                  <ul className="absolute inset-x-0 top-full z-10 mt-1 max-h-44 overflow-y-auto rounded-xl border border-border bg-popover shadow-lg">
+                  <ul className="max-h-40 overflow-y-auto rounded-xl border border-border bg-popover shadow-sm">
                     {patientOptions.map((opt) => (
                       <li key={opt.id}>
                         <button
@@ -386,9 +428,12 @@ export function DiscountModal({
                             setPatient(opt.name);
                             setPatientOptions([]);
                           }}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-accent"
+                          className="w-full px-3 py-1.5 text-left hover:bg-accent"
                         >
-                          {opt.name}
+                          <span className="block truncate text-sm">{opt.name}</span>
+                          <span className="block text-[11px] text-muted-foreground">
+                            {opt.doc ?? "Sin documento"}
+                          </span>
                         </button>
                       </li>
                     ))}
@@ -404,11 +449,28 @@ export function DiscountModal({
               <button
                 type="button"
                 onClick={() => setShowPatient(true)}
-                className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
               >
                 <UserPlus className="h-3.5 w-3.5" /> Paciente (opcional)
               </button>
             )}
+
+            <p className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              ¿Por qué? — al tocar, se registra
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              {MOTIVES.map((m) => (
+                <button
+                  key={m.key}
+                  type="button"
+                  disabled={qty <= 0}
+                  onClick={() => onMotive(m)}
+                  className="h-14 rounded-xl border border-primary/30 bg-primary/10 text-sm font-bold text-primary transition-colors hover:bg-primary/20 active:scale-[.98] disabled:opacity-40"
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
           </>
         )}
       </DialogContent>
