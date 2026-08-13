@@ -71,9 +71,13 @@ export interface InventoryMovement {
   quantity: number;
   unit_cost: number | null;
   unit_sale_price: number | null;
+  /** Generadas por la BD: abs(quantity) × costo/precio congelado. */
+  cost_total: number | null;
+  revenue_total: number | null;
   movement_date: string;
   reason_code: ReasonCode | null;
   notes: string | null;
+  patient_id: string | null;
   reverses_movement_id: string | null;
   created_at: string;
   created_by: string | null;
@@ -95,7 +99,7 @@ export const PRODUCT_COLUMNS =
 export const LOT_COLUMNS =
   "id,organization_id,product_id,lot_code,expiry_date,unit_cost,supplier,received_at";
 export const MOVEMENT_COLUMNS =
-  "id,organization_id,product_id,lot_id,movement_type,quantity,unit_cost,unit_sale_price,movement_date,reason_code,notes,reverses_movement_id,created_at,created_by";
+  "id,organization_id,product_id,lot_id,movement_type,quantity,unit_cost,unit_sale_price,cost_total,revenue_total,movement_date,reason_code,notes,patient_id,reverses_movement_id,created_at,created_by";
 
 // ── Etiquetas ───────────────────────────────────────────────────────────
 

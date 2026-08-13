@@ -4,6 +4,15 @@
  * Nuevo producto — solo owner/admin (la RLS de inventory_products deja
  * escribir únicamente a `is_org_admin`; el botón se oculta para el resto).
  *
+ * Categoría: selector de las existentes + "Nueva categoría…" que revela el
+ * campo de texto. Las categorías no son una tabla: son los valores distintos
+ * de `inventory_products.category`, así cada rubro (dental, dermato, estética)
+ * inventa su propio vocabulario sin migración ni pantalla de administración.
+ *
+ * Stock inicial + precio de compra: si se indican, al guardar se genera la
+ * entrada `saldo_inicial` con el costo CONGELADO en el movimiento — el
+ * producto nunca guarda costo (invariante del kardex, mig 209).
+ *
  * El factor de conversión (`units_per_presentation`) vive colapsado en
  * "Avanzado": formaliza el "SE VENDE POR UNIDADES" del Excel (1 CAJA =
  * 30 UND) pero el 90% de los productos se maneja 1 a 1 y no merece un
@@ -32,6 +41,9 @@ export interface ProductPayload {
   sale_price: number;
   min_stock: number;
   track_lots: boolean;
+  /** Si > 0, la página crea la entrada `saldo_inicial` con este costo. */
+  initial_stock: number;
+  initial_cost: number | null;
 }
 
 interface Props {
@@ -41,6 +53,8 @@ interface Props {
   onSubmit: (payload: ProductPayload) => Promise<boolean>;
 }
 
+const NEW_CATEGORY = "__nueva__";
+
 const labelCls =
   "mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
 const selectCls =
@@ -49,10 +63,13 @@ const selectCls =
 export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [newCategory, setNewCategory] = useState(false);
   const [presentation, setPresentation] = useState("UND");
   const [baseUnit, setBaseUnit] = useState("UND");
   const [factor, setFactor] = useState("1");
   const [salePrice, setSalePrice] = useState("");
+  const [purchaseCost, setPurchaseCost] = useState("");
+  const [initialStock, setInitialStock] = useState("");
   const [minStock, setMinStock] = useState("");
   const [trackLots, setTrackLots] = useState(true);
   const [advanced, setAdvanced] = useState(false);
@@ -63,15 +80,18 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
     if (!open) return;
     setName("");
     setCategory("");
+    setNewCategory(categories.length === 0);
     setPresentation("UND");
     setBaseUnit("UND");
     setFactor("1");
     setSalePrice("");
+    setPurchaseCost("");
+    setInitialStock("");
     setMinStock("");
     setTrackLots(true);
     setAdvanced(false);
     setError(null);
-  }, [open]);
+  }, [open, categories.length]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -79,6 +99,14 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
     const f = Number(factor || "1");
     if (!Number.isFinite(f) || f <= 0)
       return setError("El factor de conversión tiene que ser mayor que cero.");
+
+    const stock0 = Number(initialStock || "0");
+    const cost0 = purchaseCost === "" ? null : Number(purchaseCost);
+    if (stock0 > 0 && (cost0 == null || !Number.isFinite(cost0) || cost0 < 0)) {
+      return setError(
+        "Para cargar stock inicial necesitas el precio de compra: sin costo no hay entrada (regla del kardex)."
+      );
+    }
 
     setError(null);
     setSaving(true);
@@ -91,6 +119,8 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
       sale_price: Number(salePrice || "0"),
       min_stock: Number(minStock || "0"),
       track_lots: trackLots,
+      initial_stock: Math.max(0, stock0),
+      initial_cost: cost0,
     });
     setSaving(false);
     if (ok) onOpenChange(false);
@@ -98,7 +128,7 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg sm:rounded-2xl">
+      <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg sm:rounded-2xl">
         <DialogHeader>
           <DialogTitle>Nuevo producto</DialogTitle>
           <DialogDescription>
@@ -125,18 +155,51 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
               <label className={labelCls} htmlFor="prod-cat">
                 Categoría
               </label>
-              <Input
-                id="prod-cat"
-                list="almacen-categorias"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                placeholder="Hormonal"
-              />
-              <datalist id="almacen-categorias">
-                {categories.map((c) => (
-                  <option key={c} value={c} />
-                ))}
-              </datalist>
+              {newCategory ? (
+                <div className="flex gap-1.5">
+                  <Input
+                    id="prod-cat"
+                    autoFocus={categories.length > 0}
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    placeholder="Ortodoncia, Insumos…"
+                  />
+                  {categories.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewCategory(false);
+                        setCategory("");
+                      }}
+                      className="shrink-0 rounded-md border border-border px-2 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Elegir
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <select
+                  id="prod-cat"
+                  value={category}
+                  onChange={(e) => {
+                    if (e.target.value === NEW_CATEGORY) {
+                      setNewCategory(true);
+                      setCategory("");
+                    } else {
+                      setCategory(e.target.value);
+                    }
+                  }}
+                  className={selectCls}
+                >
+                  <option value="">Sin categoría</option>
+                  {categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                  <option value={NEW_CATEGORY}>➕ Nueva categoría…</option>
+                </select>
+              )}
             </div>
             <div>
               <label className={labelCls} htmlFor="prod-pres">
@@ -157,23 +220,22 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className={labelCls} htmlFor="prod-unit">
-                Unidad base
+              <label className={labelCls} htmlFor="prod-cost">
+                Precio compra
               </label>
-              <select
-                id="prod-unit"
-                value={baseUnit}
-                onChange={(e) => setBaseUnit(e.target.value)}
-                className={selectCls}
-              >
-                {UNIT_OPTIONS.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
+              <Input
+                id="prod-cost"
+                type="number"
+                min="0"
+                step="0.01"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={purchaseCost}
+                onChange={(e) => setPurchaseCost(e.target.value)}
+                className="tabular-nums"
+              />
             </div>
             <div>
               <label className={labelCls} htmlFor="prod-price">
@@ -188,6 +250,25 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
                 placeholder="0.00"
                 value={salePrice}
                 onChange={(e) => setSalePrice(e.target.value)}
+                className="tabular-nums"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className={labelCls} htmlFor="prod-initial">
+                Stock inicial
+              </label>
+              <Input
+                id="prod-initial"
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                placeholder="0"
+                value={initialStock}
+                onChange={(e) => setInitialStock(e.target.value)}
                 className="tabular-nums"
               />
             </div>
@@ -207,7 +288,29 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
                 className="tabular-nums"
               />
             </div>
+            <div>
+              <label className={labelCls} htmlFor="prod-unit">
+                Unidad base
+              </label>
+              <select
+                id="prod-unit"
+                value={baseUnit}
+                onChange={(e) => setBaseUnit(e.target.value)}
+                className={selectCls}
+              >
+                {UNIT_OPTIONS.map((u) => (
+                  <option key={u} value={u}>
+                    {u}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+          <p className="!mt-1.5 text-[11px] text-muted-foreground">
+            Con stock inicial y precio de compra se crea la primera entrada al
+            kardex. El costo queda congelado en ese movimiento — las siguientes
+            compras se registran con «Entrada».
+          </p>
 
           <div className="rounded-xl border border-border/60">
             <button

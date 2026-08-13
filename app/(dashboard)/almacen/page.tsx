@@ -156,16 +156,23 @@ export default function AlmacenPage() {
     setLoading(false);
 
     // Quién registró cada movimiento. Va aparte porque `created_by` apunta a
-    // auth.users y el nombre vive en user_profiles.
+    // auth.users y el nombre vive en user_profiles. El email es el fallback
+    // cuando el perfil no tiene nombre: un control de seguridad sin autor
+    // visible no controla nada.
     const ids = [...new Set(movs.map((m) => m.created_by).filter(Boolean))] as string[];
     if (ids.length > 0) {
       const { data } = await supabase
         .from("user_profiles")
-        .select("id,full_name")
+        .select("id,full_name,email")
         .in("id", ids);
       const map: Record<string, string> = {};
-      for (const row of (data ?? []) as { id: string; full_name: string | null }[]) {
-        if (row.full_name) map[row.id] = row.full_name;
+      for (const row of (data ?? []) as {
+        id: string;
+        full_name: string | null;
+        email: string | null;
+      }[]) {
+        const label = row.full_name?.trim() || row.email?.trim();
+        if (label) map[row.id] = label;
       }
       setAuthors(map);
     }
@@ -245,9 +252,12 @@ export default function AlmacenPage() {
         quantity: qty,
         unit_cost: null,
         unit_sale_price: null,
+        cost_total: null,
+        revenue_total: null,
         movement_date: today(),
         reason_code: payload.reasonCode,
         notes: null,
+        patient_id: payload.patientId,
         reverses_movement_id: null,
         created_at: new Date().toISOString(),
         created_by: user.id,
@@ -269,6 +279,9 @@ export default function AlmacenPage() {
             payload.reasonCode === "venta" ? Number(p.sale_price) : null,
           movement_date: today(),
           reason_code: payload.reasonCode,
+          // FK real cuando se eligió del autocomplete; la nota queda igual
+          // para que el kardex muestre el nombre sin resolver la FK.
+          patient_id: payload.patientId,
           notes: payload.patientNote ? `Paciente: ${payload.patientNote}` : null,
           created_by: user.id,
         })
@@ -402,12 +415,13 @@ export default function AlmacenPage() {
     async (payload: ProductPayload): Promise<boolean> => {
       if (!organizationId || !user?.id) return false;
       const supabase = createClient();
+      const { initial_stock, initial_cost, ...productFields } = payload;
 
       const { data, error } = await supabase
         .from("inventory_products")
         .insert({
           organization_id: organizationId,
-          ...payload,
+          ...productFields,
           created_by: user.id,
         })
         .select(PRODUCT_COLUMNS)
@@ -430,7 +444,40 @@ export default function AlmacenPage() {
       setProducts((prev) =>
         [...prev, saved].sort((a, b) => a.name.localeCompare(b.name, "es"))
       );
-      toast.success("Producto agregado", { description: saved.name });
+
+      // Stock inicial → primera entrada del kardex con el costo congelado.
+      // El producto jamás guarda costo (invariante mig 209): si esta inserción
+      // falla, el producto queda creado y el stock se carga con "Entrada".
+      if (initial_stock > 0 && initial_cost != null) {
+        const { data: movData, error: movError } = await supabase
+          .from("inventory_movements")
+          .insert({
+            organization_id: organizationId,
+            product_id: saved.id,
+            movement_type: "entrada",
+            quantity: initial_stock,
+            unit_cost: initial_cost,
+            movement_date: today(),
+            reason_code: "saldo_inicial",
+            created_by: user.id,
+          })
+          .select(MOVEMENT_COLUMNS)
+          .single();
+        if (movError || !movData) {
+          toast.warning("Producto creado, pero el stock inicial no se registró", {
+            description: "Cárgalo con el botón Entrada.",
+          });
+        } else {
+          setMovements((prev) => [movData as unknown as InventoryMovement, ...prev]);
+        }
+      }
+
+      toast.success("Producto agregado", {
+        description:
+          initial_stock > 0
+            ? `${saved.name} · ${fmtQty(initial_stock)} ${saved.base_unit.toLowerCase()} de saldo inicial`
+            : saved.name,
+      });
       return true;
     },
     [organizationId, user?.id]
@@ -453,8 +500,10 @@ export default function AlmacenPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5 px-4 pb-14 pt-6 sm:px-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    // max-w amplio + menos aire vertical: la queja real del founder fue el
+    // espacio en blanco en pantallas grandes.
+    <div className="mx-auto max-w-[1500px] space-y-4 px-4 pb-14 pt-4 sm:px-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 print:hidden">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-extrabold tracking-tight">
             <Package className="h-6 w-6 text-primary" /> Almacén
@@ -507,7 +556,7 @@ export default function AlmacenPage() {
       </div>
 
       <Tabs value={tab} onValueChange={changeTab}>
-        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0 print:hidden">
           <TabsList>
             <TabsTrigger value="productos">Productos</TabsTrigger>
             <TabsTrigger value="movimientos">Movimientos</TabsTrigger>
@@ -568,6 +617,7 @@ export default function AlmacenPage() {
       <DiscountModal
         open={discountFor !== null}
         onOpenChange={(o) => !o && setDiscountFor(null)}
+        organizationId={organizationId}
         product={discountFor}
         stock={discountFor ? (stockByProduct[discountFor.id] ?? 0) : 0}
         lot={discountFor ? (lotByProduct[discountFor.id] ?? null) : null}
