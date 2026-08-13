@@ -258,6 +258,10 @@ export default function EmailSettingsTab() {
   // ── Check if template is locked by plan ────────────────────────────────────
 
   const isTemplateLocked = (template: EmailTemplate): boolean => {
+    // Las plantillas que trae un addon se desbloquean con el addon, no con el
+    // plan. La clínica ya pagó el módulo y el cron ya envía estos correos:
+    // bloquearlos por plan la dejaba sin poder editarlos ni apagarlos.
+    if (template.category === "fertility" && fertilityActive) return false;
     if (!plan) return false;
     const currentLevel = PLAN_HIERARCHY[plan.slug] ?? 0;
     const requiredLevel = PLAN_HIERARCHY[template.min_plan_slug] ?? 0;
