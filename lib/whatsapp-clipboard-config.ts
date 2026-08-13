@@ -168,20 +168,29 @@ interface ApiTemplatesResponse {
  * default if the request fails (offline / not authenticated). Browser-only.
  */
 export async function loadTemplateFromDb(
-  kind: ClipboardTemplateKind
+  kind: ClipboardTemplateKind,
+  /**
+   * Qué usar si la petición falla (offline / sesión caída). Por defecto la
+   * plantilla de fábrica, pero quien tenga una copia local más fiel —el
+   * modal post-cita cachea la última vista— debe pasarla aquí: caer al
+   * texto de fábrica cuando la clínica ya personalizó el suyo se ve como
+   * si la app hubiera ignorado su configuración.
+   */
+  fallback?: string
 ): Promise<string> {
-  if (typeof window === "undefined") return DEFAULT_TEMPLATES[kind];
+  const safeFallback = fallback ?? DEFAULT_TEMPLATES[kind];
+  if (typeof window === "undefined") return safeFallback;
   try {
     const res = await fetch("/api/whatsapp-clipboard-templates", {
       method: "GET",
       cache: "no-store",
     });
-    if (!res.ok) return DEFAULT_TEMPLATES[kind];
+    if (!res.ok) return safeFallback;
     const json = (await res.json()) as ApiTemplatesResponse;
     const found = json.templates?.find((t) => t.kind === kind);
     return found?.template ?? DEFAULT_TEMPLATES[kind];
   } catch {
-    return DEFAULT_TEMPLATES[kind];
+    return safeFallback;
   }
 }
 
