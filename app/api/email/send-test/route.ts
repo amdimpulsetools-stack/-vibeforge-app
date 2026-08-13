@@ -72,8 +72,8 @@ export async function POST(req: NextRequest) {
     body: emailBody,
     bodyHtml: body_html || null,
     brandColor: brand_color || "#10b981",
-    logoUrl: logo_url,
-    clinicName: clinic_name,
+    logoUrl: logo_url ?? undefined,
+    clinicName: clinic_name ?? undefined,
   });
 
   const result = await sendEmail({
