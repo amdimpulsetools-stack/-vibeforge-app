@@ -37,6 +37,10 @@
   --radius: 0.75rem;
   /* Extended tokens */
   --sidebar-bg: #ffffff;
+  /* Fondo del sidebar cuando está colapsado (rail). En tema claro vira a
+     oscuro para que el rail lea como una barra de herramientas; en oscuro
+     ya coincide con --sidebar-bg y no cambia nada. */
+  --sidebar-rail: oklch(0.055 0.02 265);
   --glow-primary: oklch(0.55 0.175 163 / 0.08);
   --warm-accent: oklch(0.72 0.14 75);
 }
@@ -66,6 +70,7 @@
   --ring: oklch(0.72 0.19 165);
   /* Extended tokens */
   --sidebar-bg: oklch(0.055 0.02 265);
+  --sidebar-rail: var(--sidebar-bg);
   --glow-primary: oklch(0.72 0.19 165 / 0.12);
   --warm-accent: oklch(0.78 0.15 75);
 }
@@ -94,6 +99,7 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-rail: var(--sidebar-rail);
   --color-glow-primary: var(--glow-primary);
   --color-warm-accent: var(--warm-accent);
   --radius-sm: calc(var(--radius) - 4px);
@@ -426,9 +432,12 @@
               0 0 16px -4px color-mix(in oklab, var(--primary) 15%, transparent);
 }
 
-/* Active nav item glow */
+/* Active nav item glow.
+   El blur se mantiene por debajo del gap entre pastillas: con 20px el halo
+   sangraba sobre el ítem vecino y, al pasar el ratón por él, ambos fondos
+   se fundían en un solo bloque. */
 .nav-active-glow {
-  box-shadow: 0 0 20px -6px color-mix(in oklab, var(--primary) 20%, transparent);
+  box-shadow: 0 0 10px -4px color-mix(in oklab, var(--primary) 20%, transparent);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
