@@ -26,6 +26,7 @@ import { exportToCSV } from "@/lib/export";
 import {
   fmtQty,
   formatPEN,
+  reversedPairIds,
   type InventoryMovement,
   type InventoryProduct,
 } from "./types";
@@ -37,6 +38,8 @@ interface Props {
   movements: InventoryMovement[];
   stockByProduct: Record<string, number>;
   lastCosts: Record<string, number>;
+  /** CPP vigente por producto — valoriza capital con el MISMO método que el COGS. */
+  avgCosts: Record<string, number>;
 }
 
 const inputCls =
@@ -50,7 +53,13 @@ function isoDaysAgo(days: number): string {
   ).padStart(2, "0")}`;
 }
 
-export function ProfitTab({ products, movements, stockByProduct, lastCosts }: Props) {
+export function ProfitTab({
+  products,
+  movements,
+  stockByProduct,
+  lastCosts,
+  avgCosts,
+}: Props) {
   const [from, setFrom] = useState(() => isoDaysAgo(30));
   const [to, setTo] = useState(() => isoDaysAgo(0));
   const [sortKey, setSortKey] = useState<SortKey>("ganancia");
@@ -85,14 +94,28 @@ export function ProfitTab({ products, movements, stockByProduct, lastCosts }: Pr
       return r;
     };
     const prodById = new Map(products.map((p) => [p.id, p]));
+    // Un movimiento deshecho y su contra-asiento netean a cero en el kardex,
+    // pero si entraran aquí la venta anulada inflaría Ventas/Ganancia para
+    // siempre (hallazgo crítico auditoría 13-ago). Fuera ambos.
+    const reversed = reversedPairIds(movements);
 
+    let mermaLoss = 0;
     for (const m of movements) {
       const d = m.movement_date.slice(0, 10);
       if (d < from || d > to) continue;
-      if (m.movement_type !== "salida") continue;
+      if (reversed.has(m.id)) continue;
       const p = prodById.get(m.product_id);
       if (!p) continue;
       const qty = Math.abs(Number(m.quantity));
+      if (m.movement_type === "merma") {
+        // Pérdida valorizada: costo congelado en la merma, o CPP/último costo.
+        mermaLoss +=
+          m.cost_total != null
+            ? Number(m.cost_total)
+            : qty * (avgCosts[m.product_id] ?? lastCosts[m.product_id] ?? 0);
+        continue;
+      }
+      if (m.movement_type !== "salida") continue;
       const r = ensure(p);
       if (m.revenue_total != null) {
         // Venta: precio congelado en el movimiento.
@@ -137,14 +160,15 @@ export function ProfitTab({ products, movements, stockByProduct, lastCosts }: Pr
       { revenue: 0, cogs: 0, profit: 0, estimated: false }
     );
 
-    // Capital en anaquel, valorizado al último costo conocido, y cuánto de
-    // eso no vendió ni una unidad en el período (plata dormida).
+    // Capital en anaquel valorizado al CPP — el MISMO método que el COGS
+    // (auditoría 13-ago: valorizar a última compra mientras el costo de
+    // venta usa promedio era mezclar dos métodos y sobreestimaba hasta 38%).
     let capital = 0;
     let dormant = 0;
     for (const p of products) {
       const stock = stockByProduct[p.id] ?? 0;
       if (stock <= 0) continue;
-      const value = stock * (lastCosts[p.id] ?? 0);
+      const value = stock * (avgCosts[p.id] ?? lastCosts[p.id] ?? 0);
       capital += value;
       const sold = byProduct.get(p.id);
       if (!sold || (sold.soldUnits === 0 && sold.applications === 0)) {
@@ -152,10 +176,10 @@ export function ProfitTab({ products, movements, stockByProduct, lastCosts }: Pr
       }
     }
 
-    return { rows, totals, capital, dormant };
-  }, [products, movements, stockByProduct, lastCosts, from, to, sortKey]);
+    return { rows, totals, capital, dormant, mermaLoss };
+  }, [products, movements, stockByProduct, lastCosts, avgCosts, from, to, sortKey]);
 
-  const { rows, totals, capital, dormant } = report;
+  const { rows, totals, capital, dormant, mermaLoss } = report;
   const marginPct =
     totals.revenue > 0 ? (totals.profit / totals.revenue) * 100 : null;
 
@@ -233,7 +257,7 @@ export function ProfitTab({ products, movements, stockByProduct, lastCosts }: Pr
       </div>
 
       {/* ── Los números que importan ── */}
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
         <Kpi label="Ventas" value={formatPEN(totals.revenue)} />
         <Kpi label="Costo de lo vendido" value={formatPEN(totals.cogs)} />
         <Kpi
@@ -249,10 +273,16 @@ export function ProfitTab({ products, movements, stockByProduct, lastCosts }: Pr
           }
         />
         <Kpi
+          label="Pérdida por merma"
+          value={formatPEN(mermaLoss)}
+          tone={mermaLoss > 0 ? "crit" : undefined}
+          hint="Costo de lo roto, vencido o perdido en el período. No está restado de la ganancia: es la otra fuga."
+        />
+        <Kpi
           label="Capital en stock"
           value={formatPEN(capital)}
           tone="warn"
-          hint={`Valorizado al costo. Dormido (sin movimiento en el período): ${formatPEN(dormant)}`}
+          hint={`Valorizado al costo promedio (CPP). Dormido (sin movimiento en el período): ${formatPEN(dormant)}`}
         />
       </div>
 

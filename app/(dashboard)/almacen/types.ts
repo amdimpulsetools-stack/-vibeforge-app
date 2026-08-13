@@ -330,19 +330,39 @@ export function avgCostByProduct(
 ): Record<string, number> {
   const avg: Record<string, number> = {};
   const units: Record<string, number> = {};
+  const byId = new Map(movements.map((m) => [m.id, m]));
   // `movements` llega DESC; el CPP se construye en orden cronológico.
   for (let i = movements.length - 1; i >= 0; i--) {
     const m = movements[i];
     const q = Number(m.quantity);
     const pid = m.product_id;
+
+    // Movimientos que RE-PROMEDIAN: entradas con costo y ajustes con costo.
+    // Los contra-asientos de un "Deshacer entrada" llevan (o heredan del
+    // original) el costo de la entrada anulada — hallazgo crítico de la
+    // auditoría 13-ago: sin esto, deshacer una entrada equivocada dejaba el
+    // CPP contaminado para siempre (10@100 + 10@200 deshecha → CPP 150 en
+    // vez de 100). La fórmula funciona con q negativo: resta valor y
+    // unidades al mismo costo con que entraron.
+    let cost: number | null = null;
     if (m.movement_type === "entrada" && m.unit_cost != null) {
+      cost = Number(m.unit_cost);
+    } else if (m.movement_type === "ajuste") {
+      if (m.unit_cost != null) {
+        cost = Number(m.unit_cost);
+      } else if (m.reverses_movement_id) {
+        const orig = byId.get(m.reverses_movement_id);
+        if (orig?.movement_type === "entrada" && orig.unit_cost != null) {
+          cost = Number(orig.unit_cost);
+        }
+      }
+    }
+
+    if (cost != null) {
       const prevUnits = Math.max(0, units[pid] ?? 0);
-      const prevAvg = avg[pid] ?? Number(m.unit_cost);
+      const prevAvg = avg[pid] ?? cost;
       const total = prevUnits + q;
-      avg[pid] =
-        total > 0
-          ? (prevUnits * prevAvg + q * Number(m.unit_cost)) / total
-          : Number(m.unit_cost);
+      avg[pid] = total > 0 ? (prevUnits * prevAvg + q * cost) / total : cost;
       units[pid] = total;
     } else {
       units[pid] = (units[pid] ?? 0) + q;
@@ -352,6 +372,24 @@ export function avgCostByProduct(
     avg[pid] = Math.round(avg[pid] * 10000) / 10000;
   }
   return avg;
+}
+
+/**
+ * Ids de movimientos ANULADOS y de sus contra-asientos. Un par deshecho
+ * netea a cero en el kardex (stock ✔) pero, como el contra-asiento es un
+ * `ajuste` sin precio, era invisible para los agregados monetarios: una
+ * venta deshecha inflaba "Ventas" y su ganancia para siempre (hallazgo
+ * crítico de la auditoría 13-ago). Todo reporte de dinero excluye este set.
+ */
+export function reversedPairIds(movements: InventoryMovement[]): Set<string> {
+  const ids = new Set<string>();
+  for (const m of movements) {
+    if (m.reverses_movement_id) {
+      ids.add(m.id);
+      ids.add(m.reverses_movement_id);
+    }
+  }
+  return ids;
 }
 
 /** Último costo conocido del producto: la entrada más reciente con costo. */

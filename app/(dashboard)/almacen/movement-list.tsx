@@ -28,6 +28,7 @@ import {
   fmtQty,
   fmtSigned,
   formatPEN,
+  reversedPairIds,
   type InventoryMovement,
   type InventoryProduct,
   type MovementType,
@@ -114,17 +115,23 @@ export function MovementList({ movements, products, authors }: Props) {
     });
   }, [movements, from, to, typeFilter, productFilter, authorFilter]);
 
+  // Un movimiento deshecho + su contra-asiento netean el stock pero NO deben
+  // contar en los números del período (auditoría 13-ago). Siguen visibles en
+  // la lista — son historia — pero fuera de KPIs y gráfica.
+  const reversed = useMemo(() => reversedPairIds(movements), [movements]);
+
   // ── Totales del período filtrado ──────────────────────────────────────
   const totals = useMemo(() => {
     let inUnits = 0;
     let outUnits = 0;
     let mermaUnits = 0;
-    let purchases = 0; // S/ a costo de las entradas
+    let purchases = 0; // S/ a costo de las COMPRAS (saldo_inicial no es compra)
     let sales = 0; // S/ congelados en salidas con precio (ventas)
-    let cogs = 0; // costo estimado de lo vendido (último costo conocido)
+    let cogs = 0; // costo de lo vendido (congelado; fallback: último costo conocido)
     const lastCost = new Map<string, number>();
-    // movements viene DESC; recorremos al revés para conocer el costo vigente
-    // en el momento de cada salida (aproximación honesta para F1).
+    // Fallback para salidas viejas sin costo estampado: el último costo de
+    // compra CONOCIDO HOY (aproximación etiquetada "est." — las salidas
+    // nuevas ya llevan su CPP congelado y no la necesitan).
     for (let i = movements.length - 1; i >= 0; i--) {
       const m = movements[i];
       if (m.movement_type === "entrada" && m.unit_cost != null) {
@@ -132,10 +139,13 @@ export function MovementList({ movements, products, authors }: Props) {
       }
     }
     for (const m of filtered) {
+      if (reversed.has(m.id)) continue;
       const q = Number(m.quantity);
       if (m.movement_type === "entrada") {
         inUnits += q;
-        purchases += Number(m.cost_total ?? 0);
+        if (m.reason_code !== "saldo_inicial") {
+          purchases += Number(m.cost_total ?? 0);
+        }
       } else if (m.movement_type === "salida") {
         outUnits += Math.abs(q);
         if (m.revenue_total != null) {
@@ -148,17 +158,19 @@ export function MovementList({ movements, products, authors }: Props) {
       }
     }
     return { inUnits, outUnits, mermaUnits, purchases, sales, profit: sales - cogs };
-  }, [filtered, movements]);
+  }, [filtered, movements, reversed]);
 
   // ── Gráfica: S/ por día (ventas vs compras), últimos N días del rango ──
   const chart = useMemo(() => {
     const byDay = new Map<string, { sales: number; purchases: number }>();
     for (const m of filtered) {
+      if (reversed.has(m.id)) continue;
       const d = m.movement_date.slice(0, 10);
       const cur = byDay.get(d) ?? { sales: 0, purchases: 0 };
       if (m.movement_type === "salida" && m.revenue_total != null)
         cur.sales += Number(m.revenue_total);
-      if (m.movement_type === "entrada") cur.purchases += Number(m.cost_total ?? 0);
+      if (m.movement_type === "entrada" && m.reason_code !== "saldo_inicial")
+        cur.purchases += Number(m.cost_total ?? 0);
       byDay.set(d, cur);
     }
     const days = [...byDay.entries()]
@@ -166,7 +178,7 @@ export function MovementList({ movements, products, authors }: Props) {
       .slice(-31);
     const max = Math.max(1, ...days.map(([, v]) => Math.max(v.sales, v.purchases)));
     return { days, max };
-  }, [filtered]);
+  }, [filtered, reversed]);
 
   const rows = filtered.slice(0, visible);
 
