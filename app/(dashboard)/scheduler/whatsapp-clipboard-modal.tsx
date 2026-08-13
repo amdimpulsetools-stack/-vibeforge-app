@@ -11,6 +11,8 @@ import {
 import { cn } from "@/lib/utils";
 import {
   loadWaClipboardConfig,
+  saveWaClipboardConfig,
+  loadTemplateFromDb,
   buildWhatsAppMessage,
   normalizePhoneForWa,
   type AppointmentVariables,
@@ -32,6 +34,8 @@ export function WhatsAppClipboardModal({
 }: WhatsAppClipboardModalProps) {
   const [copied, setCopied] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  // null = todavía no sabemos cuál es la plantilla de esta clínica.
+  const [template, setTemplate] = useState<string | null>(null);
 
   // Device-aware default action ordering. We track this on mount + on
   // resize so the visual update follows window size changes.
@@ -44,10 +48,30 @@ export function WhatsAppClipboardModal({
     return () => mql.removeEventListener("change", update);
   }, []);
 
-  const config = loadWaClipboardConfig();
-  const message = buildWhatsAppMessage(config.template, variables);
+  // La plantilla vive en la BD por organización desde la migración 139
+  // (Settings → WhatsApp la guarda ahí y se comparte entre dispositivos).
+  // Este modal seguía leyendo la copia de localStorage, que ya nadie
+  // escribe: por eso copiaba SIEMPRE el texto de fábrica e ignoraba lo
+  // que la clínica había configurado. Ahora se pide a la BD al abrir y se
+  // cachea en localStorage para que la siguiente cita sea instantánea.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    const cached = loadWaClipboardConfig().template;
+    void loadTemplateFromDb("post_appointment", cached).then((tpl) => {
+      if (cancelled) return;
+      setTemplate(tpl);
+      saveWaClipboardConfig({ template: tpl });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const message = template ? buildWhatsAppMessage(template, variables) : "";
+  const loadingTemplate = template === null;
   const waPhone = normalizePhoneForWa(phone);
-  const canSend = !!waPhone;
+  const canSend = !!waPhone && !loadingTemplate;
 
   const handleCopy = async () => {
     try {
@@ -135,9 +159,17 @@ export function WhatsAppClipboardModal({
             <h3 className="text-xl font-bold mb-2">Nueva cita reservada</h3>
 
             {/* Message preview */}
-            <p className="text-sm text-muted-foreground mb-6 leading-relaxed whitespace-pre-line">
-              {message}
-            </p>
+            {loadingTemplate ? (
+              <div className="mb-6 space-y-2" aria-live="polite">
+                <div className="h-3 w-11/12 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-full animate-pulse rounded bg-muted" />
+                <div className="h-3 w-2/3 animate-pulse rounded bg-muted" />
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground mb-6 leading-relaxed whitespace-pre-line">
+                {message}
+              </p>
+            )}
 
             {/* Actions */}
             <div className="space-y-2">
@@ -150,7 +182,11 @@ export function WhatsAppClipboardModal({
 
               <button
                 onClick={handleCopy}
-                className={cn(canSend && !isMobile ? brandBtn : neutralBtn)}
+                disabled={loadingTemplate}
+                className={cn(
+                  canSend && !isMobile ? brandBtn : neutralBtn,
+                  loadingTemplate && "cursor-not-allowed opacity-60"
+                )}
               >
                 {copied ? (
                   <>

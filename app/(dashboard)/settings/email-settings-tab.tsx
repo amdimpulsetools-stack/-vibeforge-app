@@ -1406,19 +1406,37 @@ function TemplateEditor({
                 );
                 if (!testEmail) return;
 
+                // Validación local: el asunto y el cuerpo son obligatorios y
+                // el servidor solo respondía "Datos inválidos" sin decir cuál
+                // faltaba. Mejor atajarlo aquí con un mensaje accionable.
+                const plainBody = htmlToPlainText(previewBodyHtml).trim();
+                if (!previewSubject.trim() || !plainBody) {
+                  toast.error(
+                    language === "es"
+                      ? "Completa el asunto y el cuerpo antes de enviar la prueba."
+                      : "Fill in the subject and body before sending the test."
+                  );
+                  return;
+                }
+
                 setSendingTest(true);
                 try {
                   const res = await fetch("/api/email/send-test", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
+                    // Sin claves nulas: `null` no es "sin valor" para el
+                    // validador y hacía fallar el envío en orgs sin logo o
+                    // sin nombre cargado todavía.
                     body: JSON.stringify({
-                      to: testEmail,
+                      to: testEmail.trim(),
                       subject: previewSubject,
-                      body: htmlToPlainText(previewBodyHtml),
+                      body: plainBody,
                       body_html: previewBodyHtml,
                       brand_color: emailSettings?.brand_color || "#10b981",
-                      logo_url: emailSettings?.email_logo_url,
-                      clinic_name: clinicName,
+                      ...(emailSettings?.email_logo_url
+                        ? { logo_url: emailSettings.email_logo_url }
+                        : {}),
+                      ...(clinicName ? { clinic_name: clinicName } : {}),
                     }),
                   });
                   const contentType = res.headers.get("content-type") || "";
@@ -1432,7 +1450,15 @@ function TemplateEditor({
                   }
                   const data = await res.json();
                   if (!res.ok) {
-                    toast.error(data.error || "Error al enviar");
+                    // `details` trae el motivo real de la validación; sin él
+                    // el usuario solo veía "Datos inválidos" y no había forma
+                    // de saber qué corregir.
+                    const details = Array.isArray(data.details)
+                      ? data.details.join(" · ")
+                      : null;
+                    toast.error(data.error || "Error al enviar", {
+                      description: details ?? undefined,
+                    });
                   } else {
                     toast.success(
                       language === "es"

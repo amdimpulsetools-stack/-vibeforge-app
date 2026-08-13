@@ -57,9 +57,13 @@ export const sendTestEmailSchema = z.object({
    * (which becomes the plain-text fallback). Sanitized again server-side.
    */
   body_html: z.string().max(100_000).optional().or(z.literal("")),
-  brand_color: z.string().optional(),
-  logo_url: z.string().url().optional().or(z.literal("")),
-  clinic_name: z.string().optional(),
+  brand_color: z.string().nullish(),
+  // nullish + literal(""): una org sin logo manda `null` y una recién creada
+  // manda "" — ninguno de los dos es un error del usuario, es "no hay logo".
+  // Antes, `.optional()` rechazaba el null y el envío moría con "Datos
+  // inválidos" sin decir qué campo fallaba.
+  logo_url: z.string().url().nullish().or(z.literal("")),
+  clinic_name: z.string().nullish(),
 });
 
 // ── Notifications ────────────────────────────────────────────────────
