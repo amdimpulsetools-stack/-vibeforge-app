@@ -21,6 +21,10 @@ import { useMemo, useState } from "react";
 import { Download, History, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportToCSV } from "@/lib/export";
+// Los <input type="date"> nativos se pintan con el idioma del NAVEGADOR: en un
+// Chrome en inglés salen mm/dd/aaaa aunque la app esté en español. DatePicker
+// fija dd/mm/aaaa para todos y devuelve el mismo string ISO.
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   MOVEMENT_TYPE_META,
   REASON_LABELS,
@@ -246,12 +250,10 @@ export function MovementList({ movements, products, authors }: Props) {
       <div className="flex flex-wrap items-end gap-2 print:hidden">
         <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Desde
-          <input
-            type="date"
+          <DatePicker
             value={from}
-            max={to}
-            onChange={(e) => {
-              setFrom(e.target.value);
+            onChange={(v) => {
+              setFrom(v);
               setVisible(PAGE_SIZE);
             }}
             className={inputCls}
@@ -259,12 +261,10 @@ export function MovementList({ movements, products, authors }: Props) {
         </label>
         <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Hasta
-          <input
-            type="date"
+          <DatePicker
             value={to}
-            min={from}
-            onChange={(e) => {
-              setTo(e.target.value);
+            onChange={(v) => {
+              setTo(v);
               setVisible(PAGE_SIZE);
             }}
             className={inputCls}
