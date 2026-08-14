@@ -295,7 +295,7 @@ export default function SchedulerPage() {
       const { data } = await supabase
         .from("appointments")
         .select(
-          "id, arrived_at, consultation_started_at, consultation_ended_at, updated_at",
+          "id, status, arrived_at, consultation_started_at, consultation_ended_at, updated_at",
         )
         .gte("appointment_date", startDate)
         .lte("appointment_date", endDate)
@@ -318,6 +318,13 @@ export default function SchedulerPage() {
             changed = true;
             return {
               ...a,
+              // `status` viaja junto a los timestamps a propósito. El merge
+              // avanza `updated_at`, así que cualquier campo que se traiga
+              // aquí a medias queda enmascarado para siempre: el siguiente
+              // sondeo ve las marcas de tiempo iguales y descarta la fila. Sin
+              // esto, un "completado" o "confirmado" hecho por otra persona no
+              // se veía nunca — ni siquiera al cabo de una hora.
+              status: fresh.status,
               arrived_at: fresh.arrived_at,
               consultation_started_at: fresh.consultation_started_at,
               consultation_ended_at: fresh.consultation_ended_at,

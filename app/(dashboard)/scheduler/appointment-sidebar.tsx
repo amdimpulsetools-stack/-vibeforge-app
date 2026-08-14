@@ -636,6 +636,11 @@ export function AppointmentSidebar({
     setPayRef("");
     setSendAsInvoice(false);
     fetchPayments();
+    // `fetchPayments` solo repuebla el listado de este panel. Sin `onUpdate`,
+    // el total pagado de la tarjeta en la grilla se quedaba con el valor
+    // anterior hasta recargar — incluso para quien acababa de cobrar. Es lo
+    // que ya hacen el cambio de estado, la edición y la facturación.
+    onUpdate();
   };
 
   // Edit form state
