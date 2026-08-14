@@ -296,6 +296,24 @@ export function computeStock(
   return map;
 }
 
+/**
+ * Stock por LOTE. El saldo por producto no basta: la salida se imputa al lote
+ * más próximo a vencer, así que sin este desglose se podían descontar de un
+ * lote más unidades de las que tenía — el total del producto cuadraba y el
+ * detalle por lote mentía en silencio, que es justo donde vive la trazabilidad
+ * de un medicamento vencido.
+ */
+export function computeStockByLot(
+  movements: InventoryMovement[]
+): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const m of movements) {
+    if (!m.lot_id) continue;
+    map[m.lot_id] = (map[m.lot_id] ?? 0) + Number(m.quantity);
+  }
+  return map;
+}
+
 /** Lote más próximo a vencer por producto (FIFO por vencimiento). */
 export function nearestLotByProduct(
   lots: InventoryLot[]

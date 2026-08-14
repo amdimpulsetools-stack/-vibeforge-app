@@ -47,6 +47,8 @@ interface Props {
   product: InventoryProduct | null;
   stock: number;
   lot: InventoryLot | null;
+  /** Saldo del lote al que se imputará la salida. `null` si el producto no lleva lotes. */
+  lotStock: number | null;
   expiryAlertDays: number;
   warnOnNegative: boolean;
   onSubmit: (payload: DiscountPayload) => void;
@@ -76,13 +78,16 @@ export function DiscountModal({
   product,
   stock,
   lot,
+  lotStock,
   expiryAlertDays,
   warnOnNegative,
   onSubmit,
 }: Props) {
   const [qty, setQty] = useState(1);
   const [customQty, setCustomQty] = useState(false);
-  const [step, setStep] = useState<"motive" | "merma" | "negative">("motive");
+  const [step, setStep] = useState<"motive" | "merma" | "negative" | "lot">(
+    "motive"
+  );
   const [pending, setPending] = useState<Omit<DiscountPayload, "product"> | null>(
     null
   );
@@ -217,6 +222,16 @@ export function DiscountModal({
       setStep("negative");
       return;
     }
+
+    // La salida se imputa al lote más próximo a vencer. Si se descuenta más de
+    // lo que ese lote tiene, el stock del producto cuadra pero el del lote
+    // queda en negativo — y con él la trazabilidad del vencimiento. Se avisa
+    // con el mismo criterio que el descuadre: informar, nunca bloquear.
+    if (lotStock !== null && qty > lotStock) {
+      setPending(payload);
+      setStep("lot");
+      return;
+    }
     commit(payload);
   }
 
@@ -280,7 +295,11 @@ export function DiscountModal({
         <h2 className="pr-8 text-base font-bold leading-tight">{product.name}</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Quedan {fmtQty(stock)} {product.base_unit.toLowerCase()}
-          {lot && lot.lot_code !== "SIN-LOTE" ? ` · Lote ${lot.lot_code}` : ""}
+          {lot && lot.lot_code !== "SIN-LOTE"
+            ? ` · Lote ${lot.lot_code}${
+                lotStock !== null ? ` (${fmtQty(lotStock)})` : ""
+              }`
+            : ""}
           {exp.days !== null ? ` · ${exp.label}` : ""}
         </p>
 
@@ -308,6 +327,38 @@ export function DiscountModal({
                 type="button"
                 onClick={() => pending && commit(pending)}
                 className="h-12 rounded-xl bg-red-500 text-sm font-bold text-white hover:bg-red-500/90"
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        ) : step === "lot" ? (
+          <div className="mt-5">
+            <p className="text-sm font-semibold text-amber-600">
+              El lote {lot?.lot_code} solo tiene {fmtQty(lotStock ?? 0)}{" "}
+              {product.base_unit.toLowerCase()}. ¿Continuar?
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              El stock del producto alcanza, pero la salida se registra contra
+              este lote y su saldo quedará en negativo. Si las unidades salieron
+              de otro lote, regístralas por separado para no perder el rastro
+              del vencimiento.
+            </p>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setPending(null);
+                  setStep("motive");
+                }}
+                className="h-12 rounded-xl border border-border bg-card text-sm font-semibold hover:bg-accent"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => pending && commit(pending)}
+                className="h-12 rounded-xl bg-amber-500 text-sm font-bold text-white hover:bg-amber-500/90"
               >
                 Continuar
               </button>
