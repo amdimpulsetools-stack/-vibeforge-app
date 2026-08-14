@@ -43,8 +43,11 @@ interface Plan {
 }
 
 /* ───── Helpers ───── */
+// Las claves son el `slug` de la tabla `plans`. Ojo: el plan de entrada es
+// `independiente`, no `starter` — con la clave vieja nunca hacía match y caía
+// al `description` genérico, así que su frase de valor no se llegaba a ver.
 const PLAN_ANCHORS: Record<string, string> = {
-  starter: "Menos de S/5 al día por tener tu consultorio inteligente",
+  independiente: "Menos de S/5 al día por tener tu consultorio inteligente",
   professional: "Menos de 3 consultas al mes y la herramienta se paga sola",
   enterprise: "Con un tratamiento mediano al mes, ya pagaste tu suscripción",
 };
