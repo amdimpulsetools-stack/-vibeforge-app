@@ -23,6 +23,8 @@ import { useMemo, useState } from "react";
 import { Download, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportToCSV } from "@/lib/export";
+// dd/mm/aaaa fijo: el input nativo sigue el idioma del navegador.
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   fmtQty,
   formatPEN,
@@ -188,21 +190,17 @@ export function ProfitTab({
       <div className="flex flex-wrap items-end gap-2 print:hidden">
         <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Desde
-          <input
-            type="date"
+          <DatePicker
             value={from}
-            max={to}
-            onChange={(e) => setFrom(e.target.value)}
+            onChange={setFrom}
             className={inputCls}
           />
         </label>
         <label className="flex flex-col gap-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
           Hasta
-          <input
-            type="date"
+          <DatePicker
             value={to}
-            min={from}
-            onChange={(e) => setTo(e.target.value)}
+            onChange={setTo}
             className={inputCls}
           />
         </label>

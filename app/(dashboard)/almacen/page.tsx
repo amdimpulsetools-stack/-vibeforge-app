@@ -40,6 +40,7 @@ import { ProfitTab } from "./profit-tab";
 import { DiscountModal, type DiscountPayload } from "./discount-modal";
 import { EntryModal, type EntryPayload } from "./entry-modal";
 import { ProductModal, type ProductPayload } from "./product-modal";
+import { LotsModal } from "./lots-modal";
 import {
   DEFAULT_SETTINGS,
   LOT_COLUMNS,
@@ -94,6 +95,7 @@ export default function AlmacenPage() {
   const [entryOpen, setEntryOpen] = useState(false);
   const [entryFor, setEntryFor] = useState<string | null>(null);
   const [productOpen, setProductOpen] = useState(false);
+  const [lotsFor, setLotsFor] = useState<InventoryProduct | null>(null);
 
   // Tabs por query param, sin useSearchParams: la página no necesita
   // suspenderse por esto y así la campanita puede enlazar ?tab=movimientos.
@@ -434,7 +436,13 @@ export default function AlmacenPage() {
     async (payload: ProductPayload): Promise<boolean> => {
       if (!organizationId || !user?.id) return false;
       const supabase = createClient();
-      const { initial_stock, initial_cost, ...productFields } = payload;
+      const {
+        initial_stock,
+        initial_cost,
+        initial_lot_code,
+        initial_expiry_month,
+        ...productFields
+      } = payload;
 
       const { data, error } = await supabase
         .from("inventory_products")
@@ -468,11 +476,40 @@ export default function AlmacenPage() {
       // El producto jamás guarda costo (invariante mig 209): si esta inserción
       // falla, el producto queda creado y el stock se carga con "Entrada".
       if (initial_stock > 0 && initial_cost != null) {
+        // Lote del saldo inicial. Sin esto, las unidades con las que nace el
+        // producto entraban sin `lot_id` y la pestaña Vencimientos no las veía
+        // nunca — justo el control que más se usa en medicamentos.
+        let initialLotId: string | null = null;
+        if (initial_lot_code) {
+          const { data: lotData } = await supabase
+            .from("inventory_lots")
+            .insert({
+              organization_id: organizationId,
+              product_id: saved.id,
+              lot_code: initial_lot_code,
+              expiry_date: initial_expiry_month
+                ? monthToLastDay(initial_expiry_month)
+                : null,
+              unit_cost: initial_cost,
+              created_by: user.id,
+            })
+            .select(LOT_COLUMNS)
+            .single();
+          if (lotData) {
+            const lot = lotData as unknown as InventoryLot;
+            initialLotId = lot.id;
+            setLots((prev) => [...prev, lot]);
+          }
+          // Si el lote falla, la entrada se registra igual sin él: el stock
+          // nunca debe perderse por un problema de trazabilidad.
+        }
+
         const { data: movData, error: movError } = await supabase
           .from("inventory_movements")
           .insert({
             organization_id: organizationId,
             product_id: saved.id,
+            lot_id: initialLotId,
             movement_type: "entrada",
             quantity: initial_stock,
             unit_cost: initial_cost,
@@ -639,6 +676,7 @@ export default function AlmacenPage() {
               expiryAlertDays={settings.expiry_alert_days}
               isAdmin={isOrgAdmin}
               onDiscount={(p) => setDiscountFor(p)}
+              onShowLots={(p) => setLotsFor(p)}
               onEntry={(p) => {
                 setEntryFor(p.id);
                 setEntryOpen(true);
@@ -689,6 +727,15 @@ export default function AlmacenPage() {
           )}
         </TabsContent>
       </Tabs>
+
+      <LotsModal
+        open={lotsFor !== null}
+        onOpenChange={(o) => !o && setLotsFor(null)}
+        product={lotsFor}
+        lots={lotsFor ? lots.filter((l) => l.product_id === lotsFor.id) : []}
+        stockByLot={stockByLot}
+        expiryAlertDays={settings.expiry_alert_days}
+      />
 
       <DiscountModal
         open={discountFor !== null}

@@ -44,6 +44,14 @@ export interface ProductPayload {
   /** Si > 0, la página crea la entrada `saldo_inicial` con este costo. */
   initial_stock: number;
   initial_cost: number | null;
+  /**
+   * Lote y vencimiento del stock inicial. Sin ellos, las unidades con las que
+   * nace el producto quedaban fuera del control de caducidades: entraban al
+   * kardex sin lote, así que la pestaña Vencimientos no las veía nunca.
+   */
+  initial_lot_code: string | null;
+  /** "AAAA-MM" del selector de mes; la página lo lleva al último día. */
+  initial_expiry_month: string | null;
 }
 
 interface Props {
@@ -70,6 +78,8 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
   const [salePrice, setSalePrice] = useState("");
   const [purchaseCost, setPurchaseCost] = useState("");
   const [initialStock, setInitialStock] = useState("");
+  const [initialLot, setInitialLot] = useState("");
+  const [initialExpiry, setInitialExpiry] = useState("");
   const [minStock, setMinStock] = useState("");
   const [trackLots, setTrackLots] = useState(true);
   const [advanced, setAdvanced] = useState(false);
@@ -121,6 +131,9 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
       track_lots: trackLots,
       initial_stock: Math.max(0, stock0),
       initial_cost: cost0,
+      // Solo tienen sentido si el producto nace con unidades.
+      initial_lot_code: stock0 > 0 ? initialLot.trim() || null : null,
+      initial_expiry_month: stock0 > 0 ? initialExpiry || null : null,
     });
     setSaving(false);
     if (ok) onOpenChange(false);
@@ -306,6 +319,38 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
               </select>
             </div>
           </div>
+          {/* Lote y vencimiento del stock inicial. Aparecen al escribir una
+              cantidad: sin ellos, las unidades con las que nace el producto
+              entraban al kardex sin lote y quedaban fuera de Vencimientos. */}
+          {Number(initialStock || "0") > 0 && trackLots && (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls} htmlFor="prod-lot">
+                  Lote del stock inicial
+                </label>
+                <Input
+                  id="prod-lot"
+                  placeholder="Opcional"
+                  value={initialLot}
+                  onChange={(e) => setInitialLot(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className={labelCls} htmlFor="prod-exp">
+                  Vence
+                </label>
+                {/* type="month" como en Entrada: MM/AAAA y un solo toque en
+                    móvil. Se guarda el último día del mes. */}
+                <Input
+                  id="prod-exp"
+                  type="month"
+                  value={initialExpiry}
+                  onChange={(e) => setInitialExpiry(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
           <p className="!mt-1.5 text-[11px] text-muted-foreground">
             Con stock inicial y precio de compra se crea la primera entrada al
             kardex. El costo queda congelado en ese movimiento — las siguientes

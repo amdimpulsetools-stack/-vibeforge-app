@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Minus, PackagePlus, Search, X } from "lucide-react";
+import { AlertTriangle, Layers, Minus, PackagePlus, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +43,8 @@ interface Props {
   expiryAlertDays: number;
   isAdmin: boolean;
   onDiscount: (product: InventoryProduct) => void;
+  /** Abre la vista rápida de lotes y vencimientos de ese producto. */
+  onShowLots: (product: InventoryProduct) => void;
   onEntry: (product: InventoryProduct) => void;
   onNewProduct: () => void;
 }
@@ -54,6 +56,7 @@ export function ProductTable({
   expiryAlertDays,
   isAdmin,
   onDiscount,
+  onShowLots,
   onEntry,
   onNewProduct,
 }: Props) {
@@ -403,24 +406,34 @@ export function ProductTable({
                         </span>
                       )}
                     </td>
+                    {/* La celda solo cabe el lote que vence primero; el botón
+                        abre el resto sin ir hasta la pestaña Vencimientos. */}
                     <td className="px-4 py-2">
-                      <p className="text-xs text-muted-foreground">
-                        {lot && lot.lot_code !== "SIN-LOTE" ? lot.lot_code : "—"}
-                      </p>
-                      {exp.chip ? (
-                        <span
-                          className={cn(
-                            "mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold",
-                            TONE_CLS[exp.tone]
-                          )}
-                        >
-                          {exp.label}
-                        </span>
-                      ) : (
-                        <p className="mt-0.5 text-[11px] text-muted-foreground">
-                          {exp.label}
+                      <button
+                        type="button"
+                        onClick={() => onShowLots(p)}
+                        aria-label={`Ver lotes de ${p.name}`}
+                        className="group/lots -mx-1 rounded-lg px-1 py-0.5 text-left hover:bg-accent/60"
+                      >
+                        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                          {lot && lot.lot_code !== "SIN-LOTE" ? lot.lot_code : "—"}
+                          <Layers className="h-3 w-3 opacity-0 transition-opacity group-hover/lots:opacity-70" />
                         </p>
-                      )}
+                        {exp.chip ? (
+                          <span
+                            className={cn(
+                              "mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold",
+                              TONE_CLS[exp.tone]
+                            )}
+                          >
+                            {exp.label}
+                          </span>
+                        ) : (
+                          <p className="mt-0.5 text-[11px] text-muted-foreground">
+                            {exp.label}
+                          </p>
+                        )}
+                      </button>
                     </td>
                     <td className="px-4 py-2 text-right font-medium tabular-nums">
                       {formatPEN(Number(p.sale_price))}
@@ -498,9 +511,15 @@ export function ProductTable({
                         </span>
                       )}
                       {lot && lot.lot_code !== "SIN-LOTE" && (
-                        <span className="text-[10px] text-muted-foreground">
+                        <button
+                          type="button"
+                          onClick={() => onShowLots(p)}
+                          aria-label={`Ver lotes de ${p.name}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-accent/60 px-2 py-0.5 text-[10px] text-muted-foreground active:scale-95"
+                        >
                           Lote {lot.lot_code}
-                        </span>
+                          <Layers className="h-2.5 w-2.5" />
+                        </button>
                       )}
                     </div>
                   )}
