@@ -159,10 +159,16 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
     queryKey: [
       "patients",
       "list",
-      orgId,
       { page, statusFilter, recurrenceFilter, search: debouncedSearch, dateFrom, dateTo, origenFilter },
     ],
-    enabled: !!orgId,
+    // Sin gate por organización a propósito: esta consulta no usa `orgId` —el
+    // scoping lo hace la RLS, igual que en el fetch del servidor— y esperar a
+    // que resolvieran `auth.getUser()` y `organization_members` metía dos
+    // viajes de red ANTES de pintar unas filas que ya venían dentro del HTML.
+    // En un escritorio no se nota; en iPad o celular, con la CPU más lenta y
+    // la red de la clínica, son segundos de spinner con los datos ya en
+    // memoria — y si `getUser()` se cuelga (pasa en Safari), el spinner no
+    // termina nunca.
     // La página 0 sin filtros llega ya renderizada desde el servidor; se
     // siembra en la caché SOLO para esa key (cualquier filtro/página distinta
     // la ignora) y evita el fetch duplicado del primer montaje.
@@ -222,9 +228,9 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
 
   const patients = listData?.rows ?? [];
   const totalCount = listData?.count ?? 0;
-  // loading true mientras la org resuelve o la primera carga de esta key está
-  // en vuelo — misma semántica que el useState anterior.
-  const loading = !orgId || listPending;
+  // Solo la primera carga de esta key. Antes incluía `!orgId`, que mantenía el
+  // spinner aunque `initialData` ya trajera la primera página del servidor.
+  const loading = listPending;
   const changingPage = listFetching;
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
