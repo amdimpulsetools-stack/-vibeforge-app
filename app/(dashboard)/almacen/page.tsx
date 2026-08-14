@@ -47,6 +47,7 @@ import {
   PRODUCT_COLUMNS,
   avgCostByProduct,
   computeStock,
+  computeStockByLot,
   fmtQty,
   lastCostByProduct,
   monthToLastDay,
@@ -184,6 +185,7 @@ export default function AlmacenPage() {
 
   // ── Derivados ──────────────────────────────────────────────────────────
   const stockByProduct = useMemo(() => computeStock(movements), [movements]);
+  const stockByLot = useMemo(() => computeStockByLot(movements), [movements]);
   const lotByProduct = useMemo(() => nearestLotByProduct(lots), [lots]);
   const lastCosts = useMemo(() => lastCostByProduct(movements), [movements]);
   const avgCosts = useMemo(() => avgCostByProduct(movements), [movements]);
@@ -695,6 +697,11 @@ export default function AlmacenPage() {
         product={discountFor}
         stock={discountFor ? (stockByProduct[discountFor.id] ?? 0) : 0}
         lot={discountFor ? (lotByProduct[discountFor.id] ?? null) : null}
+        lotStock={
+          discountFor && lotByProduct[discountFor.id]
+            ? (stockByLot[lotByProduct[discountFor.id].id] ?? 0)
+            : null
+        }
         expiryAlertDays={settings.expiry_alert_days}
         warnOnNegative={settings.warn_on_negative}
         onSubmit={(payload) => void registerDiscount(payload)}
