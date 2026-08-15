@@ -1,9 +1,10 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-08-07
-> **Versión:** 0.15.27
+> **Última actualización:** 2026-08-15
+> **Versión:** 0.15.32
 > **Estado (resumen ejecutivo):**
 > - **MVP en producción** multi-tenant (RLS), 4 roles + Founder, agenda día/semana con precisión al minuto, pacientes, historia clínica/SOAP completa, reportes, planes 3-tiers (S/129 / S/349 / S/649).
+> - **Módulos Caja y Farmacia POS certificados en producción (v0.15.32, migs 213-217 — 2026-08-15)**: Caja (addon `caja` S/19/mes, incluido desde Centro Médico) con turnos, arqueo ciego, movimientos con signo, turno cerrado inmutable y trigger `caja_stamp_payment` que ata cada pago al turno sin rechazar jamás un cobro; Farmacia POS (bajo el addon `almacen`) con venta NV-, FEFO, RPCs `pharmacy_confirm_sale`/`pharmacy_void_sale` idempotentes y deuda clínica no contaminada (`source='pos'`). Ambos certificados por el founder en prod. Además, 2 bugs de aritmética en la emisión NubeFact corregidos (IGV por línea con diferencia exacta + descuento global prorrateado por mayor resto) y NubeFact confinado a `nubefact-provider.ts` (prepara YendaFact). Detalle: Changelog v0.15.32.
 > - **Plan de performance completo (v0.15.27, migs 196-203 — en producción)**: auditoría de 11 especialistas ejecutada en 3 lotes el mismo día, cero cambio visual. Bundle: Sentry Replay/tracing y framer-motion fuera del baseline (219 → 165 kB gz), recharts y modales lazy — /patients 548→260, /dashboard 485→294, /reports 457→279 kB. Datos: usePlan/useOrgAddons/auth deduplicados, TODAS las páginas de lista sobre React Query (volver a una página ya vista = 0 queries, 0 spinner), agregaciones pesadas movidas a RPCs (`get_reports_overview`, `get_einvoices_kpis`, `get_admin_dashboard_stats_v3`, trío de budgets con scope de doctor vía EXISTS, `get_patient_summary`), Seguimientos aplica acciones localmente (~0 ms percibidos), /patients con SSR de página 0. Bonus: 3 bugs de datos corregidos (reports truncaba a 1000 filas, KPI de facturación sobre 50 filas, paginación de presupuestos con filtros). Detalle: Changelog v0.15.27.
 > - **Notificaciones en vivo por rol (v0.15.26, mig 192 — activo en producción)**: la campanita del panel deja de ser un broadcast a toda la org. La RPC `notify_org_members()` (SECURITY DEFINER, único camino de escritura) hace fan-out **una fila por usuario destinatario** con routing por rol, y en los eventos de agenda el doctor recibe únicamente los de SUS citas. Matriz de preferencias evento × rol en Settings → Notificaciones (persistida en `organizations.settings.live_notifications`), catálogo en `lib/live-notifications/catalog.ts` y RLS de `notifications` endurecido: cada quien ve y marca solo lo suyo (las filas previas a la migración quedan como LEGACY con `user_id` NULL, visibles para toda la org).
 > - **Plugin de presupuestos de la Dra. Patricia (v0.15.26, mig 191)**: 12 plantillas de precio único (`budget_pdf_patricia`) sobre la Capa 2 de plugins per-org, con `service_budget_tiers` sincronizado a los totales que imprime el PDF — la asesora ve al asignar el mismo monto que firma la paciente. Fuente canónica: los `.docx` de la doctora (decisión del founder 2026-08-06: el xlsx de octubre 2025 se ignora). **Pendiente de la doctora**: precios definitivos, datos de Banking y número de colegiatura.
@@ -328,6 +329,24 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 
 ---
 
+### Módulos Caja y Farmacia POS — migs 213-217
+
+| Tabla / Objeto | Propósito |
+|-------|----------|
+| `patient_payments` + columnas `source`/`cash_shift_id`/`sale_id`/`created_by`/`tender_kind` (mig 213) | Base compartida: `source` `'clinical'`\|`'pos'` — **la deuda clínica se calcula solo sobre `'clinical'`** (`get_patient_summary` actualizado en mig 216; ventas POS no la contaminan), vínculo al turno de caja y a la venta POS, autor del cobro y clase de medio (efectivo/electrónico vía `caja_classify_tender`) |
+| `inventory_products` + `sunat_product_code`/`unit_of_measure`/`igv_affectation`/`is_sellable` (mig 213) | Preparación de la emisión de comprobantes desde el POS (F5): código SUNAT, unidad de medida, afectación IGV y bandera de vendible por producto |
+| `cash_settings` / `cash_shifts` / `cash_movements` (mig 214) | Módulo Caja: config por org (arqueo ciego, tolerancia), turnos con fondo inicial y cierre con **diferencia SOLO sobre efectivo** (medios electrónicos = conciliación informativa; diferencia fuera de tolerancia **exige motivo por CHECK**), movimientos con signo (ingreso/egreso/sangría/devolución) **append-only** y bloqueados en turno cerrado. Cierre forzado por admin queda marcado |
+| Triggers `caja_stamp_payment` + `caja_protect_closed_shift` (migs 213-214) | Cada pago queda sellado con **autor + medio** y atado al turno abierto — **nunca rechaza un cobro** (sin turno abierto → bandeja "Fuera de turno" con atribución). Turno cerrado **inmutable**: UPDATE/DELETE de sus pagos bloqueado **incluso a service_role** |
+| RPCs `caja_open_shift` / `caja_shift_summary` / `caja_close_shift` / `caja_attach_payment` (mig 215) | Ciclo del turno: apertura (doble apertura imposible), resumen en vivo, cierre con arqueo, y adopción de pagos "fuera de turno" al turno abierto |
+| `pharmacy_sales` / `pharmacy_sale_items` / `pharmacy_sale_counters` (mig 216) | Venta POS **borrador→confirmada→anulada** con correlativo **NV-** por org, paciente opcional (público general), líneas editables solo en borrador (trigger `pharmacy_items_draft_only`). Totales con la **misma aritmética que facturación** (IGV por línea, diferencia exacta) |
+| RPCs `pharmacy_avg_cost` / `pharmacy_confirm_sale` / `pharmacy_void_sale` (mig 217) | Confirmación **transaccional e idempotente**: advisory locks, CPP calculado en servidor, kardex con `sale_line_id UNIQUE` (anti doble descuento de stock), pago `source='pos'` atado a caja por trigger. Anulación = contra-movimientos + devolución **en turno abierto** (sin caja abierta no revierte) |
+
+> El addon `caja` (mig 214) cuesta **S/19/mes, incluido desde Centro Médico** (`included_from_plan='professional'`), en beta oculta (`is_active=false`) con grants a: las 2 orgs del founder + la org real de la Dra. Patricia. Farmacia (`/farmacia`) no tiene addon propio: **viaja con el addon `almacen`**. Al activarse el POS se retiró el motivo "Venta" manual del modal de Almacén (botón "Vender → Farmacia" — un solo camino de venta).
+>
+> **Certificación en producción (founder, 15-ago)**: Caja con 6 tests (aritmética, doble apertura, descuadre, inmutabilidad vía SQL admin, fuera de turno); Farmacia con venta a público general, venta a paciente y anulación completa. Suites: 37 tests numéricos de facturación (`npm run test:einvoice`) + 79 aserciones de farmacia con prueba de concurrencia real.
+
+---
+
 ## 7. Flujos Principales
 
 ### 7.1 Registro e Onboarding
@@ -529,6 +548,8 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 │   ├── /follow-ups .......... Panel de seguimientos clínicos (vista centralizada)
 ├── /captacion ............... Módulo Captación (beta oculta — addon `captacion` con grant)
 ├── /almacen ................. Módulo Almacén: kardex de inventario clínico (beta oculta — addon `almacen` con grant)
+├── /farmacia ................ Farmacia POS: venta mostrador con correlativo NV- y ticket 80mm (viaja con el addon `almacen`)
+├── /caja .................... Módulo Caja: turnos, arqueo, movimientos y bandeja "Fuera de turno" (beta oculta — addon `caja` con grant)
 │   ├── /budgets ............. Embudo de presupuestos (gateado por el addon Fertilidad)
 │   └── /history ............. Historial de citas pasadas
 ├── /patients ................ Gestión de pacientes
@@ -600,6 +621,8 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | Agenda | Calendario, Seguimientos, Presupuestos (addon Fertilidad), Historial | Todos |
 | Agenda | Captación (beta) | Orgs con grant del addon `captacion` (hoy: founder) |
 | Agenda | Almacén (beta) | Orgs con grant del addon `almacen` (hoy: founder + Dra. Patricia) |
+| Agenda | Farmacia (beta) | Orgs con grant del addon `almacen` (viaja con Almacén, sin addon propio) |
+| Agenda | Caja (beta) | Orgs con grant del addon `caja` (hoy: founder + Dra. Patricia) |
 | Pacientes | Pacientes | Todos |
 | Reportes | Reportes | Admin/Owner |
 | Reportes | Facturación | Admin/Owner + recepción (oculto para doctores) |
@@ -697,6 +720,11 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] Módulo Almacén completo: kardex append-only (stock derivado, costos congelados, contra-movimientos), página `/almacen` con entrada/salida/merma/ajuste y semáforos de stock y vencimiento (migs 209, PR #268)
 - [x] Facturación de módulos de pago: precio en la base, activación con cobro vía MP (reserva atómica + sync preapproval + rollback), anti doble cobro (mig 210)
 - [x] Almacén activado en beta: orgs del founder + org real de la Dra. Patricia (gratis 12 meses, términos Founding Partner)
+
+**Agosto 2026 (v0.15.32 — 2026-08-15):**
+- [x] Facturación F2: 2 bugs de emisión NubeFact corregidos (IGV por línea con diferencia exacta; descuento global prorrateado con regla de mayor resto) + boleta ≥ S/700 sin DNI bloqueada antes del correlativo + histórico visible sin proveedor conectado + NubeFact confinado a `nubefact-provider.ts` — 37 tests numéricos (PR #284)
+- [x] Módulo Caja F3: addon `caja` S/19/mes (incluido desde Centro Médico), turnos con arqueo ciego, movimientos con signo, turno cerrado inmutable, bandeja "Fuera de turno", trigger `caja_stamp_payment` (migs 213-215, PR #285 — certificado por el founder con 6 tests en prod)
+- [x] Módulo Farmacia POS F4: venta NV- con FEFO, RPCs `pharmacy_confirm_sale`/`pharmacy_void_sale` transaccionales e idempotentes, deuda clínica no contaminada (`source='pos'`), ticket 80mm no-SUNAT, retiro del motivo "Venta" de Almacén (migs 216-217, PR #286 — certificado; 79 aserciones + concurrencia real; PR #287 con fix del diálogo de cobro pendiente de merge)
 
 - [x] Autenticación (email + Google OAuth)
 - [x] Registro con creación automática de org y datos seed
@@ -1200,7 +1228,7 @@ Medicina General, Odontología, Ginecología y Obstetricia, Pediatría, Dermatol
 
 ## 19. Historial de cambios
 
-El registro cronológico completo de cambios (51+ entradas de changelog, desde 2026-03-23 hasta v0.15.29 / 2026-08-12) se movió a **[CHANGELOG.md](CHANGELOG.md)** para mantener este PRD enfocado en el estado canónico del producto.
+El registro cronológico completo de cambios (60+ entradas de changelog, desde 2026-03-23 hasta v0.15.32 / 2026-08-15) se movió a **[CHANGELOG.md](CHANGELOG.md)** para mantener este PRD enfocado en el estado canónico del producto.
 
 - **[CHANGELOG.md](CHANGELOG.md)** — todas las sesiones de desarrollo en orden cronológico ascendente, más el hito del pilot de Vitra y el apéndice con el detalle de features implementadas.
 - Convención de versionado: `v0.MAYOR.MENOR`; las colisiones históricas de numeración están anotadas en el propio CHANGELOG (sufijos `b`).
