@@ -56,6 +56,8 @@ import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import { useOrgInsurance } from "@/hooks/use-org-insurance";
 import { PatientInsurancesPanel } from "@/components/insurance/patient-insurances-panel";
 import { PatientFiscalSection } from "./patient-fiscal-section";
+import { usePaymentMethods } from "./use-payment-methods";
+import { getPaymentIcon } from "@/lib/payment-icons";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
 import { calculateAge } from "@/lib/export";
 import type { ClinicalNote } from "@/types/clinical-notes";
@@ -215,6 +217,9 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [paymentNotes, setPaymentNotes] = useState("");
   const [paymentAppointmentId, setPaymentAppointmentId] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
+  // Mismos métodos que el sidebar del scheduler: lookup 'payment_method'
+  // de la org + globales. Lo que se guarda es la label.
+  const paymentMethodOptions = usePaymentMethods(patient.organization_id);
 
   // Antes el drawer bajaba TODO el historial (citas con 3 joins + pagos) en
   // cuanto se abría, solo para el badge de deuda y los contadores. Ahora al
@@ -1316,14 +1321,50 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         />
                       </div>
                     </div>
+                    {/* Método de pago: chips del lookup, MISMO patrón y
+                        misma escritura (pm.label) que el sidebar del
+                        scheduler. Antes era un input de texto libre y por
+                        eso el arqueo de Caja veía "efectivo", "EFEC." y
+                        "Efectivo" como tres medios distintos. Sigue
+                        pudiendo quedar vacío (volver a tocar el chip lo
+                        deselecciona) para no romper el flujo de quien
+                        registra un pago sin saber cómo entró. */}
                     <div className="space-y-1">
                       <label className="text-xs text-muted-foreground">{t("patients.payment_method")}</label>
-                      <input
-                        value={paymentMethod}
-                        onChange={(e) => setPaymentMethod(e.target.value)}
-                        className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                        placeholder="Efectivo, Tarjeta, etc."
-                      />
+                      {paymentMethodOptions.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                          {paymentMethodOptions.map((pm) => {
+                            const Icon = getPaymentIcon(pm.icon);
+                            return (
+                              <button
+                                key={pm.id}
+                                type="button"
+                                onClick={() =>
+                                  setPaymentMethod((m) => (m === pm.label ? "" : pm.label))
+                                }
+                                className={cn(
+                                  "flex min-h-[2.25rem] items-center justify-center gap-1 rounded-lg border px-1 py-1.5 text-[11px] font-medium transition-all",
+                                  paymentMethod === pm.label
+                                    ? "border-primary bg-primary/10 text-primary"
+                                    : "border-border/60 text-muted-foreground hover:border-border hover:text-foreground",
+                                )}
+                              >
+                                <Icon className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{pm.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        // Sin lookups configurados el formulario no puede
+                        // quedarse mudo: se cae al texto libre de siempre.
+                        <input
+                          value={paymentMethod}
+                          onChange={(e) => setPaymentMethod(e.target.value)}
+                          className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                          placeholder="Efectivo, Tarjeta, etc."
+                        />
+                      )}
                     </div>
                     {appointments.length > 0 && (
                       <div className="space-y-1">
