@@ -59,7 +59,7 @@ NO desplaza CAPTCHA P0 ni trámites Meta. Validar cada campo del MVP contra Vitr
 | Facturación de módulos | ✅ HECHO 12-ago (mig 210 + PR #268): precio y política en la base (`addons.monthly_price` + `included_from_plan`: almacen 39/'professional', captacion 99/NULL), activate cobra vía maquinaria mig 152 (reserva atómica → sync preapproval MP → grant; rollback si MP falla), índice anti doble cobro, sin prorrateo, desactivar cancela el cobro primero. Pendiente solo: **una prueba real de activación de pago con org de test antes de abrir al público** | ✅ En prod |
 | Lanzamiento público del addon | Voltear `is_active` de `captacion` + teaser (volumen gratis, resultado de pago) | Tras validar con datos del piloto |
 
-## 🧾 Facturador Propio — emisión directa a SUNAT (decisión: coming soon, 2026-08-15)
+## 🧾 YendaFact — facturador propio, emisión directa a SUNAT (coming soon, 2026-08-15)
 
 > **Idea del founder (15-ago):** reemplazar NubeFact por un motor de emisión propio para quedarnos
 > con el margen por comprobante y vender facturación como producto. Precedente real: existen
