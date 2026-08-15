@@ -106,6 +106,8 @@ export {
   computeInvoiceTotals,
   computeLineTax,
   isTaxedAffectation,
+  prorateDiscount,
+  applyInvoiceDiscount,
   todayInLima,
   round2,
   round4,

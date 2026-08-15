@@ -21,6 +21,7 @@ import {
   computeInvoiceTotals,
   computeLineTax,
   isTaxedAffectation,
+  prorateDiscount,
   todayInLima,
   mapPaymentMethodToSunat,
   DocType,
@@ -307,10 +308,19 @@ export async function POST(req: NextRequest) {
   // multiplies the rounding error too. Nubefact's API requires both
   // `valor_unitario` (sin IGV) and `precio_unitario` (con IGV) — we send
   // both, with 4 decimals, derived from the line amounts.
-  const lineItems: InvoiceLineItem[] = data.items.map((it) => {
+  //
+  // A global discount is prorated over the lines FIRST (largest remainder,
+  // see prorateDiscount) so it lands inside each net price. Subtracting it
+  // only from the total would leave total_gravada + total_igv ≠ total.
+  const discountShares = prorateDiscount(
+    data.items.map((it) => it.quantity * it.unit_price),
+    data.invoice_discount
+  );
+  const lineItems: InvoiceLineItem[] = data.items.map((it, idx) => {
     const amounts = computeLineTax({
       quantity: it.quantity,
       unitPriceWithTax: it.unit_price,
+      lineDiscount: discountShares[idx],
       isTaxed: isTaxedAffectation(it.igv_affectation),
       igvPercent: data.igv_percent,
     });
@@ -330,7 +340,8 @@ export async function POST(req: NextRequest) {
       serviceId: it.service_id ?? undefined,
     };
   });
-  const totals = computeInvoiceTotals(lineItems, data.invoice_discount);
+  // Discount already prorated above — pass 0 so it isn't applied twice.
+  const totals = computeInvoiceTotals(lineItems, 0, data.igv_percent);
 
   // ── 3) Insert einvoices row in 'sending' state ─────────────────────────
   const { data: invRow, error: invInsertErr } = await admin

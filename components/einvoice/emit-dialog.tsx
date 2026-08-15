@@ -34,6 +34,7 @@ import {
   violatesBancarizacion,
   computeLineTax,
   isTaxedAffectation,
+  prorateDiscount,
   BANCARIZACION_THRESHOLD_PEN,
   BANCARIZACION_THRESHOLD_USD,
 } from "@/lib/einvoice";
@@ -341,18 +342,24 @@ export function EInvoiceEmitDialog({
   //                   igv      = line_total − subtotal
   //   - Exempt/unaffected lines: subtotal = line_total; igv = 0
   // The total stays equal to sum(quantity * unit_price) − discount, which
-  // is the figure the patient sees and pays.
+  // is the figure the patient sees and pays. The discount is prorated over
+  // the lines (same rule as the route) so base + IGV always add up to it.
   const totals = useMemo(() => {
     const igvPercent = Number(config.default_igv_percent);
+    const discountShares = prorateDiscount(
+      items.map((it) => it.quantity * it.unit_price),
+      discount
+    );
     let subtotalTaxed = 0;
     let subtotalExempt = 0;
     let subtotalUnaffected = 0;
     let igvAmount = 0;
     let total = 0;
-    for (const it of items) {
+    for (const [idx, it] of items.entries()) {
       const amounts = computeLineTax({
         quantity: it.quantity,
         unitPriceWithTax: it.unit_price,
+        lineDiscount: discountShares[idx],
         isTaxed: isTaxedAffectation(it.igv_affectation),
         igvPercent,
       });
@@ -368,7 +375,7 @@ export function EInvoiceEmitDialog({
       subtotalExempt: round2(subtotalExempt),
       subtotalUnaffected: round2(subtotalUnaffected),
       igvAmount: round2(igvAmount),
-      total: round2(Math.max(total - discount, 0)),
+      total: round2(total),
     };
   }, [items, discount, config.default_igv_percent]);
 

@@ -39,7 +39,10 @@ function mapItem(item: InvoiceLineItem) {
     cantidad: item.quantity,
     valor_unitario: item.unitValue,
     precio_unitario: item.unitPrice,
-    descuento: numOrEmpty(item.discount),
+    // Always 0: any discount is already prorated into the net unit price
+    // (see applyInvoiceDiscount). Declaring it here on top of a net price is
+    // the ambiguity SUNAT rejects.
+    descuento: "",
     subtotal: item.subtotal,
     tipo_de_igv: item.igvAffectation,
     igv: item.igvAmount,
@@ -73,8 +76,11 @@ export function toNubefactGenerate(p: InvoicePayload): Record<string, unknown> {
     tipo_de_cambio: p.exchangeRate != null ? p.exchangeRate : "",
     porcentaje_de_igv: p.igvPercent,
 
-    descuento_global: numOrEmpty(p.discountAmount),
-    total_descuento: numOrEmpty(p.discountAmount),
+    // Both 0 on purpose. `p.discountAmount` is kept for our own audit trail,
+    // but the comprobante travels with net prices per line: declaring the
+    // discount again here would double-count it against `total_gravada`.
+    descuento_global: "",
+    total_descuento: "",
     total_anticipo: "",
     total_gravada: numOrEmpty(p.subtotalTaxed),
     total_inafecta: numOrEmpty(p.subtotalUnaffected),
@@ -185,12 +191,93 @@ export function isTaxedAffectation(code: number): boolean {
   return code === 1;
 }
 
+// ── Invoice-level discount ─────────────────────────────────────────────────
+//
+// A global discount CANNOT simply be subtracted from the total: the base and
+// the IGV are computed per line, so subtracting only at the end declares
+// total_gravada + total_igv ≠ total and over-declares IGV (the customer pays
+// less but SUNAT is told the full tax).
+//
+// We prorate it over the lines BEFORE backing out base/IGV, proportional to
+// each line's gross amount. Rounding is settled with the largest-remainder
+// rule: n−1 shares are rounded to 2 decimals and the last line takes
+// `target − sum(rest)`, so the shares add up to the discount to the exact
+// cent. ("Last line" = last line with a non-zero amount — a free/gratuito
+// line at the end must never absorb a residue it can't pay for.)
+//
+// Once the discount lives inside each line's net price, the payload declares
+// no discount at all (descuento / descuento_global = 0). SUNAT validates
+// declared discounts against unit prices, and sending both the net price and
+// the discount is exactly the ambiguity that gets comprobantes rejected.
+export function prorateDiscount(
+  lineGrossAmounts: number[],
+  discount: number
+): number[] {
+  const shares = lineGrossAmounts.map(() => 0);
+  const gross = lineGrossAmounts.reduce((acc, n) => acc + n, 0);
+  const target = Math.min(round2(discount), round2(gross));
+  if (!(target > 0) || !(gross > 0)) return shares;
+
+  // Only lines with an amount take part in the split.
+  const payable = lineGrossAmounts
+    .map((amount, index) => ({ amount, index }))
+    .filter((l) => l.amount > 0);
+  const absorberIndex = payable[payable.length - 1].index;
+
+  let assigned = 0;
+  for (const line of payable) {
+    if (line.index === absorberIndex) continue;
+    const share = round2((target * line.amount) / gross);
+    shares[line.index] = share;
+    assigned = round2(assigned + share);
+  }
+  shares[absorberIndex] = round2(target - assigned);
+  return shares;
+}
+
+// Re-derives the line items of an invoice with a global discount already
+// prorated into their net prices. The returned lines carry no discount of
+// their own — the price IS the discounted price.
+export function applyInvoiceDiscount(
+  items: InvoiceLineItem[],
+  invoiceLevelDiscount: number,
+  igvPercent = 18
+): InvoiceLineItem[] {
+  const shares = prorateDiscount(
+    items.map((i) => i.total),
+    invoiceLevelDiscount
+  );
+  return items.map((item, idx) => {
+    const amounts = computeLineTax({
+      quantity: item.quantity,
+      // The line's current net unit price — item.total already includes IGV.
+      unitPriceWithTax: item.quantity > 0 ? item.total / item.quantity : 0,
+      lineDiscount: shares[idx],
+      isTaxed: isTaxedAffectation(item.igvAffectation),
+      igvPercent,
+    });
+    return {
+      ...item,
+      unitValue: amounts.unitValue,
+      unitPrice: amounts.unitPrice,
+      subtotal: amounts.subtotal,
+      discount: 0,
+      igvAmount: amounts.igvAmount,
+      total: amounts.lineTotal,
+    };
+  });
+}
+
 // Pure totals calculation for an invoice. Useful for UI previews and as a
 // sanity check before emitting: Nubefact rejects invoices where totals
 // don't reconcile with line items (error code 20).
+//
+// `invoiceLevelDiscount` is prorated into the lines first (see
+// applyInvoiceDiscount) — pass 0 when the caller already did that.
 export function computeInvoiceTotals(
   items: InvoiceLineItem[],
-  invoiceLevelDiscount = 0
+  invoiceLevelDiscount = 0,
+  igvPercent = 18
 ): {
   subtotalTaxed: number;
   subtotalExempt: number;
@@ -206,7 +293,12 @@ export function computeInvoiceTotals(
   let igvAmount = 0;
   let total = 0;
 
-  for (const item of items) {
+  const effectiveItems =
+    invoiceLevelDiscount > 0
+      ? applyInvoiceDiscount(items, invoiceLevelDiscount, igvPercent)
+      : items;
+
+  for (const item of effectiveItems) {
     const code = item.igvAffectation;
     // 1 = gravado; 8 = exonerado; 9 = inafecto; 12 = inafecto muestras médicas;
     // 16 = exportación; 17 = exonerado gratuito; 20 = inafecto gratuito.
@@ -224,15 +316,14 @@ export function computeInvoiceTotals(
     total += item.total;
   }
 
-  const adjustedTotal = Math.max(total - invoiceLevelDiscount, 0);
-
+  // No subtraction here: the discount is already inside the line totals.
   return {
     subtotalTaxed: round2(subtotalTaxed),
     subtotalExempt: round2(subtotalExempt),
     subtotalUnaffected: round2(subtotalUnaffected),
     subtotalFree: round2(subtotalFree),
     igvAmount: round2(igvAmount),
-    total: round2(adjustedTotal),
+    total: round2(total),
   };
 }
 

@@ -125,6 +125,12 @@ export interface InvoicePayload {
   subtotalUnaffected: number;
   subtotalFree: number;
   igvAmount: number;
+  /**
+   * Invoice-level discount, for our own audit trail only. It is ALREADY
+   * prorated into each line's net price before the payload is built (see
+   * applyInvoiceDiscount in mapper.ts), so providers must declare 0 —
+   * declaring it again would double-count it against the taxable base.
+   */
   discountAmount: number;
   total: number;
 
