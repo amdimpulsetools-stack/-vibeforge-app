@@ -23,6 +23,7 @@ import { PrescriptionsPanel } from "./prescriptions-panel";
 import { ClinicalFollowupsPanel } from "./clinical-followups-panel";
 import { ClinicalAttachmentsPanel } from "./clinical-attachments-panel";
 import { ExamOrdersPanel } from "./exam-orders-panel";
+import { PatientInventoryPanel } from "./patient-inventory-panel";
 
 interface ClinicalHistoryModalProps {
   patient: PatientWithTags;
@@ -378,6 +379,13 @@ export function ClinicalHistoryModal({
                   canEdit={canEdit}
                 />
               </div>
+              {/* Sin enlace cruzado: este modal no tiene pestañas a las que
+                  saltar. Solo lectura de lo aplicado. */}
+              <PatientInventoryPanel
+                patientId={patient.id}
+                scope="clinical"
+                variant="table"
+              />
               <ExamOrdersPanel
                 patientId={patient.id}
                 doctorId={doctorId ?? undefined}

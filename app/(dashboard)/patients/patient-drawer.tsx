@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
@@ -69,6 +69,10 @@ import { ConsentsUnifiedPanel } from "./consents-unified-panel";
 import { ClinicalFollowupsPanel } from "./clinical-followups-panel";
 import { ExamOrdersPanel } from "./exam-orders-panel";
 import { DiagnosisHistoryPanel } from "./diagnosis-history-panel";
+import {
+  PatientInventoryPanel,
+  usePatientPharmacySales,
+} from "./patient-inventory-panel";
 import { ClinicalHistoryModal } from "./clinical-history-modal";
 import { RecurringBadge } from "@/components/patients/recurring-badge";
 import type { Sex } from "@/lib/growth-curves";
@@ -130,6 +134,9 @@ type AppointmentWithDetails = Appointment & {
   services: Service;
   offices: Office;
 };
+
+/** `sale_id` existe desde la mig 213 pero aún no en los generated types. */
+type PaymentRow = PatientPayment & { sale_id: string | null };
 
 export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps) {
   const { t } = useLanguage();
@@ -253,13 +260,16 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           .order("start_time", { ascending: false }),
         supabase
           .from("patient_payments")
-          .select("id, patient_id, appointment_id, amount, payment_method, payment_date, notes, organization_id, created_at")
+          // `sale_id` (mig 213) no está en los generated types todavía: se
+          // pide explícitamente para poder marcar los pagos cuya venta de
+          // farmacia acabó anulada, sin una consulta por pago.
+          .select("id, patient_id, appointment_id, amount, payment_method, payment_date, notes, organization_id, created_at, sale_id")
           .eq("patient_id", patient.id)
           .order("payment_date", { ascending: false }),
       ]);
       return {
         appointments: (apptRes.data as unknown as AppointmentWithDetails[]) ?? [],
-        payments: (payRes.data as PatientPayment[]) ?? [],
+        payments: (payRes.data as unknown as PaymentRow[]) ?? [],
       };
     },
   });
@@ -267,6 +277,24 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const appointments = historyData?.appointments ?? [];
   const payments = historyData?.payments ?? [];
   const loading = historyLoading;
+
+  // Ventas de farmacia del paciente. MISMA query key que PatientInventoryPanel:
+  // React Query las dedupe, así que la pestaña Finanzas hace UN solo fetch y
+  // el drawer puede marcar los pagos cuya venta fue anulada sin pedir nada
+  // extra por pago. Lazy igual que el resto: nada se pide fuera de Finanzas.
+  const { data: pharmacySalesData } = usePatientPharmacySales(
+    patient.id,
+    hasAddon("almacen") && activeTab === "finances"
+  );
+  const voidedSaleIds = useMemo(
+    () =>
+      new Set(
+        (pharmacySalesData?.sales ?? [])
+          .filter((s) => s.status === "anulada")
+          .map((s) => s.id)
+      ),
+    [pharmacySalesData]
+  );
 
   const invalidatePatientData = () => {
     queryClient.invalidateQueries({ queryKey: ["patient-summary", patient.id] });
@@ -470,11 +498,15 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   // from the appointment's clinical-history modal). Visible to clinical
   // roles only, same as the clinical tab.
   const showDermatologyTab = hasAddon("dermatology") && (isAdmin || !!currentDoctorId);
+  // Misma condición que gobierna la pestaña Clínico. También decide si el
+  // enlace cruzado de Finanzas ("Ver N aplicaciones en Clínico") existe: una
+  // recepcionista no tiene esa pestaña y el enlace la dejaría en blanco.
+  const canSeeClinical = isAdmin || !!currentDoctorId;
   const tabs: { key: DrawerTab; label: string; icon: typeof Clock }[] = [
     { key: "info", label: "Datos", icon: Edit2 },
     { key: "history", label: t("patients.tab_history"), icon: Clock },
     // Clinical tab only visible for doctors and admins, not receptionists
-    ...(isAdmin || currentDoctorId ? [{ key: "clinical" as DrawerTab, label: "Clínico", icon: Stethoscope }] : []),
+    ...(canSeeClinical ? [{ key: "clinical" as DrawerTab, label: "Clínico", icon: Stethoscope }] : []),
     ...(showGrowthTab ? [{ key: "growth" as DrawerTab, label: "Crecimiento", icon: TrendingUp }] : []),
     ...(showDermatologyTab ? [{ key: "dermatology_photos" as DrawerTab, label: "Antes y Después", icon: Camera }] : []),
     { key: "budgets", label: "Presupuestos", icon: Wallet },
@@ -666,17 +698,23 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           en su lugar un degradado a la derecha avisa de que hay más — el
           `pr-8` iguala la anchura del fundido, así que al llegar al final
           el último tab queda entero y nítido. Sin JS: todo es CSS.
-          Todos los añadidos van con `max-md:`, así que desde md no existe
-          ni una regla nueva y el render es idéntico al de siempre
-          (subrayado a ancho repartido con barra nativa). */}
+          El layout de "pills" sigue siendo solo de móvil, pero las pistas
+          de scroll (ocultar la barra nativa + degradado de aviso) valen en
+          TODOS los breakpoints: con addons activos la tira pasa de 9 tabs y
+          en escritorio también desbordaba — enseñaba la barra nativa fea
+          justo debajo del subrayado y, como los tabs eran `md:flex-1`
+          (crecen, nunca encogen), no había manera de que cupieran. Con
+          `md:flex-none` cada tab ocupa su texto y la tira scrollea limpia.
+          El `pr-8` reserva el ancho del fundido, así que cuando NO hay
+          desbordamiento el último tab queda entero y nítido. */}
       <div className="border-b border-border">
         <div
           className={cn(
-            "flex overflow-x-auto",
-            "max-md:snap-x max-md:snap-mandatory max-md:gap-1.5 max-md:py-2 max-md:pl-3 max-md:pr-8",
-            "max-md:[-ms-overflow-style:none] max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden",
-            "max-md:[mask-image:linear-gradient(to_right,#000_calc(100%_-_2rem),transparent)]",
-            "max-md:[-webkit-mask-image:linear-gradient(to_right,#000_calc(100%_-_2rem),transparent)]"
+            "flex overflow-x-auto pr-8",
+            "max-md:snap-x max-md:snap-mandatory max-md:gap-1.5 max-md:py-2 max-md:pl-3",
+            "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            "[mask-image:linear-gradient(to_right,#000_calc(100%_-_2rem),transparent)]",
+            "[-webkit-mask-image:linear-gradient(to_right,#000_calc(100%_-_2rem),transparent)]"
           )}
         >
           {tabs.map((tab) => (
@@ -686,7 +724,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               className={cn(
                 "flex items-center justify-center gap-1.5 text-xs font-medium transition-colors shrink-0",
                 "max-md:h-10 max-md:snap-start max-md:whitespace-nowrap max-md:rounded-full max-md:px-3.5",
-                "md:flex-1 md:border-b-2 md:py-2.5",
+                "md:flex-none md:whitespace-nowrap md:border-b-2 md:px-3 md:py-2.5",
                 activeTab === tab.key
                   ? "text-primary max-md:bg-primary/10 md:border-primary"
                   : "text-muted-foreground hover:text-foreground md:border-transparent"
@@ -1170,6 +1208,14 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               <DiagnosisHistoryPanel patientId={patient.id} clinicalNotes={clinicalNotes} />
               <TreatmentPlansPanel patientId={patient.id} canEdit={false} />
               <PrescriptionsPanel patientId={patient.id} canEdit={false} />
+              {/* Justo debajo de las recetas: "recetado → aplicado" se lee
+                  de corrido, que es la pregunta real del médico. */}
+              <PatientInventoryPanel
+                patientId={patient.id}
+                scope="clinical"
+                variant="compact"
+                onNavigateToCounterpart={() => setActiveTab("finances")}
+              />
               <ExamOrdersPanel patientId={patient.id} canEdit={false} />
               <ClinicalFollowupsPanel patientId={patient.id} canEdit={false} />
               <ClinicalAttachmentsPanel patientId={patient.id} canEdit={false} />
@@ -1329,7 +1375,18 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
                       >
                         <div className="min-w-0 [&_p]:break-words">
-                          <p className="text-xs font-medium">S/. {Number(p.amount).toFixed(2)}</p>
+                          <p className="flex flex-wrap items-center gap-1.5 text-xs font-medium">
+                            S/. {Number(p.amount).toFixed(2)}
+                            {/* El dinero sigue en la lista (el pago existió),
+                                pero su venta se deshizo: sin esta marca el
+                                total de la ficha y el de Farmacia no cuadran
+                                y nadie sabe por qué. */}
+                            {p.sale_id && voidedSaleIds.has(p.sale_id) && (
+                              <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-red-600 dark:text-red-400">
+                                Venta anulada
+                              </span>
+                            )}
+                          </p>
                           <p className="text-[10px] text-muted-foreground">
                             {p.payment_date.split("-").reverse().join("/")} {p.payment_method && `• ${p.payment_method}`}
                           </p>
@@ -1342,6 +1399,19 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     ))}
                   </div>
                 )}
+
+                {/* Al FINAL de Finanzas y separado: no empuja el botón de
+                    registrar pago, que es la acción que trae a la gente aquí. */}
+                <div className="border-t border-border pt-4">
+                  <PatientInventoryPanel
+                    patientId={patient.id}
+                    scope="sales"
+                    variant="compact"
+                    onNavigateToCounterpart={
+                      canSeeClinical ? () => setActiveTab("clinical") : undefined
+                    }
+                  />
+                </div>
               </>
             )}
           </div>
@@ -1671,6 +1741,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     <PrescriptionsPanel patientId={patient.id} canEdit={false} />
                     <ExamOrdersPanel patientId={patient.id} canEdit={false} />
                   </div>
+                  <PatientInventoryPanel
+                    patientId={patient.id}
+                    scope="clinical"
+                    variant="table"
+                    onNavigateToCounterpart={() => setActiveTab("finances")}
+                  />
                   <ClinicalFollowupsPanel patientId={patient.id} canEdit={false} />
                   <ClinicalAttachmentsPanel patientId={patient.id} canEdit={false} />
                   <ConsentsUnifiedPanel
@@ -1747,6 +1823,16 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         <p className="text-xs text-muted-foreground">Transacciones</p>
                       </div>
                     </div>
+                  </div>
+                  <div className="border-t border-border pt-6">
+                    <PatientInventoryPanel
+                      patientId={patient.id}
+                      scope="sales"
+                      variant="table"
+                      onNavigateToCounterpart={
+                        canSeeClinical ? () => setActiveTab("clinical") : undefined
+                      }
+                    />
                   </div>
                 </div>
               )}
