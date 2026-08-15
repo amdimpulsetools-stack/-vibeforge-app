@@ -27,13 +27,21 @@ export type FounderAlertKind =
   | "new_ticket"
   | "new_message"
   | "new_org"
-  | "payment";
+  | "payment"
+  // Ciclo de vida de los módulos de pago (mig 220). Ver
+  // lib/module-lifecycle-emails.ts.
+  | "module_activation"
+  | "module_deactivation"
+  | "module_adoption";
 
 const ALERT_TOGGLE_COLUMN: Record<FounderAlertKind, string> = {
   new_ticket: "notify_new_ticket",
   new_message: "notify_new_message",
   new_org: "notify_new_org",
   payment: "notify_payment",
+  module_activation: "notify_module_activation",
+  module_deactivation: "notify_module_deactivation",
+  module_adoption: "notify_module_adoption",
 };
 
 /**
@@ -49,9 +57,14 @@ export async function resolveFounderEmail(
   admin: SupabaseClient,
   kind?: FounderAlertKind,
 ): Promise<string | null> {
+  // select("*") y no la lista explícita: la tabla es una fila única con
+  // un puñado de columnas, y cada toggle nuevo obligaba a tocar aquí. Con
+  // la lista explícita, un toggle todavía no migrado hacía fallar el
+  // SELECT entero y se perdían TODOS los toggles (incluidos los viejos)
+  // hasta aplicar la migración.
   const { data: settings } = await admin
     .from("founder_settings")
-    .select("alert_email, notify_new_ticket, notify_new_message, notify_new_org, notify_payment")
+    .select("*")
     .eq("id", true)
     .maybeSingle();
 

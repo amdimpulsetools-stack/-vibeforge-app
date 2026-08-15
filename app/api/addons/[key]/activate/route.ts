@@ -9,6 +9,7 @@ import {
 } from "@/types/fertility";
 import {
   moduleAddonType,
+  planLabel,
   resolveModuleBilling,
 } from "@/lib/billing/module-pricing";
 import {
@@ -20,6 +21,13 @@ import {
   computeSubscriptionAmount,
   updatePreApprovalAmount,
 } from "@/lib/mercadopago/update-preapproval";
+import { notifyOrgMembers } from "@/lib/live-notifications/notify";
+import {
+  getModuleCopy,
+  isLifecycleModule,
+  notifyFounderModuleActivated,
+  sendModuleWelcomeEmail,
+} from "@/lib/module-lifecycle-emails";
 
 /**
  * POST /api/addons/[key]/activate
@@ -378,6 +386,27 @@ export async function POST(
     return NextResponse.json({ error: upsertErr.message }, { status: 500 });
   }
 
+  // ── Avisos del ciclo de vida (best-effort) ───────────────────────
+  // El módulo YA está activo y cobrado: nada de lo que pase aquí abajo
+  // puede tumbar la activación. Va AWAIT y no fire-and-forget porque en
+  // serverless el trabajo pendiente muere cuando el handler responde
+  // (misma razón que documenta lib/resend.ts); el try/catch es lo que
+  // garantiza que un fallo de correo no se convierta en un 500.
+  try {
+    await announceActivation({
+      orgId,
+      addonKey,
+      addonName: addon.name,
+      actorId: user.id,
+      actorEmail: user.email ?? null,
+      planSlug: planCtx?.planSlug ?? null,
+      monthlyPrice: billing.requiresPayment ? billing.price : null,
+      newMonthlyTotal: charge?.new_monthly_total ?? null,
+    });
+  } catch (err) {
+    console.warn("[addons/activate] avisos de activación fallaron:", err);
+  }
+
   const billingPayload = {
     charged: Boolean(charge),
     monthly_price: billing.price,
@@ -417,4 +446,158 @@ export async function POST(
     },
     { status: 201 }
   );
+}
+
+/* ═══════════════ Avisos posteriores a la activación ═══════════════ */
+
+interface AnnounceInput {
+  orgId: string;
+  addonKey: string;
+  addonName: string | null;
+  actorId: string;
+  actorEmail: string | null;
+  planSlug: string | null;
+  /** Precio que se cobra por el módulo, o null si va incluido en el plan. */
+  monthlyPrice: number | null;
+  newMonthlyTotal: number | null;
+}
+
+/**
+ * Bienvenida + campanita + alerta al founder. Todo con el admin client:
+ * hay que leer perfiles de OTROS miembros y escribir en ops_notice_log,
+ * que es service_role.
+ *
+ * Cada pieza va en su propio try/catch: que no salga el correo no puede
+ * impedir que salga la campanita, ni al revés.
+ */
+async function announceActivation(input: AnnounceInput): Promise<void> {
+  if (!isLifecycleModule(input.addonKey)) return;
+
+  const admin = createAdminClient();
+  const copy = getModuleCopy(input.addonKey);
+  if (!copy) return;
+
+  const { data: profile } = await admin
+    .from("user_profiles")
+    .select("full_name")
+    .eq("id", input.actorId)
+    .maybeSingle();
+  const actorLabel =
+    ((profile?.full_name as string | null) || "").trim() ||
+    input.actorEmail ||
+    "un administrador";
+
+  // 1. Bienvenida al owner y a los admins (el comprobante de la decisión).
+  try {
+    await sendModuleWelcomeEmail({
+      admin,
+      organizationId: input.orgId,
+      addonKey: input.addonKey,
+      activatedByName: actorLabel,
+    });
+  } catch (err) {
+    console.warn("[addons/activate] correo de bienvenida falló:", err);
+  }
+
+  // 2. Campanita: el hecho administrativo, para la dirección.
+  try {
+    await notifyOrgMembers(admin, {
+      organizationId: input.orgId,
+      event: "module_activated",
+      title: `${copy.label} activado`,
+      body: input.monthlyPrice
+        ? `El módulo ya está disponible en el menú. Se suma a la suscripción mensual. Les enviamos por correo los 3 primeros pasos.`
+        : `El módulo ya está disponible en el menú. Les enviamos por correo los 3 primeros pasos.`,
+      actionUrl: copy.path,
+    });
+  } catch (err) {
+    console.warn("[addons/activate] campanita module_activated falló:", err);
+  }
+
+  // 3. Campanita: "tienes una sección nueva", a quien de verdad la verá.
+  //    La audiencia depende del módulo, no del evento — ver el sidebar:
+  //    Caja y Farmacia llevan hideForDoctor (el doctor no cobra al
+  //    mostrador) y Almacén no, porque el doctor sí descuenta insumos en
+  //    consulta. Al actor no se le anuncia lo que acaba de hacer.
+  const announcements: {
+    audiences: ("owner_admin" | "doctor" | "reception")[];
+    title: string;
+    body: string;
+    actionUrl: string;
+  }[] = [];
+
+  if (input.addonKey === "caja") {
+    announcements.push({
+      audiences: ["owner_admin", "reception"],
+      title: "Nueva sección: Caja",
+      body: "Tu clínica activó el control de caja por turnos. Mañana, antes del primer cobro, abre la caja: toma 30 segundos y hace que todo lo que cobres quede ordenado.",
+      actionUrl: "/caja",
+    });
+  } else if (input.addonKey === "almacen") {
+    announcements.push({
+      audiences: ["owner_admin", "reception"],
+      title: "Nueva sección: Almacén",
+      body: "Tu clínica activó el control de inventario. Empieza cargando los 20 productos que más mueves con su saldo actual — no hace falta el catálogo completo.",
+      actionUrl: "/almacen",
+    });
+    announcements.push({
+      // Copy propio para el doctor: a él no le interesa el kardex, le
+      // interesa dejar de contar cajas a mano después de la consulta.
+      audiences: ["doctor"],
+      title: "Nueva sección: Almacén",
+      body: "Tu clínica activó el control de inventario: ahora puedes descontar los insumos que usas en consulta y quedan registrados con su costo.",
+      actionUrl: "/almacen",
+    });
+    announcements.push({
+      audiences: ["owner_admin", "reception"],
+      title: "Nueva sección: Farmacia",
+      body: "Con Almacén también se activó Farmacia: vender en el mostrador descontando del mismo kardex, con un correlativo que se asigna al confirmar la venta.",
+      actionUrl: "/farmacia",
+    });
+  } else if (input.addonKey === "captacion") {
+    announcements.push({
+      audiences: ["owner_admin", "reception"],
+      title: "Nueva sección: Captación",
+      body: "Tu clínica activó Captación. Primero conecta WhatsApp en Ajustes → Integraciones: sin eso el módulo no captura ningún lead.",
+      actionUrl: "/captacion",
+    });
+  }
+
+  for (const a of announcements) {
+    try {
+      await notifyOrgMembers(admin, {
+        organizationId: input.orgId,
+        event: "module_section_available",
+        title: a.title,
+        body: a.body,
+        actionUrl: a.actionUrl,
+        audiences: a.audiences,
+        excludeUserId: input.actorId,
+      });
+    } catch (err) {
+      console.warn("[addons/activate] campanita de sección falló:", err);
+    }
+  }
+
+  // 4. Alerta al founder (+MRR).
+  try {
+    const previousMonthlyTotal =
+      input.newMonthlyTotal !== null && input.monthlyPrice
+        ? input.newMonthlyTotal - input.monthlyPrice
+        : null;
+
+    await notifyFounderModuleActivated({
+      admin,
+      organizationId: input.orgId,
+      addonKey: input.addonKey,
+      addonName: input.addonName,
+      planLabel: planLabel(input.planSlug),
+      monthlyPrice: input.monthlyPrice,
+      actorLabel,
+      previousMonthlyTotal,
+      newMonthlyTotal: input.newMonthlyTotal,
+    });
+  } catch (err) {
+    console.warn("[addons/activate] alerta al founder falló:", err);
+  }
 }
