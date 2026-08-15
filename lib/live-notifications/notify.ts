@@ -36,6 +36,20 @@ export interface NotifyOrgMembersArgs {
    * un broadcast a todos los doctores).
    */
   doctorUserId?: string | null;
+  /**
+   * Saca a este usuario del fan-out. Para no anunciarle a alguien lo que
+   * acaba de hacer (mig 220).
+   */
+  excludeUserId?: string | null;
+  /**
+   * Aviso DIRIGIDO: cuando va informado, el fan-out se reduce a esa persona
+   * y las audiencias se ignoran por completo (mig 220). Es para los avisos
+   * cuyo destinatario se elige por su papel en el hecho —quien abrió la caja
+   * que quedó sin cerrar— y no por su rol en la organización, que es lo
+   * único que la matriz de Settings sabe expresar. La membresía se sigue
+   * verificando en el RPC.
+   */
+  targetUserId?: string | null;
 }
 
 export interface NotifyResult {
@@ -67,6 +81,8 @@ export async function notifyOrgMembers(
     p_action_url: args.actionUrl ?? null,
     p_doctor_user_id: args.doctorUserId ?? null,
     p_doctor_scope: event.doctorScope,
+    p_exclude_user_id: args.excludeUserId ?? null,
+    p_target_user_id: args.targetUserId ?? null,
   });
 
   if (error) {
