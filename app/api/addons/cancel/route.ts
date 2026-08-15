@@ -36,6 +36,17 @@ import { moduleKeyFromAddonType } from "@/lib/billing/module-pricing";
  *  - Refuses if cancelling would put the org under its current usage
  *    (e.g. cannot cancel an extra doctor slot while the org still has
  *    that doctor active — they must deactivate the doctor first).
+ *
+ * ── Addons de módulo (mig 210) ───────────────────────────────────
+ * Este endpoint acepta CUALQUIER plan_addons.id de la org, incluidos los
+ * 'module_<key>'. Para esos, cancelar el cobro sin apagar el módulo
+ * dejaría a la clínica usando Almacén/Caja/Captación gratis para
+ * siempre, así que se replica el efecto completo de
+ * /api/addons/[key]/deactivate: cobro cancelado + organization_addons
+ * apagado, con el fallo del apagado auditado en billing_events.
+ * La UI (account/page.tsx) advierte del apagado ANTES de confirmar: por
+ * el endpoint la acción es segura, pero pedirla creyendo que solo se
+ * "libera un cupo" no lo es.
  */
 
 const cancelAddonSchema = z.object({
@@ -193,12 +204,37 @@ export async function POST(request: NextRequest) {
   // usando Almacén/Captación gratis para siempre, así que se sincroniza
   // organization_addons en el mismo paso.
   const moduleKey = moduleKeyFromAddonType(addon.addon_type);
+  let moduleDisableFailed: string | null = null;
   if (moduleKey) {
-    await admin
+    const { error: disableErr } = await admin
       .from("organization_addons")
       .update({ enabled: false })
       .eq("organization_id", membership.organization_id)
       .eq("addon_key", moduleKey);
+
+    // Si esto falla en silencio la org se queda SIN cobro y CON módulo:
+    // exactamente el agujero que este bloque existe para tapar. No se
+    // revierte la cancelación (el monto menor ya viajó a MP y revertirlo
+    // sería una segunda llamada que también puede fallar), pero queda
+    // registrado para que la fuga sea auditable en vez de invisible.
+    if (disableErr) {
+      moduleDisableFailed = disableErr.message;
+      console.error(
+        `[addons/cancel] cobro cancelado pero NO se pudo apagar el módulo ${moduleKey}:`,
+        disableErr,
+      );
+      await admin.from("billing_events").insert({
+        organization_id: membership.organization_id,
+        subscription_id: sub.id,
+        event_type: "module_addon_disable_failed",
+        metadata: {
+          addon_key: moduleKey,
+          addon_id: addon.id,
+          addon_type: addon.addon_type,
+          error: disableErr.message,
+        },
+      });
+    }
   }
 
   await admin.from("billing_events").insert({
@@ -214,6 +250,7 @@ export async function POST(request: NextRequest) {
       cancelled_by: user.id,
       new_monthly_total: newTotal,
       mp_synced: Boolean(sub.mp_preapproval_id),
+      module_disable_failed: moduleDisableFailed,
     },
   });
 
@@ -223,6 +260,7 @@ export async function POST(request: NextRequest) {
     ok: true,
     addon_id: addon.id,
     addon_key: moduleKey,
+    module_disabled: moduleKey ? moduleDisableFailed === null : null,
     new_monthly_total: newTotal,
     message: newTotal !== null
       ? `${label}. Nuevo total mensual: S/${newTotal}. El cambio aplica en tu próximo ciclo de facturación.`
