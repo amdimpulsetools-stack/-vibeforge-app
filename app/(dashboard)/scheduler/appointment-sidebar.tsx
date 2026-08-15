@@ -54,6 +54,11 @@ import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
 import { OPEN_FOLLOWUP_STATUSES } from "@/types/followups";
 import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
+import {
+  patientPendingBalance,
+  type BillableAppointment,
+  type ClinicalPayment,
+} from "@/lib/patient-debt";
 import dynamic from "next/dynamic";
 
 const ClinicalNoteModal = dynamic(
@@ -462,29 +467,26 @@ export function AppointmentSidebar({
 
     // Fetch patient total debt (all appointments)
     if (appointment.patient_id) {
+      // Misma fórmula que el RPC get_patient_summary (mig 219) y que el filtro
+      // "con deuda" de la lista: precio real de la cita con fallback a
+      // services.base_price, y solo pagos clínicos cancelan deuda clínica.
       const [apptRes, payRes] = await Promise.all([
         supabase
           .from("appointments")
-          .select("price_snapshot, discount_amount, status")
+          .select("price_snapshot, discount_amount, status, services(base_price)")
           .eq("patient_id", appointment.patient_id)
           .neq("status", "cancelled"),
         supabase
           .from("patient_payments")
-          .select("amount")
+          .select("amount, source")
           .eq("patient_id", appointment.patient_id),
       ]);
-      const totalBilled = (apptRes.data ?? []).reduce(
-        (sum, a) => {
-          const gross = Number(a.price_snapshot) || 0;
-          const discount = Number((a as { discount_amount?: number | null }).discount_amount) || 0;
-          return sum + Math.max(0, gross - discount);
-        },
-        0
+      setPatientDebt(
+        patientPendingBalance(
+          (apptRes.data ?? []) as unknown as BillableAppointment[],
+          (payRes.data ?? []) as unknown as ClinicalPayment[]
+        )
       );
-      const totalPaid = (payRes.data ?? []).reduce(
-        (sum, p) => sum + Number(p.amount), 0
-      );
-      setPatientDebt(Math.max(0, totalBilled - totalPaid));
     }
   }, [appointment.id, appointment.patient_id]);
 

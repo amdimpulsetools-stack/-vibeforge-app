@@ -366,8 +366,14 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
       });
   }, [patient.organization_id]);
 
-  // Financial calculations — del RPC agregado; mismos números que el reduce
-  // en JS de antes (SUM de base_price sin canceladas − SUM de pagos).
+  // Financial calculations — del RPC agregado (get_patient_summary).
+  // Desde la mig 219 total_billed usa el precio REAL de cada cita
+  // — GREATEST(0, COALESCE(price_snapshot, services.base_price) −
+  // discount_amount) de las no canceladas — y no el precio de catálogo:
+  // antes, una cita de S/ 200 con precio personalizado S/ 180 totalmente
+  // pagada dejaba aquí S/ 20 de deuda fantasma. total_paid suma solo los
+  // pagos con source='clinical' (mig 216). Misma fórmula que
+  // lib/patient-debt.ts, que usan la lista de pacientes y el sidebar.
   const totalServiceCost = Number(summaryData?.total_billed ?? 0);
   const totalPaid = Number(summaryData?.total_paid ?? 0);
   const pendingBalance = totalServiceCost - totalPaid;
