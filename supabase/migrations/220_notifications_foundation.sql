@@ -324,8 +324,10 @@ ALTER TABLE cash_settings
   ADD COLUMN IF NOT EXISTS notify_daily_exceptions boolean NOT NULL DEFAULT true,
   -- El resumen del lunes: llega cuadre o no cuadre.
   ADD COLUMN IF NOT EXISTS notify_weekly_digest    boolean NOT NULL DEFAULT true,
-  -- Aviso de caja sin cerrar. Único interruptor del canal: apagarlo
-  -- calla también la campanita dirigida a quien la dejó abierta.
+  -- Correo al dueño cuando una caja lleva ≥2 días sin cerrar. Gobierna
+  -- SOLO el correo: la campanita dirigida a quien dejó el turno abierto
+  -- no se apaga desde aquí, porque no es un informe para la dirección
+  -- sino un recordatorio para quien tiene la tarea pendiente.
   ADD COLUMN IF NOT EXISTS notify_stale_shift      boolean NOT NULL DEFAULT true;
 
 DO $$ BEGIN
@@ -355,7 +357,7 @@ COMMENT ON COLUMN cash_settings.notify_daily_exceptions IS
 COMMENT ON COLUMN cash_settings.notify_weekly_digest IS
   'Resumen semanal de caja por correo, los lunes.';
 COMMENT ON COLUMN cash_settings.notify_stale_shift IS
-  'Avisos de caja sin cerrar: campanita a quien la abrió y correo al dueño a partir del 2.º día. Apagarlo calla el canal entero.';
+  'Correo al dueño cuando un turno lleva ≥2 días abierto. No gobierna la campanita dirigida a quien lo abrió: ese recordatorio es de su tarea, no un informe.';
 
 -- ═══════════════════════════════════════════════════════════════════
 -- (e) founder_settings — interruptores de módulos

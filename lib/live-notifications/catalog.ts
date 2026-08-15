@@ -173,8 +173,8 @@ export const LIVE_NOTIFICATION_EVENTS: readonly LiveNotificationEvent[] = [
     // recepcionista, y la matriz de roles no sabe distinguirlo.
     //
     // Las columnas siguen existiendo para que una clínica pueda pedir que la
-    // dirección también se entere. El interruptor que apaga el canal entero
-    // (campanita + correo) es `cash_settings.notify_stale_shift`.
+    // dirección también se entere. El correo al dueño a partir del 2.º día
+    // es otro canal y lo gobierna `cash_settings.notify_stale_shift`.
     eligibleAudiences: ["owner_admin", "reception"],
     defaultAudiences: [],
     doctorScope: "all",
