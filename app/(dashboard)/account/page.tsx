@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import type { AvatarOption as AvatarOptionType } from "@/hooks/use-user-avatar";
 import { useTour } from "@/components/onboarding/tour-provider";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { isModuleAddonType } from "@/lib/billing/module-pricing";
 import {
   Loader2,
   User,
@@ -49,6 +50,7 @@ import {
   Minus,
   X,
   ShoppingCart,
+  Package,
   Bot,
   Smartphone,
   RefreshCw,
@@ -2004,7 +2006,14 @@ function DeleteOrgCard({
    Lists every plan_addons row with is_active=true and lets the owner
    release a slot. The cancel button calls /api/addons/cancel which
    pushes the lower transaction_amount to Mercado Pago — the slot is
-   only billed until the end of the current cycle. */
+   only billed until the end of the current cycle.
+
+   Los 'module_<key>' (mig 210) viven en la MISMA tabla pero NO son
+   cupos: cancelarlos apaga el módulo para toda la clínica. Mezclarlos
+   bajo "Cupos extra activos" —cuyo texto promete "cancelar un cupo no
+   desactiva a nadie"— hacía que apagar Almacén o Caja pareciera un
+   ajuste de factura. Van en su propia lista, con su propia advertencia
+   y su propio botón. */
 
 const ADDON_TYPE_LABEL: Record<string, string> = {
   extra_member: "Miembro extra (doctor/recepcionista)",
@@ -2032,6 +2041,8 @@ function ActiveAddonsCard() {
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   const addons = billing?.addons ?? [];
+  const slotAddons = addons.filter((a) => !isModuleAddonType(a.addon_type));
+  const moduleAddons = addons.filter((a) => isModuleAddonType(a.addon_type));
 
   if (loading) {
     return (
@@ -2050,11 +2061,14 @@ function ActiveAddonsCard() {
     addonId: string,
     label: string,
     amount: number,
+    isModule: boolean,
   ) => {
     const ok = await confirm({
-      title: "¿Cancelar este cupo extra?",
-      description: `Al cancelar dejarás de pagar S/${amount.toFixed(2)}/mes por ${label.toLowerCase()}. El cambio aplica en tu próximo ciclo de facturación.`,
-      confirmText: "Sí, cancelar",
+      title: isModule ? "¿Desactivar este módulo?" : "¿Cancelar este cupo extra?",
+      description: isModule
+        ? `Dejarás de pagar S/${amount.toFixed(2)}/mes y ${label.toLowerCase()} se apagará para toda la clínica: nadie podrá entrar hasta que lo vuelvas a activar desde Configuración → Módulos. Tus datos se conservan. El cambio de precio aplica en tu próximo ciclo de facturación.`
+        : `Al cancelar dejarás de pagar S/${amount.toFixed(2)}/mes por ${label.toLowerCase()}. El cambio aplica en tu próximo ciclo de facturación.`,
+      confirmText: isModule ? "Sí, desactivar" : "Sí, cancelar",
       cancelText: "Volver",
       variant: "destructive",
     });
@@ -2071,45 +2085,75 @@ function ActiveAddonsCard() {
     }
   };
 
+  const renderRow = (
+    a: (typeof addons)[number],
+    isModule: boolean,
+  ) => {
+    const total = Number(a.unit_price) * Number(a.quantity);
+    const label = addonTypeLabel(a.addon_type);
+    return (
+      <li
+        key={a.id}
+        className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/50 px-4 py-3"
+      >
+        <div className="min-w-0">
+          <p className="text-sm font-medium truncate">
+            {isModule ? label : `${a.quantity}× ${label}`}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {isModule ? (
+              <span className="font-medium text-foreground">S/{total.toFixed(2)}/mes</span>
+            ) : (
+              <>
+                S/{Number(a.unit_price).toFixed(2)} por unidad · {" "}
+                <span className="font-medium text-foreground">S/{total.toFixed(2)}/mes</span>
+              </>
+            )}
+          </p>
+        </div>
+        <button
+          onClick={() => handleCancel(a.id, label, total, isModule)}
+          disabled={cancellingId === a.id}
+          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-1.5 text-xs font-medium text-red-600 transition-all hover:bg-red-500/10 disabled:opacity-50"
+        >
+          {cancellingId === a.id && <Loader2 className="h-3 w-3 animate-spin" />}
+          {isModule ? "Desactivar módulo" : "Cancelar cupo"}
+        </button>
+      </li>
+    );
+  };
+
   return (
-    <div className="rounded-2xl border border-border/60 bg-card p-6">
-      <div className="flex items-center gap-2 mb-2">
-        <ShoppingCart className="h-4 w-4 text-primary" />
-        <h2 className="text-lg font-semibold">Cupos extra activos</h2>
-      </div>
-      <p className="mb-4 text-sm text-muted-foreground">
-        Cada cupo es un slot pagado independiente del personal que lo ocupa. Cancelar un cupo no desactiva a nadie — solo libera el costo en tu próxima factura.
-      </p>
-      <ul className="space-y-2">
-        {addons.map((a) => {
-          const total = Number(a.unit_price) * Number(a.quantity);
-          const label = addonTypeLabel(a.addon_type);
-          return (
-            <li
-              key={a.id}
-              className="flex items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/50 px-4 py-3"
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">
-                  {a.quantity}× {label}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  S/{Number(a.unit_price).toFixed(2)} por unidad · {" "}
-                  <span className="font-medium text-foreground">S/{total.toFixed(2)}/mes</span>
-                </p>
-              </div>
-              <button
-                onClick={() => handleCancel(a.id, label, total)}
-                disabled={cancellingId === a.id}
-                className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/5 px-3 py-1.5 text-xs font-medium text-red-600 transition-all hover:bg-red-500/10 disabled:opacity-50"
-              >
-                {cancellingId === a.id && <Loader2 className="h-3 w-3 animate-spin" />}
-                Cancelar cupo
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+    <div className="space-y-4">
+      {slotAddons.length > 0 && (
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <ShoppingCart className="h-4 w-4 text-primary" />
+            <h2 className="text-lg font-semibold">Cupos extra activos</h2>
+          </div>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Cada cupo es un slot pagado independiente del personal que lo ocupa. Cancelar un cupo no desactiva a nadie — solo libera el costo en tu próxima factura.
+          </p>
+          <ul className="space-y-2">
+            {slotAddons.map((a) => renderRow(a, false))}
+          </ul>
+        </div>
+      )}
+
+      {moduleAddons.length > 0 && (
+        <div className="rounded-2xl border border-border/60 bg-card p-6">
+          <div className="flex items-center gap-2 mb-2">
+            <Package className="h-4 w-4 text-primary" />
+            <h2 className="text-lg font-semibold">Módulos de pago activos</h2>
+          </div>
+          <p className="mb-4 text-sm text-muted-foreground">
+            A diferencia de los cupos, desactivar un módulo sí lo apaga: deja de cobrarse y nadie de la clínica podrá entrar hasta reactivarlo desde Configuración → Módulos. Tus datos se conservan.
+          </p>
+          <ul className="space-y-2">
+            {moduleAddons.map((a) => renderRow(a, true))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

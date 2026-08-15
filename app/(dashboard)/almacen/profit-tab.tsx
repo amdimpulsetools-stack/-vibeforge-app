@@ -13,6 +13,15 @@
  * También responde "¿cuánta plata tengo dormida?": stock valorizado al
  * costo, y qué parte no vendió ni una unidad en el período.
  *
+ * IGV (F7, 15-ago): la resta solo vale si los dos lados están en la misma
+ * moneda fiscal. El precio de venta se digita CON IGV y `revenue_total`
+ * lo congela así; el costo de compra viaja SIN IGV. Restarlos crudo
+ * inflaba la ganancia ~18% en todo producto gravado — la misma clase de
+ * error que este tab existe para corregir. Todo lo que se calcula abajo
+ * usa el ingreso NETO (`netOfIgv`, según `igv_affectation` del producto);
+ * el bruto se sigue mostrando en letra chica para que el número cuadre a
+ * ojo con lo que muestra Caja, que sí arquea el dinero cobrado.
+ *
  * Decisión comercial (12-ago): este tab es EL argumento de upgrade al plan
  * Clínica. Durante la beta oculta las 3 orgs con grant tienen nivel
  * completo, así que el candado por plan se implementa recién al vender el
@@ -28,6 +37,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import {
   fmtQty,
   formatPEN,
+  netOfIgv,
   reversedPairIds,
   type InventoryMovement,
   type InventoryProduct,
@@ -71,6 +81,9 @@ export function ProfitTab({
       product: InventoryProduct;
       soldUnits: number;
       applications: number;
+      /** Cobrado tal cual se congeló en el movimiento (CON IGV si grava). */
+      revenueGross: number;
+      /** Ingreso desagregado de IGV: el único que entra en la resta. */
       revenue: number;
       cogs: number;
       profit: number;
@@ -85,6 +98,7 @@ export function ProfitTab({
           product: p,
           soldUnits: 0,
           applications: 0,
+          revenueGross: 0,
           revenue: 0,
           cogs: 0,
           profit: 0,
@@ -120,9 +134,13 @@ export function ProfitTab({
       if (m.movement_type !== "salida") continue;
       const r = ensure(p);
       if (m.revenue_total != null) {
-        // Venta: precio congelado en el movimiento.
+        // Venta: precio congelado en el movimiento. Se acumula el bruto
+        // (lo cobrado) y el neto (lo que de verdad se compara contra el
+        // costo), redondeando el IGV movimiento a movimiento para que el
+        // total sea la suma de lo que se ve en cada línea.
         r.soldUnits += qty;
-        r.revenue += Number(m.revenue_total);
+        r.revenueGross += Number(m.revenue_total);
+        r.revenue += netOfIgv(Number(m.revenue_total), p.igv_affectation);
         if (m.unit_cost != null) {
           r.cogs += qty * Number(m.unit_cost);
         } else {
@@ -153,13 +171,22 @@ export function ProfitTab({
 
     const totals = rows.reduce(
       (acc, r) => {
+        acc.revenueGross += r.revenueGross;
         acc.revenue += r.revenue;
         acc.cogs += r.cogs;
         acc.profit += r.profit;
         acc.estimated ||= r.estimated;
+        acc.taxed ||= r.revenueGross > r.revenue;
         return acc;
       },
-      { revenue: 0, cogs: 0, profit: 0, estimated: false }
+      {
+        revenueGross: 0,
+        revenue: 0,
+        cogs: 0,
+        profit: 0,
+        estimated: false,
+        taxed: false,
+      }
     );
 
     // Capital en anaquel valorizado al CPP — el MISMO método que el COGS
@@ -224,7 +251,8 @@ export function ProfitTab({
                 "Vendido (und)",
                 "Aplicado (und)",
                 "Rotación (und)",
-                "Ventas S/",
+                "Ventas sin IGV S/",
+                "Ventas con IGV S/",
                 "Costo S/",
                 "Ganancia S/",
                 "Margen %",
@@ -235,6 +263,7 @@ export function ProfitTab({
                 r.applications,
                 r.soldUnits + r.applications,
                 Math.round(r.revenue * 100) / 100,
+                Math.round(r.revenueGross * 100) / 100,
                 Math.round(r.cogs * 100) / 100,
                 Math.round(r.profit * 100) / 100,
                 r.margin === null ? "" : Math.round(r.margin * 10) / 10,
@@ -256,16 +285,23 @@ export function ProfitTab({
 
       {/* ── Los números que importan ── */}
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
-        <Kpi label="Ventas" value={formatPEN(totals.revenue)} />
+        <Kpi
+          label="Ventas (sin IGV)"
+          value={formatPEN(totals.revenue)}
+          sub={totals.taxed ? `con IGV: ${formatPEN(totals.revenueGross)}` : undefined}
+          hint="El costo de compra no lleva IGV, así que la venta se desagrega antes de restar. El bruto es lo que efectivamente entró a caja."
+        />
         <Kpi label="Costo de lo vendido" value={formatPEN(totals.cogs)} />
         <Kpi
           label={totals.estimated ? "Ganancia real *" : "Ganancia real"}
           value={formatPEN(totals.profit)}
           tone={totals.profit >= 0 ? "ok" : "crit"}
+          hint="Ventas sin IGV − costo de lo vendido."
         />
         <Kpi
           label="Margen"
           value={marginPct === null ? "—" : `${marginPct.toFixed(1)}%`}
+          hint="Sobre la venta sin IGV."
           tone={
             marginPct === null ? undefined : marginPct >= 0 ? undefined : "crit"
           }
@@ -301,7 +337,9 @@ export function ProfitTab({
               <tr className="text-left text-[11px] uppercase tracking-wider text-muted-foreground">
                 <th className="px-4 py-2 font-semibold">Producto</th>
                 <th className="px-4 py-2 text-right font-semibold">Vendido</th>
-                <th className="px-4 py-2 text-right font-semibold">Ventas</th>
+                <th className="px-4 py-2 text-right font-semibold">
+                  Ventas <span className="normal-case">(sin IGV)</span>
+                </th>
                 <th className="px-4 py-2 text-right font-semibold">Costo</th>
                 <th className="px-4 py-2 text-right font-semibold">Ganancia</th>
                 <th className="px-4 py-2 text-right font-semibold">Margen</th>
@@ -324,6 +362,11 @@ export function ProfitTab({
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums">
                     {formatPEN(r.revenue)}
+                    {r.revenueGross > r.revenue && (
+                      <span className="block text-[10px] text-muted-foreground">
+                        con IGV: {formatPEN(r.revenueGross)}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-2 text-right tabular-nums text-muted-foreground">
                     {formatPEN(r.cogs)}
@@ -360,6 +403,11 @@ export function ProfitTab({
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
                   {formatPEN(totals.revenue)}
+                  {totals.taxed && (
+                    <span className="block text-[10px] font-normal text-muted-foreground">
+                      con IGV: {formatPEN(totals.revenueGross)}
+                    </span>
+                  )}
                 </td>
                 <td className="px-4 py-2 text-right tabular-nums">
                   {formatPEN(totals.cogs)}
@@ -391,11 +439,14 @@ function Kpi({
   value,
   tone,
   hint,
+  sub,
 }: {
   label: string;
   value: string;
   tone?: "ok" | "warn" | "crit";
   hint?: string;
+  /** Segunda línea en letra chica (p. ej. el bruto con IGV). */
+  sub?: string;
 }) {
   return (
     <div className="rounded-xl border border-border/60 bg-card px-3 py-2" title={hint}>
@@ -412,6 +463,9 @@ function Kpi({
       >
         {value}
       </p>
+      {sub && (
+        <p className="text-[10px] tabular-nums text-muted-foreground">{sub}</p>
+      )}
     </div>
   );
 }

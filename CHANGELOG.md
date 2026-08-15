@@ -71,6 +71,7 @@
 - [Changelog — Sesión 2026-08-12 (v0.15.29) — Módulo Captación (F1+F2, migs 206-207) + Preparación App Review de Meta](#changelog--sesión-2026-08-12-v01529--módulo-captación-f1f2-migs-206-207--preparación-app-review-de-meta)
 - [Changelog — Sesión 2026-08-12 noche (v0.15.30) — Módulo Almacén construido (migs 208-210) + Facturación de módulos de pago](#changelog--sesión-2026-08-12-noche-v01530--módulo-almacén-construido-migs-208-210--facturación-de-módulos-de-pago)
 - [Changelog — Sesión 2026-08-12 cierre (v0.15.31) — Almacén ACTIVADO en beta (founder + Patricia) + evaluación de alertas live y auditoría por usuario](#changelog--sesión-2026-08-12-cierre-v01531--almacén-activado-en-beta-founder--patricia--evaluación-de-alertas-live-y-auditoría-por-usuario)
+- [Changelog — Sesión 2026-08-15 (v0.15.32) — Módulo Caja certificado (migs 213-215) + Farmacia POS certificada (migs 216-217) + fixes de aritmética NubeFact](#changelog--sesión-2026-08-15-v01532--módulo-caja-certificado-migs-213-215--farmacia-pos-certificada-migs-216-217--fixes-de-aritmética-nubefact)
 
 ---
 
@@ -4427,6 +4428,54 @@ El founder pidió auditar la matemática y el flujo con un agente experto en ges
 
 ### Carga del inventario de Patricia (mismo día)
 El founder subió el Excel "DESCUENTO DE MEDICAMENTOS 2026" (7 hojas ene-jul). De la hoja JULIO (stock final) se cargaron a su org los **35 productos** (20 hormonales + 15 vitaminas/suplementos) con ortografía normalizada (LET LETROZOL→Letrozol, GONAPEPTIL→Gonapeptyl, espacios dobles, "0.0" como fecha→NULL), cada uno con lote SIN-LOTE (vencimiento + costo congelado) y movimiento `saldo_inicial`: 753 unidades, **capital a costo S/79,060.82 — cuadra al céntimo con la valorización del Excel auditado (S/79,061)**. Import idempotente por nombre único activo. Alertas visibles desde el día 1: Saizen y Miositol Men vencen 09/2026, Orgalutran 11/2026.
+
+---
+
+## Changelog — Sesión 2026-08-15 (v0.15.32) — Módulo Caja certificado (migs 213-215) + Farmacia POS certificada (migs 216-217) + fixes de aritmética NubeFact
+
+Día de dos módulos nuevos **certificados en producción**. Arrancó con una evaluación de **4 agentes especialistas** sobre Caja + Farmacia + ficha de paciente (sobre código y datos de producción; síntesis en el artifact "Caja y Farmacia") y cerró con Caja (F3) y Farmacia POS (F4) en prod, certificados por el founder. Decisiones de arquitectura que salieron de la evaluación: venta POS con `source='pos'` (la deuda clínica no se contamina), devoluciones como **movimientos de caja** (nunca pagos negativos), vinculación pago→turno **por trigger** (jamás rechaza un cobro) y retiro del motivo "Venta" manual de Almacén al activar el POS.
+
+### Facturación F2 (PR #284) — 2 bugs de aritmética en la emisión NubeFact + validación SUNAT + refactor de proveedor
+- **Bug (a) — IGV por unidad×cantidad**: el error de redondeo crecía con la cantidad. Ahora el IGV se calcula **por línea, por diferencia exacta**.
+- **Bug (b) — descuento global restado solo del total**: sobre-declaraba IGV. Ahora se **prorratea a las líneas con regla de mayor resto**.
+- Validación SUNAT: **boleta ≥ S/700 sin DNI se bloquea ANTES de reservar correlativo**.
+- Histórico de comprobantes visible aunque la org esté desconectada del proveedor.
+- Refactor: NubeFact confinado a `nubefact-provider.ts` con tablas de traducción — prepara YendaFact/un segundo proveedor tras la interfaz existente.
+- **37 tests numéricos** (`npm run test:einvoice`).
+
+### Módulo Caja F3 (migs 213-215 en prod, PR #285) — CERTIFICADO
+- Addon `caja` **S/19/mes, incluido desde Centro Médico** (`included_from_plan='professional'`), en beta oculta con grants a las 2 orgs del founder + Patricia (patrón mig 207).
+- Turnos con fondo inicial, **arqueo ciego configurable**, movimientos con signo (egreso/sangría/ingreso/devolución), **diferencia solo sobre efectivo** (los medios electrónicos son conciliación informativa), diferencia fuera de tolerancia **exige motivo (CHECK en la base)**, turno cerrado **inmutable** (trigger que bloquea UPDATE/DELETE de sus pagos incluso a service_role), bandeja **"Fuera de turno"** con atribución, y cierre forzado por admin marcado como tal.
+- Trigger `caja_stamp_payment`: sella **autor + medio** en cada pago y lo ata al turno abierto — **nunca rechaza un cobro** (sin turno abierto, el pago cae a la bandeja Fuera de turno).
+- **CERTIFICADO por el founder con 6 tests en producción**: aritmética, doble apertura, descuadre, inmutabilidad vía SQL admin, fuera de turno.
+
+### Módulo Farmacia POS F4 (migs 216-217 en prod, PR #286) — CERTIFICADO
+- Vive **bajo el addon `almacen`** (sin addon nuevo). Venta borrador→confirmada→anulada con **correlativo NV-**, paciente opcional (público general).
+- Carrito de 2 columnas con **FEFO** y totales en vivo (**misma aritmética que facturación**).
+- RPC `pharmacy_confirm_sale` **transaccional e idempotente**: advisory locks, CPP calculado en servidor, kardex con `sale_line_id UNIQUE` (anti doble descuento de stock), pago `source='pos'` atado a caja por trigger.
+- RPC `pharmacy_void_sale`: contra-movimientos + devolución en turno abierto; **sin caja abierta no revierte**.
+- Ticket interno **80mm "NOTA DE VENTA"** con leyenda de no-comprobante SUNAT.
+- `get_patient_summary` filtra `source='clinical'`: la **deuda clínica no se contamina** con ventas POS — verificado en prod.
+- Retiro del motivo "Venta" del modal de Almacén → botón **"Vender → Farmacia"** (se cierra el doble camino).
+- **79 aserciones + prueba de concurrencia real**. **CERTIFICADO por el founder**: venta a público general, venta a paciente y anulación completa. **PR #287** (fix del diálogo de cobro que reaparecía) pendiente de merge.
+
+### Decisiones comerciales — la facturación se terceriza por ahora
+- Cada clínica abre su **cuenta NubeFact directa** (S/70/mes tarifa pública) y Yenda cobra el **addon de integración**.
+- **Reseller NubeFact evaluado** — dictamen: **NO firmar con 3 clínicas**; renegociar con adenda a ~20-30 clínicas. Cotización **CT-65011** guardada.
+- **Comparativa de facturadores** entregada: shortlist **APISUNAT / eFact / Bizlinks** + cuestionario de 13 preguntas.
+- YendaFact (motor propio) ya está documentado en COMING-UPDATES — sin cambios hoy.
+
+### Datos — reset del almacén de Patricia
+- Stock a **cero** (36 productos conservados; movimientos y lotes de prueba eliminados) para la carga de su inventario real.
+
+### Roadmap próximo (F5-F7)
+- **F5**: emisión NubeFact desde el POS + comprobante mixto (probar en Vitra). La mig 213 ya dejó `sunat_product_code`/`unit_of_measure`/`igv_affectation`/`is_sellable` en `inventory_products`.
+- **F6**: secciones de productos en la ficha de paciente (diseño listo del agente UI): "Productos aplicados" en el tab Clínico, "Productos vendidos" en Finanzas con estado de anulación, **sin séptima pestaña**, fix del overflow de tabs.
+- **F7 (higiene)**: bug de Cupos extra que deja el módulo gratis al cancelar, Rentabilidad **neta de IGV** (hoy sobreestima el margen ~18%), normalizar el vocabulario de `payment_method` en patient-drawer y budgets-panel, FK `patient_id`→SET NULL, regenerar `types/database.ts`.
+
+### Docs
+- PRD: §6 tablas y RPCs migs 213-217 (patrón Almacén), rutas `/caja` y `/farmacia`, sidebar, checklist v0.15.32 y header actualizado.
+- COMING-UPDATES: sección Caja + Farmacia con estado entregado/certificado y roadmap F5-F7.
 
 ---
 

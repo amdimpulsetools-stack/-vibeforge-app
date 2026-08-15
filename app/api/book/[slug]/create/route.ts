@@ -271,13 +271,24 @@ export async function POST(
     // Search by DNI
     const { data: existingPatient } = await supabase
       .from("patients")
-      .select("id")
+      .select("id, origin")
       .eq("organization_id", org.id)
       .eq("dni", data.patient_dni.trim())
       .single();
 
     if (existingPatient) {
       patientId = existingPatient.id;
+      // Atribución first-touch, misma regla que la agenda: si la ficha aún no
+      // tiene origen, este es su primer canal conocido. Nunca sobrescribimos
+      // uno existente — la reserva en línea de una paciente que ya vino por
+      // Facebook no debe borrar "Facebook".
+      if (!existingPatient.origin) {
+        await supabase
+          .from("patients")
+          .update({ origin: "Reserva en línea" })
+          .eq("id", existingPatient.id)
+          .eq("organization_id", org.id);
+      }
     }
   }
 

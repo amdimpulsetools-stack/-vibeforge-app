@@ -25,8 +25,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-
-type PaymentMethod = "cash" | "yape" | "transfer" | "card" | "other";
+import { useOrganization } from "@/components/organization-provider";
+import { usePaymentMethods } from "./use-payment-methods";
+import { getPaymentIcon } from "@/lib/payment-icons";
 
 interface BudgetRow {
   plan_id: string;
@@ -57,9 +58,15 @@ export function BudgetsPanel({
   // Payment modal state
   const [openFor, setOpenFor] = useState<BudgetRow | null>(null);
   const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState<PaymentMethod>("cash");
+  // Este panel escribía slugs ('cash', 'yape', …) mientras el scheduler
+  // escribía labels del lookup: dos vocabularios sobre la MISMA columna,
+  // y el arqueo de Caja agrupando por texto. Ahora guarda la label del
+  // lookup, igual que el resto de la app.
+  const [method, setMethod] = useState("");
   const [ref, setRef] = useState("");
   const [saving, setSaving] = useState(false);
+  const { organizationId } = useOrganization();
+  const paymentMethods = usePaymentMethods(organizationId);
 
   const fetchBudgets = useCallback(async () => {
     setLoading(true);
@@ -141,13 +148,17 @@ export function BudgetsPanel({
     setOpenFor(row);
     const pending = Math.max(0, row.total_budget - row.paid);
     setAmount(pending > 0 ? pending.toFixed(2) : "");
-    setMethod("cash");
+    // Preselecciona el primer método del lookup (normalmente Efectivo):
+    // el anticipo casi siempre se cobra en caja, y elegir sigue siendo un
+    // toque. Si la org no tiene lookups, queda vacío.
+    setMethod(paymentMethods[0]?.label ?? "");
     setRef("");
   };
 
   const closePayment = () => {
     setOpenFor(null);
     setAmount("");
+    setMethod("");
     setRef("");
   };
 
@@ -174,7 +185,7 @@ export function BudgetsPanel({
       appointment_id: null,
       treatment_plan_id: openFor.plan_id,
       amount: n,
-      payment_method: method,
+      payment_method: method || null,
       notes: ref ? `Anticipo al plan — ${ref}` : "Anticipo al plan",
       payment_date: new Date().toISOString().split("T")[0],
       organization_id: orgId,
@@ -320,33 +331,38 @@ export function BudgetsPanel({
 
             <div>
               <label className="text-xs font-medium">Método</label>
-              <div className="mt-1 grid grid-cols-2 gap-1">
-                {(["cash", "yape", "transfer", "card", "other"] as const).map(
-                  (m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setMethod(m)}
-                      className={cn(
-                        "rounded-md px-2 py-1.5 text-xs capitalize transition-colors",
-                        method === m
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted text-muted-foreground hover:bg-accent"
-                      )}
-                    >
-                      {m === "cash"
-                        ? "Efectivo"
-                        : m === "yape"
-                          ? "Yape / Plin"
-                          : m === "transfer"
-                            ? "Transferencia"
-                            : m === "card"
-                              ? "Tarjeta"
-                              : "Otro"}
-                    </button>
-                  )
-                )}
-              </div>
+              {paymentMethods.length > 0 ? (
+                <div className="mt-1 grid grid-cols-2 gap-1">
+                  {paymentMethods.map((pm) => {
+                    const Icon = getPaymentIcon(pm.icon);
+                    return (
+                      <button
+                        key={pm.id}
+                        type="button"
+                        onClick={() =>
+                          setMethod((m) => (m === pm.label ? "" : pm.label))
+                        }
+                        className={cn(
+                          "flex items-center justify-center gap-1 rounded-md px-2 py-1.5 text-xs transition-colors",
+                          method === pm.label
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground hover:bg-accent"
+                        )}
+                      >
+                        <Icon className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{pm.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Org sin lookups de pago: el anticipo se registra igual,
+                // sin método declarado (la columna es nullable).
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Configura los métodos de pago en Administración →
+                  Variables Globales para registrarlos aquí.
+                </p>
+              )}
             </div>
 
             <div>

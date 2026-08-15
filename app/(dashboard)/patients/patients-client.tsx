@@ -33,6 +33,11 @@ import { useOrganization } from "@/components/organization-provider";
 import { usePlan } from "@/hooks/use-plan";
 import { RecurringBadge } from "@/components/patients/recurring-badge";
 import { exportToCSV, calculateAge } from "@/lib/export";
+import {
+  totalBilled,
+  totalClinicalPaid,
+  patientPendingBalance,
+} from "@/lib/patient-debt";
 
 // Los tres se renderizan SOLO tras una interacción (abrir un paciente, "Nuevo
 // paciente", "Importar"), pero se importaban de forma estática: el drawer
@@ -60,9 +65,14 @@ type RecurrenceFilter = "all" | "new" | "recurring";
 const PAGE_SIZE = 25;
 
 // Extra data per patient — loaded on-demand only when debt/service filter or CSV export is used
+//
+// `services.base_price` y `patient_payments.source` viajan porque la deuda se
+// calcula con la fórmula de lib/patient-debt.ts, espejo exacto del RPC
+// get_patient_summary (mig 219): base_price es el fallback de las citas sin
+// price_snapshot y source separa los cobros clínicos de los del POS.
 type PatientExtraData = {
-  appointments: { service_id: string; status: string; price_snapshot: number | null; discount_amount: number | null; origin: string | null; services: { id: string; name: string } }[];
-  patient_payments: { amount: number }[];
+  appointments: { service_id: string; status: string; price_snapshot: number | null; discount_amount: number | null; origin: string | null; services: { id: string; name: string; base_price: number | null } }[];
+  patient_payments: { amount: number; source: string | null }[];
 };
 
 interface PatientsClientProps {
@@ -247,11 +257,11 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
     const [apptRes, payRes] = await Promise.all([
       supabase
         .from("appointments")
-        .select("patient_id, service_id, status, price_snapshot, discount_amount, origin, services(id, name)")
+        .select("patient_id, service_id, status, price_snapshot, discount_amount, origin, services(id, name, base_price)")
         .in("patient_id", missing),
       supabase
         .from("patient_payments")
-        .select("patient_id, amount")
+        .select("patient_id, amount, source")
         .in("patient_id", missing),
     ]);
 
@@ -327,21 +337,11 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
 
       if (debtFilter) {
         if (!extra) return false;
-        const totalBilled =
-          extra.appointments
-            ?.filter((a) => a.status !== "cancelled")
-            .reduce(
-              (sum, a) =>
-                sum +
-                Math.max(
-                  0,
-                  (Number(a.price_snapshot) || 0) - (Number(a.discount_amount) || 0)
-                ),
-              0
-            ) ?? 0;
-        const totalPaid =
-          extra.patient_payments?.reduce((sum, pay) => sum + Number(pay.amount), 0) ?? 0;
-        if (totalBilled - totalPaid <= 0) return false;
+        // Misma fórmula que el RPC get_patient_summary (mig 219) para que el
+        // filtro "con deuda" y el badge del drawer nunca discrepen.
+        if (patientPendingBalance(extra.appointments, extra.patient_payments) <= 0) {
+          return false;
+        }
       }
 
       return true;
@@ -400,25 +400,16 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
     ];
     const rows = filteredPatients.map((p) => {
       const extra = allExtra[p.id];
-      const totalBilled = extra?.appointments
-        ?.filter((a) => a.status !== "cancelled")
-        .reduce(
-          (sum, a) =>
-            sum +
-            Math.max(
-              0,
-              (Number(a.price_snapshot) || 0) - (Number(a.discount_amount) || 0)
-            ),
-          0
-        ) ?? 0;
-      const totalPaid = extra?.patient_payments?.reduce((sum, pay) => sum + Number(pay.amount), 0) ?? 0;
+      // Mismos números que el badge del drawer (RPC get_patient_summary, mig 219).
+      const billed = totalBilled(extra?.appointments);
+      const paid = totalClinicalPaid(extra?.patient_payments);
       const age = calculateAge(p.birth_date);
       return [
         p.last_name, p.first_name, p.dni, p.document_type, p.phone, p.email,
         p.birth_date, age != null ? age : "",
         p.status, p.patient_tags.map((t) => t.tag).join("; "),
         p.departamento, p.distrito, p.referral_source ?? p.origin,
-        totalBilled.toFixed(2), totalPaid.toFixed(2), Math.max(0, totalBilled - totalPaid).toFixed(2),
+        billed.toFixed(2), paid.toFixed(2), Math.max(0, billed - paid).toFixed(2),
       ];
     });
     const date = new Date().toISOString().slice(0, 10);
