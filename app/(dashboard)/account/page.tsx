@@ -2011,6 +2011,7 @@ const ADDON_TYPE_LABEL: Record<string, string> = {
   extra_office: "Consultorio extra",
   // Módulos de pago (mig 210): plan_addons.addon_type = 'module_<key>'
   module_almacen: "Módulo Almacén",
+  module_caja: "Módulo Caja",
   module_captacion: "Módulo Captación",
 };
 

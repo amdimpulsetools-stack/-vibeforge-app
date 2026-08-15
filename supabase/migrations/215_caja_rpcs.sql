@@ -56,7 +56,13 @@ BEGIN
   END IF;
 
   -- El médico no abre caja: no cobra. Recepción sí, es su trabajo.
-  IF v_role NOT IN ('owner','admin','receptionist') THEN
+  --
+  -- 'assistant' y 'member' entran como recepción heredada: antes de la
+  -- mig 020 no existía el rol 'receptionist' y esas filas siguen vivas
+  -- (la mig 192 documenta la misma equivalencia para las audiencias de
+  -- notificación). Sin ellas, una recepcionista de una org antigua no
+  -- podría abrir su propia caja.
+  IF v_role NOT IN ('owner','admin','receptionist','assistant','member') THEN
     RAISE EXCEPTION 'Tu rol no puede abrir la caja. Pídeselo a recepción o a un administrador.'
       USING ERRCODE = 'insufficient_privilege';
   END IF;
