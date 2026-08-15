@@ -158,7 +158,10 @@ async function createSpreadsheet(
   const res = await sheetsFetch(token, "", {
     method: "POST",
     body: JSON.stringify({
-      properties: { title, locale: "es_PE", timeZone: "America/Lima" },
+      // es_PE no está entre los locales que acepta la Sheets API (rechaza con
+      // 400 "Unsupported locale"). es_MX comparte las convenciones de Perú
+      // (punto decimal, dd/mm/aaaa), así que la hoja se comporta igual.
+      properties: { title, locale: "es_MX", timeZone: "America/Lima" },
       sheets: [
         { properties: { title: TAB_HOY, index: 0 } },
         { properties: { title: TAB_CITAS, index: 1 } },
