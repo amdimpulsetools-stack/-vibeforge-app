@@ -23,6 +23,13 @@ export interface InventoryProduct {
   base_unit: string;
   units_per_presentation: number;
   sale_price: number;
+  /**
+   * Catálogo 07 de SUNAT (mig 213): 1 gravado, 8 exonerado, 9 inafecto,
+   * 12/16/17/20 especiales. La columna es NOT NULL DEFAULT 1, pero se
+   * tipa opcional porque hay filas cacheadas/insertadas antes de que la
+   * UI la pidiera; quien la lea debe asumir 1 (gravado) si falta.
+   */
+  igv_affectation?: number | null;
   min_stock: number;
   track_lots: boolean;
   is_discontinued: boolean;
@@ -95,7 +102,7 @@ export const DEFAULT_SETTINGS: InventorySettings = {
 
 /** Columnas que la UI selecciona, en el orden en que se leen. */
 export const PRODUCT_COLUMNS =
-  "id,organization_id,name,sku,category,presentation,base_unit,units_per_presentation,sale_price,min_stock,track_lots,is_discontinued,notes,created_at";
+  "id,organization_id,name,sku,category,presentation,base_unit,units_per_presentation,sale_price,igv_affectation,min_stock,track_lots,is_discontinued,notes,created_at";
 export const LOT_COLUMNS =
   "id,organization_id,product_id,lot_code,expiry_date,unit_cost,supplier,received_at";
 export const MOVEMENT_COLUMNS =
@@ -162,6 +169,39 @@ export function formatPEN(n: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+// ── IGV ─────────────────────────────────────────────────────────────────
+//
+// El precio de venta del almacén se digita CON IGV (es el precio de
+// mostrador), y `inventory_movements.revenue_total` lo congela tal cual.
+// El costo, en cambio, viaja SIN IGV (es lo que la clínica pagó al
+// proveedor como valor de compra). Compararlos directo sobreestimaba la
+// ganancia ~18% en todo producto gravado.
+//
+// Solo el código 1 (gravado) lleva IGV; exonerado (8), inafecto (9, 12),
+// exportación (16) y los gratuitos (17, 20) ya son netos. Misma regla que
+// `isTaxedAffectation` en la emisión electrónica — se replica en tres
+// líneas en vez de importarla para no atar el módulo Almacén al de
+// facturación, pero SI EL IGV CAMBIA hay que tocar ambos.
+
+/** IGV vigente en Perú, como factor de desagregación. */
+export const IGV_FACTOR = 1.18;
+
+/**
+ * Ingreso neto de IGV de un producto.
+ *
+ * Los movimientos anteriores a la mig 213 son de productos que hoy
+ * tienen `igv_affectation = 1` por el DEFAULT de la columna: se tratan
+ * como gravados, que es el supuesto correcto para una clínica peruana
+ * que vende al mostrador (y el conservador para la ganancia: netea de
+ * más antes que inflar). Si un producto histórico era exonerado, basta
+ * corregir su afectación y el histórico se recalcula solo.
+ */
+export function netOfIgv(amount: number, igvAffectation?: number | null): number {
+  const taxed = (igvAffectation ?? 1) === 1;
+  const net = taxed ? Number(amount) / IGV_FACTOR : Number(amount);
+  return Math.round(net * 100) / 100;
 }
 
 /** Cantidades en base_unit: hasta 3 decimales, sin ceros de relleno. */
