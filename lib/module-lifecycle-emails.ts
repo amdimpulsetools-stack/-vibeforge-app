@@ -34,6 +34,7 @@ import { buildEmailHtml } from "@/lib/email-template";
 import { sendEmail, isEmailConfigured } from "@/lib/resend";
 import { resolveFounderEmail } from "@/lib/support-emails";
 import { formatPen } from "@/lib/billing/module-pricing";
+import { adoptionTipsEnabled } from "@/lib/module-email-settings";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "https://yenda.app";
 const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || "soporte@yenda.app";
@@ -521,7 +522,17 @@ export interface ModuleAdoptionInput {
 
 export type AdoptionSendResult =
   | { sent: true }
-  | { sent: false; reason: "no_copy" | "no_recipient" | "already_sent" | "cap_reached" | "send_failed" | "error" };
+  | {
+      sent: false;
+      reason:
+        | "no_copy"
+        | "no_recipient"
+        | "already_sent"
+        | "cap_reached"
+        | "opted_out"
+        | "send_failed"
+        | "error";
+    };
 
 /**
  * Consejo de uso al owner. Tres variantes, y el mensaje correcto es
@@ -540,6 +551,18 @@ export async function sendModuleAdoptionEmail(
   try {
     const copy = getModuleCopy(input.addonKey);
     if (!copy) return { sent: false, reason: "no_copy" };
+
+    // El interruptor de Ajustes. Solo gobierna ESTOS correos: la
+    // bienvenida y la confirmación de baja son comprobantes de una
+    // decisión del usuario y no se apagan (ver la nota de la UI).
+    const { data: org } = await input.admin
+      .from("organizations")
+      .select("settings")
+      .eq("id", input.organizationId)
+      .maybeSingle();
+    if (!adoptionTipsEnabled(org?.settings)) {
+      return { sent: false, reason: "opted_out" };
+    }
 
     const noticeKey = `adoption_${input.state}_${input.addonKey}`;
     if (await hasNotice(input.admin, input.organizationId, noticeKey, input.addonKey)) {

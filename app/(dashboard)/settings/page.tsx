@@ -75,6 +75,7 @@ const TabLoader = () => (
 
 const EmailSettingsTab = dynamic(() => import("./email-settings-tab"), { loading: TabLoader });
 const LiveNotificationsSection = dynamic(() => import("./live-notifications-section"), { loading: TabLoader });
+const ModuleEmailsSection = dynamic(() => import("./module-emails-section"), { loading: TabLoader });
 const PermissionsSettingsTab = dynamic(() => import("./permissions-settings-tab"), { loading: TabLoader });
 const WhatsAppClipboardTab = dynamic(() => import("./whatsapp-clipboard-tab"), { loading: TabLoader });
 const WhatsAppConfigTab = dynamic(() => import("./whatsapp-config-tab"), { loading: TabLoader });
@@ -1897,6 +1898,10 @@ export default function SettingsPage() {
               otro destinatario (el equipo, no el paciente) y otra config
               (rol, no plantilla). */}
           <LiveNotificationsSection />
+          {/* Correos de los módulos de pago. Se pinta sola solo si la org
+              tiene alguno activo — igual que la pestaña Fiscal aparece
+              solo con facturación conectada. */}
+          <ModuleEmailsSection />
         </div>
       )}
 
