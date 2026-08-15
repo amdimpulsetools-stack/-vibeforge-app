@@ -102,7 +102,17 @@ export async function loadConfig(
 
 // ── Public re-exports ──────────────────────────────────────────────────────
 
-export { computeInvoiceTotals, todayInLima } from "./mapper";
+export {
+  computeInvoiceTotals,
+  computeLineTax,
+  isTaxedAffectation,
+  prorateDiscount,
+  applyInvoiceDiscount,
+  todayInLima,
+  round2,
+  round4,
+} from "./mapper";
+export type { LineTaxInput, LineTaxAmounts } from "./mapper";
 export {
   mapPaymentMethodToSunat,
   violatesBancarizacion,

@@ -1246,32 +1246,41 @@ export function AppointmentSidebar({
               </button>
             )}
 
-            {/* Issued invoices + emit button — gated by einvoice connection.
+            {/* Comprobantes emitidos + botón de emitir.
                 Una cita puede tener N comprobantes (modelo de pago parcial).
                 Render de cards para cada uno + botón "Emitir" si queda
                 saldo por facturar. Label dinámico cuando ya hay previos.
+
+                OJO con el gating: `connected` gobierna SOLO el botón de
+                emitir (sin proveedor conectado no hay a dónde emitir). Los
+                comprobantes YA EMITIDOS se muestran siempre que existan
+                filas — son historia fiscal de la org, y esconderlos al
+                desconectar el proveedor dejaba a una org real sin poder ver
+                sus 8 comprobantes vivos (PDF, XML, estado SUNAT).
 
                 El rol doctor NO ve esta sección — ni los cards de
                 comprobantes emitidos ni el botón de emitir. Billing es
                 territorio de owner/admin/recepcionista. El backend también
                 rechaza emit si role=doctor (defense-in-depth). */}
-            {einvoiceConfig.connected && !isDoctorRole && (
+            {!isDoctorRole && (appointmentEinvoices.length > 0 || einvoiceConfig.connected) && (
               <>
                 {appointmentEinvoices.map((e) => (
                   <InvoiceCard key={e.id} einvoiceId={e.id} />
                 ))}
-                {appointment.status !== "cancelled" && remainingToInvoice > 0 && (
-                  <button
-                    onClick={() => setEmitDialogOpen(true)}
-                    disabled={updating}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
-                  >
-                    <Receipt className="h-4 w-4" />
-                    {alreadyInvoiced > 0
-                      ? `Emitir por saldo (S/ ${remainingToInvoice.toFixed(2)})`
-                      : "Emitir comprobante"}
-                  </button>
-                )}
+                {einvoiceConfig.connected &&
+                  appointment.status !== "cancelled" &&
+                  remainingToInvoice > 0 && (
+                    <button
+                      onClick={() => setEmitDialogOpen(true)}
+                      disabled={updating}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2 text-sm font-medium text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20 disabled:opacity-50 transition-colors"
+                    >
+                      <Receipt className="h-4 w-4" />
+                      {alreadyInvoiced > 0
+                        ? `Emitir por saldo (S/ ${remainingToInvoice.toFixed(2)})`
+                        : "Emitir comprobante"}
+                    </button>
+                  )}
               </>
             )}
 

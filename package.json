@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:einvoice": "npx tsx scripts/einvoice-math-test.ts",
     "db:push": "npx supabase db push",
     "db:reset": "npx supabase db reset",
     "types": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > types/database.ts"

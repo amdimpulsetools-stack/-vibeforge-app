@@ -32,6 +32,9 @@ import { createClient } from "@/lib/supabase/client";
 import {
   mapPaymentMethodToSunat,
   violatesBancarizacion,
+  computeLineTax,
+  isTaxedAffectation,
+  prorateDiscount,
   BANCARIZACION_THRESHOLD_PEN,
   BANCARIZACION_THRESHOLD_USD,
 } from "@/lib/einvoice";
@@ -332,43 +335,47 @@ export function EInvoiceEmitDialog({
 
   // ── Live totals ────────────────────────────────────────────────────────
   // The user enters `unit_price` WITH IGV included (the price the patient
-  // actually pays). We back out the SUNAT-required breakdown:
-  //   - For taxed items: subtotal = unit_price / (1 + IGV%)
-  //                      igv = unit_price - subtotal
-  //   - For exempt/unaffected: subtotal = unit_price; igv = 0
+  // actually pays). We back out the SUNAT-required breakdown with the SAME
+  // helper the emit route uses (lib/einvoice/mapper.ts), so the preview and
+  // the emitted comprobante can never disagree by a cent:
+  //   - Taxed lines:  subtotal = round2(line_total / (1 + IGV%))
+  //                   igv      = line_total − subtotal
+  //   - Exempt/unaffected lines: subtotal = line_total; igv = 0
   // The total stays equal to sum(quantity * unit_price) − discount, which
-  // is the figure the patient sees and pays.
+  // is the figure the patient sees and pays. The discount is prorated over
+  // the lines (same rule as the route) so base + IGV always add up to it.
   const totals = useMemo(() => {
-    const igvFactor = Number(config.default_igv_percent) / 100;
+    const igvPercent = Number(config.default_igv_percent);
+    const discountShares = prorateDiscount(
+      items.map((it) => it.quantity * it.unit_price),
+      discount
+    );
     let subtotalTaxed = 0;
     let subtotalExempt = 0;
     let subtotalUnaffected = 0;
     let igvAmount = 0;
     let total = 0;
-    for (const it of items) {
-      const isTaxed = it.igv_affectation === 1;
-      // Per-unit breakdown
-      const unitSubtotal = isTaxed
-        ? round2(it.unit_price / (1 + igvFactor))
-        : round2(it.unit_price);
-      const unitIgv = isTaxed ? round2(it.unit_price - unitSubtotal) : 0;
-      // Line totals
-      const lineSubtotal = round2(unitSubtotal * it.quantity);
-      const lineIgv = round2(unitIgv * it.quantity);
-      const lineTotal = round2(lineSubtotal + lineIgv);
-      if (isTaxed) subtotalTaxed += lineSubtotal;
-      else if (it.igv_affectation === 8) subtotalExempt += lineSubtotal;
+    for (const [idx, it] of items.entries()) {
+      const amounts = computeLineTax({
+        quantity: it.quantity,
+        unitPriceWithTax: it.unit_price,
+        lineDiscount: discountShares[idx],
+        isTaxed: isTaxedAffectation(it.igv_affectation),
+        igvPercent,
+      });
+      if (isTaxedAffectation(it.igv_affectation)) subtotalTaxed += amounts.subtotal;
+      else if (it.igv_affectation === 8) subtotalExempt += amounts.subtotal;
       else if (it.igv_affectation === 9 || it.igv_affectation === 12)
-        subtotalUnaffected += lineSubtotal;
-      igvAmount += lineIgv;
-      total += lineTotal;
+        subtotalUnaffected += amounts.subtotal;
+      igvAmount += amounts.igvAmount;
+      total += amounts.lineTotal;
     }
     return {
       subtotalTaxed: round2(subtotalTaxed),
       subtotalExempt: round2(subtotalExempt),
       subtotalUnaffected: round2(subtotalUnaffected),
       igvAmount: round2(igvAmount),
-      total: round2(Math.max(total - discount, 0)),
+      total: round2(total),
     };
   }, [items, discount, config.default_igv_percent]);
 
@@ -397,7 +404,15 @@ export function EInvoiceEmitDialog({
   // emit button is disabled, instead of leaving the user guessing.
   // Each rule maps to a specific message; a null entry means "ok".
   const customerDocError: string | null = (() => {
-    if (customerDocType === "-") return null;
+    if (customerDocType === "-") {
+      // Boletas de S/ 700 o más exigen identificar al comprador (RS
+      // 007-99/SUNAT art. 8). El backend rechaza igual — esto solo evita el
+      // viaje y explica el porqué antes de que el usuario pulse Emitir.
+      if (docType === 2 && totals.total >= 700) {
+        return "SUNAT exige DNI del comprador en boletas de S/ 700 o más.";
+      }
+      return null;
+    }
     const num = customerDocNumber.trim();
     if (!num) return "Ingresa el número de documento.";
     if (customerDocType === "1") {

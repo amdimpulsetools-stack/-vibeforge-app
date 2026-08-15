@@ -234,6 +234,22 @@ export default function FacturacionPage() {
     },
   });
 
+  // ¿La org tiene ALGÚN comprobante, sin importar filtros? Es lo que decide
+  // si esta página tiene historia que mostrar cuando el proveedor no está
+  // conectado (org que desconectó, migró de proveedor o venció su token):
+  // los comprobantes ya emitidos siguen siendo suyos y tienen que poder
+  // verlos y descargarlos. `rows` no sirve para esto porque va filtrado por
+  // rango de fechas. RLS ya limita la consulta a la organización.
+  const { data: hasHistory, isPending: historyPending } = useQuery({
+    queryKey: ["einvoices", "has-any"],
+    queryFn: async () => {
+      const supabase = createClient();
+      const { data } = await supabase.from("einvoices").select("id").limit(1);
+      return ((data as Array<{ id: string }> | null) ?? []).length > 0;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
   const rows = invoicesData?.rows ?? [];
   const kpis = invoicesData?.kpis ?? null;
   const error = invoicesData?.error ?? null;
@@ -281,8 +297,11 @@ export default function FacturacionPage() {
     return null;
   }
 
-  // Empty state — module not connected yet. Render this and bail.
-  if (!einvoice.loading && !einvoice.connected) {
+  // Empty state — módulo aún sin conectar Y sin historia que mostrar. Si la
+  // org ya emitió comprobantes alguna vez, el dashboard se pinta igual (en
+  // modo solo lectura, con el aviso de arriba): esconderlo dejaba sin acceso
+  // a PDF / XML / CDR de comprobantes vivos.
+  if (!einvoice.loading && !einvoice.connected && !historyPending && !hasHistory) {
     return (
       /* Sin padding propio: el gutter del layout es el único margen, como
          en Presupuestos. Antes el `p-6` se sumaba al del `main` (40px por
@@ -347,6 +366,26 @@ export default function FacturacionPage() {
           </p>
         </div>
       </div>
+
+      {/* Proveedor desconectado pero con historia: solo lectura. */}
+      {!einvoice.loading && !einvoice.connected && (
+        <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              No hay un proveedor de facturación conectado. Puedes consultar y
+              descargar los comprobantes ya emitidos, pero no emitir nuevos.
+            </p>
+          </div>
+          <Link
+            href="/settings?tab=integraciones"
+            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            Conectar proveedor
+            <ExternalLink className="h-4 w-4" />
+          </Link>
+        </div>
+      )}
 
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">

@@ -59,6 +59,31 @@ NO desplaza CAPTCHA P0 ni trámites Meta. Validar cada campo del MVP contra Vitr
 | Facturación de módulos | ✅ HECHO 12-ago (mig 210 + PR #268): precio y política en la base (`addons.monthly_price` + `included_from_plan`: almacen 39/'professional', captacion 99/NULL), activate cobra vía maquinaria mig 152 (reserva atómica → sync preapproval MP → grant; rollback si MP falla), índice anti doble cobro, sin prorrateo, desactivar cancela el cobro primero. Pendiente solo: **una prueba real de activación de pago con org de test antes de abrir al público** | ✅ En prod |
 | Lanzamiento público del addon | Voltear `is_active` de `captacion` + teaser (volumen gratis, resultado de pago) | Tras validar con datos del piloto |
 
+## 🧾 YendaFact — facturador propio, emisión directa a SUNAT (coming soon, 2026-08-15)
+
+> **Idea del founder (15-ago):** reemplazar NubeFact por un motor de emisión propio para quedarnos
+> con el margen por comprobante y vender facturación como producto. Precedente real: existen
+> facturadores unipersonales (plugins WordPress sobre librerías open source tipo Greenter) que
+> operan estables — es factible para un equipo pequeño. **NO se aplica hoy**: va después de
+> Caja + Farmacia. Plan elaborado con asistencia 100% de Claude cuando se active.
+
+**Por qué la arquitectura ya está lista:** `lib/einvoice/provider.ts` define la interfaz abstracta
+de proveedor y `nubefact-provider.ts` es solo una implementación. El facturador propio =
+`sunat-provider.ts` implementando la misma interfaz, seleccionable **por organización**. Nada de
+Farmacia/Caja/facturación cambia. Migración gradual org por org con NubeFact de fallback automático.
+
+| Fase | Qué | Notas |
+|------|-----|-------|
+| F0 — Investigación | Certificado digital tributario por clínica, endpoints beta SUNAT (SEE-Del Contribuyente), catálogo de errores, proceso de homologación | Sin código de producto. Referencias: Greenter (open source, PHP) como mapa de lo que hay que cubrir |
+| F1 — Motor boletas | Generación XML UBL 2.1 + firma XML-DSig + envío SOAP + procesamiento CDR, **solo boletas** (90% del volumen), contra el beta de SUNAT | `sunat-provider.ts` tras la interfaz existente. Fallback automático a NubeFact si SUNAT rechaza o el motor falla |
+| F2 — Cola larga | Facturas, NC/ND, comunicaciones de baja, resúmenes, contingencia (SUNAT caído), archivo legal XML+CDR, gestión/renovación de certificados por org | Aquí vive el riesgo real: guardia 24/7. Presupuestar auditor/contador tributario que avise cambios normativos SUNAT |
+| F3 — Migración + pricing | Piloto en org del founder → migrar orgs una a una → precio por comprobante o plan | NubeFact queda como seguro de respaldo permanente o se retira al final |
+
+**Mientras tanto (desde ya):** cobrar facturación como addon con NubeFact debajo — el margen
+financia el desarrollo del motor. Riesgo a no olvidar: si el motor propio falla, las clínicas no
+pueden cobrar legalmente; NubeFact hoy absorbe cambios normativos y caídas — esa prima de seguro
+hay que reemplazarla con ingeniería (fallback) + vigilancia normativa (auditor).
+
 ## 📄 Trámites Meta / App Review (2026-08-12)
 
 | Ítem | Estado |
