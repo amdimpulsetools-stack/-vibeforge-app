@@ -239,7 +239,10 @@ export async function countAdoptionNotices(
     .select("notice_key", { count: "exact", head: true })
     .eq("organization_id", organizationId)
     .eq("subject_id", addonKey)
-    .like("notice_key", "adoption\\_%");
+    // Sin escapar el guión bajo a propósito: '_' comodín solo podría
+    // colisionar con una clave "adoptionX…" que no existe, y escaparlo
+    // obliga a confiar en cómo PostgREST transporta la barra invertida.
+    .like("notice_key", "adoption_%");
   return count ?? 0;
 }
 
@@ -251,19 +254,32 @@ async function logNotice(
   meta: Record<string, unknown>,
 ): Promise<void> {
   try {
-    // upsert y no insert: un módulo se puede activar, desactivar y volver
-    // a activar. El comprobante se vuelve a mandar y la fila se refresca
-    // en vez de reventar contra el UNIQUE.
-    await admin.from("ops_notice_log").upsert(
-      {
-        organization_id: organizationId,
-        notice_key: noticeKey,
-        subject_id: subjectId,
-        sent_at: new Date().toISOString(),
-        meta,
-      },
-      { onConflict: "organization_id,notice_key,subject_id" },
-    );
+    // DELETE + INSERT y no upsert: la unicidad de ops_notice_log (mig 220)
+    // es un ÍNDICE DE EXPRESIÓN —(organization_id, notice_key,
+    // COALESCE(subject_id,''))— para que dos avisos sin sujeto no se
+    // dupliquen por la semántica de NULL. PostgREST no sabe apuntar un
+    // ON CONFLICT a un índice de expresión, así que un upsert con
+    // onConflict de tres columnas fallaría en silencio (supabase-js
+    // devuelve el error, no lo lanza, y el catch de aquí ni se enteraría).
+    //
+    // Borrar primero es además la semántica que se quiere: un módulo se
+    // puede activar, desactivar y reactivar, y el comprobante se vuelve a
+    // mandar refrescando la fila. En la ruta de adopción el DELETE es un
+    // no-op, porque solo se llega aquí cuando el aviso no existía.
+    await admin
+      .from("ops_notice_log")
+      .delete()
+      .eq("organization_id", organizationId)
+      .eq("notice_key", noticeKey)
+      .eq("subject_id", subjectId);
+
+    await admin.from("ops_notice_log").insert({
+      organization_id: organizationId,
+      notice_key: noticeKey,
+      subject_id: subjectId,
+      sent_at: new Date().toISOString(),
+      meta,
+    });
   } catch {
     // best-effort: el correo ya salió
   }
