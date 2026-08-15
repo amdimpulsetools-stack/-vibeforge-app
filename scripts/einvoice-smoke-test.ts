@@ -20,8 +20,11 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { NubefactProvider } from "../lib/einvoice/nubefact-provider";
-import { toNubefactGenerate, computeInvoiceTotals, todayInLima } from "../lib/einvoice/mapper";
+import {
+  NubefactProvider,
+  toNubefactGenerate,
+} from "../lib/einvoice/nubefact-provider";
+import { computeInvoiceTotals, todayInLima } from "../lib/einvoice/mapper";
 import {
   DocType,
   CustomerDocType,
