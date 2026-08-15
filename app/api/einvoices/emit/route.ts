@@ -25,6 +25,7 @@ import {
   todayInLima,
   mapPaymentMethodToSunat,
   DocType,
+  CustomerDocType,
   Currency,
   type DocTypeCode,
   type CustomerDocTypeCode,
@@ -138,6 +139,14 @@ const CURRENCY_MAP: Record<string, CurrencyCode> = {
   USD: Currency.USD,
 };
 
+/**
+ * Importe a partir del cual una boleta ya no puede ir a "cliente varios":
+ * SUNAT exige identificar al comprador (RS 007-99/SUNAT art. 8). El umbral
+ * es en soles; en dólares cualquier monto ≥ 700 lo supera de sobra, así que
+ * la comparación directa contra el total es conservadora y correcta.
+ */
+const BOLETA_ID_THRESHOLD = 700;
+
 export async function POST(req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -194,7 +203,69 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // ── 0) Resolve credit-note reference (only when doc_type=3) ───────────
+  // ── 0) Compute totals from items ──────────────────────────────────────
+  // unit_price comes WITH IGV included (catalog convention). The split is
+  // done PER LINE (see computeLineTax in lib/einvoice/mapper.ts), never per
+  // unit: rounding the unit value first and multiplying by the quantity
+  // multiplies the rounding error too. Nubefact's API requires both
+  // `valor_unitario` (sin IGV) and `precio_unitario` (con IGV) — we send
+  // both, with 4 decimals, derived from the line amounts.
+  //
+  // A global discount is prorated over the lines FIRST (largest remainder,
+  // see prorateDiscount) so it lands inside each net price. Subtracting it
+  // only from the total would leave total_gravada + total_igv ≠ total.
+  const discountShares = prorateDiscount(
+    data.items.map((it) => it.quantity * it.unit_price),
+    data.invoice_discount
+  );
+  const lineItems: InvoiceLineItem[] = data.items.map((it, idx) => {
+    const amounts = computeLineTax({
+      quantity: it.quantity,
+      unitPriceWithTax: it.unit_price,
+      lineDiscount: discountShares[idx],
+      isTaxed: isTaxedAffectation(it.igv_affectation),
+      igvPercent: data.igv_percent,
+    });
+    return {
+      description: it.description,
+      quantity: it.quantity,
+      unitValue: amounts.unitValue,
+      unitPrice: amounts.unitPrice,
+      subtotal: amounts.subtotal,
+      discount: 0,
+      igvAffectation: it.igv_affectation as IgvAffectationCode,
+      igvAmount: amounts.igvAmount,
+      total: amounts.lineTotal,
+      unitOfMeasure: (it.unit_of_measure ?? "ZZ") as InvoiceLineItem["unitOfMeasure"],
+      sunatProductCode: it.sunat_product_code,
+      internalCode: it.internal_code,
+      serviceId: it.service_id ?? undefined,
+    };
+  });
+  // Discount already prorated above — pass 0 so it isn't applied twice.
+  const totals = computeInvoiceTotals(lineItems, 0, data.igv_percent);
+
+  // Boletas de S/ 700 o más exigen identificar al comprador (RS 007-99/SUNAT
+  // art. 8): con "cliente varios" ('-', sin documento) SUNAT observa el
+  // comprobante. Se valida acá, ANTES de reservar el correlativo, para no
+  // quemar un número en una emisión que nunca va a salir.
+  if (
+    data.doc_type === DocType.BOLETA &&
+    data.customer_doc_type === CustomerDocType.VARIOS &&
+    totals.total >= BOLETA_ID_THRESHOLD
+  ) {
+    return NextResponse.json(
+      {
+        error:
+          "SUNAT exige DNI del comprador en boletas de S/ 700 o más. " +
+          `Esta boleta suma S/ ${totals.total.toFixed(2)}: agrega el ` +
+          "documento del paciente o divide el cobro.",
+      },
+      { status: 400 }
+    );
+  }
+
+  // ── 1) Resolve credit-note reference (only when doc_type=3) ───────────
   // Load the original einvoice so we can: (a) verify same-org,
   // (b) inherit its series/number for the `referenced` block in the
   // payload, (c) auto-create a doc_type=3 series entry if the org has
@@ -269,7 +340,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── 1) Reserve next correlative atomically (RPC, see migration 110) ───
+  // ── 2) Reserve next correlative atomically (RPC, see migration 110) ───
   // Postgres function `reserve_einvoice_correlative` does
   //   UPDATE einvoice_series SET current_number = current_number + 1
   //   WHERE ... RETURNING id, current_number
@@ -300,48 +371,6 @@ export async function POST(req: NextRequest) {
     current_number: rpcRows[0].reserved_number,
   };
   const nextNumber = rpcRows[0].reserved_number;
-
-  // ── 2) Compute totals from items ──────────────────────────────────────
-  // unit_price comes WITH IGV included (catalog convention). The split is
-  // done PER LINE (see computeLineTax in lib/einvoice/mapper.ts), never per
-  // unit: rounding the unit value first and multiplying by the quantity
-  // multiplies the rounding error too. Nubefact's API requires both
-  // `valor_unitario` (sin IGV) and `precio_unitario` (con IGV) — we send
-  // both, with 4 decimals, derived from the line amounts.
-  //
-  // A global discount is prorated over the lines FIRST (largest remainder,
-  // see prorateDiscount) so it lands inside each net price. Subtracting it
-  // only from the total would leave total_gravada + total_igv ≠ total.
-  const discountShares = prorateDiscount(
-    data.items.map((it) => it.quantity * it.unit_price),
-    data.invoice_discount
-  );
-  const lineItems: InvoiceLineItem[] = data.items.map((it, idx) => {
-    const amounts = computeLineTax({
-      quantity: it.quantity,
-      unitPriceWithTax: it.unit_price,
-      lineDiscount: discountShares[idx],
-      isTaxed: isTaxedAffectation(it.igv_affectation),
-      igvPercent: data.igv_percent,
-    });
-    return {
-      description: it.description,
-      quantity: it.quantity,
-      unitValue: amounts.unitValue,
-      unitPrice: amounts.unitPrice,
-      subtotal: amounts.subtotal,
-      discount: 0,
-      igvAffectation: it.igv_affectation as IgvAffectationCode,
-      igvAmount: amounts.igvAmount,
-      total: amounts.lineTotal,
-      unitOfMeasure: (it.unit_of_measure ?? "ZZ") as InvoiceLineItem["unitOfMeasure"],
-      sunatProductCode: it.sunat_product_code,
-      internalCode: it.internal_code,
-      serviceId: it.service_id ?? undefined,
-    };
-  });
-  // Discount already prorated above — pass 0 so it isn't applied twice.
-  const totals = computeInvoiceTotals(lineItems, 0, data.igv_percent);
 
   // ── 3) Insert einvoices row in 'sending' state ─────────────────────────
   const { data: invRow, error: invInsertErr } = await admin

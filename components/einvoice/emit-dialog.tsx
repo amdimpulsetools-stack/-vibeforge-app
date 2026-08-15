@@ -404,7 +404,15 @@ export function EInvoiceEmitDialog({
   // emit button is disabled, instead of leaving the user guessing.
   // Each rule maps to a specific message; a null entry means "ok".
   const customerDocError: string | null = (() => {
-    if (customerDocType === "-") return null;
+    if (customerDocType === "-") {
+      // Boletas de S/ 700 o más exigen identificar al comprador (RS
+      // 007-99/SUNAT art. 8). El backend rechaza igual — esto solo evita el
+      // viaje y explica el porqué antes de que el usuario pulse Emitir.
+      if (docType === 2 && totals.total >= 700) {
+        return "SUNAT exige DNI del comprador en boletas de S/ 700 o más.";
+      }
+      return null;
+    }
     const num = customerDocNumber.trim();
     if (!num) return "Ingresa el número de documento.";
     if (customerDocType === "1") {
