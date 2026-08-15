@@ -13,10 +13,11 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
-import { Check, ChevronLeft, Plus, UserPlus, X } from "lucide-react";
+import { Check, ChevronLeft, Plus, ShoppingCart, UserPlus, X } from "lucide-react";
 import {
   MERMA_REASONS,
   expiryStatus,
@@ -61,13 +62,28 @@ interface PatientOption {
   doc: string | null;
 }
 
-type Motive = { key: "aplicacion" | "venta" | "merma"; label: string };
+type Motive = { key: "aplicacion" | "merma"; label: string };
 
-const MOTIVES: Motive[] = [
-  { key: "aplicacion", label: "Aplicación" },
-  { key: "venta", label: "Venta" },
-  { key: "merma", label: "Merma" },
-];
+/**
+ * 'Venta' YA NO ESTÁ AQUÍ — y es a propósito.
+ *
+ * Mientras esta hoja ofrecía "Venta", el mismo producto se podía descontar
+ * por dos caminos: este (que solo mueve el kardex) y el POS de Farmacia
+ * (que además cobra). Nada impedía hacer las dos cosas por la misma venta
+ * y descontar el stock dos veces cobrando una — y el descuadre resultante
+ * es indistinguible de un robo.
+ *
+ * Ahora hay UN SOLO camino para vender: el botón "Vender → Farmacia" de
+ * abajo, que lleva el producto al carrito. Aquí quedan los dos motivos
+ * que NO son una venta: consumir en consulta y perder unidades.
+ */
+// Por NOMBRE y no por posición: quitar 'Venta' de esta lista ya rompió una
+// vez el paso de merma, que la referenciaba como MOTIVES[2]. Con constantes
+// con nombre, cambiar la lista no puede volver a desplazar nada.
+const APLICACION_MOTIVE: Motive = { key: "aplicacion", label: "Aplicación" };
+const MERMA_MOTIVE: Motive = { key: "merma", label: "Merma" };
+
+const MOTIVES: Motive[] = [APLICACION_MOTIVE, MERMA_MOTIVE];
 
 const QUICK_QTY = [1, 2, 3, 4];
 
@@ -96,6 +112,13 @@ export function DiscountModal({
   const [patientId, setPatientId] = useState<string | null>(null);
   const [patientOptions, setPatientOptions] = useState<PatientOption[]>([]);
   const customRef = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+
+  function goToPharmacy() {
+    if (!product) return;
+    onOpenChange(false);
+    router.push(`/farmacia?add=${product.id}`);
+  }
 
   // Cada apertura arranca limpia: la hoja no recuerda el descuento anterior.
   useEffect(() => {
@@ -202,12 +225,9 @@ export function DiscountModal({
     const payload: Omit<DiscountPayload, "product"> = {
       quantity: qty,
       movementType: motive.key === "merma" ? "merma" : "salida",
-      reasonCode:
-        motive.key === "merma"
-          ? (reasonCode ?? "otro")
-          : motive.key === "venta"
-            ? "venta"
-            : "uso_en_cita",
+      // 'venta' ya no se emite desde aquí: ese motivo lo escribe únicamente
+      // pharmacy_confirm_sale (mig 217), que además cobra.
+      reasonCode: motive.key === "merma" ? (reasonCode ?? "otro") : "uso_en_cita",
       lotId: lot?.id ?? null,
       patientId: patientId ?? autoOption?.id ?? null,
       // El nombre va también como nota: el kardex lo muestra sin resolver la FK.
@@ -268,9 +288,11 @@ export function DiscountModal({
       return;
     }
     const k = e.key.toLowerCase();
-    if (k === "a") onMotive(MOTIVES[0]);
-    else if (k === "v") onMotive(MOTIVES[1]);
-    else if (k === "m") onMotive(MOTIVES[2]);
+    if (k === "a") onMotive(APLICACION_MOTIVE);
+    else if (k === "m") onMotive(MERMA_MOTIVE);
+    // 'v' conserva su significado muscular ("vender"), pero ahora lleva al
+    // POS en vez de descontar a ciegas.
+    else if (k === "v") goToPharmacy();
   }
 
   return (
@@ -381,7 +403,7 @@ export function DiscountModal({
                 <button
                   key={r.code}
                   type="button"
-                  onClick={() => fire(MOTIVES[2], r.code)}
+                  onClick={() => fire(MERMA_MOTIVE, r.code)}
                   className="h-14 rounded-xl border border-amber-500/30 bg-amber-500/10 text-sm font-semibold text-amber-600 transition-colors hover:bg-amber-500/20 active:scale-[.98] dark:text-amber-400"
                 >
                   {r.label}
@@ -509,7 +531,7 @@ export function DiscountModal({
             <p className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               ¿Por qué? — al tocar, se registra
             </p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {MOTIVES.map((m) => (
                 <button
                   key={m.key}
@@ -522,6 +544,19 @@ export function DiscountModal({
                 </button>
               ))}
             </div>
+
+            {/* El ÚNICO camino para vender. No descuenta nada aquí: lleva el
+                producto al POS, que descuenta y cobra en la misma operación. */}
+            <button
+              type="button"
+              onClick={goToPharmacy}
+              className="mt-2 inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-border bg-card text-sm font-semibold transition-colors hover:bg-accent"
+            >
+              <ShoppingCart className="h-4 w-4" /> Vender → Farmacia
+            </button>
+            <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+              Vender descuenta y cobra en un solo paso, desde Farmacia.
+            </p>
           </>
         )}
       </DialogContent>
