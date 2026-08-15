@@ -19,6 +19,8 @@ import {
   loadConfig,
   getProvider,
   computeInvoiceTotals,
+  computeLineTax,
+  isTaxedAffectation,
   todayInLima,
   mapPaymentMethodToSunat,
   DocType,
@@ -299,30 +301,29 @@ export async function POST(req: NextRequest) {
   const nextNumber = rpcRows[0].reserved_number;
 
   // ── 2) Compute totals from items ──────────────────────────────────────
-  // unit_price comes WITH IGV included (catalog convention). We split it:
-  //   - Taxed:  unitValue = unit_price / (1 + IGV%); igv = unit_price - unitValue
-  //   - Else:   unitValue = unit_price; igv = 0
-  // Nubefact's API requires both `valor_unitario` (sin IGV) and
-  // `precio_unitario` (con IGV) — so we send both.
-  const igvFactor = data.igv_percent / 100;
+  // unit_price comes WITH IGV included (catalog convention). The split is
+  // done PER LINE (see computeLineTax in lib/einvoice/mapper.ts), never per
+  // unit: rounding the unit value first and multiplying by the quantity
+  // multiplies the rounding error too. Nubefact's API requires both
+  // `valor_unitario` (sin IGV) and `precio_unitario` (con IGV) — we send
+  // both, with 4 decimals, derived from the line amounts.
   const lineItems: InvoiceLineItem[] = data.items.map((it) => {
-    const isTaxed = it.igv_affectation === 1; // gravado
-    const unitValue = isTaxed
-      ? round2(it.unit_price / (1 + igvFactor))
-      : round2(it.unit_price);
-    const unitIgv = isTaxed ? round2(it.unit_price - unitValue) : 0;
-    const subtotal = round2(unitValue * it.quantity);
-    const igvAmount = round2(unitIgv * it.quantity);
-    const total = round2(subtotal + igvAmount);
+    const amounts = computeLineTax({
+      quantity: it.quantity,
+      unitPriceWithTax: it.unit_price,
+      isTaxed: isTaxedAffectation(it.igv_affectation),
+      igvPercent: data.igv_percent,
+    });
     return {
       description: it.description,
       quantity: it.quantity,
-      unitValue,
-      unitPrice: round2(it.unit_price),
-      subtotal,
+      unitValue: amounts.unitValue,
+      unitPrice: amounts.unitPrice,
+      subtotal: amounts.subtotal,
+      discount: 0,
       igvAffectation: it.igv_affectation as IgvAffectationCode,
-      igvAmount,
-      total,
+      igvAmount: amounts.igvAmount,
+      total: amounts.lineTotal,
       unitOfMeasure: (it.unit_of_measure ?? "ZZ") as InvoiceLineItem["unitOfMeasure"],
       sunatProductCode: it.sunat_product_code,
       internalCode: it.internal_code,
@@ -578,8 +579,4 @@ export async function POST(req: NextRequest) {
     },
     { status: 200 }
   );
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }

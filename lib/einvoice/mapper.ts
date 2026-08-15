@@ -118,6 +118,73 @@ export function toNubefactGenerate(p: InvoicePayload): Record<string, unknown> {
   return out;
 }
 
+// ── Per-line tax arithmetic ────────────────────────────────────────────────
+//
+// Catalog prices in a clinic are FINAL prices per unit (IGV included). Backing
+// out the taxable base has to happen on the LINE amount, never on the unit
+// price: rounding the unit value to 2 decimals and then multiplying by the
+// quantity repeats the rounding error once per unit (q=12 at S/ 35.50 used to
+// declare S/ 0.06 too much base and S/ 0.06 too little IGV).
+//
+// Correct order (the one SUNAT / Nubefact reconcile against):
+//   line_gross    = round2(q * unit_price_with_igv)
+//   line_total    = line_gross − line_discount
+//   line_subtotal = round2(line_total / (1 + igv%))
+//   line_igv      = line_total − line_subtotal      ← exact, by difference
+//   unit_value    = round4(line_subtotal / q)       ← 4 decimals: what both
+//   unit_price    = round4(line_total / q)            the DB and Nubefact take
+//
+// Exonerated / unaffected lines pay no IGV: the base IS the line amount.
+export interface LineTaxInput {
+  quantity: number;
+  /** Unit price WITH IGV included (catalog convention). */
+  unitPriceWithTax: number;
+  /** Share of the invoice-level discount assigned to this line. */
+  lineDiscount?: number;
+  /** true = gravado (code 1). Exonerado / inafecto / gratuito are false. */
+  isTaxed: boolean;
+  igvPercent: number;
+}
+
+export interface LineTaxAmounts {
+  lineGross: number;
+  lineDiscount: number;
+  lineTotal: number;
+  subtotal: number;
+  igvAmount: number;
+  unitValue: number;
+  unitPrice: number;
+}
+
+export function computeLineTax(input: LineTaxInput): LineTaxAmounts {
+  const q = input.quantity;
+  const lineGross = round2(q * input.unitPriceWithTax);
+  const lineDiscount = round2(input.lineDiscount ?? 0);
+  const lineTotal = round2(lineGross - lineDiscount);
+  const subtotal = input.isTaxed
+    ? round2(lineTotal / (1 + input.igvPercent / 100))
+    : lineTotal;
+  // By difference — never round the IGV independently, or the line stops
+  // reconciling (subtotal + igv must equal total to the cent).
+  const igvAmount = round2(lineTotal - subtotal);
+  return {
+    lineGross,
+    lineDiscount,
+    lineTotal,
+    subtotal,
+    igvAmount,
+    unitValue: q > 0 ? round4(subtotal / q) : 0,
+    unitPrice: q > 0 ? round4(lineTotal / q) : 0,
+  };
+}
+
+// Only code 1 (gravado) carries IGV. Exonerado (8), inafecto (9, 12),
+// exportación (16) and the gratuito codes (17, 20) all resolve to base = line
+// amount, igv = 0.
+export function isTaxedAffectation(code: number): boolean {
+  return code === 1;
+}
+
 // Pure totals calculation for an invoice. Useful for UI previews and as a
 // sanity check before emitting: Nubefact rejects invoices where totals
 // don't reconcile with line items (error code 20).
@@ -169,8 +236,12 @@ export function computeInvoiceTotals(
   };
 }
 
-function round2(n: number): number {
+export function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+export function round4(n: number): number {
+  return Math.round(n * 10000) / 10000;
 }
 
 // Today's date in Lima timezone (UTC-5, no DST), as YYYY-MM-DD.
