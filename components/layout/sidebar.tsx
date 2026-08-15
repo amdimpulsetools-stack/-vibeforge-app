@@ -42,6 +42,7 @@ import {
   type LucideIcon,
   Megaphone,
   Warehouse,
+  ShoppingCart,
 } from "lucide-react";
 
 interface NavItem {
@@ -119,6 +120,16 @@ const navSections: NavSection[] = [
         href: "/almacen",
         icon: Warehouse,
         requiresAnyAddon: ["almacen"],
+      },
+      {
+        // Módulo Farmacia (POS, beta oculta): viaja con el addon 'almacen'
+        // porque vender es descontar del mismo kardex. El doctor no cobra
+        // al mostrador — para consumir insumos en consulta está Almacén.
+        titleKey: "nav.farmacia",
+        href: "/farmacia",
+        icon: ShoppingCart,
+        requiresAnyAddon: ["almacen"],
+        hideForDoctor: true,
       },
       {
         // Módulo Caja (beta oculta): solo orgs con grant del addon. El

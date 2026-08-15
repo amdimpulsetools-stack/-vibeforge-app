@@ -48,5 +48,9 @@ for m in 209_inventory_foundation 212_inventory_invariants_f2 \
 done
 
 echo
-psql -h $SOCK -p $PORT -U postgres -d farmacia_test -v ON_ERROR_STOP=1 -q \
-  -f "$HERE/10_pharmacy_invariants_test.sql" 2>&1 | grep -E "PASS|FAIL|TODAS"
+# 10_ corre como superusuario (bypassa RLS): prueba aritmética y atomicidad.
+# 20_ se pone en la piel de un `authenticated`: prueba los permisos.
+for t in 10_pharmacy_invariants_test 20_pharmacy_rls_test; do
+  psql -h $SOCK -p $PORT -U postgres -d farmacia_test -v ON_ERROR_STOP=1 -q \
+    -f "$HERE/$t.sql" 2>&1 | grep -E "PASS|FAIL|TODAS"
+done
