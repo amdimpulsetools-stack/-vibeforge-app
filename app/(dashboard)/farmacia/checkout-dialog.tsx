@@ -104,8 +104,15 @@ export function CheckoutDialog({
     [patient, patientId]
   );
 
+  // Resetea SOLO en el flanco de apertura. Con `methods` en las deps y sin
+  // este guard, la recarga de datos de la página tras cobrar (load())
+  // re-disparaba el efecto con el diálogo aún abierto y pisaba la pantalla
+  // de éxito, devolviendo el paso a "cliente" con la venta ya cobrada.
+  const wasOpen = useRef(false);
   useEffect(() => {
-    if (!open) return;
+    const justOpened = open && !wasOpen.current;
+    wasOpen.current = open;
+    if (!justOpened) return;
     setStep("cliente");
     setPatient("");
     setPatientId(null);
@@ -115,6 +122,14 @@ export function CheckoutDialog({
     setResult(null);
     setPrinted(null);
   }, [open, methods]);
+
+  // Si los métodos llegan después de abrir (primera carga), preselecciona
+  // el primero sin re-resetear el resto del diálogo.
+  useEffect(() => {
+    if (open && method === null && methods.length > 0) {
+      setMethod(methods[0].label);
+    }
+  }, [open, method, methods]);
 
   // Autocomplete de pacientes: mismo criterio que el DiscountModal de
   // Almacén (tokens AND-eados, saneo del .or() de PostgREST, DNI por
