@@ -1488,6 +1488,15 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                 >
                   <option value="">--</option>
+                  {/* El origen guardado puede venir de un import CSV, de la
+                      reserva pública ("Reserva en línea") o de un lookup que la
+                      clínica desactivó. Sin esta opción extra el select se ve
+                      vacío aunque la ficha SÍ tenga origen, y la doctora creería
+                      que el dato se perdió. */}
+                  {marketingOrigin &&
+                    !originOptions.some((o) => o.label === marketingOrigin) && (
+                      <option value={marketingOrigin}>{marketingOrigin}</option>
+                    )}
                   {originOptions.map((o) => (
                     <option key={o.label} value={o.label}>
                       {o.label}

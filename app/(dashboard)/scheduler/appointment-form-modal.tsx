@@ -215,6 +215,11 @@ export function AppointmentFormModal({
   const [selectedPlanSessionId, setSelectedPlanSessionId] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<CustomFieldValues>({});
 
+  // Origen ya registrado en la ficha que NO está en el catálogo activo de
+  // lookups (import CSV, "Reserva en línea", lookup desactivado). Se publica
+  // como <option> extra para que la precarga se vea y se conserve al guardar.
+  const [originFallbackOption, setOriginFallbackOption] = useState<string | null>(null);
+
   const [patientInsuranceQuotes, setPatientInsuranceQuotes] = useState<InsuranceCoverageQuote[]>([]);
   const [paymentMode, setPaymentMode] = useState<AppointmentPaymentMode>("particular");
   const [selectedInsuranceCarrierId, setSelectedInsuranceCarrierId] = useState<string | null>(null);
@@ -613,7 +618,19 @@ export function AppointmentFormModal({
       // so we don't lose/overwrite how the clinic acquired this patient. The
       // value matches a lookup option (e.g. 'tiktok'); if the patient has no
       // origin on file, leave the field untouched ("").
-      if (data.origin) setValue("origin", data.origin);
+      //
+      // El origen guardado puede NO estar en el catálogo activo: importaciones
+      // CSV (lib/patient-imports/csv.ts mapea "origen"), "Reserva en línea" de
+      // la reserva pública, o un lookup que la clínica desactivó/renombró. Un
+      // <select> sin <option> coincidente no puede mostrar ese valor y la
+      // precarga se perdía en silencio, así que lo publicamos como opción
+      // extra vía originFallbackOption y re-aplicamos el setValue una vez que
+      // el <option> ya existe en el DOM (el select es no-controlado).
+      if (data.origin) {
+        const known = lookupOrigins.some((o) => o.label === data.origin);
+        setOriginFallbackOption(known ? null : data.origin);
+        setValue("origin", data.origin);
+      }
       setPatientEmail(data.email ?? "");
       setPatientBirthDate(data.birth_date ?? "");
       if (data.document_type) setDocType(data.document_type as "DNI" | "CE" | "Pasaporte");
@@ -667,7 +684,15 @@ export function AppointmentFormModal({
       setActivePlanSessions([]);
       setSelectedPlanSessionId(null);
     }
-  }, [setValue]);
+  }, [setValue, lookupOrigins]);
+
+  // El <option> extra se renderiza en el mismo ciclo en que se fija el estado,
+  // pero el <select> es no-controlado (register + ref): el navegador ya había
+  // descartado el valor sin opción coincidente. Re-aplicamos el setValue en un
+  // efecto, que corre después del commit, cuando el <option> ya está en el DOM.
+  useEffect(() => {
+    if (originFallbackOption) setValue("origin", originFallbackOption);
+  }, [originFallbackOption, setValue]);
 
   const checkConflicts = () => {
     if (!watchedDate || !watchedStartTime || !endTime) return null;
@@ -832,6 +857,11 @@ export function AppointmentFormModal({
           birth_date: patientBirthDate || null,
           departamento: patientDepartamento || null,
           distrito: patientDistrito || null,
+          // Atribución first-touch: la paciente se está creando AHORA desde
+          // esta cita, así que el canal declarado aquí ES su primer contacto.
+          // Sin esto la ficha nacía con origen vacío y el dato de marketing se
+          // perdía justo en la cita que lo capturaba (la primera).
+          origin: values.origin || null,
           organization_id: organizationId,
           created_by: currentUser?.id ?? null,
         })
@@ -843,10 +873,21 @@ export function AppointmentFormModal({
         if (patientError.code === "23505") {
           const { data: existingPatient } = await supabase
             .from("patients")
-            .select("id")
+            .select("id, origin")
             .eq("dni", values.patient_dni.trim())
             .single();
-          if (existingPatient) patientId = existingPatient.id;
+          if (existingPatient) {
+            patientId = existingPatient.id;
+            // Este camino no pasa por searchPatientByDni, así que `foundPatient`
+            // es null y el backfill de abajo no aplica. Misma regla first-touch:
+            // rellenar solo si la ficha no tiene origen todavía.
+            if (values.origin && !existingPatient.origin) {
+              await supabase
+                .from("patients")
+                .update({ origin: values.origin })
+                .eq("id", existingPatient.id);
+            }
+          }
         }
       } else if (newPatient) {
         patientId = newPatient.id;
@@ -1887,6 +1928,9 @@ export function AppointmentFormModal({
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               >
                 <option value="">--</option>
+                {originFallbackOption && (
+                  <option value={originFallbackOption}>{originFallbackOption}</option>
+                )}
                 {lookupOrigins.map((o) => (
                   <option key={o.id} value={o.label}>
                     {o.label}
