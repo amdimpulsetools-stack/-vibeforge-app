@@ -120,6 +120,15 @@ const navSections: NavSection[] = [
         icon: Warehouse,
         requiresAnyAddon: ["almacen"],
       },
+      {
+        // Módulo Caja (beta oculta): solo orgs con grant del addon. El
+        // doctor no cobra, así que tampoco arquea.
+        titleKey: "nav.caja",
+        href: "/caja",
+        icon: Wallet,
+        requiresAnyAddon: ["caja"],
+        hideForDoctor: true,
+      },
       { titleKey: "nav.patients", href: "/patients", icon: Users },
     ],
   },
