@@ -440,6 +440,8 @@ DECLARE
   v_reason     text;
   -- Solo para los avisos del final.
   v_alert_tol  numeric(12,2);
+  v_notified   boolean := false;
+  v_recipients integer;
   v_window     text;
   v_body       text;
 BEGIN
@@ -547,8 +549,22 @@ BEGIN
   --    MAYOR de los dos umbrales: por debajo de la tolerancia no hay
   --    incidente, y por debajo del umbral de aviso el dueño pidió no
   --    enterarse.
-  IF abs(v_diff) > GREATEST(v_tol, coalesce(v_alert_tol, v_tol)) THEN
+  --
+  --    Se calcula en una variable y se DEVUELVE al cliente: la pantalla de
+  --    resultado le dice a quien acabó de cerrar que se avisó a la
+  --    dirección y con qué motivo. Nada a espaldas de quien cuenta el
+  --    dinero — un control que se ejerce en secreto no es un control, es
+  --    una trampa, y en cuanto se descubre se deja de confiar en el
+  --    sistema entero. Sin este campo la interfaz tendría que adivinar el
+  --    umbral y acabaría mintiendo en un sentido o en el otro.
+  v_notified := abs(v_diff) > GREATEST(v_tol, coalesce(v_alert_tol, v_tol));
+
+  IF v_notified THEN
     BEGIN
+      -- SELECT ... INTO y no PERFORM: la tarjeta de cierre necesita saber
+      -- si el aviso salió DE VERDAD (ver 'management_notified' en el
+      -- RETURN). El contrato de fire-and-forget es idéntico — sigue dentro
+      -- del bloque de excepción.
       v_body := 'El turno ' || v_window || ' cerró con S/ '
                 || to_char(abs(v_diff), 'FM999999990.00')
                 || CASE WHEN v_diff < 0 THEN ' menos' ELSE ' más' END
@@ -557,7 +573,7 @@ BEGIN
                 || ' · contado S/ ' || to_char(p_counted_cash, 'FM999999990.00') || ').'
                 || CASE WHEN v_reason IS NOT NULL THEN ' Motivo: ' || v_reason ELSE '' END;
 
-      PERFORM notify_org_members(
+      SELECT notify_org_members(
         p_organization_id   => s.organization_id,
         p_event_key         => 'cash_shift_difference',
         -- NUNCA recepción: un faltante en la campanita de todo el
@@ -572,8 +588,15 @@ BEGIN
         -- Si quien cerró es de la dirección, ya lo sabe: acaba de
         -- contar el dinero con el número delante.
         p_exclude_user_id   => v_uid
-      );
-    EXCEPTION WHEN OTHERS THEN NULL;
+      ) INTO v_recipients;
+
+      -- El único punto donde el resultado del aviso se MIRA, y solo para
+      -- decir la verdad en pantalla: si la organización reencaminó o apagó
+      -- el evento en Ajustes, no se avisó a nadie y la tarjeta de cierre no
+      -- puede afirmar lo contrario. Sigue sin poder tumbar el cierre: el
+      -- bloque de excepción envuelve también esta asignación.
+      v_notified := coalesce(v_recipients, 0) > 0;
+    EXCEPTION WHEN OTHERS THEN v_notified := false;
     END;
   END IF;
 
@@ -638,7 +661,9 @@ BEGIN
     'payments_count',     v_pay_count,
     'expected_by_tender', v_by_tender,
     'expected_by_method', v_by_method,
-    'difference_reason',  v_reason
+    'difference_reason',  v_reason,
+    -- mig 220. `true` solo si de verdad se emitió el aviso de diferencia.
+    'management_notified', v_notified
   );
 END $$;
 

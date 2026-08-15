@@ -127,6 +127,14 @@ export interface CloseResult {
   payments_count: number;
   expected_by_method: Record<string, number>;
   difference_reason: string | null;
+  /**
+   * `true` si el cierre emitió de verdad el aviso de diferencia a la
+   * dirección (mig 220). Lo calcula el RPC porque el umbral de aviso
+   * —`difference_alert_threshold`, distinto de la tolerancia— no viaja al
+   * cliente: adivinarlo aquí acabaría afirmando en pantalla algo que no
+   * pasó. Opcional para tolerar respuestas de antes de la 220.
+   */
+  management_notified?: boolean;
 }
 
 // ── Catálogos de la interfaz ─────────────────────────────────────────────
