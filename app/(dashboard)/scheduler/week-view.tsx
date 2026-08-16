@@ -78,16 +78,48 @@ export function WeekView({
     queryFn: () => fetchSchedulerConfig(),
     placeholderData: () => loadSchedulerConfig(),
   });
+  // ── Borde elástico (paridad con day-view) ────────────────────────────────
+  // Citas fuera de la ventana org no caían en ningún renglón del filtro
+  // half-open [time, nextSlot) y desaparecían de la semana. La grilla se
+  // extiende con renglones del MISMO stride hasta cubrir la cita más
+  // temprana/tardía de la semana visible. El eje es único para los 7 días
+  // (unión): un lunes con cita de 07:00 muestra la fila 07:00 toda la semana
+  // — renglones vacíos clicables, derivados de datos, sin estado propio.
+  const { gridStartMin, gridEndMin } = useMemo(() => {
+    const baseStart = getScheduleStartMinutes(schedulerConfig);
+    const baseEnd = getScheduleEndMinutes(schedulerConfig);
+    const interval = getActiveInterval(schedulerConfig);
+    const weekDates = new Set(weekDays.map((d) => format(d, "yyyy-MM-dd")));
+    let earliest = baseStart;
+    let latest = baseEnd;
+    for (const a of appointments) {
+      if (!weekDates.has(a.appointment_date)) continue;
+      const [sh, sm] = a.start_time.slice(0, 5).split(":").map(Number);
+      const [eh, em] = a.end_time.slice(0, 5).split(":").map(Number);
+      earliest = Math.min(earliest, sh * 60 + sm);
+      latest = Math.max(latest, eh * 60 + em);
+    }
+    return {
+      gridStartMin:
+        earliest < baseStart
+          ? Math.max(0, baseStart - Math.ceil((baseStart - earliest) / interval) * interval)
+          : baseStart,
+      gridEndMin: latest > baseEnd ? Math.min(24 * 60, latest) : baseEnd,
+    };
+    // weekDays se rederiva de weekStart; usarlo directo evitaría un dep inestable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appointments, weekStart, schedulerConfig]);
+
   const TIME_SLOTS = useMemo(
-    () => generateTimeSlots(getScheduleStartMinutes(schedulerConfig), getScheduleEndMinutes(schedulerConfig), getActiveInterval(schedulerConfig)),
-    [schedulerConfig]
+    () => generateTimeSlots(gridStartMin, gridEndMin, getActiveInterval(schedulerConfig)),
+    [gridStartMin, gridEndMin, schedulerConfig]
   );
 
   const activeInterval = getActiveInterval(schedulerConfig);
   // :00-only labels/borders require a 60-divisor stride (15/30/60) AND a
   // whole-hour start (startMinute 0). A :15/:30/:45 offset (mig 175) means no
   // row lands on :00 → label every row, same as a non-divisor interval (45).
-  const hourAligned = 60 % activeInterval === 0 && getScheduleStartMinutes(schedulerConfig) % 60 === 0;
+  const hourAligned = 60 % activeInterval === 0 && gridStartMin % 60 === 0;
 
   // Real per-row minute geometry — same uniform-stride grid as day-view
   // (interval 45 → 07:00, 07:45, 08:30…). spanMin = minutes each row occupies;
@@ -96,7 +128,7 @@ export function WeekView({
   // when the stride divides the day evenly). The geometry reads these REAL
   // boundaries, which is what makes the uniform-stride change safe.
   const { spanMin, slotUnits } = useMemo(() => {
-    const endMin = getScheduleEndMinutes(schedulerConfig);
+    const endMin = gridEndMin;
     const slotMins = TIME_SLOTS.map((s) => {
       const [h, m] = s.split(":").map(Number);
       return h * 60 + m;
@@ -108,7 +140,7 @@ export function WeekView({
     );
     const totalMin = spanMin.reduce((a, b) => a + b, 0);
     return { spanMin, slotUnits: totalMin / activeInterval };
-  }, [TIME_SLOTS, activeInterval, schedulerConfig]);
+  }, [TIME_SLOTS, activeInterval, gridEndMin]);
 
   // Auto-size rows so short schedules fill the viewport instead of leaving a
   // blank gap below. Long schedules keep base height + scroll.

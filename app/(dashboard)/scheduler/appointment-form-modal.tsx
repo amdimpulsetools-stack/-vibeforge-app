@@ -40,6 +40,7 @@ import {
   Percent,
   Tag,
   Video,
+  Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -694,23 +695,29 @@ export function AppointmentFormModal({
     if (originFallbackOption) setValue("origin", originFallbackOption);
   }, [originFallbackOption, setValue]);
 
-  const checkConflicts = () => {
-    if (!watchedDate || !watchedStartTime || !endTime) return null;
-
-    // Check if appointment is outside org schedule window (minute precision).
+  // Fuera de la ventana org: AVISO, no bloqueo. El equipo interno agenda
+  // madrugadas/extensiones pactadas por WhatsApp escribiendo la hora; la
+  // grilla las muestra (borde elástico en day/week-view) y ni "Compartir
+  // horarios" ni la reserva pública las ofrecen jamás (la pública ni siquiera
+  // lee esta ventana). El aviso queda para frenar typos, no decisiones.
+  const outsideWindowNotice = (() => {
+    if (!watchedStartTime || !endTime) return null;
     const toMin = (t: string) => {
       const [h, m] = t.split(":").map(Number);
       return h * 60 + m;
     };
     const fmt = (mins: number) =>
       `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
-    const startStr = fmt(scheduleStartMinutes);
-    const endStr = fmt(scheduleEndMinutes);
     if (toMin(watchedStartTime) < scheduleStartMinutes || toMin(endTime) > scheduleEndMinutes) {
       return language === "es"
-        ? `Fuera del horario de atención (${startStr} - ${endStr}). Ajusta la hora.`
-        : `Outside business hours (${startStr} - ${endStr}). Adjust the time.`;
+        ? `Fuera del horario de apertura de la agenda (${fmt(scheduleStartMinutes)} - ${fmt(scheduleEndMinutes)}). La cita se agendará igualmente y la agenda la mostrará; no se ofrece por reserva online.`
+        : `Outside the calendar opening hours (${fmt(scheduleStartMinutes)} - ${fmt(scheduleEndMinutes)}). The appointment will still be scheduled and shown on the calendar; it is never offered via online booking.`;
     }
+    return null;
+  })();
+
+  const checkConflicts = () => {
+    if (!watchedDate || !watchedStartTime || !endTime) return null;
 
     // Check schedule blocks (time blocks that prevent appointments)
     const blockConflict = blocks.find((b) => {
@@ -1136,6 +1143,14 @@ export function AppointmentFormModal({
             <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-600 dark:text-amber-400">
               <AlertTriangle className="h-4 w-4 shrink-0" />
               {conflict}
+            </div>
+          )}
+
+          {/* Outside-opening-hours notice — informative, never blocks */}
+          {!conflict && outsideWindowNotice && (
+            <div className="flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm text-sky-700 dark:text-sky-400">
+              <Clock className="h-4 w-4 shrink-0" />
+              {outsideWindowNotice}
             </div>
           )}
 
