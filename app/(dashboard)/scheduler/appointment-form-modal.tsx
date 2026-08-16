@@ -63,6 +63,14 @@ interface DoctorServiceEntry {
   service_id: string;
 }
 
+/** Límites operativos de la duración editable por cita. El mínimo evita el
+ *  bloque de 0 px en la grilla (y el fin ≤ inicio); el máximo (8 h) frena el
+ *  typo de "10:00 → 22:00" que taparía el día entero del doctor. Sólo se
+ *  aplican cuando recepción ajusta la duración a mano: la del catálogo manda
+ *  tal cual, como siempre. */
+const MIN_APPOINTMENT_MINUTES = 5;
+const MAX_APPOINTMENT_MINUTES = 480;
+
 interface AppointmentFormModalProps {
   defaults: {
     date?: string;
@@ -200,6 +208,15 @@ export function AppointmentFormModal({
   const [customPriceEnabled, setCustomPriceEnabled] = useState(false);
   const [customPriceValue, setCustomPriceValue] = useState("");
 
+  // Duración personalizada por-cita: override de `service.duration_minutes`
+  // SOLO para esta cita (ej. segunda opinión de 25 min sobre un servicio de
+  // 45). No toca el catálogo (/admin/services) ni el precio — la duración no
+  // toca dinero. Guardamos la DURACIÓN en minutos y NO la hora fin absoluta:
+  // al mover el inicio, lo que recepción pactó son los minutos, así que el
+  // bloque se desplaza entero. `null` = duración del servicio, y entonces el
+  // comportamiento es byte-idéntico al anterior.
+  const [customDurationMinutes, setCustomDurationMinutes] = useState<number | null>(null);
+
   // Treatment plan linking — populated after a patient is found.
   // Each entry represents a session pending to be scheduled (no appointment yet).
   const [activePlanSessions, setActivePlanSessions] = useState<Array<{
@@ -331,15 +348,69 @@ export function AppointmentFormModal({
     }
   }, [selectedServiceId, customPriceEnabled, servicePrice]);
 
+  // Al cambiar de servicio se DESCARTA la duración personalizada: el fin vuelve
+  // al default del NUEVO servicio. Mismo patrón (y misma razón) que el
+  // re-prellenado del precio personalizado: arrastrar los minutos del servicio
+  // anterior en silencio es peor que volver al default. El ref hace que dispare
+  // en un cambio real de servicio y nunca en el montaje.
+  const prevServiceForCustomDurationRef = useRef(selectedServiceId);
+  useEffect(() => {
+    if (prevServiceForCustomDurationRef.current !== selectedServiceId) {
+      prevServiceForCustomDurationRef.current = selectedServiceId;
+      setCustomDurationMinutes(null);
+    }
+  }, [selectedServiceId]);
+
   const watchedStartTime = watch("start_time");
+
+  // Duración efectiva de ESTA cita: la personalizada si recepción ajustó el
+  // fin, si no la del servicio del catálogo. Es la ÚNICA fuente del `endTime`,
+  // así que los conflictos (bloqueos / consultorio / doctor), el aviso de
+  // ventana y el `end_time` que se guarda la respetan sin lógica duplicada.
+  const effectiveDuration = customDurationMinutes ?? duration;
+  const isCustomDuration = customDurationMinutes !== null;
+
   const endTime = useMemo(() => {
     if (!watchedStartTime) return "";
     const [h, m] = watchedStartTime.split(":").map(Number);
-    const totalMinutes = h * 60 + m + duration;
+    // Clamp a 00:00–23:59: mientras recepción tipea un fin anterior al inicio
+    // la duración es negativa, y ni un "-1:-5" ni un "24:15" se pintan en el
+    // <input type="time"> (Postgres tampoco acepta el segundo).
+    const totalMinutes = Math.min(Math.max(h * 60 + m + effectiveDuration, 0), 24 * 60 - 1);
     const endH = Math.floor(totalMinutes / 60);
     const endM = totalMinutes % 60;
     return `${endH.toString().padStart(2, "0")}:${endM.toString().padStart(2, "0")}`;
-  }, [watchedStartTime, duration]);
+  }, [watchedStartTime, effectiveDuration]);
+
+  // Fin editable → lo que persiste en el estado es la duración resultante
+  // (fin − inicio). Si coincide con la del servicio, la personalización se
+  // descarta sola (el badge desaparece sin que haya que resetear a mano).
+  const handleEndTimeChange = (value: string) => {
+    if (!value || !watchedStartTime) return;
+    const [sh, sm] = watchedStartTime.split(":").map(Number);
+    const [eh, em] = value.split(":").map(Number);
+    const mins = eh * 60 + em - (sh * 60 + sm);
+    setCustomDurationMinutes(mins === duration ? null : mins);
+  };
+
+  // Fin ≤ inicio o fuera de los límites operativos: error BLOQUEANTE, con el
+  // mismo tratamiento visual y el mismo bloqueo de "Guardar" que los
+  // conflictos. Sólo evalúa la duración personalizada — la del catálogo se
+  // respeta tal cual, como hasta ahora.
+  const durationError = (() => {
+    if (!watchedStartTime || customDurationMinutes === null) return null;
+    if (customDurationMinutes < MIN_APPOINTMENT_MINUTES) {
+      return language === "es"
+        ? `La hora de fin debe ser posterior a la de inicio (mínimo ${MIN_APPOINTMENT_MINUTES} minutos).`
+        : `The end time must be after the start time (minimum ${MIN_APPOINTMENT_MINUTES} minutes).`;
+    }
+    if (customDurationMinutes > MAX_APPOINTMENT_MINUTES) {
+      return language === "es"
+        ? `La cita no puede durar más de ${MAX_APPOINTMENT_MINUTES} minutos (8 horas).`
+        : `An appointment cannot last longer than ${MAX_APPOINTMENT_MINUTES} minutes (8 hours).`;
+    }
+    return null;
+  })();
 
   const watchedDate = watch("appointment_date");
   const watchedOffice = watch("office_id");
@@ -772,6 +843,10 @@ export function AppointmentFormModal({
       toast.error(conflict);
       return;
     }
+    if (durationError) {
+      toast.error(durationError);
+      return;
+    }
     if (doctorDayError) {
       toast.error("El doctor no atiende en el día seleccionado");
       return;
@@ -1146,8 +1221,16 @@ export function AppointmentFormModal({
             </div>
           )}
 
+          {/* Duración inválida — bloquea igual que un conflicto */}
+          {!conflict && durationError && (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {durationError}
+            </div>
+          )}
+
           {/* Outside-opening-hours notice — informative, never blocks */}
-          {!conflict && outsideWindowNotice && (
+          {!conflict && !durationError && outsideWindowNotice && (
             <div className="flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm text-sky-700 dark:text-sky-400">
               <Clock className="h-4 w-4 shrink-0" />
               {outsideWindowNotice}
@@ -1477,15 +1560,47 @@ export function AppointmentFormModal({
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t("schedule.end_time")}</label>
+              {/* Editable: la duración la impone el servicio sólo como DEFAULT.
+                  step=300 → saltos de 5 min, el mínimo operativo. */}
               <input
                 type="time"
+                step="300"
                 value={endTime}
-                disabled
+                onChange={(e) => handleEndTimeChange(e.target.value)}
                 /* Mismo fix anti-desborde iOS que el input de inicio. */
-                className="w-full min-w-0 max-md:appearance-none rounded-lg border border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
+                className="w-full min-w-0 max-md:appearance-none rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
               />
-              <p className="text-xs text-muted-foreground">{duration} {t("common.minutes_short")}</p>
+              <p className="text-xs text-muted-foreground">
+                {effectiveDuration} {t("common.minutes_short")}
+              </p>
             </div>
+
+            {/* Badge "duración personalizada" — mismo criterio que el precio
+                personalizado: sólo para esta cita, con la salida de vuelta al
+                default del servicio siempre a la vista. Ocupa la fila entera
+                para no estrangular la celda del fin en móvil. */}
+            {isCustomDuration && (
+              <div className="col-span-2 md:col-span-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">
+                  <Clock className="h-3 w-3" />
+                  {language === "es" ? "Duración personalizada" : "Custom duration"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCustomDurationMinutes(null)}
+                  className="text-[11px] text-muted-foreground underline underline-offset-2 hover:text-foreground transition-colors"
+                >
+                  {language === "es"
+                    ? `Volver a la del servicio (${duration} min)`
+                    : `Back to the service default (${duration} min)`}
+                </button>
+                <span className="text-[11px] text-muted-foreground">
+                  {language === "es"
+                    ? "Solo para esta cita — no cambia la duración del servicio en el catálogo."
+                    : "This appointment only — the service duration in the catalog is unchanged."}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Doctor schedule alert */}
@@ -2234,7 +2349,7 @@ export function AppointmentFormModal({
           </button>
           <button
             onClick={handleSubmit(onSubmit)}
-            disabled={saving || !!conflict || doctorDayError}
+            disabled={saving || !!conflict || !!durationError || doctorDayError}
             className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity md:py-2"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
