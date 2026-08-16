@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getLiveNotificationEvent,
+  type Audience,
   type LiveNotificationEventKey,
 } from "./catalog";
 
@@ -36,6 +37,34 @@ export interface NotifyOrgMembersArgs {
    * un broadcast a todos los doctores).
    */
   doctorUserId?: string | null;
+  /**
+   * Saca a este usuario del fan-out. Para no anunciarle a alguien lo que
+   * acaba de hacer (mig 220).
+   */
+  excludeUserId?: string | null;
+  /**
+   * Aviso DIRIGIDO: cuando va informado, el fan-out se reduce a esa persona
+   * y las audiencias se ignoran por completo (mig 220). Es para los avisos
+   * cuyo destinatario se elige por su papel en el hecho —quien abrió la caja
+   * que quedó sin cerrar— y no por su rol en la organización, que es lo
+   * único que la matriz de Settings sabe expresar. La membresía se sigue
+   * verificando en el RPC.
+   */
+  targetUserId?: string | null;
+  /**
+   * Audiencias por defecto SOLO para esta emisión, en lugar de las del
+   * catálogo. Para eventos cuya audiencia depende del sujeto y no del
+   * evento: `module_section_available` avisa de una sección nueva, y quién
+   * la verá depende del módulo — Caja y Farmacia llevan `hideForDoctor` en
+   * el sidebar (el doctor no cobra al mostrador) mientras que Almacén sí
+   * le aparece al doctor, que descuenta insumos en consulta. Un solo
+   * evento con dos audiencias, sin duplicar claves en el catálogo.
+   *
+   * No amplía privilegios: sigue siendo el default que el RPC PISA con el
+   * override de la organización si esta configuró el evento en Ajustes, y
+   * el fan-out sigue limitado a miembros activos de la org.
+   */
+  audiences?: readonly Audience[];
 }
 
 export interface NotifyResult {
@@ -60,13 +89,15 @@ export async function notifyOrgMembers(
   const { data, error } = await (supabase as any).rpc("notify_org_members", {
     p_organization_id: args.organizationId,
     p_event_key: event.key,
-    p_default_audiences: [...event.defaultAudiences],
+    p_default_audiences: [...(args.audiences ?? event.defaultAudiences)],
     p_type: event.type,
     p_title: args.title,
     p_body: args.body ?? "",
     p_action_url: args.actionUrl ?? null,
     p_doctor_user_id: args.doctorUserId ?? null,
     p_doctor_scope: event.doctorScope,
+    p_exclude_user_id: args.excludeUserId ?? null,
+    p_target_user_id: args.targetUserId ?? null,
   });
 
   if (error) {

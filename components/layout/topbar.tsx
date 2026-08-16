@@ -20,6 +20,10 @@ import {
   CalendarX2,
   UserX,
   Banknote,
+  Wallet,
+  Inbox,
+  Scale,
+  Boxes,
   Info,
   Check,
   CheckCheck,
@@ -43,6 +47,15 @@ const TYPE_CONFIG: Record<string, { icon: typeof Bell; className: string }> = {
   appointment_cancelled: { icon: CalendarX2, className: "text-red-400" },
   appointment_no_show: { icon: UserX, className: "text-amber-500" },
   payment_received: { icon: Banknote, className: "text-amber-400" },
+  // Caja (mig 220). El ámbar es "hay algo tuyo pendiente"; el rojo se
+  // reserva para lo que la dirección tiene que mirar hoy, igual que en
+  // appointment_cancelled.
+  cash_shift: { icon: Wallet, className: "text-amber-500" },
+  cash_orphan: { icon: Inbox, className: "text-orange-400" },
+  cash_difference: { icon: Scale, className: "text-red-400" },
+  // Módulos: violeta, fuera de la escala de urgencia — no es una alerta,
+  // es un cambio en la herramienta.
+  module: { icon: Boxes, className: "text-violet-400" },
   info: { icon: Info, className: "text-blue-400" },
 };
 

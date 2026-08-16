@@ -14,6 +14,26 @@
  *
  * Ausencia de clave = defaults del catálogo. `"audiences": []` = evento
  * apagado para toda la organización.
+ *
+ * ── Eventos que NO se emiten desde `/api/live-notifications/emit` ─────────
+ *
+ * `cash_shift_difference` y `cash_shift_force_closed` se emiten DESDE SQL,
+ * dentro de `caja_close_shift` (mig 220), y no desde una ruta de emit. Es
+ * deliberado y es de control interno, no de comodidad: quien tiene un motivo
+ * para que el dueño no se entere de un descuadre es exactamente la persona
+ * que controla el navegador desde el que se cerraría la caja. Un aviso
+ * emitido en un segundo paso desde el cliente se desactiva cerrando la
+ * pestaña; emitido en la misma transacción que escribe el arqueo, la única
+ * forma de que no salga es que no se cierre la caja.
+ *
+ * Siguen figurando en este catálogo —y por tanto en la matriz de Settings—
+ * porque el dueño tiene que poder apagarlos o reencaminarlos: el RPC lee el
+ * override de la org igual, venga la llamada de donde venga.
+ *
+ * `cash_shift_stale` y `cash_orphan_payments` los emite el cron
+ * `/api/cron/caja-sweep`, no una acción de usuario: son avisos sobre lo que
+ * NO pasó (una caja que nadie cerró, un cobro que entró sin turno), y lo que
+ * no pasa no dispara ningún handler.
  */
 
 /**
@@ -135,6 +155,106 @@ export const LIVE_NOTIFICATION_EVENTS: readonly LiveNotificationEvent[] = [
     // Un paciente nuevo es un lead: la asesora sí entra por defecto aquí.
     eligibleAudiences: ["owner_admin", "advisor", "reception"],
     defaultAudiences: ["owner_admin", "advisor", "reception"],
+    doctorScope: "all",
+  },
+
+  // ── Caja ────────────────────────────────────────────────────────────────
+  {
+    key: "cash_shift_stale",
+    type: "cash_shift",
+    label: { es: "Tu caja sigue abierta", en: "Your cash drawer is still open" },
+    description: {
+      es: "Terminó el día y un turno de caja quedó sin cerrar. Se avisa a quien lo abrió.",
+      en: "The day ended with a cash shift left open. The person who opened it is notified.",
+    },
+    // `defaultAudiences` vacío NO significa "apagado": este aviso se emite
+    // DIRIGIDO a quien abrió el turno (p_target_user_id, mig 220), que no es
+    // un rol sino un papel en el hecho — puede ser la owner o la
+    // recepcionista, y la matriz de roles no sabe distinguirlo.
+    //
+    // Las columnas siguen existiendo para que una clínica pueda pedir que la
+    // dirección también se entere. El correo al dueño a partir del 2.º día
+    // es otro canal y lo gobierna `cash_settings.notify_stale_shift`.
+    eligibleAudiences: ["owner_admin", "reception"],
+    defaultAudiences: [],
+    doctorScope: "all",
+  },
+  {
+    key: "cash_orphan_payments",
+    type: "cash_orphan",
+    label: { es: "Cobros fuera de turno", en: "Payments outside a shift" },
+    description: {
+      es: "Entraron cobros sin caja abierta. No están perdidos: hay que atribuirlos a un turno.",
+      en: "Payments were registered with no open shift. They aren't lost — they need to be attached to one.",
+    },
+    // Recepción SÍ, y por defecto: no es un señalamiento, es una tarea suya.
+    // Suele significar que se olvidó abrir la caja, y quien puede arreglarlo
+    // en el momento es quien está en el mostrador.
+    eligibleAudiences: ["owner_admin", "reception"],
+    defaultAudiences: ["owner_admin", "reception"],
+    doctorScope: "all",
+  },
+  {
+    key: "cash_shift_difference",
+    type: "cash_difference",
+    label: { es: "Caja cerrada con diferencia", en: "Cash shift closed with a difference" },
+    description: {
+      es: "Un turno cerró con una diferencia por encima del umbral configurado. Solo lo ve la dirección.",
+      en: "A shift closed with a difference above the configured threshold. Management only.",
+    },
+    // Recepción NO ES SIQUIERA ELEGIBLE, y esa es la decisión de producto más
+    // importante de este catálogo. Un faltante que aparece en la campanita de
+    // todo el equipo es una humillación pública: convierte una revisión
+    // contable en un señalamiento delante de los compañeros, y el efecto
+    // previsible no es más control sino menos cierres honestos. La diferencia
+    // se revisa entre quien contó y quien dirige, no en el grupo.
+    eligibleAudiences: ["owner_admin"],
+    defaultAudiences: ["owner_admin"],
+    doctorScope: "all",
+  },
+  {
+    key: "cash_shift_force_closed",
+    type: "cash_difference",
+    label: { es: "Cierre forzado", en: "Force-closed shift" },
+    description: {
+      es: "Un administrador cerró la caja de otra persona. Quien la abrió recibe siempre su propio aviso.",
+      en: "An admin closed someone else's cash shift. Whoever opened it always gets their own notice.",
+    },
+    // Misma razón que arriba para excluir a recepción de la difusión por rol.
+    // El aviso a quien abrió el turno no viaja por estas audiencias: va
+    // dirigido (mig 220) y no se puede apagar — alguien contó su dinero y
+    // firmó un arqueo con su nombre encima.
+    eligibleAudiences: ["owner_admin"],
+    defaultAudiences: ["owner_admin"],
+    doctorScope: "all",
+  },
+
+  // ── Módulos ─────────────────────────────────────────────────────────────
+  {
+    key: "module_activated",
+    type: "module",
+    label: { es: "Módulo activado", en: "Module activated" },
+    description: {
+      es: "Se activó un módulo en la clínica. Es un cambio de plan: solo lo ve la dirección.",
+      en: "A module was activated for the clinic. It's a plan change: management only.",
+    },
+    eligibleAudiences: ["owner_admin"],
+    defaultAudiences: ["owner_admin"],
+    doctorScope: "all",
+  },
+  {
+    key: "module_section_available",
+    type: "module",
+    label: { es: "Nueva sección en tu menú", en: "New section in your menu" },
+    description: {
+      es: "Un módulo nuevo añadió una sección al menú lateral. Llega a todo el equipo que la va a usar.",
+      en: "A new module added a section to the sidebar. Everyone who will use it gets notified.",
+    },
+    // El contrario exacto del anterior: el ALTA es cosa de la dirección, pero
+    // el menú que cambia lo ve todo el mundo. Un botón nuevo que aparece sin
+    // explicación no se usa; con una línea que lo nombra, sí.
+    eligibleAudiences: ["owner_admin", "doctor", "advisor", "reception"],
+    defaultAudiences: ["owner_admin", "doctor", "reception"],
     doctorScope: "all",
   },
 ] as const;

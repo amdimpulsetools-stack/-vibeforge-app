@@ -263,6 +263,25 @@ export function CloseResultCard({
         </p>
       )}
 
+      {/*
+        Transparencia, no cortesía. El aviso a la dirección se emite desde
+        el propio RPC de cierre (mig 220) justamente para que no dependa de
+        esta pantalla; por eso mismo esta pantalla tiene que DECIRLO. Un
+        control que se ejerce a espaldas de quien contó el dinero deja de
+        ser un control el día que se descubre, y lo que se pierde entonces
+        no es este aviso sino la confianza en todo el módulo.
+
+        Se menciona el motivo a propósito: lo que llega arriba no es una
+        cifra sola, es la cifra CON la explicación que esta persona
+        escribió. Saberlo es la diferencia entre sentirse denunciado y
+        haber dejado su versión en el expediente.
+      */}
+      {result.management_notified && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Se avisó a la dirección con el motivo que escribiste.
+        </p>
+      )}
+
       {result.force_closed && (
         <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
           Cierre forzado: lo cerró un administrador distinto de quien abrió.
