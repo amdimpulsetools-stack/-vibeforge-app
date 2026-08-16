@@ -11,6 +11,7 @@ export const SCHEDULER_CONFIG_KEYS = {
   liveStatus: "vibeforge_live_status",
   liveStatusAutoClose: "vibeforge_live_status_auto_close",
   requiredFields: "vibeforge_scheduler_required_fields",
+  allowCustomDuration: "vibeforge_scheduler_allow_custom_duration",
 };
 
 export type IntervalOption = 15 | 20 | 30 | 45 | 60;
@@ -92,6 +93,12 @@ export interface SchedulerConfig {
    * (mig 176). Default {} = code defaults (byte-identical to pre-176).
    */
   requiredFields: AppointmentRequiredFields;
+  /**
+   * Flag por-org (mig 221): permite ajustar la duración por cita desde el
+   * modal (la "Hora fin" se vuelve editable y la del servicio pasa a ser solo
+   * el default). Default false = byte-idéntico al comportamiento pre-221.
+   */
+  allowCustomDuration: boolean;
 }
 
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
@@ -105,6 +112,7 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   liveStatus: true,
   liveStatusAutoClose: true,
   requiredFields: {}, // mig 176 — empty = code defaults (back-compat)
+  allowCustomDuration: false, // mig 221 — off = duración impuesta por el servicio
 };
 
 /** Returns the smallest selected interval (used for the grid resolution). */
@@ -178,7 +186,11 @@ export function loadSchedulerConfig(): SchedulerConfig {
       const rawReq = localStorage.getItem(SCHEDULER_CONFIG_KEYS.requiredFields);
       if (rawReq) requiredFields = sanitizeRequiredFields(JSON.parse(rawReq));
     } catch { /* keep {} */ }
-    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose, requiredFields };
+    // Duración editable (mig 221): a diferencia de los toggles de arriba, el
+    // default es FALSE — una caché vieja sin la key deja el flag apagado, que
+    // es el comportamiento anterior.
+    const allowCustomDuration = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.allowCustomDuration) ?? "false") === "true";
+    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose, requiredFields, allowCustomDuration };
   } catch {
     return DEFAULT_SCHEDULER_CONFIG;
   }
@@ -197,6 +209,7 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
   if (config.liveStatus !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.liveStatus, String(config.liveStatus));
   if (config.liveStatusAutoClose !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.liveStatusAutoClose, String(config.liveStatusAutoClose));
   if (config.requiredFields !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.requiredFields, JSON.stringify(config.requiredFields));
+  if (config.allowCustomDuration !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.allowCustomDuration, String(config.allowCustomDuration));
 }
 
 // ─── Database-backed functions ───────────────────────────────────
@@ -213,6 +226,7 @@ function dbRowToConfig(row: {
   live_status?: boolean | null;
   live_status_auto_close?: boolean | null;
   required_fields?: unknown;
+  allow_custom_duration?: boolean | null;
 }): SchedulerConfig {
   const intervals = (Array.isArray(row.intervals) ? row.intervals : [15]).filter(
     (v: number) => [15, 20, 30, 45, 60].includes(v)
@@ -232,6 +246,9 @@ function dbRowToConfig(row: {
     liveStatusAutoClose: row.live_status_auto_close ?? true,
     // mig 176 — undefined column (pre-migration cache/row) → {} default.
     requiredFields: sanitizeRequiredFields(row.required_fields),
+    // mig 221 — columna ausente (fila anterior a la migración) → false, que
+    // es el comportamiento de siempre.
+    allowCustomDuration: row.allow_custom_duration ?? false,
   };
 }
 
@@ -267,6 +284,7 @@ export async function saveSchedulerConfigToDb(config: Partial<SchedulerConfig>):
     if (config.liveStatus !== undefined) body.live_status = config.liveStatus;
     if (config.liveStatusAutoClose !== undefined) body.live_status_auto_close = config.liveStatusAutoClose;
     if (config.requiredFields !== undefined) body.required_fields = config.requiredFields;
+    if (config.allowCustomDuration !== undefined) body.allow_custom_duration = config.allowCustomDuration;
 
     const res = await fetch("/api/scheduler-settings", {
       method: "PUT",

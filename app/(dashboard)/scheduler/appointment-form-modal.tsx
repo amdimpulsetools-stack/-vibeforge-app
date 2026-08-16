@@ -94,6 +94,11 @@ interface AppointmentFormModalProps {
   /** Per-org configurable mandatory fields (mig 176). Default {} = code
    *  defaults (byte-identical to the pre-176 behavior). */
   requiredFields?: AppointmentRequiredFields;
+  /** Flag por-org (mig 221): habilita la hora fin editable. Lo enciende
+   *  owner/admin en Ajustes → Agenda; una vez activo lo usa cualquiera que
+   *  agende. Default false = comportamiento anterior (fin derivado del
+   *  servicio y deshabilitado). */
+  allowCustomDuration?: boolean;
   organizationId: string;
   organizationName: string;
   organizationAddress: string;
@@ -125,6 +130,7 @@ export function AppointmentFormModal({
   scheduleStartMinutes = 8 * 60,
   scheduleEndMinutes = 20 * 60,
   requiredFields = {},
+  allowCustomDuration = false,
   organizationId,
   organizationName,
   organizationAddress,
@@ -363,12 +369,19 @@ export function AppointmentFormModal({
 
   const watchedStartTime = watch("start_time");
 
+  // Único punto donde entra el flag de organización (mig 221). Con el flag
+  // apagado la personalización se ignora entera —sin importar qué haya en el
+  // estado—, así que `effectiveDuration`, el badge y `durationError` colapsan
+  // solos al comportamiento anterior: un solo `if` en vez de repartir el flag
+  // por toda la lógica de abajo.
+  const activeCustomDuration = allowCustomDuration ? customDurationMinutes : null;
+
   // Duración efectiva de ESTA cita: la personalizada si recepción ajustó el
   // fin, si no la del servicio del catálogo. Es la ÚNICA fuente del `endTime`,
   // así que los conflictos (bloqueos / consultorio / doctor), el aviso de
   // ventana y el `end_time` que se guarda la respetan sin lógica duplicada.
-  const effectiveDuration = customDurationMinutes ?? duration;
-  const isCustomDuration = customDurationMinutes !== null;
+  const effectiveDuration = activeCustomDuration ?? duration;
+  const isCustomDuration = activeCustomDuration !== null;
 
   const endTime = useMemo(() => {
     if (!watchedStartTime) return "";
@@ -398,13 +411,13 @@ export function AppointmentFormModal({
   // conflictos. Sólo evalúa la duración personalizada — la del catálogo se
   // respeta tal cual, como hasta ahora.
   const durationError = (() => {
-    if (!watchedStartTime || customDurationMinutes === null) return null;
-    if (customDurationMinutes < MIN_APPOINTMENT_MINUTES) {
+    if (!watchedStartTime || activeCustomDuration === null) return null;
+    if (activeCustomDuration < MIN_APPOINTMENT_MINUTES) {
       return language === "es"
         ? `La hora de fin debe ser posterior a la de inicio (mínimo ${MIN_APPOINTMENT_MINUTES} minutos).`
         : `The end time must be after the start time (minimum ${MIN_APPOINTMENT_MINUTES} minutes).`;
     }
-    if (customDurationMinutes > MAX_APPOINTMENT_MINUTES) {
+    if (activeCustomDuration > MAX_APPOINTMENT_MINUTES) {
       return language === "es"
         ? `La cita no puede durar más de ${MAX_APPOINTMENT_MINUTES} minutos (8 horas).`
         : `An appointment cannot last longer than ${MAX_APPOINTMENT_MINUTES} minutes (8 hours).`;
@@ -1544,16 +1557,28 @@ export function AppointmentFormModal({
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t("schedule.end_time")}</label>
-              {/* Editable: la duración la impone el servicio sólo como DEFAULT.
-                  step=300 → saltos de 5 min, el mínimo operativo. */}
-              <input
-                type="time"
-                step="300"
-                value={endTime}
-                onChange={(e) => handleEndTimeChange(e.target.value)}
-                /* Mismo fix anti-desborde iOS que el input de inicio. */
-                className="w-full min-w-0 max-md:appearance-none rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-              />
+              {/* Editable SOLO si la org encendió el flag (mig 221): entonces la
+                  duración del servicio es apenas el DEFAULT y step=300 da
+                  saltos de 5 min, el mínimo operativo. Con el flag apagado
+                  vuelve al campo derivado y deshabilitado de siempre. */}
+              {allowCustomDuration ? (
+                <input
+                  type="time"
+                  step="300"
+                  value={endTime}
+                  onChange={(e) => handleEndTimeChange(e.target.value)}
+                  /* Mismo fix anti-desborde iOS que el input de inicio. */
+                  className="w-full min-w-0 max-md:appearance-none rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                />
+              ) : (
+                <input
+                  type="time"
+                  value={endTime}
+                  disabled
+                  /* Mismo fix anti-desborde iOS que el input de inicio. */
+                  className="w-full min-w-0 max-md:appearance-none rounded-lg border border-input bg-muted px-3 py-2 text-sm text-muted-foreground"
+                />
+              )}
               <p className="text-xs text-muted-foreground">
                 {effectiveDuration} {t("common.minutes_short")}
               </p>

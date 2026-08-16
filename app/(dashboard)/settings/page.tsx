@@ -1756,6 +1756,38 @@ export default function SettingsPage() {
             </label>
           </div>
 
+          {/* Duración editable por cita (mig 221) — apagado por defecto: con
+              el flag off la "Hora fin" del modal sigue derivándose del
+              servicio y deshabilitada, como siempre. */}
+          <div className="rounded-2xl border border-border/60 bg-card p-6">
+            <label className="flex items-center justify-between select-none cursor-pointer">
+              <div>
+                <p className="text-sm font-semibold">
+                  {language === "es"
+                    ? "Permitir ajustar la duración por cita"
+                    : "Allow per-appointment duration"}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {language === "es"
+                    ? "Recepción podrá editar la hora fin al agendar (5 a 480 minutos). La duración del servicio pasa a ser solo el valor por defecto y el catálogo no cambia."
+                    : "Reception will be able to edit the end time when scheduling (5 to 480 minutes). The service duration becomes just the default value and the catalog is unchanged."}
+                </p>
+              </div>
+              <div className="relative ml-4 shrink-0">
+                <input
+                  type="checkbox"
+                  checked={schedulerConfig.allowCustomDuration}
+                  onChange={(e) =>
+                    updateSchedulerConfig({ allowCustomDuration: e.target.checked })
+                  }
+                  className="sr-only peer"
+                />
+                <div className="h-6 w-11 rounded-full bg-muted peer-checked:bg-primary transition-colors" />
+                <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+              </div>
+            </label>
+          </div>
+
           {/* Live appointment status (mig 170/171) */}
           <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
             <label className="flex items-center justify-between select-none cursor-pointer">

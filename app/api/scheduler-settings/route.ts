@@ -23,6 +23,9 @@ const schedulerSettingsSchema = z.object({
   live_status_auto_close: z.boolean(),
   // Configurable required fields for the New Appointment modal (mig 176)
   required_fields: requiredFieldsSchema,
+  // Duración editable por cita (mig 221). El PUT ya exige owner/admin más
+  // abajo, que es exactamente quien puede encender el flag.
+  allow_custom_duration: z.boolean(),
 }).partial().refine(
   (d) => {
     // Cross-field: closing must be strictly after opening, at minute level.

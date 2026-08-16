@@ -705,6 +705,7 @@ export default function SchedulerPage() {
           scheduleStartMinutes={getScheduleStartMinutes(schedulerConfig)}
           scheduleEndMinutes={getScheduleEndMinutes(schedulerConfig)}
           requiredFields={schedulerConfig.requiredFields ?? {}}
+          allowCustomDuration={schedulerConfig.allowCustomDuration ?? false}
           organizationId={organizationId ?? ""}
           organizationName={organization?.name ?? ""}
           organizationAddress={organization?.address || ""}
