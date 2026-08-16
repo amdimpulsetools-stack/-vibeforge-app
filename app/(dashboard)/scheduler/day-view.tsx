@@ -179,9 +179,40 @@ export function DayView({
     queryFn: () => fetchSchedulerConfig(),
     placeholderData: () => loadSchedulerConfig(),
   });
+  // ── Borde elástico ────────────────────────────────────────────────────────
+  // Una cita fuera de la ventana org (ej. 07:00 con apertura 07:15) no
+  // encontraba renglón ancla en buildAppointmentIndices y la tarjeta
+  // directamente no se dibujaba, aunque la cita existe, sincroniza a Google y
+  // cuenta para conflictos. La grilla ahora se extiende con renglones del
+  // MISMO stride hasta cubrir la primera/última cita del día — derivado de
+  // las citas en BD (idéntico para todos los usuarios), sin estado propio.
+  // Restar múltiplos del intervalo preserva el reticulado: los renglones base
+  // no se mueven, solo aparecen filas antes/después cuando hacen falta.
+  const { gridStartMin, gridEndMin } = useMemo(() => {
+    const baseStart = getScheduleStartMinutes(schedulerConfig);
+    const baseEnd = getScheduleEndMinutes(schedulerConfig);
+    const interval = getActiveInterval(schedulerConfig);
+    let earliest = baseStart;
+    let latest = baseEnd;
+    for (const a of appointments) {
+      if (a.appointment_date !== dateStr) continue;
+      const [sh, sm] = a.start_time.slice(0, 5).split(":").map(Number);
+      const [eh, em] = a.end_time.slice(0, 5).split(":").map(Number);
+      earliest = Math.min(earliest, sh * 60 + sm);
+      latest = Math.max(latest, eh * 60 + em);
+    }
+    return {
+      gridStartMin:
+        earliest < baseStart
+          ? Math.max(0, baseStart - Math.ceil((baseStart - earliest) / interval) * interval)
+          : baseStart,
+      gridEndMin: latest > baseEnd ? Math.min(24 * 60, latest) : baseEnd,
+    };
+  }, [appointments, dateStr, schedulerConfig]);
+
   const TIME_SLOTS = useMemo(
-    () => generateTimeSlots(getScheduleStartMinutes(schedulerConfig), getScheduleEndMinutes(schedulerConfig), getActiveInterval(schedulerConfig)),
-    [schedulerConfig]
+    () => generateTimeSlots(gridStartMin, gridEndMin, getActiveInterval(schedulerConfig)),
+    [gridStartMin, gridEndMin, schedulerConfig]
   );
 
   const activeInterval = getActiveInterval(schedulerConfig);
@@ -189,7 +220,7 @@ export function DayView({
   // window opens on a whole hour (startMinute 0). A :15/:30/:45 offset (mig 175)
   // means no row ever lands on :00, so we must label every row — same rule as a
   // non-divisor interval like 45 (see the row render below).
-  const hourAligned = 60 % activeInterval === 0 && getScheduleStartMinutes(schedulerConfig) % 60 === 0;
+  const hourAligned = 60 % activeInterval === 0 && gridStartMin % 60 === 0;
 
   // Real per-row minute geometry. The grid is a UNIFORM STRIDE, but the last
   // row's real span can be shorter than one interval: with interval 45 the
@@ -201,7 +232,7 @@ export function DayView({
   // the stride divides the day evenly). The geometry reads these REAL
   // boundaries, which is what keeps this uniform-stride change safe.
   const { slotMins, spanMin, slotUnits } = useMemo(() => {
-    const endMin = getScheduleEndMinutes(schedulerConfig);
+    const endMin = gridEndMin;
     const slotMins = TIME_SLOTS.map((s) => {
       const [h, m] = s.split(":").map(Number);
       return h * 60 + m;
@@ -213,7 +244,7 @@ export function DayView({
     );
     const totalMin = spanMin.reduce((a, b) => a + b, 0);
     return { slotMins, spanMin, slotUnits: totalMin / activeInterval };
-  }, [TIME_SLOTS, activeInterval, schedulerConfig]);
+  }, [TIME_SLOTS, activeInterval, gridEndMin]);
 
   // Auto-size rows so short schedules (e.g. 7am–2pm) fill the viewport
   // instead of leaving a big blank gap below. Long schedules keep the base
