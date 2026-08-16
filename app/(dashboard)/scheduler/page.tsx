@@ -35,7 +35,7 @@ import {
   DEFAULT_BREAK_TIME_CONFIG,
   type BreakTimeConfig,
 } from "./break-time-dialog";
-import { loadOfficeFilter, saveOfficeFilter, loadSchedulerConfig, getScheduleStartMinutes, getScheduleEndMinutes } from "@/lib/scheduler-config";
+import { loadOfficeFilter, saveOfficeFilter, loadSchedulerConfig, fetchSchedulerConfig, getScheduleStartMinutes, getScheduleEndMinutes } from "@/lib/scheduler-config";
 
 // Lazy-load heavy modal/sidebar components (only downloaded when opened)
 const ModalLoader = () => (
@@ -112,7 +112,16 @@ export default function SchedulerPage() {
   // aunque su rol base sea `doctor`. Relaja los "solo mis citas".
   const { isAdvisor } = useIsFertilityAdvisor();
   const restrictedDoctor = isDoctor && !isAdvisor;
-  const schedulerConfig = useMemo(() => loadSchedulerConfig(), []);
+  // Config de agenda para los MODALES (ventana, campos requeridos): misma
+  // query key que day/week-view — pinta al instante desde localStorage y
+  // sincroniza con la BD. Antes era un useMemo([]) solo-localStorage: si la
+  // caché del navegador traía una apertura vieja, el aviso de "fuera del
+  // horario" comparaba contra otra ventana que la que la grilla dibujaba.
+  const { data: schedulerConfig = loadSchedulerConfig() } = useQuery({
+    queryKey: ["scheduler-config"],
+    queryFn: () => fetchSchedulerConfig(),
+    placeholderData: () => loadSchedulerConfig(),
+  });
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
