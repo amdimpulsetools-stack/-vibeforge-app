@@ -1221,22 +1221,6 @@ export function AppointmentFormModal({
             </div>
           )}
 
-          {/* Duración inválida — bloquea igual que un conflicto */}
-          {!conflict && durationError && (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              {durationError}
-            </div>
-          )}
-
-          {/* Outside-opening-hours notice — informative, never blocks */}
-          {!conflict && !durationError && outsideWindowNotice && (
-            <div className="flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm text-sky-700 dark:text-sky-400">
-              <Clock className="h-4 w-4 shrink-0" />
-              {outsideWindowNotice}
-            </div>
-          )}
-
           {/* DNI Search with document type */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium">{t("scheduler.patient_dni")}{requiredFields.patient_dni ? " *" : ""}</label>
@@ -1599,6 +1583,26 @@ export function AppointmentFormModal({
                     ? "Solo para esta cita — no cambia la duración del servicio en el catálogo."
                     : "This appointment only — the service duration in the catalog is unchanged."}
                 </span>
+              </div>
+            )}
+
+            {/* Mensajes SOBRE la hora, pegados a los campos de hora — la
+                recepcionista que está escribiendo la hora es quien debe
+                leerlos, no quien mira el tope del modal. Fila completa. */}
+
+            {/* Duración inválida — bloquea igual que un conflicto */}
+            {!conflict && durationError && (
+              <div className="col-span-2 md:col-span-3 flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {durationError}
+              </div>
+            )}
+
+            {/* Outside-opening-hours notice — informative, never blocks */}
+            {!conflict && !durationError && outsideWindowNotice && (
+              <div className="col-span-2 md:col-span-3 flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm text-sky-700 dark:text-sky-400">
+                <Clock className="h-4 w-4 shrink-0" />
+                {outsideWindowNotice}
               </div>
             )}
           </div>
