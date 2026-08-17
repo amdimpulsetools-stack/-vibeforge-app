@@ -99,6 +99,8 @@ export function ClinicalNoteModal({
     isSaving: false,
     isSigning: false,
     autoSaveStatus: "idle",
+    isDirty: false,
+    lastSavedAt: null,
   });
 
   // El addon de dermatología habilita la galería "Antes y Después", que es a
@@ -151,6 +153,18 @@ export function ClinicalNoteModal({
     return () => window.removeEventListener("keydown", handler);
   }, [open, canEdit, isSigned, panelState.isSaving, view]);
 
+  // Escape or a click outside with unsaved edits must never discard the
+  // note — flush the save first, then close. (Closing via the X is
+  // covered by the panel's unmount keepalive persist.)
+  const isDirty = panelState.isDirty && canEdit && !isSigned;
+  const flushAndClose = async () => {
+    try {
+      await panelRef.current?.save();
+    } finally {
+      onOpenChange(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Móvil: pantalla completa. El contenido está pensado para dos
@@ -159,7 +173,21 @@ export function ClinicalNoteModal({
           + los paneles laterales, ya apilados por el grid de abajo) pedía
           todo el alto disponible. dvh y no vh porque 100vh incluye la
           barra de URL de iOS. Desde md: exactamente el dialog anterior. */}
-      <DialogContent className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0 sm:rounded-none md:top-[50%] md:left-[50%] md:h-auto md:max-h-[92dvh] md:max-w-[95vw] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-xl xl:max-w-[1480px] 2xl:max-w-[1680px]">
+      <DialogContent
+        onEscapeKeyDown={(e) => {
+          if (isDirty) {
+            e.preventDefault();
+            void flushAndClose();
+          }
+        }}
+        onInteractOutside={(e) => {
+          if (isDirty) {
+            e.preventDefault();
+            void flushAndClose();
+          }
+        }}
+        className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0 sm:rounded-none md:top-[50%] md:left-[50%] md:h-auto md:max-h-[92dvh] md:max-w-[95vw] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-xl xl:max-w-[1480px] 2xl:max-w-[1680px]"
+      >
         {/* Sticky header — title, patient context, signed badge, global CTAs */}
         <DialogHeader className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur px-4 pt-4 pb-3 md:px-6 md:pt-5 md:pb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -246,8 +274,11 @@ export function ClinicalNoteModal({
               </DialogDescription>
             </div>
 
-            {/* Global CTAs — solo en modo Nota (Timeline es read-only). */}
-            {canEdit && view === "note" && (
+            {/* Global CTAs — solo en modo Nota (Timeline es read-only).
+                Imprimir queda FUERA del guard de canEdit: entregar el PDF de
+                una nota firmada es la operación más común del mostrador y no
+                requiere permiso de edición. */}
+            {view === "note" && (
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 {panelState.note &&
                   panelState.hasContent &&
@@ -265,12 +296,13 @@ export function ClinicalNoteModal({
                       clinicName={clinicName}
                     />
                   )}
+                {canEdit && !isSigned && (
                 <button
                   type="button"
                   onClick={() => panelRef.current?.save()}
-                  disabled={panelState.isSaving || isSigned}
+                  disabled={panelState.isSaving || isSigned || !panelState.hasContent}
                   className={CLINICAL_PRIMARY_CTA}
-                  title="Guardar (Ctrl+S)"
+                  title={!panelState.hasContent ? "Escribe algo antes de guardar" : "Guardar (Ctrl+S)"}
                   aria-label={panelState.note ? "Guardar nota clínica (Ctrl+S)" : "Crear nota clínica (Ctrl+S)"}
                 >
                   {panelState.isSaving ? (
@@ -283,6 +315,7 @@ export function ClinicalNoteModal({
                     Ctrl+S
                   </kbd>
                 </button>
+                )}
                 {canSign && (
                   <button
                     type="button"

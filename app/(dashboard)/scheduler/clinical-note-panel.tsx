@@ -41,7 +41,30 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ClinicalNotePrintButton } from "./clinical-note-print";
 import { PatientContextCard } from "./patient-context-card";
 
-export type AutoSaveStatus = "idle" | "saving" | "saved" | "error";
+export type AutoSaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+
+// Client-side mirror of the server ranges (lib/validations/clinical-note.ts).
+// Without this, a typo like temp "3" (instead of 37) makes the server reject
+// the WHOLE note on every autosave with no visible reason.
+const VITALS_RANGES: Record<string, [number, number]> = {
+  weight_kg: [0, 500],
+  height_cm: [0, 300],
+  temp_c: [30, 45],
+  bp_systolic: [40, 300],
+  bp_diastolic: [20, 200],
+  heart_rate: [20, 300],
+  resp_rate: [4, 60],
+  spo2: [50, 100],
+};
+
+const vitalOutOfRange = (key: string, value: number | null | undefined): boolean => {
+  if (value == null) return false;
+  const range = VITALS_RANGES[key];
+  if (!range) return false;
+  return value < range[0] || value > range[1];
+};
+
+const SOAP_MAX = 5000;
 
 export interface ClinicalNotePanelState {
   note: ClinicalNote | null;
@@ -50,6 +73,10 @@ export interface ClinicalNotePanelState {
   isSaving: boolean;
   isSigning: boolean;
   autoSaveStatus: AutoSaveStatus;
+  /** True when there are edits on screen not yet persisted. */
+  isDirty: boolean;
+  /** Wall-clock time of the last successful persist (auto or manual). */
+  lastSavedAt: Date | null;
 }
 
 export interface ClinicalNotePanelHandle {
@@ -143,84 +170,182 @@ export const ClinicalNotePanel = forwardRef<
   const [showTemplates, setShowTemplates] = useState(false);
   const [loadingTemplates, setLoadingTemplates] = useState(false);
 
-  // Auto-save with debounce (30s)
-  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Autosave ──────────────────────────────────────────────────────
+  // The payload is ALWAYS built from formRef (updated every render): a
+  // setTimeout closure would capture the state as it was when the timer
+  // was armed and persist one edit behind what's on screen — the doctor
+  // would see "Guardado" while the DB holds an older version.
+  const [autoSaveStatus, setAutoSaveStatus] = useState<AutoSaveStatus>("idle");
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxWaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isDirtyRef = useRef(false);
+  const persistingRef = useRef(false);
 
-  const triggerAutoSave = useCallback(() => {
-    if (!isDirtyRef.current || !canEdit) return;
-    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(async () => {
-      if (!isDirtyRef.current) return;
-      setAutoSaveStatus("saving");
-      try {
-        const body = {
-          subjective,
-          objective,
-          assessment,
-          plan,
-          diagnoses: diagnoses.map((d, i) => ({
-            code: d.code,
-            label: d.label,
-            is_primary: i === 0,
-            position: i,
-          })),
-          internal_notes: internalNotes || null,
-          vitals,
-          consent_registered: consentRegistered,
-          consent_notes: consentNotes || null,
-          patient_id: patientId,
-          doctor_id: doctorId,
-        };
+  const formRef = useRef({
+    subjective, objective, assessment, plan, diagnoses,
+    internalNotes, vitals, consentRegistered, consentNotes,
+  });
+  formRef.current = {
+    subjective, objective, assessment, plan, diagnoses,
+    internalNotes, vitals, consentRegistered, consentNotes,
+  };
+  const noteRef = useRef<ClinicalNote | null>(null);
+  noteRef.current = note;
 
-        if (note) {
-          const res = await fetch(`/api/clinical-notes/${note.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-          if (res.ok) {
-            const json = await res.json();
-            setNote(json.data);
-            isDirtyRef.current = false;
-            setAutoSaveStatus("saved");
-          } else {
-            setAutoSaveStatus("error");
-          }
-        } else if (subjective || objective || assessment || plan) {
-          const res = await fetch("/api/clinical-notes", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...body, appointment_id: appointmentId }),
-          });
-          if (res.ok) {
-            const json = await res.json();
-            setNote(json.data);
-            isDirtyRef.current = false;
-            setAutoSaveStatus("saved");
-          } else {
-            setAutoSaveStatus("error");
-          }
+  const buildBody = useCallback(() => {
+    const f = formRef.current;
+    return {
+      subjective: f.subjective,
+      objective: f.objective,
+      assessment: f.assessment,
+      plan: f.plan,
+      diagnoses: f.diagnoses.map((d, i) => ({
+        code: d.code,
+        label: d.label,
+        is_primary: i === 0,
+        position: i,
+      })),
+      internal_notes: f.internalNotes || null,
+      vitals: f.vitals,
+      consent_registered: f.consentRegistered,
+      consent_notes: f.consentNotes || null,
+      patient_id: patientId,
+      doctor_id: doctorId,
+    };
+  }, [patientId, doctorId]);
+
+  const clearAutoSaveTimers = useCallback(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    if (maxWaitTimerRef.current) {
+      clearTimeout(maxWaitTimerRef.current);
+      maxWaitTimerRef.current = null;
+    }
+  }, []);
+
+  /**
+   * Persists the CURRENT on-screen form (PATCH, or POST when the note
+   * doesn't exist yet). Throws with a readable message on failure.
+   * If the POST hits a 409 (someone else created the note for this
+   * appointment), adopts the existing note and retries as PATCH so the
+   * local text is never lost.
+   */
+  const persistNote = useCallback(async (): Promise<ClinicalNote> => {
+    const body = buildBody();
+    const patch = (id: string) =>
+      fetch(`/api/clinical-notes/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+    let res: Response;
+    if (noteRef.current) {
+      res = await patch(noteRef.current.id);
+    } else {
+      res = await fetch("/api/clinical-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, appointment_id: appointmentId }),
+      });
+      if (res.status === 409) {
+        const lookup = await fetch(`/api/clinical-notes?appointment_id=${appointmentId}`);
+        const found = await lookup.json().catch(() => null);
+        if (found?.data?.id) {
+          // Adopt the id only — keep the local fields, they're what the
+          // doctor is looking at.
+          noteRef.current = found.data;
+          setNote(found.data);
+          res = await patch(found.data.id);
         }
-      } catch {
-        setAutoSaveStatus("error");
       }
-    }, 30000); // 30 seconds
-  }, [note, subjective, objective, assessment, plan, diagnoses, internalNotes, vitals, consentRegistered, consentNotes, patientId, doctorId, canEdit, appointmentId]);
+    }
 
-  // Track dirty state on any field change
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      const details = Array.isArray(json?.details) ? ` — ${json.details.join(" · ")}` : "";
+      throw new Error((json?.error ?? "Error al guardar") + details);
+    }
+    setNote(json.data);
+    noteRef.current = json.data;
+    isDirtyRef.current = false;
+    setLastSavedAt(new Date());
+    return json.data as ClinicalNote;
+  }, [buildBody, appointmentId]);
+
+  const runAutoSave = useCallback(async () => {
+    clearAutoSaveTimers();
+    if (!isDirtyRef.current || persistingRef.current) return;
+    const f = formRef.current;
+    // Never create an empty note from autosave.
+    if (!noteRef.current && !(f.subjective || f.objective || f.assessment || f.plan)) return;
+    persistingRef.current = true;
+    setAutoSaveStatus("saving");
+    try {
+      await persistNote();
+      setAutoSaveStatus("saved");
+    } catch (e) {
+      setAutoSaveStatus("error");
+      // A 10px badge is not enough to notice the note silently stopped
+      // saving — surface a real (deduped) toast with the server reason.
+      toast.error(e instanceof Error ? e.message : "No se pudo autoguardar", {
+        id: "clinical-autosave-error",
+        description: "Tus cambios siguen en pantalla. Corrige y guarda con Ctrl+S.",
+      });
+    } finally {
+      persistingRef.current = false;
+    }
+  }, [clearAutoSaveTimers, persistNote]);
+  const runAutoSaveRef = useRef(runAutoSave);
+  runAutoSaveRef.current = runAutoSave;
+
+  // Debounce 4s from the last keystroke + hard maxWait of 15s: while the
+  // doctor types without pause the debounce keeps resetting, but the
+  // maxWait timer guarantees a persist at least every 15 seconds.
   const markDirty = useCallback(() => {
     isDirtyRef.current = true;
-    setAutoSaveStatus("idle");
-    triggerAutoSave();
-  }, [triggerAutoSave]);
+    setAutoSaveStatus("dirty");
+    if (!canEdit) return;
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => runAutoSaveRef.current(), 4000);
+    if (!maxWaitTimerRef.current) {
+      maxWaitTimerRef.current = setTimeout(() => runAutoSaveRef.current(), 15000);
+    }
+  }, [canEdit]);
 
-  // Cleanup timer on unmount
+  // Safety net: if the panel unmounts with pending edits (modal closed
+  // with the X, view navigated away), fire the persist anyway. keepalive
+  // lets the request outlive the component.
   useEffect(() => {
     return () => {
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      clearAutoSaveTimers();
+      if (!isDirtyRef.current) return;
+      const body = JSON.stringify(
+        noteRef.current
+          ? buildBody()
+          : { ...buildBody(), appointment_id: appointmentId }
+      );
+      const f = formRef.current;
+      if (noteRef.current) {
+        fetch(`/api/clinical-notes/${noteRef.current.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body,
+          keepalive: true,
+        }).catch(() => {});
+      } else if (f.subjective || f.objective || f.assessment || f.plan) {
+        fetch("/api/clinical-notes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body,
+          keepalive: true,
+        }).catch(() => {});
+      }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const soapState: Record<SOAPSection, { value: string; set: (v: string) => void }> = {
@@ -342,7 +467,23 @@ export const ClinicalNotePanel = forwardRef<
     setLoadingTemplates(false);
   }, [templates.length]);
 
-  const applyTemplate = (tpl: ClinicalTemplateWithDoctor) => {
+  const applyTemplate = async (tpl: ClinicalTemplateWithDoctor) => {
+    // Applying over typed text is destructive and has no undo — ask first.
+    const wouldOverwrite =
+      (tpl.subjective && subjective.trim()) ||
+      (tpl.objective && objective.trim()) ||
+      (tpl.assessment && assessment.trim()) ||
+      (tpl.plan && plan.trim());
+    if (wouldOverwrite) {
+      const ok = await confirm({
+        title: `Aplicar plantilla "${tpl.name}"`,
+        description:
+          "La plantilla reemplazará el texto ya escrito en las secciones que incluye. Esta acción no se puede deshacer.",
+        confirmText: "Reemplazar",
+        cancelText: "Volver",
+      });
+      if (!ok) return;
+    }
     if (tpl.subjective) setSubjective(tpl.subjective);
     if (tpl.objective) setObjective(tpl.objective);
     if (tpl.assessment) setAssessment(tpl.assessment);
@@ -359,6 +500,9 @@ export const ClinicalNotePanel = forwardRef<
     }
     if (tpl.internal_notes) setInternalNotes(tpl.internal_notes);
     setShowTemplates(false);
+    // The template IS an edit — without this the applied text never
+    // schedules an autosave and is lost on close.
+    markDirty();
     toast.success(`Plantilla "${tpl.name}" aplicada`);
   };
 
@@ -391,93 +535,68 @@ export const ClinicalNotePanel = forwardRef<
   };
 
   const handleSave = async () => {
+    // Manual save supersedes any scheduled autosave — a stale timer
+    // firing later would revert this save with older data.
+    clearAutoSaveTimers();
     setSaving(true);
     try {
-      const body = {
-        subjective,
-        objective,
-        assessment,
-        plan,
-        diagnoses: diagnoses.map((d, i) => ({
-          code: d.code,
-          label: d.label,
-          is_primary: i === 0,
-          position: i,
-        })),
-        internal_notes: internalNotes || null,
-        vitals,
-        consent_registered: consentRegistered,
-        consent_notes: consentNotes || null,
-        patient_id: patientId,
-        doctor_id: doctorId,
-      };
-
-      if (note) {
-        // Update existing
-        const res = await fetch(`/api/clinical-notes/${note.id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          toast.error(json.error || "No se pudo guardar la nota. Tus cambios siguen en pantalla — reintenta.");
-          return;
-        }
-        setNote(json.data);
-        toast.success("Nota clínica guardada");
-      } else {
-        // Create new
-        const res = await fetch("/api/clinical-notes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...body,
-            appointment_id: appointmentId,
-          }),
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          toast.error(json.error || "Error al crear nota");
-          return;
-        }
-        setNote(json.data);
-        toast.success("Nota clínica creada");
-      }
-    } catch {
-      toast.error("Error de red al guardar");
+      const isCreate = !noteRef.current;
+      await persistNote();
+      setAutoSaveStatus("saved");
+      toast.success(isCreate ? "Nota clínica creada" : "Nota clínica guardada");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error de red al guardar", {
+        description: "Tus cambios siguen en pantalla — reintenta.",
+      });
     } finally {
       setSaving(false);
     }
   };
 
   const handleSign = async () => {
-    if (!note) return;
+    if (!note && !hasContent) return;
+
+    // Preflight: list what's missing so "revisa los campos" isn't an
+    // empty promise. Signing anyway stays allowed — the doctor decides.
+    const f = formRef.current;
+    const missing: string[] = [];
+    if (f.diagnoses.length === 0) missing.push("sin diagnóstico CIE-10");
+    if (!f.plan.trim()) missing.push("plan vacío");
+    if (serviceRequiresConsent && !f.consentRegistered) missing.push("consentimiento requerido sin registrar");
+
     const ok = await confirm({
       title: "Firmar nota clínica",
       description:
-        "Al firmar se bloquea la edición permanentemente. Revisa que todos los campos estén completos antes de continuar.",
-      confirmText: "Sí, firmar",
+        (missing.length > 0 ? `Pendientes: ${missing.join(" · ")}. ` : "") +
+        "Se guardará y firmará la versión que está en pantalla. Al firmar se bloquea la edición permanentemente.",
+      confirmText: missing.length > 0 ? "Firmar de todos modos" : "Sí, firmar",
       cancelText: "Volver",
     });
     if (!ok) return;
 
     setSigning(true);
+    clearAutoSaveTimers();
     try {
-      const res = await fetch(`/api/clinical-notes/${note.id}`, {
+      // ALWAYS persist before signing — otherwise the signature seals the
+      // previous version, not the text the doctor is looking at.
+      const saved = await persistNote();
+      const res = await fetch(`/api/clinical-notes/${saved.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ is_signed: true }),
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.error || "No se pudo firmar la nota. Revisa que todos los campos estén completos.");
+        toast.error(json.error || "No se pudo firmar la nota.");
         return;
       }
       setNote(json.data);
-      toast.success("Nota clínica firmada");
-    } catch {
-      toast.error("Error de red al firmar");
+      setAutoSaveStatus("saved");
+      toast.success("Nota clínica firmada", {
+        description: "La edición quedó bloqueada permanentemente.",
+      });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Error de red al firmar");
     } finally {
       setSigning(false);
     }
@@ -511,8 +630,10 @@ export const ClinicalNotePanel = forwardRef<
       isSaving: saving,
       isSigning: signing,
       autoSaveStatus,
+      isDirty: autoSaveStatus === "dirty" || autoSaveStatus === "error",
+      lastSavedAt,
     });
-  }, [note, isLocked, hasContent, saving, signing, autoSaveStatus, onStateChange]);
+  }, [note, isLocked, hasContent, saving, signing, autoSaveStatus, lastSavedAt, onStateChange]);
 
   if (loading) {
     return (
@@ -667,13 +788,27 @@ export const ClinicalNotePanel = forwardRef<
                 {label}
               </label>
               {editable ? (
-                <textarea
-                  value={value}
-                  onChange={(e) => { set(e.target.value); markDirty(); }}
-                  placeholder={placeholder}
-                  rows={wideLayout ? 5 : 3}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-vertical"
-                />
+                <>
+                  <textarea
+                    value={value}
+                    onChange={(e) => { set(e.target.value); markDirty(); }}
+                    placeholder={placeholder}
+                    rows={wideLayout ? 5 : 3}
+                    maxLength={SOAP_MAX}
+                    autoFocus={section === "subjective" && !note}
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-[15px] leading-relaxed placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors resize-vertical"
+                  />
+                  {value.length > SOAP_MAX - 500 && (
+                    <p
+                      className={cn(
+                        "text-right text-[11px]",
+                        value.length >= SOAP_MAX ? "font-semibold text-red-500" : "text-muted-foreground"
+                      )}
+                    >
+                      {value.length.toLocaleString()}/{SOAP_MAX.toLocaleString()}
+                    </p>
+                  )}
+                </>
               ) : (
                 <div className="rounded-lg bg-muted/30 px-3 py-2 text-sm min-h-[2rem]">
                   {value || (
@@ -946,13 +1081,27 @@ export const ClinicalNotePanel = forwardRef<
                   {label} <span className="text-muted-foreground/60">({unit})</span>
                 </label>
                 {editable ? (
-                  <input
-                    type="number"
-                    value={vitals[key] ?? ""}
-                    onChange={(e) => updateVital(key, e.target.value)}
-                    step={step}
-                    className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-                  />
+                  <>
+                    <input
+                      type="number"
+                      value={vitals[key] ?? ""}
+                      onChange={(e) => updateVital(key, e.target.value)}
+                      step={step}
+                      min={VITALS_RANGES[key]?.[0]}
+                      max={VITALS_RANGES[key]?.[1]}
+                      className={cn(
+                        "w-full rounded-md border bg-background px-2 py-1.5 text-sm focus:outline-none focus:ring-2 transition-colors",
+                        vitalOutOfRange(key, vitals[key])
+                          ? "border-red-500 focus:ring-red-500/50 focus:border-red-500"
+                          : "border-input focus:ring-primary/50 focus:border-primary"
+                      )}
+                    />
+                    {vitalOutOfRange(key, vitals[key]) && (
+                      <p className="text-[11px] font-medium text-red-500">
+                        Rango: {VITALS_RANGES[key][0]}–{VITALS_RANGES[key][1]}
+                      </p>
+                    )}
+                  </>
                 ) : (
                   <p className="text-sm font-medium">
                     {vitals[key] != null ? `${vitals[key]} ${unit}` : "—"}
@@ -1065,7 +1214,8 @@ export const ClinicalNotePanel = forwardRef<
         <div className="flex gap-2 pt-2">
           <button
             onClick={handleSave}
-            disabled={saving || isLocked}
+            disabled={saving || isLocked || !hasContent}
+            title={!hasContent ? "Escribe algo antes de guardar" : undefined}
             className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {saving ? (
