@@ -782,6 +782,67 @@ export interface Database {
           organization_id?: string;
         };
       };
+      // Configuración de agenda por organización (migration 068). Se escribió
+      // a mano porque `npm run types` nunca se corrió para esta tabla; las
+      // columnas siguen el orden de las migraciones que las agregaron.
+      scheduler_settings: {
+        Row: {
+          id: string;
+          organization_id: string;
+          start_hour: number;
+          end_hour: number;
+          intervals: number[];
+          time_indicator: boolean;
+          disabled_weekdays: number[];
+          // Toggles de estado en vivo (migration 171).
+          live_status: boolean;
+          live_status_auto_close: boolean;
+          // Offsets aditivos de minutos sobre las horas (migration 175).
+          start_minute: number;
+          end_minute: number;
+          // Mapa disperso field_key→boolean de campos obligatorios en el
+          // modal de citas (migration 176). '{}' = defaults del código.
+          required_fields: Record<string, boolean>;
+          // Duración editable por cita (migration 221). false = la duración
+          // la impone el servicio, como antes de la 221.
+          allow_custom_duration: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          start_hour?: number;
+          end_hour?: number;
+          intervals?: number[];
+          time_indicator?: boolean;
+          disabled_weekdays?: number[];
+          live_status?: boolean;
+          live_status_auto_close?: boolean;
+          start_minute?: number;
+          end_minute?: number;
+          required_fields?: Record<string, boolean>;
+          allow_custom_duration?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          start_hour?: number;
+          end_hour?: number;
+          intervals?: number[];
+          time_indicator?: boolean;
+          disabled_weekdays?: number[];
+          live_status?: boolean;
+          live_status_auto_close?: boolean;
+          start_minute?: number;
+          end_minute?: number;
+          required_fields?: Record<string, boolean>;
+          allow_custom_duration?: boolean;
+          updated_at?: string;
+        };
+      };
       global_variables: {
         Row: {
           id: string;
