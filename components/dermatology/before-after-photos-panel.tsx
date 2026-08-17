@@ -10,9 +10,14 @@ import {
   Trash2,
   ShieldAlert,
   ImageOff,
+  Plus,
+  Info,
+  FileSignature,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { compressPhotoForUpload } from "@/lib/dermatology/compress";
+import { ComparisonCard, type Comparison } from "@/components/dermatology/comparison-card";
+import { AddComparisonModal } from "@/components/dermatology/add-comparison-modal";
 
 type Phase = "before" | "after" | "progress" | "final";
 
@@ -49,10 +54,20 @@ interface Props {
   doctorId?: string;
 }
 
+const thumbDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("es-PE", { day: "numeric", month: "short" });
+
 export function BeforeAfterPhotosPanel({ patientId, canEdit, appointmentId, doctorId }: Props) {
   const [photos, setPhotos] = useState<PatientPhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<Phase | "all">("all");
+
+  // Curated before/after comparisons (slider cards)
+  const [comparisons, setComparisons] = useState<Comparison[]>([]);
+  const [showAddComparison, setShowAddComparison] = useState(false);
+
+  // Photo-consent gate: null = still checking, false = blocked upload
+  const [hasPhotoConsent, setHasPhotoConsent] = useState<boolean | null>(null);
 
   // Upload form state
   const [uploading, setUploading] = useState(false);
@@ -79,9 +94,49 @@ export function BeforeAfterPhotosPanel({ patientId, canEdit, appointmentId, doct
     }
   }, [patientId]);
 
+  const loadComparisons = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/dermatology/comparisons?patient_id=${encodeURIComponent(patientId)}`
+      );
+      const body = await res.json();
+      setComparisons(res.ok ? (body.data ?? []) : []);
+    } catch {
+      setComparisons([]);
+    }
+  }, [patientId]);
+
+  // Photo-consent gate — only relevant when the panel can write.
+  const checkConsent = useCallback(async () => {
+    if (!canEdit) return;
+    try {
+      const res = await fetch(
+        `/api/informed-consents?patient_id=${encodeURIComponent(patientId)}`
+      );
+      const body = await res.json();
+      const rows: { consent_type?: string }[] = res.ok ? (body.data ?? []) : [];
+      setHasPhotoConsent(rows.some((c) => c.consent_type === "fotografias"));
+    } catch {
+      // Fail open on a network hiccup — the API enforces the block anyway.
+      setHasPhotoConsent(true);
+    }
+  }, [patientId, canEdit]);
+
   useEffect(() => {
     load();
-  }, [load]);
+    loadComparisons();
+    checkConsent();
+  }, [load, loadComparisons, checkConsent]);
+
+  const deleteComparison = useCallback(async (id: string) => {
+    const res = await fetch(`/api/dermatology/comparisons/${id}`, { method: "DELETE" });
+    if (res.ok) {
+      setComparisons((prev) => prev.filter((c) => c.id !== id));
+      toast.success("Comparativa eliminada");
+    } else {
+      toast.error("No se pudo eliminar");
+    }
+  }, []);
 
   const onPickFile = useCallback(
     async (file: File) => {
@@ -154,6 +209,45 @@ export function BeforeAfterPhotosPanel({ patientId, canEdit, appointmentId, doct
 
   return (
     <div className="space-y-4">
+      {/* ── Comparativas fotográficas (slider cards) ─────────────────── */}
+      {(comparisons.length > 0 || (canEdit && photos.length >= 2)) && (
+        <div>
+          <div className="mb-3">
+            <h3 className="text-sm font-semibold text-foreground">
+              Comparativas fotográficas
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Arrastra el divisor para comparar antes y después
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {comparisons.map((c) => (
+              <ComparisonCard
+                key={c.id}
+                comparison={c}
+                canEdit={canEdit}
+                onDelete={deleteComparison}
+              />
+            ))}
+            {canEdit && photos.length >= 2 && (
+              <button
+                type="button"
+                onClick={() => setShowAddComparison(true)}
+                className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border text-muted-foreground transition-colors hover:border-emerald-500/60 hover:text-emerald-600 dark:hover:text-emerald-400"
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+                  <Plus className="h-5 w-5" />
+                </span>
+                <span className="text-sm font-medium">Agregar comparativa</span>
+                <span className="text-xs opacity-70">
+                  Elige dos fotos para un nuevo procedimiento
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Upload zone (write-from-the-appointment) */}
       {canEdit && (
         <div className="rounded-xl border border-border bg-card p-4">
@@ -213,39 +307,60 @@ export function BeforeAfterPhotosPanel({ patientId, canEdit, appointmentId, doct
               if (f) onPickFile(f);
             }}
           />
-          <button
-            type="button"
-            disabled={uploading}
-            onClick={() => fileInputRef.current?.click()}
-            className={cn(
-              "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors",
-              "bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-            )}
-          >
-            {uploading ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Comprimiendo y subiendo…
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4" />
-                Tomar / elegir foto
-              </>
-            )}
-          </button>
+          {hasPhotoConsent === false ? (
+            <div className="flex items-start gap-2.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5">
+              <FileSignature className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+              <div className="text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+                <p className="font-semibold">
+                  Falta el consentimiento de fotografías del paciente.
+                </p>
+                <p className="mt-0.5 opacity-90">
+                  Registra un consentimiento de tipo «Fotografías clínicas»
+                  desde la historia clínica y vuelve aquí — es requisito para
+                  subir imágenes (Ley 29733).
+                </p>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                disabled={uploading || hasPhotoConsent === null}
+                onClick={() => fileInputRef.current?.click()}
+                className={cn(
+                  "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg text-sm font-medium transition-colors",
+                  "bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+                )}
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Comprimiendo y subiendo…
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4" />
+                    Tomar / elegir foto
+                  </>
+                )}
+              </button>
 
-          <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
-            <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-            Asegúrate de contar con el consentimiento de fotografía firmado del
-            paciente antes de subir imágenes (Ley 29733).
-          </p>
+              <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                Consentimiento de fotografías verificado para este paciente.
+                Cada subida y acceso queda registrado en la auditoría clínica.
+              </p>
+            </>
+          )}
         </div>
       )}
 
       {/* Filter chips */}
       {photos.length > 0 && (
         <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-sm font-semibold text-foreground">
+            Todas las fotos
+          </span>
           <button
             type="button"
             onClick={() => setFilter("all")}
@@ -325,9 +440,35 @@ export function BeforeAfterPhotosPanel({ patientId, canEdit, appointmentId, doct
                 <span className={cn("h-1.5 w-1.5 rounded-full", PHASES.find((x) => x.key === p.phase)?.dot)} />
                 {phaseLabel(p.phase)}
               </span>
+              {/* Taken-at date — the substance of a before/after gallery */}
+              <span className="absolute inset-x-0 bottom-0 bg-black/60 px-1 py-0.5 text-center text-[9px] font-medium text-white">
+                {thumbDate(p.taken_at)}
+              </span>
             </button>
           ))}
         </div>
+      )}
+
+      {/* Photographic protocol note */}
+      <div className="flex items-start gap-2.5 rounded-xl border border-border bg-muted/40 px-4 py-3">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+        <p className="text-[11px] leading-relaxed text-muted-foreground">
+          <span className="font-semibold text-foreground">Protocolo fotográfico:</span>{" "}
+          las imágenes deben tomarse siempre bajo las mismas condiciones de
+          iluminación, distancia y ángulo. Se recomienda fondo neutro y sin
+          maquillaje. Todas las fotografías son confidenciales y están
+          protegidas por la Ley de Protección de Datos Personales (Ley 29733).
+        </p>
+      </div>
+
+      {/* Add-comparison modal */}
+      {showAddComparison && (
+        <AddComparisonModal
+          patientId={patientId}
+          photos={photos}
+          onClose={() => setShowAddComparison(false)}
+          onCreated={loadComparisons}
+        />
       )}
 
       {/* Lightbox */}
