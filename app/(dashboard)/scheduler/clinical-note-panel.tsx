@@ -35,6 +35,7 @@ import {
   Cloud,
   X,
   Star,
+  FileSignature,
 } from "lucide-react";
 import { searchCIE10WithCustom, type CIE10Entry } from "@/lib/cie10-catalog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -636,9 +637,20 @@ export const ClinicalNotePanel = forwardRef<
   }, [note, isLocked, hasContent, saving, signing, autoSaveStatus, lastSavedAt, onStateChange]);
 
   if (loading) {
+    // Skeleton with the real SOAP silhouette — content arrives "in place"
+    // instead of jumping in after a lone spinner.
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      <div className="max-w-3xl space-y-5 py-1" aria-busy="true" aria-label="Cargando nota clínica">
+        <div className="h-16 rounded-xl bg-muted/50 animate-pulse" />
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-md bg-muted/60 animate-pulse" />
+              <div className="h-4 w-24 rounded bg-muted/50 animate-pulse" />
+            </div>
+            <div className="h-24 rounded-lg bg-muted/40 animate-pulse" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -661,28 +673,34 @@ export const ClinicalNotePanel = forwardRef<
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Stethoscope className="h-4 w-4 text-emerald-500" />
-          <span className="text-sm font-semibold">Nota Clínica (SOAP)</span>
+          <h3 className="font-display text-base font-semibold tracking-tight">
+            Nota Clínica (SOAP)
+          </h3>
         </div>
         <div className="flex items-center gap-2">
-          {/* Auto-save indicator */}
-          {editable && autoSaveStatus !== "idle" && (
+          {/* Auto-save indicator — only when the panel renders its own
+              footer; in the modal the sticky header owns the (single)
+              canonical indicator. */}
+          {editable && !hideFooterActions && autoSaveStatus !== "idle" && (
             <span className={cn(
-              "flex items-center gap-1 text-[10px]",
+              "flex items-center gap-1 text-[11px] transition-opacity duration-300",
+              autoSaveStatus === "dirty" && "text-amber-600 dark:text-amber-400",
               autoSaveStatus === "saving" && "text-muted-foreground",
               autoSaveStatus === "saved" && "text-success-500",
               autoSaveStatus === "error" && "text-red-500",
             )}>
-              {autoSaveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Guardando...</>}
+              {autoSaveStatus === "dirty" && <><span className="h-1.5 w-1.5 rounded-full bg-current" /> Sin guardar</>}
+              {autoSaveStatus === "saving" && <><Loader2 className="h-3 w-3 animate-spin" /> Guardando…</>}
               {autoSaveStatus === "saved" && <><Cloud className="h-3 w-3" /> Guardado</>}
               {autoSaveStatus === "error" && <><CloudOff className="h-3 w-3" /> Error al guardar</>}
             </span>
           )}
         {isLocked && !hideFooterActions && (
-          <span className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+          <span className="flex items-center gap-1 rounded-full border border-success-500/40 bg-success-500/10 px-2 py-0.5 text-[11px] font-medium text-success-600 dark:text-success-400 animate-[toast-icon-in_0.4s_cubic-bezier(0.16,1,0.3,1)_both]">
             <Lock className="h-3 w-3" />
             Firmada
             {note?.signed_at && (
-              <span className="ml-1 text-muted-foreground">
+              <span className="ml-1 opacity-70">
                 {new Date(note.signed_at).toLocaleDateString("es-PE", {
                   day: "2-digit",
                   month: "short",
@@ -714,7 +732,7 @@ export const ClinicalNotePanel = forwardRef<
           {showTemplates && (
             <>
               <div className="fixed inset-0 z-[5]" onClick={() => setShowTemplates(false)} />
-              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-lg border border-border bg-card shadow-xl">
+              <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-lg border border-border bg-card shadow-xl origin-top animate-[popover-in_140ms_cubic-bezier(0.16,1,0.3,1)]">
                 {loadingTemplates ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
@@ -765,18 +783,20 @@ export const ClinicalNotePanel = forwardRef<
       )}
 
       {/* SOAP Sections — stack vertical (los doctores escriben en flujo
-          secuencial; columnas obligan a navegar lateralmente). */}
-      <div className="space-y-3">
+          secuencial; columnas obligan a navegar lateralmente). max-w-3xl:
+          un textarea estirado a 1000px+ produce líneas de ~140 caracteres,
+          ilegibles al releer — el aire sobrante queda a la derecha. */}
+      <div className="max-w-3xl space-y-5">
         {(Object.keys(SOAP_LABELS) as SOAPSection[]).map((section) => {
           const { letter, label, placeholder } = SOAP_LABELS[section];
           const { value, set } = soapState[section];
 
           return (
-            <div key={section} className="space-y-1">
-              <label className="flex items-center gap-2 text-xs font-semibold">
+            <div key={section} className="space-y-1.5">
+              <label className="flex items-center gap-2 text-sm font-semibold tracking-tight">
                 <span
                   className={cn(
-                    "flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold text-white",
+                    "flex h-6 w-6 items-center justify-center rounded-md text-xs font-bold text-white",
                     section === "subjective" && "bg-blue-500",
                     section === "objective" && "bg-emerald-500",
                     section === "assessment" && "bg-amber-500",
@@ -862,7 +882,7 @@ export const ClinicalNotePanel = forwardRef<
               {showCie10 && cie10Results.length > 0 && (
                 <>
                   <div className="fixed inset-0 z-[5]" onClick={() => setShowCie10(false)} />
-                  <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-xl">
+                  <div className="absolute left-0 right-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-card shadow-xl origin-top animate-[popover-in_140ms_cubic-bezier(0.16,1,0.3,1)]">
                     {cie10Results.map((entry) => {
                       const alreadyAdded = diagnoses.some(
                         (d) => d.code.toLowerCase() === entry.code.toLowerCase()
@@ -1077,8 +1097,8 @@ export const ClinicalNotePanel = forwardRef<
           >
             {VITALS_FIELDS.map(({ key, label, unit, step }) => (
               <div key={key} className="space-y-0.5">
-                <label className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  {label} <span className="text-muted-foreground/60">({unit})</span>
+                <label className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                  {label} <span className="text-muted-foreground/70">({unit})</span>
                 </label>
                 {editable ? (
                   <>
@@ -1125,9 +1145,10 @@ export const ClinicalNotePanel = forwardRef<
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-xs font-semibold flex items-center gap-1.5">
-                📝 Consentimiento informado
+                <FileSignature className="h-3.5 w-3.5 text-muted-foreground" />
+                Consentimiento informado
                 {serviceRequiresConsent && (
-                  <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 dark:text-amber-400">
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-400">
                     Requerido
                   </span>
                 )}
@@ -1139,7 +1160,7 @@ export const ClinicalNotePanel = forwardRef<
               </p>
             </div>
             {consentAttachmentCount > 0 && (
-              <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+              <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
                 ✓ {consentAttachmentCount} archivo{consentAttachmentCount === 1 ? "" : "s"}
               </span>
             )}
@@ -1151,7 +1172,7 @@ export const ClinicalNotePanel = forwardRef<
               checked={consentRegistered}
               disabled={!editable}
               onChange={(e) => { setConsentRegistered(e.target.checked); markDirty(); }}
-              className="mt-0.5 rounded"
+              className="mt-0.5 h-4 w-4 rounded border-border accent-emerald-500"
             />
             <span>
               <span className="font-medium">Consentimiento registrado</span>
@@ -1181,9 +1202,12 @@ export const ClinicalNotePanel = forwardRef<
           )}
 
           {serviceRequiresConsent && consentAttachmentCount === 0 && (
-            <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
-              ⚠ Falta subir el documento firmado. Tómale foto con el móvil al papel firmado y súbelo en Adjuntos → categoría{" "}
-              <span className="font-semibold">Consentimiento</span>.
+            <p className="flex items-start gap-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-[11px] text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span>
+                Falta subir el documento firmado. Tómale foto con el móvil al papel firmado y súbelo en Adjuntos → categoría{" "}
+                <span className="font-semibold">Consentimiento</span>.
+              </span>
             </p>
           )}
         </div>

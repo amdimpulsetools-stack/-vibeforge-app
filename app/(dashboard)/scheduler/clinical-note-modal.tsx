@@ -200,7 +200,7 @@ export function ClinicalNoteModal({
                     <Lock className="h-3.5 w-3.5" />
                     Nota firmada
                     {panelState.note?.signed_at && (
-                      <span className="text-amber-700/80 dark:text-amber-300/80">
+                      <span className="opacity-70">
                         {new Date(panelState.note.signed_at).toLocaleDateString("es-PE", {
                           day: "2-digit",
                           month: "short",
@@ -241,11 +241,16 @@ export function ClinicalNoteModal({
                   {serviceName && (
                     <span className="font-medium text-foreground">{serviceName}</span>
                   )}
-                  {/* Auto-save indicator — moved to header for one canonical location */}
-                  {canEdit && !isSigned && panelState.autoSaveStatus !== "idle" && (
+                  {/* Auto-save indicator — the single canonical location.
+                      min-w reserves its slot so appearing/disappearing text
+                      never shifts the header row, and the opacity transition
+                      lets it breathe instead of flickering per keystroke. */}
+                  {canEdit && !isSigned && (
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]",
+                        "inline-flex min-w-[110px] items-center gap-1 text-[11px] transition-opacity duration-300",
+                        panelState.autoSaveStatus === "idle" && "opacity-0",
+                        panelState.autoSaveStatus === "dirty" && "text-amber-600 dark:text-amber-400",
                         panelState.autoSaveStatus === "saving" && "text-muted-foreground",
                         panelState.autoSaveStatus === "saved" && "text-success-500",
                         panelState.autoSaveStatus === "error" && "text-red-500"
@@ -253,6 +258,11 @@ export function ClinicalNoteModal({
                       role="status"
                       aria-live="polite"
                     >
+                      {panelState.autoSaveStatus === "dirty" && (
+                        <>
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" /> Sin guardar
+                        </>
+                      )}
                       {panelState.autoSaveStatus === "saving" && (
                         <>
                           <Loader2 className="h-3 w-3 animate-spin" /> Guardando…
@@ -260,7 +270,12 @@ export function ClinicalNoteModal({
                       )}
                       {panelState.autoSaveStatus === "saved" && (
                         <>
-                          <Cloud className="h-3 w-3" /> Guardado
+                          <Cloud className="h-3 w-3" /> Guardado{" "}
+                          {panelState.lastSavedAt &&
+                            panelState.lastSavedAt.toLocaleTimeString("es-PE", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                         </>
                       )}
                       {panelState.autoSaveStatus === "error" && (
@@ -410,8 +425,10 @@ export function ClinicalNoteModal({
               view !== "note" && "hidden"
             )}
           >
-            {/* Left: SOAP Clinical Note */}
-            <div className={cn(isSigned && "opacity-90")}>
+            {/* Left: SOAP Clinical Note — signed state is communicated by the
+                green seal badge + read-only fields, not by dimming (the old
+                opacity-90 was imperceptible and read as a rendering glitch). */}
+            <div className={cn(isSigned && "rounded-xl border-t-2 border-t-success-500/60 pt-3")}>
               <ClinicalNotePanel
                 ref={panelRef}
                 appointmentId={appointmentId}
