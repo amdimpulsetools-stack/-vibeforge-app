@@ -55,6 +55,12 @@ interface ClinicalNoteModalProps {
   patientId: string | null;
   doctorId: string;
   canEdit: boolean;
+  /**
+   * Photo uploads are operational (admin/reception take them at the
+   * visit), unlike the SOAP note which stays doctor-only. Defaults to
+   * canEdit when not provided.
+   */
+  canEditPhotos?: boolean;
   appointmentStatus: string;
   patientName?: string;
   patientDni?: string | null;
@@ -73,6 +79,7 @@ export function ClinicalNoteModal({
   patientId,
   doctorId,
   canEdit,
+  canEditPhotos,
   appointmentStatus,
   patientName,
   patientDni,
@@ -432,7 +439,7 @@ export function ClinicalNoteModal({
                 patientId={patientId}
                 doctorId={doctorId}
                 appointmentId={appointmentId}
-                canEdit={canEdit}
+                canEdit={canEditPhotos ?? canEdit}
               />
             </div>
           )}

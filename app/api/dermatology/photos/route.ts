@@ -116,6 +116,27 @@ export async function POST(request: NextRequest) {
   }
   const orgId = patient.organization_id;
 
+  // Hard consent gate (Ley 29733): clinical photos require a signed
+  // "fotografias" consent on file. The UI blocks earlier with a friendly
+  // message; this is the enforcement the UI cannot bypass.
+  const { data: consent } = await supabase
+    .from("informed_consents")
+    .select("id")
+    .eq("patient_id", patientId)
+    .eq("consent_type", "fotografias")
+    .limit(1)
+    .maybeSingle();
+  if (!consent) {
+    return NextResponse.json(
+      {
+        error:
+          "El paciente no tiene consentimiento de fotografías firmado. Regístralo antes de subir imágenes.",
+        code: "photo_consent_required",
+      },
+      { status: 403 }
+    );
+  }
+
   const stamp = Date.now();
   const base = `${orgId}/${patientId}/${stamp}`;
   const displayPath = `${base}-d.webp`;

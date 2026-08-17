@@ -1962,6 +1962,12 @@ export function AppointmentSidebar({
               !readOnly &&
               currentDoctorId === appointment.doctor_id
             }
+            canEditPhotos={
+              // Photos are operational (reception/admin take them at the
+              // visit), unlike the SOAP note which stays doctor-only.
+              !readOnly &&
+              (isAdmin || currentDoctorId === appointment.doctor_id)
+            }
             appointmentStatus={appointment.status}
             patientName={appointment.patient_name}
             patientDni={appointment.patients?.dni ?? null}
