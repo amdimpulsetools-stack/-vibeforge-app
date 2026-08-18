@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import {
   Camera,
@@ -193,6 +194,22 @@ export function BeforeAfterPhotosPanel({ patientId, canEdit, appointmentId, doct
       setLightboxLoading(false);
     }
   }, []);
+
+  // While the lightbox is open, Escape closes ONLY the photo — the
+  // capture-phase listener intercepts the key before the Historia
+  // Clínica dialog (Radix, document-level listener) can close itself.
+  useEffect(() => {
+    if (!lightboxId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        e.preventDefault();
+        setLightboxId(null);
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [lightboxId]);
 
   const deletePhoto = useCallback(async (id: string) => {
     const res = await fetch(`/api/dermatology/photos/${id}`, { method: "DELETE" });
@@ -398,8 +415,14 @@ export function BeforeAfterPhotosPanel({ patientId, canEdit, appointmentId, doct
 
       {/* Gallery */}
       {loading ? (
-        <div className="flex items-center justify-center py-10 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        <div
+          className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5"
+          aria-busy="true"
+          aria-label="Cargando fotos"
+        >
+          {[0, 1, 2, 3, 4].map((i) => (
+            <div key={i} className="aspect-square rounded-lg bg-muted/50 animate-pulse" />
+          ))}
         </div>
       ) : visible.length === 0 ? (
         <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
@@ -471,50 +494,54 @@ export function BeforeAfterPhotosPanel({ patientId, canEdit, appointmentId, doct
         />
       )}
 
-      {/* Lightbox */}
-      {lightboxId && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4"
-          onClick={() => setLightboxId(null)}
-        >
+      {/* Lightbox — full-screen photo viewer. Portaled to <body> with an
+          opaque backdrop so it covers the Historia Clínica modal entirely
+          (the photo stands alone); closing it reveals the modal untouched.
+          No card frame around the image — the old bg-card box painted a
+          white border in light theme. */}
+      {lightboxId &&
+        createPortal(
           <div
-            className="relative max-h-[90dvh] max-w-3xl overflow-hidden rounded-xl bg-card"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95"
+            onClick={() => setLightboxId(null)}
           >
+            {lightboxLoading || !lightboxUrl ? (
+              <Loader2 className="h-6 w-6 animate-spin text-white/70" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={lightboxUrl}
+                alt="Foto"
+                onClick={(e) => e.stopPropagation()}
+                className="max-h-[92dvh] max-w-[94vw] rounded-lg object-contain shadow-2xl"
+              />
+            )}
+
             <button
               type="button"
               onClick={() => setLightboxId(null)}
-              className="absolute right-2 top-2 z-10 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70"
+              className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+              aria-label="Cerrar foto"
             >
-              <X className="h-4 w-4" />
+              <X className="h-5 w-5" />
             </button>
-            <div className="flex min-h-[200px] items-center justify-center">
-              {lightboxLoading || !lightboxUrl ? (
-                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              ) : (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={lightboxUrl}
-                  alt="Foto"
-                  className="max-h-[80dvh] w-auto object-contain"
-                />
-              )}
-            </div>
-            {canEdit && lightboxId && (
-              <div className="flex justify-end border-t border-border p-2">
-                <button
-                  type="button"
-                  onClick={() => deletePhoto(lightboxId)}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-500/10"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Eliminar
-                </button>
-              </div>
+
+            {canEdit && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deletePhoto(lightboxId);
+                }}
+                className="absolute bottom-4 right-4 inline-flex items-center gap-1.5 rounded-full bg-white/10 px-4 py-2 text-xs font-medium text-red-400 backdrop-blur-sm transition-colors hover:bg-red-500/20"
+              >
+                <Trash2 className="h-4 w-4" />
+                Eliminar
+              </button>
             )}
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

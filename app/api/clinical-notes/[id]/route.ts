@@ -30,26 +30,29 @@ export async function PATCH(
     );
   }
 
-  // Verify the note belongs to the user's organization
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .single();
-
-  if (!membership) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
+  // Verify the note belongs to an org the user is an active member of.
+  // The note is fetched first (RLS-scoped) and the membership is checked
+  // against THAT org — picking an arbitrary membership breaks for users
+  // who belong to several organizations.
   const { data: noteCheck } = await supabase
     .from("clinical_notes")
-    .select("organization_id")
+    .select("organization_id, doctor_id, is_signed")
     .eq("id", id)
     .single();
 
-  if (!noteCheck || noteCheck.organization_id !== membership.organization_id) {
+  if (!noteCheck) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { data: membership } = await supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", user.id)
+    .eq("organization_id", noteCheck.organization_id)
+    .eq("is_active", true)
+    .maybeSingle();
+
+  if (!membership) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -71,6 +74,30 @@ export async function PATCH(
       return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
     }
 
+    // Signing is restricted to the treating doctor or an org admin —
+    // org membership alone is not enough (a receptionist must not be
+    // able to sign a doctor's clinical note).
+    const isAdmin = membership.role === "owner" || membership.role === "admin";
+    if (!isAdmin) {
+      const { data: doctorRow } = await supabase
+        .from("doctors")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("id", noteCheck.doctor_id)
+        .maybeSingle();
+      if (!doctorRow) {
+        return NextResponse.json(
+          { error: "Solo el doctor tratante o un administrador pueden firmar la nota" },
+          { status: 403 }
+        );
+      }
+    }
+
+    // A signed note is final — re-signing would silently rewrite signed_at.
+    if (noteCheck.is_signed) {
+      return NextResponse.json({ error: "La nota ya está firmada" }, { status: 409 });
+    }
+
     // Use admin client to bypass RLS recursion issues on update
     const admin = createAdminClient();
     const { data, error } = await admin
@@ -80,6 +107,7 @@ export async function PATCH(
         signed_at: new Date().toISOString(),
       })
       .eq("id", id)
+      .eq("is_signed", false)
       .select("*, doctors(full_name, color)")
       .single();
 

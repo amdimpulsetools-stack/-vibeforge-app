@@ -99,6 +99,8 @@ export function ClinicalNoteModal({
     isSaving: false,
     isSigning: false,
     autoSaveStatus: "idle",
+    isDirty: false,
+    lastSavedAt: null,
   });
 
   // El addon de dermatología habilita la galería "Antes y Después", que es a
@@ -151,6 +153,18 @@ export function ClinicalNoteModal({
     return () => window.removeEventListener("keydown", handler);
   }, [open, canEdit, isSigned, panelState.isSaving, view]);
 
+  // Escape or a click outside with unsaved edits must never discard the
+  // note — flush the save first, then close. (Closing via the X is
+  // covered by the panel's unmount keepalive persist.)
+  const isDirty = panelState.isDirty && canEdit && !isSigned;
+  const flushAndClose = async () => {
+    try {
+      await panelRef.current?.save();
+    } finally {
+      onOpenChange(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Móvil: pantalla completa. El contenido está pensado para dos
@@ -159,7 +173,21 @@ export function ClinicalNoteModal({
           + los paneles laterales, ya apilados por el grid de abajo) pedía
           todo el alto disponible. dvh y no vh porque 100vh incluye la
           barra de URL de iOS. Desde md: exactamente el dialog anterior. */}
-      <DialogContent className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0 sm:rounded-none md:top-[50%] md:left-[50%] md:h-auto md:max-h-[92dvh] md:max-w-[95vw] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-xl xl:max-w-[1480px] 2xl:max-w-[1680px]">
+      <DialogContent
+        onEscapeKeyDown={(e) => {
+          if (isDirty) {
+            e.preventDefault();
+            void flushAndClose();
+          }
+        }}
+        onInteractOutside={(e) => {
+          if (isDirty) {
+            e.preventDefault();
+            void flushAndClose();
+          }
+        }}
+        className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0 sm:rounded-none md:top-[50%] md:left-[50%] md:h-auto md:max-h-[92dvh] md:max-w-[95vw] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-xl xl:max-w-[1480px] 2xl:max-w-[1680px]"
+      >
         {/* Sticky header — title, patient context, signed badge, global CTAs */}
         <DialogHeader className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur px-4 pt-4 pb-3 md:px-6 md:pt-5 md:pb-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -172,7 +200,7 @@ export function ClinicalNoteModal({
                     <Lock className="h-3.5 w-3.5" />
                     Nota firmada
                     {panelState.note?.signed_at && (
-                      <span className="text-amber-700/80 dark:text-amber-300/80">
+                      <span className="opacity-70">
                         {new Date(panelState.note.signed_at).toLocaleDateString("es-PE", {
                           day: "2-digit",
                           month: "short",
@@ -213,11 +241,16 @@ export function ClinicalNoteModal({
                   {serviceName && (
                     <span className="font-medium text-foreground">{serviceName}</span>
                   )}
-                  {/* Auto-save indicator — moved to header for one canonical location */}
-                  {canEdit && !isSigned && panelState.autoSaveStatus !== "idle" && (
+                  {/* Auto-save indicator — the single canonical location.
+                      min-w reserves its slot so appearing/disappearing text
+                      never shifts the header row, and the opacity transition
+                      lets it breathe instead of flickering per keystroke. */}
+                  {canEdit && !isSigned && (
                     <span
                       className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px]",
+                        "inline-flex min-w-[110px] items-center gap-1 text-[11px] transition-opacity duration-300",
+                        panelState.autoSaveStatus === "idle" && "opacity-0",
+                        panelState.autoSaveStatus === "dirty" && "text-amber-600 dark:text-amber-400",
                         panelState.autoSaveStatus === "saving" && "text-muted-foreground",
                         panelState.autoSaveStatus === "saved" && "text-success-500",
                         panelState.autoSaveStatus === "error" && "text-red-500"
@@ -225,6 +258,11 @@ export function ClinicalNoteModal({
                       role="status"
                       aria-live="polite"
                     >
+                      {panelState.autoSaveStatus === "dirty" && (
+                        <>
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" /> Sin guardar
+                        </>
+                      )}
                       {panelState.autoSaveStatus === "saving" && (
                         <>
                           <Loader2 className="h-3 w-3 animate-spin" /> Guardando…
@@ -232,7 +270,12 @@ export function ClinicalNoteModal({
                       )}
                       {panelState.autoSaveStatus === "saved" && (
                         <>
-                          <Cloud className="h-3 w-3" /> Guardado
+                          <Cloud className="h-3 w-3" /> Guardado{" "}
+                          {panelState.lastSavedAt &&
+                            panelState.lastSavedAt.toLocaleTimeString("es-PE", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                         </>
                       )}
                       {panelState.autoSaveStatus === "error" && (
@@ -246,8 +289,11 @@ export function ClinicalNoteModal({
               </DialogDescription>
             </div>
 
-            {/* Global CTAs — solo en modo Nota (Timeline es read-only). */}
-            {canEdit && view === "note" && (
+            {/* Global CTAs — solo en modo Nota (Timeline es read-only).
+                Imprimir queda FUERA del guard de canEdit: entregar el PDF de
+                una nota firmada es la operación más común del mostrador y no
+                requiere permiso de edición. */}
+            {view === "note" && (
               <div className="flex shrink-0 flex-wrap items-center gap-2">
                 {panelState.note &&
                   panelState.hasContent &&
@@ -265,12 +311,13 @@ export function ClinicalNoteModal({
                       clinicName={clinicName}
                     />
                   )}
+                {canEdit && !isSigned && (
                 <button
                   type="button"
                   onClick={() => panelRef.current?.save()}
-                  disabled={panelState.isSaving || isSigned}
+                  disabled={panelState.isSaving || isSigned || !panelState.hasContent}
                   className={CLINICAL_PRIMARY_CTA}
-                  title="Guardar (Ctrl+S)"
+                  title={!panelState.hasContent ? "Escribe algo antes de guardar" : "Guardar (Ctrl+S)"}
                   aria-label={panelState.note ? "Guardar nota clínica (Ctrl+S)" : "Crear nota clínica (Ctrl+S)"}
                 >
                   {panelState.isSaving ? (
@@ -283,6 +330,7 @@ export function ClinicalNoteModal({
                     Ctrl+S
                   </kbd>
                 </button>
+                )}
                 {canSign && (
                   <button
                     type="button"
@@ -377,8 +425,10 @@ export function ClinicalNoteModal({
               view !== "note" && "hidden"
             )}
           >
-            {/* Left: SOAP Clinical Note */}
-            <div className={cn(isSigned && "opacity-90")}>
+            {/* Left: SOAP Clinical Note — signed state is communicated by the
+                green seal badge + read-only fields, not by dimming (the old
+                opacity-90 was imperceptible and read as a rendering glitch). */}
+            <div className={cn(isSigned && "rounded-xl border-t-2 border-t-success-500/60 pt-3")}>
               <ClinicalNotePanel
                 ref={panelRef}
                 appointmentId={appointmentId}

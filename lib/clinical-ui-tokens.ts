@@ -38,6 +38,10 @@ export const CLINICAL_SIGN_CTA =
 export const CLINICAL_SIGN_CTA_READY =
   "ring-2 ring-amber-500/30 ring-offset-2 ring-offset-background";
 
-/** Locked badge — amber communicates "blocked / attention" better than emerald. */
+/**
+ * Locked badge — success family ("sealed"), not amber ("warning").
+ * A signed note is a completed legal state; the timeline already renders
+ * it green, so the editor must speak the same language.
+ */
 export const CLINICAL_SIGNED_BADGE =
-  "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border border-amber-500/40 bg-amber-500/15 text-xs font-medium text-amber-700 dark:text-amber-300";
+  "inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border border-success-500/40 bg-success-500/10 text-xs font-medium text-success-600 dark:text-success-400";

@@ -29,6 +29,8 @@ export function formatDateRange(beforeIso: string, afterIso: string): string {
   const bm = MONTHS_ES[b.getMonth()];
   const am = MONTHS_ES[a.getMonth()];
   if (b.getFullYear() === a.getFullYear()) {
+    // Same month and year: "Jun 2026", not the redundant "Jun → Jun 2026"
+    if (b.getMonth() === a.getMonth()) return `${am} ${a.getFullYear()}`;
     return `${bm} → ${am} ${a.getFullYear()}`;
   }
   return `${bm} ${b.getFullYear()} → ${am} ${a.getFullYear()}`;
