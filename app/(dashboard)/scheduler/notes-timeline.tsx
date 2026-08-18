@@ -5,9 +5,7 @@ import {
   ArrowDownNarrowWide,
   ArrowUpNarrowWide,
   CalendarDays,
-  ChevronDown,
   Heart,
-  Loader2,
   Lock,
   Pill,
   Stethoscope,
@@ -59,13 +57,46 @@ interface ExamOrderRow {
 
 type SortOrder = "desc" | "asc";
 
+// Diagnósticos ordenados (primary primero) — fallback al campo legacy.
+// Compartido entre el riel (título del nodo) y el panel de detalle.
+function noteDiagnoses(note: TimelineNote): ClinicalNoteDiagnosis[] {
+  if (note.diagnoses && note.diagnoses.length > 0) {
+    return note.diagnoses.slice().sort((a, b) => {
+      if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
+      return a.position - b.position;
+    });
+  }
+  if (note.diagnosis_code) {
+    return [
+      {
+        id: "legacy",
+        clinical_note_id: note.id,
+        organization_id: note.organization_id,
+        code: note.diagnosis_code,
+        label: note.diagnosis_label ?? note.diagnosis_code,
+        is_primary: true,
+        position: 0,
+        created_at: note.created_at,
+      } as ClinicalNoteDiagnosis,
+    ];
+  }
+  return [];
+}
+
+// Título del nodo: el diagnóstico principal es lo más descriptivo que
+// tenemos por nota; "Consulta" como fallback.
+function noteTitle(note: TimelineNote): string {
+  const dx = noteDiagnoses(note);
+  return dx[0]?.label ?? "Consulta";
+}
+
 export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) {
   const [notes, setNotes] = useState<TimelineNote[]>([]);
   const [prescriptions, setPrescriptions] = useState<PrescriptionWithDoctor[]>([]);
   const [examOrders, setExamOrders] = useState<ExamOrderRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const fetchedFor = useRef<string | null>(null);
 
@@ -163,22 +194,23 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
     });
   }, [notes, currentNoteId, sortOrder]);
 
-  const toggleExpand = useCallback((id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  // Master-detail: siempre hay una nota seleccionada (la primera de la
+  // lista por defecto). Si el orden cambia o la selección desaparece,
+  // volvemos a la primera.
+  useEffect(() => {
+    if (visibleNotes.length === 0) {
+      setSelectedId(null);
+      return;
+    }
+    if (!selectedId || !visibleNotes.some((n) => n.id === selectedId)) {
+      setSelectedId(visibleNotes[0].id);
+    }
+  }, [visibleNotes, selectedId]);
 
-  const expandAll = useCallback(() => {
-    setExpandedIds(new Set(visibleNotes.map((n) => n.id)));
-  }, [visibleNotes]);
-
-  const collapseAll = useCallback(() => {
-    setExpandedIds(new Set());
-  }, []);
+  const selectedNote = useMemo(
+    () => visibleNotes.find((n) => n.id === selectedId) ?? null,
+    [visibleNotes, selectedId]
+  );
 
   if (!patientId) {
     return (
@@ -220,30 +252,21 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
             )}
           </button>
         </div>
-        {visibleNotes.length > 1 && (
-          <div className="flex items-center gap-1 text-[11px]">
-            <button
-              type="button"
-              onClick={expandAll}
-              className="text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
-            >
-              Expandir todo
-            </button>
-            <span className="text-muted-foreground/40">·</span>
-            <button
-              type="button"
-              onClick={collapseAll}
-              className="text-muted-foreground hover:text-foreground transition-colors underline-offset-2 hover:underline"
-            >
-              Colapsar
-            </button>
-          </div>
+        {visibleNotes.length > 0 && (
+          <span className="text-[11px] text-muted-foreground">
+            {visibleNotes.length} consulta{visibleNotes.length === 1 ? "" : "s"}
+          </span>
         )}
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <div className="grid gap-4 md:grid-cols-[280px_minmax(0,1fr)]" aria-busy="true">
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="h-16 rounded-lg bg-muted/50 animate-pulse" />
+            ))}
+          </div>
+          <div className="hidden md:block h-64 rounded-xl bg-muted/40 animate-pulse" />
         </div>
       ) : error ? (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-center">
@@ -257,171 +280,139 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
           </p>
         </div>
       ) : (
-        <div className="space-y-2.5">
-          {visibleNotes.map((note) => (
-            <NoteCard
-              key={note.id}
-              note={note}
-              expanded={expandedIds.has(note.id)}
-              onToggle={() => toggleExpand(note.id)}
-              prescriptions={prescriptionsByNote.get(note.id) ?? []}
-              examOrders={examOrdersByNote.get(note.id) ?? []}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
+        /* Master-detail: riel de tiempo a la izquierda, contenido de la
+           consulta seleccionada a la derecha. En móvil se apilan (riel
+           compacto arriba con scroll propio). */
+        <div className="grid gap-4 md:grid-cols-[280px_minmax(0,1fr)] md:items-start">
+          {/* ── Riel de tiempo ── */}
+          <nav
+            aria-label="Línea de tiempo de consultas"
+            className="max-h-[280px] overflow-y-auto pr-1 md:max-h-[62dvh] md:sticky md:top-2"
+          >
+            <ol className="relative ml-2 border-l border-border/70">
+              {visibleNotes.map((note) => {
+                const isSelected = note.id === selectedId;
+                const dx = noteDiagnoses(note);
+                return (
+                  <li key={note.id} className="relative">
+                    {/* Punto sobre la línea */}
+                    <span
+                      className={cn(
+                        "absolute -left-[5px] top-4 h-2.5 w-2.5 rounded-full border-2 border-background",
+                        note.is_signed ? "bg-success-500" : "bg-amber-500"
+                      )}
+                      aria-hidden
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setSelectedId(note.id)}
+                      aria-current={isSelected ? "true" : undefined}
+                      className={cn(
+                        "ml-3 mb-1.5 block w-[calc(100%-0.75rem)] rounded-lg px-3 py-2.5 text-left transition-colors",
+                        isSelected
+                          ? "bg-primary/10 ring-1 ring-primary/30"
+                          : "hover:bg-muted/40"
+                      )}
+                    >
+                      <p className="text-[11px] text-muted-foreground">
+                        {new Date(note.created_at).toLocaleDateString("es-PE", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                        })}
+                      </p>
+                      <p
+                        className={cn(
+                          "mt-0.5 line-clamp-2 text-[13px] font-semibold leading-snug",
+                          isSelected ? "text-foreground" : "text-foreground/90"
+                        )}
+                      >
+                        {noteTitle(note)}
+                      </p>
+                      <span className="mt-1.5 inline-flex items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "rounded-full px-1.5 py-0.5 text-[10px] font-medium",
+                            note.is_signed
+                              ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                              : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                          )}
+                        >
+                          {note.is_signed ? "Firmada" : "Borrador"}
+                        </span>
+                        {dx.length > 1 && (
+                          <span className="text-[10px] text-muted-foreground">
+                            +{dx.length - 1} dx
+                          </span>
+                        )}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
 
-// ─── Card ──────────────────────────────────────────────────────────
-
-function NoteCard({
-  note,
-  expanded,
-  onToggle,
-  prescriptions,
-  examOrders,
-}: {
-  note: TimelineNote;
-  expanded: boolean;
-  onToggle: () => void;
-  prescriptions: PrescriptionWithDoctor[];
-  examOrders: ExamOrderRow[];
-}) {
-  const totalExamItems = examOrders.reduce(
-    (acc, o) => acc + (o.exam_order_items?.length ?? 0),
-    0
-  );
-  const dateStr = new Date(note.created_at).toLocaleDateString("es-PE", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  });
-  const timeStr = new Date(note.created_at).toLocaleTimeString("es-PE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
-  // Diagnósticos ordenados (primary primero) — fallback al campo legacy.
-  const diagnoses = useMemo(() => {
-    if (note.diagnoses && note.diagnoses.length > 0) {
-      return note.diagnoses.slice().sort((a, b) => {
-        if (a.is_primary !== b.is_primary) return a.is_primary ? -1 : 1;
-        return a.position - b.position;
-      });
-    }
-    if (note.diagnosis_code) {
-      return [
-        {
-          id: "legacy",
-          clinical_note_id: note.id,
-          organization_id: note.organization_id,
-          code: note.diagnosis_code,
-          label: note.diagnosis_label ?? note.diagnosis_code,
-          is_primary: true,
-          position: 0,
-          created_at: note.created_at,
-        } as ClinicalNoteDiagnosis,
-      ];
-    }
-    return [];
-  }, [note]);
-
-  return (
-    <div
-      className={cn(
-        "rounded-lg border border-border overflow-hidden transition-all",
-        note.is_signed && "border-l-4 border-l-success-500"
-      )}
-    >
-      {/* Header (clickable) */}
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left hover:bg-muted/30 transition-colors"
-      >
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 flex-1">
-          <Stethoscope className="h-4 w-4 text-emerald-500 shrink-0" />
-          <span className="text-sm font-semibold whitespace-nowrap">
-            {dateStr}
-          </span>
-          <span className="text-xs text-muted-foreground whitespace-nowrap">
-            {timeStr}
-          </span>
-          {note.doctors && (
-            <span className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0">
-              <span
-                className="h-2.5 w-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: note.doctors.color }}
-              />
-              <span className="truncate">{note.doctors.full_name}</span>
-            </span>
-          )}
-          {/* Diagnósticos primero (chips compactos) */}
-          {diagnoses.length > 0 && (
-            <div className="flex flex-wrap items-center gap-1">
-              {diagnoses.slice(0, 2).map((d) => (
-                <span
-                  key={d.code}
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]",
-                    d.is_primary
-                      ? "border-primary/40 bg-primary/10 text-primary"
-                      : "border-border bg-muted/40 text-foreground"
+          {/* ── Detalle de la consulta seleccionada ── */}
+          {selectedNote && (
+            <article
+              key={selectedNote.id}
+              className="min-w-0 rounded-xl border border-border bg-card animate-[fadeUp_0.25s_cubic-bezier(0.16,1,0.3,1)]"
+            >
+              {/* Cabecera */}
+              <header className="border-b border-border/60 px-5 py-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                      selectedNote.is_signed
+                        ? "bg-success-500/10 text-success-600 dark:text-success-400"
+                        : "bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                    )}
+                  >
+                    {selectedNote.is_signed ? "Firmada" : "Borrador"}
+                  </span>
+                  {selectedNote.is_signed && (
+                    <Lock className="h-3.5 w-3.5 text-success-500" />
                   )}
-                >
-                  <span className="font-mono font-semibold">{d.code}</span>
-                </span>
-              ))}
-              {diagnoses.length > 2 && (
-                <span className="text-[10px] text-muted-foreground">
-                  +{diagnoses.length - 2}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Counters de receta/examen — pista visual de qué hay sin expandir */}
-          {prescriptions.length > 0 && (
-            <span
-              className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground"
-              title={`${prescriptions.length} medicamento${prescriptions.length === 1 ? "" : "s"}`}
-            >
-              <Pill className="h-3 w-3" />
-              {prescriptions.length}
-            </span>
-          )}
-          {totalExamItems > 0 && (
-            <span
-              className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground"
-              title={`${totalExamItems} examen${totalExamItems === 1 ? "" : "es"}`}
-            >
-              <TestTube className="h-3 w-3" />
-              {totalExamItems}
-            </span>
-          )}
-          {note.is_signed && (
-            <Lock className="h-3.5 w-3.5 text-emerald-500" />
-          )}
-          <ChevronDown
-            className={cn(
-              "h-4 w-4 text-muted-foreground transition-transform",
-              expanded && "rotate-180"
-            )}
-          />
-        </div>
-      </button>
+                </div>
+                <h3 className="mt-2 font-display text-lg font-semibold leading-snug text-balance">
+                  {noteTitle(selectedNote)}
+                </h3>
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                  {selectedNote.doctors && (
+                    <span className="flex items-center gap-1.5">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: selectedNote.doctors.color }}
+                      />
+                      {selectedNote.doctors.full_name}
+                    </span>
+                  )}
+                  <span aria-hidden>·</span>
+                  <span>
+                    {new Date(selectedNote.created_at).toLocaleDateString("es-PE", {
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}{" "}
+                    {new Date(selectedNote.created_at).toLocaleTimeString("es-PE", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </p>
+              </header>
 
-      {/* Body — solo se monta cuando se expande (lazy render). */}
-      {expanded && (
-        <NoteBody
-          note={note}
-          diagnoses={diagnoses}
-          prescriptions={prescriptions}
-          examOrders={examOrders}
-        />
+              <NoteBody
+                note={selectedNote}
+                diagnoses={noteDiagnoses(selectedNote)}
+                prescriptions={prescriptionsByNote.get(selectedNote.id) ?? []}
+                examOrders={examOrdersByNote.get(selectedNote.id) ?? []}
+              />
+            </article>
+          )}
+        </div>
       )}
     </div>
   );
@@ -445,7 +436,7 @@ function NoteBody({
   );
 
   return (
-    <div className="border-t border-border px-5 py-4 space-y-4 bg-muted/10">
+    <div className="px-5 py-4 space-y-4 bg-muted/10 rounded-b-xl">
       {/* SOAP — vertical stack para lectura cómoda */}
       <div className="space-y-3">
         {(Object.keys(SOAP_LABELS) as SOAPSection[]).map((section) => {
