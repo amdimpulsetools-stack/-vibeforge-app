@@ -139,6 +139,13 @@ Farmacia se rotula a propósito "DOCUMENTO INTERNO DE CONTROL — NO ES COMPROBA
 es **conectar el checkout de Farmacia al provider Nubefact existente** (boleta desde la venta,
 reutilizando `lib/einvoice/` — mapeo de productos a ítems, serie propia de farmacia); Caja después.
 
+**Decisión de diseño (confirmada por el founder, 18-ago):** la emisión desde Farmacia se
+**activa únicamente si la integración Nubefact de la org está conectada** — mismo gating que la
+página `/facturacion` (presencia de `einvoice_configs` activa). Con Nubefact conectado, el
+checkout ofrece "Emitir boleta" además del ticket; sin conexión, el comportamiento actual
+(solo ticket interno) no cambia en nada. El ticket interno nunca desaparece: es el fallback
+si la emisión falla o el paciente no la pide.
+
 **Mientras tanto (desde ya):** cobrar facturación como addon con NubeFact debajo — el margen
 financia el desarrollo del motor. Riesgo a no olvidar: si el motor propio falla, las clínicas no
 pueden cobrar legalmente; NubeFact hoy absorbe cambios normativos y caídas — esa prima de seguro
