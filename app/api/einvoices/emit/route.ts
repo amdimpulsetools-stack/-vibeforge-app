@@ -46,6 +46,13 @@ const itemSchema = z.object({
   // Convention for clinics: catalog prices are final prices. The route
   // splits this into subtotal (sin IGV) + IGV before sending to Nubefact.
   unit_price: z.coerce.number().min(0),
+  /**
+   * Per-line discount in currency (pharmacy sales carry discounts per
+   * line, mirroring pharmacy_sale_items.line_discount). Folded into the
+   * line's net amount exactly like the prorated global discount, so the
+   * emitted total always equals what was actually charged.
+   */
+  line_discount: z.coerce.number().min(0).default(0),
   igv_affectation: z.coerce.number().int().min(1),
   internal_code: z.string().max(15).optional(),
   sunat_product_code: z.string().max(15).optional(),
@@ -54,6 +61,12 @@ const itemSchema = z.object({
 
 const bodySchema = z.object({
   appointment_id: z.string().uuid().optional().nullable(),
+  /**
+   * Pharmacy sale to invoice (POS flow). Mutually independent from
+   * appointment_id. On success the sale row gets einvoice_id linked —
+   * one comprobante per sale (unique index on pharmacy_sales.einvoice_id).
+   */
+  pharmacy_sale_id: z.string().uuid().optional().nullable(),
   doc_type: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
   series: z.string().length(4),
 
@@ -203,6 +216,44 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
+  // ── 0a) Pharmacy sale guard (POS flow) ───────────────────────────────
+  // The sale must exist in this org, be confirmed (charged), and not have
+  // a comprobante yet. Validated BEFORE reserving a correlative so a
+  // duplicate attempt never burns a number.
+  let pharmacySaleId: string | null = null;
+  if (data.pharmacy_sale_id && data.doc_type !== 3 && data.doc_type !== 4) {
+    const { data: saleRow } = await admin
+      .from("pharmacy_sales")
+      .select("id, organization_id, status, einvoice_id")
+      .eq("id", data.pharmacy_sale_id)
+      .maybeSingle();
+    const sale = saleRow as unknown as {
+      id: string;
+      organization_id: string;
+      status: string;
+      einvoice_id: string | null;
+    } | null;
+    if (!sale || sale.organization_id !== orgId) {
+      return NextResponse.json(
+        { error: "No se encontró la venta de farmacia." },
+        { status: 404 }
+      );
+    }
+    if (sale.status !== "confirmada") {
+      return NextResponse.json(
+        { error: "Solo se puede emitir comprobante de una venta cobrada." },
+        { status: 400 }
+      );
+    }
+    if (sale.einvoice_id) {
+      return NextResponse.json(
+        { error: "Esta venta ya tiene un comprobante emitido." },
+        { status: 400 }
+      );
+    }
+    pharmacySaleId = sale.id;
+  }
+
   // ── 0) Compute totals from items ──────────────────────────────────────
   // unit_price comes WITH IGV included (catalog convention). The split is
   // done PER LINE (see computeLineTax in lib/einvoice/mapper.ts), never per
@@ -222,7 +273,10 @@ export async function POST(req: NextRequest) {
     const amounts = computeLineTax({
       quantity: it.quantity,
       unitPriceWithTax: it.unit_price,
-      lineDiscount: discountShares[idx],
+      // Per-line discount (pharmacy) stacks with the prorated global
+      // discount (appointments) — for the existing flow line_discount is
+      // always 0, so the certified math is untouched.
+      lineDiscount: discountShares[idx] + it.line_discount,
       isTaxed: isTaxedAffectation(it.igv_affectation),
       igvPercent: data.igv_percent,
     });
@@ -538,6 +592,17 @@ export async function POST(req: NextRequest) {
         .from("appointments")
         .update({ einvoice_id: invoiceId })
         .eq("id", data.appointment_id);
+    }
+
+    // Link from pharmacy sale — the partial unique index on
+    // pharmacy_sales.einvoice_id guarantees one comprobante per sale
+    // even under a race; the .is() guard keeps the first link.
+    if (pharmacySaleId) {
+      await admin
+        .from("pharmacy_sales")
+        .update({ einvoice_id: invoiceId })
+        .eq("id", pharmacySaleId)
+        .is("einvoice_id", null);
     }
 
     // Mark the original as cancelled when this is a credit note that

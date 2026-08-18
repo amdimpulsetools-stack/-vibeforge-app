@@ -132,19 +132,15 @@ Farmacia/Caja/facturación cambia. Migración gradual org por org con NubeFact d
 | F2 — Cola larga | Facturas, NC/ND, comunicaciones de baja, resúmenes, contingencia (SUNAT caído), archivo legal XML+CDR, gestión/renovación de certificados por org | Aquí vive el riesgo real: guardia 24/7. Presupuestar auditor/contador tributario que avise cambios normativos SUNAT |
 | F3 — Migración + pricing | Piloto en org del founder → migrar orgs una a una → precio por comprobante o plan | NubeFact queda como seguro de respaldo permanente o se retira al final |
 
-**Pendiente verificado (2026-08-18): Farmacia y Caja NO emiten comprobantes.** La facturación
-electrónica Nubefact hoy solo se emite desde el sidebar de la CITA (servicios). El ticket de
-Farmacia se rotula a propósito "DOCUMENTO INTERNO DE CONTROL — NO ES COMPROBANTE SUNAT"
-(`farmacia/types.ts:212`) para no incurrir en infracción tributaria. El paso natural pre-YendaFact
-es **conectar el checkout de Farmacia al provider Nubefact existente** (boleta desde la venta,
-reutilizando `lib/einvoice/` — mapeo de productos a ítems, serie propia de farmacia); Caja después.
-
-**Decisión de diseño (confirmada por el founder, 18-ago):** la emisión desde Farmacia se
-**activa únicamente si la integración Nubefact de la org está conectada** — mismo gating que la
-página `/facturacion` (presencia de `einvoice_configs` activa). Con Nubefact conectado, el
-checkout ofrece "Emitir boleta" además del ticket; sin conexión, el comportamiento actual
-(solo ticket interno) no cambia en nada. El ticket interno nunca desaparece: es el fallback
-si la emisión falla o el paciente no la pide.
+**✅ Farmacia → Nubefact ENTREGADO (2026-08-18).** El checkout de Farmacia emite boleta/factura
+tras el cobro, **solo si la integración Nubefact de la org está conectada** (mismo gating que
+`/facturacion` — decisión del founder). Reutiliza el mismo endpoint y modal de emisión de las
+citas (matemática certificada, 37 tests): ítems desde las líneas cobradas con descuentos por
+línea exactos, unidad NIU, SKU como código interno, paciente vinculado precarga datos fiscales
+y venta de mostrador va como consumidor final. La venta queda ligada al comprobante
+(`pharmacy_sales.einvoice_id`, único — imposible doble emisión) y el ticket interno nunca
+desaparece: fallback si la emisión falla o el cliente no pide comprobante. **Caja queda
+pendiente** como siguiente paso del mismo patrón.
 
 **Mientras tanto (desde ya):** cobrar facturación como addon con NubeFact debajo — el margen
 financia el desarrollo del motor. Riesgo a no olvidar: si el motor propio falla, las clínicas no

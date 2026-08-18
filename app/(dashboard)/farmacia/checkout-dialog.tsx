@@ -35,6 +35,11 @@ import {
 } from "lucide-react";
 import { SaleTicket } from "./sale-ticket";
 import {
+  EInvoiceEmitDialog,
+  type PharmacySaleForEmit,
+} from "@/components/einvoice/emit-dialog";
+import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
+import {
   formatPEN,
   saleLabel,
   type CartLine,
@@ -90,6 +95,18 @@ export function CheckoutDialog({
   const [result, setResult] = useState<ConfirmResult | null>(null);
   const issuedAtRef = useRef<Date>(new Date());
 
+  // Facturación electrónica — visible SOLO si la org tiene Nubefact
+  // conectado (mismo gating que /facturacion). Sin conexión, la venta
+  // se comporta exactamente como siempre: ticket interno y nada más.
+  const einvoice = useEInvoiceConfig();
+  const [emitOpen, setEmitOpen] = useState(false);
+  const [emitted, setEmitted] = useState<{
+    docType: number;
+    series: string;
+    number: number;
+    pdfUrl?: string;
+  } | null>(null);
+
   // Congelado al confirmar: el carrito se vacía en cuanto la venta cierra,
   // pero el ticket tiene que poder imprimirse después.
   const [printed, setPrinted] = useState<{
@@ -121,6 +138,8 @@ export function CheckoutDialog({
     setCharging(false);
     setResult(null);
     setPrinted(null);
+    setEmitOpen(false);
+    setEmitted(null);
   }, [open, methods]);
 
   // Si los métodos llegan después de abrir (primera carga), preselecciona
@@ -306,7 +325,38 @@ export function CheckoutDialog({
               )}
             </div>
 
-            <div className="mt-5 grid grid-cols-2 gap-2">
+            {/* Comprobante electrónico — solo con Nubefact conectado */}
+            {einvoice.connected && einvoice.config && (
+              emitted ? (
+                <div className="mt-4 w-full rounded-xl border border-success-500/30 bg-success-500/10 p-3">
+                  <p className="flex items-center justify-center gap-1.5 text-sm font-semibold text-success-700 dark:text-success-300">
+                    <Check className="h-4 w-4 shrink-0" />
+                    {emitted.docType === 1 ? "Factura" : "Boleta"}{" "}
+                    {emitted.series}-{String(emitted.number).padStart(8, "0")}
+                  </p>
+                  {emitted.pdfUrl && (
+                    <a
+                      href={emitted.pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 block text-center text-xs font-medium text-success-700 underline underline-offset-2 dark:text-success-300"
+                    >
+                      Abrir PDF del comprobante
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEmitOpen(true)}
+                  className="mt-4 inline-flex h-12 w-full items-center justify-center gap-1.5 rounded-xl border border-primary/40 bg-primary/5 text-sm font-semibold text-primary hover:bg-primary/10"
+                >
+                  <Receipt className="h-4 w-4" /> Emitir boleta / factura
+                </button>
+              )
+            )}
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => window.print()}
@@ -322,6 +372,40 @@ export function CheckoutDialog({
                 Nueva venta
               </button>
             </div>
+
+            {einvoice.connected && einvoice.config && printed && (
+              <EInvoiceEmitDialog
+                open={emitOpen}
+                onOpenChange={setEmitOpen}
+                pharmacySale={
+                  {
+                    sale_id: result.sale_id,
+                    sale_number: result.sale_number,
+                    patient_id: patientId,
+                    customer_label: printed.customer,
+                    payment_method: printed.method,
+                    items: printed.lines.map((l) => ({
+                      description: l.product.name,
+                      quantity: l.quantity,
+                      unit_price: l.unitPrice,
+                      line_discount: l.lineDiscount,
+                      igv_affectation: l.product.igv_affectation ?? 1,
+                      internal_code: l.product.sku?.slice(0, 15) || undefined,
+                    })),
+                  } satisfies PharmacySaleForEmit
+                }
+                config={einvoice.config}
+                series={einvoice.series}
+                onEmitted={(info) =>
+                  setEmitted({
+                    docType: info.docType,
+                    series: info.series,
+                    number: info.number,
+                    pdfUrl: info.pdfUrl,
+                  })
+                }
+              />
+            )}
 
             {printed && (
               <SaleTicket
