@@ -93,10 +93,35 @@ interface ServiceFiscal {
   sunat_product_code: string | null;
 }
 
+/**
+ * Pharmacy-sale source (POS flow). The dialog pre-fills items from the
+ * charged sale (per-line discounts included) and links the emitted
+ * comprobante to the sale server-side.
+ */
+export interface PharmacySaleForEmit {
+  sale_id: string;
+  sale_number: number;
+  patient_id: string | null;
+  customer_label: string | null;
+  payment_method: string | null;
+  items: {
+    description: string;
+    quantity: number;
+    /** Unit price WITH IGV — what was charged at the counter. */
+    unit_price: number;
+    line_discount: number;
+    igv_affectation: number;
+    internal_code?: string;
+  }[];
+}
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  appointment: AppointmentForEmit;
+  /** Appointment source — the original flow. Omit when emitting a pharmacy sale. */
+  appointment?: AppointmentForEmit | null;
+  /** Pharmacy-sale source — POS flow. Omit when emitting an appointment. */
+  pharmacySale?: PharmacySaleForEmit | null;
   config: EInvoiceConfigData;
   series: EInvoiceSeries[];
   /** Called after a successful emit. */
@@ -119,10 +144,13 @@ interface EditableItem {
    * before sending to Nubefact, since SUNAT requires the breakdown.
    */
   unit_price: number;
+  /** Per-line discount in currency (pharmacy sales). 0 elsewhere. */
+  line_discount?: number;
   igv_affectation: number;
   service_id: string | null;
   unit_of_measure: string;
   sunat_product_code?: string;
+  internal_code?: string;
 }
 
 const IGV_OPTIONS = [
@@ -143,6 +171,7 @@ export function EInvoiceEmitDialog({
   open,
   onOpenChange,
   appointment,
+  pharmacySale,
   config,
   series,
   onEmitted,
@@ -220,7 +249,7 @@ export function EInvoiceEmitDialog({
   // NOT on each item edit, so manual price edits made AFTER selecting a
   // mode are preserved.
   useEffect(() => {
-    if (originalItems.length === 0) return;
+    if (originalItems.length === 0 || !appointment) return;
     if (billingMode === "total") {
       setItems(originalItems);
       return;
@@ -245,7 +274,7 @@ export function EInvoiceEmitDialog({
           : `${it.description}${PARTIAL_TAG}`,
       }))
     );
-  }, [billingMode, originalItems, appointment.amount_paid]);
+  }, [billingMode, originalItems, appointment?.amount_paid, appointment]);
 
   // Load patient + service fiscal data when dialog opens
   useEffect(() => {
@@ -258,23 +287,32 @@ export function EInvoiceEmitDialog({
       let patientFiscal: PatientFiscal | null = null;
       let serviceFiscal: ServiceFiscal | null = null;
 
-      if (appointment.patient_id) {
+      const patientId = pharmacySale
+        ? pharmacySale.patient_id
+        : appointment?.patient_id ?? null;
+      if (patientId) {
         const { data } = await supabase
           .from("patients")
           .select(
             "fiscal_doc_type, fiscal_doc_number, legal_name, fiscal_address, fiscal_email, email, dni"
           )
-          .eq("id", appointment.patient_id)
+          .eq("id", patientId)
           .maybeSingle();
         patientFiscal = (data as unknown as PatientFiscal) ?? null;
       }
 
-      const { data: svcData } = await supabase
-        .from("services")
-        .select("igv_affectation, unit_of_measure, sunat_product_code")
-        .eq("id", appointment.service_id)
-        .maybeSingle();
-      serviceFiscal = (svcData as unknown as ServiceFiscal) ?? null;
+      if (appointment) {
+        const { data: svcData } = await supabase
+          .from("services")
+          .select("igv_affectation, unit_of_measure, sunat_product_code")
+          .eq("id", appointment.service_id)
+          .maybeSingle();
+        serviceFiscal = (svcData as unknown as ServiceFiscal) ?? null;
+      }
+
+      const fallbackName = pharmacySale
+        ? pharmacySale.customer_label ?? ""
+        : appointment?.patient_name ?? "";
 
       // Customer
       if (patientFiscal) {
@@ -282,56 +320,85 @@ export function EInvoiceEmitDialog({
         setCustomerDocNumber(
           patientFiscal.fiscal_doc_number ?? patientFiscal.dni ?? ""
         );
-        setCustomerName(
-          patientFiscal.legal_name ?? appointment.patient_name ?? ""
-        );
+        setCustomerName(patientFiscal.legal_name ?? fallbackName);
         setCustomerAddress(patientFiscal.fiscal_address ?? "");
         setCustomerEmail(
           patientFiscal.fiscal_email ?? patientFiscal.email ?? ""
         );
+      } else if (pharmacySale) {
+        // Venta de mostrador sin ficha: consumidor final ("varios") por
+        // defecto — el backend exige DNI solo desde S/ 700 (RS 007-99).
+        setCustomerDocType("-");
+        setCustomerDocNumber("");
+        setCustomerName(pharmacySale.customer_label ?? "Cliente varios");
+        setCustomerAddress("");
+        setCustomerEmail("");
       } else {
         // Boleta a consumidor final por default
         setCustomerDocType("1");
         setCustomerDocNumber("");
-        setCustomerName(appointment.patient_name ?? "");
+        setCustomerName(fallbackName);
         setCustomerAddress("");
         setCustomerEmail("");
       }
 
-      // Default item from appointment service. price_snapshot is treated
-      // as the FINAL price (with IGV included) — clinic catalog convention.
-      const price = appointment.price_snapshot ?? 0;
-      const baseline: EditableItem[] = [
-        {
-          description: appointment.service_name ?? "Servicio",
-          quantity: 1,
-          unit_price: price,
-          igv_affectation: serviceFiscal?.igv_affectation ?? 1,
-          service_id: appointment.service_id,
-          unit_of_measure: serviceFiscal?.unit_of_measure ?? "ZZ",
-          sunat_product_code: serviceFiscal?.sunat_product_code ?? undefined,
-        },
-      ];
+      let baseline: EditableItem[];
+      if (pharmacySale) {
+        // Items exactly as charged at the counter (per-line discounts
+        // included). NIU = SUNAT unit for goods; ZZ is for services.
+        baseline = pharmacySale.items.map((it) => ({
+          description: it.description,
+          quantity: it.quantity,
+          unit_price: it.unit_price,
+          line_discount: it.line_discount,
+          igv_affectation: it.igv_affectation,
+          service_id: null,
+          unit_of_measure: "NIU",
+          internal_code: it.internal_code,
+        }));
+      } else {
+        // Default item from appointment service. price_snapshot is treated
+        // as the FINAL price (with IGV included) — clinic catalog convention.
+        const price = appointment?.price_snapshot ?? 0;
+        baseline = [
+          {
+            description: appointment?.service_name ?? "Servicio",
+            quantity: 1,
+            unit_price: price,
+            igv_affectation: serviceFiscal?.igv_affectation ?? 1,
+            service_id: appointment?.service_id ?? null,
+            unit_of_measure: serviceFiscal?.unit_of_measure ?? "ZZ",
+            sunat_product_code: serviceFiscal?.sunat_product_code ?? undefined,
+          },
+        ];
+      }
       setOriginalItems(baseline);
       setItems(baseline);
 
       // Pre-select billingMode based on the appointment's payment state.
       // Partial = paid > 0 AND paid < total. The toggle effect below will
       // rescale the items down to amount_paid when "paid" is active.
-      const totalPrice = appointment.total_price ?? price;
-      const amountPaid = appointment.amount_paid ?? 0;
-      const isPartial = amountPaid > 0 && amountPaid < totalPrice;
+      // Pharmacy sales are always charged in full → "total".
+      const totalPrice =
+        appointment?.total_price ?? appointment?.price_snapshot ?? 0;
+      const amountPaid = appointment?.amount_paid ?? 0;
+      const isPartial =
+        !pharmacySale && amountPaid > 0 && amountPaid < totalPrice;
       setBillingMode(isPartial ? "paid" : "total");
 
       setDiscount(0);
       setObservations("");
       setSendEmail(config.auto_send_email);
-      setPaymentMethodLabel(appointment.last_payment_method ?? "");
+      setPaymentMethodLabel(
+        pharmacySale
+          ? pharmacySale.payment_method ?? ""
+          : appointment?.last_payment_method ?? ""
+      );
       setLoadingPatient(false);
     };
 
     void fetchAll();
-  }, [open, appointment, config]);
+  }, [open, appointment, pharmacySale, config]);
 
   // ── Live totals ────────────────────────────────────────────────────────
   // The user enters `unit_price` WITH IGV included (the price the patient
@@ -359,7 +426,9 @@ export function EInvoiceEmitDialog({
       const amounts = computeLineTax({
         quantity: it.quantity,
         unitPriceWithTax: it.unit_price,
-        lineDiscount: discountShares[idx],
+        // Same stacking rule as the emit route: per-line discount
+        // (pharmacy) + prorated share of the global discount.
+        lineDiscount: discountShares[idx] + (it.line_discount ?? 0),
         isTaxed: isTaxedAffectation(it.igv_affectation),
         igvPercent,
       });
@@ -504,7 +573,8 @@ export function EInvoiceEmitDialog({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          appointment_id: appointment.id,
+          appointment_id: appointment?.id ?? null,
+          pharmacy_sale_id: pharmacySale?.sale_id ?? null,
           doc_type: docType,
           series: selectedSeries,
           customer_doc_type: customerDocType,
@@ -524,9 +594,11 @@ export function EInvoiceEmitDialog({
             description: it.description,
             quantity: it.quantity,
             unit_price: it.unit_price,
+            line_discount: it.line_discount ?? 0,
             igv_affectation: it.igv_affectation,
             unit_of_measure: it.unit_of_measure,
             sunat_product_code: it.sunat_product_code,
+            internal_code: it.internal_code,
           })),
         }),
       });
@@ -654,7 +726,7 @@ export function EInvoiceEmitDialog({
               </div>
 
               {/* Billing mode (only when there's a partial payment) */}
-              {(() => {
+              {appointment && (() => {
                 const totalPrice =
                   appointment.total_price ?? appointment.price_snapshot ?? 0;
                 const amountPaid = appointment.amount_paid ?? 0;
@@ -964,6 +1036,18 @@ export function EInvoiceEmitDialog({
                 {discount > 0 && (
                   <Row label="Descuento" value={`− ${config.default_currency} ${fmt(discount)}`} />
                 )}
+                {(() => {
+                  const lineDiscounts = items.reduce(
+                    (s, it) => s + (it.line_discount ?? 0),
+                    0
+                  );
+                  return lineDiscounts > 0 ? (
+                    <Row
+                      label="Descuentos por línea (ya incluidos)"
+                      value={`− ${config.default_currency} ${fmt(lineDiscounts)}`}
+                    />
+                  ) : null;
+                })()}
                 <div className="pt-2 border-t border-border flex items-baseline justify-between">
                   <span className="font-semibold">Total</span>
                   <span className="text-xl font-bold tabular-nums">

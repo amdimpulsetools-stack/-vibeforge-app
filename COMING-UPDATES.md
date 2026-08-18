@@ -87,6 +87,31 @@ NO desplaza CAPTCHA P0 ni trámites Meta. Validar cada campo del MVP contra Vitr
 | Facturación de módulos | ✅ HECHO 12-ago (mig 210 + PR #268): precio y política en la base (`addons.monthly_price` + `included_from_plan`: almacen 39/'professional', captacion 99/NULL), activate cobra vía maquinaria mig 152 (reserva atómica → sync preapproval MP → grant; rollback si MP falla), índice anti doble cobro, sin prorrateo, desactivar cancela el cobro primero. Pendiente solo: **una prueba real de activación de pago con org de test antes de abrir al público** | ✅ En prod |
 | Lanzamiento público del addon | Voltear `is_active` de `captacion` + teaser (volumen gratis, resultado de pago) | Tras validar con datos del piloto |
 
+## 🤖 Copiloto IA de recepción — sobre Captación (idea del founder, 2026-08-18)
+
+> **Secuencia acordada:** primero se cierra el círculo de Captación (F3 chat + cruce
+> campaña → paciente → caja); el copiloto viene DESPUÉS y se monta encima. Origen del
+> problema: las recepcionistas reciben preguntas recurrentes sobre servicios y las
+> plantillas rígidas de los CRM no se adaptan al momento. El activo real de este
+> producto es la **base de conocimientos**, no el chat.
+
+**Escalera de 3 peldaños (misma base de conocimientos, misma voz):**
+
+| Peldaño | Qué hace | Riesgo |
+|---------|----------|--------|
+| V1 — Copiloto | La recepcionista ve el mensaje del paciente (el capturador silencioso YA recibe los entrantes vía webhook — no hace falta copy-paste), pulsa "Sugerir respuesta", ajusta si quiere y "Copiar" (patrón wa-clipboard existente). El humano siempre envía. | Cero — nada sale sin ojos humanos |
+| V2 — Sugerencia proactiva | La respuesta ya está generada cuando abre el lead; un click para usar | Bajo |
+| V3 — Autopiloto con handoff | Responde solo lo que está en la base (precios, horarios, preparación) y ofrece huecos reales de la agenda; deriva a humano lo que se sale del guion | Controlado por la base |
+
+**Base de conocimientos (el activo):**
+- **Automática, del sistema (nunca se redacta a mano):** catálogo de servicios con precios y duraciones, doctores y especialidades, horarios de apertura, sedes. Regla de oro: **el precio se cita textual del catálogo o no se cita** — jamás generado.
+- **Capa blanda editable por la clínica:** ficha por servicio (qué incluye, preparación, contraindicaciones), políticas (cancelación, reprogramación, medios de pago), FAQs libres.
+- **Voz de la clínica (los "parámetros de humanización" del founder):** ajuste por org — cálido/formal, emojis sí/no, tuteo/usted — aplicado a toda respuesta generada.
+- **Bandeja de brechas:** cuando el agente no sabe, responde "déjame confirmarlo" y REGISTRA la pregunta; el admin responde las brechas semanalmente y la base engorda con lo que los pacientes realmente preguntan. Esto es lo que ningún CRM de plantillas puede copiar.
+- Bonus de entrenamiento: cada edición que la recepcionista hace a una sugerencia antes de enviar es señal de "así se dice mejor" — el copiloto V1 es la escuela del autopiloto V3.
+
+**Dependencias:** Captación F3 (bandeja de conversaciones) como superficie natural del copiloto; el cruce con caja (círculo cerrado) aporta el argumento de venta del autopiloto ("X% de leads se enfrían por respuesta lenta"). Sinergia con F5 (IA de no-conversión): comparten infraestructura de análisis.
+
 ## 🧾 YendaFact — facturador propio, emisión directa a SUNAT (coming soon, 2026-08-15)
 
 > **Idea del founder (15-ago):** reemplazar NubeFact por un motor de emisión propio para quedarnos
@@ -106,6 +131,16 @@ Farmacia/Caja/facturación cambia. Migración gradual org por org con NubeFact d
 | F1 — Motor boletas | Generación XML UBL 2.1 + firma XML-DSig + envío SOAP + procesamiento CDR, **solo boletas** (90% del volumen), contra el beta de SUNAT | `sunat-provider.ts` tras la interfaz existente. Fallback automático a NubeFact si SUNAT rechaza o el motor falla |
 | F2 — Cola larga | Facturas, NC/ND, comunicaciones de baja, resúmenes, contingencia (SUNAT caído), archivo legal XML+CDR, gestión/renovación de certificados por org | Aquí vive el riesgo real: guardia 24/7. Presupuestar auditor/contador tributario que avise cambios normativos SUNAT |
 | F3 — Migración + pricing | Piloto en org del founder → migrar orgs una a una → precio por comprobante o plan | NubeFact queda como seguro de respaldo permanente o se retira al final |
+
+**✅ Farmacia → Nubefact ENTREGADO (2026-08-18).** El checkout de Farmacia emite boleta/factura
+tras el cobro, **solo si la integración Nubefact de la org está conectada** (mismo gating que
+`/facturacion` — decisión del founder). Reutiliza el mismo endpoint y modal de emisión de las
+citas (matemática certificada, 37 tests): ítems desde las líneas cobradas con descuentos por
+línea exactos, unidad NIU, SKU como código interno, paciente vinculado precarga datos fiscales
+y venta de mostrador va como consumidor final. La venta queda ligada al comprobante
+(`pharmacy_sales.einvoice_id`, único — imposible doble emisión) y el ticket interno nunca
+desaparece: fallback si la emisión falla o el cliente no pide comprobante. **Caja queda
+pendiente** como siguiente paso del mismo patrón.
 
 **Mientras tanto (desde ya):** cobrar facturación como addon con NubeFact debajo — el margen
 financia el desarrollo del motor. Riesgo a no olvidar: si el motor propio falla, las clínicas no
