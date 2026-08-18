@@ -186,7 +186,7 @@ export function ClinicalNoteModal({
             void flushAndClose();
           }
         }}
-        className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0 sm:rounded-none md:top-[50%] md:left-[50%] md:h-auto md:max-h-[92dvh] md:max-w-[95vw] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-xl xl:max-w-[1480px] 2xl:max-w-[1680px]"
+        className="top-0 left-0 h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 overflow-y-auto rounded-none p-0 sm:rounded-none md:top-[50%] md:left-[50%] md:h-auto md:max-h-[92dvh] md:max-w-[95vw] md:translate-x-[-50%] md:translate-y-[-50%] md:rounded-xl xl:max-w-[1340px] 2xl:max-w-[1440px]"
       >
         {/* Sticky header — title, patient context, signed badge, global CTAs */}
         <DialogHeader className="sticky top-0 z-10 border-b border-border bg-card/95 backdrop-blur px-4 pt-4 pb-3 md:px-6 md:pt-5 md:pb-4">
@@ -420,7 +420,11 @@ export function ClinicalNoteModal({
           <div
             className={cn(
               "grid grid-cols-1 gap-4 md:gap-6",
-              "xl:grid-cols-[minmax(0,1fr)_440px] 2xl:grid-cols-[minmax(0,1fr)_500px]",
+              // El SOAP tiene ancho de lectura fijo (~75ch) y el panel
+              // lateral absorbe el resto — antes el panel era fijo a la
+              // derecha de un modal enorme y el aire muerto quedaba en
+              // el medio.
+              "xl:grid-cols-[minmax(0,48rem)_minmax(360px,1fr)] 2xl:grid-cols-[minmax(0,48rem)_minmax(420px,1fr)]",
               isSigned && "xl:items-start",
               view !== "note" && "hidden"
             )}
