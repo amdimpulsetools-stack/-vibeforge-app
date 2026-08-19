@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
+import {
+  Turnstile,
+  TURNSTILE_ENABLED,
+  type TurnstileHandle,
+} from "@/components/auth/turnstile";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -50,6 +55,11 @@ function RegisterPage() {
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
+
+  // Turnstile (CAPTCHA anti-bots). Token de un solo uso: reset() tras
+  // cada llamada de auth para tener uno fresco en el siguiente intento.
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [termsError, setTermsError] = useState<string | null>(null);
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
@@ -184,7 +194,9 @@ function RegisterPage() {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
+          options: { captchaToken: captchaToken ?? undefined },
         });
+        turnstileRef.current?.reset();
         if (signInError) {
           toast.error("Cuenta creada. Inicia sesión con tu contraseña.");
           router.push("/login");
@@ -217,8 +229,11 @@ function RegisterPage() {
           accepted_privacy_version: TERMS_VERSION,
         },
         emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/onboarding`,
+        captchaToken: captchaToken ?? undefined,
       },
     });
+    // Consumido con éxito o no — regenerar para reintento o reenvío.
+    turnstileRef.current?.reset();
 
     if (error) {
       toast.error(error.message);
@@ -730,9 +745,11 @@ function RegisterPage() {
               )}
             </div>
 
+            <Turnstile ref={turnstileRef} onToken={setCaptchaToken} />
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (TURNSTILE_ENABLED && !captchaToken)}
               className="flex h-11 w-full items-center justify-center rounded-xl gradient-primary text-sm font-semibold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-50"
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

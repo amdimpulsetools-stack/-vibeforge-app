@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Loader2, ArrowLeft, Mail } from "lucide-react";
+import {
+  Turnstile,
+  TURNSTILE_ENABLED,
+  type TurnstileHandle,
+} from "@/components/auth/turnstile";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,7 +25,10 @@ export default function ForgotPasswordPage() {
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/api/auth/callback?next=/reset-password`,
+      captchaToken: captchaToken ?? undefined,
     });
+    // Token de un solo uso — regenerar para un posible reintento.
+    turnstileRef.current?.reset();
 
     if (error) {
       toast.error(error.message);
@@ -78,9 +88,11 @@ export default function ForgotPasswordPage() {
               />
             </div>
 
+            <Turnstile ref={turnstileRef} onToken={setCaptchaToken} />
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (TURNSTILE_ENABLED && !captchaToken)}
               className="flex h-11 w-full items-center justify-center rounded-xl gradient-primary text-sm font-semibold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-50"
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
