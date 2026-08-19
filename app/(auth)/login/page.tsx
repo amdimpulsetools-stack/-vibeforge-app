@@ -1,9 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import {
+  Turnstile,
+  TURNSTILE_ENABLED,
+  type TurnstileHandle,
+} from "@/components/auth/turnstile";
 import { toast } from "sonner";
 import { AlertTriangle, Loader2, Mail } from "lucide-react";
 import { YendaLogo } from "@/components/icons/yenda-logo";
@@ -104,6 +109,12 @@ export default function LoginPage() {
     }
   }, []);
 
+  // Turnstile (CAPTCHA): cuando está activo en Supabase, TODA llamada de
+  // auth exige token — y los tokens son de un solo uso, de ahí el reset()
+  // tras cada intento.
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileHandle>(null);
+
   const handleResend = async () => {
     if (!email) {
       toast.error("Ingresa tu email primero");
@@ -116,8 +127,10 @@ export default function LoginPage() {
       email,
       options: {
         emailRedirectTo: `${window.location.origin}/api/auth/callback?next=/onboarding`,
+        captchaToken: captchaToken ?? undefined,
       },
     });
+    turnstileRef.current?.reset();
     setResending(false);
     if (error) {
       toast.error(error.message);
@@ -135,10 +148,17 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
+      options: { captchaToken: captchaToken ?? undefined },
     });
 
     if (error) {
-      toast.error(error.message);
+      // El token ya se consumió — pedir uno fresco para el reintento.
+      turnstileRef.current?.reset();
+      toast.error(
+        error.message === "Email not confirmed"
+          ? "Tu correo aún no está confirmado. Usa el botón de reenviar el enlace."
+          : error.message
+      );
       setLoading(false);
       return;
     }
@@ -363,9 +383,11 @@ export default function LoginPage() {
               <span className="text-sm text-muted-foreground">Recordar mi usuario</span>
             </label>
 
+            <Turnstile ref={turnstileRef} onToken={setCaptchaToken} />
+
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || (TURNSTILE_ENABLED && !captchaToken)}
               className="flex h-11 w-full items-center justify-center rounded-xl gradient-primary text-sm font-semibold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg disabled:opacity-50"
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
