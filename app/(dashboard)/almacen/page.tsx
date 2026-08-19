@@ -413,6 +413,28 @@ export default function AlmacenPage() {
       const saved = data as unknown as InventoryMovement;
       setMovements((prev) => [saved, ...prev]);
 
+      // Precio de venta actualizado desde la entrada (opcional). El
+      // historial lo escribe el trigger de la 209. Si la RLS lo rechaza
+      // (solo admins editan productos), la entrada YA quedó registrada —
+      // avisamos sin deshacer nada.
+      if (payload.salePrice != null) {
+        const { error: priceErr } = await supabase
+          .from("inventory_products")
+          .update({ sale_price: payload.salePrice })
+          .eq("id", product.id);
+        if (priceErr) {
+          toast.warning("Entrada registrada, pero el precio no se actualizó", {
+            description: "Cambiar el precio de venta requiere permiso de administrador.",
+          });
+        } else {
+          setProducts((prev) =>
+            prev.map((p) =>
+              p.id === product.id ? { ...p, sale_price: payload.salePrice! } : p
+            )
+          );
+        }
+      }
+
       const total = (stockByProduct[product.id] ?? 0) + Math.abs(payload.quantity);
       toast.success(
         `Entraron ${fmtQty(payload.quantity)} de ${product.name}`,
