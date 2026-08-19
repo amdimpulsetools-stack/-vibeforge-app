@@ -375,14 +375,20 @@ export default function SettingsPage() {
   // Agenda, que es el único que lee/edita esta config. Antes se pedía al
   // montar /settings aunque el usuario nunca pasara por ese tab.
   useEffect(() => {
-    if (activeTab !== "agenda") return;
-    fetchSchedulerConfig().then(setSchedulerConfig);
-  }, [activeTab]);
+    if (activeTab !== "agenda" || !organizationId) return;
+    fetchSchedulerConfig(organizationId).then(setSchedulerConfig);
+  }, [activeTab, organizationId]);
 
   const updateSchedulerConfig = (patch: Partial<SchedulerConfig>) => {
     const next = { ...schedulerConfig, ...patch };
     setSchedulerConfig(next);
-    saveSchedulerConfigToDb(patch);
+    // org_id explícito: sin él, un usuario multi-org guardaba el toggle en
+    // una org arbitraria (el bug del flag de duración "encendido pero sin
+    // efecto"). Al terminar, invalidar la query de la agenda para que el
+    // modal de citas vea el cambio sin recargar.
+    void saveSchedulerConfigToDb(patch, organizationId).then(() => {
+      queryClient.invalidateQueries({ queryKey: ["scheduler-config"] });
+    });
   };
 
   const {

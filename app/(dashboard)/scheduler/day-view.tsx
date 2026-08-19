@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Plus, Lock, LockOpen, Coffee } from "lucide-react";
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useOrganization } from "@/components/organization-provider";
 import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, getScheduleStartMinutes, getScheduleEndMinutes, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
 import { AppointmentCard } from "./appointment-card";
 import { useNow } from "./now-provider";
@@ -174,10 +175,12 @@ export function DayView({
   // sincroniza con la BD vía React Query. La key es compartida entre las
   // vistas día/semana: alternar de vista ya no repite el fetch de sync (una
   // sola query por staleTime para ambas).
+  const { organizationId: schedulerOrgId } = useOrganization();
   const { data: schedulerConfig = loadSchedulerConfig() } = useQuery({
-    queryKey: ["scheduler-config"],
-    queryFn: () => fetchSchedulerConfig(),
+    queryKey: ["scheduler-config", schedulerOrgId],
+    queryFn: () => fetchSchedulerConfig(schedulerOrgId),
     placeholderData: () => loadSchedulerConfig(),
+    enabled: !!schedulerOrgId,
   });
   // ── Borde elástico ────────────────────────────────────────────────────────
   // Una cita fuera de la ventana org (ej. 07:00 con apertura 07:15) no

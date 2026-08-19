@@ -252,10 +252,18 @@ function dbRowToConfig(row: {
   };
 }
 
-/** Fetch scheduler config from DB API, cache in localStorage */
-export async function fetchSchedulerConfig(): Promise<SchedulerConfig> {
+/**
+ * Fetch scheduler config from DB API, cache in localStorage.
+ * Pass the ACTIVE organizationId (useOrganization) — without it the API
+ * resolves an arbitrary membership, which reads another org's settings
+ * for multi-org users.
+ */
+export async function fetchSchedulerConfig(orgId?: string | null): Promise<SchedulerConfig> {
   try {
-    const res = await fetch("/api/scheduler-settings");
+    const url = orgId
+      ? `/api/scheduler-settings?org_id=${encodeURIComponent(orgId)}`
+      : "/api/scheduler-settings";
+    const res = await fetch(url);
     if (!res.ok) return loadSchedulerConfig(); // fallback to localStorage
     const data = await res.json();
     const config = dbRowToConfig(data);
@@ -267,8 +275,11 @@ export async function fetchSchedulerConfig(): Promise<SchedulerConfig> {
   }
 }
 
-/** Save scheduler config to DB API + localStorage cache */
-export async function saveSchedulerConfigToDb(config: Partial<SchedulerConfig>): Promise<boolean> {
+/** Save scheduler config to DB API + localStorage cache. Same org_id rule as fetch. */
+export async function saveSchedulerConfigToDb(
+  config: Partial<SchedulerConfig>,
+  orgId?: string | null
+): Promise<boolean> {
   // Always save to localStorage as cache
   saveSchedulerConfig(config);
 
@@ -285,6 +296,7 @@ export async function saveSchedulerConfigToDb(config: Partial<SchedulerConfig>):
     if (config.liveStatusAutoClose !== undefined) body.live_status_auto_close = config.liveStatusAutoClose;
     if (config.requiredFields !== undefined) body.required_fields = config.requiredFields;
     if (config.allowCustomDuration !== undefined) body.allow_custom_duration = config.allowCustomDuration;
+    if (orgId) body.org_id = orgId;
 
     const res = await fetch("/api/scheduler-settings", {
       method: "PUT",
