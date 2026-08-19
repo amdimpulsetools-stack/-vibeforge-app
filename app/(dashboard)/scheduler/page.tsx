@@ -118,9 +118,12 @@ export default function SchedulerPage() {
   // caché del navegador traía una apertura vieja, el aviso de "fuera del
   // horario" comparaba contra otra ventana que la que la grilla dibujaba.
   const { data: schedulerConfig = loadSchedulerConfig() } = useQuery({
-    queryKey: ["scheduler-config"],
-    queryFn: () => fetchSchedulerConfig(),
+    // org en la key: sin ella, un usuario multi-org (founder en la org de
+    // un cliente) leía la config de OTRA org vía el limit(1) del API.
+    queryKey: ["scheduler-config", organizationId],
+    queryFn: () => fetchSchedulerConfig(organizationId),
     placeholderData: () => loadSchedulerConfig(),
+    enabled: !!organizationId,
   });
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());

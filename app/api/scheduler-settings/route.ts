@@ -39,8 +39,33 @@ const schedulerSettingsSchema = z.object({
   { message: "end time must be after start time" },
 );
 
-// GET /api/scheduler-settings — load org's scheduler config
-export async function GET() {
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Resolve the caller's membership. When the client names the org
+ * (org_id), the membership is validated IN that org — picking an
+ * arbitrary membership with limit(1) reads/writes another org's
+ * settings for multi-org users (the founder browsing a client's org
+ * saw the toggle ON while that clinic's agenda had it OFF). The
+ * no-org_id fallback keeps old clients working.
+ */
+async function resolveMembership(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  orgId: string | null
+) {
+  let query = supabase
+    .from("organization_members")
+    .select("organization_id, role")
+    .eq("user_id", userId)
+    .eq("is_active", true);
+  if (orgId) query = query.eq("organization_id", orgId);
+  const { data } = await query.limit(1).maybeSingle();
+  return data as { organization_id: string; role: string } | null;
+}
+
+// GET /api/scheduler-settings?org_id=… — load org's scheduler config
+export async function GET(request: Request) {
   const supabase = await createClient();
 
   const {
@@ -51,14 +76,10 @@ export async function GET() {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // Get user's org
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .single();
+  const rawOrgId = new URL(request.url).searchParams.get("org_id");
+  const orgId = rawOrgId && UUID_RE.test(rawOrgId) ? rawOrgId : null;
+
+  const membership = await resolveMembership(supabase, user.id, orgId);
 
   if (!membership) {
     return NextResponse.json({ error: "no_organization" }, { status: 404 });
@@ -96,14 +117,21 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // Check user is admin/owner
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("organization_id, role")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .single();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+  }
+
+  // org_id travels in the body (stripped before schema validation) so the
+  // save lands in the org the user is LOOKING AT, not an arbitrary one.
+  const rawOrgId = (body as { org_id?: unknown })?.org_id;
+  const orgId =
+    typeof rawOrgId === "string" && UUID_RE.test(rawOrgId) ? rawOrgId : null;
+
+  // Check user is admin/owner IN that org
+  const membership = await resolveMembership(supabase, user.id, orgId);
 
   if (!membership) {
     return NextResponse.json({ error: "no_organization" }, { status: 404 });
@@ -111,13 +139,6 @@ export async function PUT(request: Request) {
 
   if (!["owner", "admin"].includes(membership.role)) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
-
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }
 
   const parsed = schedulerSettingsSchema.safeParse(body);

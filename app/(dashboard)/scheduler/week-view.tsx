@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign, Video } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useOrganization } from "@/components/organization-provider";
 import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActiveInterval, getScheduleStartMinutes, getScheduleEndMinutes, DEFAULT_SCHEDULER_CONFIG, computeSlotHeight } from "@/lib/scheduler-config";
 // Color helpers shared with the day view — single source of truth in
 // appointment-card.tsx so the palettes can't drift apart.
@@ -73,10 +74,12 @@ export function WeekView({
   // sincroniza con la BD vía React Query. La key es compartida entre las
   // vistas día/semana: alternar de vista ya no repite el fetch de sync (una
   // sola query por staleTime para ambas).
+  const { organizationId: schedulerOrgId } = useOrganization();
   const { data: schedulerConfig = loadSchedulerConfig() } = useQuery({
-    queryKey: ["scheduler-config"],
-    queryFn: () => fetchSchedulerConfig(),
+    queryKey: ["scheduler-config", schedulerOrgId],
+    queryFn: () => fetchSchedulerConfig(schedulerOrgId),
     placeholderData: () => loadSchedulerConfig(),
+    enabled: !!schedulerOrgId,
   });
   // ── Borde elástico (paridad con day-view) ────────────────────────────────
   // Citas fuera de la ventana org no caían en ningún renglón del filtro
