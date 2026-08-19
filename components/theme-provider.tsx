@@ -18,11 +18,18 @@ type Theme = "dark" | "light";
 interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
+  /**
+   * True when the org owner set an org-wide theme and the current user
+   * is NOT the owner: their personal toggle is disabled — the owner's
+   * choice is the theme for every member (founder decision, mig 225).
+   */
+  locked: boolean;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
   theme: "light",
   toggleTheme: () => {},
+  locked: false,
 });
 
 export function useTheme() {
@@ -35,8 +42,11 @@ function applyTheme(t: Theme) {
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>("light");
+  const [locked, setLocked] = useState(false);
   const [mounted, setMounted] = useState(false);
   const userIdRef = useRef<string | null>(null);
+  // Org the user OWNS — toggling as owner propagates the theme to it.
+  const ownedOrgIdRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
 
   // On mount: read from localStorage first (instant), then sync from DB
@@ -80,15 +90,47 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
         userIdRef.current = user.id;
 
-        const { data } = await supabase
-          .from("user_profiles")
-          .select("theme")
-          .eq("id", user.id)
-          .single();
+        const [{ data }, { data: member }] = await Promise.all([
+          supabase
+            .from("user_profiles")
+            .select("theme")
+            .eq("id", user.id)
+            .single(),
+          // Org-wide theme (mig 225): the owner's choice overrides the
+          // member's personal theme. One membership row is enough — the
+          // active one with the highest role mirrors the session check.
+          supabase
+            .from("organization_members")
+            .select("role, organization_id, organizations(theme)")
+            .eq("user_id", user.id)
+            .eq("is_active", true)
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
         if (cancelled) return;
 
-        if (data?.theme && (data.theme === "light" || data.theme === "dark")) {
+        const role = (member as { role?: string } | null)?.role ?? null;
+        const orgTheme = (
+          member as { organizations?: { theme?: string | null } | null } | null
+        )?.organizations?.theme;
+        if (role === "owner") {
+          ownedOrgIdRef.current =
+            (member as { organization_id?: string } | null)?.organization_id ?? null;
+        }
+
+        const isOrgEnforced =
+          role !== null &&
+          role !== "owner" &&
+          (orgTheme === "light" || orgTheme === "dark");
+
+        if (isOrgEnforced) {
+          // The owner's theme wins for every member.
+          setTheme(orgTheme as Theme);
+          applyTheme(orgTheme as Theme);
+          setLocked(true);
+          try { window.localStorage.setItem("vibeforge-theme", orgTheme as Theme); } catch {}
+        } else if (data?.theme && (data.theme === "light" || data.theme === "dark")) {
           setTheme(data.theme);
           applyTheme(data.theme);
           try { window.localStorage.setItem("vibeforge-theme", data.theme); } catch {}
@@ -105,6 +147,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient]);
 
   const toggleTheme = useCallback(() => {
+    // Org theme enforced and this user isn't the owner → the toggle is
+    // inert (the UI hides/disables it, this is defense-in-depth).
+    if (locked) return;
+
     const next: Theme = theme === "dark" ? "light" : "dark";
     setTheme(next);
     applyTheme(next);
@@ -114,21 +160,32 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const userId = userIdRef.current;
     if (userId) {
       import("@/lib/supabase/client").then(({ createClient }) => {
-        createClient()
+        const supabase = createClient();
+        supabase
           .from("user_profiles")
           .update({ theme: next })
           .eq("id", userId)
           .then(() => {});
+        // Owner: propagate to the whole org (mig 225) — every member
+        // picks it up on their next session.
+        const ownedOrgId = ownedOrgIdRef.current;
+        if (ownedOrgId) {
+          supabase
+            .from("organizations")
+            .update({ theme: next })
+            .eq("id", ownedOrgId)
+            .then(() => {});
+        }
       });
     }
-  }, [theme]);
+  }, [theme, locked]);
 
   if (!mounted) {
     return <>{children}</>;
   }
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+    <ThemeContext.Provider value={{ theme, toggleTheme, locked }}>
       {children}
     </ThemeContext.Provider>
   );

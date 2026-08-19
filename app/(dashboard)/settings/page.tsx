@@ -170,7 +170,7 @@ function Field({
 }
 
 export default function SettingsPage() {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, locked: themeLocked } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const {
     organization,
@@ -734,24 +734,42 @@ export default function SettingsPage() {
           <p className="mt-1 text-muted-foreground">{t("settings.subtitle")}</p>
         </div>
 
-        {/* Dark / Light toggle */}
-        <button
-          onClick={toggleTheme}
-          className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground shadow-sm transition-all hover:border-primary/40 hover:text-foreground hover:bg-accent"
-          title={theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
-        >
-          {theme === "dark" ? (
-            <>
-              <Sun className="h-4 w-4 text-amber-400" />
-              <span className="hidden sm:inline">Modo claro</span>
-            </>
-          ) : (
-            <>
+        {/* Dark / Light toggle — cuando el owner fijó un tema para toda la
+            org (mig 225), los miembros lo heredan y su toggle desaparece. */}
+        {themeLocked ? (
+          <div
+            className="flex items-center gap-2 rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm font-medium text-muted-foreground"
+            title="El tema lo define el owner de la clínica para todo el equipo"
+          >
+            {theme === "dark" ? (
               <Moon className="h-4 w-4 text-indigo-400" />
-              <span className="hidden sm:inline">Modo oscuro</span>
-            </>
-          )}
-        </button>
+            ) : (
+              <Sun className="h-4 w-4 text-amber-400" />
+            )}
+            <span className="hidden sm:inline">Tema de la clínica</span>
+          </div>
+        ) : (
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground shadow-sm transition-all hover:border-primary/40 hover:text-foreground hover:bg-accent"
+            title={
+              (theme === "dark" ? "Cambiar a modo claro" : "Cambiar a modo oscuro") +
+              (isOwner ? " (se aplica a todo el equipo)" : "")
+            }
+          >
+            {theme === "dark" ? (
+              <>
+                <Sun className="h-4 w-4 text-amber-400" />
+                <span className="hidden sm:inline">Modo claro</span>
+              </>
+            ) : (
+              <>
+                <Moon className="h-4 w-4 text-indigo-400" />
+                <span className="hidden sm:inline">Modo oscuro</span>
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* Tab navigation */}

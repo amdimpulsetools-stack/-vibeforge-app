@@ -33,6 +33,12 @@ export interface EntryPayload {
   lotCode: string | null;
   expiryDate: string | null;
   supplier: string | null;
+  /**
+   * Nuevo precio de VENTA del producto (lo que cobra Farmacia), solo
+   * cuando la persona lo cambió en la entrada. null = no tocar el
+   * catálogo. El historial de precios lo escribe el trigger de la 209.
+   */
+  salePrice: number | null;
 }
 
 interface Props {
@@ -58,6 +64,7 @@ export function EntryModal({
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [unitCost, setUnitCost] = useState("");
+  const [salePrice, setSalePrice] = useState("");
   const [lotCode, setLotCode] = useState("");
   const [expiryMonth, setExpiryMonth] = useState("");
   const [supplier, setSupplier] = useState("");
@@ -68,9 +75,11 @@ export function EntryModal({
   useEffect(() => {
     if (!open) return;
     const pid = preselectedProductId ?? products[0]?.id ?? "";
+    const prod = products.find((p) => p.id === pid);
     setProductId(pid);
     setQuantity("");
     setUnitCost(lastCosts[pid] != null ? String(lastCosts[pid]) : "");
+    setSalePrice(prod && prod.sale_price > 0 ? String(prod.sale_price) : "");
     setLotCode("");
     setExpiryMonth("");
     setSupplier("");
@@ -94,6 +103,16 @@ export function EntryModal({
     if (!Number.isFinite(cost) || cost < 0)
       return setError("El costo unitario es obligatorio en una entrada.");
 
+    // Precio de venta: solo viaja si la persona lo cambió respecto al
+    // catálogo actual (vacío o igual = no tocar el producto).
+    let newSalePrice: number | null = null;
+    if (salePrice.trim() !== "") {
+      const sp = Number(salePrice);
+      if (!Number.isFinite(sp) || sp < 0)
+        return setError("El precio de venta no puede ser negativo.");
+      if (product && sp !== product.sale_price) newSalePrice = sp;
+    }
+
     setError(null);
     setSaving(true);
     const ok = await onSubmit({
@@ -103,10 +122,20 @@ export function EntryModal({
       lotCode: lotCode.trim() || null,
       expiryDate: expiryMonth || null,
       supplier: supplier.trim() || null,
+      salePrice: newSalePrice,
     });
     setSaving(false);
     if (ok) onOpenChange(false);
   }
+
+  // Margen en vivo cuando hay costo y precio — la señal que evita vender
+  // por debajo del costo sin darse cuenta.
+  const marginPct = (() => {
+    const cost = Number(unitCost);
+    const sp = Number(salePrice);
+    if (!Number.isFinite(cost) || !Number.isFinite(sp) || sp <= 0) return null;
+    return Math.round(((sp - cost) / sp) * 100);
+  })();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -126,8 +155,10 @@ export function EntryModal({
               value={productId}
               onChange={(e) => {
                 const pid = e.target.value;
+                const prod = products.find((p) => p.id === pid);
                 setProductId(pid);
                 setUnitCost(lastCosts[pid] != null ? String(lastCosts[pid]) : "");
+                setSalePrice(prod && prod.sale_price > 0 ? String(prod.sale_price) : "");
               }}
               className="h-9 w-full rounded-md border border-input bg-card px-3 text-base shadow-sm outline-none focus:ring-1 focus:ring-ring md:text-sm"
             >
@@ -181,6 +212,42 @@ export function EntryModal({
                 </p>
               )}
             </div>
+          </div>
+
+          {/* Precio de VENTA (lo que cobra Farmacia). Opcional: prellenado
+              con el del catálogo; cambiarlo aquí actualiza el producto y el
+              historial de precios lo registra el trigger de la mig 209. */}
+          <div>
+            <label className={labelCls} htmlFor="entry-sale-price">
+              Precio de venta (Farmacia)
+            </label>
+            <Input
+              id="entry-sale-price"
+              type="number"
+              min="0"
+              step="0.01"
+              inputMode="decimal"
+              placeholder="S/ 0.00"
+              value={salePrice}
+              onChange={(e) => setSalePrice(e.target.value)}
+              className="tabular-nums"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {product && product.sale_price > 0
+                ? `Actual: ${formatPEN(product.sale_price)} — cámbialo solo si el precio subió o bajó`
+                : "Este producto aún no tiene precio de venta — ponlo aquí"}
+              {marginPct != null && (
+                <span
+                  className={
+                    marginPct < 0
+                      ? " font-semibold text-red-500"
+                      : " font-medium text-emerald-600 dark:text-emerald-400"
+                  }
+                >
+                  {" "}· Margen: {marginPct}%
+                </span>
+              )}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
