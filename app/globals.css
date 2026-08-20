@@ -140,12 +140,14 @@
   --dur-slow: 220ms;    /* paneles laterales: sheet, drawer */
   --dur-slower: 300ms;  /* cambios de página, acordeones largos */
   --dur-reveal: 700ms;  /* reveals de scroll en la landing */
+  --dur-celebrate: 500ms; /* momentos de confirmación (check de éxito) */
 
   /* Tailwind 4 genera las utilidades ease-entrance / ease-exit /
      ease-standard a partir del namespace --ease-*  */
   --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1); /* desacelera al final: se siente físico */
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);        /* acelera al salir: no se hace esperar */
   --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);  /* movimientos continuos (color, sombra) */
+  --ease-bounce: cubic-bezier(0.34, 1.35, 0.64, 1); /* sobrepasa y vuelve: celebraciones */
 
   /* Default de TODA utilidad `transition-*` de Tailwind. Cambiar estas
      dos líneas alcanza los ~730 `transition-colors` de hovers, filas de
@@ -385,6 +387,64 @@
   .animate-popover {
     animation: none !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CHECK DE ÉXITO — celebración de un solo disparo
+   ═══════════════════════════════════════════════════════════════════
+   Cuatro animaciones en paralelo sobre el envoltorio (fundido, giro,
+   desenfoque y rebote vertical) más el dibujado del trazo sobre el path.
+
+   `filter: blur()` rompe la regla de "solo transform y opacity": es una
+   excepción deliberada y acotada — un icono de 28px, una sola vez, en un
+   momento en el que no hay nada más animándose. No lo repliques en listas
+   ni en hovers.
+
+   El rebote usa `translate` (propiedad independiente) en vez de meterse
+   dentro de `transform`, que ya está ocupado por el giro: así ambas
+   animaciones conviven sin pisarse.
+
+   `both` en todas: el fotograma inicial se aplica al entrar al DOM, y el
+   final se mantiene al terminar.  */
+.t-success-check {
+  display: inline-block;
+  transform-origin: center;
+  animation:
+    check-fade   var(--dur-celebrate) var(--ease-entrance) both,
+    check-rotate var(--dur-celebrate) var(--ease-entrance) both,
+    check-blur   var(--dur-celebrate) var(--ease-entrance) both,
+    check-bob    var(--dur-celebrate) var(--ease-bounce)   both;
+}
+
+/* overflow visible evita que el trazo se recorte mientras se dibuja;
+   display block quita el hueco de línea base debajo del SVG. */
+.t-success-check svg {
+  display: block;
+  overflow: visible;
+}
+
+/* pathLength={1} en el SVG normaliza la longitud del trazo, así que
+   dasharray 1 vale para cualquier path sin medirlo. El retardo deja que
+   el icono ya esté entrando antes de que el trazo empiece a dibujarse. */
+.t-success-check svg path {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: check-draw var(--dur-celebrate) var(--ease-entrance) 80ms both;
+}
+
+@keyframes check-fade   { from { opacity: 0; }                to { opacity: 1; } }
+@keyframes check-rotate { from { transform: rotate(80deg); }  to { transform: rotate(0deg); } }
+@keyframes check-blur   { from { filter: blur(10px); }        to { filter: blur(0); } }
+@keyframes check-bob    { from { translate: 0 24px; }         to { translate: 0 0; } }
+@keyframes check-draw   { to { stroke-dashoffset: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .t-success-check,
+  .t-success-check svg path {
+    animation: none !important;
+  }
+  .t-success-check { opacity: 1; }
+  .t-success-check svg path { stroke-dashoffset: 0 !important; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
