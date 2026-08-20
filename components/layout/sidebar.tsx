@@ -287,7 +287,7 @@ export function Sidebar() {
       <Link key={item.href} href={item.href} data-tour-step={tourStep} className="block">
         <span
           className={cn(
-            "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
+            "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-[color,background-color,box-shadow,transform]",
             pillState(isActive),
             collapsed && "justify-center px-2"
           )}
@@ -326,7 +326,7 @@ export function Sidebar() {
             }
           }}
           className={cn(
-            "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
+            "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-[color,background-color,box-shadow,transform]",
             // Expandido el grupo nunca lleva fondo (solo el hijo activo lo
             // tiene); colapsado sí, porque el hijo no se ve y el rail
             // necesita señalar dónde estás.
@@ -381,7 +381,7 @@ export function Sidebar() {
         className={cn(
           // h-[100dvh] para acompañar al shell del dashboard (100vh en iOS
           // incluye la barra de URL, y el drawer se pasaba de largo).
-          "flex h-[100dvh] flex-col bg-sidebar-bg border-r border-border/60 transition-all duration-300 relative print:hidden",
+          "flex h-[100dvh] flex-col bg-sidebar-bg border-r border-border/60 transition-[width] duration-[var(--dur-slow)] relative print:hidden",
           // Desktop: static sidebar with collapse
           "md:relative md:translate-x-0",
           collapsed ? "md:w-[64px]" : "md:w-[250px]",
@@ -445,7 +445,7 @@ export function Sidebar() {
         <button
           onClick={() => setCollapsed(!collapsed)}
           className={cn(
-            "hidden md:flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200",
+            "hidden md:flex h-7 w-7 items-center justify-center rounded-lg transition-[color,background-color,box-shadow,transform]",
             collapsed
               ? "mx-auto text-white/70 hover:bg-white/10 hover:text-white"
               : "ml-auto text-muted-foreground/70 hover:bg-accent hover:text-foreground"
@@ -461,7 +461,7 @@ export function Sidebar() {
         {/* Mobile close button */}
         <button
           onClick={() => setMobileOpen(false)}
-          className="md:hidden ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/70 hover:bg-accent hover:text-foreground transition-all duration-200"
+          className="md:hidden ml-auto flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground/70 hover:bg-accent hover:text-foreground transition-[color,background-color,box-shadow,transform]"
           aria-label="Cerrar menú"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -525,7 +525,7 @@ export function Sidebar() {
         <Link href="/support" className="block">
           <span
             className={cn(
-              "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200",
+              "group flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-[color,background-color,box-shadow,transform]",
               pillState(isPathActive("/support")),
               collapsed && "justify-center px-2"
             )}
@@ -542,7 +542,7 @@ export function Sidebar() {
         <button
           onClick={handleLogout}
           className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 hover:bg-destructive/10 hover:text-destructive",
+            "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-[color,background-color,box-shadow,transform] hover:bg-destructive/10 hover:text-destructive",
             collapsed ? "text-white/70" : "text-muted-foreground",
             collapsed && "justify-center px-2"
           )}
