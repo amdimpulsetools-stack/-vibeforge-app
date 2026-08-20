@@ -300,6 +300,13 @@
 
 /* ═══════════════════════════════════════════════════════════════════
    RADIX DIALOG / SHEET / ALERT DIALOG ANIMATIONS
+
+   `both` (animation-fill-mode) NO es decorativo: aplica el fotograma
+   `from` en el mismo instante en que el elemento entra al DOM. Sin él
+   había un fotograma con el elemento ya opaco sobre una capa de
+   composición recién creada por `will-change` y todavía sin pintar —
+   que el navegador muestra en negro. Ese era el parpadeo oscuro al
+   abrir dropdowns.
    Compositor-only (transform + opacity) for fluid 60Hz feel.
    Easing curve matches the topbar user dropdown.
    ═══════════════════════════════════════════════════════════════════ */
@@ -336,19 +343,19 @@
   to   { transform: translateX(-100%); }
 }
 
-.animate-overlay[data-state="open"]  { animation: overlay-in var(--dur-base) var(--ease-entrance); }
-.animate-overlay[data-state="closed"] { animation: overlay-out var(--dur-fast) var(--ease-exit); }
+.animate-overlay[data-state="open"]  { animation: overlay-in var(--dur-base) var(--ease-entrance) both; }
+.animate-overlay[data-state="closed"] { animation: overlay-out var(--dur-fast) var(--ease-exit) both; }
 
-.animate-dialog[data-state="open"]   { animation: dialog-in var(--dur-base) var(--ease-entrance); will-change: transform, opacity; }
-.animate-dialog[data-state="closed"] { animation: dialog-out var(--dur-fast) var(--ease-exit); will-change: transform, opacity; }
+.animate-dialog[data-state="open"]   { animation: dialog-in var(--dur-base) var(--ease-entrance) both; will-change: transform, opacity; }
+.animate-dialog[data-state="closed"] { animation: dialog-out var(--dur-fast) var(--ease-exit) both; will-change: transform, opacity; }
 
-.animate-sheet-right[data-state="open"]   { animation: sheet-in-right var(--dur-slow) var(--ease-entrance); }
-.animate-sheet-right[data-state="closed"] { animation: sheet-out-right var(--dur-base) var(--ease-exit); }
-.animate-sheet-left[data-state="open"]    { animation: sheet-in-left var(--dur-slow) var(--ease-entrance); }
-.animate-sheet-left[data-state="closed"]  { animation: sheet-out-left var(--dur-base) var(--ease-exit); }
+.animate-sheet-right[data-state="open"]   { animation: sheet-in-right var(--dur-slow) var(--ease-entrance) both; }
+.animate-sheet-right[data-state="closed"] { animation: sheet-out-right var(--dur-base) var(--ease-exit) both; }
+.animate-sheet-left[data-state="open"]    { animation: sheet-in-left var(--dur-slow) var(--ease-entrance) both; }
+.animate-sheet-left[data-state="closed"]  { animation: sheet-out-left var(--dur-base) var(--ease-exit) both; }
 
 @keyframes popover-in {
-  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 @keyframes popover-out {
@@ -356,8 +363,8 @@
   to   { opacity: 0; transform: translateY(-2px) scale(0.98); }
 }
 
-.animate-popover[data-state="open"]   { animation: popover-in var(--dur-fast) var(--ease-entrance); transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); will-change: transform, opacity; }
-.animate-popover[data-state="closed"] { animation: popover-out var(--dur-quick) var(--ease-exit); transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); will-change: transform, opacity; }
+.animate-popover[data-state="open"]   { animation: popover-in var(--dur-base) var(--ease-entrance) both; transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); will-change: transform, opacity; }
+.animate-popover[data-state="closed"] { animation: popover-out var(--dur-quick) var(--ease-exit) both; transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); will-change: transform, opacity; }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-overlay,
