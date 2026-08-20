@@ -33,6 +33,7 @@ const TOC: LegalTocItem[] = [
   { id: "datos", label: "Datos que recopilamos" },
   { id: "rol-legal", label: "Rol legal y marco normativo" },
   { id: "uso", label: "Cómo usamos tus datos" },
+  { id: "google-api", label: "Datos obtenidos de las APIs de Google" },
   { id: "almacenamiento", label: "Almacenamiento y seguridad" },
   { id: "datos-medicos", label: "Datos médicos" },
   { id: "categoria-especial", label: "Datos sensibles (Categoría Especial)" },
@@ -64,7 +65,7 @@ export default function PrivacyPage() {
       <header className="mb-10 max-w-3xl">
         <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300">
           <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
-          Documento legal · Última actualización: 12 de mayo de 2026
+          Documento legal · Última actualización: 20 de agosto de 2026
         </div>
         <h1 className="bg-gradient-to-br from-foreground via-foreground to-emerald-200/90 bg-clip-text text-4xl font-bold tracking-tight text-transparent sm:text-5xl">
           Política de Privacidad
@@ -174,14 +175,18 @@ export default function PrivacyPage() {
               </LegalListItem>
               <LegalListItem>
                 Mejorar la plataforma mediante análisis agregados y
-                anonimizados.
+                anonimizados. Este uso <strong>excluye</strong> los datos
+                obtenidos de las APIs de Google (ver sección 04).
               </LegalListItem>
               <LegalListItem>
                 Cumplir con obligaciones legales, regulatorias y tributarias.
               </LegalListItem>
               <LegalListItem>
                 Proveer funcionalidades de asistente con inteligencia artificial
-                para apoyo clínico (resúmenes, sugerencias).
+                para apoyo clínico (resúmenes, sugerencias), operando
+                únicamente sobre los datos que la clínica registra en{" "}
+                {APP_NAME}. Los datos obtenidos de las APIs de Google{" "}
+                <strong>nunca</strong> se envían a modelos de IA (ver sección 04).
               </LegalListItem>
             </LegalList>
             <LegalCallout variant="success" title="IA y privacidad">
@@ -199,9 +204,98 @@ export default function PrivacyPage() {
             </LegalCallout>
           </LegalSection>
 
+          {/*
+            Sección exigida por la Google API Services User Data Policy para
+            apps que solicitan permisos sensibles (calendar.events, drive.file).
+            La declaración de Uso Limitado se incluye también en inglés porque
+            es la redacción que el equipo de verificación de Google busca
+            textualmente durante la revisión.
+          */}
+          <LegalSection
+            id="google-api"
+            number="04"
+            title="Datos obtenidos de las APIs de Google"
+            description="Aplica únicamente si conectas voluntariamente tu cuenta de Google desde Configuración → Integraciones. Si no la conectas, Yenda no accede a ningún dato de Google."
+          >
+            <p>
+              Cuando el profesional conecta su cuenta de Google, {APP_NAME}{" "}
+              solicita estos permisos y los usa <strong>exclusivamente</strong>{" "}
+              para prestar la función que el propio usuario activó:
+            </p>
+            <LegalList>
+              <LegalListItem>
+                <strong>Google Calendar (calendar.events):</strong> crear,
+                actualizar y eliminar en el calendario del profesional
+                únicamente los eventos que {APP_NAME} genera a partir de las
+                citas de su agenda. La sincronización es unidireccional
+                ({APP_NAME} → Google Calendar). No leemos, analizamos ni
+                modificamos los demás eventos del usuario.
+              </LegalListItem>
+              <LegalListItem>
+                <strong>Google Drive (drive.file):</strong> crear y actualizar
+                únicamente la hoja de cálculo que {APP_NAME} genera para el
+                respaldo de datos de la clínica. Este permiso no da acceso al
+                resto del Drive del usuario.
+              </LegalListItem>
+            </LegalList>
+            <p>
+              Los datos obtenidos de las APIs de Google{" "}
+              <strong>no se usan</strong> para publicidad, ni para analítica o
+              métricas de producto, ni para entrenar modelos de inteligencia
+              artificial, ni se venden o transfieren a terceros. No se acceden
+              con intervención humana salvo que sea imprescindible por motivos
+              de seguridad, para cumplir la ley o con autorización expresa del
+              usuario. Se conservan solo mientras la integración esté activa.
+            </p>
+            <p>
+              El profesional puede revocar el acceso en cualquier momento desde{" "}
+              <strong>Configuración → Integraciones → Desconectar</strong> en{" "}
+              {APP_NAME}, o desde{" "}
+              <a
+                href="https://myaccount.google.com/permissions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-emerald-300 hover:text-emerald-200"
+              >
+                la página de permisos de su cuenta de Google
+              </a>
+              . Al revocarlo, {APP_NAME} deja de sincronizar y elimina los
+              tokens de acceso almacenados.
+            </p>
+            <LegalCallout variant="success" title="Declaración de Uso Limitado">
+              El uso y la transferencia por parte de {APP_NAME} de la
+              información recibida de las APIs de Google se ajustará a la{" "}
+              <a
+                href="https://developers.google.com/terms/api-services-user-data-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-emerald-300 hover:text-emerald-200"
+              >
+                Política de Datos de Usuario de los Servicios de las API de
+                Google
+              </a>
+              , incluidos los requisitos de Uso Limitado.
+              <br />
+              <br />
+              <em>
+                {APP_NAME}&apos;s use and transfer of information received from
+                Google APIs to any other app will adhere to the{" "}
+                <a
+                  href="https://developers.google.com/terms/api-services-user-data-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-emerald-300 hover:text-emerald-200"
+                >
+                  Google API Services User Data Policy
+                </a>
+                , including the Limited Use requirements.
+              </em>
+            </LegalCallout>
+          </LegalSection>
+
           <LegalSection
             id="almacenamiento"
-            number="04"
+            number="05"
             title="Almacenamiento y seguridad"
             description="Tus datos se almacenan en infraestructura segura proporcionada por Supabase, que opera sobre Amazon Web Services (AWS)."
           >
@@ -239,7 +333,7 @@ export default function PrivacyPage() {
             </LegalList>
           </LegalSection>
 
-          <LegalSection id="datos-medicos" number="05" title="Datos médicos">
+          <LegalSection id="datos-medicos" number="06" title="Datos médicos">
             <p>
               Entendemos la naturaleza especialmente sensible de los datos
               médicos. Por ello:
@@ -268,7 +362,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="categoria-especial"
-            number="06"
+            number="07"
             title="Tratamiento de datos sensibles (Categoría Especial)"
           >
             <p>
@@ -289,7 +383,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="consentimiento-paciente"
-            number="07"
+            number="08"
             title="Consentimiento del paciente"
           >
             <p>
@@ -316,7 +410,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="menores"
-            number="08"
+            number="09"
             title="Tratamiento de datos de menores de edad"
           >
             <p>
@@ -330,7 +424,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="rnpdp"
-            number="09"
+            number="10"
             title="Inscripción ante la Autoridad Nacional de Protección de Datos Personales (ANPD)"
           >
             <p>
@@ -348,7 +442,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="retencion"
-            number="10"
+            number="11"
             title="Retención de datos"
             description="Los plazos de conservación responden a obligaciones legales sectoriales y a la naturaleza de cada categoría de dato."
           >
@@ -380,7 +474,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="terceros"
-            number="11"
+            number="12"
             title="Sub-encargados y terceros"
             description="No vendemos ni compartimos datos personales con fines publicitarios. Trabajamos con los siguientes proveedores para prestar el servicio:"
           >
@@ -443,7 +537,7 @@ export default function PrivacyPage() {
               />
               <SubProcessorCard
                 name="Google"
-                purpose="Inicio de sesión opcional con Google OAuth (correo, nombre, foto de perfil)."
+                purpose="Inicio de sesión opcional con Google OAuth (correo, nombre, foto de perfil) y, si la clínica la activa, sincronización de agenda con Google Calendar y respaldo en Google Sheets. Ver sección 04."
                 region="US"
                 policyUrl="https://policies.google.com/privacy"
                 icon={Lock}
@@ -471,7 +565,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="incidentes"
-            number="12"
+            number="13"
             title="Notificación de incidentes de seguridad"
           >
             <LegalCallout
@@ -503,7 +597,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="cookies"
-            number="13"
+            number="14"
             title="Cookies y almacenamiento local"
           >
             <LegalList>
@@ -525,7 +619,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="derechos"
-            number="14"
+            number="15"
             title="Tus derechos (Ley 29733)"
             description="De acuerdo con la Ley N° 29733 y normativa aplicable, tienes los siguientes derechos sobre tus datos personales:"
           >
@@ -598,7 +692,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="dpo"
-            number="15"
+            number="16"
             title="Delegado de Protección de Datos"
           >
             <p>
@@ -624,7 +718,7 @@ export default function PrivacyPage() {
 
           <LegalSection
             id="titular-banco"
-            number="16"
+            number="17"
             title="Titular del Banco de Datos / Responsable del tratamiento"
           >
             <div className="not-prose mt-2 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.04] p-4 text-sm leading-relaxed text-muted-foreground">
@@ -661,7 +755,7 @@ export default function PrivacyPage() {
             </div>
           </LegalSection>
 
-          <LegalSection id="contacto" number="17" title="Contacto">
+          <LegalSection id="contacto" number="18" title="Contacto">
             <p>
               Si tienes preguntas o solicitudes relacionadas con esta política
               de privacidad, puedes contactarnos a través de los siguientes
