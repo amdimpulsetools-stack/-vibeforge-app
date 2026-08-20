@@ -109,8 +109,49 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   /* Accordion animations */
-  --animate-accordion-down: accordion-down 0.2s ease-out;
-  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-accordion-down: accordion-down var(--dur-base) var(--ease-entrance);
+  --animate-accordion-up: accordion-up var(--dur-fast) var(--ease-exit);
+}
+
+/* Escala de movimiento en un @theme propio (NO `inline`): así Tailwind
+   las emite como variables CSS en :root y el resto de globals.css puede
+   referenciarlas con var(). Dentro de `@theme inline` se inlinearían y
+   las referencias de más abajo quedarían sin resolver. */
+@theme {
+  /* ─────────────────────────────────────────────────────────────────
+     ESCALA DE MOVIMIENTO — duraciones y curvas con nombre
+     ─────────────────────────────────────────────────────────────────
+     Antes había 5 duraciones sueltas (150/200/300/500/700) y la curva
+     cubic-bezier(0.16, 1, 0.3, 1) repetida a mano en 15 sitios. Esto le
+     pone nombre a lo que ya elegimos, para que nadie invente un 450ms.
+
+     Regla de oro: anima SOLO `transform` y `opacity`. Esas dos las
+     resuelve el compositor (GPU) sin recalcular layout; `width`,
+     `height`, `top` y `left` obligan al navegador a rehacer la página
+     en cada cuadro y ahí aparece el tironeo. `transition-all` es un
+     atajo peligroso justo por eso: vigila también las caras.
+
+     Entradas lentas, salidas rápidas: al abrir, el usuario necesita
+     seguir el objeto con la vista; al cerrar, ya decidió y esperar
+     estorba. Por eso --ease-exit es más seco que --ease-entrance.  */
+  --dur-quick: 120ms;   /* micro-salidas: popover, tooltip */
+  --dur-fast: 140ms;    /* salidas: modal, overlay */
+  --dur-base: 180ms;    /* entradas estándar: modal, popover, hover */
+  --dur-slow: 220ms;    /* paneles laterales: sheet, drawer */
+  --dur-slower: 300ms;  /* cambios de página, acordeones largos */
+  --dur-reveal: 700ms;  /* reveals de scroll en la landing */
+
+  /* Tailwind 4 genera las utilidades ease-entrance / ease-exit /
+     ease-standard a partir del namespace --ease-*  */
+  --ease-entrance: cubic-bezier(0.16, 1, 0.3, 1); /* desacelera al final: se siente físico */
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);        /* acelera al salir: no se hace esperar */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);  /* movimientos continuos (color, sombra) */
+
+  /* Default de TODA utilidad `transition-*` de Tailwind. Cambiar estas
+     dos líneas alcanza los ~730 `transition-colors` de hovers, filas de
+     tabla, ítems del sidebar y botones sin tocar un solo componente. */
+  --default-transition-duration: var(--dur-base);
+  --default-transition-timing-function: var(--ease-standard);
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -214,7 +255,7 @@
 
 .hero-float-card {
   opacity: 0;
-  animation: heroFloatIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: heroFloatIn var(--dur-reveal) var(--ease-entrance) forwards;
   animation-delay: var(--float-delay, 0.6s);
 }
 
@@ -227,8 +268,8 @@
 .reveal-in {
   opacity: 0;
   transform: translateY(24px);
-  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity var(--dur-reveal) var(--ease-entrance),
+              transform var(--dur-reveal) var(--ease-entrance);
   transition-delay: var(--reveal-delay, 0ms);
   will-change: opacity, transform;
 }
@@ -295,16 +336,16 @@
   to   { transform: translateX(-100%); }
 }
 
-.animate-overlay[data-state="open"]  { animation: overlay-in 160ms cubic-bezier(0.16, 1, 0.3, 1); }
-.animate-overlay[data-state="closed"] { animation: overlay-out 140ms cubic-bezier(0.4, 0, 1, 1); }
+.animate-overlay[data-state="open"]  { animation: overlay-in var(--dur-base) var(--ease-entrance); }
+.animate-overlay[data-state="closed"] { animation: overlay-out var(--dur-fast) var(--ease-exit); }
 
-.animate-dialog[data-state="open"]   { animation: dialog-in 180ms cubic-bezier(0.16, 1, 0.3, 1); will-change: transform, opacity; }
-.animate-dialog[data-state="closed"] { animation: dialog-out 140ms cubic-bezier(0.4, 0, 1, 1); will-change: transform, opacity; }
+.animate-dialog[data-state="open"]   { animation: dialog-in var(--dur-base) var(--ease-entrance); will-change: transform, opacity; }
+.animate-dialog[data-state="closed"] { animation: dialog-out var(--dur-fast) var(--ease-exit); will-change: transform, opacity; }
 
-.animate-sheet-right[data-state="open"]   { animation: sheet-in-right 220ms cubic-bezier(0.16, 1, 0.3, 1); }
-.animate-sheet-right[data-state="closed"] { animation: sheet-out-right 180ms cubic-bezier(0.4, 0, 1, 1); }
-.animate-sheet-left[data-state="open"]    { animation: sheet-in-left 220ms cubic-bezier(0.16, 1, 0.3, 1); }
-.animate-sheet-left[data-state="closed"]  { animation: sheet-out-left 180ms cubic-bezier(0.4, 0, 1, 1); }
+.animate-sheet-right[data-state="open"]   { animation: sheet-in-right var(--dur-slow) var(--ease-entrance); }
+.animate-sheet-right[data-state="closed"] { animation: sheet-out-right var(--dur-base) var(--ease-exit); }
+.animate-sheet-left[data-state="open"]    { animation: sheet-in-left var(--dur-slow) var(--ease-entrance); }
+.animate-sheet-left[data-state="closed"]  { animation: sheet-out-left var(--dur-base) var(--ease-exit); }
 
 @keyframes popover-in {
   from { opacity: 0; transform: translateY(-4px) scale(0.98); }
@@ -315,8 +356,8 @@
   to   { opacity: 0; transform: translateY(-2px) scale(0.98); }
 }
 
-.animate-popover[data-state="open"]   { animation: popover-in 140ms cubic-bezier(0.16, 1, 0.3, 1); transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); will-change: transform, opacity; }
-.animate-popover[data-state="closed"] { animation: popover-out 120ms cubic-bezier(0.4, 0, 1, 1); transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); will-change: transform, opacity; }
+.animate-popover[data-state="open"]   { animation: popover-in var(--dur-fast) var(--ease-entrance); transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); will-change: transform, opacity; }
+.animate-popover[data-state="closed"] { animation: popover-out var(--dur-quick) var(--ease-exit); transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); will-change: transform, opacity; }
 
 @media (prefers-reduced-motion: reduce) {
   .animate-overlay,
@@ -555,7 +596,7 @@
   background-size: 250% 100%;
   background-position: 0% 0%;
   animation: btn-popular-shift 3.5s ease-in-out infinite;
-  transition: box-shadow 200ms ease, transform 200ms ease;
+  transition: box-shadow var(--dur-base) var(--ease-standard), transform var(--dur-base) var(--ease-standard);
 }
 
 .btn-popular-cta:hover {
@@ -595,7 +636,7 @@
   background-size: 250% 250%;
   background-position: 0% 50%;
   animation: agenda-shimmer 6s ease-in-out infinite;
-  transition: background-image 220ms cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-image var(--dur-slow) var(--ease-standard);
   will-change: background-position, background-image;
 }
 
@@ -640,8 +681,8 @@
     0 8px 32px -8px oklch(0 0 0 / 0.3),
     0 2px 8px -2px oklch(0 0 0 / 0.15),
     inset 0 1px 0 oklch(1 0 0 / 0.06) !important;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
-              opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: transform 0.4s var(--ease-entrance),
+              opacity var(--dur-slower) var(--ease-entrance) !important;
 }
 
 /* Dark mode base */
@@ -687,7 +728,7 @@
 
 /* Icon pulse animation */
 [data-sonner-toaster] [data-sonner-toast] [data-icon] {
-  animation: toast-icon-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: toast-icon-in 0.4s var(--ease-entrance) both;
 }
 
 @keyframes toast-icon-in {

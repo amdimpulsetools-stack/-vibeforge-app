@@ -312,7 +312,7 @@ export function Topbar() {
               }}
               aria-haspopup="menu"
               aria-expanded={userMenuOpen}
-              className="group flex items-center gap-2 rounded-full pl-2 pr-1 py-1 transition-all duration-200 ease-out hover:bg-accent/60 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="group flex items-center gap-2 rounded-full pl-2 pr-1 py-1 transition-[color,background-color,transform] ease-entrance hover:bg-accent/60 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
               {displayName && (
                 <span className="hidden sm:block text-xs font-medium text-foreground/80 transition-colors duration-200 group-hover:text-foreground">
