@@ -1,6 +1,6 @@
 # Coming Updates — Yenda
 
-> **Última actualización:** 2026-08-15 (Caja + Farmacia POS entregados y CERTIFICADOS + fixes de aritmética de facturación + decisión de tercerizar facturación)
+> **Última actualización:** 2026-08-20 (P0 seguridad del registro ENTREGADO y validado en prod · escala de movimiento con tokens · Select híbrido propuesto)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -157,9 +157,31 @@ hay que reemplazarla con ingeniería (fallback) + vigilancia normativa (auditor)
 | App Review `whatsapp_business_management` + `whatsapp_business_messaging` (video + credenciales de prueba) | Pendiente de la verificación |
 | Inscripción RNPDP ante ANPD (Ley 29733) | 📌 post-piloto (la política ya lo redacta como trámite en curso) |
 
-## 🔐 Seguridad del registro (P0 próximo sprint)
+## 🔐 Seguridad del registro (P0 — ENTREGADO 2026-08-20)
 
-- [ ] **CAPTCHA + verificación de email en el registro** — la limpieza del 2026-08-08 eliminó 86 orgs bot; la puerta sigue abierta y pueden volver. Primer ítem al cerrar la semana de arranque del piloto.
+- [x] **CAPTCHA + verificación de email en el registro** (PR #302, validado end-to-end en producción) — Cloudflare Turnstile en login, registro y recuperación; Attack Protection de Supabase exigiendo el token; Confirm email obligatorio; contraseñas filtradas bloqueadas vía HaveIBeenPwned. Errores de auth traducidos al español y señalados junto al campo (PR #303). La limpieza del 2026-08-08 había eliminado 86 orgs bot; la puerta ya está cerrada.
+
+## 🎛️ Select propio (Radix) con nativo en táctil — híbrido (idea del founder, 2026-08-20)
+
+> Detectado probando el modal de reprogramar: la lista desplegada de un `<select>` la dibuja el
+> sistema operativo, no la app. Por eso se ve cuadrada, ignora el design system y parpadea en negro
+> un fotograma al abrirse en escritorio (en smartphone no ocurre: ahí el SO abre su propio selector).
+> Ningún CSS puede tocarla — la caja cerrada sí, la lista abierta no.
+
+**El plan que propuso el founder y que es el correcto**: no elegir entre nativo y propio, sino usar cada uno donde gana.
+
+- **Táctil (móvil/tablet)** → `<select>` nativo. El selector del sistema es excelente, familiar, accesible y no cuesta JavaScript.
+- **Escritorio** → componente `Select` sobre Radix: lista estilizada como el resto del design system, sin parpadeo, y en listas largas (doctores, servicios, CIE-10) **escribir para filtrar** — eso no es cosmética, es tiempo real ahorrado en recepción.
+
+La distinción NO debe hacerse por ancho de pantalla sino por `matchMedia("(pointer: fine)")`: un iPad con trackpad merece el de escritorio y un portátil táctil no. Cuidado con la hidratación — renderizar el nativo en el servidor y cambiar al de Radix tras montar, que la caja cerrada se ve igual y el cambio es invisible.
+
+**Alcance real: 122 `<select>` en 54 archivos.** Migrar todo de golpe es arriesgado — cada uno cambia de API (`onChange` con `e.target.value` → `onValueChange`) y todos viven dentro de formularios con validación.
+
+- [ ] **Fase 1 (~1 día)**: crear `components/ui/select.tsx` con el híbrido + migrar las pantallas donde vive la recepción todo el día — modal de nueva cita (12 selects), reprogramar (3), formulario de paciente (4), sidebar de cita (6). Cubre casi todo lo perceptible.
+- [ ] **Fase 2 (opcional)**: ficha de paciente (8) y plantillas de WhatsApp (6).
+- [ ] **No migrar**: administración, configuración y panel founder. Ahí el nativo sobra.
+
+Prioridad: por debajo del consentimiento digital F1 y del ensayo del vertical de dermatología — aquellos desbloquean clientes, esto pule algo que ya funciona.
 
 ## 📊 /reports/fertility — fast-follows post-launch (2026-06-12)
 
