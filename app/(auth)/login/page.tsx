@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { translateAuthError } from "@/lib/supabase/auth-errors";
 import {
   Turnstile,
   TURNSTILE_ENABLED,
@@ -133,7 +134,7 @@ export default function LoginPage() {
     turnstileRef.current?.reset();
     setResending(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(translateAuthError(error));
       return;
     }
     toast.success("Enlace enviado. Revisa tu correo (y spam).");
@@ -157,7 +158,7 @@ export default function LoginPage() {
       toast.error(
         error.message === "Email not confirmed"
           ? "Tu correo aún no está confirmado. Usa el botón de reenviar el enlace."
-          : error.message
+          : translateAuthError(error)
       );
       setLoading(false);
       return;
@@ -227,7 +228,7 @@ export default function LoginPage() {
         redirectTo: `${window.location.origin}/api/auth/callback`,
       },
     });
-    if (error) toast.error(error.message);
+    if (error) toast.error(translateAuthError(error));
   };
 
   return (

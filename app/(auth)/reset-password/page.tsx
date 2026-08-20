@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { translateAuthError } from "@/lib/supabase/auth-errors";
 import { toast } from "sonner";
 import { Loader2, Lock, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 
@@ -34,7 +35,7 @@ export default function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      toast.error(error.message);
+      toast.error(translateAuthError(error));
       setLoading(false);
       return;
     }
