@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle2, X, Copy, Check } from "lucide-react";
+import { X, Copy, Check } from "lucide-react";
 import {
   WhatsAppIcon,
   waSolidButton,
   waOutlineButton,
 } from "@/components/icons/whatsapp-icon";
 import { cn } from "@/lib/utils";
+import { SuccessCheck } from "@/components/ui/success-check";
 import {
   loadWaClipboardConfig,
   saveWaClipboardConfig,
@@ -144,8 +145,11 @@ export function WhatsAppClipboardModal({
           >
             {/* Close button */}
             <div className="flex justify-between items-start mb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10">
-                <CheckCircle2 className="h-7 w-7 text-success-500" />
+              {/* El halo va en success-*, no emerald-*: "cita reservada" es
+                  significado, no marca — debe seguir verde en Océano y Arena
+                  (misma regla que el icono, que ya usaba success-500). */}
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success-500/10">
+                <SuccessCheck size={28} className="text-success-500" />
               </div>
               <button
                 onClick={onClose}
