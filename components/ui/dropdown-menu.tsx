@@ -57,7 +57,10 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        "animate-popover z-50 min-w-[10rem] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-lg",
+        // Mismo lenguaje que el menú de usuario del topbar: esquina xl,
+        // sombra profunda y respiración interior. El radio pequeño y el
+        // p-1 de shadcn hacían que los ítems tocaran el borde.
+        "animate-popover z-50 min-w-[10rem] overflow-hidden rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl",
         className
       )}
       {...props}
@@ -75,7 +78,10 @@ const DropdownMenuItem = React.forwardRef<
   <DropdownMenuPrimitive.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors",
+      // Ítems con área táctil real (py-2) y esquina que acompaña al
+      // contenedor. El texto arranca a foreground/90 y se asienta en
+      // foreground al enfocar: el hover se percibe aunque el fondo cambie poco.
+      "relative flex cursor-pointer select-none items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-foreground/90 outline-none transition-colors",
       "focus:bg-accent focus:text-accent-foreground",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       inset && "pl-8",
