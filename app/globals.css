@@ -346,8 +346,8 @@
 .animate-overlay[data-state="open"]  { animation: overlay-in var(--dur-base) var(--ease-entrance) both; }
 .animate-overlay[data-state="closed"] { animation: overlay-out var(--dur-fast) var(--ease-exit) both; }
 
-.animate-dialog[data-state="open"]   { animation: dialog-in var(--dur-base) var(--ease-entrance) both; will-change: transform, opacity; }
-.animate-dialog[data-state="closed"] { animation: dialog-out var(--dur-fast) var(--ease-exit) both; will-change: transform, opacity; }
+.animate-dialog[data-state="open"]   { animation: dialog-in var(--dur-base) var(--ease-entrance) both; }
+.animate-dialog[data-state="closed"] { animation: dialog-out var(--dur-fast) var(--ease-exit) both; }
 
 .animate-sheet-right[data-state="open"]   { animation: sheet-in-right var(--dur-slow) var(--ease-entrance) both; }
 .animate-sheet-right[data-state="closed"] { animation: sheet-out-right var(--dur-base) var(--ease-exit) both; }
@@ -363,8 +363,19 @@
   to   { opacity: 0; transform: translateY(-2px) scale(0.98); }
 }
 
-.animate-popover[data-state="open"]   { animation: popover-in var(--dur-base) var(--ease-entrance) both; transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); will-change: transform, opacity; }
-.animate-popover[data-state="closed"] { animation: popover-out var(--dur-quick) var(--ease-exit) both; transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); will-change: transform, opacity; }
+.animate-popover[data-state="open"]   { animation: popover-in var(--dur-base) var(--ease-entrance) both; transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); }
+.animate-popover[data-state="closed"] { animation: popover-out var(--dur-quick) var(--ease-exit) both; transform-origin: var(--radix-popover-content-transform-origin, var(--radix-dropdown-menu-content-transform-origin, top)); }
+
+/* Fotograma cero: Radix monta el contenido y escribe data-state en un
+   ciclo posterior. Sin data-state no hay animación aplicada, así que el
+   elemento se pintaría opaco sobre una capa recién creada y aún sin
+   rasterizar — ese era el destello oscuro. Arrancar transparente lo cubre;
+   en cuanto Radix escribe data-state, la animación toma el control.  */
+.animate-popover:not([data-state]),
+.animate-dialog:not([data-state]),
+.animate-overlay:not([data-state]) {
+  opacity: 0;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .animate-overlay,
