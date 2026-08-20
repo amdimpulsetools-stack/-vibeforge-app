@@ -9,6 +9,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { translateAuthError, isPasswordAuthError } from "@/lib/supabase/auth-errors";
 import { APP_NAME, TERMS_VERSION } from "@/lib/constants";
 import { toast } from "sonner";
 import { Loader2, Building2, Mail, CheckCircle2, MessageCircle, BarChart3, Shield, Clock, LogOut, AlertCircle } from "lucide-react";
@@ -51,6 +52,9 @@ function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  // Rechazos del servidor sobre la contraseña (p. ej. filtrada según
+  // HaveIBeenPwned) — se muestran junto al campo, no solo en un toast.
+  const [passwordServerError, setPasswordServerError] = useState<string | null>(null);
   const [fullName, setFullName] = useState("");
   const [orgName, setOrgName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -236,7 +240,9 @@ function RegisterPage() {
     turnstileRef.current?.reset();
 
     if (error) {
-      toast.error(error.message);
+      const msg = translateAuthError(error);
+      if (isPasswordAuthError(error)) setPasswordServerError(msg);
+      toast.error(msg);
       setLoading(false);
       return;
     }
@@ -266,7 +272,7 @@ function RegisterPage() {
         redirectTo: `${window.location.origin}/api/auth/callback?next=/onboarding`,
       },
     });
-    if (error) toast.error(error.message);
+    if (error) toast.error(translateAuthError(error));
   };
 
   const roleLabels: Record<string, string> = {
@@ -657,11 +663,21 @@ function RegisterPage() {
                 type="password"
                 placeholder="Mín. 8 caracteres, mayúscula y número"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (passwordServerError) setPasswordServerError(null);
+                }}
                 required
                 minLength={6}
-                className="flex h-11 w-full rounded-xl border border-input bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 focus:border-primary/50 transition-all"
+                className={`flex h-11 w-full rounded-xl border bg-background/50 px-4 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-ring/50 transition-all ${
+                  passwordServerError
+                    ? "border-red-500 focus:border-red-500"
+                    : "border-input focus:border-primary/50"
+                }`}
               />
+              {passwordServerError && (
+                <p className="text-xs text-red-500">{passwordServerError}</p>
+              )}
               {password.length > 0 && (
                 <div className="space-y-1.5">
                   <div className="flex gap-1">

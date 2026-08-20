@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { translateAuthError } from "@/lib/supabase/auth-errors";
 import { toast } from "sonner";
 import { Loader2, ArrowLeft, Mail } from "lucide-react";
 import {
@@ -31,7 +32,7 @@ export default function ForgotPasswordPage() {
     turnstileRef.current?.reset();
 
     if (error) {
-      toast.error(error.message);
+      toast.error(translateAuthError(error));
       setLoading(false);
       return;
     }
