@@ -310,7 +310,7 @@ export function AdminDashboard({
           <div className="flex flex-wrap items-baseline gap-x-4 gap-y-2">
             <div className="min-w-0">
               <p className="text-3xl font-extrabold tracking-tight text-orange-600 dark:text-orange-400">
-                {formatCurrency(data.pendingDebt)}
+                <NumberPopIn key={formatCurrency(data.pendingDebt)} value={formatCurrency(data.pendingDebt)} />
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {isEs ? "por cobrar" : "to collect"}
@@ -318,7 +318,7 @@ export function AdminDashboard({
             </div>
             <div className="min-w-0 border-l border-border pl-4">
               <p className="text-3xl font-extrabold tracking-tight">
-                {data.debtorCount}
+                <NumberPopIn key={data.debtorCount} value={String(data.debtorCount)} />
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {isEs ? "pacientes deudores" : "patients with debt"}
@@ -345,7 +345,7 @@ export function AdminDashboard({
               <p className="text-xs text-muted-foreground">
                 {isEs ? "Completadas" : "Completed"}
               </p>
-              <p className="text-2xl font-extrabold">{data.completedCount}</p>
+              <p className="text-2xl font-extrabold"><NumberPopIn key={data.completedCount} value={String(data.completedCount)} /></p>
             </div>
             <div className="text-center">
               <div className="flex justify-center mb-1">
@@ -354,7 +354,7 @@ export function AdminDashboard({
               <p className="text-xs text-muted-foreground">
                 {isEs ? "No shows" : "No shows"}
               </p>
-              <p className="text-2xl font-extrabold">{data.noShowCount}</p>
+              <p className="text-2xl font-extrabold"><NumberPopIn key={data.noShowCount} value={String(data.noShowCount)} /></p>
             </div>
             <div className="text-center">
               <div className="flex justify-center mb-1">
@@ -363,7 +363,7 @@ export function AdminDashboard({
               <p className="text-xs text-muted-foreground">
                 {isEs ? "Canceladas" : "Cancelled"}
               </p>
-              <p className="text-2xl font-extrabold">{data.cancelledCount}</p>
+              <p className="text-2xl font-extrabold"><NumberPopIn key={data.cancelledCount} value={String(data.cancelledCount)} /></p>
             </div>
           </div>
         </div>
@@ -453,7 +453,7 @@ export function AdminDashboard({
           </div>
           <div className="flex items-baseline gap-2">
             <p className="text-5xl font-extrabold tracking-tight">
-              {data.occupancyRate}%
+              <NumberPopIn key={data.occupancyRate} value={`${data.occupancyRate}%`} />
             </p>
             <span className={`text-xs font-semibold ${occupancyTone.text}`}>
               {occupancyTone.label}
@@ -515,7 +515,7 @@ export function AdminDashboard({
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-end justify-center pb-0">
-                  <span className="text-3xl font-extrabold">{goalProgress}%</span>
+                  <span className="text-3xl font-extrabold"><NumberPopIn key={goalProgress} value={`${goalProgress}%`} /></span>
                 </div>
               </div>
               <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">
