@@ -4,6 +4,7 @@ import { Navbar } from "@/components/landing/navbar";
 import { Hero } from "@/components/landing/hero";
 import { TrustBadges } from "@/components/landing/trust-badges";
 import { StatusQuoTable } from "@/components/landing/status-quo-table";
+import { MobileStickyCta } from "@/components/landing/mobile-sticky-cta";
 import { PainPoints } from "@/components/landing/pain-points";
 import { RoleSuperpowers } from "@/components/landing/role-superpowers";
 import { Features } from "@/components/landing/features";
@@ -38,6 +39,7 @@ export default function LandingPage() {
       <FAQ />
       <AlwaysImproving />
       <FinalCTA />
+      <MobileStickyCta />
       <Footer />
     </div>
   );

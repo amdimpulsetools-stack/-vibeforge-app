@@ -125,7 +125,7 @@ export function Pricing() {
   }, []);
 
   return (
-    <section id="pricing" className="py-20 sm:py-28 bg-white">
+    <section id="pricing" className="py-24 sm:py-36 bg-white">
       <div
         ref={sectionRef}
         className="mx-auto max-w-7xl px-6 [&.animate-in_.price-card]:opacity-100 [&.animate-in_.price-card]:translate-y-0"
@@ -159,7 +159,7 @@ export function Pricing() {
               }`}
             >
               Semestral
-              <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+              <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
                 ½ mes gratis
               </span>
             </button>
@@ -172,7 +172,7 @@ export function Pricing() {
               }`}
             >
               Anual
-              <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+              <span className="ml-1.5 inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-700">
                 2 meses gratis
               </span>
             </button>
@@ -203,18 +203,18 @@ export function Pricing() {
                   prefers-reduced-motion lo anula vía la media query global. */}
               <div className="mt-4" key={cadence}>
                 <div className="flex items-baseline gap-1 motion-safe:animate-[fadeUp_0.25s_ease-out]">
-                  <span className="text-sm text-slate-400">S/</span>
+                  <span className="text-sm text-slate-500">S/</span>
                   <span className="text-4xl font-extrabold text-slate-900 tabular-nums">
                     {priceFor(plan, cadence)}
                   </span>
-                  <span className="text-sm text-slate-400">/mes</span>
+                  <span className="text-sm text-slate-500">/mes</span>
                 </div>
                 {cadence !== "monthly" && (
-                  <p className="text-xs text-slate-400 mt-0.5 line-through motion-safe:animate-[fadeUp_0.3s_ease-out]">
+                  <p className="text-xs text-slate-500 mt-0.5 line-through motion-safe:animate-[fadeUp_0.3s_ease-out]">
                     S/{plan.priceMonthly}/mes
                   </p>
                 )}
-                <p className="text-xs text-slate-400 mt-1 motion-safe:animate-[fadeUp_0.35s_ease-out]">
+                <p className="text-xs text-slate-500 mt-1 motion-safe:animate-[fadeUp_0.35s_ease-out]">
                   {anchorFor(plan, cadence)}
                 </p>
                 {/* Mercado Pago no acepta cobros por período de más de
@@ -295,7 +295,7 @@ export function Pricing() {
                 </div>
                 <div>
                   <h3 className="text-lg font-bold">Enterprise</h3>
-                  <p className="text-xs text-slate-400">Para clínicas con más de 15 doctores</p>
+                  <p className="text-xs text-slate-500">Para clínicas con más de 15 doctores</p>
                 </div>
               </div>
               <p className="text-sm text-slate-300 leading-relaxed max-w-lg">
@@ -323,7 +323,7 @@ export function Pricing() {
                 Hablar con el equipo
                 <ArrowRight className="h-4 w-4" />
               </Link>
-              <p className="text-[10px] text-slate-500 mt-2 text-center">Precio a medida</p>
+              <p className="text-xs text-slate-500 mt-2 text-center">Precio a medida</p>
             </div>
           </div>
         </div>

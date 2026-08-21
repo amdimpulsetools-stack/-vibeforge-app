@@ -325,7 +325,7 @@ export function RevenueImpact() {
   return (
     <section
       id="revenue-impact"
-      className="relative py-20 sm:py-28 bg-white overflow-hidden"
+      className="relative py-24 sm:py-36 bg-white overflow-hidden"
     >
       {/* Soft background accents */}
       <div className="pointer-events-none absolute inset-0">

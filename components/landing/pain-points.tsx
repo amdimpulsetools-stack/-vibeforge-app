@@ -68,7 +68,7 @@ export function PainPoints() {
   const c = closing(checked.size, pains.length);
 
   return (
-    <section className="relative py-20 sm:py-28 bg-slate-950 overflow-hidden">
+    <section className="relative py-24 sm:py-36 bg-slate-950 overflow-hidden">
       {/* Ambient orbs */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute top-0 left-1/4 w-[500px] h-[500px] rounded-full bg-emerald-500/10 blur-[140px]" />

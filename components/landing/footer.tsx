@@ -43,7 +43,7 @@ export function Footer() {
         </div>
 
         <div className="mt-8 pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-xs text-slate-400">
+          <p className="text-sm text-slate-500">
             Hecho en Perú 🇵🇪 para Latinoamérica
           </p>
           <div className="flex items-center gap-4">
@@ -51,13 +51,13 @@ export function Footer() {
               <Link
                 key={link.href}
                 href={link.href}
-                className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-sm text-slate-500 hover:text-slate-600 transition-colors"
               >
                 {link.label}
               </Link>
             ))}
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-sm text-slate-500">
             © 2026 {APP_NAME}. Todos los derechos reservados.
           </p>
         </div>

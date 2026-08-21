@@ -30,7 +30,29 @@ const tiers = [
 
 export function AIAssistant() {
   const sectionRef = useRef<HTMLDivElement>(null);
-  const [visibleMessages, setVisibleMessages] = useState(0);
+  // La demo es INTERACTIVA (auditoría 2026-08-21): el visitante elige la
+  // pregunta y ve la respuesta escribirse. Es la diferencia entre "dicen
+  // que tienen IA" y "vi la IA". Al entrar en pantalla se dispara la
+  // primera pregunta sola, como invitación.
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
+  const [typed, setTyped] = useState("");
+  const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const ask = (idx: number) => {
+    if (typingRef.current) clearInterval(typingRef.current);
+    setActiveIdx(idx);
+    setTyped("");
+    const answer = chatExamples[idx].answer;
+    let i = 0;
+    typingRef.current = setInterval(() => {
+      i += 2;
+      setTyped(answer.slice(0, i));
+      if (i >= answer.length && typingRef.current) {
+        clearInterval(typingRef.current);
+        typingRef.current = null;
+      }
+    }, 18);
+  };
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -39,25 +61,25 @@ export function AIAssistant() {
       ([entry]) => {
         if (entry.isIntersecting) {
           el.classList.add("animate-in");
-          // Stagger chat messages
-          let count = 0;
-          const interval = setInterval(() => {
-            count++;
-            setVisibleMessages(count);
-            if (count >= chatExamples.length) clearInterval(interval);
-          }, 400);
+          ask(0);
           observer.disconnect();
-          return () => clearInterval(interval);
         }
       },
       { threshold: 0.15 }
     );
     observer.observe(el);
-    return () => observer.disconnect();
+    // El intervalo de typing se limpia AQUÍ, en el cleanup del efecto — el
+    // original lo devolvía dentro del callback del observer, que ignora el
+    // valor de retorno: el setInterval nunca moría al desmontar.
+    return () => {
+      observer.disconnect();
+      if (typingRef.current) clearInterval(typingRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <section className="py-20 sm:py-28 bg-slate-50/50 overflow-hidden">
+    <section className="py-20 sm:py-28 bg-slate-50 border-y border-slate-100 overflow-hidden">
       <div ref={sectionRef} className="mx-auto max-w-7xl px-6">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
           {/* Left: Text */}
@@ -113,38 +135,53 @@ export function AIAssistant() {
                 </div>
               </div>
 
-              {/* Chat messages */}
-              <div className="p-4 space-y-3 min-h-[320px] max-h-[400px] overflow-hidden bg-gradient-to-b from-white to-slate-50/30">
-                {chatExamples.map((msg, i) => (
-                  <div
-                    key={i}
-                    className={`transition-all duration-500 ${
-                      i < visibleMessages
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 translate-y-4"
-                    }`}
-                  >
-                    {/* User question */}
+              {/* Chat: chips de pregunta + respuesta con typing. Sin
+                  max-h + overflow-hidden (el original recortaba el cuarto
+                  turno en silencio). */}
+              <div className="p-4 min-h-[300px] bg-gradient-to-b from-white to-slate-50/30">
+                <p className="text-xs font-medium text-slate-500 mb-2.5">
+                  Prueba una pregunta real:
+                </p>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {chatExamples.map((msg, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => ask(i)}
+                      className={`rounded-full border px-3 py-2 text-xs font-medium transition-colors ${
+                        activeIdx === i
+                          ? "border-emerald-500 bg-emerald-500 text-white"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:text-emerald-700"
+                      }`}
+                    >
+                      {msg.question}
+                    </button>
+                  ))}
+                </div>
+                {activeIdx !== null && (
+                  <div aria-live="polite">
                     <div className="flex justify-end mb-2">
                       <div className="rounded-2xl rounded-br-md bg-emerald-500 px-3.5 py-2 text-xs text-white max-w-[80%] shadow-sm">
-                        {msg.question}
+                        {chatExamples[activeIdx].question}
                       </div>
                     </div>
-                    {/* AI answer */}
                     <div className="flex justify-start">
-                      <div className="rounded-2xl rounded-bl-md bg-slate-100 px-3.5 py-2 text-xs text-slate-700 max-w-[85%] leading-relaxed">
-                        {msg.answer}
+                      <div className="rounded-2xl rounded-bl-md bg-slate-100 px-3.5 py-2 text-xs text-slate-700 max-w-[85%] leading-relaxed min-h-[2rem]">
+                        {typed}
+                        {typed.length < chatExamples[activeIdx].answer.length && (
+                          <span className="inline-block w-1 h-3 ml-0.5 bg-emerald-500 animate-pulse align-middle" />
+                        )}
                       </div>
                     </div>
                   </div>
-                ))}
+                )}
               </div>
 
               {/* Chat input */}
               <div className="border-t border-slate-100 px-4 py-3 bg-white">
                 <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                   <span className="text-xs text-slate-400 flex-1">
-                    Pregunta algo sobre tu clínica...
+                    Elige una pregunta arriba — así se siente por dentro
                   </span>
                   <div className="h-7 w-7 rounded-md gradient-primary flex items-center justify-center">
                     <Send className="h-3.5 w-3.5 text-white" />

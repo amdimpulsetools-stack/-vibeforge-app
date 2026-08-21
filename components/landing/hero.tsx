@@ -20,7 +20,6 @@ import {
 
 export function Hero() {
   const dashboardRef = useRef<HTMLDivElement>(null);
-  const titleHighlightRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     const el = dashboardRef.current;
@@ -38,35 +37,12 @@ export function Hero() {
     return () => observer.disconnect();
   }, []);
 
-  // Reactive gradient angle on "Agenda inteligente" — sigue el cursor con
-  // requestAnimationFrame para evitar reflows. Cuando el mouse no se mueve,
-  // queda activa la animación CSS automática del shimmer (ver globals.css).
-  useEffect(() => {
-    const el = titleHighlightRef.current;
-    if (!el) return;
-    let raf: number | null = null;
-    const handler = (e: MouseEvent) => {
-      if (raf) cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        const rect = el.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
-        const angle = Math.atan2(e.clientY - cy, e.clientX - cx) * (180 / Math.PI) + 90;
-        el.style.setProperty("--angle", `${angle}deg`);
-      });
-    };
-    window.addEventListener("mousemove", handler);
-    return () => {
-      window.removeEventListener("mousemove", handler);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, []);
 
   return (
     <section className="relative overflow-hidden pt-32 pb-20 sm:pt-40 sm:pb-28">
       {/* Background effects - light mode */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[600px] rounded-full bg-emerald-100/40 blur-[120px]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 hidden sm:block w-[700px] h-[480px] rounded-full bg-emerald-100/40 blur-[120px]" />
         <div className="absolute top-40 right-0 w-[400px] h-[400px] rounded-full bg-amber-100/30 blur-[100px]" />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full bg-emerald-50/50 blur-[100px]" />
       </div>
@@ -87,10 +63,7 @@ export function Hero() {
           {/* Title */}
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl text-slate-900 opacity-0 animate-[fadeUp_0.6s_0.2s_ease-out_forwards]">
             Tu clínica no se cae por falta de pacientes. Se cae entre{" "}
-            <span
-              ref={titleHighlightRef}
-              className="agenda-inteligente bg-clip-text text-transparent"
-            >
+            <span className="agenda-inteligente bg-clip-text text-transparent">
               el Excel, el cuaderno y tu WhatsApp
             </span>
             .
@@ -244,7 +217,7 @@ export function Hero() {
                           <p className="text-[10px] text-slate-400 truncate">{apt.service}</p>
                         </div>
                         <span
-                          className={`hidden sm:inline-flex text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                          className={`inline-flex text-[10px] font-medium px-2 py-0.5 rounded-full ${
                             apt.status === "confirmed"
                               ? "bg-emerald-50 text-emerald-600"
                               : "bg-amber-50 text-amber-600"

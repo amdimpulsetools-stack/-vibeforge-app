@@ -46,7 +46,7 @@ const pilots: PilotCard[] = [
 
 export function SocialProof() {
   return (
-    <section className="py-20 sm:py-28 bg-slate-50/50">
+    <section className="py-16 sm:py-24 bg-slate-50 border-y border-slate-100">
       <div className="mx-auto max-w-6xl px-6">
         {/* Header */}
         <Reveal className="mx-auto max-w-2xl text-center">
