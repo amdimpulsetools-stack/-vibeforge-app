@@ -30,8 +30,8 @@ function closing(count: number, total: number) {
     };
   }
   return {
-    lead: `${count} de ${total}. Entonces sí, esto no da más.`,
-    emphasis: "Yenda es la salida.",
+    lead: `${count} de ${total}. Así ya no se puede, y tú lo sabes mejor que nadie.`,
+    emphasis: "Esto se arregla en una tarde.",
     cta: { label: "Ver cuánto recuperas", href: "#revenue-impact" },
   };
 }

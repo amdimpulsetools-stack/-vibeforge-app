@@ -2,9 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import {
-  Package,
-  Wallet,
-  FileHeart,
   BarChart3,
   QrCode,
   Sparkles,
@@ -18,24 +15,6 @@ interface UpcomingFeature {
 }
 
 const upcoming: UpcomingFeature[] = [
-  {
-    icon: Package,
-    title: "Inventario",
-    description:
-      "Insumos y medicamentos bajo control: stock, alertas y consumo por servicio.",
-  },
-  {
-    icon: Wallet,
-    title: "Caja",
-    description:
-      "Apertura, cierre y arqueo diario conectados a tus citas y cobros.",
-  },
-  {
-    icon: FileHeart,
-    title: "Historia Clínica Premium de Fertilidad",
-    description:
-      "Ciclos, protocolos y resultados de laboratorio en una vista diseñada para tu especialidad.",
-  },
   {
     icon: BarChart3,
     title: "Estadísticas avanzadas por asesora",
@@ -98,8 +77,8 @@ export function AlwaysImproving() {
             Lo mejor: Yenda no deja de crecer
           </h2>
           <p className="mt-3 text-lg text-slate-400 max-w-2xl mx-auto">
-            Seguimos añadiendo mejoras y nuevas funciones periódicamente para
-            potenciar tu negocio — sin que tengas que instalar nada.
+            Cada mes sale algo nuevo. No pagas actualización ni instalas nada para
+            que tu clínica tenga lo último. El precio de hoy es el precio que mantienes.
           </p>
         </div>
 
@@ -134,8 +113,8 @@ export function AlwaysImproving() {
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2">
             <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             <p className="text-xs text-slate-400">
-              Tu suscripción incluye cada actualización del core apenas se
-              publica. Tu clínica mejora mientras duermes.
+              Tu suscripción incluye cada mejora del sistema apenas se publica.
+              Sin costo de actualización, sin instalar nada.
             </p>
           </div>
         </div>

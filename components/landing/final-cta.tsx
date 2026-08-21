@@ -28,7 +28,7 @@ export function FinalCTA() {
               href="/register"
               className="inline-flex h-14 items-center justify-center gap-2.5 rounded-xl gradient-primary px-10 text-base font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
             >
-              Probar gratis 14 días
+              Empezar mis 14 días gratis
               <ArrowRight className="h-5 w-5" />
             </Link>
           </div>

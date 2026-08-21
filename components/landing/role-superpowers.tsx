@@ -63,7 +63,7 @@ const roles: RoleData[] = [
     features: [
       {
         icon: CalendarCheck,
-        title: "Agendar en 3 clicks",
+        title: "Agendar en 3 pasos",
         description: "Paciente, doctor, servicio. Listo. Sin doble-agendamiento.",
       },
       {
@@ -74,7 +74,7 @@ const roles: RoleData[] = [
       },
       {
         icon: AlertTriangle,
-        title: "Follow-ups automáticos",
+        title: "Seguimientos automáticos",
         description:
           "Nunca olvida un seguimiento. El sistema le recuerda qué pacientes necesitan llamada.",
       },
@@ -90,8 +90,8 @@ const roles: RoleData[] = [
       items: [
         { label: "9:00 — María García", value: "Consulta general", accent: false },
         { label: "9:30 — Carlos López", value: "Ecografía", accent: true },
-        { label: "10:00 — Ana Rodríguez", value: "Control post-op", accent: false },
-        { label: "10:30 — Libre", value: "Slot disponible", accent: false },
+        { label: "10:00 — Ana Rodríguez", value: "Control post operatorio", accent: false },
+        { label: "10:30 — Libre", value: "Cupo disponible", accent: false },
       ],
     },
   },
@@ -104,7 +104,7 @@ const roles: RoleData[] = [
     iconBg: "bg-emerald-100 text-emerald-600",
     headline: "Control total, sin perseguir a nadie",
     subline:
-      "Dashboard con métricas en tiempo real. Sabe cuánto se facturó, quién trabajó y qué falta — sin preguntar.",
+      "Abre Yenda a las 7 pm y ya está todo sumado: cuánto entró, quién quedó debiendo y qué doctor atendió cuántos. Sin preguntar a nadie.",
     painKiller:
       "Sabe exactamente cuánto se facturó sin hacer cuentas a mano",
     features: [
@@ -112,7 +112,7 @@ const roles: RoleData[] = [
         icon: BarChart3,
         title: "Dashboard en tiempo real",
         description:
-          "Revenue, ocupación, cancelaciones, no-shows. Todo actualizado al segundo.",
+          "Cuánto facturaste, qué tan llena está la agenda, cuántos cancelaron y cuántos no llegaron. Se actualiza solo, apenas recepción registra el cobro.",
       },
       {
         icon: Settings,
@@ -150,9 +150,9 @@ const roles: RoleData[] = [
     color: "text-purple-600",
     activeColor: "border-purple-500 bg-purple-50",
     iconBg: "bg-purple-100 text-purple-600",
-    headline: "Enfócate en atender, nosotros manejamos el resto",
+    headline: "Entra, atiende y sal a la hora",
     subline:
-      "Ve solo sus citas, complete notas clínicas con plantillas y acceda al historial completo del paciente.",
+      "El doctor abre su agenda del día, escribe la nota con una plantilla de su especialidad y ve todo el historial del paciente en la misma pantalla.",
     painKiller:
       "No pierde tiempo en administración — solo en sus pacientes",
     features: [
@@ -187,7 +187,7 @@ const roles: RoleData[] = [
         { label: "9:00 — María García", value: "Nota SOAP pendiente", accent: true },
         { label: "10:00 — Carlos López", value: "Completada", accent: false },
         { label: "11:00 — Ana Rodríguez", value: "En sala de espera", accent: true },
-        { label: "12:00 — Libre", value: "Break almuerzo", accent: false },
+        { label: "12:00 — Libre", value: "Almuerzo", accent: false },
       ],
     },
   },
@@ -226,7 +226,7 @@ const roles: RoleData[] = [
         icon: PieChart,
         title: "IA que sugiere",
         description:
-          '"Pacientes de Instagram tienen 40% más retención" — insights automáticos.',
+          '"Pacientes de Instagram tienen 40% más retención" — conclusiones automáticas.',
       },
     ],
     mockup: {
@@ -272,10 +272,10 @@ export function RoleSuperpowers() {
         {/* Header */}
         <div className="text-center mb-12">
           <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-            Cada rol, su superpoder
+            Cada uno ve exactamente lo que necesita
           </h2>
           <p className="mt-3 text-lg text-slate-500 max-w-2xl mx-auto">
-            Un flujo, cuatro perspectivas. Cada persona ve exactamente lo que necesita para hacer su trabajo mejor.
+            Tú, tu recepcionista y tus doctores entran al mismo sistema — pero nadie ve lo que no le toca. Cada persona ve exactamente lo que necesita para hacer su trabajo mejor.
           </p>
         </div>
 
@@ -398,7 +398,7 @@ export function RoleSuperpowers() {
               {/* Bottom hint */}
               <div className="border-t border-slate-100 px-5 py-3 bg-slate-50/50">
                 <p className="text-[10px] text-slate-400 text-center">
-                  Vista real del panel de {current.label.toLowerCase()}
+                  Así se ve el panel de {current.label.toLowerCase()}
                 </p>
               </div>
             </div>

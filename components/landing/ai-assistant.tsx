@@ -14,7 +14,7 @@ const chatExamples = [
   },
   {
     question: "¿Cómo puedo optimizar los horarios del martes?",
-    answer: "Los martes tienes 40% de slots vacíos entre 2-4pm. Mover consultas de seguimiento a esas horas liberaría la mañana para nuevos pacientes.",
+    answer: "Los martes tienes 40% de la agenda vacía entre 2-4pm. Mover consultas de seguimiento a esas horas liberaría la mañana para nuevos pacientes.",
   },
   {
     question: "¿Cuántos pacientes nuevos tuve vs recurrentes?",
@@ -71,9 +71,10 @@ export function AIAssistant() {
               <span className="text-emerald-600">No es un extra.</span>
             </h2>
             <p className="mt-4 text-base text-slate-600 leading-relaxed">
-              Cada plan incluye un asistente inteligente que analiza tu operación
-              y te ayuda a tomar mejores decisiones. No reemplaza doctores.
-              Potencia administradores.
+              Pregúntale a tu clínica lo que le preguntarías a un contador — en
+              español, y te responde al toque. Qué servicio fue el más rentable,
+              qué doctor tuvo más cancelaciones, cuántos pacientes vinieron de
+              Instagram. Incluido en los tres planes, sin costo aparte.
             </p>
 
             {/* Tier pills */}

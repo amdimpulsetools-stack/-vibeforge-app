@@ -15,7 +15,7 @@ const plans = [
     priceAnnual: "107.50",     // 10 mo / 12 mo = 16.7% off
     savingsSemiannual: "64.50",
     savingsAnnual: "258",
-    anchor: "Menos de S/5 al día por tener tu consultorio inteligente",
+    anchor: "Un solo paciente que no falta al mes ya te pagó el sistema",
     anchorSemiannual: "Ahorra S/64.50 — medio mes gratis",
     anchorAnnual: "Ahorra S/258 al año — 2 meses gratis",
     features: [
@@ -39,7 +39,7 @@ const plans = [
     priceAnnual: "290.83",
     savingsSemiannual: "174.50",
     savingsAnnual: "698",
-    anchor: "Menos de 3 consultas al mes y la herramienta se paga sola",
+    anchor: "3 consultas al mes cubren el plan completo",
     anchorSemiannual: "Ahorra S/174.50 — medio mes gratis",
     anchorAnnual: "Ahorra S/698 al año — 2 meses gratis",
     features: [
@@ -53,7 +53,7 @@ const plans = [
       "3 módulos de especialidad",
     ],
     highlight: true,
-    badge: "IA incluida · Más popular",
+    badge: "El que recomendamos",
   },
   {
     name: "Clínica",
@@ -62,18 +62,18 @@ const plans = [
     priceAnnual: "540.83",
     savingsSemiannual: "324.50",
     savingsAnnual: "1,298",
-    anchor: "Con un tratamiento mediano al mes, ya pagaste tu suscripción",
+    anchor: "Un tratamiento de S/700 al mes cubre la suscripción de toda la clínica",
     anchorSemiannual: "Ahorra S/324.50 — medio mes gratis",
     anchorAnnual: "Ahorra S/1,298 al año — 2 meses gratis",
     features: [
       "10 doctores · 10 consultorios",
-      "Hasta 3 recepcionistas (15 miembros totales)",
+      "10 doctores, 3 recepcionistas y hasta 15 personas en total",
       "Pacientes y citas ilimitados",
       "Todo lo de Centro Médico, más:",
       "Todos los módulos de especialidad",
-      "Onboarding personalizado 1-on-1",
-      "Soporte prioritario (<4 horas)",
-      "Migración de datos asistida",
+      "Te acompañamos por videollamada hasta que tu clínica esté funcionando",
+      "Te respondemos en menos de 4 horas, de lunes a sábado",
+      "Pasamos tus pacientes desde tu Excel o tu sistema actual — nosotros, no tú",
     ],
     highlight: false,
     badge: "IA incluida",
@@ -139,10 +139,10 @@ export function Pricing() {
           </p>
 
           {/* Billing toggle — 3 cadences with progressive discount */}
-          <div className="mt-8 inline-flex items-center gap-1 rounded-full bg-slate-100 p-1">
+          <div className="mt-8 inline-flex max-w-full flex-wrap items-center justify-center gap-1 rounded-2xl bg-slate-100 p-1">
             <button
               onClick={() => setCadence("monthly")}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+              className={`rounded-xl px-4 py-2.5 min-h-11 text-sm font-semibold transition-all ${
                 cadence === "monthly"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-700"
@@ -152,7 +152,7 @@ export function Pricing() {
             </button>
             <button
               onClick={() => setCadence("semiannual")}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+              className={`rounded-xl px-4 py-2.5 min-h-11 text-sm font-semibold transition-all ${
                 cadence === "semiannual"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-700"
@@ -165,7 +165,7 @@ export function Pricing() {
             </button>
             <button
               onClick={() => setCadence("annual")}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+              className={`rounded-xl px-4 py-2.5 min-h-11 text-sm font-semibold transition-all ${
                 cadence === "annual"
                   ? "bg-white text-slate-900 shadow-sm"
                   : "text-slate-500 hover:text-slate-700"
@@ -253,17 +253,36 @@ export function Pricing() {
                     : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300"
                 }`}
               >
-                Probar gratis 14 días
+                Empezar mis 14 días gratis
                 <ArrowRight className="h-3.5 w-3.5" />
               </Link>
+              <p className="mt-2 text-center text-xs text-slate-500">
+                Sin tarjeta. Cancelas cuando quieras.
+              </p>
             </div>
           ))}
         </div>
 
+        {/* Fila de riesgo cero — analgesia aplicada donde duele (el precio) */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-slate-600">
+          {[
+            "14 días gratis",
+            "Sin tarjeta",
+            "Cancela en 1 clic",
+            "Te exportamos tus datos cuando quieras",
+            "Te ayudamos con la migración",
+          ].map((t) => (
+            <span key={t} className="inline-flex items-center gap-1.5">
+              <Check className="h-4 w-4 text-emerald-600" />
+              {t}
+            </span>
+          ))}
+        </div>
+
         <p className="text-center text-sm text-slate-500 mt-10 max-w-xl mx-auto">
-          ¿Necesitas algo entre planes? Todos incluyen{" "}
-          <span className="font-medium text-slate-700">addons flexibles</span>:
-          agrega doctores, consultorios o miembros de equipo adicionales sin cambiar de plan.
+          ¿Te falta un doctor o un consultorio más? Los{" "}
+          <span className="font-medium text-slate-700">agregas sueltos</span>{" "}
+          sin tener que saltar al plan siguiente.
         </p>
 
         {/* Enterprise banner */}
@@ -280,14 +299,14 @@ export function Pricing() {
                 </div>
               </div>
               <p className="text-sm text-slate-300 leading-relaxed max-w-lg">
-                Infraestructura dedicada, funciones ultrapersonalizadas y escalabilidad sin límites.
+                Tu propia base de datos, integraciones con tus sistemas actuales y un equipo asignado a tu cuenta.
                 Para operaciones que necesitan control total sobre datos, integraciones y soporte.
               </p>
               <div className="flex flex-wrap gap-3 mt-4">
                 {[
                   { icon: Shield, text: "Base de datos dedicada" },
                   { icon: Sparkles, text: "IA sin límites + reportes custom" },
-                  { icon: Phone, text: "Soporte dedicado 24/7" },
+                  { icon: Phone, text: "Canal directo con tu equipo asignado" },
                 ].map((item) => (
                   <span key={item.text} className="flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs text-slate-300">
                     <item.icon className="h-3 w-3 text-emerald-400" />
@@ -301,7 +320,7 @@ export function Pricing() {
                 href="/contacto"
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-slate-900 hover:bg-emerald-50 transition-colors whitespace-nowrap"
               >
-                Contactar ventas
+                Hablar con el equipo
                 <ArrowRight className="h-4 w-4" />
               </Link>
               <p className="text-[10px] text-slate-500 mt-2 text-center">Precio a medida</p>

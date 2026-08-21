@@ -28,7 +28,7 @@ export const KB_CATEGORIES: Record<string, { label: string; icon: LucideIcon }> 
 export const KB_ARTICLES: KBArticle[] = [
   {
     slug: "guia-inicio-rapido",
-    title: "Comienza con REPLACE: guía de inicio rápido",
+    title: "Comienza con Yenda: guía de inicio rápido",
     desc: "Aprende a configurar tu cuenta, agregar doctores, crear servicios y agendar tu primera cita en menos de 10 minutos.",
     category: "como-empezar",
     categoryLabel: "Cómo empezar",

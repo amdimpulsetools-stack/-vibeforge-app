@@ -541,11 +541,14 @@ function SelectPlanPage() {
                   ))}
                 </ul>
 
-                {/* CTA buttons — paid is the primary revenue action and
-                     gets the gradient + ArrowRight (matches the landing
-                     `btn-popular-cta` style). Trial is demoted to a
-                     ghost secondary on plans that offer it. Enterprise
-                     has no trial, so only the paid CTA renders. */}
+                {/* CTA buttons — el TRIAL es el primario (auditoría
+                     2026-08-21): la landing promete cinco veces "gratis,
+                     sin tarjeta" y esta pantalla es el último metro del
+                     funnel — poner "Pagar" como botón grande era un
+                     bait-and-switch percibido en el punto de máxima
+                     ansiedad. Se monetiza el día 12 del trial, no el
+                     minuto 4. El pago queda como secundario para quien
+                     ya decidió; Enterprise no tiene trial. */}
                 {(() => {
                   // Gate del tope de MP para suscripciones (S/1,500 por
                   // período — ver lib/billing/constants): la cadencia cuyo
@@ -579,10 +582,10 @@ function SelectPlanPage() {
                   <button
                     onClick={() => handleSelect(plan.id)}
                     disabled={selecting !== null}
-                    className="btn-popular-cta flex w-full h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                    className="flex w-full h-10 items-center justify-center gap-2 rounded-xl border border-border bg-transparent text-xs font-medium text-muted-foreground transition-all hover:bg-accent/40 hover:text-foreground hover:border-emerald-300 dark:hover:border-emerald-500/40 disabled:opacity-50"
                   >
                     {selecting === plan.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : null}
                     {(() => {
                       const upfrontLabel =
@@ -593,22 +596,28 @@ function SelectPlanPage() {
                           : `S/${plan.price_monthly}/mes`;
                       return plan.slug === "enterprise"
                         ? `Contratar Clínica — ${upfrontLabel}`
-                        : `Pagar suscripción — ${upfrontLabel}`;
+                        : `Prefiero pagar ahora — ${upfrontLabel}`;
                     })()}
                     <ArrowRight className="h-3.5 w-3.5" />
                   </button>
                   )}
                   {plan.slug !== "enterprise" && (
-                    <button
-                      onClick={() => handleStartTrial(plan.id)}
-                      disabled={selecting !== null}
-                      className="flex w-full h-10 items-center justify-center gap-2 rounded-xl border border-border bg-transparent text-xs font-medium text-muted-foreground transition-all hover:bg-accent/40 hover:text-foreground hover:border-emerald-300 dark:hover:border-emerald-500/40 disabled:opacity-50"
-                    >
-                      {selecting === plan.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : null}
-                      Iniciar prueba de 14 días
-                    </button>
+                    <>
+                      <button
+                        onClick={() => handleStartTrial(plan.id)}
+                        disabled={selecting !== null}
+                        className="btn-popular-cta flex w-full h-11 items-center justify-center gap-2 rounded-xl text-sm font-semibold text-white shadow-md transition-all hover:shadow-lg hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:hover:scale-100"
+                      >
+                        {selecting === plan.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : null}
+                        Empezar mis 14 días gratis
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </button>
+                      <p className="text-center text-[11px] text-muted-foreground">
+                        No te pedimos tarjeta. Te avisamos antes de que termine.
+                      </p>
+                    </>
                   )}
                 </div>
                   );

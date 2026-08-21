@@ -81,26 +81,27 @@ export function Hero() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
             </span>
-            Lanzamiento 2026 — Acceso anticipado disponible
+            Prueba 14 días gratis · Sin tarjeta · Desde S/129 al mes
           </div>
 
           {/* Title */}
           <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl text-slate-900 opacity-0 animate-[fadeUp_0.6s_0.2s_ease-out_forwards]">
-            La{" "}
+            Tu clínica no se cae por falta de pacientes. Se cae entre{" "}
             <span
               ref={titleHighlightRef}
               className="agenda-inteligente bg-clip-text text-transparent"
             >
-              Agenda inteligente
+              el Excel, el cuaderno y tu WhatsApp
             </span>
-            {" "}que hace crecer tu facturación.
+            .
           </h1>
 
           {/* Subtitle */}
           <p className="mt-6 text-lg text-slate-600 sm:text-xl max-w-2xl mx-auto leading-relaxed opacity-0 animate-[fadeUp_0.6s_0.35s_ease-out_forwards]">
-            Agenda, historia clínica, cobros, portal del paciente y asistente
-            con IA — en un solo lugar. Desde el doctor independiente hasta la
-            clínica con 10 consultorios.
+            Yenda junta la agenda, la historia clínica, la caja, la boleta
+            SUNAT y los recordatorios de WhatsApp en una sola pantalla. Tu
+            recepcionista deja de copiar datos de un lado a otro y tú dejas de
+            perder plata por citas que nadie confirmó.
           </p>
 
           {/* CTA buttons */}
@@ -109,7 +110,7 @@ export function Hero() {
               href="/register"
               className="inline-flex h-12 items-center justify-center gap-2.5 rounded-xl gradient-primary px-8 text-sm font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
             >
-              Probar gratis 14 días
+              Empezar mis 14 días gratis
               <ArrowRight className="h-4 w-4" />
             </Link>
             <a
@@ -122,8 +123,9 @@ export function Hero() {
           </div>
 
           {/* Trust line */}
-          <p className="mt-5 text-sm text-slate-400 opacity-0 animate-[fadeUp_0.5s_0.65s_ease-out_forwards]">
-            Sin tarjeta para probar. Sin contratos. Configura tu clínica en minutos.
+          <p className="mt-5 text-sm text-slate-500 opacity-0 animate-[fadeUp_0.5s_0.65s_ease-out_forwards]">
+            Sin tarjeta. Sin contrato. Lo configuras en una tarde y tu
+            recepcionista lo entiende el mismo día.
           </p>
         </div>
 

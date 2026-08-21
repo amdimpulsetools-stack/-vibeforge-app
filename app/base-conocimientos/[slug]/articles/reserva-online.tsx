@@ -4,7 +4,7 @@ export function ReservaOnline() {
   return (
     <div className="kb-article space-y-8">
       <p className="text-[15px] leading-[1.85] text-slate-700">
-        REPLACE genera un link público donde tus pacientes pueden reservar citas online 24/7 sin necesidad de llamar. La cita se sincroniza automáticamente con tu agenda interna.
+        Yenda genera un link público donde tus pacientes pueden reservar citas online 24/7 sin necesidad de llamar. La cita se sincroniza automáticamente con tu agenda interna.
       </p>
 
       <Placeholder label="Captura: Página de reserva online vista del paciente" />

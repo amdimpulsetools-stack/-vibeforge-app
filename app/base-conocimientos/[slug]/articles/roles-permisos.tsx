@@ -4,7 +4,7 @@ export function RolesPermisos() {
   return (
     <div className="kb-article space-y-8">
       <p className="text-[15px] leading-[1.85] text-slate-700">
-        REPLACE tiene 4 roles con permisos diferentes. Cada persona que usa el sistema solo ve y hace lo que su rol permite. Esta guía explica qué puede hacer cada rol y cómo gestionar tu equipo.
+        Yenda tiene 4 roles con permisos diferentes. Cada persona que usa el sistema solo ve y hace lo que su rol permite. Esta guía explica qué puede hacer cada rol y cómo gestionar tu equipo.
       </p>
 
       <h2 className="text-2xl font-extrabold text-slate-900 mt-12 mb-4 pb-3 border-b border-slate-100">Los 4 roles del sistema</h2>

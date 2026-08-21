@@ -4,7 +4,7 @@ export function RegistrarPagos() {
   return (
     <div className="kb-article space-y-8">
       <p className="text-[15px] leading-[1.85] text-slate-700">
-        REPLACE permite registrar pagos por cita con múltiples métodos de pago, controlar saldos pendientes y enviar recibos y facturas automáticamente por email.
+        Yenda permite registrar pagos por cita con múltiples métodos de pago, controlar saldos pendientes y enviar recibos y facturas automáticamente por email.
       </p>
 
       <h2 className="text-2xl font-extrabold text-slate-900 mt-12 mb-4 pb-3 border-b border-slate-100">Registrar un pago</h2>

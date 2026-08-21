@@ -1,40 +1,56 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Calendar, Users, Shield, Building } from "lucide-react";
+import { Calendar, Users, Shield, Building, Wallet, ReceiptText } from "lucide-react";
 
 const features = [
   {
     icon: Calendar,
     title: "Agenda Inteligente",
     before:
-      "Citas en WhatsApp, olvidos, doble-agendamiento",
+      "La cita entra por WhatsApp, se anota en el cuaderno, se olvida pasar al Excel — y a las 9 am hay dos pacientes para el mismo consultorio",
     after:
-      "Agenda visual con citas, bloqueos, follow-ups y recordatorios. Vinculada a doctores, servicios y consultorios.",
+      "Una sola agenda que sabe qué doctor está libre y cuánto dura cada servicio. No deja agendar dos pacientes a la misma hora, y a cada uno le manda su recordatorio por WhatsApp sin que nadie escriba nada.",
   },
   {
     icon: Users,
     title: "Gestión de Pacientes",
     before:
-      "Historial en carpetas físicas o un Excel que nadie actualiza",
+      "El paciente entra y tienes que acordarte de qué le hiciste hace ocho meses y si te quedó debiendo",
     after:
-      "Perfil completo de cada paciente: historial de citas, pagos, notas, tags y seguimiento.",
+      "Abres su ficha antes de que se siente: qué le hiciste, cuánto pagó, cuánto debe, qué le recetaste y cuándo debería volver. Todo en una pantalla, en dos segundos.",
+  },
+  {
+    icon: Wallet,
+    title: "Caja diaria que cuadra sola",
+    before:
+      "Cobras en efectivo, se anota en un cuaderno, y al final del mes nadie sabe si falta plata",
+    after:
+      "Apertura, cierre y arqueo conectados a cada cita cobrada. Al final del día sabes cuánto entró — y si falta algo, sabes exactamente dónde.",
+  },
+  {
+    icon: ReceiptText,
+    title: "Boletas y facturas SUNAT",
+    before:
+      "Cobras aquí, y las boletas se emiten en otro sistema — o el contador te persigue a fin de mes",
+    after:
+      "Emisión electrónica a SUNAT desde la misma cita, en un clic. Sin pasar los datos a otro sistema.",
   },
   {
     icon: Shield,
     title: "Control de Equipo",
     before:
-      "Todos tienen acceso a todo o nadie sabe qué puede hacer",
+      "Tu recepcionista ve cuánto factura la clínica y un doctor abre historias de pacientes que no son suyos",
     after:
-      "4 roles claros: Owner, Admin, Recepcionista, Doctor. Cada uno ve solo lo que necesita.",
+      "Tú decides quién ve qué. La recepcionista agenda y cobra pero no ve tus números totales. Cada doctor entra solo a sus pacientes. Todo movimiento queda registrado con nombre y hora.",
   },
   {
     icon: Building,
     title: "Tu Clínica Completa",
     before:
-      "5 herramientas diferentes que no se hablan entre sí",
+      "El Excel de citas, el cuaderno de caja, el WhatsApp de recordatorios y el talonario de boletas: ninguno se habla con el otro",
     after:
-      "Consultorios, sucursales, servicios con precios, categorías, plantillas clínicas. Todo conectado.",
+      "Registras la cita una vez y ya está todo: el doctor la ve en su agenda, el cobro entra a caja, la boleta sale a SUNAT y el recordatorio se va por WhatsApp solo.",
   },
 ];
 

@@ -3,13 +3,11 @@
 import { Navbar } from "@/components/landing/navbar";
 import { Hero } from "@/components/landing/hero";
 import { TrustBadges } from "@/components/landing/trust-badges";
-import { GrowthPath } from "@/components/landing/growth-path";
+import { StatusQuoTable } from "@/components/landing/status-quo-table";
 import { PainPoints } from "@/components/landing/pain-points";
 import { RoleSuperpowers } from "@/components/landing/role-superpowers";
 import { Features } from "@/components/landing/features";
-import { LiveNotifications } from "@/components/landing/live-notifications";
 import { AIAssistant } from "@/components/landing/ai-assistant";
-import { ExpectedResults } from "@/components/landing/expected-results";
 import { RevenueImpact } from "@/components/landing/revenue-impact";
 import { Pricing } from "@/components/landing/pricing";
 import { AlwaysImproving } from "@/components/landing/always-improving";
@@ -23,19 +21,22 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white scroll-smooth">
       <Navbar />
       <Hero />
+      {/* Orden PAS (auditoría 2026-08-21): el dolor (PainPoints) se
+          cuantifica de inmediato en soles (RevenueImpact) — antes había 7
+          secciones de features entre ambos y el calor se disipaba. La prueba
+          social va ANTES del precio; "Siempre mejorando" queda después del
+          FAQ para que ningún "próximamente" toque el momento de decisión. */}
       <PainPoints />
-      <TrustBadges />
-      <GrowthPath />
-      <RoleSuperpowers />
-      <Features />
-      <LiveNotifications />
-      <AIAssistant />
-      <ExpectedResults />
       <RevenueImpact />
-      <Pricing />
-      <AlwaysImproving />
+      <TrustBadges />
+      <Features />
+      <RoleSuperpowers />
+      <AIAssistant />
+      <StatusQuoTable />
       <SocialProof />
+      <Pricing />
       <FAQ />
+      <AlwaysImproving />
       <FinalCTA />
       <Footer />
     </div>

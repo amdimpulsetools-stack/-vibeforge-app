@@ -25,7 +25,7 @@ const POPULAR_SEARCHES = [
 ];
 
 const FEATURED_ARTICLES = [
-  { slug: "guia-inicio-rapido", title: "Comienza con REPLACE: guía de inicio rápido", desc: "Aprende a configurar tu cuenta, agregar doctores, crear servicios y agendar tu primera cita en menos de 10 minutos.", category: "como-empezar", readTime: "4 min" },
+  { slug: "guia-inicio-rapido", title: "Comienza con Yenda: guía de inicio rápido", desc: "Aprende a configurar tu cuenta, agregar doctores, crear servicios y agendar tu primera cita en menos de 10 minutos.", category: "como-empezar", readTime: "4 min" },
   { slug: "configurar-recordatorios-whatsapp", title: "Cómo configurar recordatorios por WhatsApp", desc: "Conecta WhatsApp Business API y activa recordatorios automáticos 24h y 2h antes de cada cita.", category: "comunicacion", readTime: "5 min" },
   { slug: "notas-soap-plantillas", title: "Crear notas clínicas SOAP con plantillas", desc: "Usa el editor SOAP con autocompletado CIE-10, signos vitales y plantillas reutilizables por especialidad.", category: "historia-clinica", readTime: "6 min" },
   { slug: "roles-permisos", title: "Gestionar roles y permisos del equipo", desc: "Configura los 4 roles (Owner, Admin, Recepcionista, Doctor) y define qué puede ver y hacer cada uno.", category: "seguridad-roles", readTime: "4 min" },
