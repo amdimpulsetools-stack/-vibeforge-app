@@ -34,9 +34,9 @@ export function Hero() {
 
 
   return (
-    <section className="relative overflow-hidden pt-32 pb-20 sm:pt-40 sm:pb-28">
+    <section className="relative z-10 pt-32 pb-0 sm:pt-40">
       {/* Background effects - light mode */}
-      <div className="pointer-events-none absolute inset-0">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 hidden sm:block w-[700px] h-[480px] rounded-full bg-emerald-100/40 blur-[120px]" />
         <div className="absolute top-40 right-0 w-[400px] h-[400px] rounded-full bg-amber-100/30 blur-[100px]" />
         <div className="absolute bottom-0 left-0 w-[500px] h-[500px] rounded-full bg-emerald-50/50 blur-[100px]" />
@@ -97,98 +97,94 @@ export function Hero() {
           </p>
         </div>
 
-        {/* ── Mockup: agenda con 2 consultorios + sidebar de cita ──
-            Réplica fiel del scheduler real (pedido del founder, 2026-08-21)
-            hasta tener una captura del producto. Las 3 tarjetas flotantes
-            RECTAS enseñan los diferenciales: IA, seguimientos y analítica
-            por distrito. En móvil las flotantes se apilan debajo. */}
+        {/* ── Mockup: réplica fiel del scheduler real al ~80% ──
+            Copiado de una captura del producto (founder, 21-ago): cabecera
+            con fecha y controles, chips de stats, grilla 202/203 al 75% de
+            ocupación y el panel "Detalles de la cita" con sus acciones de
+            colores semánticos. El wrapper tiene margen inferior NEGATIVO:
+            el mockup se monta sobre la sección oscura siguiente
+            (PainPoints compensa con pt extra). aria-hidden: es decorativo. */}
         <div
           ref={dashboardRef}
-          className="relative mt-16 mx-auto max-w-5xl opacity-0 translate-y-8 transition-all duration-700 ease-out [&.animate-in]:opacity-100 [&.animate-in]:translate-y-0"
+          aria-hidden
+          className="relative z-10 mt-16 -mb-24 sm:-mb-36 mx-auto max-w-5xl opacity-0 translate-y-8 transition-all duration-700 ease-out [&.animate-in]:opacity-100 [&.animate-in]:translate-y-0"
         >
-          <div className="rounded-2xl border border-slate-200/60 bg-white/50 backdrop-blur-sm p-1.5 shadow-2xl shadow-slate-200/50">
+          <div className="rounded-2xl border border-slate-200/60 bg-white/50 backdrop-blur-sm p-1.5 shadow-2xl shadow-slate-300/60">
             <div className="rounded-xl border border-slate-200/50 bg-white overflow-hidden">
-              {/* Barra del navegador */}
-              <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 bg-slate-50/80">
-                <div className="flex gap-1.5">
-                  <div className="h-3 w-3 rounded-full bg-red-400" />
-                  <div className="h-3 w-3 rounded-full bg-amber-400" />
-                  <div className="h-3 w-3 rounded-full bg-emerald-400" />
+
+              {/* Cabecera del scheduler */}
+              <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-2.5 flex-wrap">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-300 text-sm">‹</span>
+                  <span className="text-[13px] font-bold text-slate-800">Jueves, 21 Agosto</span>
+                  <span className="text-slate-300 text-sm">›</span>
+                  <span className="ml-1 rounded-lg border border-slate-200 px-2 py-0.5 text-[10px] font-medium text-slate-600">Hoy</span>
                 </div>
-                <div className="mx-auto flex items-center gap-1.5 rounded-md bg-white border border-slate-200 px-3 py-1 text-[11px] text-slate-500">
-                  <Shield className="h-3 w-3 text-emerald-500" />
-                  app.yenda.app/scheduler
+                <div className="hidden md:flex items-center gap-1.5">
+                  <div className="flex rounded-lg bg-slate-100 p-0.5 text-[10px] font-semibold">
+                    <span className="rounded-md bg-white px-2 py-0.5 shadow-sm text-slate-800">Día</span>
+                    <span className="px-2 py-0.5 text-slate-400">Semana</span>
+                  </div>
+                  <span className="rounded-lg border border-emerald-200 bg-emerald-50 px-2 py-1 text-[10px] font-semibold text-emerald-700">2 consultorios</span>
+                  <span className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">Bloquear</span>
+                  <span className="rounded-lg gradient-primary px-2.5 py-1 text-[10px] font-semibold text-white">+ Nueva Cita</span>
                 </div>
               </div>
 
-              <div className="flex">
-                {/* Agenda del día */}
-                <div className="flex-1 min-w-0 p-3 sm:p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-emerald-600" />
-                      <span className="text-sm font-bold text-slate-800">
-                        Agenda — Hoy
-                      </span>
-                    </div>
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                      En vivo
-                    </span>
-                  </div>
+              {/* Chips de stats */}
+              <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2 overflow-x-auto">
+                {[
+                  ["Total citas:", "9"],
+                  ["Pendientes:", "2"],
+                  ["Ocupación:", "75%"],
+                ].map(([k, v]) => (
+                  <span key={k} className="shrink-0 rounded-lg bg-slate-50 border border-slate-100 px-2 py-1 text-[10px] text-slate-500">
+                    {k} <span className="font-bold text-slate-800">{v}</span>
+                  </span>
+                ))}
+              </div>
 
-                  {/* Cabecera de consultorios */}
-                  <div className="grid grid-cols-[44px_1fr_1fr] gap-1.5 mb-1.5">
+              <div className="flex">
+                {/* Grilla del día — 75% de ocupación */}
+                <div className="flex-1 min-w-0 p-2.5">
+                  <div className="grid grid-cols-[38px_1fr_1fr] gap-1 mb-1">
                     <div />
-                    {["Consultorio 1", "Consultorio 2"].map((c) => (
-                      <div key={c} className="rounded-md bg-slate-50 border border-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600 text-center truncate">
+                    {["202", "203"].map((c) => (
+                      <div key={c} className="rounded-md bg-slate-50 border border-slate-100 py-0.5 text-[10px] font-bold text-slate-600 text-center">
                         {c}
                       </div>
                     ))}
                   </div>
-
-                  {/* Filas de la grilla */}
                   {[
-                    {
-                      time: "09:00",
-                      a: { p: "María Torres", s: "Limpieza facial", st: "confirmada" },
-                      b: { p: "Jorge Salas", s: "Control", st: "en-consulta" },
-                    },
-                    {
-                      time: "09:30",
-                      a: null,
-                      b: { p: "Ana Mendoza", s: "Toxina botulínica", st: "confirmada" },
-                    },
-                    {
-                      time: "10:00",
-                      a: { p: "Carlos Ríos", s: "1era consulta", st: "pendiente" },
-                      b: null,
-                    },
+                    { t: "09:00", a: { p: "María Torres", s: "Limpieza facial", st: "ok" }, b: { p: "Jorge Salas", s: "Control", st: "live" } },
+                    { t: "09:30", a: { p: "Lucía Paredes", s: "Peeling", st: "ok" }, b: { p: "Ana Mendoza", s: "Toxina botulínica", st: "sel" } },
+                    { t: "10:00", a: { p: "Carlos Ríos", s: "1era consulta", st: "pend" }, b: null },
+                    { t: "10:30", a: { p: "Renzo Díaz", s: "Retiro de puntos", st: "ok" }, b: { p: "Elsa Quispe", s: "Dermapen", st: "ok" } },
+                    { t: "11:00", a: null, b: { p: "Ganicus Torrencio", s: "2da consulta", st: "pend" } },
+                    { t: "11:30", a: { p: "Sofía Lau", s: "Ácido hialurónico", st: "ok" }, b: { p: "Pedro Chang", s: "Control", st: "ok" } },
                   ].map((row) => (
-                    <div key={row.time} className="grid grid-cols-[44px_1fr_1fr] gap-1.5 mb-1.5">
-                      <div className="flex items-start justify-end pr-1 pt-1 text-[10px] tabular-nums text-slate-400">
-                        {row.time}
-                      </div>
+                    <div key={row.t} className="grid grid-cols-[38px_1fr_1fr] gap-1 mb-1">
+                      <div className="flex items-start justify-end pr-1 pt-0.5 text-[9px] tabular-nums text-slate-400">{row.t}</div>
                       {[row.a, row.b].map((cell, i) =>
                         cell ? (
                           <div
                             key={i}
-                            className={`rounded-lg border-l-[3px] px-2 py-1.5 ${
-                              cell.st === "confirmada"
+                            className={`rounded-md border-l-[3px] px-1.5 py-1 ${
+                              cell.st === "ok"
                                 ? "bg-emerald-50/80 border-emerald-500"
-                                : cell.st === "en-consulta"
+                                : cell.st === "live"
                                   ? "bg-sky-50/80 border-sky-500"
-                                  : "bg-amber-50/80 border-amber-400"
+                                  : cell.st === "sel"
+                                    ? "bg-emerald-100 border-emerald-600 ring-1 ring-emerald-300"
+                                    : "bg-amber-50/80 border-amber-400"
                             }`}
                           >
-                            <p className="text-[11px] font-semibold text-slate-800 truncate">
-                              {cell.p}
-                            </p>
-                            <p className="text-[10px] text-slate-500 truncate">{cell.s}</p>
+                            <p className="text-[10px] font-semibold text-slate-800 truncate leading-tight">{cell.p}</p>
+                            <p className="text-[9px] text-slate-500 truncate leading-tight">{cell.s}</p>
                           </div>
                         ) : (
-                          <div key={i} className="rounded-lg border border-dashed border-slate-200 flex items-center justify-center py-1.5">
-                            <Plus className="h-3 w-3 text-slate-300" />
+                          <div key={i} className="rounded-md border border-dashed border-slate-200 flex items-center justify-center">
+                            <Plus className="h-2.5 w-2.5 text-slate-300" />
                           </div>
                         )
                       )}
@@ -196,36 +192,52 @@ export function Hero() {
                   ))}
                 </div>
 
-                {/* Sidebar de la cita seleccionada (como en el producto) */}
-                <div className="hidden sm:flex w-52 shrink-0 flex-col border-l border-slate-100 bg-slate-50/60 p-3 gap-2.5">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      Cita seleccionada
+                {/* Panel "Detalles de la cita" — como en el producto */}
+                <div className="hidden sm:flex w-56 shrink-0 flex-col border-l border-slate-100 bg-white p-2.5 gap-1.5 text-left">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-bold text-slate-800">Detalles de la cita</p>
+                    <span className="text-slate-300 text-[11px]">✕</span>
+                  </div>
+                  <span className="inline-flex w-fit items-center rounded-full bg-slate-100 px-2 py-0.5 text-[9px] font-semibold text-slate-600">Programada</span>
+                  <div className="flex items-center justify-between gap-1">
+                    <div>
+                      <p className="text-[11px] font-bold text-slate-800 leading-tight">Ana Mendoza</p>
+                      <p className="text-[9px] text-slate-500">956 898 587</p>
+                    </div>
+                    <span className="rounded-md bg-red-50 border border-red-200 px-1.5 py-0.5 text-[9px] font-semibold text-red-600 tabular-nums">S/ 200.00</span>
+                  </div>
+                  <div className="space-y-0.5 text-[10px] text-slate-600">
+                    <p>21/08/2026 · 09:30 — 10:00</p>
+                    <p className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-sky-500 inline-block" />
+                      Lic. Jorge Espinoza
                     </p>
-                    <p className="mt-1 text-sm font-bold text-slate-800">Ana Mendoza</p>
-                    <p className="text-[11px] text-slate-500">Toxina botulínica · 09:30</p>
+                    <p>Toxina botulínica</p>
                   </div>
-                  <span className="inline-flex w-fit items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                    Confirmada por WhatsApp
-                  </span>
-                  <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
-                    <div className="flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500">Servicio</span>
-                      <span className="font-semibold text-slate-800 tabular-nums">S/ 850</span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between text-[11px]">
-                      <span className="text-slate-500">Pagado</span>
-                      <span className="font-semibold text-emerald-600 tabular-nums">S/ 850</span>
+                  <div className="rounded-md border border-slate-100 bg-slate-50 px-2 py-1.5 text-[9px] text-slate-500 leading-relaxed">
+                    Origen: <span className="text-slate-700 font-medium">Instagram</span><br />
+                    Método de pago: <span className="text-slate-700 font-medium">Yape</span>
+                  </div>
+                  <div className="mt-0.5 space-y-1">
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 py-1 text-center text-[10px] font-semibold text-amber-700">Reprogramar</div>
+                    <div className="rounded-lg bg-blue-500 py-1 text-center text-[10px] font-semibold text-white">Confirmar</div>
+                    <div className="rounded-lg bg-emerald-600 py-1 text-center text-[10px] font-semibold text-white">Completar</div>
+                    <div className="flex gap-1">
+                      <div className="flex-1 rounded-lg border border-amber-200 bg-amber-50 py-1 text-center text-[9px] font-semibold text-amber-700">No asistió</div>
+                      <div className="flex-1 rounded-lg border border-red-200 bg-red-50 py-1 text-center text-[9px] font-semibold text-red-600">Cancelar</div>
                     </div>
                   </div>
-                  <div className="mt-auto rounded-lg bg-emerald-600 py-1.5 text-center text-[11px] font-semibold text-white">
-                    Iniciar consulta
+                  <div className="mt-auto rounded-md border border-slate-100 px-2 py-1.5">
+                    <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Cobros</p>
+                    <div className="mt-0.5 flex items-center justify-between text-[10px] tabular-nums">
+                      <span className="text-slate-500">Total S/ 850</span>
+                      <span className="font-semibold text-emerald-600">Pagado S/ 650</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-
           {/* ── Tarjetas flotantes (rectas) — solo desktop; en móvil se apilan ── */}
           {/* IA */}
           <div className="hero-float-card hidden lg:block absolute -top-8 -right-16 w-60 rounded-2xl border border-slate-200 bg-white shadow-2xl p-3.5 z-20" style={{ "--float-delay": "0.8s" } as React.CSSProperties}>
