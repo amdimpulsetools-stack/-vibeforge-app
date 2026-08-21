@@ -20,6 +20,7 @@ import {
   Gauge,
   Target,
 } from "lucide-react";
+import { NumberPopIn } from "@/components/ui/number-pop-in";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { ExecutiveBriefWidget } from "./executive-brief-widget";
@@ -283,7 +284,9 @@ export function AdminDashboard({
             </span>
           </div>
           <p className="text-3xl font-extrabold tracking-tight text-white">
-            {formatCurrency(data.revenue)}
+            {/* key = el valor: al cambiar de periodo (mes/semana/hoy) React
+                remonta el nodo y la cifra vuelve a entrar. */}
+            <NumberPopIn key={formatCurrency(data.revenue)} value={formatCurrency(data.revenue)} />
           </p>
           <div className="mt-1.5">
             <GrowthBadge value={data.revenueGrowth} suffix={periodSuffix[period]} light />
@@ -388,7 +391,9 @@ export function AdminDashboard({
                 <div className="h-3 w-3 rounded-sm bg-emerald-500/20" />
                 <span className="text-xs text-muted-foreground">{isEs ? "Nuevos" : "New"}</span>
               </div>
-              <p className="text-3xl font-extrabold">{data.newPatients}</p>
+              <p className="text-3xl font-extrabold">
+                <NumberPopIn key={data.newPatients} value={String(data.newPatients)} />
+              </p>
               <GrowthBadge value={data.newPatientsGrowth} suffix={periodSuffix[period]} />
             </div>
             <div>
@@ -398,7 +403,9 @@ export function AdminDashboard({
                   {isEs ? "Recurrentes" : "Recurring"}
                 </span>
               </div>
-              <p className="text-3xl font-extrabold">{data.recurringPatients}</p>
+              <p className="text-3xl font-extrabold">
+                <NumberPopIn key={data.recurringPatients} value={String(data.recurringPatients)} />
+              </p>
               <GrowthBadge value={data.recurringGrowth} suffix={periodSuffix[period]} />
             </div>
           </div>

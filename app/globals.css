@@ -141,6 +141,7 @@
   --dur-slower: 300ms;  /* cambios de página, acordeones largos */
   --dur-reveal: 700ms;  /* reveals de scroll en la landing */
   --dur-celebrate: 500ms; /* momentos de confirmación (check de éxito) */
+  --digit-stagger: 45ms;  /* retardo entre caracteres de una cifra */
 
   /* Tailwind 4 genera las utilidades ease-entrance / ease-exit /
      ease-standard a partir del namespace --ease-*  */
@@ -445,6 +446,49 @@
   }
   .t-success-check { opacity: 1; }
   .t-success-check svg path { stroke-dashoffset: 0 !important; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CIFRAS QUE ENTRAN — pop-in escalonado por carácter
+   ═══════════════════════════════════════════════════════════════════
+   Para números protagonistas que LLEGAN: KPIs del inicio, arqueo de
+   caja, total de una venta confirmada. No para tablas (veinte cifras
+   animando a la vez es ruido) ni para valores que cambian mientras se
+   escribe.
+
+   `tabular-nums` es obligatorio aquí: sin él un "1" ocupa menos que un
+   "8" y la cifra tiembla lateralmente mientras entra.
+
+   El desenfoque es la misma excepción acotada que en el check de éxito:
+   una vez, sobre pocos caracteres, sin nada más en movimiento.  */
+.t-digit-group {
+  display: inline-flex;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
+}
+
+.t-digit {
+  display: inline-block;
+  /* Los espacios de "S/ 12,450" colapsarían dentro de un inline-block */
+  white-space: pre;
+  animation: digit-pop-in var(--dur-celebrate) var(--ease-bounce) both;
+}
+
+@keyframes digit-pop-in {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+    filter: blur(2px);
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .t-digit { animation: none !important; }
 }
 
 /* ═══════════════════════════════════════════════════════════════════
