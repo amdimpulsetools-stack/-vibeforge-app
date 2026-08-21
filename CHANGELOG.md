@@ -72,6 +72,7 @@
 - [Changelog — Sesión 2026-08-12 noche (v0.15.30) — Módulo Almacén construido (migs 208-210) + Facturación de módulos de pago](#changelog--sesión-2026-08-12-noche-v01530--módulo-almacén-construido-migs-208-210--facturación-de-módulos-de-pago)
 - [Changelog — Sesión 2026-08-12 cierre (v0.15.31) — Almacén ACTIVADO en beta (founder + Patricia) + evaluación de alertas live y auditoría por usuario](#changelog--sesión-2026-08-12-cierre-v01531--almacén-activado-en-beta-founder--patricia--evaluación-de-alertas-live-y-auditoría-por-usuario)
 - [Changelog — Sesión 2026-08-15 (v0.15.32) — Módulo Caja certificado (migs 213-215) + Farmacia POS certificada (migs 216-217) + fixes de aritmética NubeFact](#changelog--sesión-2026-08-15-v01532--módulo-caja-certificado-migs-213-215--farmacia-pos-certificada-migs-216-217--fixes-de-aritmética-nubefact)
+- [Changelog — Sesiones 2026-08-17 a 2026-08-21 (v0.15.33) — Duración editable + vertical dermatología + P0 seguridad del registro + escala de movimiento + drag & drop con confirmación](#changelog--sesiones-2026-08-17-a-2026-08-21-v01533--duración-editable--vertical-dermatología--p0-seguridad-del-registro--escala-de-movimiento--drag--drop-con-confirmación)
 
 ---
 
@@ -4476,6 +4477,59 @@ Día de dos módulos nuevos **certificados en producción**. Arrancó con una ev
 ### Docs
 - PRD: §6 tablas y RPCs migs 213-217 (patrón Almacén), rutas `/caja` y `/farmacia`, sidebar, checklist v0.15.32 y header actualizado.
 - COMING-UPDATES: sección Caja + Farmacia con estado entregado/certificado y roadmap F5-F7.
+
+---
+
+## Changelog — Sesiones 2026-08-17 a 2026-08-21 (v0.15.33) — Duración editable + vertical dermatología + P0 seguridad del registro + escala de movimiento + drag & drop con confirmación
+
+Semana intensa alrededor de dos frentes: preparar la **demo de Dermosalud** (vertical dermatología + Historia Clínica pulida) y cerrar el **P0 de seguridad del registro** validado end-to-end en producción. De propina: sistema de movimiento estandarizado con tokens y varios bugs de fondo resueltos por hallazgos del founder.
+
+### Agenda — duración editable por cita (mig 221, PRs #293-#295)
+- Flag por organización `allow_custom_duration` en `scheduler_settings` (owner/admin lo enciende en Configuración). Con el flag activo, el modal de cita permite una duración personalizada distinta del intervalo de la agenda; los bloques se pintan proporcionales en día y semana.
+- **Fix multi-org** (PR #300, mergeado): `/api/scheduler-settings` resolvía la membresía con un `.limit(1)` arbitrario — un usuario multi-org (founder dentro de la org de un cliente) leía/escribía la config de OTRA org. Ahora GET/PUT reciben `org_id` explícito validado contra la membresía; queryKey de React Query incluye la org.
+
+### Vertical dermatología — Comparativas fotográficas (migs 222-223, PR #296) + fixes de lightbox
+- **Comparativas antes/después** según el diseño Figma del founder: tarjeta con slider deslizable (clip-path), fechas en cada lado, modal de creación eligiendo foto A y B.
+- Candado de consentimiento: la sección de fotos exige consentimiento «Fotografías clínicas» registrado (Ley 29733).
+- Lightbox: pantalla completa real vía portal (sin marco blanco), Escape en fase captura, fechas en thumbnails.
+- Hallazgo del test del founder (pendiente en consentimientos F1): subir la FOTO del consentimiento en papel no crea el registro formal que el candado verifica — una clínica de papel como Dermosalud no desbloquea las fotos por ese camino.
+
+### Historia Clínica — autosave a prueba de pérdidas + paquete sensorial (PR #297) + timeline master-detail (PR #298)
+- **4 bugs críticos de pérdida de datos** eliminados: payload por refs (adiós stale closures), debounce 4s + maxWait 15s, flush con keepalive al desmontar, guardar-antes-de-firmar con preflight, 409 adopta-y-reintenta.
+- Paquete sensorial elegido por el founder: tipografía, sello verde de firmada, skeletons, indicador único de autosave con 4 estados y "guardado hace X", validación de rangos de vitales, contador SOAP (máx 5000).
+- Timeline rediseñada como **master-detail**: riel izquierdo con lista de notas (diagnósticos como título), detalle a la derecha.
+
+### Farmacia → NubeFact (PR #299) — boleta/factura desde el POS
+- En el paso de éxito de una venta confirmada aparece **"Emitir boleta / factura"** solo si la org tiene NubeFact conectado. Reutiliza la aritmética certificada (IGV por diferencia, prorrateo por mayor resto); ítems con unidad NIU y SKU como código interno; consumidor final por defecto; enlace único venta↔comprobante (`pharmacy_sales.einvoice_id` + guards antes de reservar correlativo).
+
+### P0 — Seguridad del registro CERRADO (PRs #302-#304, validado en prod)
+- **Cloudflare Turnstile** en login, registro y recuperación (tokens de un solo uso con reset tras cada intento; kill-switch por env var; CSP con frame-src). **Attack Protection** de Supabase exigiendo el token. **Confirm email** obligatorio. **Contraseñas filtradas bloqueadas** (HaveIBeenPwned).
+- Incidente durante el despliegue, resuelto: el redeploy promovió un build viejo sin el widget con Attack Protection ya encendido → "no captcha_token found" global. Rollback del toggle + redeploy del build correcto. Lección operativa: Attack Protection SIEMPRE después de ver el widget vivo en prod.
+- **Errores de auth en español** (PR #303): traductor central `lib/supabase/auth-errors.ts`; el rechazo de contraseña se muestra junto al campo.
+- **Política de privacidad para Google** (PR #304): sección 04 "Datos obtenidos de las APIs de Google" con declaración de Uso Limitado (ES+EN) — respuesta al rechazo de la verificación OAuth. Verificación de marca de Google: dominio verificado vía Cloudflare, justificación de `calendar.events` + video demo enviados; en cola de revisión.
+- mig 224 (solo prod): miembros de orgs del founder heredan el bypass de suscripción (asistente1 desbloqueada). mig 225: tema claro/oscuro del owner aplica a toda la org (PR #301, junto con precio de venta en la entrada de Almacén).
+
+### Escala de movimiento — tokens de duración y curvas (PRs #305-#310)
+- `--dur-quick/fast/base/slow/slower/reveal/celebrate` y `--ease-entrance/exit/standard/bounce` en globals.css; los defaults de Tailwind apuntan a los tokens (los ~730 hovers adoptaron la curva de la casa sin tocar componentes). Regla documentada: animar solo transform/opacity; entradas lentas, salidas rápidas.
+- **Parpadeo negro al abrir dropdowns** eliminado (2 rondas): fill-mode both + retiro del will-change permanente + guarda de opacidad para el fotograma cero de Radix. Diagnóstico fino del founder: el parpadeo restante era del `<select>` NATIVO (lo dibuja el SO — intocable por CSS; propuesta Select híbrido anotada en COMING-UPDATES).
+- **Check de éxito** (transitions.dev adaptado): cita reservada y venta cobrada celebran con trazo que se dibuja; `pathLength={1}` elimina los números mágicos del snippet original.
+- **Cifras que entran** (Number pop-in): barrido de un agente sobre ~113 cifras del sistema (41 animar / 34 prohibidas / 38 dudosas) e implementación completa — dashboard admin (10), arqueo de Caja (la diferencia + esperado/contado), Farmacia éxito, dashboards doctor/asesora, Captación, Presupuestos, Seguimientos, Facturación, founder panel. Con `key` según el perfil de refetch de cada pantalla. Lista negra respetada: tablas, carritos en vivo, badges, contadores de alarmas.
+
+### Agenda — drag & drop con confirmación y notificación opt-in (PR #311)
+- Hallazgo del founder: soltar reprogramaba AL INSTANTE. Y los dos caminos se contradecían: el modal Reprogramar SIEMPRE notificaba al paciente; el drag NUNCA (sendNotification no existía en ese camino).
+- Ahora: validaciones al soltar (permisos, bloqueos, conflictos) → diálogo con antes → después + checkbox **"Notificar al paciente"** (marcado por defecto, desmarcable para reacomodos internos). Cancelar/Escape no toca nada — el update ocurre recién al confirmar.
+
+### Caja — desactivar el addon apaga de verdad el módulo (mig 226, PR #312)
+- Bug real en la org de Patricia: con el addon desactivado seguía llegando el aviso nocturno de "Cobros fuera de turno". Causa: el interruptor del trigger y del cron era la fila de `cash_settings` (que sobrevive a la desactivación a propósito), no el flag del addon. Ahora ambos exigen addon habilitado; la config queda en pausa y vuelve intacta al reactivar.
+
+### Datos y operaciones
+- **Org de Patricia vaciada de datos fake**: 13 pacientes, 28 citas, seguimientos, presupuestos, pagos, farmacia/caja/kardex — en transacción atómica con triggers guardianes suspendidos; storage vía dashboard (Supabase bloquea DELETE SQL en storage.objects). Config, servicios, miembros, plantillas y módulos intactos. Su recepcionista comenzó a cargar la agenda real.
+- **Vitra**: grants de `caja` + `almacen` (Farmacia viaja con almacen) para el test de facturación sandbox.
+- Cuenta de prueba del smoke test (+test1) eliminada en cascada y verificada a cero.
+
+### Docs
+- COMING-UPDATES: P0 seguridad → ENTREGADO; secciones nuevas Select híbrido (nativo en táctil / Radix en escritorio) y drag & drop con confirmación; Copiloto IA de recepción documentado.
+- Propuesta de consentimientos digitales F1 (QR/WhatsApp, firma en pantalla vinculada a la cita, papel como respaldo) entregada como artifact — esperando OK para construir.
 
 ---
 
