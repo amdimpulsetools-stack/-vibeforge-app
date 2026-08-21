@@ -185,8 +185,24 @@ export async function GET(req: NextRequest) {
       "organization_id, activated_at, difference_tolerance, difference_alert_threshold, notify_daily_exceptions, notify_weekly_digest, notify_stale_shift",
     );
 
+  // Addon apagado = módulo en pausa. La fila de cash_settings sobrevive a
+  // la desactivación a propósito (la config vuelve intacta al reactivar),
+  // así que NO alcanza como interruptor: sin este filtro, una org que
+  // desactivó Caja seguía recibiendo el aviso nocturno de "Cobros fuera
+  // de turno" (bug real, org de Patricia 2026-08-20; mig 226 hace el
+  // mismo corte en el trigger caja_stamp_payment).
+  const { data: cajaAddonRows } = await supabase
+    .from("organization_addons")
+    .select("organization_id")
+    .eq("addon_key", "caja")
+    .eq("enabled", true);
+  const cajaEnabledOrgs = new Set(
+    (cajaAddonRows ?? []).map((r) => r.organization_id as string),
+  );
+
   for (const settings of (settingsRows ?? []) as CashSettingsRow[]) {
     const orgId = settings.organization_id;
+    if (!cajaEnabledOrgs.has(orgId)) continue;
     orgsScanned++;
 
     // Umbral de AVISO: el mayor de los dos. Por debajo de la tolerancia no
