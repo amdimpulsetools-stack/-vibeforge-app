@@ -1,6 +1,6 @@
 # Coming Updates — Yenda
 
-> **Última actualización:** 2026-08-20 (P0 seguridad del registro ENTREGADO y validado en prod · escala de movimiento con tokens · Select híbrido propuesto)
+> **Última actualización:** 2026-08-21 (v0.15.33: P0 seguridad ENTREGADO · Farmacia→NubeFact ENTREGADO · escala de movimiento + pop-in sistémico · drag & drop con confirmación ENTREGADO · fix Caja addon-off mig 226)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -19,7 +19,7 @@
 | ✅ F2 Facturación | HECHO 15-ago (PR #284) | 2 bugs de emisión NubeFact corregidos: IGV calculado por unidad×cantidad (el error crecía con la cantidad) → por línea con IGV por diferencia exacta; descuento global restado solo del total (sobre-declaraba IGV) → prorrateado a líneas con regla de mayor resto. + Boleta ≥ S/700 sin DNI bloqueada ANTES de reservar correlativo, histórico de comprobantes visible con la org desconectada, NubeFact confinado a `nubefact-provider.ts` con tablas de traducción (prepara YendaFact/segundo proveedor). **37 tests numéricos** (`npm run test:einvoice`) |
 | ✅ F3 Caja | HECHO 15-ago (migs 213-215, PR #285) — **CERTIFICADO** | Addon `caja` S/19/mes (incluido desde Centro Médico), beta oculta con grants founder ×2 + Patricia. Turnos con fondo inicial, arqueo ciego configurable, movimientos con signo (egreso/sangría/ingreso/devolución), diferencia solo sobre efectivo (electrónicos = conciliación informativa), diferencia fuera de tolerancia exige motivo (CHECK en base), turno cerrado inmutable (trigger bloquea UPDATE/DELETE de pagos incluso a service_role), bandeja "Fuera de turno" con atribución, cierre forzado por admin marcado. Trigger `caja_stamp_payment`: sella autor+medio y ata cada pago al turno abierto — nunca rechaza un cobro. Certificación founder: **6 tests en producción** (aritmética, doble apertura, descuadre, inmutabilidad vía SQL admin, fuera de turno) |
 | ✅ F4 Farmacia POS | HECHO 15-ago (migs 216-217, PR #286) — **CERTIFICADO** | Bajo el addon `almacen`. Venta borrador→confirmada→anulada con correlativo NV-, paciente opcional (público general), carrito 2 columnas con FEFO y totales en vivo (misma aritmética que facturación), RPC `pharmacy_confirm_sale` transaccional e idempotente (advisory locks, CPP servidor, kardex con `sale_line_id UNIQUE` anti doble descuento, pago `source='pos'` atado a caja por trigger), `pharmacy_void_sale` (contra-movimientos + devolución en turno abierto; sin caja abierta no revierte), ticket interno 80mm "NOTA DE VENTA" con leyenda no-SUNAT, `get_patient_summary` filtra `source='clinical'` (deuda clínica no contaminada — verificado en prod), motivo "Venta" retirado del modal de Almacén → botón "Vender → Farmacia". **79 aserciones + concurrencia real**. Certificación founder: venta pública, venta a paciente, anulación completa. ⏳ **PR #287** (fix del diálogo de cobro que reaparecía) pendiente de merge |
-| F5 | Próximo | Emisión NubeFact desde el POS + comprobante mixto — probar en Vitra. La mig 213 ya dejó `sunat_product_code` / `unit_of_measure` / `igv_affectation` / `is_sellable` en `inventory_products` |
+| ✅ F5 (parcial) | HECHO 18-ago (PR #299) | Emisión NubeFact desde el POS: botón "Emitir boleta / factura" en el éxito de la venta, solo con NubeFact conectado; aritmética certificada reutilizada; enlace único venta↔comprobante. Pendiente de F5: comprobante mixto + test sandbox en Vitra (grants caja+almacen ya otorgados) |
 | F6 | Próximo | Secciones de productos en la ficha de paciente (diseño listo del agente UI): "Productos aplicados" en tab Clínico, "Productos vendidos" en Finanzas con estado de anulación, sin séptima pestaña, fix del overflow de tabs |
 | F7 | Higiene | Bug Cupos extra (cancelar deja el módulo gratis), Rentabilidad neta de IGV (hoy sobreestima el margen ~18%), normalizar vocabulario `payment_method` en patient-drawer y budgets-panel, FK `patient_id`→SET NULL, regenerar `types/database.ts` |
 
@@ -168,7 +168,7 @@ hay que reemplazarla con ingeniería (fallback) + vigilancia normativa (auditor)
 > reprogramación enviado por error. Fricción desproporcionada a la consecuencia: mover la cita es
 > reversible, el correo que ya llegó al paciente no.
 
-- [ ] **Modal de confirmación al soltar**: "Reprogramar cita — {paciente} · {antes} → {después}" con
+- [x] **Modal de confirmación al soltar — ENTREGADO (PR #311, 2026-08-21)**: "Reprogramar cita — {paciente} · {antes} → {después}" con
   checkbox **"Notificar al paciente"** (marcado por defecto; desmarcable para reacomodos internos que
   no deben avisar). Cancelar devuelve la tarjeta a su slot original. Un solo modal resuelve el error
   accidental Y el caso del movimiento silencioso.
