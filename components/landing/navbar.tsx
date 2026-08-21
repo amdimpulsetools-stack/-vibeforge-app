@@ -217,10 +217,10 @@ export function Navbar() {
               >
                 <div className="mx-auto max-w-7xl">
                   <div className="grid grid-cols-3 gap-0">
-                    {/* Col 1: Conoce REPLACE */}
+                    {/* Col 1: Conoce Yenda */}
                     <div className="p-6 border-r border-slate-100">
                       <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-4">
-                        Conoce REPLACE
+                        Conoce Yenda
                       </h3>
                       <div className="space-y-3">
                         <Link href="/blog" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
@@ -285,22 +285,6 @@ export function Navbar() {
                             <p className="text-sm font-semibold text-slate-900">Contacta nuestro equipo</p>
                           </div>
                         </Link>
-                        <Link href="/soporte" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-pink-100 text-pink-600 group-hover/item:bg-pink-600 group-hover/item:text-white transition-colors">
-                            <Headphones className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">Obtén ayuda premium</p>
-                          </div>
-                        </Link>
-                        <Link href="/socios" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600 group-hover/item:bg-indigo-600 group-hover/item:text-white transition-colors">
-                            <Handshake className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">Conviértete en socio</p>
-                          </div>
-                        </Link>
                       </div>
                     </div>
 
@@ -313,10 +297,6 @@ export function Navbar() {
                     <Link href="/contacto" onClick={() => setResourcesOpen(false)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-600 transition-colors">
                       <Headphones className="h-3.5 w-3.5" />
                       Contactar soporte
-                    </Link>
-                    <Link href="/socios" onClick={() => setResourcesOpen(false)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-600 transition-colors">
-                      <Handshake className="h-3.5 w-3.5" />
-                      Contratar un socio experto
                     </Link>
                   </div>
                 </div>
@@ -356,7 +336,7 @@ export function Navbar() {
         {/* Mobile hamburger */}
         <button
           onClick={() => setMobileOpen(!mobileOpen)}
-          className="md:hidden flex h-10 w-10 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
+          className="md:hidden flex h-11 w-11 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 transition-colors"
           aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -387,7 +367,7 @@ export function Navbar() {
                       setMobileOpen(false);
                       setMobileProductOpen(false);
                     }}
-                    className="block py-1.5 text-sm text-slate-600 hover:text-emerald-600"
+                    className="block py-3 text-sm text-slate-600 hover:text-emerald-600"
                   >
                     {feature.title}
                   </Link>
@@ -420,13 +400,12 @@ export function Navbar() {
                   { label: "Base de conocimientos", href: "/base-conocimientos" },
                   { label: "Calculadora WhatsApp", href: "/calculadora-whatsapp" },
                   { label: "Contacto", href: "/contacto" },
-                  { label: "Conviértete en socio", href: "/socios" },
                 ].map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => { setMobileOpen(false); setMobileResourcesOpen(false); }}
-                    className="block py-1.5 text-sm text-slate-600 hover:text-emerald-600"
+                    className="block py-3 text-sm text-slate-600 hover:text-emerald-600"
                   >
                     {item.label}
                   </Link>

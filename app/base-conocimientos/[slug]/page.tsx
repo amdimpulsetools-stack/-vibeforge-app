@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const article = KB_ARTICLES.find((a) => a.slug === slug);
   if (!article) return {};
   return {
-    title: `${article.title} | Base de conocimientos REPLACE`,
+    title: `${article.title} | Base de conocimientos Yenda`,
     description: article.desc,
   };
 }

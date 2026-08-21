@@ -4,7 +4,7 @@ export function NotasSOAP() {
   return (
     <div className="kb-article space-y-8">
       <p className="text-[15px] leading-[1.85] text-slate-700">
-        REPLACE incluye un editor de notas clínicas en formato SOAP (Subjetivo, Objetivo, Análisis, Plan) con autocompletado de diagnósticos CIE-10, signos vitales, plantillas reutilizables y firma digital.
+        Yenda incluye un editor de notas clínicas en formato SOAP (Subjetivo, Objetivo, Análisis, Plan) con autocompletado de diagnósticos CIE-10, signos vitales, plantillas reutilizables y firma digital.
       </p>
 
       <h2 className="text-2xl font-extrabold text-slate-900 mt-12 mb-4 pb-3 border-b border-slate-100">Cómo acceder al editor SOAP</h2>
@@ -32,7 +32,7 @@ export function NotasSOAP() {
 
       <h3 className="text-xl font-bold text-slate-900 mt-8 mb-3">🟡 A — Análisis</h3>
       <p className="text-[15px] leading-[1.85] text-slate-700">
-        Aquí colocas tu diagnóstico. REPLACE incluye un buscador de <strong>CIE-10 con autocompletado</strong>: escribe "cervicalgia" y el sistema sugiere "M54.2 — Cervicalgia". Selecciona y se guarda automáticamente.
+        Aquí colocas tu diagnóstico. Yenda incluye un buscador de <strong>CIE-10 con autocompletado</strong>: escribe "cervicalgia" y el sistema sugiere "M54.2 — Cervicalgia". Selecciona y se guarda automáticamente.
       </p>
 
       <Placeholder label="Captura: Autocompletado CIE-10 en acción" />

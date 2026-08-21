@@ -38,8 +38,8 @@ const FAQ_ITEMS = [
     a: "Las plantillas de Utilidad son gratuitas si se envían dentro de las 24 horas posteriores a un mensaje del paciente (ventana de servicio). Fuera de esa ventana, se cobran según la tarifa del país.",
   },
   {
-    q: "¿Cómo envía REPLACE los mensajes de WhatsApp?",
-    a: "REPLACE se integra con WhatsApp Business API a través de Meta. Los recordatorios de citas (24h y 2h antes) se envían automáticamente como plantillas de utilidad. Los mensajes de cumpleaños y seguimiento se envían como plantillas de marketing.",
+    q: "¿Cómo envía Yenda los mensajes de WhatsApp?",
+    a: "Yenda se integra con WhatsApp Business API a través de Meta. Los recordatorios de citas (24h y 2h antes) se envían automáticamente como plantillas de utilidad. Los mensajes de cumpleaños y seguimiento se envían como plantillas de marketing.",
   },
 ];
 
@@ -361,9 +361,9 @@ export default function CalculadoraWhatsAppPage() {
       <section className="py-16 px-4 md:px-6">
         <div className="mx-auto max-w-4xl">
           <div className="rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 p-8 md:p-12 text-center text-white shadow-xl">
-            <h2 className="text-2xl md:text-3xl font-bold">Prueba REPLACE gratis durante 14 días</h2>
+            <h2 className="text-2xl md:text-3xl font-bold">Prueba Yenda gratis durante 14 días</h2>
             <p className="mt-2 text-emerald-100 max-w-xl mx-auto">
-              Prueba REPLACE y envía tus primeros recordatorios automáticos por WhatsApp.
+              Prueba Yenda y envía tus primeros recordatorios automáticos por WhatsApp.
             </p>
             <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link href="/register" className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-6 text-sm font-semibold text-emerald-700 hover:bg-emerald-50 transition-all w-full sm:w-auto">

@@ -47,15 +47,15 @@ const jetbrainsMono = localFont({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://yenda.app"),
   title: {
-    default: `${APP_NAME} — Gestión integral para clínicas y consultorios médicos`,
+    default: `${APP_NAME} — Software para clínicas y consultorios en Perú | Desde S/129 al mes`,
     template: `%s | ${APP_NAME}`,
   },
   description:
-    "Agenda inteligente, gestión de pacientes, control de equipo y asistente con IA. Desde el doctor independiente hasta la clínica con 10 consultorios. Planes desde S/129/mes.",
+    "Agenda, historia clínica, cobros y boletas SUNAT en una sola pantalla, con recordatorios automáticos por WhatsApp. Hecho en Perú. Prueba 14 días gratis, sin tarjeta.",
   openGraph: {
-    title: `${APP_NAME} — Tu clínica completa en una sola plataforma`,
+    title: `${APP_NAME} — Deja de manejar tu clínica entre el Excel y el WhatsApp`,
     description:
-      "Software de gestión médica con IA incluida. Diseñado para LATAM.",
+      "Agenda, historia clínica, caja, boletas SUNAT y recordatorios por WhatsApp en un solo sistema. Desde S/129 al mes, 14 días gratis sin tarjeta.",
     locale: "es_PE",
     type: "website",
     siteName: APP_NAME,

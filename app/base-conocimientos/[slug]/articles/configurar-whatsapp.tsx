@@ -4,7 +4,7 @@ export function ConfigurarWhatsApp() {
   return (
     <div className="kb-article space-y-8">
       <p className="text-[15px] leading-[1.85] text-slate-700">
-        REPLACE envía recordatorios automáticos por WhatsApp 24 horas y 2 horas antes de cada cita. Esta guía explica cómo activar esta funcionalidad paso a paso.
+        Yenda envía recordatorios automáticos por WhatsApp 24 horas y 2 horas antes de cada cita. Esta guía explica cómo activar esta funcionalidad paso a paso.
       </p>
 
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -13,7 +13,7 @@ export function ConfigurarWhatsApp() {
 
       <h2 className="text-2xl font-extrabold text-slate-900 mt-12 mb-4 pb-3 border-b border-slate-100">¿Cómo funcionan los recordatorios?</h2>
       <p className="text-[15px] leading-[1.85] text-slate-700">
-        Cuando creas una cita en REPLACE, el sistema programa automáticamente 2 mensajes de WhatsApp:
+        Cuando creas una cita en Yenda, el sistema programa automáticamente 2 mensajes de WhatsApp:
       </p>
       <ul className="space-y-2 text-[15px] text-slate-700 pl-6">
         <li className="relative pl-4 before:content-[''] before:absolute before:left-0 before:top-[10px] before:h-1.5 before:w-1.5 before:rounded-full before:bg-emerald-500"><strong>24 horas antes:</strong> mensaje con fecha, hora, doctor, consultorio e indicaciones previas del servicio.</li>
@@ -27,7 +27,7 @@ export function ConfigurarWhatsApp() {
 
       <h2 className="text-2xl font-extrabold text-slate-900 mt-12 mb-4 pb-3 border-b border-slate-100">Paso 1: Configura WhatsApp Business API</h2>
       <ol className="space-y-3 text-[15px] text-slate-700 leading-[1.85] list-decimal pl-6 marker:text-emerald-500 marker:font-bold">
-        <li>Ve a <strong>Settings → WhatsApp</strong> en tu panel de REPLACE.</li>
+        <li>Ve a <strong>Settings → WhatsApp</strong> en tu panel de Yenda.</li>
         <li>Ingresa tu <strong>WABA ID</strong> (WhatsApp Business Account ID) de Meta.</li>
         <li>Ingresa tu <strong>Phone Number ID</strong> y <strong>Access Token</strong>.</li>
         <li>Guarda la configuración. El sistema verificará la conexión.</li>
@@ -44,9 +44,9 @@ export function ConfigurarWhatsApp() {
         <li className="relative pl-4 before:content-[''] before:absolute before:left-0 before:top-[10px] before:h-1.5 before:w-1.5 before:rounded-full before:bg-emerald-500"><strong>Recordatorio 2h</strong> (categoría: Utilidad)</li>
       </ul>
 
-      <h2 className="text-2xl font-extrabold text-slate-900 mt-12 mb-4 pb-3 border-b border-slate-100">Paso 3: Vincula las plantillas en REPLACE</h2>
+      <h2 className="text-2xl font-extrabold text-slate-900 mt-12 mb-4 pb-3 border-b border-slate-100">Paso 3: Vincula las plantillas en Yenda</h2>
       <p className="text-[15px] leading-[1.85] text-slate-700">
-        En <strong>Settings → WhatsApp → Plantillas</strong>, vincularás cada plantilla de Meta con el tipo de notificación correspondiente en REPLACE. El sistema tiene un sincronizador que detecta automáticamente tus plantillas aprobadas.
+        En <strong>Settings → WhatsApp → Plantillas</strong>, vincularás cada plantilla de Meta con el tipo de notificación correspondiente en Yenda. El sistema tiene un sincronizador que detecta automáticamente tus plantillas aprobadas.
       </p>
 
       <Placeholder label="Captura: Settings → WhatsApp → Plantillas vinculadas" />
@@ -71,7 +71,7 @@ export function ConfigurarWhatsApp() {
       <div className="rounded-2xl bg-emerald-50 border border-emerald-200 p-6 mt-10">
         <h3 className="text-lg font-bold text-slate-900 mb-2">💡 Tip</h3>
         <p className="text-sm text-slate-700">
-          Mientras no configures WhatsApp API, REPLACE sigue enviando recordatorios por <strong>email</strong> automáticamente. No te quedas sin protección contra inasistencias.
+          Mientras no configures WhatsApp API, Yenda sigue enviando recordatorios por <strong>email</strong> automáticamente. No te quedas sin protección contra inasistencias.
         </p>
       </div>
     </div>

@@ -16,9 +16,10 @@ const signals = [
 ];
 
 // ── Real, verifiable signals ────────────────────────────────────────────────
-// Vitra is the first pilot (fertility clinic, Lima). Pull-quote is a
-// placeholder framed around the concrete reason they chose the platform —
-// replace with a verified testimonial once the pilot wraps.
+// REGLA (auditoría 2026-08-21): aquí solo van afirmaciones verificables.
+// El testimonio con comillas vuelve cuando exista una cita REAL autorizada,
+// con nombre y foto. Nunca una cita redactada por nosotros atribuida a una
+// clínica identificable.
 
 interface PilotCard {
   clinic: string;
@@ -32,14 +33,14 @@ interface PilotCard {
 
 const pilots: PilotCard[] = [
   {
-    clinic: "Vitra",
-    type: "Centro de Fertilidad",
+    clinic: "Pilotos reales",
+    type: "Fertilidad · Dermatología · Consultorios",
     location: "Lima, Perú",
-    status: "Pilot activo — Abril 2026",
+    status: "Piloto activo desde abril 2026",
     quote:
-      "Buscábamos un sistema que entendiera planes de tratamiento largos con cobros por sesión y consentimientos por procedimiento. Yenda lo tenía de fábrica.",
-    author: "Dirección médica",
-    role: "Centro Vitra",
+      "Todavía no tenemos 500 clínicas. Tenemos clínicas piloto reales en Lima — un centro de fertilidad, una clínica dermatológica, consultorios independientes — y las escuchamos todos los días. Cada pantalla de Yenda nació de algo que nos pidieron.",
+    author: "El equipo de Yenda",
+    role: "sin testimonios inventados",
   },
 ];
 
@@ -54,7 +55,7 @@ export function SocialProof() {
             Clínicas reales, no demos
           </div>
           <h2 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900">
-            Construido con los primeros 100.
+            Construido a punta de preguntar.
           </h2>
           <p className="mt-4 text-base text-slate-600 leading-relaxed">
             Cada flujo de Yenda nace de una conversación con un doctor, un
@@ -109,16 +110,16 @@ export function SocialProof() {
                 Sé de los primeros 100 en probarlo.
               </h3>
               <p className="mt-3 text-sm text-slate-600 leading-relaxed">
-                Tu feedback durante los primeros 3 meses define qué
-                construimos primero. Recibes features que pides, no lo
-                que se nos ocurre.
+                El precio de hoy es el precio que mantienes mientras sigas
+                siendo cliente. Y lo que pidas en tus primeros 3 meses entra
+                a la lista de construcción antes que cualquier otra cosa.
               </p>
             </div>
             <a
               href="#pricing"
               className="mt-6 inline-flex items-center justify-center h-11 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold transition-colors"
             >
-              Ver planes y empezar
+              Ver planes y precios
             </a>
           </div>
         </Reveal>

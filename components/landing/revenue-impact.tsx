@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   CalendarX2,
@@ -8,6 +9,7 @@ import {
   UserPlus,
   TrendingUp,
   Info,
+  ArrowRight,
 } from "lucide-react";
 
 // ── Revenue-loss sources ────────────────────────────────────────────────────
@@ -29,9 +31,9 @@ interface Leak {
 const leaks: Leak[] = [
   {
     icon: CalendarX2,
-    title: "No-shows",
+    title: "Pacientes que no llegan",
     loss: "15–25% de tu agenda",
-    recovered: "Hasta 38% menos",
+    recovered: "Hasta 40% menos",
     detail:
       "Recordatorios por email y WhatsApp + confirmación desde el portal. El paciente que olvida, te avisa a tiempo.",
     iconBg: "bg-rose-100 text-rose-600",
@@ -61,21 +63,19 @@ const leaks: Leak[] = [
     icon: UserPlus,
     title: "Captación frenada",
     loss: "Solo por llamada",
-    recovered: "+8–12% nuevos",
+    recovered: "+4–8% nuevos",
     detail:
-      "Booking público 24/7 en tu web. El paciente reserva de madrugada, tú lo recibes en la agenda.",
+      "Tu página de reservas abierta las 24 horas. El paciente reserva de madrugada, tú lo recibes en la agenda.",
     iconBg: "bg-emerald-100 text-emerald-600",
     accent: "text-emerald-600",
   },
 ];
 
 // ── ROI calculator ──────────────────────────────────────────────────────────
-// Model (conservative):
-//   monthlyAppointments = doctors * appointmentsPerDoctorPerMonth
-//   no-show loss today ≈ 20% of (appointments * price)
-//   Yenda reduces that to ≈ 5%
-//   additional capture from 24/7 booking ≈ 8%
-// Final number = (noShowSaved + captureGain)
+// Modelo (auditoría de conversión 2026-08-21): un solo claim de no-shows en
+// todo el sitio — de 20% a 12% (~40% menos, alineado con product-features) —
+// y captación +4%. El modelo anterior (20%→5% + 8%) arrojaba S/6,300/mes para
+// el plan de S/349: un 18× que dejaba de ser creíble y desactivaba la venta.
 
 function computeRecovery(
   doctors: number,
@@ -85,10 +85,19 @@ function computeRecovery(
   const monthlyAppts = doctors * apptPerDoctor;
   const monthlyRevenueAtFull = monthlyAppts * avgPrice;
   const noShowLossToday = monthlyRevenueAtFull * 0.2;
-  const noShowLossWithYenda = monthlyRevenueAtFull * 0.05;
+  const noShowLossWithYenda = monthlyRevenueAtFull * 0.12;
   const noShowSaved = noShowLossToday - noShowLossWithYenda;
-  const captureGain = monthlyRevenueAtFull * 0.08;
+  const captureGain = monthlyRevenueAtFull * 0.04;
   return Math.round(noShowSaved + captureGain);
+}
+
+// El plan que le corresponde al slider de doctores — para que el ROI y el
+// precio se evalúen en el MISMO campo visual (anclaje + contraste). Antes
+// estaban a dos secciones de distancia y el efecto se anulaba.
+function planForDoctors(doctors: number) {
+  if (doctors <= 1) return { name: "Independiente", price: 129 };
+  if (doctors <= 3) return { name: "Centro Médico", price: 349 };
+  return { name: "Clínica", price: 649 };
 }
 
 function formatSoles(n: number): string {
@@ -240,16 +249,42 @@ function ROICalculator() {
             <div className="flex items-start gap-2">
               <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
               <span>
-                Reducción de no-shows del 20% al 5% con recordatorios
-                automáticos.
+                Hoy no llega 1 de cada 5 pacientes. Con recordatorio
+                automático por WhatsApp, no llega 1 de cada 8.
               </span>
             </div>
             <div className="flex items-start gap-2">
               <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
               <span>
-                +8% de captación por booking público abierto 24/7.
+                +4% de pacientes nuevos porque pueden reservar solos, de
+                noche y en domingo.
               </span>
             </div>
+          </div>
+
+          {/* ROI y precio, juntos: el argumento más fuerte del sitio */}
+          <div className="mt-6 rounded-xl border border-emerald-200 bg-white p-4">
+            <p className="text-sm text-slate-700 m-0">
+              Yenda para tu clínica:{" "}
+              <span className="font-extrabold text-slate-900 tabular-nums">
+                S/{planForDoctors(doctors).price}/mes
+              </span>{" "}
+              (plan {planForDoctors(doctors).name}).{" "}
+              <span className="font-semibold text-emerald-700">
+                Recuperas {Math.max(1, Math.round(displayMonthly / planForDoctors(doctors).price))}
+                × lo que pagas.
+              </span>
+            </p>
+            <Link
+              href="/register"
+              className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl gradient-primary text-sm font-semibold text-white transition-all hover:opacity-90 hover:scale-[1.02] active:scale-[0.98]"
+            >
+              Empezar mis 14 días gratis
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            <p className="mt-2 mb-0 text-center text-xs text-slate-500">
+              Sin tarjeta. Cancelas cuando quieras.
+            </p>
           </div>
         </div>
       </div>
@@ -258,8 +293,10 @@ function ROICalculator() {
       <div className="mt-6 flex items-start gap-2 text-xs text-slate-500">
         <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
         <p>
-          Cálculo conservador basado en ratios comunes del sector salud LATAM.
-          Tu caso puede variar según especialidad, ubicación y uso del sistema.
+          Esta es una estimación, no una promesa: usamos ratios de
+          inasistencia comunes en clínicas de LATAM que no envían
+          recordatorios. Tu resultado depende de tu especialidad, tu tarifa y
+          de que uses el sistema.
         </p>
       </div>
     </div>

@@ -4,7 +4,7 @@ export function GuiaInicioRapido() {
   return (
     <div className="kb-article space-y-8">
       <p className="text-[15px] leading-[1.85] text-slate-700">
-        Esta guía te llevará desde cero hasta tener tu primera cita agendada en REPLACE en menos de 10 minutos. Sigue los pasos en orden y tendrás tu consultorio digital funcionando hoy mismo.
+        Esta guía te llevará desde cero hasta tener tu primera cita agendada en Yenda en menos de 10 minutos. Sigue los pasos en orden y tendrás tu consultorio digital funcionando hoy mismo.
       </p>
 
       <Placeholder label="Captura: Dashboard principal después de configurar" />

@@ -34,7 +34,7 @@ export function Footer() {
               </a>
             ))}
             <Link
-              href="/login"
+              href="/contacto"
               className="text-sm text-slate-500 hover:text-emerald-600 transition-colors"
             >
               Contacto
