@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { founderFetch } from "@/lib/founder-fetch";
 import { Loader2, DollarSign, TrendingUp, Users, CreditCard } from "lucide-react";
+import { NumberPopIn } from "@/components/ui/number-pop-in";
 import { MoneySubNav } from "../subnav";
 
 export default function RevenuePage() {
@@ -55,25 +56,25 @@ export default function RevenuePage() {
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
             <DollarSign className="h-4 w-4 text-emerald-500" /> Revenue total
           </div>
-          <p className="text-2xl font-bold">S/{data.totalRevenue.toLocaleString()}</p>
+          <p className="text-2xl font-bold"><NumberPopIn key={data.totalRevenue} value={`S/${data.totalRevenue.toLocaleString()}`} /></p>
         </div>
         <div className="rounded-xl border border-border/60 bg-card p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
             <TrendingUp className="h-4 w-4 text-blue-500" /> Revenue mensual
           </div>
-          <p className="text-2xl font-bold">S/{data.monthlyRevenue.toLocaleString()}</p>
+          <p className="text-2xl font-bold"><NumberPopIn key={data.monthlyRevenue} value={`S/${data.monthlyRevenue.toLocaleString()}`} /></p>
         </div>
         <div className="rounded-xl border border-border/60 bg-card p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
             <CreditCard className="h-4 w-4 text-emerald-500" /> Suscripciones activas
           </div>
-          <p className="text-2xl font-bold">{data.activeSubscriptions}</p>
+          <p className="text-2xl font-bold"><NumberPopIn key={data.activeSubscriptions} value={String(data.activeSubscriptions)} /></p>
         </div>
         <div className="rounded-xl border border-border/60 bg-card p-4">
           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-2">
             <Users className="h-4 w-4 text-amber-500" /> En trial
           </div>
-          <p className="text-2xl font-bold">{data.trialingOrgs}</p>
+          <p className="text-2xl font-bold"><NumberPopIn key={data.trialingOrgs} value={String(data.trialingOrgs)} /></p>
         </div>
       </div>
 

@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+
+import { NumberPopIn } from "@/components/ui/number-pop-in";import { useRouter } from "next/navigation";
 import { useSearchParams } from "next/navigation";
 import { founderFetch } from "@/lib/founder-fetch";
 import { Suspense } from "react";
@@ -327,7 +328,7 @@ function FounderDashboardContent() {
               <DollarSign className="h-4 w-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold tracking-tight">S/{stats.mrr.toLocaleString()}</p>
+          <p className="text-2xl font-bold tracking-tight"><NumberPopIn key={stats.mrr} value={`S/${stats.mrr.toLocaleString()}`} /></p>
           <p className="text-[10px] text-muted-foreground">ARR: S/{stats.arr.toLocaleString()}</p>
         </div>
 
@@ -338,7 +339,7 @@ function FounderDashboardContent() {
               {deltaPositive ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
             </div>
           </div>
-          <p className="text-2xl font-bold tracking-tight">S/{stats.currentMonthRevenue.toLocaleString()}</p>
+          <p className="text-2xl font-bold tracking-tight"><NumberPopIn key={stats.currentMonthRevenue} value={`S/${stats.currentMonthRevenue.toLocaleString()}`} /></p>
           <p className={`text-[10px] font-medium ${deltaPositive ? "text-emerald-500" : "text-red-500"}`}>
             {deltaPositive ? "+" : ""}{stats.revenueDelta}% vs mes anterior
           </p>
@@ -351,7 +352,7 @@ function FounderDashboardContent() {
               {stats.churnRate > 5 ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
             </div>
           </div>
-          <p className="text-2xl font-bold tracking-tight">{stats.churnRate}%</p>
+          <p className="text-2xl font-bold tracking-tight"><NumberPopIn key={stats.churnRate} value={`${stats.churnRate}%`} /></p>
           <p className="text-[10px] text-muted-foreground">{stats.churnedThisMonth} churned este mes</p>
         </div>
 
@@ -362,7 +363,7 @@ function FounderDashboardContent() {
               <Repeat className="h-4 w-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold tracking-tight">{stats.trialConversion}%</p>
+          <p className="text-2xl font-bold tracking-tight"><NumberPopIn key={stats.trialConversion} value={`${stats.trialConversion}%`} /></p>
           <p className="text-[10px] text-muted-foreground">{stats.trialingOrgs} en trial ahora</p>
         </div>
       </div>

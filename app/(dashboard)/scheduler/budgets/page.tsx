@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { NumberPopIn } from "@/components/ui/number-pop-in";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -378,7 +379,15 @@ function KpiCard({
         {icon}
         {label}
       </div>
-      <p className="mt-2 text-2xl font-bold">{value}</p>
+      <p className="mt-2 text-2xl font-bold">
+        {/* key: React Query refetchea estos KPIs tras cada mutación de la
+            lista — sin key, enviar un presupuesto haría rebotar las 4. */}
+        {typeof value === "string" || typeof value === "number" ? (
+          <NumberPopIn key={String(value)} value={String(value)} />
+        ) : (
+          value
+        )}
+      </p>
       {subtitle && (
         <p className="mt-0.5 text-[11px] text-muted-foreground">{subtitle}</p>
       )}

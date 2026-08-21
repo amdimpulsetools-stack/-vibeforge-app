@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import {
+
+import { NumberPopIn } from "@/components/ui/number-pop-in";import {
   Loader2,
   AlertTriangle,
   DollarSign,
@@ -369,7 +370,13 @@ function PulseCard({
         <Icon className="h-3.5 w-3.5" />
         {label}
       </div>
-      <p className="mt-1.5 text-2xl font-extrabold tracking-tight">{value}</p>
+      <p className="mt-1.5 text-2xl font-extrabold tracking-tight">
+        {typeof value === "string" || typeof value === "number" ? (
+          <NumberPopIn key={String(value)} value={String(value)} />
+        ) : (
+          value
+        )}
+      </p>
       <p className="mt-1 text-[11px] leading-snug text-muted-foreground">{hint}</p>
     </div>
   );

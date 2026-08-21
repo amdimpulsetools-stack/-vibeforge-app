@@ -12,7 +12,8 @@
 // aquí solo se observa.
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { NumberPopIn } from "@/components/ui/number-pop-in";import { useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -392,6 +393,7 @@ export default function FacturacionPage() {
         <Kpi
           icon={TrendingUp}
           label="Emitido en el período"
+          animate
           value={`PEN ${totalAmount.toLocaleString("es-PE", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
@@ -683,12 +685,14 @@ function Kpi({
   value,
   subtitle,
   tone,
+  animate,
 }: {
   icon: typeof TrendingUp;
   label: string;
   value: string;
   subtitle: string;
   tone: "success" | "blue" | "amber" | "rose" | "muted";
+  animate?: boolean;
 }) {
   const TONES: Record<string, string> = {
     // Verde fijo (no se temiza): este KPI convive con blue/amber/rose y
@@ -716,7 +720,9 @@ function Kpi({
         {/* text-lg en móvil: a 2 columnas, "PEN 12,345.67" en text-xl se
             comía con truncate el dato principal. */}
         <div className="text-lg md:text-xl font-bold tabular-nums truncate mt-0.5">
-          {value}
+          {/* Solo el monto emitido se anima (protagonista); los conteos de
+              estado conviene verlos estables. key: hay refetch tras emitir. */}
+          {animate ? <NumberPopIn key={value} value={value} /> : value}
         </div>
         <div className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</div>
       </div>

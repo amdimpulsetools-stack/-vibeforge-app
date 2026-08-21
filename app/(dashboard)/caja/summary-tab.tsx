@@ -11,6 +11,7 @@
  */
 
 import { Coins, Layers, Receipt } from "lucide-react";
+import { NumberPopIn } from "@/components/ui/number-pop-in";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import {
   NO_METHOD,
@@ -53,6 +54,7 @@ export function SummaryTab({ summary, openingFloat, paymentMethods }: Props) {
           icon={<Receipt className="h-4 w-4" />}
           label="Cobrado en el turno"
           value={formatPEN(summary.payments_total)}
+          animate
         />
         <StatCard
           icon={<Layers className="h-4 w-4" />}
@@ -66,6 +68,7 @@ export function SummaryTab({ summary, openingFloat, paymentMethods }: Props) {
           value={
             summary.expected_cash != null ? formatPEN(summary.expected_cash) : "•••"
           }
+          animate
           hint={
             summary.expected_cash != null
               ? `fondo ${formatPEN(openingFloat)} incluido`
@@ -160,18 +163,26 @@ function StatCard({
   label,
   value,
   hint,
+  animate,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   hint?: string;
+  animate?: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-border/60 bg-card p-4">
       <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {icon} {label}
       </p>
-      <p className="mt-1.5 text-2xl font-extrabold tracking-tight">{value}</p>
+      <p className="mt-1.5 text-2xl font-extrabold tracking-tight">
+        {/* key={value}: este resumen se recarga tras CADA cobro o movimiento
+            del turno — sin key, cifras que no cambiaron re-animarían por
+            acciones ajenas. Con key solo entra de nuevo si el número cambió.
+            "Operaciones" queda quieta a propósito (conteo de apoyo). */}
+        {animate ? <NumberPopIn key={value} value={value} /> : value}
+      </p>
       {hint && <p className="mt-0.5 text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
