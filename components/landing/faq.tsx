@@ -67,8 +67,24 @@ const faqs = [
 ];
 
 export function FAQ() {
+  // FAQPage schema: las 11 preguntas ya redactadas se vuelven elegibles
+  // para rich snippets en Google sin costo adicional.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqs.map((f) => ({
+      "@type": "Question",
+      name: f.question,
+      acceptedAnswer: { "@type": "Answer", text: f.answer },
+    })),
+  };
   return (
-    <section id="faq" className="py-20 sm:py-28 bg-white">
+    <>
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
+    <section id="faq" className="py-16 sm:py-24 bg-white">
       <div className="mx-auto max-w-2xl px-6">
         <Reveal>
           <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 text-center mb-10">
@@ -84,7 +100,7 @@ export function FAQ() {
                 value={`item-${i}`}
                 className="border-slate-200"
               >
-                <AccordionTrigger className="text-left text-sm font-semibold text-slate-800 hover:text-emerald-600 hover:no-underline py-5">
+                <AccordionTrigger className="text-left text-base font-semibold text-slate-800 hover:text-emerald-600 hover:no-underline py-5">
                   {faq.question}
                 </AccordionTrigger>
                 <AccordionContent className="text-sm text-slate-600 leading-relaxed">
@@ -96,5 +112,6 @@ export function FAQ() {
         </Reveal>
       </div>
     </section>
+    </>
   );
 }

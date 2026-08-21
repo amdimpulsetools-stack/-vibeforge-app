@@ -55,7 +55,7 @@ export function AlwaysImproving() {
   }, []);
 
   return (
-    <section className="relative py-20 sm:py-28 bg-slate-950 overflow-hidden">
+    <section className="relative py-16 sm:py-20 bg-slate-950 overflow-hidden">
       {/* Emerald glow */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -top-40 left-1/2 -translate-x-1/2 h-80 w-[40rem] rounded-full bg-emerald-500/10 blur-3xl" />

@@ -233,7 +233,7 @@ export function Navbar() {
                           </div>
                         </Link>
                         <Link href="/base-conocimientos" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-blue-600 group-hover/item:bg-blue-600 group-hover/item:text-white transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
                             <HelpCircle className="h-4 w-4" />
                           </div>
                           <div>
@@ -251,7 +251,7 @@ export function Navbar() {
                       </h3>
                       <div className="space-y-3">
                         <Link href="/calculadora-whatsapp" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-green-100 text-green-600 group-hover/item:bg-green-600 group-hover/item:text-white transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
                             <Calculator className="h-4 w-4" />
                           </div>
                           <div>
@@ -260,7 +260,7 @@ export function Navbar() {
                           </div>
                         </Link>
                         <Link href="/blog/notas-soap-formato-medico" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-600 group-hover/item:bg-violet-600 group-hover/item:text-white transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
                             <FileText className="h-4 w-4" />
                           </div>
                           <div>
@@ -278,7 +278,7 @@ export function Navbar() {
                       </h3>
                       <div className="space-y-3">
                         <Link href="/contacto" onClick={() => setResourcesOpen(false)} className="group/item flex items-start gap-3 rounded-lg p-2.5 -m-1 hover:bg-emerald-50/50 transition-colors">
-                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-100 text-teal-600 group-hover/item:bg-teal-600 group-hover/item:text-white transition-colors">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 group-hover/item:bg-emerald-600 group-hover/item:text-white transition-colors">
                             <Mail className="h-4 w-4" />
                           </div>
                           <div>
