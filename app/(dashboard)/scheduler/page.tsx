@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
+import { sendNotification } from "@/lib/send-notification";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { format, addDays, startOfWeek } from "date-fns";
@@ -21,6 +22,7 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import { useSchedulerMasterData } from "@/hooks/use-scheduler-master-data";
 import { SchedulerHeader } from "./scheduler-header";
 import { DayView } from "./day-view";
+import { DropConfirmDialog, type PendingDrop } from "./drop-confirm-dialog";
 import { WeekView } from "./week-view";
 import { NowProvider } from "./now-provider";
 // Solo se renderiza al copiar un mensaje de WhatsApp — fuera del First Load.
@@ -429,6 +431,12 @@ export default function SchedulerPage() {
     setFormDefaults(null);
   }, []);
 
+  // Drop pendiente de confirmación (drag & drop de la agenda). Guarda
+  // también lo que el diálogo no muestra pero el update necesita.
+  const [pendingDrop, setPendingDrop] = useState<
+    (PendingDrop & { newEndTime: string; targetOfficeId: string }) | null
+  >(null);
+
   const handleSaved = useCallback(() => {
     fetchAppointments();
     setShowForm(false);
@@ -493,26 +501,63 @@ export default function SchedulerPage() {
       return;
     }
 
+    // Validaciones superadas → confirmar antes de tocar la cita real.
+    // Soltar ya no reprograma al instante: un arrastre accidental movía la
+    // cita sin preguntar, y de paso los dos caminos se contradecían (el
+    // modal Reprogramar siempre notificaba al paciente; el drag nunca).
+    const noChange =
+      appt.appointment_date === newDateStr &&
+      appt.start_time.slice(0, 5) === targetTime &&
+      appt.office_id === targetOfficeId;
+    if (noChange) return;
+
+    setPendingDrop({
+      appointmentId,
+      patientName: appt.patient_name,
+      serviceName: appt.services?.name ?? null,
+      fromDate: appt.appointment_date,
+      fromTime: appt.start_time.slice(0, 5),
+      fromOfficeName: offices.find((o) => o.id === appt.office_id)?.name ?? null,
+      toDate: newDateStr,
+      toTime: targetTime,
+      toOfficeName: offices.find((o) => o.id === targetOfficeId)?.name ?? null,
+      newEndTime,
+      targetOfficeId,
+    });
+  };
+
+  const confirmPendingDrop = async (notifyPatient: boolean) => {
+    if (!pendingDrop) return;
     const supabase = createClient();
     const { error } = await supabase
       .from("appointments")
       .update({
-        appointment_date: newDateStr,
-        start_time: targetTime,
-        end_time: newEndTime,
-        office_id: targetOfficeId,
+        appointment_date: pendingDrop.toDate,
+        start_time: pendingDrop.toTime,
+        end_time: pendingDrop.newEndTime,
+        office_id: pendingDrop.targetOfficeId,
       })
-      .eq("id", appointmentId);
+      .eq("id", pendingDrop.appointmentId);
 
     if (error) {
       toast.error("No pudimos mover la cita. " + error.message);
+      setPendingDrop(null);
       return;
     }
 
     // Mirror move to Google Calendar (best-effort).
-    syncAppointmentToGoogle(appointmentId, "upsert");
+    syncAppointmentToGoogle(pendingDrop.appointmentId, "upsert");
 
-    toast.success(`Cita movida a ${newDateStr} ${targetTime}`);
+    // Mismo evento que usa el modal Reprogramar — ahora opt-in explícito.
+    if (notifyPatient) {
+      sendNotification({
+        type: "appointment_rescheduled",
+        appointment_id: pendingDrop.appointmentId,
+      });
+    }
+
+    toast.success(`Cita movida a ${pendingDrop.toDate} ${pendingDrop.toTime}`);
+    setPendingDrop(null);
     fetchAppointments();
   };
 
@@ -568,7 +613,8 @@ export default function SchedulerPage() {
     showBlockDialog ||
     showBreakTimeDialog ||
     showAvailableSlots ||
-    waModal.open;
+    waModal.open ||
+    pendingDrop !== null;
 
   // Measure the scrollable grid container so DayView/WeekView can stretch
   // rows to fill the viewport on short schedules (e.g. 7am–2pm) instead of
@@ -655,6 +701,16 @@ export default function SchedulerPage() {
           </NowProvider>
         </div>
       </div>
+
+      {/* Confirmación del drag & drop — Cancelar deja la cita donde estaba
+          (la tarjeta nunca se movió de verdad: el update ocurre al confirmar). */}
+      {pendingDrop && (
+        <DropConfirmDialog
+          pending={pendingDrop}
+          onConfirm={confirmPendingDrop}
+          onCancel={() => setPendingDrop(null)}
+        />
+      )}
 
       {/* FAB "Nueva cita" — solo <md y solo en la agenda. Se apila JUSTO
           encima del FAB del asistente IA (components/ai-assistant-panel.tsx:
