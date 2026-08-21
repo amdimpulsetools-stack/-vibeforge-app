@@ -27,6 +27,7 @@ import {
   ClipboardList,
   Target,
 } from "lucide-react";
+import { NumberPopIn } from "@/components/ui/number-pop-in";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -464,7 +465,18 @@ function KpiCard({
       </div>
       <div className="mt-2">
         <span className="text-2xl font-extrabold tracking-tight">
-          {isText ? value : (typeof value === "number" ? value.toLocaleString() : value)}
+          {/* Mismo gesto que los KPIs del dashboard admin: la cifra entra al
+              llegar el dato. key = el valor formateado, por si el padre
+              re-renderiza sin que el número cambie. Los valores de texto
+              (isText) no son cifras y quedan quietos. */}
+          {isText ? (
+            value
+          ) : (
+            <NumberPopIn
+              key={typeof value === "number" ? value.toLocaleString() : String(value)}
+              value={typeof value === "number" ? value.toLocaleString() : String(value)}
+            />
+          )}
         </span>
       </div>
       {progress !== undefined && (

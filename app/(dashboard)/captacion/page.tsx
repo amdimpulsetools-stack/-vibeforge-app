@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { NumberPopIn } from "@/components/ui/number-pop-in";
 import {
   Loader2,
   Megaphone,
@@ -301,7 +302,12 @@ function Kpi({
           accent && "text-primary",
         )}
       >
-        {value}
+        {/* key={String(value)}: re-anima solo si el número cambia. */}
+        {typeof value === "string" || typeof value === "number" ? (
+          <NumberPopIn key={String(value)} value={String(value)} />
+        ) : (
+          value
+        )}
       </p>
     </div>
   );

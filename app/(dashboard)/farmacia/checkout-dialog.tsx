@@ -21,6 +21,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
+import { NumberPopIn } from "@/components/ui/number-pop-in";
+import { SuccessCheck } from "@/components/ui/success-check";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -293,11 +295,11 @@ export function CheckoutDialog({
             <DialogTitle className="sr-only">Venta cobrada</DialogTitle>
             <div className="flex flex-col items-center text-center">
               <div className="grid h-12 w-12 place-items-center rounded-full bg-primary/15">
-                <Check className="h-6 w-6 text-primary" />
+                <SuccessCheck size={24} className="text-primary" />
               </div>
               <p className="mt-3 text-lg font-bold">{saleLabel(result.sale_number)}</p>
               <p className="text-2xl font-bold tabular-nums text-primary">
-                {formatPEN(result.total)}
+                <NumberPopIn value={formatPEN(result.total)} />
               </p>
 
               <p className="mt-2 text-xs text-muted-foreground">

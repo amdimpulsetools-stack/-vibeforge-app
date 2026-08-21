@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { NumberPopIn } from "@/components/ui/number-pop-in";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -1066,7 +1067,14 @@ function KpiCard({
         <span className="mt-0.5 shrink-0 md:mt-0">{icon}</span>
         <span className="min-w-0">{label}</span>
       </div>
-      <div className="mt-2 text-xl font-bold md:text-2xl">{value}</div>
+      <div className="mt-2 text-xl font-bold md:text-2xl">
+        {/* key: el prefijo se invalida tras cada mutación de la bandeja. */}
+        {typeof value === "string" || typeof value === "number" ? (
+          <NumberPopIn key={String(value)} value={String(value)} />
+        ) : (
+          value
+        )}
+      </div>
       <div className="text-[11px] opacity-70">{helper}</div>
     </div>
   );

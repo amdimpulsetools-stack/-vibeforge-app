@@ -161,6 +161,24 @@ hay que reemplazarla con ingeniería (fallback) + vigilancia normativa (auditor)
 
 - [x] **CAPTCHA + verificación de email en el registro** (PR #302, validado end-to-end en producción) — Cloudflare Turnstile en login, registro y recuperación; Attack Protection de Supabase exigiendo el token; Confirm email obligatorio; contraseñas filtradas bloqueadas vía HaveIBeenPwned. Errores de auth traducidos al español y señalados junto al campo (PR #303). La limpieza del 2026-08-08 había eliminado 86 orgs bot; la puerta ya está cerrada.
 
+## 🖱️ Agenda — drag & drop: confirmación al soltar (P1 corto, 2026-08-20)
+
+> Hallazgo del founder: el drag & drop de citas en la agenda YA reprograma al soltar, y eso
+> dispara la automatización de correo al paciente. Un arrastre accidental = un correo de
+> reprogramación enviado por error. Fricción desproporcionada a la consecuencia: mover la cita es
+> reversible, el correo que ya llegó al paciente no.
+
+- [ ] **Modal de confirmación al soltar**: "Reprogramar cita — {paciente} · {antes} → {después}" con
+  checkbox **"Notificar al paciente"** (marcado por defecto; desmarcable para reacomodos internos que
+  no deben avisar). Cancelar devuelve la tarjeta a su slot original. Un solo modal resuelve el error
+  accidental Y el caso del movimiento silencioso.
+- Alternativa evaluada y descartada: toast "Deshacer" reteniendo el correo unos segundos — ventana de
+  carrera con la automatización, frágil.
+- [ ] **Fase 2 (sensación)**: capa de feel sobre la mecánica de arrastre — tarjeta que se inclina
+  levemente al arrastrar, sombra que crece, asentamiento con `--ease-bounce` al soltar. La mecánica
+  de drop estructurado (destinos válidos, colisiones, teclado) es territorio de **dnd-kit**, no de
+  framer-motion (su drag es libre, no sabe de destinos).
+
 ## 🎛️ Select propio (Radix) con nativo en táctil — híbrido (idea del founder, 2026-08-20)
 
 > Detectado probando el modal de reprogramar: la lista desplegada de un `<select>` la dibuja el

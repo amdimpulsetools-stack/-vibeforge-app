@@ -32,6 +32,7 @@ import {
   CheckCircle2,
   PhoneCall,
 } from "lucide-react";
+import { NumberPopIn } from "@/components/ui/number-pop-in";
 
 // ── Tipos de respuesta de las APIs existentes ──────────────────────
 
@@ -105,7 +106,10 @@ function KpiCard({
       </div>
       <div className="mt-2">
         <span className="text-2xl font-extrabold tracking-tight">
-          {typeof value === "number" ? value.toLocaleString() : value}
+          <NumberPopIn
+            key={typeof value === "number" ? value.toLocaleString() : String(value)}
+            value={typeof value === "number" ? value.toLocaleString() : String(value)}
+          />
         </span>
       </div>
       {subtitle && <p className="mt-1.5 text-[11px] text-muted-foreground">{subtitle}</p>}

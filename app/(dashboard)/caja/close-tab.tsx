@@ -15,6 +15,7 @@
 
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { NumberPopIn } from "@/components/ui/number-pop-in";
 import { Input } from "@/components/ui/input";
 import { Loader2, LockKeyhole } from "lucide-react";
 import {
@@ -241,7 +242,7 @@ export function CloseResultCard({
         Caja cerrada
       </p>
       <p className={`mt-2 text-4xl font-extrabold tracking-tight ${DIFFERENCE_TONE_CLASS[tone]}`}>
-        {formatSignedPEN(result.difference_cash)}
+        <NumberPopIn value={formatSignedPEN(result.difference_cash)} />
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
         {cuadra
@@ -252,8 +253,8 @@ export function CloseResultCard({
       </p>
 
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <ResultStat label="Esperado" value={formatPEN(result.expected_cash)} />
-        <ResultStat label="Contado" value={formatPEN(result.counted_cash)} />
+        <ResultStat label="Esperado" value={formatPEN(result.expected_cash)} animate />
+        <ResultStat label="Contado" value={formatPEN(result.counted_cash)} animate />
         <ResultStat label="Cobros" value={String(result.payments_count)} />
       </div>
 
@@ -298,13 +299,17 @@ export function CloseResultCard({
   );
 }
 
-function ResultStat({ label, value }: { label: string; value: string }) {
+function ResultStat({ label, value, animate }: { label: string; value: string; animate?: boolean }) {
   return (
     <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
       <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
         {label}
       </p>
-      <p className="mt-1 text-lg font-bold">{value}</p>
+      <p className="mt-1 text-lg font-bold">
+        {/* Esperado y Contado entran animados: explican la resta que el
+            usuario acaba de vivir. Cobros es apoyo y queda quieto. */}
+        {animate ? <NumberPopIn value={value} /> : value}
+      </p>
     </div>
   );
 }
