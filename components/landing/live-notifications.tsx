@@ -16,7 +16,7 @@ const notificationCards: DisplayCardProps[] = [
   {
     icon: <CalendarPlus className="size-4 text-emerald-500" />,
     title: "Nueva cita registrada",
-    description: "María García — Control general 9:00 AM",
+    description: "María García · Control general 9:00 AM",
     date: "Hace 2 min",
     titleClassName: "text-emerald-600",
     className:
@@ -25,7 +25,7 @@ const notificationCards: DisplayCardProps[] = [
   {
     icon: <CalendarClock className="size-4 text-amber-500" />,
     title: "Paciente reprogramada",
-    description: "Carlos López — Ecografía → Jueves 10:30",
+    description: "Carlos López · Ecografía → Jueves 10:30",
     date: "Hace 15 min",
     titleClassName: "text-amber-600",
     // translate-x reducido en mobile (8 vs 16) para que el stack no se
@@ -36,7 +36,7 @@ const notificationCards: DisplayCardProps[] = [
   {
     icon: <CreditCard className="size-4 text-blue-500" />,
     title: "Pago registrado",
-    description: "Ana Rodríguez — S/. 150.00 completado",
+    description: "Ana Rodríguez · S/. 150.00 completado",
     date: "Hace 30 min",
     titleClassName: "text-blue-600",
     className:

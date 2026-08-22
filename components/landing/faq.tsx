@@ -22,7 +22,7 @@ const faqs = [
   {
     question: "¿Otra clínica puede ver a mis pacientes?",
     answer:
-      "No, nunca. Cada clínica trabaja en su propio espacio, separado por completo del resto — ni siquiera nuestro equipo entra a tu información clínica sin que tú lo autorices. Todo viaja y se guarda encriptado, con copias de seguridad automáticas todos los días. Si mañana se malogra tu computadora, tu historia clínica sigue intacta; con un cuaderno o un Excel en el escritorio, no.",
+      "No, nunca. Cada clínica trabaja en su propio espacio, separado por completo del resto. Ni siquiera nuestro equipo entra a tu información clínica sin que tú lo autorices. Todo viaja y se guarda encriptado, con copias de seguridad automáticas todos los días. Si mañana se malogra tu computadora, tu historia clínica sigue intacta; con un cuaderno o un Excel en el escritorio, no.",
   },
   {
     question: "¿Qué pasa cuando terminan los 14 días de prueba?",
@@ -32,7 +32,7 @@ const faqs = [
   {
     question: "¿Puedo usar mi número de WhatsApp actual?",
     answer:
-      "Los recordatorios salen por la API oficial de WhatsApp Business de Meta, con un número dedicado de tu clínica: los pacientes ven el nombre de tu clínica, no tu celular personal — y tu número personal por fin vuelve a ser tuyo. Sin riesgo de bloqueo por envíos masivos.",
+      "Los recordatorios salen por la API oficial de WhatsApp Business de Meta, con un número dedicado de tu clínica: los pacientes ven el nombre de tu clínica, no tu celular personal, y tu número personal por fin vuelve a ser tuyo. Sin riesgo de bloqueo por envíos masivos.",
   },
   {
     question: "¿Puedo migrar mis datos desde otro sistema?",

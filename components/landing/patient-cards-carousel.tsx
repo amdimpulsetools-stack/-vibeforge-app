@@ -123,7 +123,7 @@ function OverviewCard() {
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <Clock className="h-3 w-3" />
-          Última cita: 15 mar 2026 — Dra. Angela Quispe
+          Última cita: 15 mar 2026 · Dra. Angela Quispe
         </div>
       </div>
     </div>

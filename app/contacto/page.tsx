@@ -37,7 +37,7 @@ export default function ContactoPage() {
             </div>
             <h2 className="mt-4 font-bold text-slate-900">Escríbenos</h2>
             <p className="mt-1 text-sm text-slate-600">
-              soporte@yenda.app — ventas, soporte y consultas de planes
+              soporte@yenda.app: ventas, soporte y consultas de planes
               Enterprise.
             </p>
             <span className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-emerald-600">
@@ -72,7 +72,7 @@ export default function ContactoPage() {
           <p className="m-0">
             ¿Ya eres cliente? Dentro de Yenda tienes un canal de soporte
             directo en <span className="font-semibold text-slate-900">Soporte</span>,
-            en el menú lateral — por ahí llegan más rápido los temas de tu
+            en el menú lateral: por ahí llegan más rápido los temas de tu
             cuenta.
           </p>
         </div>

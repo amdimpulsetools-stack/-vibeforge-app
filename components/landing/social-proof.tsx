@@ -38,7 +38,7 @@ const pilots: PilotCard[] = [
     location: "Lima, Perú",
     status: "Piloto activo desde abril 2026",
     quote:
-      "Todavía no tenemos 500 clínicas. Tenemos clínicas piloto reales en Lima — un centro de fertilidad, una clínica dermatológica, consultorios independientes — y las escuchamos todos los días. Cada pantalla de Yenda nació de algo que nos pidieron.",
+      "Todavía no tenemos 500 clínicas. Tenemos clínicas piloto reales en Lima (un centro de fertilidad, una clínica dermatológica, consultorios independientes) y las escuchamos todos los días. Cada pantalla de Yenda nació de algo que nos pidieron.",
     author: "El equipo de Yenda",
     role: "sin testimonios inventados",
   },

@@ -27,7 +27,7 @@ const QUESTIONS: Question[] = [
     options: [
       { id: "papel", label: "En un cuaderno o agenda de papel" },
       { id: "excel", label: "En Excel o Google Calendar" },
-      { id: "whatsapp", label: "En WhatsApp — entre los mensajes" },
+      { id: "whatsapp", label: "En WhatsApp, entre los mensajes" },
       { id: "sistema", label: "En un sistema, pero no me convence" },
       { id: "todo", label: "Un poco de todo, la verdad" },
     ],
@@ -147,11 +147,11 @@ function planFor(doctoresOpt: string) {
 
 const INSIGHT_AGENDA: Record<string, string> = {
   papel:
-    "Tu historia clínica vive en papel. Cada paciente que vuelve después de seis meses es una búsqueda manual — y lo que no encuentras, lo vuelves a preguntar.",
+    "Tu historia clínica vive en papel. Cada paciente que vuelve después de seis meses es una búsqueda manual, y lo que no encuentras, lo vuelves a preguntar.",
   excel:
     "El Excel funciona hasta que dos personas lo abren a la vez. Ahí empiezan las citas duplicadas y los cobros que nadie registró.",
   whatsapp:
-    "Tu agenda está adentro de un chat. Eso significa que tu número personal es la central de citas de la clínica — a las once de la noche también.",
+    "Tu agenda está adentro de un chat. Eso significa que tu número personal es la central de citas de la clínica, a las once de la noche también.",
   sistema:
     "Ya pagas por un sistema que no usas al 100%. Ese es el gasto más caro que existe: pagas la licencia y sigues haciendo el trabajo a mano.",
   todo: "Tu información está repartida en tres lugares y ninguno tiene la foto completa. Por eso nunca sabes con certeza cuánto facturaste esta semana.",
@@ -192,11 +192,11 @@ const PROFILE_FRAG: Record<string, string> = {
 
 function priorityLine(a: Answers): string {
   if (a.noshows === "n3")
-    return "Recuperar las sillas vacías — recordatorios automáticos por WhatsApp desde la primera semana.";
+    return "Recuperar las sillas vacías con recordatorios automáticos por WhatsApp desde la primera semana.";
   if (a.recepcion === "nadie" || a.recepcion === "para")
     return "Sacar la información de una sola cabeza: que la clínica funcione aunque falte cualquiera.";
   if (a.noshows === "nns")
-    return "Medir. No puedes recuperar lo que no estás viendo — Yenda te da el número real desde el día 1.";
+    return "Medir. No puedes recuperar lo que no estás viendo: Yenda te da el número real desde el día 1.";
   if (a.agenda === "papel" || a.agenda === "todo" || a.agenda === "whatsapp")
     return "Una sola agenda para todo el equipo, con la historia y los cobros pegados a cada cita.";
   return "Crecer sin sumar caos: cada doctor con su agenda, sus cobros y sus reportes.";
@@ -228,7 +228,7 @@ function buildBenefits(a: Answers, planName: string) {
     push("Historia clínica SOAP + recetas, todo ligado a la cita", "agenda");
   else
     push(
-      "Pasamos tus pacientes desde tu Excel o tu sistema actual — nosotros, no tú",
+      "Pasamos tus pacientes desde tu Excel o tu sistema actual: nosotros, no tú",
       "agenda"
     );
 
@@ -238,7 +238,7 @@ function buildBenefits(a: Answers, planName: string) {
     push("Reportes por doctor y por sede, exportables a CSV", "recepcion");
   else if (planName === "Independiente")
     push(
-      "Citas, cobros y deudas en un solo lugar — nada vive en la cabeza de nadie",
+      "Citas, cobros y deudas en un solo lugar: nada vive en la cabeza de nadie",
       "recepcion"
     );
   else
@@ -744,8 +744,7 @@ function QuizResult({
                 </span>
               </div>
               <p className="mt-2 text-sm text-slate-400">
-                A tu escala, la cifra en soles depende mucho de tu tarifa real
-                — ajústala en la calculadora de aquí abajo.
+                A tu escala, la cifra en soles depende mucho de tu tarifa real. Ajústala en la calculadora de aquí abajo.
               </p>
             </>
           )}

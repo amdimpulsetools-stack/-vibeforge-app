@@ -16,8 +16,8 @@ const plans = [
     savingsSemiannual: "64.50",
     savingsAnnual: "258",
     anchor: "Un solo paciente que no falta al mes ya te pagó el sistema",
-    anchorSemiannual: "Ahorra S/64.50 — medio mes gratis",
-    anchorAnnual: "Ahorra S/258 al año — 2 meses gratis",
+    anchorSemiannual: "Ahorra S/64.50: medio mes gratis",
+    anchorAnnual: "Ahorra S/258 al año: 2 meses gratis",
     features: [
       "1 doctor · 1 consultorio",
       "1 recepcionista / asistente",
@@ -40,8 +40,8 @@ const plans = [
     savingsSemiannual: "174.50",
     savingsAnnual: "698",
     anchor: "3 consultas al mes cubren el plan completo",
-    anchorSemiannual: "Ahorra S/174.50 — medio mes gratis",
-    anchorAnnual: "Ahorra S/698 al año — 2 meses gratis",
+    anchorSemiannual: "Ahorra S/174.50: medio mes gratis",
+    anchorAnnual: "Ahorra S/698 al año: 2 meses gratis",
     features: [
       "3 doctores · 3 consultorios",
       "2 recepcionistas / asistentes",
@@ -63,8 +63,8 @@ const plans = [
     savingsSemiannual: "324.50",
     savingsAnnual: "1,298",
     anchor: "Un tratamiento de S/700 al mes cubre la suscripción de toda la clínica",
-    anchorSemiannual: "Ahorra S/324.50 — medio mes gratis",
-    anchorAnnual: "Ahorra S/1,298 al año — 2 meses gratis",
+    anchorSemiannual: "Ahorra S/324.50: medio mes gratis",
+    anchorAnnual: "Ahorra S/1,298 al año: 2 meses gratis",
     features: [
       "10 doctores · 10 consultorios",
       "10 doctores, 3 recepcionistas y hasta 15 personas en total",
@@ -73,7 +73,7 @@ const plans = [
       "Todos los módulos de especialidad",
       "Te acompañamos por videollamada hasta que tu clínica esté funcionando",
       "Te respondemos en menos de 4 horas, de lunes a sábado",
-      "Pasamos tus pacientes desde tu Excel o tu sistema actual — nosotros, no tú",
+      "Pasamos tus pacientes desde tu Excel o tu sistema actual: nosotros, no tú",
     ],
     highlight: false,
     badge: "IA incluida",
@@ -225,7 +225,7 @@ export function Pricing() {
                 {exceedsMpPreapprovalCap(periodTotal(plan, cadence)) && (
                   <p className="mt-1.5 text-xs font-medium text-amber-600">
                     Pago {cadence === "annual" ? "anual" : "semestral"} disponible
-                    próximamente — por ahora, mensual
+                    próximamente; por ahora, mensual
                   </p>
                 )}
               </div>
