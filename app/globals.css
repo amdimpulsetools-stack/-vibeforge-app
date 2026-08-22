@@ -284,6 +284,24 @@
   transform: translateY(0);
 }
 
+/* Columnas del resultado del quiz (pain-quiz): análisis y tarjeta de plan
+   entran escalonadas al montar — el retardo llega por --col-delay. */
+.quiz-col {
+  animation: quizColIn var(--dur-slower) var(--ease-entrance) both;
+  animation-delay: var(--col-delay, 0ms);
+}
+
+@keyframes quizColIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   /* Cubre el componente Reveal Y las clases de las secciones de landing
      que animan con su propio IntersectionObserver (.pain-item, .feat-card,
@@ -292,6 +310,7 @@
      landing entera animándose igual. */
   .reveal-in,
   .hero-float-card,
+  .quiz-col,
   .pain-item,
   .feat-card,
   .metric-card,

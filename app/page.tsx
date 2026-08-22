@@ -5,7 +5,7 @@ import { Hero } from "@/components/landing/hero";
 import { TrustBadges } from "@/components/landing/trust-badges";
 import { StatusQuoTable } from "@/components/landing/status-quo-table";
 import { MobileStickyCta } from "@/components/landing/mobile-sticky-cta";
-import { PainPoints } from "@/components/landing/pain-points";
+import { PainQuiz } from "@/components/landing/pain-quiz";
 import { RoleSuperpowers } from "@/components/landing/role-superpowers";
 import { Features } from "@/components/landing/features";
 import { AIAssistant } from "@/components/landing/ai-assistant";
@@ -22,12 +22,14 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white scroll-smooth">
       <Navbar />
       <Hero />
-      {/* Orden PAS (auditoría 2026-08-21): el dolor (PainPoints) se
-          cuantifica de inmediato en soles (RevenueImpact) — antes había 7
-          secciones de features entre ambos y el calor se disipaba. La prueba
-          social va ANTES del precio; "Siempre mejorando" queda después del
-          FAQ para que ningún "próximamente" toque el momento de decisión. */}
-      <PainPoints />
+      {/* Orden PAS (auditoría 2026-08-21): el dolor (hoy PainQuiz, antes el
+          checklist PainPoints) se cuantifica de inmediato en soles
+          (RevenueImpact) — antes había 7 secciones de features entre ambos y
+          el calor se disipaba. El quiz además pre-carga los sliders de la
+          calculadora al completarse. La prueba social va ANTES del precio;
+          "Siempre mejorando" queda después del FAQ para que ningún
+          "próximamente" toque el momento de decisión. */}
+      <PainQuiz />
       <RevenueImpact />
       <TrustBadges />
       <Features />
