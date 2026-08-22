@@ -179,6 +179,26 @@ function ROICalculator() {
   const [apptPerDoctor, setApptPerDoctor] = useState(60);
   const [avgPrice, setAvgPrice] = useState(150);
 
+  // El quiz de la sección anterior emite este evento al completarse: el
+  // visitante baja y encuentra la calculadora ya cargada con SU clínica,
+  // con la tarifa editable. La tarifa no se toca: subirla con su propia
+  // mano es lo que hace que el número resultante no genere resistencia.
+  useEffect(() => {
+    function onQuizResult(e: Event) {
+      const d = (e as CustomEvent<{ doctors?: number; apptPerDoctor?: number }>)
+        .detail;
+      if (!d) return;
+      if (typeof d.doctors === "number")
+        setDoctors(Math.min(20, Math.max(1, Math.round(d.doctors))));
+      if (typeof d.apptPerDoctor === "number")
+        setApptPerDoctor(
+          Math.min(150, Math.max(20, Math.round(d.apptPerDoctor / 5) * 5))
+        );
+    }
+    window.addEventListener("yenda:quiz-result", onQuizResult);
+    return () => window.removeEventListener("yenda:quiz-result", onQuizResult);
+  }, []);
+
   const monthly = computeRecovery(doctors, apptPerDoctor, avgPrice);
   const yearly = monthly * 12;
   const displayMonthly = useAnimatedNumber(monthly);
