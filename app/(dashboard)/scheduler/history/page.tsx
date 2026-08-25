@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
+import { sortByNameEs } from "@/lib/utils";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { format, subDays, addDays } from "date-fns";
@@ -82,7 +83,8 @@ export default function AppointmentHistoryPage() {
         .from("services")
         .select("id, name")
         .order("name");
-      return (data ?? []) as Service[];
+      // Re-orden en cliente: collation de BD desordena mayúsculas/tildes.
+      return sortByNameEs((data ?? []) as Service[]);
     },
   });
   const services = servicesData ?? [];

@@ -112,8 +112,17 @@ interface ActionDef {
   undo?: Action;
 }
 
-/** Valid transitions from each state, in display order. */
-function actionsFor(state: LiveState, canEndReopen: boolean): ActionDef[] {
+/**
+ * Valid transitions from each state, in display order. `canEnd` and
+ * `canReopen` are separate on purpose (mig 227): the org toggle can
+ * grant reception "Finalizar consulta", but "Reabrir consulta" stays
+ * owner/admin/doctor-only always.
+ */
+function actionsFor(
+  state: LiveState,
+  canEnd: boolean,
+  canReopen: boolean,
+): ActionDef[] {
   switch (state) {
     case "scheduled":
       return [
@@ -126,13 +135,36 @@ function actionsFor(state: LiveState, canEndReopen: boolean): ActionDef[] {
         { action: "unarrive", label: "Deshacer llegada" },
       ];
     case "in_consultation":
-      return canEndReopen
-        ? [{ action: "end", label: "Finalizar consulta", undo: "reopen" }]
+      // The undo of "end" is a reopen — only offered when the user can
+      // actually reopen (a receptionist granted `end` by the toggle
+      // would get a 403 on the undo).
+      return canEnd
+        ? [{
+            action: "end",
+            label: "Finalizar consulta",
+            undo: canReopen ? "reopen" : undefined,
+          }]
         : [];
     case "ended":
-      return canEndReopen
+      return canReopen
         ? [{ action: "reopen", label: "Reabrir consulta" }]
         : [];
+  }
+}
+
+/**
+ * Why the pill offers no action from this state — surfaced as the
+ * `title` tooltip so it never feels dead for no reason (the clinic's
+ * report: "posiciono el mouse y nada").
+ */
+function noActionReason(state: LiveState): string | null {
+  switch (state) {
+    case "in_consultation":
+      return "Solo el doctor o un administrador puede finalizar la consulta";
+    case "ended":
+      return "Solo el doctor o un administrador puede reabrir la consulta";
+    default:
+      return null;
   }
 }
 
@@ -140,8 +172,13 @@ export interface LiveStatusPillProps {
   appointmentId: string;
   live: LiveStatusFields;
   size: "card" | "sidebar";
-  /** Receptionists can arrive/start but not end/reopen. */
-  canEndReopen: boolean;
+  /**
+   * Can fire "Finalizar consulta". Owner/admin/doctor always; reception
+   * only when the org toggle (mig 227) is on.
+   */
+  canEnd: boolean;
+  /** Can fire "Reabrir consulta". Never true for reception. */
+  canReopen: boolean;
   /** Read-only render (e.g. doctor viewing another doctor's card). */
   readOnly?: boolean;
   /**
@@ -160,7 +197,8 @@ export function LiveStatusPill({
   appointmentId,
   live,
   size,
-  canEndReopen,
+  canEnd,
+  canReopen,
   readOnly = false,
   compact = false,
   onChanged,
@@ -221,8 +259,13 @@ export function LiveStatusPill({
     }
   };
 
-  const actions = actionsFor(state, canEndReopen);
+  const actions = actionsFor(state, canEnd, canReopen);
   const interactive = !readOnly && actions.length > 0;
+  // Explanation for a permission-blocked pill (reception without the
+  // toggle, or reception on a closed consultation). Read-only renders
+  // are a different situation (another doctor's card) — no hint there.
+  const blockedHint =
+    !readOnly && actions.length === 0 ? noActionReason(state) : null;
 
   const pill = compact ? (
     // Dot-only: zero height impact on single-slot cards. h-3 keeps
@@ -230,7 +273,10 @@ export function LiveStatusPill({
     // inflate the first row (the perceived "line gap" came from the
     // previous 14px wrapper driving the row height).
     <span
-      title={time ? `${meta.label} · ${time}` : meta.label}
+      title={
+        (time ? `${meta.label} · ${time}` : meta.label) +
+        (blockedHint ? ` — ${blockedHint}` : "")
+      }
       className={cn(
         "inline-flex h-3 w-3 shrink-0 items-center justify-center rounded-full",
         interactive && "cursor-pointer hover:ring-1 hover:ring-current/40",
@@ -241,6 +287,7 @@ export function LiveStatusPill({
     </span>
   ) : (
     <span
+      title={blockedHint ?? undefined}
       className={cn(
         "inline-flex shrink-0 items-center gap-1 rounded-full font-semibold leading-none",
         meta.bg,

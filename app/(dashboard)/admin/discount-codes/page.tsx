@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { RoleGate } from "@/components/role-gate";
 import { createClient } from "@/lib/supabase/client";
 import { usePlan } from "@/hooks/use-plan";
-import { cn } from "@/lib/utils";
+import { cn, sortByNameEs } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
@@ -126,7 +126,8 @@ function CodesManager() {
         .select("id, name")
         .eq("is_active", true)
         .order("name");
-      setServices((data as Service[]) ?? []);
+      // Re-orden en cliente: collation de BD desordena mayúsculas/tildes.
+      setServices(sortByNameEs((data as Service[]) ?? []));
     })();
   }, [fetch_]);
 

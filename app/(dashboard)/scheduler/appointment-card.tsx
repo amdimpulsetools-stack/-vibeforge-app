@@ -65,8 +65,10 @@ export interface AppointmentCardProps {
   // ── Live status (Part E) ─────────────────────────────────────────
   /** Master toggle (Settings → Agenda). Off = pill never renders. */
   liveStatusEnabled?: boolean;
-  /** Receptionists can arrive/start but not end/reopen. */
-  canEndReopen?: boolean;
+  /** Can "Finalizar consulta" (owner/admin/doctor, o recepción con el toggle mig 227). */
+  canEnd?: boolean;
+  /** Can "Reabrir consulta" — nunca recepción. */
+  canReopen?: boolean;
   /**
    * Computed by the parent grid (which owns the shared minute tick):
    * consultation open >1h AND the doctor's next cita already started.
@@ -89,7 +91,8 @@ function AppointmentCardInner({
   onDragStartCard,
   onDragEndCard,
   liveStatusEnabled = false,
-  canEndReopen = false,
+  canEnd = false,
+  canReopen = false,
   isStale = false,
   onLiveChanged,
 }: AppointmentCardProps) {
@@ -196,7 +199,8 @@ function AppointmentCardInner({
             }}
             size="card"
             compact={isCompact}
-            canEndReopen={canEndReopen}
+            canEnd={canEnd}
+            canReopen={canReopen}
             readOnly={isOtherDoctor}
             onChanged={() => onLiveChanged?.()}
           />
@@ -279,6 +283,7 @@ export const AppointmentCard = memo(
     prev.isOtherDoctor === next.isOtherDoctor &&
     prev.paymentTotal === next.paymentTotal &&
     prev.liveStatusEnabled === next.liveStatusEnabled &&
-    prev.canEndReopen === next.canEndReopen &&
+    prev.canEnd === next.canEnd &&
+    prev.canReopen === next.canReopen &&
     prev.isStale === next.isStale,
 );

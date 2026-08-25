@@ -21,6 +21,9 @@ const schedulerSettingsSchema = z.object({
   // Live status toggles (mig 171)
   live_status: z.boolean(),
   live_status_auto_close: z.boolean(),
+  // Recepción puede finalizar consultas (mig 227). Reabrir sigue siendo
+  // solo de owner/admin/doctor, sin toggle.
+  live_status_reception_can_end: z.boolean(),
   // Configurable required fields for the New Appointment modal (mig 176)
   required_fields: requiredFieldsSchema,
   // Duración editable por cita (mig 221). El PUT ya exige owner/admin más

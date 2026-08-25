@@ -1866,6 +1866,37 @@ export default function SettingsPage() {
                 </div>
               </label>
             )}
+            {/* Recepción puede finalizar consultas (mig 227) — encendido por
+                defecto. Reabrir queda siempre reservado a doctor/admin, con
+                el toggle o sin él. */}
+            {schedulerConfig.liveStatus && (
+              <label className="flex items-center justify-between select-none cursor-pointer border-t border-border/40 pt-4">
+                <div>
+                  <p className="text-sm font-medium">
+                    {language === "es"
+                      ? "Recepción puede finalizar consultas"
+                      : "Reception can end consultations"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {language === "es"
+                      ? "Permite que el rol Recepción marque las consultas como finalizadas. Reabrir siempre queda reservado al doctor o administrador."
+                      : "Lets the Reception role mark consultations as ended. Reopening is always reserved for the doctor or an administrator."}
+                  </p>
+                </div>
+                <div className="relative ml-4 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={schedulerConfig.liveStatusReceptionCanEnd}
+                    onChange={(e) =>
+                      updateSchedulerConfig({ liveStatusReceptionCanEnd: e.target.checked })
+                    }
+                    className="sr-only peer"
+                  />
+                  <div className="h-6 w-11 rounded-full bg-muted peer-checked:bg-primary transition-colors" />
+                  <div className="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5" />
+                </div>
+              </label>
+            )}
           </div>
 
           {/* Disabled weekdays */}

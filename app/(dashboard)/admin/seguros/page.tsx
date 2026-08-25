@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { sortByNameEs } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { usePlan } from "@/hooks/use-plan";
@@ -667,7 +668,8 @@ function CoveredServicesDialog({
           "No se pudieron cargar las coberturas: " + coveredRes.error.message,
         );
       }
-      setServices((servicesRes.data ?? []) as ServiceRow[]);
+      // Re-orden en cliente: collation de BD desordena mayúsculas/tildes.
+      setServices(sortByNameEs((servicesRes.data ?? []) as ServiceRow[]));
       setCoveredIds(
         new Set(
           ((coveredRes.data ?? []) as { service_id: string }[]).map(

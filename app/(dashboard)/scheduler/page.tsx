@@ -108,7 +108,7 @@ export default function SchedulerPage() {
   const { t } = useLanguage();
   const { organizationId, organization } = useOrganization();
   const { doctorId: currentDoctorId, isDoctor } = useCurrentDoctor();
-  const { isOwner, isAdmin } = useOrgRole();
+  const { isOwner, isAdmin, isReceptionist } = useOrgRole();
   // Asesoras de fertilidad (obstetras coordinadoras) operan la agenda
   // como recepción: agendan y gestionan citas de cualquier doctor,
   // aunque su rol base sea `doctor`. Relaja los "solo mis citas".
@@ -681,7 +681,15 @@ export default function SchedulerPage() {
                 onAppointmentDrop={handleAppointmentDrop}
                 onUnblock={handleUnblock}
                 containerHeight={gridContainerHeight}
-                canEndReopen={isOwner || isAdmin || isDoctor}
+                // Finalizar: owner/admin/doctor siempre; recepción según el
+                // toggle por-org (mig 227). Reabrir: nunca recepción.
+                canEnd={
+                  isOwner ||
+                  isAdmin ||
+                  isDoctor ||
+                  (isReceptionist && schedulerConfig.liveStatusReceptionCanEnd)
+                }
+                canReopen={isOwner || isAdmin || isDoctor}
                 onLiveChanged={fetchAppointments}
               />
             ) : (
