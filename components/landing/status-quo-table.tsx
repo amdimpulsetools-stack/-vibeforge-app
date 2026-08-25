@@ -12,7 +12,7 @@ import { Reveal } from "@/components/landing/reveal";
 const rows: { label: string; today: string; yenda: string }[] = [
   {
     label: "Recordar al paciente",
-    today: "Alguien tiene que escribirle a mano — o nadie lo hace",
+    today: "Alguien tiene que escribirle a mano, o nadie lo hace",
     yenda: "WhatsApp automático 24h y 2h antes",
   },
   {
@@ -47,7 +47,7 @@ const rows: { label: string; today: string; yenda: string }[] = [
   },
   {
     label: "Costo",
-    today: "“Gratis” — más las fugas de cada mes",
+    today: "“Gratis”, más las fugas de cada mes",
     yenda: "Desde S/129/mes",
   },
 ];
@@ -61,7 +61,7 @@ export function StatusQuoTable() {
             Lo que hoy te parece gratis, es lo más caro que pagas.
           </h2>
           <p className="mt-4 text-base text-slate-600 leading-relaxed">
-            El papel, el Excel y el WhatsApp personal no cuestan mensualidad —
+            El papel, el Excel y el WhatsApp personal no cuestan mensualidad:
             cuestan citas perdidas, cobros olvidados y domingos sumando a mano.
           </p>
         </Reveal>

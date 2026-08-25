@@ -86,12 +86,12 @@ const roles: RoleData[] = [
       },
     ],
     mockup: {
-      title: "Agenda — Hoy, Lunes 24",
+      title: "Agenda · Hoy, Lunes 24",
       items: [
-        { label: "9:00 — María García", value: "Consulta general", accent: false },
-        { label: "9:30 — Carlos López", value: "Ecografía", accent: true },
-        { label: "10:00 — Ana Rodríguez", value: "Control post operatorio", accent: false },
-        { label: "10:30 — Libre", value: "Cupo disponible", accent: false },
+        { label: "9:00 · María García", value: "Consulta general", accent: false },
+        { label: "9:30 · Carlos López", value: "Ecografía", accent: true },
+        { label: "10:00 · Ana Rodríguez", value: "Control post operatorio", accent: false },
+        { label: "10:30 · Libre", value: "Cupo disponible", accent: false },
       ],
     },
   },
@@ -134,7 +134,7 @@ const roles: RoleData[] = [
       },
     ],
     mockup: {
-      title: "Dashboard — Esta semana",
+      title: "Dashboard · Esta semana",
       items: [
         { label: "Revenue", value: "S/ 8,450", accent: true },
         { label: "Ocupación", value: "87%", accent: false },
@@ -154,7 +154,7 @@ const roles: RoleData[] = [
     subline:
       "El doctor abre su agenda del día, escribe la nota con una plantilla de su especialidad y ve todo el historial del paciente en la misma pantalla.",
     painKiller:
-      "No pierde tiempo en administración — solo en sus pacientes",
+      "No pierde tiempo en administración, solo en sus pacientes",
     features: [
       {
         icon: ClipboardList,
@@ -182,12 +182,12 @@ const roles: RoleData[] = [
       },
     ],
     mockup: {
-      title: "Mis citas — Dr. Ramos",
+      title: "Mis citas · Dr. Ramos",
       items: [
-        { label: "9:00 — María García", value: "Nota SOAP pendiente", accent: true },
-        { label: "10:00 — Carlos López", value: "Completada", accent: false },
-        { label: "11:00 — Ana Rodríguez", value: "En sala de espera", accent: true },
-        { label: "12:00 — Libre", value: "Almuerzo", accent: false },
+        { label: "9:00 · María García", value: "Nota SOAP pendiente", accent: true },
+        { label: "10:00 · Carlos López", value: "Completada", accent: false },
+        { label: "11:00 · Ana Rodríguez", value: "En sala de espera", accent: true },
+        { label: "12:00 · Libre", value: "Almuerzo", accent: false },
       ],
     },
   },
@@ -226,11 +226,11 @@ const roles: RoleData[] = [
         icon: PieChart,
         title: "IA que sugiere",
         description:
-          '"Pacientes de Instagram tienen 40% más retención" — conclusiones automáticas.',
+          '"Pacientes de Instagram tienen 40% más retención": conclusiones automáticas.',
       },
     ],
     mockup: {
-      title: "Marketing — Marzo 2026",
+      title: "Marketing · Marzo 2026",
       items: [
         { label: "Pacientes nuevos", value: "45 este mes", accent: true },
         { label: "Top canal", value: "Instagram (38%)", accent: false },
@@ -275,7 +275,7 @@ export function RoleSuperpowers() {
             Cada uno ve exactamente lo que necesita
           </h2>
           <p className="mt-3 text-lg text-slate-500 max-w-2xl mx-auto">
-            Tú, tu recepcionista y tus doctores entran al mismo sistema — pero nadie ve lo que no le toca. Cada persona ve exactamente lo que necesita para hacer su trabajo mejor.
+            Tú, tu recepcionista y tus doctores entran al mismo sistema, pero nadie ve lo que no le toca. Cada persona ve exactamente lo que necesita para hacer su trabajo mejor.
           </p>
         </div>
 

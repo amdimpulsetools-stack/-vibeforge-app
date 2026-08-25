@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { sortByNameEs } from "@/lib/utils";
 import type { Office, Doctor, Service, LookupValue, DoctorSchedule } from "@/types/admin";
 
 interface SchedulerMasterData {
@@ -55,7 +56,9 @@ async function fetchMasterData(organizationId: string): Promise<SchedulerMasterD
   return {
     offices: (officesRes.data as Office[]) ?? [],
     doctors: (doctorsRes.data as Doctor[]) ?? [],
-    services: (servicesRes.data as Service[]) ?? [],
+    // Re-orden en cliente: el collation de la BD desordena
+    // mayúsculas/tildes ("Ácido", "botox", "Consulta").
+    services: sortByNameEs((servicesRes.data as Service[]) ?? []),
     doctorServices: (doctorServicesRes.data as { doctor_id: string; service_id: string }[]) ?? [],
     doctorSchedules: (doctorSchedulesRes.data as Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time" | "office_id">[]) ?? [],
     lookupOrigins: (originsRes.data as LookupValue[]) ?? [],

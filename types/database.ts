@@ -806,6 +806,11 @@ export interface Database {
           // Duración editable por cita (migration 221). false = la duración
           // la impone el servicio, como antes de la 221.
           allow_custom_duration: boolean;
+          // Recepción puede "Finalizar consulta" (migration 227). Reabrir
+          // queda siempre reservado a owner/admin/doctor. Columna añadida a
+          // mano como el resto de la tabla (no se puede regenerar con
+          // `npm run types` desde aquí).
+          live_status_reception_can_end: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -823,6 +828,7 @@ export interface Database {
           end_minute?: number;
           required_fields?: Record<string, boolean>;
           allow_custom_duration?: boolean;
+          live_status_reception_can_end?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -840,6 +846,7 @@ export interface Database {
           end_minute?: number;
           required_fields?: Record<string, boolean>;
           allow_custom_duration?: boolean;
+          live_status_reception_can_end?: boolean;
           updated_at?: string;
         };
       };

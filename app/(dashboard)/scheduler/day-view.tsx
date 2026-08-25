@@ -39,8 +39,10 @@ interface DayViewProps {
   /** Height of the scroll container the view lives in. When set, rows grow
    * to fill it for short schedules; falsy → falls back to base slot height. */
   containerHeight?: number;
-  /** Live status (Part E) — receptionists can't end/reopen. */
-  canEndReopen?: boolean;
+  /** Live status (Part E) — can "Finalizar consulta" (mig 227: recepción según toggle). */
+  canEnd?: boolean;
+  /** Can "Reabrir consulta" — nunca recepción. */
+  canReopen?: boolean;
   /** Refetch hook fired after a live-status transition. */
   onLiveChanged?: () => void;
 }
@@ -161,7 +163,8 @@ export function DayView({
   onAppointmentDrop,
   onUnblock,
   containerHeight,
-  canEndReopen = false,
+  canEnd = false,
+  canReopen = false,
   onLiveChanged,
 }: DayViewProps) {
   const { t } = useLanguage();
@@ -508,7 +511,8 @@ export function DayView({
                           setDragOverSlot(null);
                         }}
                         liveStatusEnabled={liveStatusEnabled}
-                        canEndReopen={canEndReopen}
+                        canEnd={canEnd}
+                        canReopen={canReopen}
                         isStale={staleApptIds.has(startAppt.id)}
                         onLiveChanged={onLiveChanged}
                       />

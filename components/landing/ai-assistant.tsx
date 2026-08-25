@@ -6,7 +6,7 @@ import { BrainCircuit, Send, Sparkles } from "lucide-react";
 const chatExamples = [
   {
     question: "¿Cuál fue mi servicio más rentable este mes?",
-    answer: "Ecografías generaron S/4,200 este mes — un 35% más que consultas generales. Representan el 28% de tus ingresos totales.",
+    answer: "Ecografías generaron S/4,200 este mes, un 35% más que consultas generales. Representan el 28% de tus ingresos totales.",
   },
   {
     question: "¿Qué doctor tuvo más cancelaciones?",
@@ -18,7 +18,7 @@ const chatExamples = [
   },
   {
     question: "¿Cuántos pacientes nuevos tuve vs recurrentes?",
-    answer: "Este mes: 45 nuevos, 128 recurrentes. Tu tasa de retención es del 74% — 8 puntos arriba vs. el mes pasado.",
+    answer: "Este mes: 45 nuevos, 128 recurrentes. Tu tasa de retención es del 74%, 8 puntos arriba vs. el mes pasado.",
   },
 ];
 
@@ -93,7 +93,7 @@ export function AIAssistant() {
               <span className="text-emerald-600">No es un extra.</span>
             </h2>
             <p className="mt-4 text-base text-slate-600 leading-relaxed">
-              Pregúntale a tu clínica lo que le preguntarías a un contador — en
+              Pregúntale a tu clínica lo que le preguntarías a un contador: en
               español, y te responde al toque. Qué servicio fue el más rentable,
               qué doctor tuvo más cancelaciones, cuántos pacientes vinieron de
               Instagram. Incluido en los tres planes, sin costo aparte.
@@ -107,7 +107,7 @@ export function AIAssistant() {
                   className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${t.color}`}
                 >
                   {t.label}
-                  <span className="text-[10px] opacity-60">— {t.plan}</span>
+                  <span className="text-[10px] opacity-60">· {t.plan}</span>
                 </span>
               ))}
             </div>
@@ -181,7 +181,7 @@ export function AIAssistant() {
               <div className="border-t border-slate-100 px-4 py-3 bg-white">
                 <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                   <span className="text-xs text-slate-400 flex-1">
-                    Elige una pregunta arriba — así se siente por dentro
+                    Elige una pregunta arriba: así se siente por dentro
                   </span>
                   <div className="h-7 w-7 rounded-md gradient-primary flex items-center justify-center">
                     <Send className="h-3.5 w-3.5 text-white" />

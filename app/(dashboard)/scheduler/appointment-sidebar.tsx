@@ -108,9 +108,16 @@ export function AppointmentSidebar({
   const { t } = useLanguage();
   const { profile } = useUserProfile();
   const { isAdmin, isDoctor: isDoctorRole, isReceptionist } = useOrgRole();
-  // Live status master toggle — instant from the localStorage cache;
-  // the scheduler page keeps it fresh via fetchSchedulerConfig().
-  const liveStatusEnabled = useMemo(() => loadSchedulerConfig().liveStatus, []);
+  // Live status master toggle + "recepción puede finalizar" (mig 227) —
+  // instant from the localStorage cache; the scheduler page keeps it
+  // fresh via fetchSchedulerConfig().
+  const { liveStatusEnabled, receptionCanEnd } = useMemo(() => {
+    const cfg = loadSchedulerConfig();
+    return {
+      liveStatusEnabled: cfg.liveStatus,
+      receptionCanEnd: cfg.liveStatusReceptionCanEnd,
+    };
+  }, []);
   // Phase 3 (Budget Tiers): only show the "Asignar presupuesto" CTA on
   // completed appointments and only for orgs with the fertility addon
   // active. Receptionists are excluded (advisors with non-receptionist
@@ -978,7 +985,10 @@ export function AppointmentSidebar({
                   appointment.consultation_ended_at ?? null,
               }}
               size="sidebar"
-              canEndReopen={!isReceptionist}
+              // Finalizar: recepción solo con el toggle por-org (mig 227).
+              // Reabrir: nunca recepción, toggle o no.
+              canEnd={!isReceptionist || receptionCanEnd}
+              canReopen={!isReceptionist}
               onChanged={() => onUpdate()}
             />
           )}

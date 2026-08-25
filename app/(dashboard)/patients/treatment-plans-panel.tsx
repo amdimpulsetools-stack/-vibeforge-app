@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, sortByNameEs } from "@/lib/utils";
 import type {
   TreatmentPlanWithSessions,
 } from "@/types/clinical-history";
@@ -107,7 +107,8 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
       .select("id, name, base_price, duration_minutes")
       .eq("is_active", true)
       .order("name");
-    setServices((data ?? []) as ServiceOption[]);
+    // Re-orden en cliente: collation de BD desordena mayúsculas/tildes.
+    setServices(sortByNameEs((data ?? []) as ServiceOption[]));
   }, []);
 
   useEffect(() => { fetchPlans(); }, [fetchPlans]);

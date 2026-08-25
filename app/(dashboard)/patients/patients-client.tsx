@@ -27,7 +27,7 @@ import {
   Upload,
   UserPlus,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, sortByNameEs } from "@/lib/utils";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrganization } from "@/components/organization-provider";
 import { usePlan } from "@/hooks/use-plan";
@@ -128,7 +128,8 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
         .select("id, name")
         .eq("is_active", true)
         .order("name");
-      return (data ?? []) as { id: string; name: string }[];
+      // Re-orden en cliente: collation de BD desordena mayúsculas/tildes.
+      return sortByNameEs((data ?? []) as { id: string; name: string }[]);
     },
   });
   const services = servicesData ?? [];

@@ -967,6 +967,8 @@ function ServiceForm({
       modality: (service as any)?.modality ?? "in_person",
       pre_appointment_instructions: (service as any)?.pre_appointment_instructions ?? "",
       requires_consent: (service as { requires_consent?: boolean })?.requires_consent ?? false,
+      // mig 228 — el campo no está en types/database.ts todavía.
+      send_reminders: (service as { send_reminders?: boolean })?.send_reminders ?? true,
       is_active: service?.is_active ?? true,
       sunat_product_code: (service as { sunat_product_code?: string })?.sunat_product_code ?? "",
       unit_of_measure: (service as { unit_of_measure?: string })?.unit_of_measure ?? "ZZ",
@@ -1082,6 +1084,8 @@ function ServiceForm({
       modality: values.modality,
       pre_appointment_instructions: values.pre_appointment_instructions || null,
       requires_consent: values.requires_consent,
+      // Opt-out de envíos automáticos por servicio (mig 228).
+      send_reminders: values.send_reminders,
       is_active: values.is_active,
       // Seguimientos core (mig 182) — sin gate de addon: NULL = sin
       // seguimiento automático, que es el comportamiento actual.
@@ -1250,6 +1254,23 @@ function ServiceForm({
             Marca los procedimientos con riesgo (cirugía, anestesia, estética,
             radiación, etc.). El doctor verá un recordatorio en la nota
             clínica y la ficha del paciente alertará si falta el documento firmado.
+          </div>
+        </div>
+      </label>
+
+      {/* Opt-out de envíos automáticos (mig 228) — default activado. */}
+      <label className="flex items-start gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm">
+        <input
+          type="checkbox"
+          {...register("send_reminders")}
+          className="mt-0.5 rounded"
+        />
+        <div className="flex-1">
+          <div className="font-medium">Enviar recordatorios automáticos al paciente</div>
+          <div className="text-xs text-muted-foreground">
+            Si lo apagas, las citas de este servicio no envían recordatorios
+            de 24h/2h ni confirmaciones. Ideal para procedimientos internos o
+            controles sin aviso.
           </div>
         </div>
       </label>

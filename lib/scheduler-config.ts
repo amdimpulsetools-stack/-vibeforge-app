@@ -10,6 +10,7 @@ export const SCHEDULER_CONFIG_KEYS = {
   disabledWeekdays: "vibeforge_disabled_weekdays",
   liveStatus: "vibeforge_live_status",
   liveStatusAutoClose: "vibeforge_live_status_auto_close",
+  liveStatusReceptionCanEnd: "vibeforge_live_status_reception_can_end",
   requiredFields: "vibeforge_scheduler_required_fields",
   allowCustomDuration: "vibeforge_scheduler_allow_custom_duration",
 };
@@ -89,6 +90,11 @@ export interface SchedulerConfig {
   /** Sub-toggle: starting a consultation auto-closes the doctor's previous open one. */
   liveStatusAutoClose: boolean;
   /**
+   * Sub-toggle (mig 227): el rol Recepción puede "Finalizar consulta".
+   * Default true. Reabrir queda siempre reservado a owner/admin/doctor.
+   */
+  liveStatusReceptionCanEnd: boolean;
+  /**
    * Sparse map of which configurable New-Appointment fields are mandatory
    * (mig 176). Default {} = code defaults (byte-identical to pre-176).
    */
@@ -111,6 +117,7 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   disabledWeekdays: [0], // Sunday disabled by default
   liveStatus: true,
   liveStatusAutoClose: true,
+  liveStatusReceptionCanEnd: true, // mig 227 — on = recepción puede finalizar
   requiredFields: {}, // mig 176 — empty = code defaults (back-compat)
   allowCustomDuration: false, // mig 221 — off = duración impuesta por el servicio
 };
@@ -178,6 +185,7 @@ export function loadSchedulerConfig(): SchedulerConfig {
     } catch { /* keep default */ }
     const liveStatus = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.liveStatus) ?? "true") === "true";
     const liveStatusAutoClose = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.liveStatusAutoClose) ?? "true") === "true";
+    const liveStatusReceptionCanEnd = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.liveStatusReceptionCanEnd) ?? "true") === "true";
     // Required fields (mig 176): missing/invalid cache → {} (back-compat).
     // Orgs cached under the pre-176 shape simply have no key here, so the
     // JSON.parse falls through to {} and behavior is unchanged.
@@ -190,7 +198,7 @@ export function loadSchedulerConfig(): SchedulerConfig {
     // default es FALSE — una caché vieja sin la key deja el flag apagado, que
     // es el comportamiento anterior.
     const allowCustomDuration = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.allowCustomDuration) ?? "false") === "true";
-    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose, requiredFields, allowCustomDuration };
+    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose, liveStatusReceptionCanEnd, requiredFields, allowCustomDuration };
   } catch {
     return DEFAULT_SCHEDULER_CONFIG;
   }
@@ -208,6 +216,7 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
   if (config.disabledWeekdays !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.disabledWeekdays, JSON.stringify(config.disabledWeekdays));
   if (config.liveStatus !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.liveStatus, String(config.liveStatus));
   if (config.liveStatusAutoClose !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.liveStatusAutoClose, String(config.liveStatusAutoClose));
+  if (config.liveStatusReceptionCanEnd !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.liveStatusReceptionCanEnd, String(config.liveStatusReceptionCanEnd));
   if (config.requiredFields !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.requiredFields, JSON.stringify(config.requiredFields));
   if (config.allowCustomDuration !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.allowCustomDuration, String(config.allowCustomDuration));
 }
@@ -225,6 +234,7 @@ function dbRowToConfig(row: {
   disabled_weekdays: unknown;
   live_status?: boolean | null;
   live_status_auto_close?: boolean | null;
+  live_status_reception_can_end?: boolean | null;
   required_fields?: unknown;
   allow_custom_duration?: boolean | null;
 }): SchedulerConfig {
@@ -244,6 +254,9 @@ function dbRowToConfig(row: {
     disabledWeekdays,
     liveStatus: row.live_status ?? true,
     liveStatusAutoClose: row.live_status_auto_close ?? true,
+    // mig 227 — columna ausente (fila anterior a la migración) → true, el
+    // default decidido: recepción SÍ puede finalizar.
+    liveStatusReceptionCanEnd: row.live_status_reception_can_end ?? true,
     // mig 176 — undefined column (pre-migration cache/row) → {} default.
     requiredFields: sanitizeRequiredFields(row.required_fields),
     // mig 221 — columna ausente (fila anterior a la migración) → false, que
@@ -294,6 +307,7 @@ export async function saveSchedulerConfigToDb(
     if (config.disabledWeekdays !== undefined) body.disabled_weekdays = config.disabledWeekdays;
     if (config.liveStatus !== undefined) body.live_status = config.liveStatus;
     if (config.liveStatusAutoClose !== undefined) body.live_status_auto_close = config.liveStatusAutoClose;
+    if (config.liveStatusReceptionCanEnd !== undefined) body.live_status_reception_can_end = config.liveStatusReceptionCanEnd;
     if (config.requiredFields !== undefined) body.required_fields = config.requiredFields;
     if (config.allowCustomDuration !== undefined) body.allow_custom_duration = config.allowCustomDuration;
     if (orgId) body.org_id = orgId;

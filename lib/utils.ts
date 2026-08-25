@@ -65,6 +65,20 @@ export function getInitials(name: string) {
     .slice(0, 2);
 }
 
+/**
+ * Orden alfabético real en español para listas con `name`.
+ *
+ * El `.order("name")` de Postgres mezcla mayúsculas/minúsculas y tildes
+ * ("Ácido" y "botox" quedan fuera de lugar frente a "Consulta"), así que
+ * los selects re-ordenan en el cliente con localeCompare es +
+ * sensitivity base (ignora caso y acentos). Devuelve una copia.
+ */
+export function sortByNameEs<T extends { name?: string | null }>(items: T[]): T[] {
+  return [...items].sort((a, b) =>
+    (a.name ?? "").localeCompare(b.name ?? "", "es", { sensitivity: "base" }),
+  );
+}
+
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

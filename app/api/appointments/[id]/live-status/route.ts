@@ -19,10 +19,15 @@ import { generalLimiter } from "@/lib/rate-limit";
 //   reopen    → clears consultation_ended_at + reason (undo for a
 //               wrong manual/auto close)
 //
-// Permissions: any active member EXCEPT that receptionists cannot
-// `end`/`reopen` other people's consultations — but they CAN arrive
-// and start (the doctor calls reception to send the patient in).
-// Owner/admin/doctor can do everything. All actions are org-scoped.
+// Permissions: any active member, with two receptionist rules:
+//   • `end` is allowed when the org's toggle
+//     scheduler_settings.live_status_reception_can_end (mig 227) is
+//     on — which is the default. Off = only owner/admin/doctor end.
+//   • `reopen` is ALWAYS forbidden for receptionists, toggle or not —
+//     resurrecting a doctor's closed session is not delegated.
+// They can always arrive/unarrive/start (the doctor calls reception
+// to send the patient in). Owner/admin/doctor can do everything. All
+// actions are org-scoped.
 // ──────────────────────────────────────────────────────────────────
 
 const bodySchema = z.object({
@@ -96,16 +101,27 @@ export async function POST(
     );
   }
 
-  // Receptionists can arrive/unarrive/start but not end/reopen —
-  // they shouldn't close or resurrect a doctor's session.
-  if (
-    membership.role === "receptionist" &&
-    (action === "end" || action === "reopen")
-  ) {
-    return NextResponse.json(
-      { error: "Sin permisos para esta acción" },
-      { status: 403 },
-    );
+  // Receptionist gates: `reopen` is always off-limits; `end` depends
+  // on the org's toggle (mig 227, default ON).
+  if (membership.role === "receptionist") {
+    if (action === "reopen") {
+      return NextResponse.json(
+        { error: "Solo el doctor o un administrador puede reabrir la consulta" },
+        { status: 403 },
+      );
+    }
+    if (action === "end") {
+      const receptionCanEnd = await readReceptionCanEndSetting(
+        supabase,
+        membership.organization_id,
+      );
+      if (!receptionCanEnd) {
+        return NextResponse.json(
+          { error: "Solo el doctor o un administrador puede finalizar la consulta" },
+          { status: 403 },
+        );
+      }
+    }
   }
 
   const nowIso = new Date().toISOString();
@@ -217,5 +233,26 @@ async function readAutoCloseSetting(
     .maybeSingle();
   const value = (data as { live_status_auto_close: boolean | null } | null)
     ?.live_status_auto_close;
+  return value !== false;
+}
+
+/**
+ * Reads the org's "reception can end consultations" toggle from
+ * scheduler_settings (mig 227). Absent row/column → default ON,
+ * matching the founder's decision. Settings → Agenda writes this
+ * column. Same pattern as readAutoCloseSetting above.
+ */
+async function readReceptionCanEndSetting(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  organizationId: string,
+): Promise<boolean> {
+  const { data } = await supabase
+    .from("scheduler_settings")
+    .select("live_status_reception_can_end")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  const value = (
+    data as { live_status_reception_can_end: boolean | null } | null
+  )?.live_status_reception_can_end;
   return value !== false;
 }

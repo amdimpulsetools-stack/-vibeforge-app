@@ -207,7 +207,7 @@ export function Hero() {
                     <span className="rounded-md bg-red-50 border border-red-200 px-1.5 py-0.5 text-[9px] font-semibold text-red-600 tabular-nums">S/ 200.00</span>
                   </div>
                   <div className="space-y-0.5 text-[10px] text-slate-600">
-                    <p>21/08/2026 · 09:30 — 10:00</p>
+                    <p>21/08/2026 · 09:30 a 10:00</p>
                     <p className="flex items-center gap-1">
                       <span className="h-1.5 w-1.5 rounded-full bg-sky-500 inline-block" />
                       Lic. Jorge Espinoza
@@ -251,7 +251,7 @@ export function Hero() {
             </div>
             <div className="mt-1.5 flex justify-start">
               <div className="rounded-xl rounded-bl-sm bg-slate-100 px-2.5 py-1.5 text-[11px] text-slate-700">
-                S/ 4,350 — 12% más que la semana pasada.
+                S/ 4,350, un 12% más que la semana pasada.
               </div>
             </div>
           </div>
@@ -303,8 +303,8 @@ export function Hero() {
           {/* Versión móvil de las flotantes: fila con scroll horizontal */}
           <div className="lg:hidden mt-4 flex gap-3 overflow-x-auto pb-2 -mx-6 px-6">
             {[
-              { t: "Asistente IA", d: "\u201c¿Cuánto facturé esta semana?\u201d — S/ 4,350, +12%", Icon: Sparkles },
-              { t: "Seguimientos", d: "María Torres · retoque de toxina — 1 día para contactar", Icon: Bell },
+              { t: "Asistente IA", d: "\u201c¿Cuánto facturé esta semana?\u201d: S/ 4,350, +12%", Icon: Sparkles },
+              { t: "Seguimientos", d: "María Torres · retoque de toxina · 1 día para contactar", Icon: Bell },
               { t: "Por distrito", d: "Miraflores 42% · San Borja 27% · Surco 18%", Icon: BarChart3 },
             ].map(({ t, d, Icon }) => (
               <div key={t} className="min-w-[220px] shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm p-3 text-left">

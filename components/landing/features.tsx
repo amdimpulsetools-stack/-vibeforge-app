@@ -8,7 +8,7 @@ const features = [
     icon: Calendar,
     title: "Agenda Inteligente",
     before:
-      "La cita entra por WhatsApp, se anota en el cuaderno, se olvida pasar al Excel — y a las 9 am hay dos pacientes para el mismo consultorio",
+      "La cita entra por WhatsApp, se anota en el cuaderno, se olvida pasar al Excel, y a las 9 am hay dos pacientes para el mismo consultorio",
     after:
       "Una sola agenda que sabe qué doctor está libre y cuánto dura cada servicio. No deja agendar dos pacientes a la misma hora, y a cada uno le manda su recordatorio por WhatsApp sin que nadie escriba nada.",
   },
@@ -26,13 +26,13 @@ const features = [
     before:
       "Cobras en efectivo, se anota en un cuaderno, y al final del mes nadie sabe si falta plata",
     after:
-      "Apertura, cierre y arqueo conectados a cada cita cobrada. Al final del día sabes cuánto entró — y si falta algo, sabes exactamente dónde.",
+      "Apertura, cierre y arqueo conectados a cada cita cobrada. Al final del día sabes cuánto entró, y si falta algo, sabes exactamente dónde.",
   },
   {
     icon: ReceiptText,
     title: "Boletas y facturas SUNAT",
     before:
-      "Cobras aquí, y las boletas se emiten en otro sistema — o el contador te persigue a fin de mes",
+      "Cobras aquí, y las boletas se emiten en otro sistema, o el contador te persigue a fin de mes",
     after:
       "Emisión electrónica a SUNAT desde la misma cita, en un clic. Sin pasar los datos a otro sistema.",
   },

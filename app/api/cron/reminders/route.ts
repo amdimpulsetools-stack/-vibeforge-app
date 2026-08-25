@@ -92,7 +92,7 @@ export async function GET(req: NextRequest) {
         discount_amount,
         doctors ( full_name ),
         offices ( name ),
-        services ( name, base_price, pre_appointment_instructions ),
+        services ( name, base_price, pre_appointment_instructions, send_reminders ),
         patients ( email, first_name, last_name, phone )
       `
       )
@@ -273,7 +273,41 @@ export async function GET(req: NextRequest) {
         // patient without an email can still receive the WhatsApp reminder.
         const doctor = appt.doctors as any;
         const office = appt.offices as any;
-        const service = appt.services as any;
+        // `send_reminders` aún no está en types/database.ts (no se puede
+        // regenerar sin la migración aplicada) — cast local (mig 228).
+        const service = appt.services as {
+          name?: string;
+          base_price?: number | null;
+          pre_appointment_instructions?: string | null;
+          send_reminders?: boolean;
+        } | null;
+
+        // Opt-out por servicio (mig 228): con send_reminders=false la cita
+        // no recibe recordatorios automáticos por NINGÚN canal (email ni
+        // WhatsApp), en ambas ventanas (24h y 2h). Citas sin servicio
+        // (service null) mantienen el comportamiento anterior (default true).
+        if (service && service.send_reminders === false) {
+          skipped++;
+          for (const channel of ["email", "whatsapp"] as const) {
+            const alreadySent =
+              channel === "email"
+                ? emailAlreadySent.has(appt.id)
+                : waAlreadySent.has(appt.id);
+            if (alreadySent) continue;
+            await supabase.from("reminder_logs").upsert(
+              {
+                appointment_id: appt.id,
+                template_slug: window.slug,
+                channel,
+                recipient: "none",
+                status: "skipped",
+                error_message: "Servicio con recordatorios desactivados (send_reminders=false)",
+              },
+              { onConflict: "appointment_id,template_slug,channel" }
+            );
+          }
+          continue;
+        }
 
         const patientName = patient
           ? `${patient.first_name} ${patient.last_name}`.trim()
