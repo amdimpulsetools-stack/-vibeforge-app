@@ -28,6 +28,11 @@ export const serviceSchema = z.object({
   requires_consent: z.boolean().default(false),
   is_active: z.boolean().default(true),
 
+  // Opt-out de envíos automáticos (mig 228) — false = las citas de este
+  // servicio no mandan recordatorios 24h/2h ni confirmaciones al paciente.
+  // Los envíos manuales del staff no se ven afectados.
+  send_reminders: z.boolean().default(true),
+
   // Fiscal data — only relevant if e-invoicing is connected. All optional so
   // services created before activation keep working.
   sunat_product_code: z

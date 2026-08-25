@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       *,
       doctors ( full_name ),
       offices ( name ),
-      services ( name, base_price, pre_appointment_instructions ),
+      services ( name, base_price, pre_appointment_instructions, send_reminders ),
       patients ( email, first_name, last_name, phone )
     `
     )
@@ -72,6 +72,27 @@ export async function POST(req: NextRequest) {
   // Verify appointment belongs to user's org
   if (appointment.organization_id !== membership.organization_id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // Opt-out por servicio (mig 228): las confirmaciones automáticas
+  // (disparadas al crear la cita desde el modal y al pasar el estado a
+  // "confirmada" desde el sidebar) respetan el flag del catálogo, igual que
+  // los recordatorios 24h/2h del cron. Solo gateamos los slugs de
+  // confirmación: recibos de pago, reprogramaciones (opt-in explícito del
+  // staff) y demás eventos siguen saliendo. `send_reminders` aún no está en
+  // types/database.ts (no se puede regenerar sin la migración aplicada) —
+  // cast local.
+  const CONFIRMATION_SLUGS = [
+    "appointment_confirmation",
+    "appointment_confirmation_virtual",
+  ];
+  const apptService = appointment.services as { send_reminders?: boolean } | null;
+  if (
+    CONFIRMATION_SLUGS.includes(type) &&
+    apptService &&
+    apptService.send_reminders === false
+  ) {
+    return NextResponse.json({ skipped: true, reason: "service_send_reminders_off" });
   }
 
   // Determine recipient email — patient email from patients table or from extra_variables.

@@ -173,7 +173,7 @@ export async function POST(
   // 7. Verify service exists
   const { data: service } = await supabase
     .from("services")
-    .select("id, name, duration_minutes, base_price")
+    .select("id, name, duration_minutes, base_price, send_reminders")
     .eq("id", data.service_id)
     .eq("organization_id", org.id)
     .eq("is_active", true)
@@ -355,8 +355,16 @@ export async function POST(
     doctorUserId: doctor.user_id ?? null,
   });
 
+  // Opt-out por servicio (mig 228): con send_reminders=false este servicio
+  // no manda la confirmación automática al paciente (misma regla que los
+  // recordatorios 24h/2h del cron). `send_reminders` aún no está en
+  // types/database.ts (no se puede regenerar sin la migración aplicada) —
+  // cast local.
+  const serviceSendsToPatient =
+    (service as { send_reminders?: boolean }).send_reminders !== false;
+
   // 14. Send confirmation email (fire-and-forget)
-  if (data.patient_email) {
+  if (data.patient_email && serviceSendsToPatient) {
     sendBookingConfirmationEmail(
       supabase,
       org.id,
