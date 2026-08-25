@@ -18,9 +18,10 @@
  */
 
 import { useMemo, useState } from "react";
-import { Download, History, Printer } from "lucide-react";
+import { Download, History, Printer, Undo2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { exportToCSV } from "@/lib/export";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 // Los <input type="date"> nativos se pintan con el idioma del NAVEGADOR: en un
 // Chrome en inglés salen mm/dd/aaaa aunque la app esté en español. DatePicker
 // fija dd/mm/aaaa para todos y devuelve el mismo string ISO.
@@ -42,6 +43,16 @@ interface Props {
   movements: InventoryMovement[];
   products: InventoryProduct[];
   authors: Record<string, string>;
+  /**
+   * Corrección tardía por fila: inserta el MISMO contra-asiento que el
+   * "Deshacer" del toast (`undoMovement` en page.tsx). Ausente cuando no hay
+   * sesión — sin callback, el botón "Corregir" no se pinta.
+   */
+  onUndo?: (
+    original: InventoryMovement,
+    productName: string,
+    baseUnit: string
+  ) => Promise<void>;
 }
 
 type TypeFilter = MovementType | "todos";
@@ -76,8 +87,9 @@ function isBackdated(m: InventoryMovement): boolean {
 const inputCls =
   "h-9 rounded-lg border border-border bg-card px-2.5 text-xs outline-none focus:border-primary/50";
 
-export function MovementList({ movements, products, authors }: Props) {
+export function MovementList({ movements, products, authors, onUndo }: Props) {
   const byId = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
+  const confirm = useConfirm();
 
   const [from, setFrom] = useState(() => isoDaysAgo(30));
   const [to, setTo] = useState(() => isoDaysAgo(0));
@@ -185,6 +197,39 @@ export function MovementList({ movements, products, authors }: Props) {
   }, [filtered, reversed]);
 
   const rows = filtered.slice(0, visible);
+
+  /**
+   * "Corregir" por fila. Solo movimientos que (a) no son contra-asientos y
+   * (b) no fueron ya revertidos — `reversed` (reversedPairIds sobre la lista
+   * COMPLETA, no la filtrada) contiene los ids que aparecen como
+   * `reverses_movement_id`, así que junto con `reverses_movement_id === null`
+   * cubre ambos lados del par. Se excluyen también las filas optimistas
+   * (`tmp-`): todavía no tienen id real que referenciar.
+   */
+  function canCorrect(m: InventoryMovement): boolean {
+    return (
+      onUndo !== undefined &&
+      m.reverses_movement_id === null &&
+      !reversed.has(m.id) &&
+      !m.id.startsWith("tmp-")
+    );
+  }
+
+  async function handleCorrect(m: InventoryMovement) {
+    if (!onUndo) return;
+    const p = byId.get(m.product_id);
+    // A diferencia del "Deshacer" inmediato del toast, esto llega tarde y en
+    // frío: confirmación ligera antes de tocar el libro.
+    const ok = await confirm({
+      title: "¿Corregir este movimiento?",
+      description:
+        "Se creará un contra-asiento que revierte este movimiento y restaura el stock. El kardex conserva ambos registros.",
+      confirmText: "Corregir",
+      cancelText: "Cancelar",
+    });
+    if (!ok) return;
+    await onUndo(m, p?.name ?? "El producto", p?.base_unit ?? "und");
+  }
 
   function authorLabel(m: InventoryMovement): string {
     if (!m.created_by) return "Importación / sistema";
@@ -486,6 +531,22 @@ export function MovementList({ movements, products, authors }: Props) {
                       {p?.base_unit.toLowerCase() ?? ""}
                     </span>
                   </span>
+                  {/* Slot fijo: las filas sin botón llevan un espaciador del
+                      mismo ancho para que la columna de cantidades no baile. */}
+                  {onUndo !== undefined &&
+                    (canCorrect(m) ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleCorrect(m)}
+                        title="Corregir con un contra-asiento"
+                        aria-label={`Corregir movimiento de ${p?.name ?? "producto"}`}
+                        className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-muted-foreground/60 transition-colors hover:bg-accent hover:text-foreground print:hidden"
+                      >
+                        <Undo2 className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <span aria-hidden className="h-7 w-7 shrink-0 print:hidden" />
+                    ))}
                 </li>
               );
             })}

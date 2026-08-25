@@ -716,6 +716,11 @@ export default function AlmacenPage() {
               movements={movements}
               products={products}
               authors={authors}
+              // Corrección tardía por fila: mismo contra-asiento del toast
+              // "Deshacer". Mismo permiso que registrar movimientos: cualquier
+              // miembro con sesión (la RLS 209 permite INSERT a todo miembro);
+              // el gate de admin solo aplica al catálogo, no al kardex.
+              onUndo={user ? undoMovement : undefined}
             />
           )}
         </TabsContent>
