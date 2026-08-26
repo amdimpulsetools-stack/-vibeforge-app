@@ -35,6 +35,37 @@ const csp = [
   "form-action 'self'",
 ].join("; ") + ";";
 
+// CSP SOLO para /pagar (página pública de cobro al paciente con Culqi
+// Checkout Custom). La política global mantiene `script-src 'self'` — estos
+// orígenes extra se conceden únicamente en esta ruta:
+//   - script-src https://js.culqi.com      → ahí vive el script checkout-js.
+//   - script-src https://checkout.culqi.com → chunks secundarios que el
+//     checkout carga desde su propio host.
+//   - frame-src  https://checkout.culqi.com y https://js.culqi.com → el
+//     modal del checkout se renderiza en un iframe alojado por Culqi (la
+//     tokenización de la tarjeta ocurre DENTRO de ese iframe, nunca en
+//     nuestro origen).
+//   - connect-src https://api.culqi.com, https://secure.culqi.com y
+//     https://checkout.culqi.com → XHR de tokenización/antifraude que el
+//     script dispara desde el contexto de la página.
+// Validar en sandbox con llaves pk_test_ (ver app/pagar/[token]/
+// culqi-checkout.ts); si Culqi usa un origen adicional, añadirlo AQUÍ y
+// documentarlo, no en la política global.
+const cspPagar = [
+  "default-src 'self'",
+  isDev
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.culqi.com https://checkout.culqi.com"
+    : "script-src 'self' 'unsafe-inline' https://js.culqi.com https://checkout.culqi.com",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://*.supabase.co",
+  "font-src 'self' data:",
+  `connect-src 'self' https://${supabaseDomain} https://*.supabase.co wss://*.supabase.co https://api.culqi.com https://secure.culqi.com https://checkout.culqi.com`,
+  "frame-src 'self' https://checkout.culqi.com https://js.culqi.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ") + ";";
+
 const securityHeaders = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
@@ -103,9 +134,16 @@ function setCachedSessionCheck(userId: string, session: SessionCheck): void {
   sessionCheckCache.set(userId, { session, checkedAt: Date.now() });
 }
 
-function applySecurityHeaders(response: NextResponse): NextResponse {
+function applySecurityHeaders(
+  response: NextResponse,
+  pathname?: string
+): NextResponse {
   for (const [key, value] of Object.entries(securityHeaders)) {
     response.headers.set(key, value);
+  }
+  // La ruta pública de pago necesita los orígenes de Culqi (ver cspPagar).
+  if (pathname === "/pagar" || pathname?.startsWith("/pagar/")) {
+    response.headers.set("Content-Security-Policy", cspPagar);
   }
   return response;
 }
@@ -201,7 +239,9 @@ export async function updateSession(request: NextRequest) {
   // de Meta las visita como anónimo — con redirect a login, rechazo
   // automático (auditoría 12-ago-2026; estaban fuera de esta lista y
   // producción mandaba las páginas legales al login).
-  const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/api", "/auth", "/book", "/portal", "/producto", "/blog", "/base-conocimientos", "/calculadora-whatsapp", "/contacto", "/socios", "/soporte", "/privacy", "/terms", "/data-deletion"];
+  // /pagar = enlace público de cobro al paciente (Culqi): se abre desde
+  // WhatsApp sin sesión; con redirect a login el paciente nunca podría pagar.
+  const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/api", "/auth", "/book", "/pagar", "/portal", "/producto", "/blog", "/base-conocimientos", "/calculadora-whatsapp", "/contacto", "/socios", "/soporte", "/privacy", "/terms", "/data-deletion"];
   const isPublic = publicPaths.some((path) =>
     pathname === path || pathname.startsWith(path + "/")
   );
@@ -318,5 +358,5 @@ export async function updateSession(request: NextRequest) {
     if (!fromCache) setCachedSessionCheck(user.id, s);
   }
 
-  return applySecurityHeaders(supabaseResponse);
+  return applySecurityHeaders(supabaseResponse, pathname);
 }

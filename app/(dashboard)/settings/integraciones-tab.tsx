@@ -22,7 +22,9 @@ import { useOrganization } from "@/components/organization-provider";
 import { WhatsAppWizard } from "@/components/integrations/whatsapp-wizard";
 import { GCalDescriptionDialog } from "@/components/integrations/gcal-description-dialog";
 import { EInvoiceSetupDialog } from "@/components/integrations/einvoice-setup-dialog";
+import { CulqiSetupDialog } from "@/components/integrations/culqi-setup-dialog";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
+import { useCulqiConfig } from "@/hooks/use-culqi-config";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 // El glifo vive en components/icons: es el mismo que usan los botones
 // que abren wa.me. Aquí es el LOGO de la tarjeta de integración (no una
@@ -132,6 +134,9 @@ export default function IntegracionesTab() {
   const [whatsappConnected, setWhatsappConnected] = useState(false);
   const einvoiceConfig = useEInvoiceConfig();
   const [einvoiceSetupOpen, setEinvoiceSetupOpen] = useState(false);
+  const culqiConfig = useCulqiConfig();
+  const [culqiSetupOpen, setCulqiSetupOpen] = useState(false);
+  const [culqiToggling, setCulqiToggling] = useState(false);
   const [gcal, setGcal] = useState<GCalStatus>({ connected: false });
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [gcalDescriptionOpen, setGcalDescriptionOpen] = useState(false);
@@ -313,6 +318,53 @@ export default function IntegracionesTab() {
     }
   };
 
+  const handleDisconnectCulqi = async () => {
+    const ok = await confirm({
+      title: "Desconectar Culqi",
+      description:
+        "Se eliminarán tus llaves de Culqi (la secreta cifrada incluida) y no se podrán crear nuevos links de pago. Los links y cobros ya registrados se conservan.",
+      confirmText: "Desconectar",
+      variant: "destructive",
+    });
+    if (!ok) return;
+    const res = await fetch("/api/culqi-config", { method: "DELETE" });
+    if (res.ok) {
+      toast.success("Culqi desconectado.");
+      culqiConfig.refetch();
+    } else {
+      toast.error("Error al desconectar.");
+    }
+  };
+
+  // Toggle rápido habilitar/pausar sin abrir el dialog: reenvía la
+  // public key actual + el centinela para conservar el secret guardado.
+  const handleToggleCulqi = async (enabled: boolean) => {
+    if (!culqiConfig.publicKey) return;
+    setCulqiToggling(true);
+    try {
+      const res = await fetch("/api/culqi-config", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          public_key: culqiConfig.publicKey,
+          secret_key: "••••••••",
+          enabled,
+        }),
+      });
+      if (res.ok) {
+        toast.success(
+          enabled ? "Cobros por link habilitados." : "Cobros por link pausados."
+        );
+        culqiConfig.refetch();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data?.error || "No se pudo guardar.");
+      }
+    } finally {
+      setCulqiToggling(false);
+    }
+  };
+
   const integrations: Integration[] = [
     {
       id: "whatsapp",
@@ -364,14 +416,15 @@ export default function IntegracionesTab() {
     },
     {
       id: "culqi",
-      name: "Culqi",
+      name: "Culqi — Cobros online",
       category: INTEGRATION_CATEGORIES.payments[language as "es" | "en"] || INTEGRATION_CATEGORIES.payments.es,
       description: {
-        es: "Pasarela de pagos peruana. Procesa Visa, Mastercard, Amex, Yape y PagoEfectivo.",
-        en: "Peruvian payment gateway. Processes Visa, Mastercard, Amex, Yape and PagoEfectivo.",
+        es: "Genera links de pago por WhatsApp; tus pacientes pagan con tarjeta o Yape y el cobro entra solo a Caja.",
+        en: "Generate payment links via WhatsApp; your patients pay by card or Yape and the charge lands in Caja automatically.",
       },
       iconNode: <CreditCard className="h-6 w-6 text-violet-500" />,
-      status: "coming-soon",
+      status: culqiConfig.connected ? "connected" : "available",
+      onConnect: () => setCulqiSetupOpen(true),
     },
     {
       id: "nubefact",
@@ -608,6 +661,52 @@ export default function IntegracionesTab() {
                     </div>
                   )}
 
+                  {/* Culqi — extra status detail when connected */}
+                  {it.id === "culqi" && culqiConfig.connected && (
+                    <div className="mb-3 space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{es ? "Llave pública" : "Public key"}:</span>
+                        <span className="font-medium font-mono truncate max-w-[9rem]" title={culqiConfig.publicKey ?? ""}>
+                          {culqiConfig.publicKey
+                            ? `${culqiConfig.publicKey.slice(0, 12)}…`
+                            : "—"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{es ? "Modo" : "Mode"}:</span>
+                        {culqiConfig.testMode ? (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                            {es ? "Modo prueba" : "Test mode"}
+                          </span>
+                        ) : (
+                          <span className="font-medium text-emerald-600 dark:text-emerald-400">
+                            {es ? "Producción (cobros reales)" : "Live (real charges)"}
+                          </span>
+                        )}
+                      </div>
+                      <label className="flex items-center justify-between gap-2 pt-1 border-t border-border/60">
+                        <span className="text-muted-foreground">
+                          {es ? "Cobros por link" : "Payment links"}
+                        </span>
+                        <button
+                          role="switch"
+                          aria-checked={culqiConfig.enabled}
+                          disabled={!isOrgAdmin || culqiToggling}
+                          onClick={() => handleToggleCulqi(!culqiConfig.enabled)}
+                          className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                            culqiConfig.enabled ? "bg-emerald-500" : "bg-muted-foreground/30"
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                              culqiConfig.enabled ? "translate-x-4" : "translate-x-0.5"
+                            }`}
+                          />
+                        </button>
+                      </label>
+                    </div>
+                  )}
+
                   {/* Nubefact — extra status detail when connected */}
                   {it.id === "nubefact" && einvoiceConfig.connected && einvoiceConfig.config && (
                     <div className="mb-3 space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
@@ -662,7 +761,27 @@ export default function IntegracionesTab() {
                     </div>
                   )}
 
-                  {it.status === "connected" && it.onConnect && it.id !== "nubefact" && (
+                  {it.status === "connected" && it.onConnect && it.id === "culqi" && (
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      <button
+                        onClick={it.onConnect}
+                        disabled={!isOrgAdmin}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors justify-center"
+                      >
+                        <Settings className="h-3.5 w-3.5" />
+                        {es ? "Editar" : "Edit"}
+                      </button>
+                      <button
+                        onClick={handleDisconnectCulqi}
+                        disabled={!isOrgAdmin}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-destructive/40 bg-background px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors justify-center"
+                      >
+                        {es ? "Desconectar" : "Disconnect"}
+                      </button>
+                    </div>
+                  )}
+
+                  {it.status === "connected" && it.onConnect && it.id !== "nubefact" && it.id !== "culqi" && (
                     <button
                       onClick={it.onConnect}
                       className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors w-full justify-center"
@@ -677,7 +796,8 @@ export default function IntegracionesTab() {
                   {it.status === "available" && it.onConnect && (
                     <button
                       onClick={it.onConnect}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 transition-opacity w-full justify-center"
+                      disabled={it.id === "culqi" && !isOrgAdmin}
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity w-full justify-center"
                     >
                       {es ? "Conectar" : "Connect"}
                       <ArrowRight className="h-3.5 w-3.5" />
@@ -792,6 +912,15 @@ export default function IntegracionesTab() {
       <GCalDescriptionDialog
         open={gcalDescriptionOpen}
         onOpenChange={setGcalDescriptionOpen}
+      />
+
+      <CulqiSetupDialog
+        open={culqiSetupOpen}
+        onOpenChange={setCulqiSetupOpen}
+        onSaved={() => culqiConfig.refetch()}
+        connected={culqiConfig.connected}
+        initialPublicKey={culqiConfig.publicKey}
+        initialEnabled={culqiConfig.enabled}
       />
 
       <EInvoiceSetupDialog

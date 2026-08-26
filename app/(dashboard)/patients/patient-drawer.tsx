@@ -45,6 +45,7 @@ import {
   ShieldCheck,
   Heart,
   Camera,
+  Link2,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
@@ -56,6 +57,7 @@ import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import { useOrgInsurance } from "@/hooks/use-org-insurance";
 import { PatientInsurancesPanel } from "@/components/insurance/patient-insurances-panel";
 import { PatientFiscalSection } from "./patient-fiscal-section";
+import { PaymentLinkModal } from "./payment-link-modal";
 import { usePaymentMethods } from "./use-payment-methods";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST, COUNTRIES } from "@/lib/peru-locations";
@@ -142,7 +144,7 @@ type PaymentRow = PatientPayment & { sale_id: string | null };
 
 export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps) {
   const { t } = useLanguage();
-  const { organizationId } = useOrganization();
+  const { organizationId, organization } = useOrganization();
   const { isAdmin, isDoctor } = useOrgRole();
   const { hasAddon } = useOrgAddons();
   const einvoiceConfig = useEInvoiceConfig();
@@ -217,6 +219,9 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [paymentNotes, setPaymentNotes] = useState("");
   const [paymentAppointmentId, setPaymentAppointmentId] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
+  // "Cobrar por link" (Culqi F1) — modal montado solo al abrirse para
+  // que el fetch de estado Culqi + historial de links sea lazy.
+  const [paymentLinkOpen, setPaymentLinkOpen] = useState(false);
   // Mismos métodos que el sidebar del scheduler: lookup 'payment_method'
   // de la org + globales. Lo que se guarda es la label.
   const paymentMethodOptions = usePaymentMethods(patient.organization_id);
@@ -1293,14 +1298,25 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   </div>
                 </div>
 
-                {/* Add payment */}
-                <button
-                  onClick={() => setShowPaymentForm(!showPaymentForm)}
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-muted-foreground/40 py-2 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {t("patients.add_payment")}
-                </button>
+                {/* Add payment + Cobrar por link (Culqi F1). Lado a lado
+                    porque son la misma decisión con distinto canal:
+                    registrar dinero que ya entró vs. cobrar a distancia. */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => setShowPaymentForm(!showPaymentForm)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-muted-foreground/40 py-2 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {t("patients.add_payment")}
+                  </button>
+                  <button
+                    onClick={() => setPaymentLinkOpen(true)}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-muted-foreground/40 py-2 text-xs font-medium text-muted-foreground hover:border-primary hover:text-primary transition-colors"
+                  >
+                    <Link2 className="h-3.5 w-3.5" />
+                    Cobrar por link
+                  </button>
+                </div>
 
                 {showPaymentForm && (
                   <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
@@ -1551,6 +1567,20 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           <PatientFiscalSection patient={patient} onUpdate={onUpdate} />
         )}
       </div>
+
+      {/* Cobrar por link (Culqi F1) — montado solo al abrir para que el
+          estado Culqi + historial de links se pidan lazy. */}
+      {paymentLinkOpen && (
+        <PaymentLinkModal
+          open={paymentLinkOpen}
+          onClose={() => setPaymentLinkOpen(false)}
+          patientId={patient.id}
+          patientFirstName={patient.first_name ?? ""}
+          patientPhone={patient.phone ?? null}
+          organizationName={organization?.name ?? "tu clínica"}
+          defaultAmount={pendingBalance > 0 ? pendingBalance : 0}
+        />
+      )}
 
       {/* Clinical History Expanded Modal */}
       <ClinicalHistoryModal
