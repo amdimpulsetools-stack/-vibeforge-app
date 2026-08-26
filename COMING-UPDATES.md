@@ -1,9 +1,38 @@
 # Coming Updates — Yenda
 
-> **Última actualización:** 2026-08-21 (v0.15.33: P0 seguridad ENTREGADO · Farmacia→NubeFact ENTREGADO · escala de movimiento + pop-in sistémico · drag & drop con confirmación ENTREGADO · fix Caja addon-off mig 226)
+> **Última actualización:** 2026-08-26 (feedback clínica tanda 1 ENTREGADO: Corregir kardex + toggle finalizar recepción mig 227 + servicios A-Z + recordatorios por servicio mig 228 · quiz de diagnóstico en landing · estudio Culqi)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
+
+## 🔎 Próximas verificaciones (26-ago)
+
+| # | Qué | Detalle |
+|---|-----|---------|
+| 1 | **Sentry: ¿está vivo en producción?** | El código está instrumentado en 3 capas (cliente con replay-solo-en-error, server y edge con tracing 10%), pero TODO está detrás de `if (DSN)`: sin las env vars no arranca. Founder verifica en Vercel → Settings → Environment Variables si existen `SENTRY_DSN` y `NEXT_PUBLIC_SENTRY_DSN`. Si no: cuenta free en sentry.io → proyecto Next.js → pegar el DSN en ambas vars → redeploy. Después: confirmar llegada de eventos y renombrar `sentry.client.config.ts` → `instrumentation-client.ts` (warning de deprecación en cada build; con Turbopack dejará de funcionar) |
+| 2 | **Consistencia IGV en cifras de dinero** | La Rentabilidad del Almacén ya calcula neta de IGV por afectación de producto (corregido en la auditoría 13-ago — la nota de F7 quedó desactualizada). Falta el barrido de consistencia: que dashboard, Reportes y resumen de Caja no presenten como "ganancia" ningún bruto con IGV adentro |
+
+## 💳 Cobros al paciente — Culqi (estudio 26-ago)
+
+> Decisión de dirección (founder, 26-ago): siguiente módulo grande = cobros online de la clínica al
+> paciente vía Culqi. El framing ganador no es "pasarela" sino dos flujos: **señal de reserva por
+> Yape** (paciente que pagó no falta — ataca no-shows más fuerte que cualquier recordatorio) y
+> **link de cobro por WhatsApp para deudas** (el badge rojo de la ficha por fin tiene botón).
+> Mercado Pago queda como está: cobra Yenda→clínica (suscripciones); Culqi cobra clínica→paciente.
+
+**Hallazgos del estudio de la API (docs.culqi.com, 26-ago):**
+- ⚠️ CulqiJS v2/v3/v4 y Checkout v4 están **en descontinuación** — integrar directo con **Checkout Custom** + API v2 (`api.culqi.com/v2/charges`) + librería Culqi 3DS para tarjetas. No construir sobre lo deprecado.
+- Flujo: el front tokeniza (tarjeta, o Yape con celular + OTP → token `ype_*` de 5 min, un solo uso, máx S/2,000, solo PEN) → el backend crea el cargo (`source_id` + `amount` en céntimos + `currency_code` + `email`, auth Bearer con llave secreta) → webhook confirma → se registra `patient_payment` (el trigger de Caja lo ata al turno abierto como cualquier cobro) → opcional: boleta NubeFact con la aritmética ya certificada.
+- Webhooks configurables en el CulqiPanel (cargos, devoluciones, órdenes…); nuestro endpoint con verificación e idempotencia (mismo rigor que el webhook de MP).
+- Comisiones referenciales 2026 (verificar al afiliarse): tarjetas nacionales ~4.20% + US$0.30 + IGV; billeteras (Yape/Plin) ~3.44% + IGV; sin afiliación ni mantenimiento; abono mismo día con BCP antes de las 4pm.
+- Arquitectura multi-clínica: **cada clínica su propia cuenta Culqi** (mismo modelo que NubeFact) — llaves pk/sk por org, cifradas con el patrón `encrypt/decrypt` que ya usa WhatsApp. La plata nunca pasa por Yenda: cero riesgo regulatorio de facilitador de pagos.
+
+| Fase | Qué | Notas |
+|------|-----|-------|
+| F1 | **Link de cobro**: página pública `/pagar/[id]` con Checkout Custom (deuda de la ficha o monto libre), botón "Cobrar por WhatsApp" en ficha/deudas; el pago entra a `patient_payments` + Caja | El MVP vendedor — cierra el círculo del badge rojo |
+| F2 | **Señal de reserva**: monto configurable por servicio en la reserva online; cita con señal pagada queda marcada (candado visual en agenda) | El anti no-show definitivo |
+| F3 | Webhook robusto (firma + idempotencia + reintentos), devoluciones desde Yenda, conciliación en Caja (electrónicos informativos, como hoy) | |
+| F4 | Boleta NubeFact automática al confirmarse el pago online | Reutiliza F2-Facturación |
 
 ## 💵 Caja + Farmacia POS — entregados y certificados (2026-08-15)
 
@@ -21,7 +50,7 @@
 | ✅ F4 Farmacia POS | HECHO 15-ago (migs 216-217, PR #286) — **CERTIFICADO** | Bajo el addon `almacen`. Venta borrador→confirmada→anulada con correlativo NV-, paciente opcional (público general), carrito 2 columnas con FEFO y totales en vivo (misma aritmética que facturación), RPC `pharmacy_confirm_sale` transaccional e idempotente (advisory locks, CPP servidor, kardex con `sale_line_id UNIQUE` anti doble descuento, pago `source='pos'` atado a caja por trigger), `pharmacy_void_sale` (contra-movimientos + devolución en turno abierto; sin caja abierta no revierte), ticket interno 80mm "NOTA DE VENTA" con leyenda no-SUNAT, `get_patient_summary` filtra `source='clinical'` (deuda clínica no contaminada — verificado en prod), motivo "Venta" retirado del modal de Almacén → botón "Vender → Farmacia". **79 aserciones + concurrencia real**. Certificación founder: venta pública, venta a paciente, anulación completa. ⏳ **PR #287** (fix del diálogo de cobro que reaparecía) pendiente de merge |
 | ✅ F5 (parcial) | HECHO 18-ago (PR #299) | Emisión NubeFact desde el POS: botón "Emitir boleta / factura" en el éxito de la venta, solo con NubeFact conectado; aritmética certificada reutilizada; enlace único venta↔comprobante. Pendiente de F5: comprobante mixto + test sandbox en Vitra (grants caja+almacen ya otorgados) |
 | F6 | Próximo | Secciones de productos en la ficha de paciente (diseño listo del agente UI): "Productos aplicados" en tab Clínico, "Productos vendidos" en Finanzas con estado de anulación, sin séptima pestaña, fix del overflow de tabs |
-| F7 | Higiene | Bug Cupos extra (cancelar deja el módulo gratis), Rentabilidad neta de IGV (hoy sobreestima el margen ~18%), normalizar vocabulario `payment_method` en patient-drawer y budgets-panel, FK `patient_id`→SET NULL, regenerar `types/database.ts` |
+| F7 | Higiene | Bug Cupos extra (cancelar deja el módulo gratis), ~~Rentabilidad neta de IGV~~ → ya corregida en Almacén (netOfIgv por afectación; queda el barrido de consistencia — ver "Próximas verificaciones" arriba), normalizar vocabulario `payment_method` en patient-drawer y budgets-panel, FK `patient_id`→SET NULL, regenerar `types/database.ts` |
 
 **Decisión comercial (founder, 15-ago): la facturación se terceriza por ahora.** Cada clínica abre su
 cuenta NubeFact directa (S/70/mes tarifa pública) y Yenda cobra el addon de integración. Reseller
