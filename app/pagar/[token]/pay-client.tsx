@@ -25,10 +25,10 @@ export interface PayLinkData {
   clinic_name: string;
   concept: string;
   /**
-   * ⚠️ SUPUESTO A VALIDAR CON EL AGENTE DEL API: `amount` viene en CÉNTIMOS
-   * (8000 = S/ 80.00), la convención de Culqi. Si el API devuelve soles
-   * decimales, basta cambiar AMOUNT_IS_CENTS a false — display y checkout
-   * se derivan de ese único flag.
+   * `amount` viene en SOLES con decimales (80 = S/ 80.00), tal cual la
+   * columna numeric(10,2) que expone GET /api/pay/[token]. La conversión a
+   * céntimos para Culqi se deriva del flag AMOUNT_IS_CENTS — display y
+   * checkout salen del mismo valor.
    */
   amount: number;
   currency: string;
@@ -38,7 +38,7 @@ export interface PayLinkData {
   expired: boolean;
 }
 
-const AMOUNT_IS_CENTS = true;
+const AMOUNT_IS_CENTS = false;
 
 function toCents(amount: number): number {
   return AMOUNT_IS_CENTS ? Math.round(amount) : Math.round(amount * 100);
