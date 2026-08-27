@@ -45,7 +45,10 @@ REGLAS:
 `;
 
 const REPORT_TYPE_CONTEXT: Record<string, string> = {
-  financial: "Enfócate en: ingresos, cobros, pendientes, ticket promedio, productividad por doctor, y rentabilidad.",
+  // OJO: nada de "rentabilidad/ganancia/margen" — el payload solo trae ventas
+  // y cobros BRUTOS (con IGV) y cero costos; el LLM etiquetaba brutos como
+  // rentabilidad (barrido fiscal 28-ago).
+  financial: "Enfócate en: ingresos cobrados, facturación, pendientes de cobro, ticket promedio y productividad por doctor. IMPORTANTE: los montos son ventas y cobros brutos (incluyen IGV) y NO hay datos de costos — nunca hables de rentabilidad, ganancia, utilidad ni margen; di 'facturado' o 'cobrado'.",
   marketing: "Enfócate en: nuevos pacientes, canales de origen, conversión, y estrategias de captación.",
   operational: "Enfócate en: eficiencia operativa, horas pico, ocupación, servicios más demandados, y distribución de carga.",
   retention: "Enfócate en: retención de pacientes, frecuencia de visitas, pacientes en riesgo de abandono, y lifetime value.",

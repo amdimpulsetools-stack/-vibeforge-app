@@ -408,7 +408,11 @@ export function TreatmentPlansPanel({ patientId, doctorId, canEdit }: TreatmentP
                       />
                     </label>
                     <div className="flex flex-col">
-                      <span className="text-muted-foreground">Subtotal</span>
+                      {/* "Importe", no "Subtotal": en Farmacia/Facturación
+                          "Subtotal" = base imponible (sin IGV) y este monto
+                          es bruto — misma palabra, dos monedas fiscales
+                          (barrido 28-ago). */}
+                      <span className="text-muted-foreground">Importe</span>
                       <span className="rounded border border-transparent px-1.5 py-1 text-[11px] font-semibold text-emerald-600">
                         {formatMoney(lineTotal)}
                       </span>

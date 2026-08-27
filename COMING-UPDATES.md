@@ -31,7 +31,7 @@ que no necesitó cambios.
 | # | Qué | Detalle |
 |---|-----|---------|
 | 1 | **Sentry: ¿está vivo en producción?** | El código está instrumentado en 3 capas (cliente con replay-solo-en-error, server y edge con tracing 10%), pero TODO está detrás de `if (DSN)`: sin las env vars no arranca. Founder verifica en Vercel → Settings → Environment Variables si existen `SENTRY_DSN` y `NEXT_PUBLIC_SENTRY_DSN`. Si no: cuenta free en sentry.io → proyecto Next.js → pegar el DSN en ambas vars → redeploy. Después: confirmar llegada de eventos y renombrar `sentry.client.config.ts` → `instrumentation-client.ts` (warning de deprecación en cada build; con Turbopack dejará de funcionar) |
-| 2 | **Consistencia IGV en cifras de dinero** | La Rentabilidad del Almacén ya calcula neta de IGV por afectación de producto (corregido en la auditoría 13-ago — la nota de F7 quedó desactualizada). Falta el barrido de consistencia: que dashboard, Reportes y resumen de Caja no presenten como "ganancia" ningún bruto con IGV adentro |
+| 2 | ~~Consistencia IGV en cifras de dinero~~ **✅ BARRIDO HECHO 28-ago** (2 auditores, sistema completo) | Pantallas determinísticas limpias: todo cobro/facturación bruto bien etiquetado; frontera bruto/neto en un solo lugar por módulo (computeLineTax / netOfIgv). 3 violaciones reales encontradas y corregidas — todas en la capa IA (ai-reports pedía "rentabilidad" sobre brutos sin costos; ai-assistant sin regla de moneda fiscal) + margen del modal de Entrada neteado + "Subtotal"→"Importe" en planes + mig 231 (/reports valoriza con precio acordado como el dashboard). Diferidos no urgentes: deriva de céntimos del unitario de farmacia (F2), naming menor |
 
 ## 💳 Cobros al paciente — Culqi (estudio 26-ago)
 
