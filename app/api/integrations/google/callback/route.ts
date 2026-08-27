@@ -6,7 +6,11 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encrypt } from "@/lib/encryption";
-import { exchangeCodeForTokens, fetchUserInfo } from "@/lib/google-calendar";
+import {
+  CALENDAR_EVENTS_SCOPE,
+  exchangeCodeForTokens,
+  fetchUserInfo,
+} from "@/lib/google-calendar";
 
 export const runtime = "nodejs";
 
@@ -59,7 +63,29 @@ export async function GET(req: NextRequest) {
   try {
     const redirectUri = `${url.origin}/api/integrations/google/callback`;
     const tokens = await exchangeCodeForTokens({ code, redirectUri });
-    const info = await fetchUserInfo(tokens.access_token);
+
+    // Pantalla de consentimiento granular: Google deja desmarcar permisos
+    // individualmente. Sin el de Calendario, la integración es inservible —
+    // mejor un error claro ahora que una conexión "activa" que nunca
+    // sincroniza. El texto viaja como reason y se muestra en el toast.
+    if (!tokens.scope.split(/\s+/).includes(CALENDAR_EVENTS_SCOPE)) {
+      return settingsRedirect(
+        req,
+        "error",
+        "Marca el permiso de Calendario en la pantalla de Google"
+      );
+    }
+
+    // El correo es solo informativo ("conectado como X"): si userinfo falla,
+    // la conexión sigue adelante con un placeholder — un dato cosmético no
+    // puede tumbar la integración (bug real 2026-08-27: cuentas frescas sin
+    // scope de identidad recibían 401 aquí y todo el flujo moría).
+    let accountEmail = "Cuenta de Google";
+    try {
+      accountEmail = (await fetchUserInfo(tokens.access_token)).email;
+    } catch (userinfoErr) {
+      console.error("[gcal callback] userinfo no disponible:", userinfoErr);
+    }
 
     const expiresAt = new Date(Date.now() + tokens.expires_in * 1000).toISOString();
     const supabase = createAdminClient();
@@ -72,7 +98,7 @@ export async function GET(req: NextRequest) {
         {
           organization_id: verified.organizationId,
           connected_by_user_id: verified.userId,
-          google_account_email: info.email,
+          google_account_email: accountEmail,
           google_calendar_id: "primary",
           access_token_encrypted: encrypt(tokens.access_token),
           refresh_token_encrypted: encrypt(tokens.refresh_token!),
