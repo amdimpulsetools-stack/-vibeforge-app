@@ -17,8 +17,14 @@ al cancelar una cita con pagos registrados, paso extra en el diálogo — *"Esta
 pagos. ¿Qué pasó con ese dinero?"*: (a) **el pago se queda** (retención/a cuenta — no se toca nada) o
 (b) **se devolvió** → campo de monto (default total, editable para devolución parcial con penalidad)
 → con addon Caja: movimiento de devolución en el turno abierto (tipo de la mig 214); sin Caja:
-anulación del pago con rastro (quién/cuándo/motivo). Cubre también la cancelación vía drag&drop y
-la del sidebar. Esfuerzo: ~1 día. **Pendiente: próxima tanda de desarrollo.**
+anulación del pago con rastro (quién/cuándo/motivo).
+
+**✅ ENTREGADO 27-ago (mig 230, misma noche):** diálogo `CancelRefundDialog` en el sidebar (ambos
+botones de cancelar pasan por él cuando hay pagos), RPC transaccional `appointment_cancel_refund`
+(devolución PRIMERO, cancelación después — si falta abrir caja la cita queda intacta), y el RPC del
+dashboard ahora resta devoluciones de los 6 bloques de ingresos (corrige también la sobreestimación
+que ya existía con anulaciones del POS de Farmacia). El drag&drop no cancela (solo reprograma), así
+que no necesitó cambios.
 
 ## 🔎 Próximas verificaciones (26-ago)
 

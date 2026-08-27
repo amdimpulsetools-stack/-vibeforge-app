@@ -73,6 +73,7 @@
 - [Changelog — Sesión 2026-08-12 cierre (v0.15.31) — Almacén ACTIVADO en beta (founder + Patricia) + evaluación de alertas live y auditoría por usuario](#changelog--sesión-2026-08-12-cierre-v01531--almacén-activado-en-beta-founder--patricia--evaluación-de-alertas-live-y-auditoría-por-usuario)
 - [Changelog — Sesión 2026-08-15 (v0.15.32) — Módulo Caja certificado (migs 213-215) + Farmacia POS certificada (migs 216-217) + fixes de aritmética NubeFact](#changelog--sesión-2026-08-15-v01532--módulo-caja-certificado-migs-213-215--farmacia-pos-certificada-migs-216-217--fixes-de-aritmética-nubefact)
 - [Changelog — Sesiones 2026-08-17 a 2026-08-21 (v0.15.33) — Duración editable + vertical dermatología + P0 seguridad del registro + escala de movimiento + drag & drop con confirmación](#changelog--sesiones-2026-08-17-a-2026-08-21-v01533--duración-editable--vertical-dermatología--p0-seguridad-del-registro--escala-de-movimiento--drag--drop-con-confirmación)
+- [Changelog — Sesiones 2026-08-22 a 2026-08-27 (v0.15.34) — Quiz en landing + feedback clínica tanda 1 + Culqi F1 + verificación Google re-enviada + cancelación con devolución](#changelog--sesiones-2026-08-22-a-2026-08-27-v01534--quiz-en-landing--feedback-clínica-tanda-1--culqi-f1--verificación-google-re-enviada--cancelación-con-devolución)
 
 ---
 
@@ -4530,6 +4531,45 @@ Semana intensa alrededor de dos frentes: preparar la **demo de Dermosalud** (ver
 ### Docs
 - COMING-UPDATES: P0 seguridad → ENTREGADO; secciones nuevas Select híbrido (nativo en táctil / Radix en escritorio) y drag & drop con confirmación; Copiloto IA de recepción documentado.
 - Propuesta de consentimientos digitales F1 (QR/WhatsApp, firma en pantalla vinculada a la cita, papel como respaldo) entregada como artifact — esperando OK para construir.
+
+---
+
+## Changelog — Sesiones 2026-08-22 a 2026-08-27 (v0.15.34) — Quiz en landing + feedback clínica tanda 1 + Culqi F1 + verificación Google re-enviada + cancelación con devolución
+
+Semana de tres frentes: la landing gana su **quiz de diagnóstico**, el **feedback real de los primeros días de la clínica de Patricia** se convierte en cuatro mejoras desplegadas, y arranca el módulo de **Cobros al paciente (Culqi F1)**. El trámite de Google OAuth se re-envía completo — y de paso destapa y arregla un bug real de la integración con Calendar.
+
+### Landing — quiz de diagnóstico (PR #318)
+- La sección oscura de dolores (checklist) se convierte en `PainQuiz`: 5 preguntas donde cada respuesta mueve algo visible del resultado (cifra, bullets del análisis que citan textualmente la opción elegida, beneficios de la tarjeta de plan; la última pregunta decide el plan con los mismos umbrales que `planForDoctors`).
+- Modelo numérico deliberadamente conservador: tarifa S/120 fija, rango con banda baja al 70%, nunca anualiza, y techo de credibilidad S/15,000 (encima, el titular pasa a pacientes recuperados). Al completarse pre-carga los sliders de la calculadora de RevenueImpact (evento `yenda:quiz-result`).
+- Interacción sin saltos: escenario apilado con `inert`, auto-avance 400ms solo en primera respuesta, flechas mueven/Enter confirma, `aria-live` única, persistencia en sessionStorage. Diseñado por 3 agentes (NeuroMarketing + UI + Copywriter) contra contratos fijos.
+- Pasada editorial completa: 47 rayas largas ("—") usadas como coma reescritas con puntuación natural en 14 archivos de la landing.
+
+### Feedback clínica tanda 1 (migs 227-228, PR #319)
+- **Almacén — botón "Corregir" por fila del kardex**: la corrección por contra-asiento existía solo en el toast de 8s post-registro; un error notado más tarde no tenía salida y se improvisaba con merma/aplicación (que sí restan ganancia). Ahora cualquier fila no revertida se corrige con confirmación ligera; el par queda gris y fuera de KPIs.
+- **Toggle "Recepción puede finalizar consultas"** (mig 227, default ON): la regla dura que bloqueaba a recepción pasa a ser decisión por organización (Settings → Agenda). Reabrir sigue reservado a doctor/admin, y el pill de estado explica con tooltip cuando no hay acciones disponibles (el reporte real era "posiciono el mouse y nada").
+- **Servicios en orden alfabético real** (`localeCompare("es")`) en el modal de citas y demás selects — el collation de Postgres desordenaba tildes/mayúsculas.
+- **Recordatorios por servicio** (mig 228): checkbox "Enviar recordatorios automáticos al paciente" en el catálogo; apagado silencia el cron 24h/2h y las confirmaciones automáticas (creación staff + reserva online). Los envíos manuales no cambian.
+
+### Cobros al paciente — Culqi F1: link de cobro (mig 229, PR #320)
+- Cada clínica conecta SU cuenta Culqi (modelo NubeFact): card en Settings → Integraciones con llaves cifradas AES-256-GCM. La plata va directo de paciente a clínica — Yenda nunca la toca.
+- Botón **"Cobrar por link"** en la ficha del paciente (junto a "Registrar pago"): monto pre-cargado con la deuda, concepto, vencimiento, copiar + "Enviar por WhatsApp", mini-historial con cancelación.
+- Página pública `/pagar/[token]` móvil-primero con Checkout Custom de Culqi (tarjeta + Yape) confinado a un solo archivo; CSP acotada solo a esa ruta.
+- Blindajes: monto siempre desde la base, claim atómico `pending→processing` anti doble-cobro, webhook de reconciliación idempotente, links sin policy pública (solo service role). El pago entra como `patient_payment` normal → el trigger de Caja lo ata al turno. `appointment_id` opcional siembra F2 (señal de reserva en el autoagendado).
+- Estudio previo de la API documentado: CulqiJS v2/v3/v4 y Checkout v4 en descontinuación → se integró directo con lo vigente.
+
+### Google OAuth — re-verificación enviada + fix real de Calendar (PR #321)
+- El rechazo del video ("no muestra el flujo de consentimiento") destapó un bug de producción: el OAuth no pedía scopes de identidad y el callback moría con `userinfo failed (401)` para **toda cuenta de Google que autorizaba por primera vez** (las cuentas viejas lo ocultaban por `include_granted_scopes`). Fix en 3 capas: scopes `openid` + `userinfo.email` añadidos (no sensibles), `userinfo` pasa a best-effort, y el consentimiento granular valida que la casilla de Calendario esté marcada (error claro en español si no).
+- Cloud Console alineado (Scope Matching): 4 scopes declarados — `openid`, `userinfo.email`, `drive.file` (no sensibles) + `calendar.events` (sensible, con justificación). Video nuevo con la pantalla de consentimiento expandida y legible; cuenta demo `demo@yenda.app` con datos de muestra; respuesta enviada al hilo del equipo de verificación. **Esperando re-revisión (3-7 días hábiles).**
+- Colaterales del trámite resueltos: regla de reenvío `demo@` en Cloudflare, dirección des-suprimida en Resend (un rebote de cuando no existía la bloqueaba en silencio), y runbook de soporte: "no llegan correos de Yenda" → revisar Suppressions primero.
+
+### Cancelación de citas con pagos — "¿qué pasó con el dinero?" (mig 230)
+- Hallazgo del founder con la demo: canceló citas con pagos parciales y el ingreso no bajó. No era bug (ingresos = pagos reales; cancelar no des-cobra) sino un hueco de UX: nadie preguntaba por la plata.
+- Al cancelar una cita con pagos, diálogo con dos salidas: **el pago se queda** (retención/a cuenta — no se toca nada) o **se devolvió** (monto editable para devoluciones parciales + cómo se devolvió). La devolución se registra primero y la cita se cancela después — si falta abrir caja, la cita queda intacta para reintentar.
+- RPC transaccional `appointment_cancel_refund` (mismo criterio que `pharmacy_void_sale` y el interruptor dual de la mig 226): con Caja activa → movimiento `devolucion` en el turno abierto (tender heredable, pago original intacto — el arqueo cuadra); sin Caja → anulación de pagos con rastro (parcial reduce el último y lo anota). Nunca pagos negativos. Todo queda anotado en las notas de la cita.
+- **Dashboard con ingresos netos**: los 6 bloques de ingresos del RPC del dashboard ahora restan las devoluciones de la ventana — esto también corrige la sobreestimación que ya existía con las anulaciones del POS de Farmacia.
+
+### Docs
+- COMING-UPDATES: verificaciones pendientes (Sentry env vars, consistencia IGV — la nota vieja de F7 estaba desactualizada, la Rentabilidad del Almacén ya es neta), estudio Culqi con las 4 fases, diseño de la cancelación con devolución.
 
 ---
 
