@@ -5,8 +5,8 @@ import { BrainCircuit, Send, Sparkles } from "lucide-react";
 
 const chatExamples = [
   {
-    question: "¿Cuál fue mi servicio más rentable este mes?",
-    answer: "Ecografías generaron S/4,200 este mes, un 35% más que consultas generales. Representan el 28% de tus ingresos totales.",
+    question: "¿Qué servicio facturó más este mes?",
+    answer: "Ecografías facturaron S/4,200 este mes, un 35% más que consultas generales. Representan el 28% de tus ingresos totales.",
   },
   {
     question: "¿Qué doctor tuvo más cancelaciones?",
@@ -94,7 +94,7 @@ export function AIAssistant() {
             </h2>
             <p className="mt-4 text-base text-slate-600 leading-relaxed">
               Pregúntale a tu clínica lo que le preguntarías a un contador: en
-              español, y te responde al toque. Qué servicio fue el más rentable,
+              español, y te responde al toque. Qué servicio facturó más,
               qué doctor tuvo más cancelaciones, cuántos pacientes vinieron de
               Instagram. Incluido en los tres planes, sin costo aparte.
             </p>
