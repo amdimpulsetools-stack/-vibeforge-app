@@ -36,8 +36,10 @@ BEGIN
   INSERT INTO organizations (id, name, owner_id) VALUES (v_org,'Clinica Test',v_admin);
   INSERT INTO organization_members (user_id, organization_id, role) VALUES
     (v_admin,v_org,'admin'), (v_reception,v_org,'receptionist'), (v_doctor,v_org,'doctor');
+  -- 'caja' habilitado: desde la mig 232, pharmacy_void_sale usa el
+  -- interruptor dual de la 226 (addon habilitado Y fila en cash_settings).
   INSERT INTO organization_addons (organization_id, addon_key, enabled)
-    VALUES (v_org,'almacen',true)
+    VALUES (v_org,'almacen',true), (v_org,'caja',true)
     ON CONFLICT (organization_id, addon_key) DO UPDATE SET enabled=true;
   INSERT INTO patients (id, organization_id, first_name, last_name)
     VALUES (v_pat, v_org, 'Ana','Perez');
@@ -477,6 +479,111 @@ BEGIN
   EXCEPTION WHEN unique_violation THEN v_err := true;
   END;
   PERFORM t_ok('el UNIQUE parcial bloquea el correlativo repetido', v_err);
+END $$;
+
+-- ══════════════════ 11b. Fecha del hecho (sale_date, mig 232) ══════════════════
+-- confirmed_at = cuándo se REGISTRÓ (sello inmutable); sale_date =
+-- cuándo OCURRIÓ, en fecha civil de Lima. Retroceder la fecha alinea
+-- kardex (movement_date) y pago (payment_date) al día del hecho.
+DO $$
+DECLARE
+  v_org  uuid := '11111111-1111-1111-1111-111111111111';
+  v_lima date := (now() AT TIME ZONE 'America/Lima')::date;
+  v_sale uuid; v_err boolean;
+  s pharmacy_sales%ROWTYPE; r record;
+  v_movdate date;
+BEGIN
+  PERFORM set_config('test.uid','33333333-3333-3333-3333-333333333333', false);
+
+  -- (a) Sin p_movement_date: la venta es de HOY LIMA (el current_date
+  -- UTC de la 217 corría al día siguiente las ventas de 19:00-23:59).
+  INSERT INTO pharmacy_sales (organization_id, created_by) VALUES (v_org, auth.uid()) RETURNING id INTO v_sale;
+  INSERT INTO pharmacy_sale_items (sale_id, organization_id, product_id, description, quantity, unit_price)
+  VALUES (v_sale, v_org,'aaaaaaaa-0000-0000-0000-000000000001','PARACETAMOL 500',1,35.50);
+  PERFORM pharmacy_confirm_sale(v_sale, 'Efectivo');
+
+  SELECT * INTO s FROM pharmacy_sales WHERE id = v_sale;
+  PERFORM t_eq('sale_date por defecto = hoy Lima', s.sale_date, v_lima);
+  SELECT * INTO r FROM patient_payments WHERE sale_id = v_sale;
+  PERFORM t_eq('payment_date alineado a sale_date', r.payment_date, s.sale_date);
+
+  -- (b) Retroactiva 3 días: sale_date, kardex y pago van al día del
+  -- hecho; confirmed_at sigue siendo el registro (hoy).
+  INSERT INTO pharmacy_sales (organization_id, created_by) VALUES (v_org, auth.uid()) RETURNING id INTO v_sale;
+  INSERT INTO pharmacy_sale_items (sale_id, organization_id, product_id, description, quantity, unit_price)
+  VALUES (v_sale, v_org,'aaaaaaaa-0000-0000-0000-000000000001','PARACETAMOL 500',1,35.50);
+  PERFORM pharmacy_confirm_sale(v_sale, 'Efectivo', v_lima - 3);
+
+  SELECT * INTO s FROM pharmacy_sales WHERE id = v_sale;
+  PERFORM t_eq('venta retroactiva: sale_date congelada', s.sale_date, v_lima - 3);
+  PERFORM t_eq('venta retroactiva: confirmed_at ES el registro (hoy)',
+    (s.confirmed_at AT TIME ZONE 'America/Lima')::date, v_lima);
+
+  SELECT * INTO r FROM patient_payments WHERE sale_id = v_sale;
+  PERFORM t_eq('venta retroactiva: payment_date del dia del hecho', r.payment_date, v_lima - 3);
+
+  SELECT m.movement_date INTO v_movdate
+    FROM inventory_movements m
+    JOIN pharmacy_sale_items i ON i.movement_id = m.id
+   WHERE i.sale_id = v_sale;
+  PERFORM t_eq('venta retroactiva: kardex del dia del hecho', v_movdate, v_lima - 3);
+
+  -- (c) El tope vive en la RPC: ni más de 90 días atrás, ni futura.
+  INSERT INTO pharmacy_sales (organization_id, created_by) VALUES (v_org, auth.uid()) RETURNING id INTO v_sale;
+  INSERT INTO pharmacy_sale_items (sale_id, organization_id, product_id, description, quantity, unit_price)
+  VALUES (v_sale, v_org,'aaaaaaaa-0000-0000-0000-000000000001','P',1,35.50);
+
+  v_err := false;
+  BEGIN
+    PERFORM pharmacy_confirm_sale(v_sale, 'Efectivo', v_lima - 120);
+  EXCEPTION WHEN check_violation THEN v_err := true;
+  END;
+  PERFORM t_ok('mas de 90 dias atras se rechaza', v_err);
+
+  v_err := false;
+  BEGIN
+    PERFORM pharmacy_confirm_sale(v_sale, 'Efectivo', v_lima + 5);
+  EXCEPTION WHEN check_violation THEN v_err := true;
+  END;
+  PERFORM t_ok('fecha futura se rechaza', v_err);
+
+  -- El borrador sobrevivió intacto a los dos rechazos y se cobra normal.
+  PERFORM pharmacy_confirm_sale(v_sale, 'Efectivo');
+  SELECT * INTO s FROM pharmacy_sales WHERE id = v_sale;
+  PERFORM t_eq('el borrador rechazado se cobra despues sin secuelas', s.status, 'confirmada');
+END $$;
+
+-- El resumen agrega por sale_date: el día retroactivo tiene SU venta.
+DO $$
+DECLARE
+  v_lima date := (now() AT TIME ZONE 'America/Lima')::date;
+  v_sum jsonb; v_day jsonb;
+BEGIN
+  PERFORM set_config('test.uid','33333333-3333-3333-3333-333333333333', false);
+  v_sum := pharmacy_day_summary('11111111-1111-1111-1111-111111111111', v_lima - 3, v_lima - 3);
+
+  PERFORM t_eq('resumen: un solo dia en el rango', jsonb_array_length(v_sum), 1);
+  v_day := v_sum->0;
+  PERFORM t_eq('resumen: el dia es el del hecho', (v_day->>'day')::date, v_lima - 3);
+  PERFORM t_eq('resumen: cuenta la venta retroactiva', (v_day->>'sales_count')::int, 1);
+  PERFORM t_eq('resumen: total del dia', (v_day->>'total')::numeric, 35.50::numeric);
+  PERFORM t_eq('resumen: items del dia', (v_day->>'items_count')::numeric, 1.000::numeric);
+  PERFORM t_eq('resumen: desglose efectivo', (v_day->'by_tender'->>'efectivo')::numeric, 35.50::numeric);
+  PERFORM t_ok('resumen: total = suma de tenders',
+    (v_day->>'total')::numeric =
+      (v_day->'by_tender'->>'efectivo')::numeric
+      + (v_day->'by_tender'->>'electronico')::numeric
+      + (v_day->'by_tender'->>'otro')::numeric);
+END $$;
+
+-- El resumen respeta la organización: un uid ajeno ve la lista vacía.
+DO $$
+DECLARE v_sum jsonb;
+BEGIN
+  -- Uid ajeno pidiendo la org del fixture: el gate de membresía manda.
+  PERFORM set_config('test.uid','77777777-7777-7777-7777-777777777777', false);
+  v_sum := pharmacy_day_summary('11111111-1111-1111-1111-111111111111', current_date - 400, current_date + 1);
+  PERFORM t_ok('el resumen no cruza organizaciones', v_sum = '[]'::jsonb, v_sum::text);
 END $$;
 
 -- ══════════════════ 12. Coherencia global del módulo ══════════════════

@@ -45,6 +45,8 @@ export interface PharmacySale {
   organization_id: string;
   sale_number: number | null;
   status: SaleStatus;
+  /** Fecha del HECHO en Lima (mig 232). confirmed_at es el sello de registro. */
+  sale_date: string;
   patient_id: string | null;
   customer_label: string | null;
   total: number;
@@ -80,7 +82,7 @@ export interface PharmacySaleItem {
 }
 
 export const SALE_COLUMNS =
-  "id,organization_id,sale_number,status,patient_id,customer_label,total,subtotal_taxed,subtotal_exempt,subtotal_unaffected,igv_amount,discount_amount,payment_id,cash_shift_id,confirmed_at,confirmed_by,voided_at,void_reason,created_at";
+  "id,organization_id,sale_number,status,sale_date,patient_id,customer_label,total,subtotal_taxed,subtotal_exempt,subtotal_unaffected,igv_amount,discount_amount,payment_id,cash_shift_id,confirmed_at,confirmed_by,voided_at,void_reason,created_at";
 
 export const SALE_ITEM_COLUMNS =
   "id,sale_id,product_id,lot_id,description,quantity,unit_price,line_discount,igv_affectation,line_gross,line_total,line_subtotal,line_igv,position";
@@ -92,6 +94,19 @@ export const SELLABLE_PRODUCT_COLUMNS =
 export interface SellableProduct extends InventoryProduct {
   igv_affectation: number;
   is_sellable: boolean;
+}
+
+/** Un día agregado de `pharmacy_day_summary` (mig 232). */
+export interface DaySummary {
+  day: string;
+  sales_count: number;
+  voided_count: number;
+  items_count: number;
+  subtotal: number;
+  igv: number;
+  total: number;
+  by_tender: { efectivo: number; electronico: number; otro: number };
+  by_method: Record<string, number>;
 }
 
 /** Resultado de `pharmacy_confirm_sale` (mig 217). */
@@ -194,6 +209,44 @@ export function fmtTime(iso: string | null): string {
   return new Date(iso).toLocaleTimeString("es-PE", {
     hour: "2-digit",
     minute: "2-digit",
+  });
+}
+
+// ── Fechas en el huso del negocio ───────────────────────────────────────
+//
+// La fecha civil de la venta (sale_date, mig 232) vive en America/Lima,
+// no en el reloj del navegador: una recepcionista revisando desde otra
+// zona (o un servidor en UTC) tiene que ver el MISMO "hoy" que el POS.
+
+/** 'YYYY-MM-DD' de hoy en Lima. en-CA formatea exactamente ISO. */
+export function limaToday(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+/** Fecha Lima ('YYYY-MM-DD') de un timestamptz ISO; null si no hay sello. */
+export function limaDateOf(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Lima",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(iso));
+}
+
+/** 'lun 25 ago 2026' — encabezado de día del historial. */
+export function fmtDayHeading(isoDate: string): string {
+  const d = new Date(`${isoDate.slice(0, 10)}T12:00:00`);
+  return d.toLocaleDateString("es-PE", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
   });
 }
 
