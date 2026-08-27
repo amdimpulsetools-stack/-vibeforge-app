@@ -1,9 +1,24 @@
 # Coming Updates — Yenda
 
-> **Última actualización:** 2026-08-26 (feedback clínica tanda 1 ENTREGADO: Corregir kardex + toggle finalizar recepción mig 227 + servicios A-Z + recordatorios por servicio mig 228 · quiz de diagnóstico en landing · estudio Culqi)
+> **Última actualización:** 2026-08-27 (Culqi F1 ENTREGADO en beta: mig 229 + /pagar + Cobrar por link · fix OAuth Google 401 cuentas nuevas · re-verificación Google ENVIADA: video con consentimiento + 4 scopes declarados + cuenta demo — esperando re-revisión 3-7 días hábiles)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
+
+## 📅 Cancelación de citas con pagos — diálogo de devolución (aprobado 27-ago)
+
+> Descubierto por el founder armando la cuenta demo: canceló citas con pagos parciales y el ingreso
+> del dashboard no bajó. NO es bug — ingresos = `patient_payments` reales (cancelar una cita no
+> des-cobra la plata; borrarla automáticamente rompería el arqueo de Caja). El hueco es de UX: nadie
+> pregunta qué pasó con el dinero.
+
+**Diseño (consistente con Farmacia `pharmacy_void_sale` y la línea roja "nunca pagos negativos" de F3):**
+al cancelar una cita con pagos registrados, paso extra en el diálogo — *"Esta cita tiene S/X en
+pagos. ¿Qué pasó con ese dinero?"*: (a) **el pago se queda** (retención/a cuenta — no se toca nada) o
+(b) **se devolvió** → campo de monto (default total, editable para devolución parcial con penalidad)
+→ con addon Caja: movimiento de devolución en el turno abierto (tipo de la mig 214); sin Caja:
+anulación del pago con rastro (quién/cuándo/motivo). Cubre también la cancelación vía drag&drop y
+la del sidebar. Esfuerzo: ~1 día. **Pendiente: próxima tanda de desarrollo.**
 
 ## 🔎 Próximas verificaciones (26-ago)
 
