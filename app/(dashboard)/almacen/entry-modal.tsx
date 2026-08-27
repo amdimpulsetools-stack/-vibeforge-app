@@ -211,6 +211,9 @@ export function EntryModal({
                   Último costo: {formatPEN(lastCost)}
                 </p>
               )}
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                Sin IGV si compras con factura; si es boleta, lo que pagaste.
+              </p>
             </div>
           </div>
 

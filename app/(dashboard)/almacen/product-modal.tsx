@@ -39,6 +39,11 @@ export interface ProductPayload {
   base_unit: string;
   units_per_presentation: number;
   sale_price: number;
+  /**
+   * Afectación IGV SUNAT (catálogo 07): 1=gravado, 8=exonerado, 9=inafecto.
+   * La pestaña Rentabilidad la usa para netear (o no) el IGV de la venta.
+   */
+  igv_affectation: number;
   min_stock: number;
   track_lots: boolean;
   /** Si > 0, la página crea la entrada `saldo_inicial` con este costo. */
@@ -76,6 +81,7 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
   const [baseUnit, setBaseUnit] = useState("UND");
   const [factor, setFactor] = useState("1");
   const [salePrice, setSalePrice] = useState("");
+  const [igvAffectation, setIgvAffectation] = useState("1");
   const [purchaseCost, setPurchaseCost] = useState("");
   const [initialStock, setInitialStock] = useState("");
   const [initialLot, setInitialLot] = useState("");
@@ -95,6 +101,7 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
     setBaseUnit("UND");
     setFactor("1");
     setSalePrice("");
+    setIgvAffectation("1");
     setPurchaseCost("");
     setInitialStock("");
     setMinStock("");
@@ -127,6 +134,7 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
       base_unit: baseUnit.trim() || "UND",
       units_per_presentation: f,
       sale_price: Number(salePrice || "0"),
+      igv_affectation: Number(igvAffectation),
       min_stock: Number(minStock || "0"),
       track_lots: trackLots,
       initial_stock: Math.max(0, stock0),
@@ -249,6 +257,9 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
                 onChange={(e) => setPurchaseCost(e.target.value)}
                 className="tabular-nums"
               />
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                Sin IGV si compras con factura; si es boleta, lo que pagaste.
+              </p>
             </div>
             <div>
               <label className={labelCls} htmlFor="prod-price">
@@ -265,7 +276,30 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
                 onChange={(e) => setSalePrice(e.target.value)}
                 className="tabular-nums"
               />
+              <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+                Con IGV, tal como lo cobras al paciente.
+              </p>
             </div>
+          </div>
+
+          <div>
+            <label className={labelCls} htmlFor="prod-igv">
+              Afectación IGV
+            </label>
+            <select
+              id="prod-igv"
+              value={igvAffectation}
+              onChange={(e) => setIgvAffectation(e.target.value)}
+              className={selectCls}
+            >
+              <option value="1">Gravado (18%)</option>
+              <option value="8">Exonerado</option>
+              <option value="9">Inafecto</option>
+            </select>
+            <p className="mt-1 text-[11px] leading-snug text-muted-foreground">
+              La Rentabilidad descuenta el IGV de la venta solo en productos
+              gravados. Consulta con tu contador cuáles están exonerados.
+            </p>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
