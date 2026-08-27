@@ -49,6 +49,10 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import { usePlan } from "@/hooks/use-plan";
 import { loadSchedulerConfig } from "@/lib/scheduler-config";
 import { LiveStatusPill } from "./live-status-pill";
+import {
+  CancelRefundDialog,
+  type CancelRefundDecision,
+} from "./cancel-refund-dialog";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
@@ -233,6 +237,11 @@ export function AppointmentSidebar({
   const [editing, setEditing] = useState(false);
   const [showClinicalNote, setShowClinicalNote] = useState(false);
   const [showCancelReason, setShowCancelReason] = useState(false);
+  // Cancelación con pagos: el diálogo "¿qué pasó con el dinero?" (mig 230).
+  // El motivo del doctor viaja en un ref para no re-renderizar el diálogo.
+  const [cancelRefundOpen, setCancelRefundOpen] = useState(false);
+  const [cancelRefundBusy, setCancelRefundBusy] = useState(false);
+  const pendingCancelReasonRef = useRef<string | undefined>(undefined);
   const [cancelReason, setCancelReason] = useState("");
 
   // ── Einvoices de la cita ────────────────────────────────────────────────
@@ -782,6 +791,60 @@ export function AppointmentSidebar({
     }
 
     onUpdate();
+  };
+
+  // ── Cancelación con pagos (mig 230) ────────────────────────────────
+  // Si la cita tiene pagos, la cancelación pasa primero por el diálogo
+  // "¿qué pasó con el dinero?". Sin pagos, cancela directo como siempre.
+  const requestCancel = (reason?: string) => {
+    if (totalPaid > 0) {
+      pendingCancelReasonRef.current = reason;
+      setCancelRefundOpen(true);
+    } else {
+      updateStatus("cancelled", reason);
+    }
+  };
+
+  const handleCancelRefundConfirm = async (decision: CancelRefundDecision) => {
+    setCancelRefundBusy(true);
+    try {
+      // 1. Devolución PRIMERO (si la hubo). El fallo más probable es
+      //    "Abre caja para registrar la devolución" — en ese caso la cita
+      //    debe quedar intacta para abrir el turno y reintentar, no
+      //    cancelada con una devolución colgando. El RPC decide la ruta:
+      //    Caja activa → movimiento 'devolucion' en el turno abierto;
+      //    sin Caja → anula pagos con rastro (mig 230).
+      if (decision.refund) {
+        const supabase = createClient();
+        const { data, error } = await supabase.rpc("appointment_cancel_refund", {
+          p_appointment_id: appointment.id,
+          p_amount: decision.refund.amount,
+          p_tender: decision.refund.tender,
+        });
+        if (error) {
+          toast.error("No se registró la devolución — la cita NO se canceló", {
+            description: `${error.message}`,
+            duration: 10000,
+          });
+          return; // el diálogo queda abierto para corregir y reintentar
+        }
+        const method = (data as { method?: string } | null)?.method;
+        toast.success(
+          `Devolución de S/ ${decision.refund.amount.toFixed(2)} registrada${
+            method === "caja" ? " en caja" : ""
+          }`
+        );
+        fetchPayments();
+      }
+
+      // 2. Cancelar la cita (mismo camino de siempre: sesiones de plan,
+      //    Google Calendar, notificaciones).
+      setCancelRefundOpen(false);
+      await updateStatus("cancelled", pendingCancelReasonRef.current);
+      pendingCancelReasonRef.current = undefined;
+    } finally {
+      setCancelRefundBusy(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -1444,7 +1507,7 @@ export function AppointmentSidebar({
                           </button>
                           <button
                             onClick={() => {
-                              updateStatus("cancelled", cancelReason);
+                              requestCancel(cancelReason);
                               setShowCancelReason(false);
                               setCancelReason("");
                             }}
@@ -1460,7 +1523,7 @@ export function AppointmentSidebar({
                   </>
                 ) : !isDoctorRole ? (
                   <button
-                    onClick={() => updateStatus("cancelled")}
+                    onClick={() => requestCancel()}
                     disabled={updating}
                     className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
                   >
@@ -2077,6 +2140,20 @@ export function AppointmentSidebar({
         }}
       />
     )}
+
+    {/* Cancelación con pagos — "¿qué pasó con el dinero?" (mig 230).
+        Montado en la raíz, igual que AssignBudgetModal, para portalar
+        fuera del scroll del sidebar. */}
+    <CancelRefundDialog
+      open={cancelRefundOpen}
+      onOpenChange={(o) => {
+        setCancelRefundOpen(o);
+        if (!o) pendingCancelReasonRef.current = undefined;
+      }}
+      totalPaid={totalPaid}
+      busy={cancelRefundBusy}
+      onConfirm={handleCancelRefundConfirm}
+    />
     </>
   );
 }
