@@ -48,6 +48,7 @@ import {
   computeStock,
   computeStockByLot,
   formatPEN,
+  limaToday,
   nearestLotByProduct,
   type CartLine,
   type ConfirmResult,
@@ -61,6 +62,15 @@ import {
 const MOVEMENT_FETCH_LIMIT = 4000;
 /** Rejilla de frecuentes: 12 tarjetas entran sin scroll en un mostrador. */
 const FREQUENT_COUNT = 12;
+
+/** `.in()` viaja en la URL: mismo tope que patient-inventory-panel. */
+const IN_CHUNK = 100;
+
+function chunk<T>(list: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < list.length; i += size) out.push(list.slice(i, i + size));
+  return out;
+}
 
 export default function FarmaciaPage() {
   const { organizationId, organization, orgRole, isOrgAdmin } = useOrganization();
@@ -96,12 +106,17 @@ export default function FarmaciaPage() {
   const [cartOpen, setCartOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // ── Ventas del día ─────────────────────────────────────────────────────
+  // ── Ventas (historial por sale_date) ───────────────────────────────────
   const [tab, setTab] = useState("vender");
   const [sales, setSales] = useState<PharmacySale[]>([]);
   const [itemsBySale, setItemsBySale] = useState<Record<string, PharmacySaleItem[]>>({});
   const [patientNames, setPatientNames] = useState<Record<string, string>>({});
   const [salesLoading, setSalesLoading] = useState(false);
+  // Rango del historial, en fecha civil de Lima (default: hoy).
+  const [salesRange, setSalesRange] = useState<{ from: string; to: string }>(() => {
+    const today = limaToday();
+    return { from: today, to: today };
+  });
 
   const totals = useMemo(() => cartTotals(lines), [lines]);
   const stockByProduct = useMemo(() => computeStock(movements), [movements]);
@@ -175,21 +190,22 @@ export default function FarmaciaPage() {
     void load();
   }, [load]);
 
-  // ── Ventas de hoy ──────────────────────────────────────────────────────
+  // ── Historial de ventas ────────────────────────────────────────────────
+  // Filtra por sale_date (fecha del hecho, mig 232), no por confirmed_at:
+  // una venta de ayer registrada hoy aparece en el día de ayer.
   const loadSales = useCallback(async () => {
     if (!organizationId) return;
     const supabase = createClient();
     setSalesLoading(true);
-
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
 
     const { data, error } = await supabase
       .from("pharmacy_sales")
       .select(SALE_COLUMNS)
       .eq("organization_id", organizationId)
       .in("status", ["confirmada", "anulada"])
-      .gte("confirmed_at", start.toISOString())
+      .gte("sale_date", salesRange.from)
+      .lte("sale_date", salesRange.to)
+      .order("sale_date", { ascending: false })
       .order("sale_number", { ascending: false });
 
     if (error) {
@@ -201,27 +217,35 @@ export default function FarmaciaPage() {
     setSales(rows);
 
     if (rows.length > 0) {
-      const { data: itemRows } = await supabase
-        .from("pharmacy_sale_items")
-        .select(SALE_ITEM_COLUMNS)
-        .in("sale_id", rows.map((s) => s.id))
-        .order("position");
+      // Troceado: 100 uuids por .in() para no reventar la URL (mismo
+      // criterio que patient-inventory-panel).
+      const itemRows: PharmacySaleItem[] = [];
+      for (const ids of chunk(rows.map((s) => s.id), IN_CHUNK)) {
+        const { data: part } = await supabase
+          .from("pharmacy_sale_items")
+          .select(SALE_ITEM_COLUMNS)
+          .in("sale_id", ids)
+          .order("position");
+        itemRows.push(...(((part ?? []) as unknown) as PharmacySaleItem[]));
+      }
 
       const grouped: Record<string, PharmacySaleItem[]> = {};
-      for (const it of ((itemRows ?? []) as unknown as PharmacySaleItem[])) {
+      for (const it of itemRows) {
         (grouped[it.sale_id] ??= []).push(it);
       }
       setItemsBySale(grouped);
 
       const pids = [...new Set(rows.map((s) => s.patient_id).filter(Boolean))] as string[];
       if (pids.length > 0) {
-        const { data: pats } = await supabase
-          .from("patients")
-          .select("id,first_name,last_name")
-          .in("id", pids);
         const map: Record<string, string> = {};
-        for (const p of ((pats ?? []) as { id: string; first_name: string | null; last_name: string | null }[])) {
-          map[p.id] = `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
+        for (const ids of chunk(pids, IN_CHUNK)) {
+          const { data: pats } = await supabase
+            .from("patients")
+            .select("id,first_name,last_name")
+            .in("id", ids);
+          for (const p of ((pats ?? []) as { id: string; first_name: string | null; last_name: string | null }[])) {
+            map[p.id] = `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim();
+          }
         }
         setPatientNames(map);
       }
@@ -230,7 +254,7 @@ export default function FarmaciaPage() {
     }
 
     setSalesLoading(false);
-  }, [organizationId]);
+  }, [organizationId, salesRange]);
 
   useEffect(() => {
     if (tab === "ventas") void loadSales();
@@ -570,7 +594,7 @@ export default function FarmaciaPage() {
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
           <TabsTrigger value="vender">Vender</TabsTrigger>
-          <TabsTrigger value="ventas">Ventas del día</TabsTrigger>
+          <TabsTrigger value="ventas">Ventas</TabsTrigger>
         </TabsList>
 
         <TabsContent value="vender" className="mt-4">
@@ -609,6 +633,10 @@ export default function FarmaciaPage() {
             itemsBySale={itemsBySale}
             patientNames={patientNames}
             loading={salesLoading}
+            range={salesRange}
+            onRange={setSalesRange}
+            isOrgAdmin={isOrgAdmin}
+            organizationId={organizationId}
             onVoided={() => {
               void loadSales();
               void load();

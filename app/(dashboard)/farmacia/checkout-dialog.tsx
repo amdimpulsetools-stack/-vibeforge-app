@@ -42,12 +42,17 @@ import {
 } from "@/components/einvoice/emit-dialog";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import {
+  fmtDayHeading,
   formatPEN,
+  limaToday,
   saleLabel,
   type CartLine,
   type CartTotals,
   type ConfirmResult,
 } from "./types";
+
+/** Tope de retroactividad de la fecha de venta (el mismo de la mig 232). */
+const BACKDATE_LIMIT_DAYS = 90;
 
 export interface PaymentMethodOption {
   id: string;
@@ -97,6 +102,12 @@ export function CheckoutDialog({
   const [result, setResult] = useState<ConfirmResult | null>(null);
   const issuedAtRef = useRef<Date>(new Date());
 
+  // Fecha del HECHO (sale_date, mig 232). Editable SOLO mientras la venta
+  // es un borrador: tras cobrar queda congelada por la RPC. El caso real
+  // es la venta de ayer que se quedó en el cuaderno.
+  const [saleDate, setSaleDate] = useState<string>(() => limaToday());
+  const [editingDate, setEditingDate] = useState(false);
+
   // Facturación electrónica — visible SOLO si la org tiene Nubefact
   // conectado (mismo gating que /facturacion). Sin conexión, la venta
   // se comporta exactamente como siempre: ticket interno y nada más.
@@ -142,6 +153,8 @@ export function CheckoutDialog({
     setPrinted(null);
     setEmitOpen(false);
     setEmitted(null);
+    setSaleDate(limaToday());
+    setEditingDate(false);
   }, [open, methods]);
 
   // Si los métodos llegan después de abrir (primera carga), preselecciona
@@ -218,13 +231,20 @@ export function CheckoutDialog({
     setCharging(true);
     const supabase = createClient();
 
-    // El cliente se graba en el BORRADOR (escritura permitida por RLS solo
-    // mientras status='borrador'); el cobro lo hace la RPC.
+    // Se relee "hoy" al cobrar: un POS abierto sobre la medianoche no
+    // puede arrastrar el hoy de cuando se abrió el diálogo.
+    const today = limaToday();
+    const backdated = saleDate !== today;
+
+    // El cliente (y la fecha del hecho, si se cambió) se graban en el
+    // BORRADOR (escritura permitida por RLS solo mientras
+    // status='borrador'); el cobro lo hace la RPC.
     const { error: upErr } = await supabase
       .from("pharmacy_sales")
       .update({
         patient_id: patientId,
         customer_label: customerLabel,
+        sale_date: saleDate,
       })
       .eq("id", saleId);
 
@@ -234,9 +254,13 @@ export function CheckoutDialog({
       return;
     }
 
+    // p_movement_date viaja solo si la fecha difiere de hoy: alinea
+    // kardex y payment_date al día del hecho. La RPC valida el tope de
+    // 90 días y congela sale_date; después de esto ya no se edita nunca.
     const { data, error } = await supabase.rpc("pharmacy_confirm_sale", {
       p_sale_id: saleId,
       p_payment_method: method,
+      ...(backdated ? { p_movement_date: saleDate } : {}),
     });
 
     setCharging(false);
@@ -525,6 +549,16 @@ export function CheckoutDialog({
               </p>
             </div>
 
+            {/* Fecha del hecho (mig 232) — discreta, editable SOLO antes de
+                cobrar. El caso real: la venta de ayer que quedó en el
+                cuaderno y se registra hoy. */}
+            <SaleDateLine
+              saleDate={saleDate}
+              editing={editingDate}
+              onEdit={() => setEditingDate(true)}
+              onChange={setSaleDate}
+            />
+
             <p className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               Método de pago
             </p>
@@ -555,7 +589,7 @@ export function CheckoutDialog({
 
             <button
               type="button"
-              disabled={!canCharge || charging}
+              disabled={!canCharge || charging || !saleDate}
               onClick={() => void charge()}
               className="mt-5 inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-primary text-base font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-40"
             >
@@ -573,5 +607,72 @@ export function CheckoutDialog({
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** 'YYYY-MM-DD' de hace N días, contando desde hoy Lima. */
+function limaDaysAgo(days: number): string {
+  const d = new Date(`${limaToday()}T12:00:00`);
+  d.setDate(d.getDate() - days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate()
+  ).padStart(2, "0")}`;
+}
+
+function SaleDateLine({
+  saleDate,
+  editing,
+  onEdit,
+  onChange,
+}: {
+  saleDate: string;
+  editing: boolean;
+  onEdit: () => void;
+  onChange: (value: string) => void;
+}) {
+  const today = limaToday();
+
+  if (!editing) {
+    return (
+      <p className="mt-2 text-center text-[11px] text-muted-foreground">
+        Fecha de venta: {saleDate === today ? "hoy" : fmtDayHeading(saleDate)}
+        {" · "}
+        <button
+          type="button"
+          onClick={onEdit}
+          className="font-medium text-primary underline underline-offset-2"
+        >
+          cambiar
+        </button>
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-[11px] text-muted-foreground">
+      <span>Fecha de venta</span>
+      <input
+        type="date"
+        value={saleDate}
+        max={today}
+        min={limaDaysAgo(BACKDATE_LIMIT_DAYS)}
+        onChange={(e) => {
+          // El input nativo ya acota, pero un valor tecleado fuera de
+          // rango se recorta aquí: la RPC lo rechazaría igual.
+          const v = e.target.value;
+          if (!v) return;
+          if (v > today) onChange(today);
+          else if (v < limaDaysAgo(BACKDATE_LIMIT_DAYS)) onChange(limaDaysAgo(BACKDATE_LIMIT_DAYS));
+          else onChange(v);
+        }}
+        className="h-8 rounded-lg border border-border bg-card px-2 text-xs outline-none focus:border-primary/50"
+      />
+      {saleDate !== today && (
+        <span className="w-full text-center text-amber-600 dark:text-amber-400">
+          Venta retroactiva: el kardex y el reporte de pagos irán a ese día;
+          el dinero entra al turno de caja de hoy.
+        </span>
+      )}
+    </div>
   );
 }

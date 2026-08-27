@@ -74,6 +74,7 @@
 - [Changelog — Sesión 2026-08-15 (v0.15.32) — Módulo Caja certificado (migs 213-215) + Farmacia POS certificada (migs 216-217) + fixes de aritmética NubeFact](#changelog--sesión-2026-08-15-v01532--módulo-caja-certificado-migs-213-215--farmacia-pos-certificada-migs-216-217--fixes-de-aritmética-nubefact)
 - [Changelog — Sesiones 2026-08-17 a 2026-08-21 (v0.15.33) — Duración editable + vertical dermatología + P0 seguridad del registro + escala de movimiento + drag & drop con confirmación](#changelog--sesiones-2026-08-17-a-2026-08-21-v01533--duración-editable--vertical-dermatología--p0-seguridad-del-registro--escala-de-movimiento--drag--drop-con-confirmación)
 - [Changelog — Sesiones 2026-08-22 a 2026-08-27 (v0.15.34) — Quiz en landing + feedback clínica tanda 1 + Culqi F1 + verificación Google re-enviada + cancelación con devolución](#changelog--sesiones-2026-08-22-a-2026-08-27-v01534--quiz-en-landing--feedback-clínica-tanda-1--culqi-f1--verificación-google-re-enviada--cancelación-con-devolución)
+- [Changelog — Sesión 2026-08-27 (v0.15.35) — Farmacia: fecha de venta (sale_date) + historial con rango + cierre del día](#changelog--sesión-2026-08-27-v01535--farmacia-fecha-de-venta-sale_date--historial-con-rango--cierre-del-día)
 
 ---
 
@@ -4570,6 +4571,26 @@ Semana de tres frentes: la landing gana su **quiz de diagnóstico**, el **feedba
 
 ### Docs
 - COMING-UPDATES: verificaciones pendientes (Sentry env vars, consistencia IGV — la nota vieja de F7 estaba desactualizada, la Rentabilidad del Almacén ya es neta), estudio Culqi con las 4 fases, diseño de la cancelación con devolución.
+
+---
+
+## Changelog — Sesión 2026-08-27 (v0.15.35) — Farmacia: fecha de venta (sale_date) + historial con rango + cierre del día
+
+El POS gana la distinción que le faltaba entre **cuándo se registró** una venta (`confirmed_at`, auditoría inmutable) y **cuándo ocurrió** (`sale_date`, fecha civil de Lima). De paso caen dos bugs reales: las ventas de 19:00-23:59 Lima caían al día siguiente en kardex y pagos (`current_date` UTC), y la anulación seguía ignorando el interruptor dual de Caja de la mig 226.
+
+### Base — mig 232 (+ rollback)
+- **`pharmacy_sales.sale_date`** (date NOT NULL, default hoy Lima) con backfill desde `confirmed_at AT TIME ZONE 'America/Lima'` y CHECK `NOT VALID` + `VALIDATE` que solo acota el futuro (hoy+1); el tope de 90 días hacia atrás vive en la RPC para no bloquear backfills. Índice `(organization_id, sale_date DESC, sale_number DESC)` parcial sobre confirmadas/anuladas — el de la 216 no cubría la query del tab.
+- **`pharmacy_confirm_sale`**: `v_date = COALESCE(p_movement_date, sale_date, hoy Lima)` — fin del corrimiento UTC nocturno; valida el rango de `p_movement_date` (hoy-90 … hoy+1) y congela `sale_date` en el cierre. `movement_date` y `payment_date` quedan alineados al día del hecho; el turno de caja sigue siendo el abierto al cobrar.
+- **`pharmacy_void_sale`**: la devolución en caja usa el criterio de la mig 226 (addon 'caja' habilitado en `organization_addons` Y fila en `cash_settings`); con el addon apagado, anular ya no exige caja abierta.
+- **`pharmacy_day_summary(p_from, p_to)`** (SECURITY DEFINER STABLE, gate miembro + addon 'almacen'): agregado por día sobre `sale_date` — ventas, ítems, subtotal/IGV/total, desglose por tender (efectivo/electrónico/otro) y por método literal vía `patient_payments`; las anuladas solo cuentan en `voided_count`.
+- Arnés de pruebas ampliado (`supabase/tests/pharmacy/`): mig 232 entra al run.sh, fixture con addon 'caja', y sección nueva 11b — backdate mueve `payment_date`/`movement_date`/`sale_date` y respeta `confirmed_at`, topes de rango, y el resumen agrega por día del hecho sin cruzar organizaciones. Rollback verificado contra cluster desechable.
+
+### UI — /farmacia
+- El tab pasa a llamarse **"Ventas"**: historial con presets Hoy / Ayer / Semana / Mes / Rango (dos inputs date, patrón caja/history-tab), filtrado en servidor por `sale_date`, carga de ítems troceada (`.in()` de a 100), búsqueda por `NV-` y cliente, export CSV.
+- Con rango multi-día, agrupado por día con sub-encabezado (fecha + nº ventas + nº ítems + total); un solo día conserva el layout plano. Badge ámbar "registrada el …" cuando `sale_date` ≠ fecha Lima de `confirmed_at`.
+- **Cierre del día**: barra alimentada por `pharmacy_day_summary` (Total · Efectivo · Electrónico · Otro si existe · Nº ventas · Nº ítems) con nota-link a /caja ("esto no es el arqueo") y versión imprimible (window.print + técnica visibility del ticket, portaleada fuera del `print:hidden` de la página).
+- **Anular** deja de ser `window.prompt`: diálogo con resumen de la venta (número, cliente, total), motivo obligatorio en textarea y aviso cuando la venta es de un día pasado ("la devolución se registrará en el turno de caja de HOY"). El botón queda deshabilitado con tooltip para no-admins cuando la venta no se registró hoy (mismo criterio que la RPC).
+- **Checkout**: línea discreta "Fecha de venta: hoy · cambiar" en el paso de pago — input date (máx hoy, mín hoy-90) editable SOLO en borrador; al cobrar se graba en el borrador y `p_movement_date` viaja únicamente si difiere de hoy. Tras cobrar, la fecha no se toca nunca.
 
 ---
 

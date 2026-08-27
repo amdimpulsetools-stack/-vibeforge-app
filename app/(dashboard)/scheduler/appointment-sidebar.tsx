@@ -65,6 +65,38 @@ import {
 } from "@/lib/patient-debt";
 import dynamic from "next/dynamic";
 
+// ── Deshacer cancelación (feedback clínica 27-ago) ──────────────────
+// Una cita SIN pagos se cancelaba al primer clic, sin confirmación: un
+// clic accidental disparaba email al paciente, baja en Google Calendar y
+// liberación de la sesión de plan. En vez de un diálogo que estorba al
+// uso legítimo, la cancelación real se DIFIERE estos ms: el toast ofrece
+// "Deshacer" y, si nadie lo pulsa, recién ahí se ejecuta todo el flujo.
+// Deshacer = no pasó nada (ni DB, ni email, ni Calendar).
+const CANCEL_UNDO_MS = 10_000;
+
+function CancelCountdown({ patientName }: { patientName?: string | null }) {
+  const total = CANCEL_UNDO_MS / 1000;
+  const [left, setLeft] = useState(total);
+  useEffect(() => {
+    const iv = setInterval(() => setLeft((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(iv);
+  }, []);
+  return (
+    <div className="mt-1 space-y-1.5">
+      <p className="text-xs">
+        {patientName ? `La cita de ${patientName}` : "La cita"} se cancelará en {left}s.
+        Pulsa Deshacer si fue un error.
+      </p>
+      <div className="h-1 w-full overflow-hidden rounded-full bg-border">
+        <div
+          className="h-full rounded-full bg-red-500 transition-[width] duration-1000 ease-linear"
+          style={{ width: `${(left / total) * 100}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 const ClinicalNoteModal = dynamic(
   () => import("./clinical-note-modal").then((m) => ({ default: m.ClinicalNoteModal })),
   { ssr: false }
@@ -801,8 +833,37 @@ export function AppointmentSidebar({
       pendingCancelReasonRef.current = reason;
       setCancelRefundOpen(true);
     } else {
-      updateStatus("cancelled", reason);
+      scheduleCancelWithUndo(reason);
     }
+  };
+
+  // Difiere la cancelación CANCEL_UNDO_MS y ofrece "Deshacer" en el toast.
+  // Nada se escribe hasta que el contador expira; el timer y el toast viven
+  // fuera del árbol del sidebar (sonner), así que sobreviven a que el
+  // usuario cierre el panel.
+  const cancelCountdownActiveRef = useRef(false);
+  const scheduleCancelWithUndo = (reason?: string) => {
+    if (cancelCountdownActiveRef.current) return; // ya hay una en curso
+    cancelCountdownActiveRef.current = true;
+    let undone = false;
+    const timer = setTimeout(() => {
+      cancelCountdownActiveRef.current = false;
+      if (!undone) void updateStatus("cancelled", reason);
+    }, CANCEL_UNDO_MS);
+    toast.warning("Cancelando cita…", {
+      id: `cancel-undo-${appointment.id}`,
+      description: <CancelCountdown patientName={appointment.patient_name} />,
+      duration: CANCEL_UNDO_MS,
+      action: {
+        label: "Deshacer",
+        onClick: () => {
+          undone = true;
+          clearTimeout(timer);
+          cancelCountdownActiveRef.current = false;
+          toast.success("Cancelación deshecha — la cita queda como estaba");
+        },
+      },
+    });
   };
 
   const handleCancelRefundConfirm = async (decision: CancelRefundDecision) => {

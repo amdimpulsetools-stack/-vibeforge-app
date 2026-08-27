@@ -42,7 +42,7 @@ apply() {
 apply "$HERE/00_prelude_stub.sql"
 for m in 209_inventory_foundation 212_inventory_invariants_f2 \
          213_caja_farmacia_base 214_caja_module 215_caja_rpcs \
-         216_pharmacy_module 217_pharmacy_rpcs; do
+         216_pharmacy_module 217_pharmacy_rpcs 232_pharmacy_sale_date; do
   apply "$ROOT/supabase/migrations/$m.sql"
   echo "  aplicada  $m"
 done
