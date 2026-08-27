@@ -72,8 +72,20 @@ const GOOGLE_CAL_BASE = "https://www.googleapis.com/calendar/v3";
 // connected before Sheets existed keep working; on their next reconnect they
 // pick up drive.file. Detect per-org via the persisted `scope` column.
 export const DRIVE_FILE_SCOPE = "https://www.googleapis.com/auth/drive.file";
+export const CALENDAR_EVENTS_SCOPE =
+  "https://www.googleapis.com/auth/calendar.events";
+// openid + userinfo.email (NO sensibles para la verificación de Google) son
+// obligatorios: el callback llama a /userinfo para guardar el correo de la
+// cuenta conectada. Sin ellos, una cuenta que otorga por primera vez recibe
+// un token solo-calendario y userinfo devuelve 401 — antes "funcionaba"
+// porque include_granted_scopes fusionaba permisos viejos de cuentas que ya
+// habían autorizado a Yenda; con una cuenta fresca (p. ej. un revisor de
+// Google) el flujo moría. Deben estar declarados también en la lista de
+// scopes del OAuth consent screen de Cloud Console (Scope Matching).
 const SCOPE = [
-  "https://www.googleapis.com/auth/calendar.events",
+  "openid",
+  "https://www.googleapis.com/auth/userinfo.email",
+  CALENDAR_EVENTS_SCOPE,
   DRIVE_FILE_SCOPE,
 ].join(" ");
 const DEFAULT_TZ = "America/Lima";
