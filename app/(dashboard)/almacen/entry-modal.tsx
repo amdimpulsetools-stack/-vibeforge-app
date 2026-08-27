@@ -24,7 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Loader2, Plus } from "lucide-react";
-import { formatPEN, type InventoryProduct } from "./types";
+import { formatPEN, netOfIgv, type InventoryProduct } from "./types";
 
 export interface EntryPayload {
   productId: string;
@@ -130,11 +130,19 @@ export function EntryModal({
 
   // Margen en vivo cuando hay costo y precio — la señal que evita vender
   // por debajo del costo sin darse cuenta.
+  //
+  // Ambos lados en la MISMA moneda fiscal (hallazgo 28-ago con Duphaston):
+  // la venta se digita CON IGV y el costo SIN, así que la venta se netea
+  // según la afectación del producto — mismo criterio que profit-tab.
+  // Antes: (110 − 78.81) / 110 = 28% fantasma; real: (93.22 − 78.81) /
+  // 93.22 = 15%.
   const marginPct = (() => {
     const cost = Number(unitCost);
     const sp = Number(salePrice);
     if (!Number.isFinite(cost) || !Number.isFinite(sp) || sp <= 0) return null;
-    return Math.round(((sp - cost) / sp) * 100);
+    const spNet = netOfIgv(sp, product?.igv_affectation);
+    if (spNet <= 0) return null;
+    return Math.round(((spNet - cost) / spNet) * 100);
   })();
 
   return (
