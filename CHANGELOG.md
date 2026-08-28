@@ -75,6 +75,7 @@
 - [Changelog — Sesiones 2026-08-17 a 2026-08-21 (v0.15.33) — Duración editable + vertical dermatología + P0 seguridad del registro + escala de movimiento + drag & drop con confirmación](#changelog--sesiones-2026-08-17-a-2026-08-21-v01533--duración-editable--vertical-dermatología--p0-seguridad-del-registro--escala-de-movimiento--drag--drop-con-confirmación)
 - [Changelog — Sesiones 2026-08-22 a 2026-08-27 (v0.15.34) — Quiz en landing + feedback clínica tanda 1 + Culqi F1 + verificación Google re-enviada + cancelación con devolución](#changelog--sesiones-2026-08-22-a-2026-08-27-v01534--quiz-en-landing--feedback-clínica-tanda-1--culqi-f1--verificación-google-re-enviada--cancelación-con-devolución)
 - [Changelog — Sesión 2026-08-27 (v0.15.35) — Farmacia: fecha de venta (sale_date) + historial con rango + cierre del día](#changelog--sesión-2026-08-27-v01535--farmacia-fecha-de-venta-sale_date--historial-con-rango--cierre-del-día)
+- [Changelog — Sesiones 2026-08-27/28 (v0.15.36) — Barrido fiscal IGV de punta a punta + deshacer cancelación de citas](#changelog--sesiones-2026-08-2728-v01536--barrido-fiscal-igv-de-punta-a-punta--deshacer-cancelación-de-citas)
 
 ---
 
@@ -4591,6 +4592,42 @@ El POS gana la distinción que le faltaba entre **cuándo se registró** una ven
 - **Cierre del día**: barra alimentada por `pharmacy_day_summary` (Total · Efectivo · Electrónico · Otro si existe · Nº ventas · Nº ítems) con nota-link a /caja ("esto no es el arqueo") y versión imprimible (window.print + técnica visibility del ticket, portaleada fuera del `print:hidden` de la página).
 - **Anular** deja de ser `window.prompt`: diálogo con resumen de la venta (número, cliente, total), motivo obligatorio en textarea y aviso cuando la venta es de un día pasado ("la devolución se registrará en el turno de caja de HOY"). El botón queda deshabilitado con tooltip para no-admins cuando la venta no se registró hoy (mismo criterio que la RPC).
 - **Checkout**: línea discreta "Fecha de venta: hoy · cambiar" en el paso de pago — input date (máx hoy, mín hoy-90) editable SOLO en borrador; al cobrar se graba en el borrador y `p_movement_date` viaja únicamente si difiere de hoy. Tras cobrar, la fecha no se toca nunca.
+
+---
+
+## Changelog — Sesiones 2026-08-27/28 (v0.15.36) — Barrido fiscal IGV de punta a punta + deshacer cancelación de citas
+
+Jornada guiada por el uso real de la clínica. La pregunta del founder ("compro a 93, vendo a 110 — ¿cuál es mi ganancia real?") destapó que el sistema mezclaba montos con y sin IGV, y de ahí salió la **regla de oro fiscal**: los cobros se muestran en bruto (con IGV, como se cobran); cualquier cosa etiquetada ganancia/margen/rentabilidad se calcula neta (÷1.18 según afectación). La convención de captura queda fijada: **compra digitada SIN IGV** (si hay factura; con boleta, lo pagado es el costo real) y **venta CON IGV**, como los demás softwares del rubro.
+
+### Almacén — el IGV bien contado (PRs #322/#323)
+- **Select "Afectación IGV"** en Nuevo producto (Gravado 18% / Exonerado / Inafecto — catálogo 07 de SUNAT, default gravado) con líneas de ayuda en los precios: costo "sin IGV si compras con factura; si es boleta, lo que pagaste" y venta "con IGV, tal como lo cobras al paciente".
+- **Margen en vivo del modal de entrada neto de IGV**: comparaba venta bruta contra costo neto y mostraba 28% donde el margen real era 15%. Ahora la venta se neta según la afectación del producto antes de comparar.
+- **Operación en prod**: las 43 entradas de la clínica de Patricia digitadas con IGV dentro se corrigieron en lote por contra-asiento + re-entrada (÷1.18, respetando el kardex append-only), con verificación en cero filas restantes. Los productos exonerados quedan pendientes de la lista del contador.
+
+### Barrido fiscal sistémico (PR #324, mig 231)
+- Dos agentes barrieron el sistema completo: la capa determinista (dashboard, Caja, Almacén, Farmacia, NubeFact) salió **limpia**; las 3 violaciones reales estaban en la capa generativa y se corrigieron:
+  - **ai-reports**: el contexto del reporte financiero prohíbe "rentabilidad/ganancia/utilidad/margen" sobre sumas brutas y exige "facturado/cobrado".
+  - **ai-assistant**: bloque `MONEDA FISCAL` en el schema (expone `services.igv_affectation`), "monto ganado" → "monto aceptado", y regla de respuesta: ante preguntas de rentabilidad responde facturado/cobrado con aclaración.
+  - **Landing (demo IA)**: "¿Cuál fue mi servicio más rentable?" → "¿Qué servicio facturó más?".
+- **Reportes con precio acordado** (mig 231): `get_reports_overview` usa `COALESCE(price_snapshot, base_price, 0)` — el precio pactado por cita, mismo criterio que el dashboard. Fin de las cifras distintas entre ambas pantallas.
+- Vocabulario: "Subtotal" → "Importe" en planes de tratamiento (Subtotal queda reservado para base imponible en Farmacia/Facturación).
+
+### Agenda — deshacer cancelación (PR #325)
+- Una cita **sin pagos** se cancelaba al primer clic (email al paciente, baja en Calendar, sesión de plan liberada — todo por un clic accidental, como le pasó al founder con un control ovulatorio). Ahora la cancelación real se **difiere 10 segundos**: toast con contador, barra de tiempo y botón Deshacer. Deshacer = no pasó nada, en ningún sistema. Con pagos, sigue el diálogo de devolución de la mig 230.
+
+### Ficha del paciente — pagos del drawer + coherencia del dinero por cita (mig 233)
+- **Chips de método de pago reparados**: los chips del catálogo (15-ago) nunca se mostraban — el hook recibía `patient.organization_id`, columna que la lista de pacientes no trae en su SELECT; la query quedaba deshabilitada y el formulario caía siempre al texto libre. Ahora usa la org del provider, como el panel de presupuestos.
+- **Contexto de cita en "Pagos registrados"**: un pago vinculado muestra `Cita: {servicio} · {fecha}`, mismo estilo que "Farmacia NV-…". Y **campo "Motivo / referencia (opcional)"**: el estado existía y se guardaba, pero el input se perdió en un refactor — todo pago salía sin nota.
+- **"Solo la plata clínica paga consultas" — regla completada** (dos verdades destapadas por el barrido con agente):
+  - El sidebar de la cita contaba una venta de farmacia vinculada (source='pos') como pago de la consulta — recepción podía verla "pagada" y no cobrar. Ahora el Pagado/Pendiente por cita filtra pagos clínicos (misma regla que el saldo del paciente) y las compras de farmacia se muestran aparte como línea informativa.
+  - Una cita sin `price_snapshot` (pre-mig 011) mostraba Precio S/0 en la agenda mientras la ficha le cobraba el catálogo. El sidebar adopta el mismo fallback de `lib/patient-debt.ts`.
+  - **Mig 233** (+rollback): copia verbatim de la 230 con el filtro `COALESCE(source,'clinical')='clinical'` en toda suma de pagos POR CITA — la RPC de devolución ya no puede devolver/anular plata de farmacia, y los bloques de citas por cobrar del dashboard dejan de descontarla. Los ingresos totales no cambian (ahí farmacia sí es plata que entró).
+- **CLAUDE.md**: las tres reglas duras del dinero quedan escritas como convención del repo (un número una fórmula; clínico vs farmacia; regla de oro IGV) — cualquier agente o humano que toque el código las hereda.
+
+### Ops del día
+- Migs **230, 231 y 232 aplicadas y verificadas** en producción; **mig 233 pendiente de aplicar** (post-merge de esta tanda).
+- Video de verificación de Google re-grabado tras el retiro de YouTube por PII (el selector de cuentas exponía correos reales): cuenta de Google creada sobre `demo@yenda.app`, video nuevo subido en Oculto, enlace actualizado en Cloud Console y respuesta enviada al hilo de Google.
+- Pendiente documentado: mover 2 ventas de farmacia registradas el 27 a su fecha real (21-ago) — a ejecutar cuando la clínica confirme qué notas de venta corresponden; con `sale_date` en producción, el caso queda cubierto hacia adelante desde el propio checkout.
 
 ---
 

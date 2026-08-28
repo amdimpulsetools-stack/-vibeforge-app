@@ -60,6 +60,7 @@ import { OPEN_FOLLOWUP_STATUSES } from "@/types/followups";
 import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
 import {
   patientPendingBalance,
+  totalClinicalPaid,
   type BillableAppointment,
   type ClinicalPayment,
 } from "@/lib/patient-debt";
@@ -300,8 +301,23 @@ export function AppointmentSidebar({
   const [sendAsInvoice, setSendAsInvoice] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
 
-  const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const grossPrice = appointment.price_snapshot ? Number(appointment.price_snapshot) : 0;
+  // Solo los pagos CLÍNICOS cancelan la consulta — misma regla que el saldo
+  // del paciente (lib/patient-debt). Una venta de farmacia vinculada a la
+  // cita (source='pos') se muestra aparte: sin este filtro, recepción veía
+  // la consulta "pagada" por un Duphaston y dejaba de cobrarla.
+  const totalPaid = totalClinicalPaid(payments as unknown as ClinicalPayment[]);
+  const pharmacyPaid = payments.reduce((sum, p) => {
+    const source = (p as { source?: string | null }).source;
+    return (source ?? "clinical") === "clinical" ? sum : sum + Number(p.amount);
+  }, 0);
+  // Mismo fallback a catálogo que appointmentBilledAmount (lib/patient-debt):
+  // una cita pre-snapshot (price_snapshot NULL) facturaba S/0 aquí mientras
+  // la ficha le cobraba el precio de catálogo — dos verdades. El caso
+  // "legítimamente gratis" (snapshot 0) sigue siendo 0.
+  const grossPrice =
+    appointment.price_snapshot != null
+      ? Number(appointment.price_snapshot)
+      : Number(appointment.services?.base_price ?? 0);
   const discountAmount = Number(
     (appointment as { discount_amount?: number | null }).discount_amount ?? 0
   );
@@ -507,7 +523,7 @@ export function AppointmentSidebar({
     const supabase = createClient();
     const { data } = await supabase
       .from("patient_payments")
-      .select("id, appointment_id, patient_id, amount, payment_method, payment_date, notes, organization_id, created_at")
+      .select("id, appointment_id, patient_id, amount, payment_method, payment_date, notes, source, organization_id, created_at")
       .eq("appointment_id", appointment.id)
       .order("payment_date", { ascending: true });
     setPayments((data as PatientPayment[]) ?? []);
@@ -1909,6 +1925,21 @@ export function AppointmentSidebar({
                   className="h-full rounded-full bg-success-500 transition-all"
                   style={{ width: `${Math.min(100, (totalPaid / totalPrice) * 100)}%` }}
                 />
+              </div>
+            )}
+
+            {/* Compras de farmacia vinculadas: visibles pero APARTE del
+                cobro de la consulta — no cancelan deuda clínica. */}
+            {pharmacyPaid > 0 && (
+              <div className="rounded-lg border border-border/60 bg-muted/30 p-2.5 text-[11px] text-muted-foreground leading-relaxed flex items-start gap-2">
+                <Info className="h-3.5 w-3.5 mt-0.5 shrink-0 text-muted-foreground" />
+                <span>
+                  Compras de farmacia en esta visita:{" "}
+                  <span className="font-medium text-foreground">
+                    S/. {pharmacyPaid.toFixed(2)}
+                  </span>
+                  . No cuentan como pago de la consulta.
+                </span>
               </div>
             )}
 
