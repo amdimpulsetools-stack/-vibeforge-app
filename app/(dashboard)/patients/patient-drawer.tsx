@@ -223,8 +223,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   // que el fetch de estado Culqi + historial de links sea lazy.
   const [paymentLinkOpen, setPaymentLinkOpen] = useState(false);
   // Mismos métodos que el sidebar del scheduler: lookup 'payment_method'
-  // de la org + globales. Lo que se guarda es la label.
-  const paymentMethodOptions = usePaymentMethods(patient.organization_id);
+  // de la org + globales. Lo que se guarda es la label. La org sale del
+  // provider, NO de patient.organization_id: la lista de pacientes no trae
+  // esa columna en su SELECT, así que llegaba undefined, la query quedaba
+  // deshabilitada y el formulario caía siempre al texto libre.
+  const paymentMethodOptions = usePaymentMethods(organizationId);
 
   // Antes el drawer bajaba TODO el historial (citas con 3 joins + pagos) en
   // cuanto se abría, solo para el badge de deuda y los contadores. Ahora al
@@ -287,6 +290,16 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const appointments = historyData?.appointments ?? [];
   const payments = historyData?.payments ?? [];
   const loading = historyLoading;
+
+  // Contexto de cita para "Pagos registrados": las citas ya bajaron en la
+  // MISMA query (patient-history) con services(name) incluido, así que basta
+  // un índice por id — cero fetches extra y nada por fila. Si la cita del
+  // pago ya no existe (FK ON DELETE SET NULL o borrado), el get() devuelve
+  // undefined y el pago simplemente no muestra la línea.
+  const appointmentById = useMemo(
+    () => new Map(appointments.map((a) => [a.id, a])),
+    [appointments]
+  );
 
   // Ventas de farmacia del paciente. MISMA query key que PatientInventoryPanel:
   // React Query las dedupe, así que la pestaña Finanzas hace UN solo fetch y
@@ -1388,6 +1401,19 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         />
                       )}
                     </div>
+                    {/* Motivo: el estado paymentNotes existía y se guardaba
+                        en el insert, pero ningún input lo renderizaba — todo
+                        pago del drawer salía sin nota. Opcional a propósito:
+                        obligarlo rompería el flujo rápido de recepción. */}
+                    <div className="space-y-1">
+                      <label className="text-xs text-muted-foreground">Motivo / referencia (opcional)</label>
+                      <input
+                        value={paymentNotes}
+                        onChange={(e) => setPaymentNotes(e.target.value)}
+                        className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                        placeholder="Adelanto, pago a cuenta, nro. de operación…"
+                      />
+                    </div>
                     {appointments.length > 0 && (
                       <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">Cita asociada</label>
@@ -1432,7 +1458,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                       Pagos registrados
                     </h4>
-                    {payments.map((p) => (
+                    {payments.map((p) => {
+                      // Cita a la que se aplicó el pago, si sigue existiendo.
+                      const paidAppointment = p.appointment_id
+                        ? appointmentById.get(p.appointment_id)
+                        : undefined;
+                      return (
                       <div
                         key={p.id}
                         className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
@@ -1453,13 +1484,27 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                           <p className="text-[10px] text-muted-foreground">
                             {p.payment_date.split("-").reverse().join("/")} {p.payment_method && `• ${p.payment_method}`}
                           </p>
+                          {/* Misma línea contextual que "Farmacia NV-…": a qué
+                              cita se aplicó el pago. Si el servicio ya no está
+                              (cita sin servicio), la fecha sola sigue ubicando. */}
+                          {paidAppointment && (
+                            <p className="text-[10px] text-muted-foreground">
+                              Cita: {[
+                                paidAppointment.services?.name,
+                                paidAppointment.appointment_date.split("-").reverse().join("/"),
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          )}
                           {p.notes && (
                             <p className="text-[10px] text-muted-foreground">{p.notes}</p>
                           )}
                         </div>
                         <Coins className="h-4 w-4 shrink-0 text-emerald-500" />
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
