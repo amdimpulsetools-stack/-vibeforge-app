@@ -26,6 +26,13 @@ export interface WhatsAppConfig {
   business_verified: boolean;
   messaging_tier: string;
   is_active: boolean;
+  // ── Embedded Signup (mig 234) ──
+  connected_via: "manual" | "embedded_signup";
+  coexistence: boolean;
+  register_pin: string | null; // siempre enmascarado fuera del servidor
+  registration_status: "registered" | "pending" | null;
+  display_phone_number: string | null;
+  verified_name: string | null;
   created_at: string;
   updated_at: string;
 }

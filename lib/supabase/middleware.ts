@@ -66,6 +66,37 @@ const cspPagar = [
   "form-action 'self'",
 ].join("; ") + ";";
 
+// CSP SOLO para /settings (Embedded Signup de WhatsApp — Facebook Login
+// for Business). Mismo patrón acotado que cspPagar con Culqi: la política
+// global mantiene `script-src 'self'` y estos orígenes extra se conceden
+// únicamente en la ruta que los necesita:
+//   - script-src https://connect.facebook.net → ahí vive sdk.js (el SDK
+//     de Facebook que abre el popup de FB.login). Se carga lazy, solo al
+//     abrir el diálogo "Conectar con Facebook".
+//   - frame-src https://www.facebook.com y https://web.facebook.com → el
+//     SDK crea iframes ocultos de coordinación (el signup en sí corre en
+//     un POPUP de window.open, que la CSP no restringe).
+//   - connect-src https://www.facebook.com, https://web.facebook.com y
+//     https://graph.facebook.com → XHR de telemetría/estado que el SDK
+//     dispara desde la página. El intercambio del code con META_APP_SECRET
+//     ocurre SIEMPRE en el servidor, nunca aquí.
+// Si Meta usa un origen adicional, añadirlo AQUÍ y documentarlo, no en
+// la política global.
+const cspSettings = [
+  "default-src 'self'",
+  isDev
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://challenges.cloudflare.com https://connect.facebook.net"
+    : "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://connect.facebook.net",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://*.supabase.co",
+  "font-src 'self' data:",
+  `connect-src 'self' https://${supabaseDomain} https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.mercadopago.com https://www.facebook.com https://web.facebook.com https://graph.facebook.com`,
+  "frame-src 'self' https://challenges.cloudflare.com https://www.facebook.com https://web.facebook.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ") + ";";
+
 const securityHeaders = {
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
@@ -144,6 +175,11 @@ function applySecurityHeaders(
   // La ruta pública de pago necesita los orígenes de Culqi (ver cspPagar).
   if (pathname === "/pagar" || pathname?.startsWith("/pagar/")) {
     response.headers.set("Content-Security-Policy", cspPagar);
+  }
+  // Settings necesita el SDK de Facebook para el Embedded Signup de
+  // WhatsApp (ver cspSettings).
+  if (pathname === "/settings" || pathname?.startsWith("/settings/")) {
+    response.headers.set("Content-Security-Policy", cspSettings);
   }
   return response;
 }

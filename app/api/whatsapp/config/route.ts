@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { WhatsAppClient } from "@/lib/whatsapp/client";
-import { encrypt, decrypt } from "@/lib/encryption";
+import { decrypt } from "@/lib/encryption";
+import { maskWhatsAppConfig, upsertWhatsAppConfig } from "@/lib/whatsapp/config-store";
 import { z } from "zod";
 
 const whatsappConfigSchema = z.object({
@@ -45,12 +46,9 @@ export async function GET() {
     .eq("organization_id", member.organization_id)
     .maybeSingle();
 
-  // Return config without access_token for security
+  // Return config without secrets (access_token / register_pin) for security
   if (config) {
-    return NextResponse.json({
-      ...config,
-      access_token: config.access_token ? "••••••••" : null,
-    });
+    return NextResponse.json(maskWhatsAppConfig(config));
   }
 
   return NextResponse.json(null);
@@ -93,33 +91,26 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "Datos inválidos", details: parsed.error.flatten() }, { status: 400 });
   }
 
+  // Guardado por el camino único (cifrado incluido) — compartido con el
+  // Embedded Signup. El wizard manual marca connected_via='manual' solo
+  // cuando toca credenciales, para no pisar una conexión hecha vía popup
+  // con un simple toggle de is_active.
   const validated = parsed.data;
-  const payload: Record<string, unknown> = {
-    organization_id: member.organization_id,
-  };
+  const touchesCredentials =
+    (validated.access_token !== undefined && validated.access_token !== "••••••••") ||
+    validated.waba_id !== undefined ||
+    validated.phone_number_id !== undefined;
 
-  if (validated.waba_id !== undefined) payload.waba_id = validated.waba_id;
-  if (validated.phone_number_id !== undefined) payload.phone_number_id = validated.phone_number_id;
-  if (validated.access_token !== undefined && validated.access_token !== "••••••••") {
-    payload.access_token = encrypt(validated.access_token);
-  }
-  if (validated.webhook_verify_token !== undefined) payload.webhook_verify_token = validated.webhook_verify_token;
-  if (validated.is_active !== undefined) payload.is_active = validated.is_active;
-
-  const { data, error } = await supabase
-    .from("whatsapp_config")
-    .upsert(payload, { onConflict: "organization_id" })
-    .select()
-    .single();
+  const { data, error } = await upsertWhatsAppConfig(supabase, member.organization_id, {
+    ...validated,
+    ...(touchesCredentials ? { connected_via: "manual" as const } : {}),
+  });
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({
-    ...data,
-    access_token: data.access_token ? "••••••••" : null,
-  });
+  return NextResponse.json(maskWhatsAppConfig(data));
 }
 
 /**

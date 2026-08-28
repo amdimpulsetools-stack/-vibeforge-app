@@ -20,6 +20,10 @@ import { toast } from "sonner";
 import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { WhatsAppWizard } from "@/components/integrations/whatsapp-wizard";
+import {
+  WhatsAppEmbeddedSignup,
+  isEmbeddedSignupEnabled,
+} from "@/components/integrations/whatsapp-embedded-signup";
 import { GCalDescriptionDialog } from "@/components/integrations/gcal-description-dialog";
 import { EInvoiceSetupDialog } from "@/components/integrations/einvoice-setup-dialog";
 import { CulqiSetupDialog } from "@/components/integrations/culqi-setup-dialog";
@@ -131,7 +135,16 @@ export default function IntegracionesTab() {
   const [sheetsRefreshing, setSheetsRefreshing] = useState(false);
 
   const [whatsappWizardOpen, setWhatsappWizardOpen] = useState(false);
+  // Diálogo del Embedded Signup de Meta ("Conectar con Facebook"). Solo
+  // existe si NEXT_PUBLIC_META_APP_ID + NEXT_PUBLIC_META_ES_CONFIG_ID
+  // están definidos; sin ellos, el botón cae directo al wizard manual.
+  const [whatsappSignupOpen, setWhatsappSignupOpen] = useState(false);
   const [whatsappConnected, setWhatsappConnected] = useState(false);
+  const [whatsappInfo, setWhatsappInfo] = useState<{
+    display_phone_number: string | null;
+    verified_name: string | null;
+    registration_status: string | null;
+  } | null>(null);
   const einvoiceConfig = useEInvoiceConfig();
   const [einvoiceSetupOpen, setEinvoiceSetupOpen] = useState(false);
   const culqiConfig = useCulqiConfig();
@@ -147,6 +160,15 @@ export default function IntegracionesTab() {
     if (res.ok) {
       const data = await res.json();
       setWhatsappConnected(!!data?.is_active);
+      setWhatsappInfo(
+        data
+          ? {
+              display_phone_number: data.display_phone_number ?? null,
+              verified_name: data.verified_name ?? null,
+              registration_status: data.registration_status ?? null,
+            }
+          : null
+      );
     }
   }, [organizationId]);
 
@@ -378,7 +400,10 @@ export default function IntegracionesTab() {
       status: whatsappConnected ? "connected" : "available",
       onConnect: whatsappConnected
         ? handleDisconnectWhatsApp
-        : () => setWhatsappWizardOpen(true),
+        : () =>
+            isEmbeddedSignupEnabled()
+              ? setWhatsappSignupOpen(true)
+              : setWhatsappWizardOpen(true),
     },
     {
       id: "google-calendar",
@@ -538,6 +563,35 @@ export default function IntegracionesTab() {
                   <p className="text-xs text-muted-foreground leading-relaxed mb-4 min-h-[3rem]">
                     {it.description[es ? "es" : "en"]}
                   </p>
+
+                  {/* WhatsApp — número y nombre verificado cuando está conectado */}
+                  {it.id === "whatsapp" && whatsappConnected && whatsappInfo &&
+                    (whatsappInfo.display_phone_number || whatsappInfo.verified_name) && (
+                    <div className="mb-3 space-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
+                      {whatsappInfo.verified_name && (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-muted-foreground">{es ? "Negocio" : "Business"}:</span>
+                          <span className="font-medium truncate text-right">{whatsappInfo.verified_name}</span>
+                        </div>
+                      )}
+                      {whatsappInfo.display_phone_number && (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-muted-foreground">{es ? "Número" : "Number"}:</span>
+                          <span className="font-medium font-mono">{whatsappInfo.display_phone_number}</span>
+                        </div>
+                      )}
+                      {whatsappInfo.registration_status === "pending" && (
+                        <div className="mt-2 flex items-start gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-amber-700 dark:text-amber-400">
+                          <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                          <span className="text-[11px] leading-relaxed">
+                            {es
+                              ? "Registro en Cloud API pendiente. Si el envío falla, contáctanos."
+                              : "Cloud API registration pending. Contact us if sending fails."}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Google Calendar — extra status detail when connected */}
                   {it.id === "google-calendar" && gcal.connected && (
@@ -899,6 +953,19 @@ export default function IntegracionesTab() {
           </p>
         </div>
       </div>
+
+      <WhatsAppEmbeddedSignup
+        open={whatsappSignupOpen}
+        onClose={() => {
+          setWhatsappSignupOpen(false);
+          fetchWhatsappStatus();
+        }}
+        onConnected={() => setWhatsappConnected(true)}
+        onOpenManual={() => {
+          setWhatsappSignupOpen(false);
+          setWhatsappWizardOpen(true);
+        }}
+      />
 
       <WhatsAppWizard
         open={whatsappWizardOpen}
