@@ -4615,8 +4615,17 @@ Jornada guiada por el uso real de la clínica. La pregunta del founder ("compro 
 ### Agenda — deshacer cancelación (PR #325)
 - Una cita **sin pagos** se cancelaba al primer clic (email al paciente, baja en Calendar, sesión de plan liberada — todo por un clic accidental, como le pasó al founder con un control ovulatorio). Ahora la cancelación real se **difiere 10 segundos**: toast con contador, barra de tiempo y botón Deshacer. Deshacer = no pasó nada, en ningún sistema. Con pagos, sigue el diálogo de devolución de la mig 230.
 
+### Ficha del paciente — pagos del drawer + coherencia del dinero por cita (mig 233)
+- **Chips de método de pago reparados**: los chips del catálogo (15-ago) nunca se mostraban — el hook recibía `patient.organization_id`, columna que la lista de pacientes no trae en su SELECT; la query quedaba deshabilitada y el formulario caía siempre al texto libre. Ahora usa la org del provider, como el panel de presupuestos.
+- **Contexto de cita en "Pagos registrados"**: un pago vinculado muestra `Cita: {servicio} · {fecha}`, mismo estilo que "Farmacia NV-…". Y **campo "Motivo / referencia (opcional)"**: el estado existía y se guardaba, pero el input se perdió en un refactor — todo pago salía sin nota.
+- **"Solo la plata clínica paga consultas" — regla completada** (dos verdades destapadas por el barrido con agente):
+  - El sidebar de la cita contaba una venta de farmacia vinculada (source='pos') como pago de la consulta — recepción podía verla "pagada" y no cobrar. Ahora el Pagado/Pendiente por cita filtra pagos clínicos (misma regla que el saldo del paciente) y las compras de farmacia se muestran aparte como línea informativa.
+  - Una cita sin `price_snapshot` (pre-mig 011) mostraba Precio S/0 en la agenda mientras la ficha le cobraba el catálogo. El sidebar adopta el mismo fallback de `lib/patient-debt.ts`.
+  - **Mig 233** (+rollback): copia verbatim de la 230 con el filtro `COALESCE(source,'clinical')='clinical'` en toda suma de pagos POR CITA — la RPC de devolución ya no puede devolver/anular plata de farmacia, y los bloques de citas por cobrar del dashboard dejan de descontarla. Los ingresos totales no cambian (ahí farmacia sí es plata que entró).
+- **CLAUDE.md**: las tres reglas duras del dinero quedan escritas como convención del repo (un número una fórmula; clínico vs farmacia; regla de oro IGV) — cualquier agente o humano que toque el código las hereda.
+
 ### Ops del día
-- Migs **230, 231 y 232 aplicadas y verificadas** en producción.
+- Migs **230, 231 y 232 aplicadas y verificadas** en producción; **mig 233 pendiente de aplicar** (post-merge de esta tanda).
 - Video de verificación de Google re-grabado tras el retiro de YouTube por PII (el selector de cuentas exponía correos reales): cuenta de Google creada sobre `demo@yenda.app`, video nuevo subido en Oculto, enlace actualizado en Cloud Console y respuesta enviada al hilo de Google.
 - Pendiente documentado: mover 2 ventas de farmacia registradas el 27 a su fecha real (21-ago) — a ejecutar cuando la clínica confirme qué notas de venta corresponden; con `sale_date` en producción, el caso queda cubierto hacia adelante desde el propio checkout.
 
