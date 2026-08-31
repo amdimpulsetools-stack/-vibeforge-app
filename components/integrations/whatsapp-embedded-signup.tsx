@@ -214,9 +214,19 @@ export function WhatsAppEmbeddedSignup({
   useEffect(() => {
     if (!open) return;
     const listener = (event: MessageEvent) => {
+      // Cualquier subdominio https de facebook.com: Meta ha posteado desde
+      // www y web; business u otros no deben romper el flujo en silencio.
+      let originHost: string;
+      try {
+        const url = new URL(event.origin);
+        if (url.protocol !== "https:") return;
+        originHost = url.hostname;
+      } catch {
+        return;
+      }
       if (
-        event.origin !== "https://www.facebook.com" &&
-        event.origin !== "https://web.facebook.com"
+        originHost !== "facebook.com" &&
+        !originHost.endsWith(".facebook.com")
       ) {
         return;
       }
@@ -245,7 +255,12 @@ export function WhatsAppEmbeddedSignup({
             ? "Conexión cancelada. Puedes volver a intentarlo cuando quieras."
             : "Connection cancelled. You can try again anytime."
         );
-      } else if (payload.event === "error" || payload.data?.error_message) {
+      } else if (
+        // Meta documenta "ERROR" en mayúscula; se acepta cualquier casing
+        // y se conserva el fallback por error_message.
+        payload.event?.toUpperCase() === "ERROR" ||
+        payload.data?.error_message
+      ) {
         setPhase("error");
         setErrorMsg(
           payload.data?.error_message ||
@@ -339,7 +354,20 @@ export function WhatsAppEmbeddedSignup({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={() => {
+              // Con el popup de Meta abierto NO se cierra el diálogo: si la
+              // clínica completara el signup con el listener ya muerto, la
+              // autorización quedaría concedida en Meta y sin guardar en
+              // Yenda, en silencio. La X cancela el intento (vuelve a idle)
+              // y un segundo clic ya cierra normal. Durante "processing"
+              // (guardando, ~2s) tampoco se cierra.
+              if (phase === "popup") {
+                setPhase("idle");
+                return;
+              }
+              if (phase === "processing") return;
+              onClose();
+            }}
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
           >
             <X className="h-4 w-4" />
@@ -484,6 +512,19 @@ export function WhatsAppEmbeddedSignup({
                         ? es ? "Reintentar con Facebook" : "Retry with Facebook"
                         : es ? "Conectar con Facebook" : "Connect with Facebook"}
               </button>
+
+              {/* Salida visible mientras se espera el popup: si el usuario
+                  lo perdió de vista o se arrepintió, no queda atrapado en
+                  el spinner. */}
+              {phase === "popup" && (
+                <button
+                  type="button"
+                  onClick={() => setPhase("idle")}
+                  className="w-full text-center text-xs text-muted-foreground underline-offset-2 hover:underline"
+                >
+                  {es ? "Cancelar este intento" : "Cancel this attempt"}
+                </button>
+              )}
 
               {!isOrgAdmin && (
                 <p className="text-center text-xs text-muted-foreground">
