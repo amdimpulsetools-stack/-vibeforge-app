@@ -32,7 +32,17 @@ export function isEncrypted(text: string): boolean {
  */
 export function encrypt(text: string): string {
   const key = getKey();
-  if (!key) return text;
+  if (!key) {
+    // El fallback a texto plano existe SOLO para desarrollo local. En
+    // producción guardaría tokens de Meta/Culqi en claro mientras la UI
+    // promete AES-256 — mejor reventar el guardado que mentir.
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "ENCRYPTION_KEY no está configurada: no se pueden guardar credenciales sin cifrar en producción."
+      );
+    }
+    return text;
+  }
 
   // Don't double-encrypt
   if (isEncrypted(text)) return text;

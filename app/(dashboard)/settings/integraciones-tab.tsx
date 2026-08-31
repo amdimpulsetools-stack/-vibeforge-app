@@ -838,7 +838,12 @@ export default function IntegracionesTab() {
                   {it.status === "connected" && it.onConnect && it.id !== "nubefact" && it.id !== "culqi" && (
                     <button
                       onClick={it.onConnect}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors w-full justify-center"
+                      // Solo WhatsApp se gestiona a nivel de org: un no-admin
+                      // llegaba hasta el confirm de desvincular y recibía el
+                      // 403 del server. Google Calendar NO se gatea: esa
+                      // conexión es del propio usuario (cada doctor la suya).
+                      disabled={it.id === "whatsapp" && !isOrgAdmin}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent disabled:opacity-40 disabled:cursor-not-allowed transition-colors w-full justify-center"
                     >
                       <Settings className="h-3.5 w-3.5" />
                       {it.id === "google-calendar"
