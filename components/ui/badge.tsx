@@ -10,7 +10,9 @@ const badgeVariants = cva(
       variant: {
         default: "border-transparent bg-primary text-primary-foreground shadow",
         secondary: "border-transparent bg-secondary text-secondary-foreground",
-        destructive: "border-transparent bg-destructive text-destructive-foreground shadow",
+        // text-white: en el tema --destructive-foreground == --destructive
+        // (rojo sobre rojo dejaría el texto invisible).
+        destructive: "border-transparent bg-destructive text-white shadow",
         outline: "text-foreground",
       },
     },

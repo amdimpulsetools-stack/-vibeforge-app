@@ -71,6 +71,24 @@ export interface ReceptionistDashboardData {
     completed: number;
     no_show: number;
   };
+  /**
+   * Mig 238. Opcional a propósito: si el RPC de prod aún es la versión 236
+   * el campo no viene y el widget pinta su empty-state (nunca crashea).
+   * `price`/`paid_clinical` vienen de la fórmula de la mig 233 (un número,
+   * una fórmula) — aquí SOLO se restan para el chip "Falta pago".
+   */
+  today_appointments?: Array<{
+    id: string;
+    start_time: string;
+    status: "scheduled" | "confirmed" | "completed" | "no_show" | string;
+    patient_name: string | null;
+    patient_phone: string | null;
+    doctor_name: string | null;
+    service_name: string | null;
+    is_recurring: boolean;
+    price: number;
+    paid_clinical: number;
+  }>;
   tomorrow_unconfirmed: Array<{
     id: string;
     start_time: string;
@@ -122,6 +140,7 @@ interface LegacyFollowupsResponse {
 
 const EMPTY_DATA: ReceptionistDashboardData = {
   kpis_today: { total: 0, confirmed: 0, unconfirmed: 0, completed: 0, no_show: 0 },
+  today_appointments: [],
   tomorrow_unconfirmed: [],
   my_payments_today: { amount_total: 0, count: 0 },
   my_managed_30d: { completed: 0, no_show: 0, cancelled: 0 },
@@ -131,6 +150,27 @@ const EMPTY_DATA: ReceptionistDashboardData = {
 function hhmm(time: string): string {
   return time.length >= 5 ? time.slice(0, 5) : time;
 }
+
+// Badge de estatus de la agenda de hoy — mismos colores que los dots de W1.
+// Un status desconocido cae al estilo de "programada" con su valor crudo.
+const STATUS_BADGE: Record<string, { key: string; cls: string }> = {
+  scheduled: {
+    key: "dashboard.receptionist.status_scheduled",
+    cls: "bg-amber-500/10 text-amber-600",
+  },
+  confirmed: {
+    key: "dashboard.receptionist.status_confirmed",
+    cls: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+  },
+  completed: {
+    key: "dashboard.receptionist.status_completed",
+    cls: "bg-success-500/10 text-success-600",
+  },
+  no_show: {
+    key: "dashboard.receptionist.status_no_show",
+    cls: "bg-rose-500/10 text-rose-600",
+  },
+};
 
 // ── Main Component ─────────────────────────────────────────────────
 
@@ -229,6 +269,8 @@ export function ReceptionistDashboard({
     : [];
 
   const kpis = data.kpis_today;
+  // Mig 238 — si el RPC de prod aún es la 236 el campo no viene: lista vacía.
+  const todayAppointments = data.today_appointments ?? [];
 
   return (
     <div className="space-y-6 pb-8">
@@ -397,8 +439,91 @@ export function ReceptionistDashboard({
         </Link>
       </div>
 
-      {/* ── ROW 2: [W2 Por confirmar mañana] [W5 Citas 30 días span-2] ── */}
+      {/* ── ROW 2: [W1b Agenda de hoy span-2] [W2 Por confirmar mañana] ── */}
       <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+        {/* W1b (mig 238): Agenda de hoy en lista, con estatus + chips.
+            "Falta pago" = price - paid_clinical (fórmula mig 233, solo
+            plata clínica, en bruto). "Recurrente" viene de patients. */}
+        <div className="md:col-span-2 rounded-2xl border border-border/60 bg-card flex flex-col">
+          <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border/40">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10">
+              <CalendarDays className="h-4 w-4 text-violet-500" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-sm font-bold">
+                {t("dashboard.receptionist.today_agenda_title")}
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                {todayAppointments.length}{" "}
+                {t("dashboard.receptionist.appointments_today")}
+              </p>
+            </div>
+          </div>
+          {todayAppointments.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
+              <CalendarDays className="h-6 w-6 text-muted-foreground/50" />
+              <p className="text-sm text-muted-foreground">
+                {t("dashboard.receptionist.today_agenda_empty")}
+              </p>
+            </div>
+          ) : (
+            <ul className="max-h-96 overflow-y-auto divide-y divide-border/40">
+              {todayAppointments.map((row) => {
+                const badge = STATUS_BADGE[row.status] ?? STATUS_BADGE.scheduled;
+                const pending = Math.max(
+                  0,
+                  Number(row.price) - Number(row.paid_clinical),
+                );
+                return (
+                  <li key={row.id}>
+                    <Link
+                      href="/scheduler"
+                      className="group flex items-center gap-3 px-5 py-3 transition-colors hover:bg-accent/40"
+                    >
+                      <span className="shrink-0 rounded-lg bg-muted px-2 py-1 text-xs font-bold tabular-nums">
+                        {hhmm(row.start_time)}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate text-sm font-semibold">
+                            {row.patient_name || "—"}
+                          </span>
+                          {row.is_recurring && (
+                            <span className="shrink-0 rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-400">
+                              {t("dashboard.receptionist.recurring")}
+                            </span>
+                          )}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {[row.service_name, row.doctor_name]
+                            .filter(Boolean)
+                            .join(" · ") || "—"}
+                        </span>
+                      </span>
+                      {/* Chips a la derecha: falta pago (si hay) + estatus */}
+                      {pending > 0 && Number(row.price) > 0 && (
+                        <span
+                          className="hidden sm:inline-flex shrink-0 items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-600"
+                          title={`${t("dashboard.receptionist.pending_payment")} ${formatCurrency(pending)}`}
+                        >
+                          {t("dashboard.receptionist.pending_payment")}{" "}
+                          {formatCurrency(pending)}
+                        </span>
+                      )}
+                      <span
+                        className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.cls}`}
+                      >
+                        {STATUS_BADGE[row.status] ? t(badge.key) : row.status}
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5" />
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+
         {/* W2: Por confirmar mañana (status='scheduled') */}
         <div className="rounded-2xl border border-border/60 bg-card flex flex-col">
           <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border/40">
@@ -465,8 +590,12 @@ export function ReceptionistDashboard({
           )}
         </div>
 
+      </div>
+
+      {/* ── ROW 3: [W5 Citas 30 días, a lo ancho] ── */}
+      <div className="grid gap-4 grid-cols-1">
         {/* W5: Citas últimos 30 días (org-wide) + chip personal */}
-        <div className="md:col-span-2 rounded-2xl border border-border/60 bg-card">
+        <div className="rounded-2xl border border-border/60 bg-card">
           <div className="flex flex-wrap items-center justify-between gap-2.5 px-6 py-4 border-b border-border/40">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
