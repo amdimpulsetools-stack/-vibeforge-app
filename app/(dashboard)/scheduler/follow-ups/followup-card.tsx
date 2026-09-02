@@ -1056,7 +1056,9 @@ export function FollowupCard({
               type="button"
               onClick={handleCloseSubmit}
               disabled={busy}
-              className="inline-flex items-center gap-2 rounded-lg bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+              // text-white a propósito: en el tema --destructive-foreground
+              // es idéntico a --destructive (rojo sobre rojo = invisible).
+              className="inline-flex items-center gap-2 rounded-lg bg-destructive px-3 py-1.5 text-sm font-medium text-white hover:bg-destructive/90 disabled:opacity-50"
             >
               {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               Cerrar caso
