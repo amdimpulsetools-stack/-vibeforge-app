@@ -76,6 +76,7 @@
 - [Changelog — Sesiones 2026-08-22 a 2026-08-27 (v0.15.34) — Quiz en landing + feedback clínica tanda 1 + Culqi F1 + verificación Google re-enviada + cancelación con devolución](#changelog--sesiones-2026-08-22-a-2026-08-27-v01534--quiz-en-landing--feedback-clínica-tanda-1--culqi-f1--verificación-google-re-enviada--cancelación-con-devolución)
 - [Changelog — Sesión 2026-08-27 (v0.15.35) — Farmacia: fecha de venta (sale_date) + historial con rango + cierre del día](#changelog--sesión-2026-08-27-v01535--farmacia-fecha-de-venta-sale_date--historial-con-rango--cierre-del-día)
 - [Changelog — Sesiones 2026-08-27/28 (v0.15.36) — Barrido fiscal IGV de punta a punta + deshacer cancelación de citas](#changelog--sesiones-2026-08-2728-v01536--barrido-fiscal-igv-de-punta-a-punta--deshacer-cancelación-de-citas)
+- [Changelog — Sesiones 2026-08-28 a 08-31 (v0.15.37) — Google APROBADO + WhatsApp Embedded Signup (mig 234) + expediente Meta casi completo + mapa de arquitectura](#changelog--sesiones-2026-08-28-a-08-31-v01537--google-aprobado--whatsapp-embedded-signup-mig-234--expediente-meta-casi-completo--mapa-de-arquitectura)
 
 ---
 
@@ -4628,6 +4629,35 @@ Jornada guiada por el uso real de la clínica. La pregunta del founder ("compro 
 - Migs **230, 231 y 232 aplicadas y verificadas** en producción; **mig 233 pendiente de aplicar** (post-merge de esta tanda).
 - Video de verificación de Google re-grabado tras el retiro de YouTube por PII (el selector de cuentas exponía correos reales): cuenta de Google creada sobre `demo@yenda.app`, video nuevo subido en Oculto, enlace actualizado en Cloud Console y respuesta enviada al hilo de Google.
 - Pendiente documentado: mover 2 ventas de farmacia registradas el 27 a su fecha real (21-ago) — a ejecutar cuando la clínica confirme qué notas de venta corresponden; con `sale_date` en producción, el caso queda cubierto hacia adelante desde el propio checkout.
+
+---
+
+## Changelog — Sesiones 2026-08-28 a 08-31 (v0.15.37) — Google APROBADO + WhatsApp Embedded Signup (mig 234) + expediente Meta casi completo + mapa de arquitectura
+
+La semana de las integraciones públicas. **Google aprobó la verificación OAuth de Yenda** (el final feliz de la saga del video), y el frente Meta pasó de "app sin publicar" a "proveedor de tecnología verificado con el flujo construido" — queda un solo trámite.
+
+### Google OAuth — APROBADO ✅ (28-ago)
+- Correo oficial del Third Party Data Safety Team: verificación aprobada para `calendar.events` (proyecto auth-pacientespro). **La integración de Google Calendar es pública**: sin pantalla de "app no verificada" y sin tope de 100 usuarios.
+- Reglas para no perderlo (del propio correo): no tocar la pantalla de consentimiento en Cloud Console (cualquier cambio reinicia la verificación); scopes nuevos = trámite nuevo; todo sigue viviendo en el mismo proyecto.
+
+### WhatsApp — Embedded Signup estilo Kommo (mig 234, PRs #327/#329)
+- Investigación previa que fijó la arquitectura: un número vive en UNA sola WABA; **Coexistence** (Meta, may-2025) permite el número vivo en la app del celular Y en la API a la vez (chats 1-a-1 de 6 meses importados, grupos no, reconectar si no se abre la app en 14 días); "dos CRMs a la vez" descartado como escenario soportable.
+- **El flujo**: la clínica pulsa "Conectar con Facebook" en Settings → Integraciones → popup oficial de Meta (Facebook Login for Business + config_id) → elige negocio y número (radio "Mantener mi app de WhatsApp Business" por defecto) → el servidor intercambia el code de un solo uso (secret jamás sale del backend), suscribe webhooks a la WABA del cliente, verifica el número, registra en Cloud API best-effort y guarda por el camino único `lib/whatsapp/config-store.ts` (token y PIN cifrados AES-256-GCM). Wizard manual conservado como alternativa.
+- **Mig 234** (+rollback): columnas additive en `whatsapp_config` (connected_via, coexistence, register_pin cifrado, registration_status, display_phone_number, verified_name). CSP nueva acotada a /settings para el SDK de Facebook (patrón Culqi).
+- **Auditoría con agente + blindajes** (PR #329): la X ya no puede cerrar el diálogo con el popup abierto (evitaba una autorización concedida en Meta y no guardada en Yenda, en silencio), botón "Cancelar este intento", evento ERROR sin casing, origin por hostname (*.facebook.com https), **encrypt() revienta en producción sin ENCRYPTION_KEY** en vez de guardar tokens en claro, y "Gestionar" de WhatsApp deshabilitado para no-admins. Veredicto: apto; el resto del flujo validado punto por punto.
+
+### Expediente Meta — de cero a un solo trámite pendiente
+- **App publicada** (28-ago) · verificación del negocio ya verificada (may-2024) · **clasificada y verificada como proveedor de tecnología** (verificación de acceso enviada 28-ago, **aprobada 31-ago**: SaaS, portfolio de la Dra. Angela declarado).
+- Facebook Login for Business configurado (SDK JS activado, dominios y OAuth URIs) y **Configuración de Embedded Signup creada** (config_id 4454930594731788; la plantilla manual no ofrece WhatsApp como activo, así que se usa la oficial de token 60 días — aviso/renovación de token anotado como tanda futura).
+- Env vars en Vercel (`NEXT_PUBLIC_META_APP_ID`, `NEXT_PUBLIC_META_ES_CONFIG_ID`, `META_APP_SECRET` como Secret) y mig 234 aplicada en prod.
+- **MCP de Meta Developer Tools conectado a la sesión**: leído directo de la API — compliance impecable (cero violaciones), webhooks con todos los campos correctos, acceso avanzado `none` en ambos permisos (la barrera del popup "no puede registrar clientes" es SOLO eso; descartados cuenta, navegador y vinculaciones viejas).
+- **Queda un trámite**: App Review de los 2 permisos — screencast obligatorio + Data Use Checkup. Paquete completo listo en `docs/meta-app-review.md`: justificaciones en inglés, guion del video (plan B con el número de prueba de Meta + org demo, cero PII), respuestas de datos e instrucciones para revisores explicando el círculo del modo desarrollo. **Siguiente paso: vincular la org demo al número de prueba (manual) y grabar.**
+
+### Herramienta interna — mapa de arquitectura (PR #328)
+- `/founder/arquitectura` (guard is_founder): lienzo React Flow con el árbol Yenda → capa → módulo (~25 nodos con el detalle REAL de cada módulo en tooltips: kardex append-only, sale_date Lima, reglas del dinero) + relaciones reales punteadas (agenda→Calendar, farmacia→caja, /pagar→Culqi…). Colapso por rama con doble clic (descendientes completos, a prueba de ciclos), glow por categoría, MiniMap. Documentación viva: un módulo nuevo se agrega tocando solo `architecture-data.ts`. Dependencia nueva: `@xyflow/react`.
+
+### Docs
+- `docs/meta-app-review.md` (paquete del review) · PRD §11 al día (filas de WhatsApp, App de Meta y Google Calendar).
 
 ---
 

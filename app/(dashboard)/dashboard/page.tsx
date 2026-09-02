@@ -38,11 +38,6 @@ export default async function DashboardPage() {
   // conservan el dashboard admin (visión completa de la clínica).
   const isAdvisor = Boolean(membership.is_fertility_advisor);
 
-  // Receptionist (no asesora): redirect to scheduler (their primary
-  // workspace). Se comprueba antes de pedir el perfil — su nombre no llega
-  // a usarse nunca.
-  if (role === "receptionist" && !isAdvisor) redirect("/scheduler");
-
   // Get display name from user_profiles (updated by user in account page)
   const profileQuery = supabase
     .from("user_profiles")
@@ -70,6 +65,38 @@ export default async function DashboardPage() {
       <>
         <WelcomeInvitedToast role={role} />
         <AdvisorDashboard userName={nameFrom(profile?.full_name)} />
+      </>
+    );
+  }
+
+  // Receptionist (no asesora — las asesoras ya salieron por la rama de
+  // arriba): dashboard propio. Antes se redirigía a /scheduler; ahora el
+  // RPC (mig 236, con gating de rol DENTRO de la función) se dispara aquí
+  // en el Server Component, en paralelo con el perfil — mismo patrón que
+  // la rama doctor. Si el RPC falla, initialData va null y el componente
+  // pinta empty-states — NUNCA redirect a /scheduler (evitar bucles).
+  if (role === "receptionist") {
+    const receptionistToday = format(new Date(), "yyyy-MM-dd");
+    const [{ data: profile }, receptionistStatsRes, { ReceptionistDashboard }] =
+      await Promise.all([
+        profileQuery,
+        supabase.rpc("get_receptionist_dashboard", {
+          p_org_id: membership.organization_id,
+          p_today: receptionistToday,
+        }),
+        import("./receptionist-dashboard"),
+      ]);
+    type ReceptionistStats =
+      import("./receptionist-dashboard").ReceptionistDashboardData;
+    return (
+      <>
+        <WelcomeInvitedToast role={role} />
+        <ReceptionistDashboard
+          userName={nameFrom(profile?.full_name)}
+          initialData={
+            (receptionistStatsRes.data as ReceptionistStats | null) ?? null
+          }
+        />
       </>
     );
   }

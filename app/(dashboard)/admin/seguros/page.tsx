@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { sortByNameEs } from "@/lib/utils";
+import { normalizeSearchText, sortByNameEs } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { usePlan } from "@/hooks/use-plan";
@@ -721,9 +721,10 @@ function CoveredServicesDialog({
   };
 
   const filteredServices = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    // Insensible a tildes/mayúsculas: "ecografia" encuentra "Ecografía".
+    const q = normalizeSearchText(query.trim());
     if (!q) return services;
-    return services.filter((s) => s.name.toLowerCase().includes(q));
+    return services.filter((s) => normalizeSearchText(s.name).includes(q));
   }, [services, query]);
 
   return (
