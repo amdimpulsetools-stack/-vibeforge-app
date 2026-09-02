@@ -8,9 +8,10 @@ contra producción. Revisión previa: `docs/security-review-2026-04-22.md`.
 
 | | Nota |
 |---|---|
-| **Estado hoy** (con el hallazgo crítico vivo) | **5 / 10** |
+| **Estado hoy** — ACTUALIZADO 1-sep tras verificar prod: **C1 NO está vivo** (ver abajo) | **6.5 / 10** |
+| ~~Estado con C1 vivo (descartado por `pg_policies` en prod)~~ | ~~5 / 10~~ |
 | **Base arquitectónica** (RLS 100 %, cifrado, headers, webhooks HMAC, ledgers append-only) | 8 / 10 |
-| **Tras la tanda P0** (1 migración + 2 rutas) | 7.5 / 10 |
+| **Tras la tanda P0** (mig 235 + 2 rutas) | 7.5 / 10 |
 | **Tras P0 + P1** (una semana de trabajo) | 8.5 / 10 |
 | Promedio de SaaS emergente (misma etapa, sin revisión formal) | ≈ 4 / 10 |
 
@@ -34,6 +35,15 @@ logs), F-25 (CSP `unsafe-inline`), F-11 (IA sin restricción por columna).
 ## CRÍTICA
 
 ### C1 · Cualquier usuario registrado puede hacerse owner de cualquier clínica
+
+> **VERIFICADO EN PRODUCCIÓN (1-sep-2026): NO está vivo.** `pg_policies` sobre
+> `organization_members` devolvió solo las 4 policies `org_*` de la mig 013 —
+> las legacy de la 005 no existen en prod (quedaron fuera en algún momento,
+> aunque los archivos del repo y `verify-database.sql` sugerían lo contrario).
+> El hallazgo queda como deuda de higiene de migraciones (una base recreada
+> desde los archivos SÍ lo tendría). Los DROP de la mig 235 pasan a ser no-ops
+> preventivos; **A1 y A2 sí se confirmaron en prod** (`org_update_members` con
+> `with_check = null`) y son la razón vigente para aplicar la 235.
 - **Dónde**: `supabase/migrations/005_fix_rls_recursion.sql:24-34` crea
   `"Org owner can add members"` con `WITH CHECK (auth.uid() = user_id OR …)`.
   La 013 creó las policies nuevas pero **nunca eliminó las de la 005** (verificado: sus

@@ -130,6 +130,19 @@ export default function SchedulerPage() {
   const queryClient = useQueryClient();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
+
+  // Deep-link `?date=YYYY-MM-DD` (dashboard de recepcionista, widget "Por
+  // confirmar mañana"). Se lee de window.location en un effect de montaje —
+  // no useSearchParams: evitaría prerender del árbol sin un Suspense
+  // boundary, y leerlo en el initializer del useState causaría hydration
+  // mismatch (el server no ve la query).
+  useEffect(() => {
+    const d = new URLSearchParams(window.location.search).get("date");
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+      const parsed = new Date(`${d}T12:00:00`);
+      if (!Number.isNaN(parsed.getTime())) setCurrentDate(parsed);
+    }
+  }, []);
   const [totalApptCount, setTotalApptCount] = useState<number | null>(null);
 
   // ── Master data (cached via React Query — survives page navigations) ──
