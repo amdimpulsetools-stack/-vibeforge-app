@@ -79,6 +79,18 @@ export function sortByNameEs<T extends { name?: string | null }>(items: T[]): T[
   );
 }
 
+/**
+ * Normaliza texto para búsqueda en cliente: minúsculas y sin diacríticos
+ * ("Ecografía" → "ecografia"), así "ecografia" encuentra "Ecografía" y
+ * viceversa. Usar en AMBOS lados de la comparación (query y candidato).
+ */
+export function normalizeSearchText(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

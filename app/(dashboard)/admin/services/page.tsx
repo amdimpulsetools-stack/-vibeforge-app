@@ -42,6 +42,7 @@ import {
 import { DURATION_OPTIONS, SERVICE_MODALITY_LABELS } from "@/types/admin";
 import type { Service, ServiceCategory } from "@/types/admin";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
+import { normalizeSearchText } from "@/lib/utils";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { BulkImportModal } from "./bulk-import-modal";
 import Link from "next/link";
@@ -70,6 +71,7 @@ import {
   PowerOff,
   AlertTriangle,
   Info,
+  Search,
 } from "lucide-react";
 
 export default function ServicesPage() {
@@ -94,6 +96,7 @@ export default function ServicesPage() {
   const [showCategoryForm, setShowCategoryForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<ServiceCategory | null>(null);
   const [activeTab, setActiveTab] = useState<"services" | "categories">("services");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // ── Multi-select del catálogo ──────────────────────────────────
   type ServiceRow = Service & { service_categories: ServiceCategory };
@@ -350,6 +353,30 @@ export default function ServicesPage() {
     services: services.filter((s) => s.category_id === cat.id),
   }));
 
+  // Búsqueda en cliente (los servicios ya están cargados): por nombre de
+  // servicio Y por nombre de categoría, insensible a tildes/mayúsculas.
+  // Si la categoría matchea, se muestran todos sus servicios; si no, solo
+  // los servicios que matchean. Categorías sin resultados se ocultan.
+  // El orden existente (display_order del catálogo) se respeta tal cual.
+  const searchNorm = normalizeSearchText(searchQuery.trim());
+  const isSearching = searchNorm.length > 0;
+  const visibleByCategory = !isSearching
+    ? servicesByCategory
+    : servicesByCategory
+        .map(({ category, services: catServices }) => ({
+          category,
+          services: normalizeSearchText(category.name).includes(searchNorm)
+            ? catServices
+            : catServices.filter((s) =>
+                normalizeSearchText(s.name).includes(searchNorm),
+              ),
+        }))
+        .filter(({ services: catServices }) => catServices.length > 0);
+  const visibleCount = visibleByCategory.reduce(
+    (acc, group) => acc + group.services.length,
+    0,
+  );
+
   // First-time empty state: no categories AND no services.
   // Hide once the owner opens the category form so the inline form can take over.
   if (
@@ -475,6 +502,39 @@ export default function ServicesPage() {
             </div>
           )}
 
+          {/* Buscador del catálogo — filtra por nombre de servicio o categoría */}
+          {services.length > 0 && (
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Buscar servicio o categoría..."
+                  aria-label="Buscar servicio o categoría"
+                  className="w-full rounded-lg border border-input bg-background pl-10 pr-9 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    aria-label="Limpiar búsqueda"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {isSearching && (
+                <span className="shrink-0 px-1 text-xs text-muted-foreground">
+                  {visibleCount} de {services.length} servicio
+                  {services.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
+          )}
+
           {showServiceForm && (
             <div ref={formRef} className="rounded-xl border border-border bg-card p-6 scroll-mt-20">
               <ServiceForm
@@ -500,7 +560,24 @@ export default function ServicesPage() {
             </div>
           )}
 
-          {servicesByCategory.map(({ category, services: catServices }) => (
+          {/* Estado vacío de búsqueda */}
+          {isSearching && visibleCount === 0 && servicesByCategory.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-12 text-center">
+              <Search className="mx-auto h-12 w-12 text-muted-foreground/50" />
+              <p className="mt-4 text-muted-foreground">
+                Sin resultados para &ldquo;{searchQuery.trim()}&rdquo;
+              </p>
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="mt-3 text-sm font-medium text-primary hover:underline"
+              >
+                Limpiar búsqueda
+              </button>
+            </div>
+          )}
+
+          {visibleByCategory.map(({ category, services: catServices }) => (
             <div key={category.id} className="space-y-2">
               <div className="flex items-center gap-2 px-1">
                 {selectionMode && catServices.length > 0 && (
