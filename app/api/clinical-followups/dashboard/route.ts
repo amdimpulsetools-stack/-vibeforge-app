@@ -244,10 +244,13 @@ const RECOVERED_STATUSES = [
   "agendado_via_contacto",
   "agendado_organico_dentro_ventana",
 ];
+// Bandeja de TRIAJE, no archivo (spec §7.1): solo los casos donde el motor
+// se rindió y falta la decisión humana (Reactivar / Cerrar caso).
+// `cerrado_manual` ya ES la decisión: listarlo aquí dejaba la card "pegada"
+// tras Cerrar caso. Esos cierres quedan en BD con motivo y autor.
 const NO_RESPONSE_STATUSES = [
   "desistido_silencioso",
   "vencido",
-  "cerrado_manual",
 ];
 
 const RECOVERED_LOOKBACK_DAYS = 30;
@@ -467,7 +470,14 @@ async function loadRecoveredKpis(
         .from("clinical_followups")
         .select("id", { count: "exact", head: true })
         .eq("organization_id", orgId)
-        .in("status", [...RECOVERED_STATUSES, ...NO_RESPONSE_STATUSES])
+        // Denominador de la tasa (recuperados / cerrados): TODOS los
+        // cierres, incluido `cerrado_manual`, que salió del bucket de la
+        // bandeja pero sigue siendo un caso cerrado para la métrica.
+        .in("status", [
+          ...RECOVERED_STATUSES,
+          ...NO_RESPONSE_STATUSES,
+          "cerrado_manual",
+        ])
         .gte("closed_at", since),
       loadLtv(supabase, orgId),
     ]);
