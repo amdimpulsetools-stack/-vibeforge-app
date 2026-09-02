@@ -364,11 +364,10 @@ export default function FollowUpsPage() {
     "agendado_via_contacto",
     "agendado_organico_dentro_ventana",
   ];
-  const NO_RESPONSE_STATUSES = [
-    "desistido_silencioso",
-    "vencido",
-    "cerrado_manual",
-  ];
+  // Espejo del endpoint (dashboard/route.ts): `cerrado_manual` NO pertenece
+  // a ningún bucket — "Cerrar caso" / "Cerrar sin agendar" archivan y la
+  // card sale de la bandeja (queda en BD con motivo y autor).
+  const NO_RESPONSE_STATUSES = ["desistido_silencioso", "vencido"];
 
   const bucketForStatus = (
     status: string | null | undefined
@@ -423,8 +422,7 @@ export default function FollowUpsPage() {
     id: string,
     updated: FollowupWithDetails | null
   ) => {
-    const target = bucketForStatus(updated?.status);
-    if (!updated || !target) {
+    if (!updated) {
       // Payload inesperado — la recarga completa sigue siendo el fallback.
       refresh();
       return;
@@ -447,6 +445,23 @@ export default function FollowUpsPage() {
       (Object.keys(states) as FollowupVariant[]).find((k) =>
         states[k].items.some((i) => i.id === id)
       ) ?? null;
+
+    const target = bucketForStatus(updated.status);
+    if (!target) {
+      // Estado fuera de los tres buckets (`cerrado_manual`): el caso quedó
+      // archivado. La card sale de su bucket y el badge baja en uno.
+      if (source) {
+        setters[source]((prev) => ({
+          ...prev,
+          items: prev.items.filter((i) => i.id !== id),
+        }));
+        setCounts((prev) => ({
+          ...prev,
+          [source]: Math.max(0, prev[source] - 1),
+        }));
+      }
+      return;
+    }
 
     if (source === target) {
       setters[source]((prev) => {
@@ -560,7 +575,7 @@ export default function FollowUpsPage() {
       id,
       `/api/clinical-followups/${id}/close-manual`,
       { reason },
-      "Caso cerrado"
+      "Caso cerrado — archivado con su motivo"
     );
 
   const onReactivate = (id: string) =>
