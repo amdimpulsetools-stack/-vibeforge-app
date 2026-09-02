@@ -6,20 +6,37 @@ import type { OrgRole } from "@/types/admin";
 // Decision (sesión 2026-05-13 con Oscar): defaults generosos.
 // Cubre la realidad — un owner power-user normalmente usa
 // laptop + móvil + tablet; doctor tiene su laptop de la
-// clínica + su móvil; recepción siempre opera en una sola
-// PC del front-desk.
+// clínica + su móvil.
 //
 // Si una org pide ajuste (multi-clínica que comparte tablet
 // para ronda médica, etc.), founders pueden override por
 // user en un v2. No exponemos UI por-org en v1.
+//
+// Este mapa es la ÚNICA fuente del número: la UI (/account/devices
+// y <DeviceLimitDialog>) lo recibe del backend vía
+// getSessionLimitForUser, nunca lo hardcodea.
 // ============================================================
 
 export const SESSION_LIMITS: Record<OrgRole, number> = {
   owner: 3,
   admin: 2,
   doctor: 2,
-  receptionist: 1,
+  // 2026-09-02: sube de 1 → 2. Recepción usa dos dispositivos
+  // reales: la PC del mostrador y su móvil, con el que también
+  // reserva y confirma citas fuera del counter. Con 1 slot, cada
+  // cambio de dispositivo disparaba el modal de "cerrá una sesión".
+  receptionist: 2,
 };
+
+// Roles heredados pre-mig 020 ('member', 'assistant', que es como
+// las orgs viejas guardan a recepción — ver /caja, /farmacia y
+// lib/live-notifications/catalog.ts) NO están en este mapa a
+// propósito: OrgRole ya no los incluye. getActiveRolesForUser los
+// descarta, así que esos users caen en DEFAULT_SESSION_LIMIT (3),
+// que es MÁS permisivo que los 2 de receptionist — nunca menos.
+// No hace falta subirlos: no pueden quedar por debajo del nuevo
+// límite. Si algún día se normalizan a 'receptionist', pasan de 3
+// a 2 slots y ahí sí conviene avisar.
 
 // Fallback when user has no active membership yet (e.g. signup
 // flow before they pick a plan, or after every membership got
