@@ -80,13 +80,29 @@ export async function GET(
   const serviceIds = [
     ...new Set((doctorServices || []).map((ds) => ds.service_id)),
   ];
-  const { data: services } = await supabase
+  const { data: rawServices } = await supabase
     .from("services")
-    .select("id, name, duration_minutes, base_price, modality")
+    .select("*")
     .eq("organization_id", org.id)
     .eq("is_active", true)
     .in("id", serviceIds.length > 0 ? serviceIds : ["__none__"])
     .order("name");
+  // Filtro is_bookable (mig 239) en JS y tolerante (`!== false`): los
+  // tratamientos no agendables no se ofrecen en la reserva pública. Se
+  // re-proyectan solo las columnas que el cliente ya consumía — con
+  // `select("*")` no filtramos columnas en PostgREST y evitamos un 400
+  // si la migración aún no corrió.
+  const services = (rawServices ?? [])
+    .filter(
+      (s) => (s as { is_bookable?: boolean }).is_bookable !== false,
+    )
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      duration_minutes: s.duration_minutes,
+      base_price: s.base_price,
+      modality: (s as { modality?: string }).modality,
+    }));
 
   // 6. Fetch doctor schedules
   const { data: schedules } = await supabase

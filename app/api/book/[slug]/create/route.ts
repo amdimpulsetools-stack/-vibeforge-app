@@ -170,16 +170,22 @@ export async function POST(
     );
   }
 
-  // 7. Verify service exists
+  // 7. Verify service exists (select * para tolerar que la mig 239 aún
+  // no haya corrido — pedir una columna inexistente daría 400).
   const { data: service } = await supabase
     .from("services")
-    .select("id, name, duration_minutes, base_price, send_reminders")
+    .select("*")
     .eq("id", data.service_id)
     .eq("organization_id", org.id)
     .eq("is_active", true)
     .single();
 
-  if (!service) {
+  if (
+    !service ||
+    // No agendable (mig 239): el listado ya lo oculta; esto frena un POST
+    // manual con el id de un tratamiento.
+    (service as { is_bookable?: boolean }).is_bookable === false
+  ) {
     return NextResponse.json(
       { error: "Servicio no disponible" },
       { status: 400 }

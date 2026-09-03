@@ -58,7 +58,14 @@ async function fetchMasterData(organizationId: string): Promise<SchedulerMasterD
     doctors: (doctorsRes.data as Doctor[]) ?? [],
     // Re-orden en cliente: el collation de la BD desordena
     // mayúsculas/tildes ("Ácido", "botox", "Consulta").
-    services: sortByNameEs((servicesRes.data as Service[]) ?? []),
+    // Filtro is_bookable (mig 239) en cliente y tolerante (`!== false`):
+    // los tratamientos no agendables (FIV, etc.) no se ofrecen al crear
+    // cita, y si la columna aún no existe no se filtra nada.
+    services: sortByNameEs(
+      ((servicesRes.data as Service[]) ?? []).filter(
+        (s) => (s as { is_bookable?: boolean }).is_bookable !== false,
+      ),
+    ),
     doctorServices: (doctorServicesRes.data as { doctor_id: string; service_id: string }[]) ?? [],
     doctorSchedules: (doctorSchedulesRes.data as Pick<DoctorSchedule, "doctor_id" | "day_of_week" | "start_time" | "end_time" | "office_id">[]) ?? [],
     lookupOrigins: (originsRes.data as LookupValue[]) ?? [],

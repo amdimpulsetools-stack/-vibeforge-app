@@ -250,6 +250,9 @@ export interface Database {
           duration_minutes: number;
           pre_appointment_instructions: string | null;
           is_active: boolean;
+          // "Se agenda como cita" (mig 239). false = fuera de los selects
+          // de crear cita; sigue activo para presupuestos/planes.
+          is_bookable: boolean;
           display_order: number;
           organization_id: string;
           created_at: string;
@@ -263,6 +266,7 @@ export interface Database {
           duration_minutes?: number;
           pre_appointment_instructions?: string | null;
           is_active?: boolean;
+          is_bookable?: boolean;
           display_order?: number;
           organization_id: string;
           created_at?: string;
@@ -276,6 +280,7 @@ export interface Database {
           duration_minutes?: number;
           pre_appointment_instructions?: string | null;
           is_active?: boolean;
+          is_bookable?: boolean;
           display_order?: number;
           organization_id?: string;
           updated_at?: string;
