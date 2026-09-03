@@ -644,6 +644,11 @@ export default function ServicesPage() {
                                 Presencial / Virtual
                               </span>
                             )}
+                            {(service as { is_bookable?: boolean }).is_bookable === false && (
+                              <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600">
+                                No se agenda como cita
+                              </span>
+                            )}
                           </div>
                           <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
                             <span className="flex items-center gap-1">
@@ -1046,6 +1051,8 @@ function ServiceForm({
       requires_consent: (service as { requires_consent?: boolean })?.requires_consent ?? false,
       // mig 228 — el campo no está en types/database.ts todavía.
       send_reminders: (service as { send_reminders?: boolean })?.send_reminders ?? true,
+      // mig 239 — "Se agenda como cita".
+      is_bookable: (service as { is_bookable?: boolean })?.is_bookable ?? true,
       is_active: service?.is_active ?? true,
       sunat_product_code: (service as { sunat_product_code?: string })?.sunat_product_code ?? "",
       unit_of_measure: (service as { unit_of_measure?: string })?.unit_of_measure ?? "ZZ",
@@ -1163,6 +1170,8 @@ function ServiceForm({
       requires_consent: values.requires_consent,
       // Opt-out de envíos automáticos por servicio (mig 228).
       send_reminders: values.send_reminders,
+      // Visibilidad en los selects de crear cita (mig 239).
+      is_bookable: values.is_bookable,
       is_active: values.is_active,
       // Seguimientos core (mig 182) — sin gate de addon: NULL = sin
       // seguimiento automático, que es el comportamiento actual.
@@ -1348,6 +1357,27 @@ function ServiceForm({
             Si lo apagas, las citas de este servicio no envían recordatorios
             de 24h/2h ni confirmaciones. Ideal para procedimientos internos o
             controles sin aviso.
+          </div>
+        </div>
+      </label>
+
+      {/* "Se agenda como cita" (mig 239) — default activado. Apagarlo
+          saca el servicio de los selects de crear cita (scheduler y
+          reserva online) sin desactivarlo: sigue disponible para
+          presupuestos y planes de tratamiento. */}
+      <label className="flex items-start gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm">
+        <input
+          type="checkbox"
+          {...register("is_bookable")}
+          className="mt-0.5 rounded"
+        />
+        <div className="flex-1">
+          <div className="font-medium">Se agenda como cita</div>
+          <div className="text-xs text-muted-foreground">
+            Si lo apagas, este servicio no aparecerá al crear citas en la
+            agenda ni en la reserva online, pero seguirá activo para
+            presupuestos y planes de tratamiento. Ideal para tratamientos
+            que se cobran por fases (FIV, ovodonación, etc.).
           </div>
         </div>
       </label>

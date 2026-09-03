@@ -33,6 +33,12 @@ export const serviceSchema = z.object({
   // Los envíos manuales del staff no se ven afectados.
   send_reminders: z.boolean().default(true),
 
+  // "Se agenda como cita" (mig 239) — false = el servicio no aparece en
+  // los selects de crear cita (scheduler y reserva online) pero sigue
+  // activo para presupuestos y planes de tratamiento. Pensado para
+  // tratamientos TRA (FIV, ovodonación…) que se cobran por fases.
+  is_bookable: z.boolean().default(true),
+
   // Fiscal data — only relevant if e-invoicing is connected. All optional so
   // services created before activation keep working.
   sunat_product_code: z
