@@ -56,6 +56,8 @@ interface Props {
   sales: PharmacySale[];
   itemsBySale: Record<string, PharmacySaleItem[]>;
   patientNames: Record<string, string>;
+  /** sale.id → etiqueta del método de pago ("Yape", "Efectivo"…). */
+  paymentMethodBySale?: Record<string, string>;
   loading: boolean;
   range: { from: string; to: string };
   onRange: (range: { from: string; to: string }) => void;
@@ -82,6 +84,7 @@ export function DaySalesTab({
   sales,
   itemsBySale,
   patientNames,
+  paymentMethodBySale = {},
   loading,
   range,
   onRange,
@@ -458,6 +461,14 @@ export function DaySalesTab({
                             {fmtTime(sale.confirmed_at)}
                           </span>
                           <span className="min-w-0 flex-1 truncate text-sm">{customer}</span>
+                          {paymentMethodBySale[sale.id] && (
+                            <span
+                              className="hidden shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground md:inline"
+                              title="Método de pago"
+                            >
+                              {paymentMethodBySale[sale.id]}
+                            </span>
+                          )}
                           {backdated && (
                             <span
                               className="hidden shrink-0 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600 dark:text-amber-400 sm:inline"
@@ -506,6 +517,14 @@ export function DaySalesTab({
                               <span>
                                 Subtotal {formatPEN(sale.subtotal_taxed + sale.subtotal_exempt + sale.subtotal_unaffected)}
                                 {" · "}IGV {formatPEN(sale.igv_amount)}
+                                {paymentMethodBySale[sale.id] && (
+                                  <>
+                                    {" · "}Pago:{" "}
+                                    <span className="font-medium text-foreground">
+                                      {paymentMethodBySale[sale.id]}
+                                    </span>
+                                  </>
+                                )}
                               </span>
 
                               {anulada ? (
@@ -635,6 +654,7 @@ export function DaySalesTab({
             totals={rangeTotals}
             customerOf={customerOf}
             dayStats={dayStats}
+            paymentMethodBySale={paymentMethodBySale}
           />,
           document.body
         )}
@@ -683,10 +703,11 @@ interface PrintProps {
   };
   customerOf: (sale: PharmacySale) => string;
   dayStats: (rows: PharmacySale[]) => { total: number; items: number; count: number };
+  paymentMethodBySale: Record<string, string>;
 }
 
 /** Reporte del cierre para imprimir: mismo patrón visibility del ticket. */
-function PrintReport({ range, byDay, totals, customerOf, dayStats }: PrintProps) {
+function PrintReport({ range, byDay, totals, customerOf, dayStats, paymentMethodBySale }: PrintProps) {
   const singleDay = range.from === range.to;
   return (
     <>
@@ -766,6 +787,9 @@ function PrintReport({ range, byDay, totals, customerOf, dayStats }: PrintProps)
                       </td>
                       <td style={{ padding: "0.5mm 2mm" }}>{fmtTime(s.confirmed_at)}</td>
                       <td style={{ padding: "0.5mm 2mm" }}>{customerOf(s)}</td>
+                      <td style={{ padding: "0.5mm 2mm", whiteSpace: "nowrap" }}>
+                        {paymentMethodBySale[s.id] ?? ""}
+                      </td>
                       <td style={{ padding: "0.5mm 2mm" }}>
                         {s.status === "anulada" ? "ANULADA" : ""}
                       </td>
