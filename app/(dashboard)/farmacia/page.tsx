@@ -111,6 +111,9 @@ export default function FarmaciaPage() {
   const [sales, setSales] = useState<PharmacySale[]>([]);
   const [itemsBySale, setItemsBySale] = useState<Record<string, PharmacySaleItem[]>>({});
   const [patientNames, setPatientNames] = useState<Record<string, string>>({});
+  // Método de pago por venta (sale.id → "Yape", "Efectivo"…). La venta solo
+  // guarda payment_id; la etiqueta vive en patient_payments.payment_method.
+  const [paymentMethodBySale, setPaymentMethodBySale] = useState<Record<string, string>>({});
   const [salesLoading, setSalesLoading] = useState(false);
   // Rango del historial, en fecha civil de Lima (default: hoy).
   const [salesRange, setSalesRange] = useState<{ from: string; to: string }>(() => {
@@ -249,8 +252,30 @@ export default function FarmaciaPage() {
         }
         setPatientNames(map);
       }
+
+      // Etiqueta del método de pago para el extracto de cada NV.
+      const paymentIds = [...new Set(rows.map((s) => s.payment_id).filter(Boolean))] as string[];
+      const methodMap: Record<string, string> = {};
+      if (paymentIds.length > 0) {
+        const byPayment: Record<string, string> = {};
+        for (const ids of chunk(paymentIds, IN_CHUNK)) {
+          const { data: pays } = await supabase
+            .from("patient_payments")
+            .select("id,payment_method")
+            .in("id", ids);
+          for (const p of ((pays ?? []) as { id: string; payment_method: string | null }[])) {
+            const label = (p.payment_method ?? "").trim();
+            if (label) byPayment[p.id] = label;
+          }
+        }
+        for (const s of rows) {
+          if (s.payment_id && byPayment[s.payment_id]) methodMap[s.id] = byPayment[s.payment_id];
+        }
+      }
+      setPaymentMethodBySale(methodMap);
     } else {
       setItemsBySale({});
+      setPaymentMethodBySale({});
     }
 
     setSalesLoading(false);
@@ -632,6 +657,7 @@ export default function FarmaciaPage() {
             sales={sales}
             itemsBySale={itemsBySale}
             patientNames={patientNames}
+            paymentMethodBySale={paymentMethodBySale}
             loading={salesLoading}
             range={salesRange}
             onRange={setSalesRange}
