@@ -43,6 +43,9 @@ import {
   Megaphone,
   Warehouse,
   ShoppingCart,
+  Baby,
+  Syringe,
+  Tags,
 } from "lucide-react";
 
 interface NavItem {
@@ -61,6 +64,10 @@ interface NavGroup {
   titleKey: string;
   icon: LucideIcon;
   adminOnly?: boolean;
+  /** Igual que en NavItem, pero a nivel de grupo: sin el addon no se pinta
+   *  ni la cabecera del grupo (antes solo los hijos sabían ocultarse y
+   *  quedaba un acordeón vacío). */
+  requiresAnyAddon?: string[];
   items: NavItem[];
 }
 
@@ -98,13 +105,27 @@ const navSections: NavSection[] = [
             href: "/scheduler/follow-ups",
             icon: ClipboardCheck,
           },
+          { titleKey: "nav.scheduler_history", href: "/scheduler/history", icon: History },
+        ],
+      },
+      {
+        // Grupo Fertilidad: el embudo del Pack (Presupuestos → Tratamientos)
+        // vive junto, no repartido dentro de Agenda. Gate a nivel de GRUPO:
+        // una org core no ve ni la cabecera.
+        titleKey: "nav.group_fertility",
+        icon: Baby,
+        requiresAnyAddon: ["fertility_basic", "fertility_premium"],
+        items: [
           {
             titleKey: "nav.scheduler_budgets",
             href: "/scheduler/budgets",
             icon: Wallet,
-            requiresAnyAddon: ["fertility_basic", "fertility_premium"],
           },
-          { titleKey: "nav.scheduler_history", href: "/scheduler/history", icon: History },
+          {
+            titleKey: "nav.treatments",
+            href: "/tratamientos",
+            icon: Syringe,
+          },
         ],
       },
       {
@@ -172,6 +193,15 @@ const navSections: NavSection[] = [
           { titleKey: "nav.admin_diagnosis_codes", href: "/admin/diagnosis-codes", icon: BookOpen },
           { titleKey: "nav.admin_custom_fields", href: "/admin/custom-fields", icon: ListPlus },
           { titleKey: "nav.admin_insurance", href: "/admin/seguros", icon: ShieldPlus },
+          {
+            // Catálogo de conceptos de cobro de tratamientos (mig 242):
+            // solo tiene sentido con el Pack Fertilidad activo.
+            titleKey: "nav.treatment_concepts",
+            href: "/admin/treatment-concepts",
+            icon: Tags,
+            adminOnly: true,
+            requiresAnyAddon: ["fertility_basic", "fertility_premium"],
+          },
         ],
       },
     ],
@@ -306,6 +336,7 @@ export function Sidebar() {
 
   const renderNavGroup = (group: NavGroup) => {
     if (group.adminOnly && !isAdmin) return null;
+    if (group.requiresAnyAddon && !hasAnyAddon(group.requiresAnyAddon)) return null;
 
     const groupActive = isGroupActive(group);
     const isExpanded = expandedGroups[group.titleKey] ?? groupActive;
@@ -475,9 +506,17 @@ export function Sidebar() {
           // Filter visible entries to avoid empty sections.
           // Respects both adminOnly (owner+admin) and hideForDoctor flags.
           const visibleEntries = section.entries.filter((e) => {
-            const meta = e as { adminOnly?: boolean; hideForDoctor?: boolean };
+            const meta = e as {
+              adminOnly?: boolean;
+              hideForDoctor?: boolean;
+              requiresAnyAddon?: string[];
+            };
             if (meta.adminOnly && !isAdmin) return false;
             if (meta.hideForDoctor && isDoctor) return false;
+            // Grupos con gate de addon también cuentan aquí: si no, una
+            // sección podía quedar "visible" con cero entradas pintadas.
+            if (meta.requiresAnyAddon && !hasAnyAddon(meta.requiresAnyAddon))
+              return false;
             return true;
           });
           if (visibleEntries.length === 0) return null;
