@@ -18,9 +18,9 @@
  * budget_records).
  */
 
-import { renderToBuffer } from "@react-pdf/renderer";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { BudgetPdfDocument, type BudgetPdfProps } from "./document";
+import type { BudgetPdfProps } from "./document";
+import { renderBaseBudgetPdf } from "./render-base";
 import { getActiveBudgetPdfPlugin } from "@/lib/plugins/active";
 import type { BudgetTreatmentType } from "@/lib/plugins/types";
 import { inferTreatmentTypeFromServiceName } from "@/types/fertility";
@@ -68,18 +68,24 @@ interface BudgetForPdf {
   } | null;
 }
 
+// Columnas de branding que consumen los plugins (`props.org`) y el
+// presupuesto genérico (`buildOrgDocBlock` en lib/pdf/html/org.ts:
+// tagline, district, timezone…). Siempre datos reales de Ajustes.
 interface OrgRow {
   id: string;
   name: string;
   ruc: string | null;
   legal_name: string | null;
+  tagline: string | null;
   logo_url: string | null;
   address: string | null;
+  district: string | null;
   phone: string | null;
   phone_secondary: string | null;
   email_public: string | null;
   website: string | null;
   print_color_primary: string | null;
+  timezone: string;
 }
 
 interface ProfileLite {
@@ -201,7 +207,7 @@ async function loadOrg(
   const { data } = await client
     .from("organizations")
     .select(
-      "id, name, ruc, legal_name, logo_url, address, phone, phone_secondary, email_public, website, print_color_primary",
+      "id, name, ruc, legal_name, tagline, logo_url, address, district, phone, phone_secondary, email_public, website, print_color_primary, timezone",
     )
     .eq("id", orgId)
     .maybeSingle();
@@ -405,8 +411,10 @@ export async function generateBudgetPdf(
 
   // Plugin-based routing (mig 169). If the org has an installed
   // Capa-2 plugin that applies to this treatment, use it; otherwise
-  // fall back to the Capa-1 React-PDF document. The legacy hardcoded
-  // "if NATURVITRA + FIV" switch lived here pre-plugin and is gone.
+  // fall back to the Capa-1 generic budget on the shared HTML →
+  // Chromium engine (`render-base.ts`, lib/pdf/html). The legacy
+  // hardcoded "if NATURVITRA + FIV" switch lived here pre-plugin and
+  // is gone; the @react-pdf fallback was retired with the engine.
   const treatmentType = props.service.treatmentType as BudgetTreatmentType;
   const active = await getActiveBudgetPdfPlugin(
     adminClient,
@@ -415,9 +423,7 @@ export async function generateBudgetPdf(
   );
   const pdfBuffer = active
     ? await active.plugin.render({ ...props, budgetId: budget.id }, active.config)
-    : ((await renderToBuffer(
-        <BudgetPdfDocument {...props} />,
-      )) as Buffer);
+    : await renderBaseBudgetPdf({ ...props, budgetId: budget.id, orgRow: org });
 
   const { path, sizeBytes } = await uploadBudgetPdf(
     adminClient,

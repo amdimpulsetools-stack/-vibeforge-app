@@ -1,0 +1,72 @@
+{
+  "doc": {
+    "title": "Inseminación intrauterina (IIU)",
+    "eyebrow": "Presupuesto de tratamiento",
+    "code": "P-2026-7C6D",
+    "issued_label": "Emitido 05/09/2026",
+    "footer_note": "Presupuesto P-2026-7C6D · generado el 05/09/2026"
+  },
+  "org": {
+    "display_name": "Centro Andino de Reproducción",
+    "legal_name": "Centro Andino de Reproducción E.I.R.L.",
+    "tagline": "",
+    "tax_id": "20601234567",
+    "logo_url": "",
+    "brand_color": "#0f766e",
+    "address": "Av. Javier Prado Este 1234, of. 502, Miraflores, Lima",
+    "contact_line": "(01) 445 9900 / 987 654 321 · citas@fertilis.pe",
+    "website": "www.fertilis.pe",
+    "footer_html": "<p>Av. Javier Prado Este 1234, of. 502, Miraflores, Lima</p>\n<p>teléf.: <span class=\"loc\">(01) 445 9900 / 987 654 321</span></p>\n<p>citas@fertilis.pe&nbsp;&nbsp;|&nbsp;&nbsp;www.fertilis.pe</p>"
+  },
+  "meta": [
+    {
+      "label": "Paciente",
+      "value": "Ana Sofía Quintanilla Vega"
+    },
+    {
+      "label": "Documento",
+      "value": "—",
+      "num": true
+    },
+    {
+      "label": "Fecha de emisión",
+      "value": "05/09/2026",
+      "num": true
+    },
+    {
+      "label": "Médico tratante",
+      "value": "Dr. Rodrigo Salazar Ibáñez"
+    },
+    {
+      "label": "Vigencia",
+      "value": "hasta 05/10/2026",
+      "num": true
+    }
+  ],
+  "metaCols": 3,
+  "patient": {
+    "full_name": "Ana Sofía Quintanilla Vega"
+  },
+  "doctor": {
+    "full_name": "Dr. Rodrigo Salazar Ibáñez"
+  },
+  "advisor": null,
+  "budget": {
+    "amount": 1250,
+    "currency": "USD",
+    "currency_label": "dólares americanos",
+    "tier_label": "",
+    "valid_until_short": "05/10/2026",
+    "vigencia_days": 30
+  },
+  "includes": [
+    "Consulta y controles ovulatorios",
+    "Capacitación espermática",
+    "Procedimiento de inseminación intrauterina"
+  ],
+  "terms": [
+    "Vigencia del presupuesto: 30 días desde la fecha de emisión.",
+    "Servicios médicos no contemplados en este presupuesto serán cotizados por separado."
+  ],
+  "footer_text": ""
+}
