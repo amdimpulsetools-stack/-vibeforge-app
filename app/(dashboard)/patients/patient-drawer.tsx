@@ -92,6 +92,7 @@ import {
   usePatientPharmacySales,
 } from "./patient-inventory-panel";
 import { ClinicalHistoryModal } from "./clinical-history-modal";
+import { ClinicalShortcuts } from "@/components/clinical/clinical-shortcuts";
 import { RecurringBadge } from "@/components/patients/recurring-badge";
 import type { Sex } from "@/lib/growth-curves";
 import { TrendingUp, Maximize2 } from "lucide-react";
@@ -493,6 +494,16 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     queryClient.invalidateQueries({ queryKey: ["patient-summary", patient.id] });
     queryClient.invalidateQueries({ queryKey: ["patient-history", patient.id] });
     queryClient.invalidateQueries({ queryKey: ["patient-treatments", patient.id] });
+  };
+
+  // Los paneles clínicos (recetas, exámenes) leen su propia API al montarse
+  // y no pasan por React Query, así que remontarlos con una `key` nueva es
+  // la única forma de que una receta creada desde el atajo del header
+  // aparezca sin cerrar y reabrir el drawer.
+  const [clinicalRefreshKey, setClinicalRefreshKey] = useState(0);
+  const refreshClinicalPanels = () => {
+    setClinicalRefreshKey((k) => k + 1);
+    invalidatePatientData();
   };
 
   // Fetch clinical notes when clinical tab is selected
@@ -905,6 +916,21 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               </div>
             )}
           </div>
+        )}
+
+        {/* Atajos clínicos: recetar / ordenar exámenes sin cita y sin entrar
+            a la historia clínica. Solo con ficha de médico propia — aquí no
+            hay cita de la cual heredar un firmante, así que el firmante es
+            el doctor del usuario. */}
+        {canSeeClinical && currentDoctorId && (
+          <ClinicalShortcuts
+            className="mt-3"
+            patientId={patient.id}
+            patientName={`${patient.first_name} ${patient.last_name}`.trim()}
+            doctorId={currentDoctorId}
+            appointmentId={null}
+            onSaved={refreshClinicalPanels}
+          />
         )}
       </div>
 
@@ -1425,7 +1451,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               <VitalsTrendsChart patientId={patient.id} clinicalNotes={clinicalNotes} />
               <DiagnosisHistoryPanel patientId={patient.id} clinicalNotes={clinicalNotes} />
               <TreatmentPlansPanel patientId={patient.id} canEdit={false} />
-              <PrescriptionsPanel patientId={patient.id} canEdit={false} />
+              <PrescriptionsPanel key={`rx-${clinicalRefreshKey}`} patientId={patient.id} canEdit={false} />
               {/* Justo debajo de las recetas: "recetado → aplicado" se lee
                   de corrido, que es la pregunta real del médico. */}
               <PatientInventoryPanel
@@ -1434,7 +1460,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                 variant="compact"
                 onNavigateToCounterpart={() => setActiveTab("finances")}
               />
-              <ExamOrdersPanel patientId={patient.id} canEdit={false} />
+              <ExamOrdersPanel key={`exam-${clinicalRefreshKey}`} patientId={patient.id} canEdit={false} />
               <ClinicalFollowupsPanel patientId={patient.id} canEdit={false} />
               <ClinicalAttachmentsPanel patientId={patient.id} canEdit={false} />
               <ConsentsUnifiedPanel
@@ -2230,8 +2256,8 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                   <DiagnosisHistoryPanel patientId={patient.id} clinicalNotes={clinicalNotes} />
                   <TreatmentPlansPanel patientId={patient.id} canEdit={false} />
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <PrescriptionsPanel patientId={patient.id} canEdit={false} />
-                    <ExamOrdersPanel patientId={patient.id} canEdit={false} />
+                    <PrescriptionsPanel key={`rx-x-${clinicalRefreshKey}`} patientId={patient.id} canEdit={false} />
+                    <ExamOrdersPanel key={`exam-x-${clinicalRefreshKey}`} patientId={patient.id} canEdit={false} />
                   </div>
                   <PatientInventoryPanel
                     patientId={patient.id}

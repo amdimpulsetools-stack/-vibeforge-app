@@ -9,6 +9,10 @@ const prescriptionSchema = z.object({
   doctor_id: z.string().uuid(),
   appointment_id: z.string().uuid().nullable().optional(),
   clinical_note_id: z.string().uuid().nullable().optional(),
+  // Mig 247 — lote de impresión + forma farmacéutica + dosis por toma.
+  batch_id: z.string().uuid().nullable().optional(),
+  pharmaceutical_form: z.string().max(50).nullable().optional(),
+  dose_per_take: z.string().max(100).nullable().optional(),
   medication: z.string().min(1).max(200),
   dosage: z.string().max(100).nullable().optional(),
   frequency: z.string().max(100).nullable().optional(),
@@ -19,6 +23,14 @@ const prescriptionSchema = z.object({
   start_date: z.string().nullable().optional(),
   end_date: z.string().nullable().optional(),
 });
+
+/**
+ * Recetar es un acto médico: recepción NO receta. Los roles administrativos
+ * (owner/admin) sí pueden registrar la receta de un médico de su clínica
+ * — es lo que ya hacían desde la historia clínica — pero un `doctor` solo
+ * puede firmar con SU propia ficha.
+ */
+const CLINICAL_WRITE_ROLES = new Set(["owner", "admin", "doctor"]);
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -73,6 +85,9 @@ export async function POST(request: NextRequest) {
   // Support batch creation (array of prescriptions)
   const isBatch = Array.isArray(body);
   const items: unknown[] = isBatch ? (body as unknown[]) : [body];
+  if (items.length === 0) {
+    return NextResponse.json({ error: "Sin prescripciones que guardar" }, { status: 400 });
+  }
 
   const parsedItems = items.map((item: unknown) => prescriptionSchema.safeParse(item));
   const firstError = parsedItems.find((p: { success: boolean }) => !p.success);
@@ -80,17 +95,85 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Datos inválidos", details: firstError.error.flatten().fieldErrors }, { status: 400 });
   }
 
+  const validItems = parsedItems.map(
+    (p) => (p as { success: true; data: z.infer<typeof prescriptionSchema> }).data,
+  );
+  const firstItem = validItems[0];
+
+  // Un lote = un paciente y un médico firmante. Si no, la org y el firmante
+  // que se validan abajo no cubrirían al resto de las filas.
+  if (
+    validItems.some(
+      (i) =>
+        i.patient_id !== firstItem.patient_id || i.doctor_id !== firstItem.doctor_id,
+    )
+  ) {
+    return NextResponse.json(
+      { error: "Todas las prescripciones deben ser del mismo paciente y médico" },
+      { status: 400 },
+    );
+  }
+
+  // La organización sale del PACIENTE, no de una membresía arbitraria: con
+  // `organization_members … limit(1)` un usuario de dos clínicas podía
+  // escribir la receta en la org equivocada (mismo bug corregido en
+  // lib/followups/org-scope.ts).
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("organization_id")
+    .eq("id", firstItem.patient_id)
+    .maybeSingle();
+
+  if (!patient) {
+    return NextResponse.json({ error: "Paciente no encontrado" }, { status: 404 });
+  }
+  const organizationId = patient.organization_id as string;
+
+  // Membresía ACTIVA en ESA org (get_user_org_ids() del RLS no mira is_active).
   const { data: membership } = await supabase
     .from("organization_members")
-    .select("organization_id")
+    .select("role")
     .eq("user_id", user.id)
-    .limit(1)
-    .single();
+    .eq("organization_id", organizationId)
+    .eq("is_active", true)
+    .maybeSingle();
 
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
+  if (!membership) {
+    return NextResponse.json(
+      { error: "No perteneces a esta organización" },
+      { status: 403 },
+    );
+  }
+  if (!CLINICAL_WRITE_ROLES.has(membership.role as string)) {
+    return NextResponse.json(
+      { error: "Tu rol no puede crear prescripciones" },
+      { status: 403 },
+    );
+  }
+
+  // El firmante debe ser un médico de esta org; si quien escribe es un
+  // doctor, además tiene que ser SU propia ficha.
+  const { data: signer } = await supabase
+    .from("doctors")
+    .select("id, user_id")
+    .eq("id", firstItem.doctor_id)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (!signer) {
+    return NextResponse.json(
+      { error: "El médico firmante no pertenece a esta organización" },
+      { status: 403 },
+    );
+  }
+  if (membership.role === "doctor" && signer.user_id !== user.id) {
+    return NextResponse.json(
+      { error: "Solo puedes recetar con tu propia ficha de médico" },
+      { status: 403 },
+    );
+  }
 
   // Server-side guard: if the linked clinical note is signed, forbid creating new prescriptions
-  const firstItem = (parsedItems[0] as { success: true; data: z.infer<typeof prescriptionSchema> }).data;
   if (firstItem.appointment_id) {
     const { data: note } = await supabase
       .from("clinical_notes")
@@ -105,9 +188,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const insertData = parsedItems.map((p: { success: boolean; data?: z.infer<typeof prescriptionSchema> }) => ({
-    ...(p as { success: true; data: z.infer<typeof prescriptionSchema> }).data,
-    organization_id: membership.organization_id,
+  const insertData = validItems.map((item) => ({
+    ...item,
+    organization_id: organizationId,
   }));
 
   const { data, error } = await supabase
@@ -119,7 +202,7 @@ export async function POST(request: NextRequest) {
 
   if (isBatch) {
     logClinicalBatchAccess({
-      organizationId: membership.organization_id,
+      organizationId,
       userId: user.id,
       resourceType: "prescription",
       action: "create",
@@ -129,7 +212,7 @@ export async function POST(request: NextRequest) {
     });
   } else if (data?.[0]) {
     logClinicalAccess({
-      organizationId: membership.organization_id,
+      organizationId,
       userId: user.id,
       resourceType: "prescription",
       action: "create",
@@ -138,5 +221,13 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ data: isBatch ? data : data?.[0] }, { status: 201 });
+  // `batch_id` (mig 247) vuelve al cliente para abrir el PDF del lote
+  // recién creado — /api/pdf/prescription/batch/[batchId].
+  return NextResponse.json(
+    {
+      data: isBatch ? data : data?.[0],
+      batch_id: firstItem.batch_id ?? null,
+    },
+    { status: 201 },
+  );
 }

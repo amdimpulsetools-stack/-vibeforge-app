@@ -59,6 +59,7 @@ import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
 import { OPEN_FOLLOWUP_STATUSES } from "@/types/followups";
 import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
+import { ClinicalShortcuts } from "@/components/clinical/clinical-shortcuts";
 import {
   patientPendingBalance,
   totalClinicalPaid,
@@ -2119,6 +2120,24 @@ export function AppointmentSidebar({
               </span>
               <ExternalLink className="h-3.5 w-3.5 opacity-60" />
             </button>
+
+            {/* Atajos: recetar / ordenar exámenes sin entrar a la historia
+                clínica. Mismo permiso que la nota (el doctor de la cita, o
+                un admin) y el FIRMANTE es siempre el doctor de la cita —
+                un admin sin ficha de médico no firma con la suya. */}
+            {appointment.patient_id &&
+              appointment.doctor_id &&
+              !readOnly &&
+              (isAdmin || currentDoctorId === appointment.doctor_id) && (
+                <ClinicalShortcuts
+                  className="mt-2"
+                  patientId={appointment.patient_id}
+                  patientName={appointment.patient_name}
+                  doctorId={appointment.doctor_id}
+                  doctorName={appointment.doctors?.full_name}
+                  appointmentId={appointment.id}
+                />
+              )}
           </div>
         )}
 
