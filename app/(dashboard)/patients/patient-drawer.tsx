@@ -46,13 +46,26 @@ import {
   Heart,
   Camera,
   Link2,
+  Activity,
+  ArrowRight,
 } from "lucide-react";
 import dynamic from "next/dynamic";
-import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { cn, formatCurrency } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
 import { useOrgToday } from "@/hooks/use-org-today";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrgAddons } from "@/hooks/use-org-addons";
+import { useFertilityAddon } from "@/hooks/use-fertility-addon";
+import { treatmentMoney, type TreatmentMoney } from "@/lib/treatments/money";
+import {
+  REVENUE_BUCKET_LABELS,
+  TREATMENT_OUTCOME_LABELS,
+  type RevenueBucket,
+  type TreatmentOutcome,
+  type TreatmentPaymentConcept,
+  type TreatmentStatus,
+} from "@/types/treatments";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import { useOrgInsurance } from "@/hooks/use-org-insurance";
@@ -123,6 +136,42 @@ const GrowthCurvesPanel = dynamic(
     ),
   },
 );
+
+// Diálogo de cobro del módulo Tratamientos. Lazy por el mismo motivo que el
+// resto de paneles pesados del drawer: solo las orgs con addon fertilidad y
+// con un tratamiento en curso llegan a abrirlo.
+const TreatmentPaymentDialog = dynamic(
+  () =>
+    import("@/components/treatments/treatment-payment-dialog").then(
+      (m) => m.TreatmentPaymentDialog,
+    ),
+  { ssr: false },
+);
+
+/** Tratamiento del paciente + su dinero ya calculado con `treatmentMoney`. */
+interface PatientTreatmentRow {
+  id: string;
+  title: string;
+  treatment_type: string;
+  status: TreatmentStatus;
+  outcome: TreatmentOutcome | null;
+  expected_total: number;
+  started_at: string;
+  closed_at: string | null;
+  doctor_name: string | null;
+  money: TreatmentMoney;
+}
+
+/** Fecha civil corta ("15 oct") para las líneas de tratamientos cerrados. */
+function shortDate(iso: string | null): string {
+  if (!iso) return "—";
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return new Date(y, m - 1, d).toLocaleDateString("es-PE", {
+    day: "numeric",
+    month: "short",
+  });
+}
 
 interface PatientDrawerProps {
   patient: PatientWithTags;
@@ -280,7 +329,14 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           // `sale_id` (mig 213) no está en los generated types todavía: se
           // pide explícitamente para poder marcar los pagos cuya venta de
           // farmacia acabó anulada, sin una consulta por pago.
-          .select("id, patient_id, appointment_id, amount, payment_method, payment_date, notes, organization_id, created_at, sale_id")
+          //
+          // `treatment_id` (mig 242) es OBLIGATORIO en `ClinicalPayment`
+          // (lib/patient-debt.ts) justamente para que ningún select lo
+          // olvide: sin la columna, `undefined == null` no excluiría los
+          // cobros del tratamiento y S/ 8 000 de un FIV "pagarían" una
+          // ecografía pendiente. `revenue_bucket` + `external_receipt_ref`
+          // alimentan el chip de la fila.
+          .select("id, patient_id, appointment_id, amount, payment_method, payment_date, notes, organization_id, created_at, sale_id, treatment_id, revenue_bucket, external_receipt_ref")
           .eq("patient_id", patient.id)
           .order("payment_date", { ascending: false }),
       ]);
@@ -323,9 +379,120 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     [pharmacySalesData]
   );
 
+  // ===== TRATAMIENTOS (addon fertilidad, migs 242/245) =====
+  // Cuenta APARTE de la deuda de citas: el dinero del tratamiento nunca se
+  // suma ni se resta de "Citas: saldo pendiente" (mig 243).
+  const { active: fertilityActive } = useFertilityAddon();
+
+  const { data: treatmentsData } = useQuery({
+    queryKey: ["patient-treatments", patient.id],
+    enabled: fertilityActive,
+    queryFn: async (): Promise<PatientTreatmentRow[]> => {
+      const { data } = await createClient()
+        .from("treatments")
+        .select(
+          "id, title, treatment_type, status, outcome, expected_total, started_at, closed_at, " +
+            "doctors(full_name), patient_payments(amount, source, revenue_bucket), " +
+            "treatment_external_payments(amount)",
+        )
+        .eq("patient_id", patient.id)
+        .order("started_at", { ascending: false });
+      const rows =
+        (data as unknown as {
+          id: string;
+          title: string;
+          treatment_type: string;
+          status: TreatmentStatus;
+          outcome: TreatmentOutcome | null;
+          expected_total: number | string;
+          started_at: string;
+          closed_at: string | null;
+          doctors: { full_name: string | null } | { full_name: string | null }[] | null;
+          patient_payments:
+            | { amount: number | string; source: string | null; revenue_bucket: string | null }[]
+            | null;
+          treatment_external_payments: { amount: number | string }[] | null;
+        }[]) ?? [];
+      return rows.map((r) => {
+        const doctor = Array.isArray(r.doctors) ? r.doctors[0] : r.doctors;
+        return {
+          id: r.id,
+          title: r.title,
+          treatment_type: r.treatment_type,
+          status: r.status,
+          outcome: r.outcome,
+          expected_total: Number(r.expected_total),
+          started_at: r.started_at,
+          closed_at: r.closed_at,
+          doctor_name: doctor?.full_name ?? null,
+          // Una fórmula, un número: el dinero del tratamiento SIEMPRE sale
+          // de treatmentMoney (espejo del RPC get_treatments_overview).
+          money: treatmentMoney(
+            r.expected_total,
+            r.patient_payments,
+            r.treatment_external_payments,
+          ),
+        };
+      });
+    },
+  });
+
+  const activeTreatment = useMemo(
+    () => (treatmentsData ?? []).find((t) => t.status === "in_progress") ?? null,
+    [treatmentsData],
+  );
+  const closedTreatments = useMemo(
+    () => (treatmentsData ?? []).filter((t) => t.status !== "in_progress"),
+    [treatmentsData],
+  );
+
+  // Catálogo de conceptos de la org (mig 242) — lo consume el diálogo de
+  // cobro. Solo se pide si hay un tratamiento en curso al que cobrarle.
+  const { data: treatmentConcepts = [] } = useQuery({
+    queryKey: ["treatment-concepts", organizationId],
+    enabled: fertilityActive && !!organizationId && !!activeTreatment,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async (): Promise<TreatmentPaymentConcept[]> => {
+      const res = await fetch(`/api/treatment-concepts?org_id=${organizationId}`);
+      if (!res.ok) return [];
+      const json: unknown = await res.json();
+      return (
+        Array.isArray(json) ? json : ((json as { data?: unknown }).data ?? [])
+      ) as TreatmentPaymentConcept[];
+    },
+  });
+
+  const [treatmentPayOpen, setTreatmentPayOpen] = useState(false);
+  // Recepción elige explícitamente a qué se aplica el cobro. Sin esto, el
+  // formulario de cita era el único camino y los pagos del FIV acababan
+  // colgados de una ecografía.
+  const [paymentTarget, setPaymentTarget] = useState<"treatment" | "appointment">(
+    "treatment",
+  );
+
+  // Planes de sesiones "de antes" (mig 099). Con el addon activo el panel se
+  // esconde para no tener dos "Registrar pago" con semánticas distintas en la
+  // misma pestaña; si el paciente YA tiene plata en un plan hay que poder
+  // verla, así que se ofrece colapsada.
+  const { data: legacyPlanCount = 0 } = useQuery({
+    queryKey: ["patient-legacy-plans", patient.id],
+    enabled: fertilityActive && activeTab === "budgets",
+    queryFn: async (): Promise<number> => {
+      const { data } = await createClient()
+        .from("patient_payments")
+        .select("treatment_plan_id")
+        .eq("patient_id", patient.id)
+        .not("treatment_plan_id", "is", null);
+      const rows =
+        (data as unknown as { treatment_plan_id: string | null }[]) ?? [];
+      return new Set(rows.map((r) => r.treatment_plan_id).filter(Boolean)).size;
+    },
+  });
+
   const invalidatePatientData = () => {
     queryClient.invalidateQueries({ queryKey: ["patient-summary", patient.id] });
     queryClient.invalidateQueries({ queryKey: ["patient-history", patient.id] });
+    queryClient.invalidateQueries({ queryKey: ["patient-treatments", patient.id] });
   };
 
   // Fetch clinical notes when clinical tab is selected
@@ -398,7 +565,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   // lib/patient-debt.ts, que usan la lista de pacientes y el sidebar.
   const totalServiceCost = Number(summaryData?.total_billed ?? 0);
   const totalPaid = Number(summaryData?.total_paid ?? 0);
-  const pendingBalance = totalServiceCost - totalPaid;
+  // Clamp a 0, igual que `patientPendingBalance` (lib/patient-debt.ts) y que
+  // el RPC: un saldo a FAVOR no es deuda. Sin el clamp, un anticipo mayor que
+  // lo facturado pintaba "Saldo pendiente S/ -300" en rojo. No se usa
+  // `patientPendingBalance` directamente porque aquí los totales vienen ya
+  // agregados del RPC (las citas y los pagos no bajan hasta abrir Historial).
+  const pendingBalance = Math.max(0, totalServiceCost - totalPaid);
 
   // ===== HANDLERS =====
 
@@ -714,11 +886,24 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           </div>
         </div>
 
-        {/* Debt alert */}
-        {pendingBalance > 0 && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-600 dark:text-red-400">
-            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-            {t("patients.pending_balance")}: S/. {pendingBalance.toFixed(2)}
+        {/* Debt alert + tratamiento en curso. Van juntos y separados: son
+            DOS cuentas distintas (mig 243) y el saldo de citas no incluye
+            nada del tratamiento. */}
+        {(pendingBalance > 0 || activeTreatment) && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            {pendingBalance > 0 && (
+              <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5 text-xs text-red-600 dark:text-red-400">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                {t("patients.pending_balance")}: S/. {pendingBalance.toFixed(2)}
+              </div>
+            )}
+            {activeTreatment && (
+              <div className="flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                <Activity className="h-3.5 w-3.5 shrink-0" />
+                {activeTreatment.treatment_type} en curso ·{" "}
+                {activeTreatment.money.progressPercent}%
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1278,7 +1463,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               patientId={patient.id}
               patientFullName={`${patient.first_name ?? ""} ${patient.last_name ?? ""}`.trim()}
             />
-            <BudgetsPanel patientId={patient.id} canEdit={isAdmin || !!currentDoctorId} />
+            <PatientPlansSection
+              patientId={patient.id}
+              canEdit={isAdmin || !!currentDoctorId}
+              hideBehindDisclosure={fertilityActive}
+              legacyPlanCount={legacyPlanCount}
+            />
           </div>
         )}
 
@@ -1291,21 +1481,23 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
               </div>
             ) : (
               <>
-                {/* Summary cards */}
+                {/* Summary cards — prefijo "Citas:" a propósito: estos tres
+                    números son SOLO la cuenta de consultas. Ni el tratamiento
+                    (mig 243) ni el POS de farmacia (mig 213) entran aquí. */}
                 <div className="grid grid-cols-3 gap-2">
                   <div className="rounded-lg border border-border p-2 sm:p-3 text-center">
-                    <p className="text-[10px] uppercase text-muted-foreground">{t("patients.service_price")}</p>
+                    <p className="text-[10px] uppercase text-muted-foreground">Citas: {t("patients.service_price")}</p>
                     <p className="mt-1 text-sm sm:text-base font-bold">S/. {totalServiceCost.toFixed(2)}</p>
                   </div>
                   <div className="rounded-lg border border-border p-2 sm:p-3 text-center">
-                    <p className="text-[10px] uppercase text-muted-foreground">{t("patients.total_paid")}</p>
+                    <p className="text-[10px] uppercase text-muted-foreground">Citas: {t("patients.total_paid")}</p>
                     <p className="mt-1 text-sm sm:text-base font-bold text-success-600">S/. {totalPaid.toFixed(2)}</p>
                   </div>
                   <div className={cn(
                     "rounded-lg border p-2 sm:p-3 text-center",
                     pendingBalance > 0 ? "border-red-500/30 bg-red-500/5" : "border-border"
                   )}>
-                    <p className="text-[10px] uppercase text-muted-foreground">{t("patients.pending_balance")}</p>
+                    <p className="text-[10px] uppercase text-muted-foreground">Citas: {t("patients.pending_balance")}</p>
                     <p className={cn(
                       "mt-1 text-sm sm:text-base font-bold",
                       pendingBalance > 0 ? "text-red-600" : "text-foreground"
@@ -1314,6 +1506,86 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     </p>
                   </div>
                 </div>
+
+                {/* ── Tratamiento en curso (addon fertilidad) ──
+                    Bloque propio, debajo de las cards de citas: es otra
+                    cuenta. Todo el dinero viene de `treatmentMoney`. */}
+                {fertilityActive && activeTreatment && (
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+                        <Activity className="h-3.5 w-3.5" />
+                        Tratamiento en curso
+                      </p>
+                      <Link
+                        href={`/tratamientos/${activeTreatment.id}`}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+                      >
+                        Ver <ArrowRight className="h-3 w-3" />
+                      </Link>
+                    </div>
+                    <p className="mt-1.5 text-xs">
+                      {[
+                        activeTreatment.treatment_type,
+                        activeTreatment.doctor_name,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      {formatCurrency(activeTreatment.money.covered)} pagado de{" "}
+                      {formatCurrency(activeTreatment.money.expectedTotal)} · por
+                      cobrar {formatCurrency(activeTreatment.money.pending)}
+                    </p>
+                    <div
+                      className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-emerald-500/15"
+                      role="progressbar"
+                      aria-valuenow={activeTreatment.money.progressPercent}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                    >
+                      <div
+                        className="h-full rounded-full bg-emerald-500"
+                        style={{ width: `${activeTreatment.money.progressPercent}%` }}
+                      />
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        onClick={() => setTreatmentPayOpen(true)}
+                        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        Registrar pago al tratamiento
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cerrados: una línea por tratamiento, sin dinero — la
+                    historia completa vive en /tratamientos/[id]. */}
+                {fertilityActive && closedTreatments.length > 0 && (
+                  <div className="space-y-1">
+                    {closedTreatments.map((tr) => (
+                      <Link
+                        key={tr.id}
+                        href={`/tratamientos/${tr.id}`}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2 text-[11px] text-muted-foreground hover:bg-accent"
+                      >
+                        <span className="truncate">
+                          Tratamiento cerrado ·{" "}
+                          {[
+                            tr.treatment_type,
+                            tr.outcome ? TREATMENT_OUTCOME_LABELS[tr.outcome] : null,
+                            shortDate(tr.closed_at),
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                        <ArrowRight className="h-3 w-3 shrink-0" />
+                      </Link>
+                    ))}
+                  </div>
+                )}
 
                 {/* Add payment + Cobrar por link (Culqi F1). Lado a lado
                     porque son la misma decisión con distinto canal:
@@ -1337,6 +1609,58 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
 
                 {showPaymentForm && (
                   <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-3">
+                    {/* ¿A qué corresponde? Con un tratamiento abierto, este
+                        formulario cuelga el pago de una CITA — y recepción
+                        acababa cargando el FIV a una ecografía. La pregunta
+                        va primero y por defecto apunta al tratamiento. */}
+                    {activeTreatment && (
+                      <fieldset className="space-y-1.5">
+                        <legend className="text-xs font-medium">
+                          ¿A qué corresponde?
+                        </legend>
+                        <div className="flex flex-wrap gap-2">
+                          <label className="flex min-h-[44px] flex-1 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-500/10">
+                            <input
+                              type="radio"
+                              name="payment-target"
+                              className="accent-emerald-600"
+                              checked={paymentTarget === "treatment"}
+                              onChange={() => setPaymentTarget("treatment")}
+                            />
+                            <span className="min-w-0 truncate font-medium">
+                              Tratamiento {activeTreatment.title}
+                            </span>
+                          </label>
+                          <label className="flex min-h-[44px] flex-1 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs has-[:checked]:border-primary has-[:checked]:bg-primary/10">
+                            <input
+                              type="radio"
+                              name="payment-target"
+                              className="accent-primary"
+                              checked={paymentTarget === "appointment"}
+                              onChange={() => setPaymentTarget("appointment")}
+                            />
+                            <span className="font-medium">Cita</span>
+                          </label>
+                        </div>
+                      </fieldset>
+                    )}
+
+                    {activeTreatment && paymentTarget === "treatment" ? (
+                      <div className="space-y-2">
+                        <p className="text-[11px] text-muted-foreground">
+                          Los cobros del tratamiento llevan concepto y se
+                          registran en Tratamientos, no contra una cita.
+                        </p>
+                        <button
+                          onClick={() => setTreatmentPayOpen(true)}
+                          className="inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:opacity-90"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Registrar pago al tratamiento
+                        </button>
+                      </div>
+                    ) : (
+                    <>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <label className="text-xs text-muted-foreground">{t("patients.payment_amount")} *</label>
@@ -1453,6 +1777,8 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         {t("common.save")}
                       </button>
                     </div>
+                    </>
+                    )}
                   </div>
                 )}
 
@@ -1484,6 +1810,18 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                                 Venta anulada
                               </span>
                             )}
+                            {/* Cobro de tratamiento (mig 242): NO cancela
+                                deuda de citas, así que la fila tiene que
+                                decirlo. El bucket es información de gestión
+                                — solo para quien ve honorarios. */}
+                            {p.treatment_id && (
+                              <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-semibold text-emerald-700 dark:text-emerald-400">
+                                Tratamiento
+                                {(isAdmin || isDoctor) && p.revenue_bucket
+                                  ? ` · ${REVENUE_BUCKET_LABELS[p.revenue_bucket as RevenueBucket]}`
+                                  : ""}
+                              </span>
+                            )}
                           </p>
                           <p className="text-[10px] text-muted-foreground">
                             {p.payment_date.split("-").reverse().join("/")} {p.payment_method && `• ${p.payment_method}`}
@@ -1491,7 +1829,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                           {/* Misma línea contextual que "Farmacia NV-…": a qué
                               cita se aplicó el pago. Si el servicio ya no está
                               (cita sin servicio), la fecha sola sigue ubicando. */}
-                          {paidAppointment && (
+                          {paidAppointment && !p.treatment_id && (
                             <p className="text-[10px] text-muted-foreground">
                               Cita: {[
                                 paidAppointment.services?.name,
@@ -1616,6 +1954,25 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
           <PatientFiscalSection patient={patient} onUpdate={onUpdate} />
         )}
       </div>
+
+      {/* Cobro del tratamiento en curso (mig 242). El diálogo vive en el
+          módulo Tratamientos: mismo formulario aquí y en /tratamientos, así
+          que el concepto y el bucket se piden siempre igual. */}
+      {activeTreatment && treatmentPayOpen && (
+        <TreatmentPaymentDialog
+          open={treatmentPayOpen}
+          onOpenChange={setTreatmentPayOpen}
+          treatmentId={activeTreatment.id}
+          treatmentTitle={activeTreatment.title}
+          patientName={`${patient.first_name ?? ""} ${patient.last_name ?? ""}`.trim()}
+          concepts={treatmentConcepts}
+          money={activeTreatment.money}
+          onSaved={() => {
+            setShowPaymentForm(false);
+            invalidatePatientData();
+          }}
+        />
+      )}
 
       {/* Cobrar por link (Culqi F1) — montado solo al abrir para que el
           estado Culqi + historial de links se pidan lazy. */}
@@ -1909,7 +2266,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                     patientId={patient.id}
                     patientFullName={`${patient.first_name ?? ""} ${patient.last_name ?? ""}`.trim()}
                   />
-                  <BudgetsPanel patientId={patient.id} canEdit={isAdmin || !!currentDoctorId} />
+                  <PatientPlansSection
+                    patientId={patient.id}
+                    canEdit={isAdmin || !!currentDoctorId}
+                    hideBehindDisclosure={fertilityActive}
+                    legacyPlanCount={legacyPlanCount}
+                  />
                 </div>
               )}
 
@@ -2020,5 +2382,42 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Planes de sesiones (mig 099) dentro de la pestaña Presupuestos.
+ *
+ * Con el addon fertilidad activo el panel se esconde: tener dos "Registrar
+ * pago" con semánticas distintas (anticipo de plan vs. cobro de tratamiento)
+ * en la misma pantalla es la receta para colgar la plata del contenedor
+ * equivocado. Si el paciente YA tiene planes con pagos, la información no se
+ * puede evaporar: se ofrece colapsada tras "Planes anteriores (N)".
+ */
+function PatientPlansSection({
+  patientId,
+  canEdit,
+  hideBehindDisclosure,
+  legacyPlanCount,
+}: {
+  patientId: string;
+  canEdit: boolean;
+  hideBehindDisclosure: boolean;
+  legacyPlanCount: number;
+}) {
+  if (!hideBehindDisclosure) {
+    return <BudgetsPanel patientId={patientId} canEdit={canEdit} />;
+  }
+  if (legacyPlanCount === 0) return null;
+  return (
+    <details className="rounded-lg border border-border">
+      <summary className="flex min-h-[44px] cursor-pointer items-center px-3 py-2 text-xs font-medium text-muted-foreground">
+        Planes anteriores ({legacyPlanCount})
+      </summary>
+      <div className="border-t border-border p-3">
+        {/* Solo lectura: los cobros nuevos van al tratamiento. */}
+        <BudgetsPanel patientId={patientId} canEdit={false} />
+      </div>
+    </details>
   );
 }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import {
   Activity,
+  ArrowRight,
   Check,
   CheckCircle,
   Clock,
@@ -29,8 +30,8 @@ import {
   type BudgetTreatmentType,
 } from "@/types/fertility";
 import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
-import { useOrgRole } from "@/hooks/use-org-role";
 import { useBudgetDocSettings } from "@/hooks/use-budget-doc-settings";
+import { TreatmentStartDialog } from "@/components/treatments/treatment-start-dialog";
 
 export interface BudgetCardProps {
   budget: BudgetRecord & {
@@ -54,6 +55,12 @@ export interface BudgetCardProps {
   };
   bucket: BudgetAcceptanceStatus;
   onChanged: () => void;
+  /**
+   * `treatments.id` del tratamiento nacido de este presupuesto (mig 242).
+   * Lo resuelve la página en UNA consulta para todas las cards (evita N+1);
+   * si aún no llegó, el link "Ver tratamiento" simplemente no se pinta.
+   */
+  treatmentId?: string | null;
 }
 
 function formatDate(iso: string | null): string {
@@ -72,12 +79,17 @@ function daysAgo(iso: string | null): number | null {
   return Math.max(0, Math.round(ms / (24 * 3600 * 1000)));
 }
 
-export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
+export function BudgetCard({
+  budget,
+  bucket,
+  onChanged,
+  treatmentId,
+}: BudgetCardProps) {
   const [actionLoading, setActionLoading] = useState(false);
   const [sendLoading, setSendLoading] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
-  const [startLoading, setStartLoading] = useState(false);
-  const [completeLoading, setCompleteLoading] = useState(false);
+  // El inicio ya no es un click ciego: abre el modal de confirmación.
+  const [startOpen, setStartOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   // mig 172 — send modal picks the channel before stamping sent_at.
@@ -86,10 +98,6 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
   const [sendOpen, setSendOpen] = useState(false);
   const [sendChannel, setSendChannel] = useState<"email" | "whatsapp" | "other" | null>(null);
 
-  // Phase 5 prep — admin/owner gating for the "Marcar completado"
-  // action. Doctors and advisors can /start, but only admin/owner
-  // can /complete (it's a financial-impact decision).
-  const { isAdmin } = useOrgRole();
   // mig 181 — modo "solo asignación y seguimiento": sin botones de PDF
   // y el envío se registra solo "por otro medio" (la org emite su
   // documento fuera de Yenda).
@@ -195,36 +203,6 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
     }
   };
 
-  const startTreatment = async () => {
-    setStartLoading(true);
-    const res = await fetch(`/api/budgets/${budget.id}/start`, {
-      method: "POST",
-    });
-    setStartLoading(false);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error ?? "No se pudo marcar el inicio de tratamiento");
-      return;
-    }
-    toast.success("Tratamiento marcado como iniciado");
-    onChanged();
-  };
-
-  const completeTreatment = async () => {
-    setCompleteLoading(true);
-    const res = await fetch(`/api/budgets/${budget.id}/complete`, {
-      method: "POST",
-    });
-    setCompleteLoading(false);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error ?? "No se pudo marcar como completado");
-      return;
-    }
-    toast.success("Tratamiento marcado como completado");
-    onChanged();
-  };
-
   const reject = async () => {
     setActionLoading(true);
     const res = await fetch(`/api/budgets/${budget.id}/mark-rejected`, {
@@ -314,7 +292,7 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
     badge = (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
         <CheckCircle className="h-3 w-3" />
-        Completado el {formatDate(budget.completed_at ?? null)}
+        Cerrado el {formatDate(budget.completed_at ?? null)}
       </span>
     );
   } else if (budget.acceptance_status === "rejected") {
@@ -434,43 +412,53 @@ export function BudgetCard({ budget, bucket, onChanged }: BudgetCardProps) {
         </div>
       )}
 
-      {/* Phase 5 prep — "Por iniciar" sub-bucket: doctors/advisors/
-          admin can stamp started_at. */}
+      {/* "Por iniciar": iniciar crea el TRATAMIENTO (mig 242/245), no solo
+          estampa una fecha — por eso pasa por un modal de confirmación con
+          doctora, asistente y fecha. */}
       {budget.acceptance_status === "accepted" && (
         <div className="mt-3 flex flex-wrap gap-2">
           <button
-            onClick={startTreatment}
-            disabled={startLoading}
-            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            onClick={() => setStartOpen(true)}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
           >
-            {startLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Play className="h-3 w-3" />
-            )}
-            Marcar inicio de tratamiento
+            <Play className="h-3 w-3" />
+            Iniciar tratamiento
           </button>
         </div>
       )}
 
-      {/* Phase 5 prep — "En curso" sub-bucket: admin/owner only can
-          mark a treatment as completed (financial-impact decision). */}
-      {budget.acceptance_status === "in_progress" && isAdmin && (
+      {/* Iniciado o cerrado: el presupuesto deja de ser el lugar donde se
+          decide nada. El cierre (con desenlace) y los cobros viven en el
+          tratamiento, así que desde aquí solo se navega hacia él. */}
+      {(budget.acceptance_status === "in_progress" ||
+        budget.acceptance_status === "completed") && (
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            onClick={completeTreatment}
-            disabled={completeLoading}
-            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
-          >
-            {completeLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <CheckCircle className="h-3 w-3" />
-            )}
-            Marcar completado
-          </button>
+          {treatmentId ? (
+            <Link
+              href={`/tratamientos/${treatmentId}`}
+              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
+            >
+              Ver tratamiento
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          ) : (
+            <span className="text-[11px] text-muted-foreground">
+              Los pagos y el cierre se gestionan en Tratamientos.
+            </span>
+          )}
         </div>
       )}
+
+      <TreatmentStartDialog
+        open={startOpen}
+        onOpenChange={setStartOpen}
+        budgetId={budget.id}
+        patientName={patientName}
+        treatmentTypeLabel={treatmentLabel}
+        amount={budget.amount ?? null}
+        onStarted={onChanged}
+      />
+
 
       {budget.acceptance_status === "pending_acceptance" && (
         <div className="mt-3 flex flex-wrap gap-2">
