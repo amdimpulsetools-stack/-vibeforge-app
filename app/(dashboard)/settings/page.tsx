@@ -51,6 +51,11 @@ import {
 import { UbigeoCombobox } from "@/components/ui/ubigeo-combobox";
 import { findUbigeoByCode } from "@/lib/sunat/ubigeo";
 import {
+  ORG_TIMEZONE_OPTIONS,
+  isValidTimeZone,
+  resolveOrgTimezone,
+} from "@/lib/org-time";
+import {
   ACCENT_THEMES,
   resolveAccentTheme,
   type AccentThemeKey,
@@ -221,6 +226,44 @@ export default function SettingsPage() {
   useEffect(() => {
     setAccentTheme(resolveAccentTheme(organization?.accent_theme));
   }, [organization?.accent_theme]);
+
+  // ── Zona horaria de la org (mig 240) ────────────────────────────────
+  // Misma mecánica que el acento: guardado directo + refetch. Define el
+  // "hoy" civil de dashboards y cobros (lib/org-time.ts).
+  const [orgTimezone, setOrgTimezone] = useState<string>(
+    resolveOrgTimezone((organization as { timezone?: string | null } | null)?.timezone),
+  );
+  const [savingTimezone, setSavingTimezone] = useState(false);
+  useEffect(() => {
+    setOrgTimezone(
+      resolveOrgTimezone((organization as { timezone?: string | null } | null)?.timezone),
+    );
+  }, [organization]);
+
+  const handleTimezoneChange = async (next: string) => {
+    if (!organizationId || savingTimezone || next === orgTimezone) return;
+    if (!isValidTimeZone(next)) {
+      toast.error("Zona horaria inválida");
+      return;
+    }
+    const previous = orgTimezone;
+    setOrgTimezone(next);
+    setSavingTimezone(true);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("organizations")
+      .update({ timezone: next })
+      .eq("id", organizationId);
+    setSavingTimezone(false);
+    if (error) {
+      setOrgTimezone(previous);
+      toast.error("No se pudo cambiar la zona horaria: " + error.message);
+      return;
+    }
+    refetchOrg();
+    router.refresh();
+    toast.success("Zona horaria actualizada");
+  };
 
   const handleAccentChange = async (next: AccentThemeKey) => {
     if (!organizationId || savingAccent || next === accentTheme) return;
@@ -1216,6 +1259,30 @@ export default function SettingsPage() {
                     })()}
                   </Field>
                 </div>
+                {/* Zona horaria (mig 240) — fuera del form de RHF: guarda al
+                    cambiar, igual que el color del sistema. */}
+                <Field
+                  id="org_timezone"
+                  label="Zona horaria"
+                  hint="Define el “hoy” del dashboard, la agenda y los cobros. Cámbiala solo si la clínica opera fuera de Perú."
+                >
+                  <select
+                    id="org_timezone"
+                    value={orgTimezone}
+                    disabled={!isOrgAdmin || savingTimezone}
+                    onChange={(e) => void handleTimezoneChange(e.target.value)}
+                    className={fieldClass}
+                  >
+                    {ORG_TIMEZONE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                    {!ORG_TIMEZONE_OPTIONS.some((o) => o.value === orgTimezone) && (
+                      <option value={orgTimezone}>{orgTimezone}</option>
+                    )}
+                  </select>
+                </Field>
                 <Field
                   id="org_maps_url"
                   label="Link de ubicación (Google Maps)"

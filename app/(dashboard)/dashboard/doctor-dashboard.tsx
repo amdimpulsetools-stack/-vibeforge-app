@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgToday } from "@/hooks/use-org-today";
 import { useUser } from "@/hooks/use-user";
 import { formatCurrency, greetingName } from "@/lib/utils";
 import Link from "next/link";
@@ -184,6 +185,8 @@ export function DoctorDashboard({
 }) {
   const { user } = useUser();
   const { organizationId } = useOrganization();
+  // "Hoy" civil de la org (mig 240/241): el RPC ya no usa CURRENT_DATE (UTC).
+  const { today: orgToday } = useOrgToday();
   const [data, setData] = useState<DoctorStatsResponse | null>(initialData ?? null);
   const [loading, setLoading] = useState(!initialData);
 
@@ -196,6 +199,7 @@ export function DoctorDashboard({
       const { data: rpcData, error } = await supabase.rpc("get_doctor_dashboard_enhanced", {
         p_user_id: user.id,
         org_id: organizationId,
+        p_today: orgToday(),
       });
 
       if (!error && rpcData) {

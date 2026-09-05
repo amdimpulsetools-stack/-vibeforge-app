@@ -50,6 +50,7 @@ import {
 import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgToday } from "@/hooks/use-org-today";
 import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
@@ -215,7 +216,10 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split("T")[0]);
+  // Fecha civil de la org (mig 240), no UTC: tras las 19:00 Lima
+  // toISOString() proponía la fecha de mañana para el cobro.
+  const { today: orgToday } = useOrgToday();
+  const [paymentDate, setPaymentDate] = useState(() => orgToday());
   const [paymentNotes, setPaymentNotes] = useState("");
   const [paymentAppointmentId, setPaymentAppointmentId] = useState("");
   const [savingPayment, setSavingPayment] = useState(false);
