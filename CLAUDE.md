@@ -41,6 +41,19 @@
   cualquier "ganancia/margen/utilidad/rentabilidad" SIEMPRE neta
   (÷1.18 según `igv_affectation`: 1=gravado, 8=exonerado, 9=inafecto).
   Compra digitada SIN IGV, venta CON IGV.
+- Tratamientos (migs 242-245): un cobro vive en UN solo contenedor —
+  cita XOR plan XOR tratamiento (CHECK en `patient_payments`). Los cobros
+  de tratamiento son plata clínica (`source='clinical'`: cuentan en
+  Ingresos, Caja y "Mis cobros") pero NO cancelan deuda de citas
+  (`treatment_id IS NULL` en `get_patient_summary` + `lib/patient-debt.ts`).
+  Dinero del tratamiento: `lib/treatments/money.ts` (espejo de
+  `get_treatments_overview`). Pagos directos a terceros
+  (`treatment_external_payments`) NO son cobro: cubren acordado, nada más.
+  Se inserta siempre con el cliente del usuario (el trigger de Caja
+  estampa turno/medio/autor); jamás con service role.
+- "Hoy" civil = zona horaria de la org (`organizations.timezone`,
+  `lib/org-time.ts` / `useOrgToday()`). Nunca `new Date()` ni
+  `toISOString()` para fechas de negocio: Vercel corre en UTC.
 
 ## Commands
 - `npm run dev` — Start dev server

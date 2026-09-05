@@ -1,7 +1,8 @@
 /**
  * Deuda clínica del paciente — fórmula única para cliente y servidor.
  *
- * Espejo EXACTO del RPC `get_patient_summary` (supabase/migrations/219).
+ * Espejo EXACTO del RPC `get_patient_summary` (supabase/migrations/219,
+ * filtro de tratamientos en la 243).
  * Existe para que las tres vistas que muestran deuda no vuelvan a divergir:
  *   · PatientDrawer  → usa el RPC (badge "Saldo pendiente")
  *   · Lista de pacientes → filtro "con deuda" + export CSV (calcula aquí)
@@ -34,6 +35,13 @@ export type ClinicalPayment = {
   amount: number;
   /** mig 213: 'clinical' | 'pos'. Ausente ⇒ 'clinical' (default de la columna). */
   source?: string | null;
+  /**
+   * mig 242/243: cobro de un TRATAMIENTO. NO cancela deuda de citas (vive en
+   * su propia cuenta, lib/treatments/money.ts). OBLIGATORIO en el tipo para
+   * que TypeScript obligue a cada consumidor a traer la columna: si un
+   * select no la pide, `undefined == null` NO excluiría nada en silencio.
+   */
+  treatment_id: string | null;
 };
 
 /** Precio real facturado por UNA cita. No aplica el filtro de canceladas. */
@@ -54,13 +62,15 @@ export function totalBilled(appointments: BillableAppointment[] | null | undefin
 }
 
 /**
- * SUM de los pagos que cancelan deuda CLÍNICA. Los cobros del POS de farmacia
- * (source='pos', mig 213/216) no cancelan consultas: si no se filtran, un
- * paracetamol de S/ 8 baja la deuda clínica del paciente.
+ * SUM de los pagos que cancelan deuda CLÍNICA de CITAS. Los cobros del POS de
+ * farmacia (source='pos', mig 213/216) no cancelan consultas: si no se
+ * filtran, un paracetamol de S/ 8 baja la deuda clínica del paciente. Los
+ * cobros de un TRATAMIENTO (treatment_id, migs 242/243) tampoco: si no se
+ * filtran, S/ 8 000 al FIV "pagan" una ecografía de S/ 150 pendiente.
  */
 export function totalClinicalPaid(payments: ClinicalPayment[] | null | undefined): number {
   return (payments ?? [])
-    .filter((p) => (p.source ?? "clinical") === "clinical")
+    .filter((p) => (p.source ?? "clinical") === "clinical" && p.treatment_id == null)
     .reduce((sum, p) => sum + Number(p.amount), 0);
 }
 
