@@ -1,0 +1,5 @@
+{{!-- Partial · cabecera de continuación (páginas 2+). Requiere doc.title y doc.code (opcional). --}}
+      <header class="run-head">
+        <div class="rh-logo">{{#if org.logo_url}}<img src="{{org.logo_url}}" alt="">{{else}}<b>{{org.display_name}}</b>{{/if}}</div>
+        <div class="rh-meta">{{doc.title}}{{#if doc.code}} · <b>{{doc.code}}</b>{{/if}}</div>
+      </header>

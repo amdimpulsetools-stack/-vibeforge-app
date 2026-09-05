@@ -1,0 +1,14 @@
+{{!--
+  Partial · eyebrow + título del documento + código/fecha a la derecha.
+  Requiere doc.eyebrow, doc.title; opcionales doc.code, doc.issued_label.
+--}}
+      <div class="title-row">
+        <div>
+          <div class="eyebrow">{{doc.eyebrow}}</div>
+          <h1>{{doc.title}}</h1>
+        </div>
+        <div class="doc-code">
+          {{#if doc.code}}<b>{{doc.code}}</b>{{/if}}
+          {{#if doc.issued_label}}{{doc.issued_label}}{{/if}}
+        </div>
+      </div>

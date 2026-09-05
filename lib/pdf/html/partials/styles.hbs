@@ -1,0 +1,330 @@
+{{!--
+  Partial · hoja de estilos base de los DOCUMENTOS de Yenda (receta,
+  orden de examen, presupuesto genérico, consentimiento, nota clínica…).
+
+  Derivada del sistema de presupuestos (plugins Vitra/Patricia) para que
+  una org sin plugin imprima con la misma estética. Diferencias:
+    · las tintas de marca se DERIVAN de `--brand` con color-mix(), así
+      cualquier color de Ajustes (esmeralda, coral, morado) da un
+      documento coherente sin configurar tintas a mano;
+    · bloques genéricos de documento clínico: `.rx` (Rp/), `.section`,
+      `.body-html` (contenido TipTap de Ajustes → Plantillas HC),
+      `.signs` con colegiatura, `.callout`, `table.grid`.
+
+  Cada plantilla puede añadir su propio <style> después de este partial
+  para lo que sea exclusivo del documento.
+--}}
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+
+:root {
+  --brand: #10b981;
+
+  --ink:    #20262b;
+  --ink-2:  #3f474e;
+  --muted:  #6b7480;
+  --faint:  #9aa3ad;
+  --line:   #e4e7eb;
+  --line-2: #eef0f3;
+  --paper:  #ffffff;
+  --wash:   #f7f8fa;
+
+  --fs-base: 10.5pt;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+body {
+  margin: 0;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: var(--fs-base);
+  line-height: 1.42;
+  color: var(--ink);
+  background: #e7e9ed;
+  font-feature-settings: 'kern' 1;
+  -webkit-font-smoothing: antialiased;
+}
+.num, .price, td.amt, .meta-val { font-variant-numeric: tabular-nums; }
+
+/* ---------- Lienzo y hoja A4 ---------- */
+/* Las tintas se derivan AQUÍ (donde head.hbs fija --brand inline), no en
+   :root: una custom property se resuelve donde se declara, así que en
+   :root tomaría el esmeralda por defecto e ignoraría el color de la org. */
+.doc {
+  width: auto; margin: 0; padding: 0; background: transparent;
+  --brand-deep:   color-mix(in srgb, var(--brand) 82%, #111 18%);
+  --brand-tint:   color-mix(in srgb, var(--brand) 9%, #fff 91%);
+  --brand-tint-2: color-mix(in srgb, var(--brand) 24%, #fff 76%);
+}
+.sheet {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 22px auto;
+  padding: 15mm 15mm 0;
+  background: var(--paper);
+  box-shadow: 0 2px 18px rgba(20,30,45,.14);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.sheet.fixed { height: 297mm; overflow: hidden; }
+.sheet-body { flex: 1 1 auto; min-height: 0; }
+.sheet-body > :first-child { margin-top: 0; }
+
+/* ---------- Pie repetido ---------- */
+.page-footer {
+  flex: none;
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding: 8px 0 10px;
+  text-align: center;
+}
+.page-footer .pf-addr p { margin: 1.5px 0; font-size: 7.2pt; color: var(--muted); line-height: 1.5; }
+.page-footer .loc { color: var(--brand-deep); font-weight: 600; }
+.page-footer .pf-meta { margin-top: 4px; font-size: 6.8pt; color: var(--faint); }
+
+/* ---------- Cabecera de continuación (págs. 2+) ---------- */
+.run-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-bottom: 9px; margin-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+.run-head .rh-logo { width: 92px; flex: none; }
+.run-head .rh-logo img { width: 100%; display: block; }
+.run-head .rh-meta { font-size: 8pt; color: var(--muted); }
+.run-head .rh-meta b { color: var(--ink); font-weight: 600; }
+
+/* ---------- Membrete ---------- */
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--brand);
+}
+.head-logo { width: 150px; flex: none; }
+.head-logo img { width: 100%; max-height: 64px; object-fit: contain; object-position: left; display: block; }
+.head-logo .org-mark {
+  font-size: 15pt; font-weight: 700; color: var(--brand); letter-spacing: -.01em; line-height: 1.1;
+}
+.head-org {
+  text-align: right;
+  font-size: 8.2pt;
+  line-height: 1.55;
+  color: var(--muted);
+  padding-top: 4px;
+}
+.head-org .org-name { font-size: 9.4pt; font-weight: 600; color: var(--ink); letter-spacing: .01em; }
+.head-org .org-tag { font-style: italic; }
+.head-org .org-line { white-space: nowrap; }
+
+/* ---------- Título + código ---------- */
+.title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: 18px;
+}
+.title-row .eyebrow {
+  font-size: 8pt; letter-spacing: .22em; font-weight: 600;
+  color: var(--brand); text-transform: uppercase;
+}
+.title-row h1 {
+  margin: 3px 0 0; font-size: 19pt; font-weight: 600;
+  letter-spacing: -.01em; color: var(--ink); line-height: 1.08;
+}
+.doc-code { text-align: right; font-size: 8pt; color: var(--muted); }
+.doc-code b { display: block; font-size: 10.5pt; color: var(--ink); font-weight: 600; letter-spacing: .02em; }
+
+/* ---------- Metadatos (paciente / médico …) ---------- */
+.meta {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-bottom: 0;              /* el borde inferior lo pone la última fila de celdas */
+  border-radius: 7px;
+  overflow: hidden;
+}
+.meta.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.meta.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.meta .cell {
+  background: var(--paper); padding: 8px 12px;
+  border-right: 1px solid var(--line); border-bottom: 1px solid var(--line);
+}
+.meta .cell:nth-child(3n), .meta.cols-2 .cell:nth-child(2n), .meta.cols-4 .cell:nth-child(4n) { border-right: 0; }
+.meta.cols-2 .cell:nth-child(3n):not(:nth-child(2n)), .meta.cols-4 .cell:nth-child(3n):not(:nth-child(4n)) { border-right: 1px solid var(--line); }
+.meta .cell.wide { grid-column: span 2; }
+.meta .lbl {
+  font-size: 7pt; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--faint); font-weight: 600; margin-bottom: 2px;
+}
+.meta .val { font-size: 10pt; font-weight: 500; color: var(--ink); }
+.meta .val small { font-size: 8pt; color: var(--muted); font-weight: 400; }
+
+/* ---------- Secciones ---------- */
+.section { margin-top: 22px; display: flow-root; }
+.section > h2 {
+  font-size: 8.5pt; letter-spacing: .16em; text-transform: uppercase;
+  font-weight: 600; color: var(--brand);
+  margin: 0 0 9px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 8px;
+}
+.section > h2 .count {
+  font-size: 7.4pt; letter-spacing: .04em; color: var(--brand);
+  background: var(--brand-tint); border: 1px solid var(--brand-tint-2);
+  padding: 0 7px; border-radius: 20px;
+}
+.section > h2::after { content: ""; flex: 1; }
+
+/* ---------- Rp/ · lista de medicamentos ---------- */
+.rx { margin: 0; padding: 0; list-style: none; }
+.rx li {
+  display: flex; gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line-2);
+  break-inside: avoid;
+}
+.rx li:last-child { border-bottom: 0; }
+.rx .rx-n {
+  flex: none; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--brand); color: #fff;
+  font-size: 9pt; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+}
+.rx .rx-body { flex: 1; min-width: 0; }
+.rx .rx-name { font-size: 11pt; font-weight: 600; color: var(--ink); }
+.rx .rx-name .rx-dose { font-weight: 500; color: var(--ink-2); }
+.rx .rx-chips { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 5px; }
+.rx .chip {
+  font-size: 8pt; color: var(--ink-2);
+  background: var(--wash); border: 1px solid var(--line);
+  padding: 1px 8px; border-radius: 20px; white-space: nowrap;
+}
+.rx .chip b { color: var(--faint); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; font-size: 6.8pt; margin-right: 3px; }
+.rx .rx-ind {
+  margin-top: 5px; padding: 5px 10px;
+  font-size: 9pt; color: var(--ink-2);
+  background: var(--brand-tint); border-left: 3px solid var(--brand);
+  border-radius: 0 5px 5px 0;
+}
+
+/* ---------- Tabla genérica ---------- */
+table.grid { width: 100%; border-collapse: collapse; font-size: 9.4pt; }
+table.grid th, table.grid td { padding: 6px 12px; border: 1px solid var(--line); vertical-align: top; }
+table.grid thead th {
+  background: var(--brand-tint); color: var(--brand-deep);
+  font-size: 7.6pt; letter-spacing: .08em; text-transform: uppercase;
+  text-align: left; font-weight: 600;
+}
+table.grid td.amt { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 500; }
+table.grid tbody tr:nth-child(even) td { background: var(--wash); }
+table.grid tfoot td { font-weight: 600; background: var(--brand-tint); color: var(--brand-deep); border-color: var(--brand-tint-2); }
+table.grid .hint { display: block; font-size: 7.6pt; color: var(--faint); margin-top: 1px; }
+
+/* ---------- Listas ---------- */
+ul.notes { margin: 0; padding: 0; list-style: none; }
+ul.notes li {
+  position: relative; padding: 3.5px 0 3.5px 16px;
+  font-size: 9.4pt; color: var(--ink-2); break-inside: avoid;
+}
+ul.notes li::before {
+  content: ""; position: absolute; left: 2px; top: 8px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--brand);
+}
+ul.notes li b { color: var(--ink); font-weight: 600; }
+ul.checks { margin: 0; padding: 0; list-style: none; }
+ul.checks li { position: relative; padding: 3px 0 3px 18px; font-size: 9.6pt; color: var(--ink-2); break-inside: avoid; }
+ul.checks li::before {
+  content: "\2713"; position: absolute; left: 1px; top: 2px;
+  font-size: 8.5pt; font-weight: 700; color: var(--brand);
+}
+ul.checks li .hint { display: block; font-size: 7.8pt; color: var(--muted); }
+
+/* ---------- Bloque destacado ---------- */
+.callout {
+  margin-top: 14px;
+  border: 1px solid var(--brand-tint-2); background: var(--brand-tint);
+  border-radius: 8px; padding: 11px 15px; break-inside: avoid;
+}
+.callout h3 {
+  margin: 0 0 3px; font-size: 8.4pt; font-weight: 600; letter-spacing: .1em;
+  text-transform: uppercase; color: var(--brand-deep);
+}
+.callout p { margin: 0; font-size: 9.4pt; color: var(--ink-2); }
+
+/* ---------- Total (presupuestos) ---------- */
+.total {
+  margin-top: 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--brand-deep); color: #fff;
+  padding: 13px 18px; border-radius: 8px; break-inside: avoid;
+}
+.total .t-lbl { font-size: 10pt; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; }
+.total .t-lbl small { display: block; font-size: 7pt; font-weight: 500; opacity: .8; letter-spacing: .1em; margin-top: 1px; }
+.total .t-fig { font-size: 18pt; font-weight: 700; font-variant-numeric: tabular-nums; }
+.total .t-fig .cur { font-size: 11pt; font-weight: 600; opacity: .85; margin-right: 3px; }
+
+/* ---------- Contenido editable (TipTap de Ajustes → Plantillas HC) ---------- */
+.body-html { font-size: 9.6pt; color: var(--ink-2); line-height: 1.5; }
+.body-html h1, .body-html h2, .body-html h3 {
+  color: var(--ink); font-weight: 600; margin: 12px 0 4px; line-height: 1.2;
+}
+.body-html h1 { font-size: 12pt; }
+.body-html h2 { font-size: 10.5pt; }
+.body-html h3 { font-size: 9.8pt; }
+.body-html p { margin: 0 0 6px; }
+.body-html ul, .body-html ol { margin: 2px 0 8px; padding-left: 20px; }
+.body-html li { margin: 1px 0; }
+.body-html strong { color: var(--ink); font-weight: 600; }
+.body-html a { color: var(--brand-deep); text-decoration: none; }
+.body-html hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
+.body-html table { border-collapse: collapse; width: 100%; }
+.body-html td, .body-html th { border: 1px solid var(--line); padding: 4px 8px; }
+
+/* ---------- Términos ---------- */
+.terms { font-size: 8.7pt; color: var(--ink-2); line-height: 1.5; }
+.terms p { margin: 0 0 4px; }
+.terms ul { margin: 2px 0 6px; padding: 0; list-style: none; }
+.terms li { position: relative; padding: 2.5px 0 2.5px 18px; break-inside: avoid; }
+.terms li::before {
+  content: ""; position: absolute; left: 3px; top: 8px;
+  width: 5px; height: 5px; border-radius: 50%; background: var(--brand);
+}
+
+/* ---------- Firmas ---------- */
+.signs {
+  margin-top: 44px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 40px;
+  break-inside: avoid;
+}
+.signs.single { grid-template-columns: 1fr; justify-items: center; }
+.signs.single .sign { width: 62%; }
+.sign { text-align: center; padding-top: 30px; }
+.sign .stamp { height: 46px; margin: -46px auto 0; display: block; object-fit: contain; }
+.sign .line { border-top: 1.4px solid var(--ink-2); margin-bottom: 6px; }
+.sign .who { font-size: 8.8pt; font-weight: 600; color: var(--ink); }
+.sign .role { font-size: 7.6pt; color: var(--muted); margin-top: 1px; }
+.sign .lic { font-size: 7.4pt; color: var(--muted); margin-top: 1px; }
+
+/* ---------- Utilidades ---------- */
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.small { font-size: 8.2pt; }
+.avoid-break { break-inside: avoid; }
+@media print { .page-break { break-before: page; } }
+
+/* ---------- Impresión: cada .sheet = una página A4 ---------- */
+@page { size: A4; margin: 0; }
+@media print {
+  html, body { background: #fff; }
+  .doc { width: auto; margin: 0; padding: 0; }
+  .sheet { margin: 0; box-shadow: none; break-after: page; }
+  .sheet.fixed { break-inside: avoid; }
+  .sheet:last-child { break-after: auto; }
+  .no-print { display: none !important; }
+}
+</style>

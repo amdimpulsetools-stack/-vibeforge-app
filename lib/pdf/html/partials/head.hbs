@@ -1,0 +1,14 @@
+{{!--
+  Partial · <head> completo + apertura de <body> y del contenedor .doc.
+  Requiere `doc.title` y `org.*` (lib/pdf/html/org.ts). Se cierra con
+  el partial `docEnd`. El color de marca entra por --brand; las tintas
+  se derivan en styles.hbs con color-mix().
+--}}
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="UTF-8">
+<title>{{doc.title}} · {{org.display_name}}</title>
+{{> styles}}
+</head>
+<body>
+<div class="doc" style="--brand: {{org.brand_color}};">

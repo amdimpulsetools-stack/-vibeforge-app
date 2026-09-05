@@ -1,0 +1,16 @@
+{{!--
+  Partial · rejilla de metadatos genérica.
+  Recibe `meta` = [{ label, value, hint?, wide?, num? }] y opcional
+  `metaCols` (2 | 3 | 4, default 3). Las celdas con value vacío no se
+  imprimen: la plantilla decide qué pasa (p. ej. mandar "—").
+--}}
+      <section class="meta{{#if (eq metaCols 2)}} cols-2{{/if}}{{#if (eq metaCols 4)}} cols-4{{/if}}">
+        {{#each meta}}
+        {{#if this.value}}
+        <div class="cell{{#if this.wide}} wide{{/if}}">
+          <div class="lbl">{{this.label}}</div>
+          <div class="val{{#if this.num}} meta-val{{/if}}">{{this.value}}{{#if this.hint}} <small>{{this.hint}}</small>{{/if}}</div>
+        </div>
+        {{/if}}
+        {{/each}}
+      </section>
