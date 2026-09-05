@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useLanguage } from "@/components/language-provider";
+import { useFertilityAddon } from "@/hooks/use-fertility-addon";
 import {
   Building2,
   Stethoscope,
@@ -11,6 +12,7 @@ import {
   FlaskConical,
   BookOpen,
   Tag,
+  Tags,
   ArrowRight,
   Activity,
 } from "lucide-react";
@@ -35,6 +37,9 @@ export function AdminPageContent({
   diagnosisCodesCount = 0,
 }: AdminPageContentProps) {
   const { t } = useLanguage();
+  // Conceptos de pago de Tratamientos (mig 242): solo con Pack Fertilidad,
+  // igual que su entrada en el sidebar.
+  const { active: fertilityActive } = useFertilityAddon();
 
   const cards = [
     {
@@ -98,6 +103,16 @@ export function AdminPageContent({
       href: "/admin/audit-log",
       icon: Activity,
     },
+    ...(fertilityActive
+      ? [
+          {
+            title: "Conceptos de tratamiento",
+            desc: "Clasifica los cobros de Tratamientos: honorarios, clínica o terceros",
+            href: "/admin/treatment-concepts",
+            icon: Tags,
+          },
+        ]
+      : []),
   ];
 
   return (

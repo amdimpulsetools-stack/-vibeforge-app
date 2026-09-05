@@ -1,9 +1,78 @@
 # Coming Updates — Yenda
 
-> **Última actualización:** 2026-08-27 (Culqi F1 ENTREGADO en beta: mig 229 + /pagar + Cobrar por link · fix OAuth Google 401 cuentas nuevas · re-verificación Google ENVIADA: video con consentimiento + 4 scopes declarados + cuenta demo — esperando re-revisión 3-7 días hábiles)
+> **Última actualización:** 2026-09-04 (estudio **multimoneda / internacionalización** con inventario de ~700 puntos de contacto y estrategia híbrida · módulo **Tratamientos** del addon fertilidad evaluado por 4 agentes, decisiones pendientes del founder · entregados esta semana: zona horaria por org (migs 240/241), ocupación real, `is_bookable`, dashboard de recepción, mig 237 branding)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
+
+## 🌎 Multimoneda e internacionalización — estudio (2026-09-04, sin código)
+
+> Pedido del founder: especialistas (no solo fertilidad) cobran procedimientos en **dólares**; hoy la org
+> convierte a mano a soles para registrar. Se pide que el servicio pueda tener precio en PEN **y** USD, y
+> que el motor sirva para cuando Yenda opere en otros países (moneda local, IVA/IGV distinto,
+> facturación electrónica e integraciones de pago distintas). Inventario completo hecho con agente
+> sobre el código real (migs hasta la 241). Es **prioridad cuando lleguen los siguientes clientes**,
+> no bloqueante del piloto actual.
+
+### Inventario — ~700 puntos de contacto con "soles"
+
+| Capa | Estado real | Dificultad |
+|---|---|---|
+| **Columnas de dinero** | ~40 columnas `NUMERIC` sin moneda: `services.base_price`, `appointments.price_snapshot/discount_amount/patient_copay`, `patient_payments.amount`, `budget_records.amount`, `treatment_plan_items.unit_price`, `cash_*`, `inventory_*`, `organizations.monthly_revenue_goal`… **Ya tienen `currency`**: `service_budget_tiers` (140), `einvoices` + `exchange_rate` (108), `einvoice_settings.default_currency` (108), `pharmacy_sales` (216, con `CHECK (currency='PEN')` deliberado), `payment_links` (229), y la capa SaaS (`plans`, `organization_payments`) | — |
+| **RPCs que suman dinero** | ~15 funciones / ~60 `SUM()` sin agrupar por moneda: `get_admin_dashboard_stats_v3`, `get_patient_summary`, `get_receptionist_dashboard`, `get_doctor_dashboard_enhanced`, `get_reports_overview`, `get_report_metrics_for_ai`, `pharmacy_day_summary`, `caja_shift_summary`/`caja_close_shift`, `appointment_cancel_refund`, `get_einvoices_kpis`, `get_captacion_metrics` + el embudo de fertilidad en TS | **Alta** si se agrupa por moneda; **cero** si todo suma en moneda base |
+| **Formateo UI** | 3 formateadores (`formatCurrency` en `lib/utils.ts`, 2× `formatPEN` en caja/almacén) que concatenan `"S/"` — **ningún `Intl` con `style:'currency'`** (paradójicamente ayuda: solo hay que inyectar símbolo). **391 literales `S/` en 121 archivos `.tsx`** + 4 tipos `"PEN"\|"USD"` duplicados sin tipo canónico | **Media** (mecánico, masivo) |
+| **Plantillas Handlebars de presupuesto** | **215 literales `S/` en 22 `.hbs`** con montos de negocio incrustados (`CRIO.hbs`: S/ 300, S/ 6,500…). Ningún typechecker los ve. El comentario de `ROPA.hbs:23` promete "S/ o US$" y no está implementado. `honorarios-fold.ts` redondea a múltiplos de **S/ 10** (regla de producto dependiente de la moneda) | **Alta** |
+| **Facturación electrónica (NubeFact)** | La capa **mejor preparada**: catálogo `PEN:1/USD:2/EUR:3/GBP:4`, `moneda` y `tipo_de_cambio` ya viajan en el payload, `default_currency` por org, umbrales de bancarización PEN 2 000 / USD 500, `emit-dialog` sin `S/` hardcodeado. **Hueco fatal**: `exchangeRate` **nunca se pasa** desde el emit → `einvoices.exchange_rate` siempre NULL → una factura USD sería rechazada por SUNAT. `get_einvoices_kpis` suma monedas mezcladas | **Baja/Media** |
+| **Presupuestos fertilidad** | Tiers con PEN/USD y PDF React que imprime `US$`/`S/`. **Cadena rota**: `assign/route.ts` lee `currency` del tier y **no la persiste** en `budget_records`; el PDF re-consulta el tier vivo (cambiar el tier reimprime históricos con otra moneda); el embudo (`reports/fertility`) y `advisor-dashboard` suman/rotulan sin moneda | **Media** |
+| **Caja / arqueo** | Cero noción de moneda. `expected_cash = opening_float + Σ efectivo` es un escalar con `CHECK` que exige justificar toda diferencia. **Un cobro de USD 100 en efectivo hoy = faltante fantasma de S/ 100** obligatorio de justificar por escrito. No hay diseño de "cajón por moneda" | **Alta** |
+| **Farmacia / inventario** | Candado deliberado `CHECK (currency='PEN')` + costeo promedio ponderado + 6 columnas GENERATED de IGV + `CHECK (igv_percent = 18.00)` — asunción de **país**, no solo de moneda | **Alta** (dejar en PEN) |
+| **Pagos online Culqi** | Columna `payment_links.currency` sin CHECK y página `/pagar` ya moneda-consciente; solo **3 literales `"PEN"`** bloquean (`payment-links/route.ts`, `culqi/client.ts`, `culqi-checkout.ts`). Culqi soporta USD | **Baja** |
+| **Config por org** | No existe `organizations.currency` ni `country` ni `locale`. Precedente exacto: `organizations.timezone` (mig 240). `global_variables.currency_symbol = 'S/.'` seedeado en 10+ migraciones y **jamás leído**; `common.currency_symbol` en i18n tampoco | **Baja** |
+| **Cara al paciente** | `/book`, portal, emails (`{{monto_pagado}}` ya viene formateado), WhatsApp, Google Sheets (`numberFormat "S/" #,##0.00` dentro del pattern) | **Media** |
+| **Precio de la cita** | `appointment-form-modal.tsx` (19 `S/`), precedencia custom > session_price > base_price, descuentos y **trigger de seguros** `compute_appointment_insurance_amounts` — un solo espacio de moneda implícito | **Media/Alta** |
+
+Ni Culqi ni NubeFact son el cuello de botella (ambos soportan USD nativo): **el bloqueo es 100 % interno**.
+
+### Decisión de fondo — estrategia híbrida (recomendada)
+
+1. **Moneda base por org** (`organizations.currency`, default `PEN`; migración calcada de la 240). Cada cobro guarda la tripleta **monto en la moneda cobrada + tipo de cambio congelado ese día + equivalente en moneda base**. Así **ninguna de las ~60 sumas** de dashboards, deuda, reportes y Caja cambia: siguen sumando en soles. Es exactamente lo que exige SUNAT para el registro contable.
+2. **Multimoneda nativa** solo donde la conversión sería incorrecta y ya está modelada: **facturación electrónica** (comprobante en la moneda de la operación con su tipo de cambio), **presupuestos de fertilidad** y **links de pago Culqi**.
+3. Cuando Yenda salga de Perú, la moneda base de la org pasa a la local con el mismo motor. Las asunciones de **país** (IGV 18 % fijo, ubigeo INEI, NubeFact, Culqi/MP, ubicación SUNAT del comprobante) son **otro proyecto** ("país por org": impuesto, facturador, pasarela y formato fiscal como proveedores intercambiables detrás de la misma interfaz que ya usa `lib/einvoice/`), no este.
+
+**Lo que falta en cualquier camino: una fuente de tipo de cambio.** No existe nada en el repo. SUNAT publica el TC oficial diario (venta/compra): cron que lo trae y guarda por día + override manual por org. Sin esto no se puede ni emitir en USD ni congelar el equivalente en soles.
+
+### Fases propuestas
+
+| Fase | Qué | Notas |
+|------|-----|-------|
+| **F0 — bugs latentes hoy (1 día)** | (a) persistir `currency` en `budget_records` al asignar; (b) `get_einvoices_kpis` y el embudo de fertilidad agrupan por moneda; (c) el emit de facturas pasa `exchangeRate` | Independientes de la decisión; ya rotos si una org configura un tier en USD |
+| **F1 — USD (~2 semanas)** | `organizations.currency` + tipo `Currency` canónico + **un solo `formatMoney(amount, currency)`** (reemplaza los 3 formateadores y los 391 `S/`) · fuente de TC SUNAT · `services.currency` (precio en USD) · cobro en USD con `currency_paid` + `fx_rate` + `amount_base` en `patient_payments` · Culqi USD (3 literales) · factura USD con `exchangeRate` · presupuesto con moneda persistida | Dashboards intactos. **Sin tocar Caja**: un cobro en USD se registra como electrónico/otro (transferencia, tarjeta) y **no entra al cajón de efectivo** — restricción honesta que evita el faltante fantasma |
+| **F2** | Efectivo en USD en Caja (cajón por moneda: `opening_float`/`counted_cash` por moneda), plantillas Handlebars con helper de moneda y montos fuera del HTML, portal/booking/Sheets | Solo si un cliente lo pide |
+| **F3 — país por org** | `organizations.country` + impuesto configurable (IVA/IGV) + facturador y pasarela como proveedores por país (la interfaz `lib/einvoice/` ya está abstraída: Nubefact es un provider) + farmacia sin `CHECK` PEN/18 % | Cuando Yenda salga de Perú |
+
+**Lectura sincera**: para fertilidad vale la F1 ya — FIV cotizada en USD, cobrada por transferencia en USD, facturada en USD, y el dashboard viendo soles al TC del día. Lo que NO prometer ahora: dólares en efectivo en Caja ni farmacia en dólares (los dos huecos caros que nadie necesita todavía). Siguiente paso cuando el founder lo priorice: diseño técnico de F1 con migraciones y puntos exactos.
+
+## 🧬 Módulo Tratamientos (addon fertilidad) — evaluado, decisiones pendientes (2026-09-02)
+
+> Origen: conversación founder ↔ Dra. Patricia. Una FIV (S/ 17 000-21 000) se paga por fases, puede
+> abandonarse, y mucho de lo cobrado va a terceros; agendarla como cita de S/ 20 000 infla "Deuda
+> pendiente"/"Total facturado" e incomoda a la doctora. **Caso 1 entregado** (mig 239, `is_bookable`).
+> **Caso 2** evaluado por 4 agentes (arquitectura de datos, producto/UX, finanzas Perú, riesgo/regresión).
+> Gateado por el addon de fertilidad. **Sin código hasta que el founder decida.**
+
+**Veredicto**: factible, ~50 h Entrega 1 (+~20 h terceros). Tabla nueva `treatments` (no reutilizar `treatment_plans`: es el modelo acoplado a citas, su saldo es "pagado − consumido por sesiones" y crear un plan dispara un seguimiento espurio) con puente 1:1 al presupuesto (`in_progress` ⇔ existe tratamiento). Pagos en `patient_payments` (nunca tabla aparte — rompería Caja, ingresos, devoluciones y facturación) con `treatment_id` + **concepto** de catálogo por org (`revenue_bucket` honorario/general/tercero + afectación IGV heredada del servicio). "Iniciar tratamiento" desde presupuesto aceptado en una transacción. Desenlace (embarazó / abandonó + motivo / completó) con cierre de seguimientos (patrón mig 188).
+
+**4 condiciones bloqueantes** (todas con arreglo pequeño): (1) `get_patient_summary` + `lib/patient-debt.ts` excluyen pagos con `treatment_id` **en el mismo commit** — si no, S/ 8 000 al tratamiento "pagan" una ecografía de S/ 150; (2) ruta propia de creación (no `POST /api/treatment-plans`); (3) pagos insertados con el cliente del usuario, sin turno/tender manuales (el trigger de Caja los estampa); (4) **script de transición** para las FIV que Vitra ya tiene agendadas como cita de S/ 17 000 (crear tratamiento, mover pagos, cita a precio 0 con nota) + el botón "Iniciar" rechaza si hay cita TRA viva sin migrar.
+
+**Rechazado por unanimidad**: flag "grabar el pago con 18 % o no" (la afectación es del servicio/emisor, no del cobro; decisión tributaria en manos de recepción, error silencioso; la clasificación ya la tiene la doctora en sus plantillas de presupuesto). Cards rotuladas "Ingresos por honorarios / Ingresos generales" (triple conteo con "Ingresos" del dashboard) → **"Cobrado en tratamientos" con desglose Honorarios · Otros**, "Honorarios cobrados" (owner/doctora), "Por cobrar (en curso)", "En curso". "Ingresos" del dashboard **sigue siendo bruto** y los pagos de tratamiento suman ahí solos; la lente "**lo que queda en la clínica** = cobrado − terceros" es la que muestra la plata real de la doctora, y es genérica (dental con laboratorio, estética con insumos…): orgs sin terceros = 100 % propio, cero UI extra.
+
+**Al registrar un pago la pregunta no es "¿es ingreso?" sino "¿quién recibió el dinero?"**: (•) la clínica → cobro normal (Ingresos, Caja, boleta); ( ) pagado directo a un tercero (lab, anestesiólogo) → registro informativo en el timeline (`treatment_external_payments`) **sin** crear pago.
+
+**Decisiones pendientes del founder**: (1) tabla nueva `treatments` ✔ recomendado; (2) recepción registra pagos pero no ve honorarios ni ganancia; (3) `/reports`: "Pendiente = Facturado(citas) − Cobrado(todo)" se vuelve negativo → card aparte "Cobros por tratamientos"; (4) ¿la Dra. Patricia emite comprobantes por NubeFact? (boleta por fase, SUNAT: comprobante por el monto percibido) o campo "N° comprobante externo"; (5) ¿migrar las FIV ya agendadas de Vitra?
+
+**Bugs preexistentes hallados de paso** (valen su propio fix): el drawer del paciente no clampa a 0 (muestra "Saldo pendiente S/ -4 800" con un anticipo a plan mientras la lista muestra 0); "Registrar anticipo" del panel de planes resuelve la org con `limit(1)` (multi-org escribe en la org equivocada); `get_report_metrics_for_ai` valoriza con precio de catálogo; el dashboard del doctor no vería cobros de tratamiento (`month_revenue` hace JOIN con citas); `treatment_plans` tiene 4 copias cliente del saldo (consolidar en `lib/treatment-balance.ts`).
+
+**Fast-follow pequeño detectado**: aviso "este servicio no está asignado a ningún doctor — no aparecerá en la agenda" al crear/editar un servicio (segunda vez que confunde; verificado con "Histeroscopia" en prod).
 
 ## 📅 Cancelación de citas con pagos — diálogo de devolución (aprobado 27-ago)
 

@@ -77,6 +77,7 @@
 - [Changelog — Sesión 2026-08-27 (v0.15.35) — Farmacia: fecha de venta (sale_date) + historial con rango + cierre del día](#changelog--sesión-2026-08-27-v01535--farmacia-fecha-de-venta-sale_date--historial-con-rango--cierre-del-día)
 - [Changelog — Sesiones 2026-08-27/28 (v0.15.36) — Barrido fiscal IGV de punta a punta + deshacer cancelación de citas](#changelog--sesiones-2026-08-2728-v01536--barrido-fiscal-igv-de-punta-a-punta--deshacer-cancelación-de-citas)
 - [Changelog — Sesiones 2026-08-28 a 08-31 (v0.15.37) — Google APROBADO + WhatsApp Embedded Signup (mig 234) + expediente Meta casi completo + mapa de arquitectura](#changelog--sesiones-2026-08-28-a-08-31-v01537--google-aprobado--whatsapp-embedded-signup-mig-234--expediente-meta-casi-completo--mapa-de-arquitectura)
+- [Changelog — Sesiones 2026-09-01 a 09-04 (v0.15.38) — Revisión de seguridad + dashboard de recepción + 2.º piloto Vitra + zona horaria por org + ocupación real + estudios Tratamientos y multimoneda](#changelog--sesiones-2026-09-01-a-09-04-v01538--revisión-de-seguridad--dashboard-de-recepción--2º-piloto-vitra--zona-horaria-por-org--ocupación-real--estudios-tratamientos-y-multimoneda)
 
 ---
 
@@ -4658,6 +4659,62 @@ La semana de las integraciones públicas. **Google aprobó la verificación OAut
 
 ### Docs
 - `docs/meta-app-review.md` (paquete del review) · PRD §11 al día (filas de WhatsApp, App de Meta y Google Calendar).
+
+---
+
+## Changelog — Sesiones 2026-09-01 a 09-04 (v0.15.38) — Revisión de seguridad + dashboard de recepción + 2.º piloto Vitra + zona horaria por org + ocupación real + estudios Tratamientos y multimoneda
+
+La semana del segundo piloto (capacitación Vitra el 2-sep a recepcionistas y obstetras) y de las primeras horas reales de la Dra. Patricia con el sistema: cada bug que apareció se cerró el mismo día (PRs #330-#337, migs 235-241). Dos frentes quedaron **evaluados a fondo pero sin código** por decisión del founder: el módulo **Tratamientos** del addon de fertilidad y la **multimoneda**. Ambos documentados en `COMING-UPDATES.md`.
+
+### Revisión de seguridad "pensar como hacker" (1-sep) — `docs/security-review-2026-09-01.md`
+- Auditoría completa (auth, RLS, RPCs, webhooks, portal, dependencias) con nota **6.5/10** — por encima del promedio de un SaaS emergente en lo estructural (RLS multi-tenant, RPCs cerradas por mig 193, cifrado de credenciales), con deuda concentrada en P0/P1 concretos.
+- **Hallazgo C1 (policies legacy de la mig 005 sobre `organization_members`) verificado NO vivo en prod** con `pg_policies` — fue deriva de migraciones en el repo, no en la base. La nota subió de 5 a 6.5 tras esa verificación.
+- **Mig 235 (aplicada)**: DROP defensivo de las policies de la 005, helpers `get_user_org_ids` / `is_org_admin` / `get_user_org_role` exigen `is_active = true` y fijan `search_path`, trigger `organization_members_guard` anti-escalada (congela user_id/org, reserva el rol owner al owner, prohíbe auto-reactivación) y `org_insert_members` con `WITH CHECK ... AND role <> 'owner'`.
+- Pendiente (tanda P0 de código): firma del webhook Culqi, takeover por DNI en el portal, `npm update` de sanitize-html/next/postcss/sentry. Luego P1 (AAL/TOTP, register-invited, subscriptions solo service-role, inyección de fórmulas en CSV/Sheets, M1-M13).
+
+### Dashboard del rol Recepcionista "Mi día" (migs 236 + 238, PRs #330/#333)
+- Antes la recepcionista caía directo en `/scheduler`. Ahora tiene escritorio propio: **Hoy de un vistazo** (conteos por estado), **Agenda de hoy en lista** con estatus al costado + chip "Recurrente" + chip "Falta pago S/ X" (precio y pagado por cita importados **verbatim** de la fórmula de la mig 233 — solo plata clínica, en bruto), **Por confirmar mañana** con botón de WhatsApp por fila, **Mis cobros de hoy** (por `created_by`, solo clínica, rotulado como cobros — jamás ingresos/ganancia), **Seguimientos por contactar**, y gráfica org de 30 días con chip personal "Tuyas: N completadas · N no-show · N canceladas" (por `responsible_user_id`).
+- **Primer RPC de dashboard con gating de rol explícito** (`get_receptionist_dashboard`, patrón M12 de la revisión): valida org del caller y rol owner/admin/receptionist — un doctor recibe `forbidden`. Los RPC futuros copian este patrón.
+- Ajustes del founder antes del piloto: fuera el widget de Caja (módulo apagado para Vitra) y el de reservas online (no usan); dentro, la atribución personal de cobros y citas gestionadas.
+
+### 2.º piloto — Vitra (capacitación 2-sep)
+- Límite de dispositivos de recepcionista **1 → 2** (`lib/auth/session-limits.ts`).
+- **Buscador en Servicios** (`/admin/services`) insensible a tildes (`normalizeSearchText`, reutilizado en Seguros).
+- Script ops `scripts/ops/2026-09-02-vitra-desactivar-modulos-beta.sql` (preview → desactivar → verificar): resultó que Almacén/Caja/Farmacia ya estaban apagados. Se descubrieron **dos orgs "Vitra"** — la de capacitación es la de `oscarfiverr+vitra@` (NATURVITRA S.A.C., addons fertility + gynecology). NubeFact queda en sandbox: Vitra factura con Susii hasta que Caja madure.
+- Deep-link `/scheduler?date=YYYY-MM-DD` desde los widgets del dashboard.
+
+### Branding heredado por miembros (mig 237, PR #331)
+- Bug: la recepcionista entraba y veía "Yenda", sin logo y con tema esmeralda en vez de Vitra/sand. Causa: `organizations` en prod solo tenía las policies **owner-only de la mig 004** (`auth.uid() = owner_id`); las de la 013 nunca llegaron — misma deriva que C1 y que la mig 094.
+- Mig 237: SELECT para miembros activos + owner, UPDATE owner/admin con `WITH CHECK`, INSERT a nombre propio, trigger `organizations_guard` (hallazgo H2: congela `owner_id` e `is_active` en updates de usuarios; `plan` no existe en prod), sin policy de DELETE. Verificada en prod: 3 policies `org_*` + trigger.
+
+### Seguimientos — "Cerrar caso" y botones rojos (PRs #332/#333)
+- "Cerrar caso" en la pestaña **Sin respuesta** cerraba en BD pero la tarjeta se quedaba: la pestaña listaba también `cerrado_manual`, así que el estado nuevo caía en el mismo bucket. Decisión de producto: la pestaña es **bandeja de triaje** (desistido + vencido, 60 días), no archivo. `cerrado_manual` sale del bucket (API y cliente), la card desaparece con salida local y el badge baja; el denominador de la tasa de recuperación lo conserva explícitamente. Cierres desde Pendientes también salen de la UI.
+- Rojo sobre rojo: `--destructive-foreground` == `--destructive` en el tema. Botón "Cerrar caso" del modal + variants `destructive` de Button y Badge pasan a `text-white` (mismo fix que "Cancelar cita" antes). El commit se perdió en la carrera del merge de #332 y se rescató por cherry-pick en #333.
+
+### "Se agenda como cita" — `services.is_bookable` (mig 239, PR #334) — Caso 1 de la Dra. Patricia
+- Los tratamientos TRA (FIV, ovodonación…) no deben ofrecerse en el select de crear cita: no son una cita de S/ 20 000, se cobran por fases. Hasta hoy el único interruptor era `is_active`, que apaga el servicio en todas las superficies (incluidos presupuestos).
+- Flag de visibilidad de **core** (default `true`), checkbox "Se agenda como cita" en el formulario + badge "No se agenda como cita" en el listado. Filtros tolerantes (`is_bookable !== false`) en el select del scheduler, el listado de reserva online y el POST público. Presupuestos, planes y citas existentes intactos.
+- De paso: un servicio nuevo no aparece en el card de cita hasta asignarlo al doctor (`doctor_services`) — verificado en prod con "Histeroscopia"; queda como aviso pendiente en el formulario de servicios.
+
+### Agenda — % de ocupación real (PR #335) y en el dashboard (PR #336)
+- El header dividía citas del día entre `48 slots fijos × 2 consultorios hardcodeados`: 7 citas en una agenda de 10 slots daban **7 %**. Fórmula única en `lib/scheduler-occupancy.ts` (función pura): minutos de citas no canceladas ÷ (ventana real de la org × **consultorios activos del filtro** × días hábiles de la config − bloqueos y descansos), tope 100 %. Total/Pendientes/Ocupación siguen a la vista (Día o Semana lunes-domingo). La captura de la doctora pasa de 7 % a ~78 %.
+- El dashboard admin importa la misma función (adiós "12 slots por doctor"): hoy / 7 días / mes y mes anterior para la tendencia, con `scheduler_settings`, consultorios activos, citas y bloqueos del rango en paralelo con el RPC. Los descansos viven en localStorage, así que el servidor no los descuenta.
+
+### Zona horaria por organización (migs 240 + 241, PR #336)
+- Bug: la doctora abrió el dashboard en "Hoy" pasadas las 19:00 y no vio ingresos. Vercel corre en UTC: `new Date()` en el Server Component ya era mañana. Y peor: los formularios de cobro estampaban `payment_date` con `toISOString()` (UTC) — un cobro de las 19:30 caía en el día siguiente en todos los dashboards.
+- **Mig 240**: `organizations.timezone` (IANA, default `America/Lima`), editable en Ajustes → Organización (selector de países LatAm/ES/US). **Mig 241**: `get_doctor_dashboard_enhanced(p_today)` — cuerpo verbatim de la 055 con sus 15 `CURRENT_DATE` (UTC de Postgres) → `p_today`, más `search_path`; DROP de la firma de 2 args.
+- `lib/org-time.ts` (isomórfico, solo Intl): `todayInTz`, `zonedNow` (reloj de pared de la org para date-fns en servidor), `resolveOrgTimezone`; `hooks/use-org-today.ts` para cliente. Los tres dashboards y **siete formularios** (cobro desde cita, cobro al crear cita, anticipo a plan, "Registrar pago", bloqueos, "Reagendar", brief ejecutivo) dejan de usar UTC. Sustituye los parches fijos a Lima dispersos (facturación, farmacia, crons).
+
+### Farmacia — método de pago en el extracto (PR #337)
+- El historial mostraba producto y precio pero no con qué se pagó. La venta guarda `payment_id`; la etiqueta se trae de `patient_payments.payment_method` (chunked) y se muestra como chip en la fila, "Pago: Yape" en el detalle desplegado y columna en el reporte impreso de cierre. El ticket de 80 mm ya la traía.
+
+### Evaluado sin código — módulo **Tratamientos** (addon fertilidad) y **multimoneda**
+- **Tratamientos** (feedback Dra. Patricia): 4 agentes en paralelo (arquitectura de datos, producto/UX, finanzas-contabilidad Perú, riesgo/regresión) sobre el pedido de pestaña `/tratamientos` con timeline de pagos por concepto, honorarios vs generales, terceros y desenlace. Veredicto: factible con 4 condiciones bloqueantes; ~50 h Entrega 1. Hallazgos clave: las plantillas de presupuesto de la doctora **ya itemizan honorarios**, el flag "grabar con 18 % o no" por pago es contablemente incorrecto (la afectación es del servicio, no del cobro), "Ingresos" del dashboard debe seguir siendo bruto y la lente correcta es **"lo que queda en la clínica" = cobrado − terceros**, y la pregunta al registrar no es "¿es ingreso?" sino **"¿quién recibió el dinero?"** (clínica → cobro normal; tercero directo → registro informativo sin dinero). Decisiones pendientes del founder en `COMING-UPDATES.md`.
+- **Multimoneda**: inventario de ~700 puntos de contacto con soles (606 `S/` en texto, ~60 `SUM()` en 15 RPCs, ~40 columnas sin moneda). Recomendación: **híbrido** — moneda base por org + tipo de cambio congelado por transacción para todo lo que suma (dashboards, Caja, reportes), y multimoneda nativa solo donde ya está modelada y la conversión sería incorrecta (facturación electrónica, presupuestos, Culqi). Tres bugs latentes hoy mismo (moneda del tier no persistida en `budget_records`, KPI de facturación mezcla monedas, `exchangeRate` nunca viaja a NubeFact). Detalle completo en `COMING-UPDATES.md`.
+
+### Ops / infra de sesión
+- Verificaciones de prod vía MCP de Supabase (solo lectura): migs 237/238 aplicadas, servicios sin doctor asignado, firma del RPC del doctor.
+- Ritmo de PRs: cada tanda reinicia la rama desde `main` tras el merge del founder; una carrera push/merge perdió un commit (#332) y se recuperó por cherry-pick — desde entonces se verifica el `merge-base` antes de cada push.
 
 ---
 

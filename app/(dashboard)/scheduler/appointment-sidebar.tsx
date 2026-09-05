@@ -526,7 +526,7 @@ export function AppointmentSidebar({
     const supabase = createClient();
     const { data } = await supabase
       .from("patient_payments")
-      .select("id, appointment_id, patient_id, amount, payment_method, payment_date, notes, source, organization_id, created_at")
+      .select("id, appointment_id, patient_id, amount, payment_method, payment_date, notes, source, treatment_id, organization_id, created_at")
       .eq("appointment_id", appointment.id)
       .order("payment_date", { ascending: true });
     setPayments((data as PatientPayment[]) ?? []);
@@ -543,9 +543,11 @@ export function AppointmentSidebar({
           .select("price_snapshot, discount_amount, status, services(base_price)")
           .eq("patient_id", appointment.patient_id)
           .neq("status", "cancelled"),
+        // treatment_id: los cobros de un TRATAMIENTO (mig 242/243) viven en
+        // su propia cuenta y no cancelan deuda de citas (lib/patient-debt).
         supabase
           .from("patient_payments")
-          .select("amount, source")
+          .select("amount, source, treatment_id")
           .eq("patient_id", appointment.patient_id),
       ]);
       setPatientDebt(

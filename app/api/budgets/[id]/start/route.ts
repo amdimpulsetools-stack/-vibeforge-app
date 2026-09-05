@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
+import { assertActiveMembership } from "@/lib/followups/org-scope";
 import {
   FERTILITY_BASIC_KEY,
   FERTILITY_PREMIUM_KEY,
@@ -12,20 +13,33 @@ import {
 // ──────────────────────────────────────────────────────────────────
 // POST /api/budgets/[id]/start
 //
-// Phase 5 prep — transitions an accepted budget to `in_progress` and
-// stamps `started_at` / `started_by_user_id`. Closes the auto-followup
-// `fertility.budget_accepted_pending_start` (created by the daily cron)
-// honoring attribution: closure_reason `agendado_via_contacto` if there
-// was prior contact (Categoría A) else `agendado_organico_dentro_ventana`
-// (Categoría B).
+// Presupuesto aceptado → TRATAMIENTO en curso (módulo Tratamientos,
+// migs 242/245). Antes esta ruta solo hacía UPDATE de `acceptance_status`
+// a `in_progress`; ahora delega en el RPC `treatment_start_from_budget`,
+// que crea la fila en `treatments` y deja el budget `in_progress` en la
+// MISMA transacción (si una falla, no queda un budget iniciado sin
+// tratamiento ni al revés). El RPC valida rol, addon y estado por su
+// cuenta; los pre-checks de aquí solo existen para devolver mensajes
+// claros con el status HTTP correcto.
 //
-// Allowed roles: owner | admin | doctor | fertility advisor.
-// (Receptionist blocked — clinical-impact decision.)
+// Conserva el cierre del auto-followup
+// `fertility.budget_accepted_pending_start` (creado por el cron diario)
+// honrando la atribución: `agendado_via_contacto` si hubo contacto
+// previo (Categoría A) o `agendado_organico_dentro_ventana` (Categoría B).
+//
+// Roles: owner | admin | doctor | asesora de fertilidad.
+// (Recepción bloqueada — decisión con impacto clínico.)
 // ──────────────────────────────────────────────────────────────────
 
 const bodySchema = z
   .object({
-    notes: z.string().max(500).optional(),
+    doctor_id: z.string().uuid().nullable().optional(),
+    assistant_member_id: z.string().uuid().nullable().optional(),
+    started_at: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida")
+      .optional(),
+    notes: z.string().max(1000).optional(),
   })
   .optional();
 
@@ -33,6 +47,31 @@ interface MembershipRow {
   organization_id: string;
   role: "owner" | "admin" | "receptionist" | "doctor";
   is_fertility_advisor: boolean | null;
+}
+
+/**
+ * Traduce los errores que levanta el RPC a HTTP. `forbidden` sin ERRCODE
+ * sale como P0001; los RAISE con ERRCODE llegan con su SQLSTATE.
+ */
+function mapRpcError(err: { code?: string; message?: string }): NextResponse {
+  const msg = err.message ?? "";
+  if (msg.includes("forbidden") || err.code === "42501") {
+    return NextResponse.json(
+      {
+        error: msg.includes("forbidden")
+          ? "Sin permisos para iniciar el tratamiento"
+          : msg,
+      },
+      { status: 403 },
+    );
+  }
+  if (err.code === "23514" || err.code === "23505") {
+    return NextResponse.json({ error: msg }, { status: 409 });
+  }
+  return NextResponse.json(
+    { error: msg || "No se pudo iniciar el tratamiento" },
+    { status: 500 },
+  );
 }
 
 export async function POST(
@@ -45,7 +84,7 @@ export async function POST(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
   const rl = generalLimiter(user.id);
@@ -56,10 +95,9 @@ export async function POST(
     );
   }
 
-  // Body is optional; only `notes` is supported and currently
-  // discarded (kept for forward-compat). We still validate so a
-  // malformed payload returns a clean 400.
-  let parsedNotes: string | undefined;
+  // Body opcional (TreatmentStartInput). Se valida igual para que un
+  // payload malformado devuelva un 400 limpio.
+  let input: z.infer<typeof bodySchema> = undefined;
   try {
     const text = await request.text();
     if (text.trim().length > 0) {
@@ -67,21 +105,43 @@ export async function POST(
       if (!parsed.success) {
         return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
       }
-      parsedNotes = parsed.data?.notes;
+      input = parsed.data;
     }
   } catch {
     return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
   }
-  // notes currently isn't persisted — we accept it for forward-compat.
-  void parsedNotes;
+
+  // El presupuesto se lee PRIMERO (RLS ya oculta los de orgs ajenas) y la
+  // membresía se valida en SU org — no en una membresía arbitraria
+  // (`limit(1)`), que para un usuario multi-org podía apuntar a la clínica
+  // equivocada y devolver 404 espurios.
+  const { data: existing, error: existErr } = await supabase
+    .from("budget_records")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (existErr || !existing) {
+    return NextResponse.json(
+      { error: "Presupuesto no encontrado" },
+      { status: 404 },
+    );
+  }
+  const budget = existing as BudgetRecord;
+
+  const denied = await assertActiveMembership(
+    supabase,
+    user.id,
+    budget.organization_id,
+  );
+  if (denied) return denied;
 
   const { data: membershipRow } = await supabase
     .from("organization_members")
     .select("organization_id, role, is_fertility_advisor")
     .eq("user_id", user.id)
+    .eq("organization_id", budget.organization_id)
     .eq("is_active", true)
-    .limit(1)
-    .single();
+    .maybeSingle();
   const membership = (membershipRow as MembershipRow | null) ?? null;
   if (!membership) {
     return NextResponse.json({ error: "Sin organización" }, { status: 403 });
@@ -113,20 +173,6 @@ export async function POST(
     );
   }
 
-  const { data: existing, error: existErr } = await supabase
-    .from("budget_records")
-    .select("*")
-    .eq("id", id)
-    .eq("organization_id", membership.organization_id)
-    .single();
-  if (existErr || !existing) {
-    return NextResponse.json(
-      { error: "Presupuesto no encontrado" },
-      { status: 404 },
-    );
-  }
-
-  const budget = existing as BudgetRecord;
   if (budget.acceptance_status !== "accepted") {
     return NextResponse.json(
       {
@@ -143,17 +189,32 @@ export async function POST(
     );
   }
 
+  // Cliente del USUARIO (no service role): el RPC es SECURITY DEFINER pero
+  // lee auth.uid() para el rol, el addon y `started_by`.
+  const { data: treatmentId, error: rpcErr } = await supabase.rpc(
+    "treatment_start_from_budget",
+    {
+      p_budget_id: id,
+      p_doctor_id: input?.doctor_id ?? null,
+      p_assistant_member_id: input?.assistant_member_id ?? null,
+      p_started_at: input?.started_at ?? null,
+      p_notes: input?.notes ?? null,
+    },
+  );
+  if (rpcErr) return mapRpcError(rpcErr);
+  if (typeof treatmentId !== "string") {
+    return NextResponse.json(
+      { error: "No se pudo iniciar el tratamiento" },
+      { status: 500 },
+    );
+  }
+
   const now = new Date().toISOString();
   const { data: updated, error: updErr } = await supabase
     .from("budget_records")
-    .update({
-      acceptance_status: "in_progress",
-      started_at: now,
-      started_by_user_id: user.id,
-    })
+    .select("*")
     .eq("id", id)
     .eq("organization_id", membership.organization_id)
-    .select("*")
     .single();
 
   if (updErr || !updated) {
@@ -217,5 +278,5 @@ export async function POST(
       .eq("organization_id", membership.organization_id);
   }
 
-  return NextResponse.json({ data: updated });
+  return NextResponse.json({ data: updated, treatment_id: treatmentId });
 }

@@ -72,7 +72,9 @@ const PAGE_SIZE = 25;
 // price_snapshot y source separa los cobros clínicos de los del POS.
 type PatientExtraData = {
   appointments: { service_id: string; status: string; price_snapshot: number | null; discount_amount: number | null; origin: string | null; services: { id: string; name: string; base_price: number | null } }[];
-  patient_payments: { amount: number; source: string | null }[];
+  // treatment_id: los cobros de un TRATAMIENTO (mig 242/243) no cancelan
+  // deuda de citas — lib/patient-debt.ts exige la columna en el tipo.
+  patient_payments: { amount: number; source: string | null; treatment_id: string | null }[];
 };
 
 interface PatientsClientProps {
@@ -262,7 +264,7 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
         .in("patient_id", missing),
       supabase
         .from("patient_payments")
-        .select("patient_id, amount, source")
+        .select("patient_id, amount, source, treatment_id")
         .in("patient_id", missing),
     ]);
 

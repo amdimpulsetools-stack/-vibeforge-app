@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { NumberPopIn } from "@/components/ui/number-pop-in";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import {
   Filter,
@@ -165,6 +166,42 @@ export default function BudgetsPage() {
 
   const filtered = useMemo(() => data?.items ?? [], [data]);
 
+  // Puente presupuesto → tratamiento (mig 242): las cards iniciadas o
+  // cerradas enlazan a /tratamientos/[id]. Se resuelve en UNA consulta para
+  // toda la página (un fetch por card sería N+1 en un kanban de 20 filas).
+  // El listado de /api/budgets no trae la relación, así que se lee la tabla
+  // directo con el cliente del navegador (RLS: miembros de la org leen).
+  const linkedBudgetIds = useMemo(
+    () =>
+      filtered
+        .filter(
+          (b) =>
+            b.acceptance_status === "in_progress" ||
+            b.acceptance_status === "completed",
+        )
+        .map((b) => b.id),
+    [filtered],
+  );
+
+  const { data: treatmentIdByBudget } = useQuery({
+    queryKey: ["budgets", "treatment-ids", linkedBudgetIds],
+    enabled: linkedBudgetIds.length > 0,
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data: rows } = await createClient()
+        .from("treatments")
+        .select("id, budget_record_id")
+        .in("budget_record_id", linkedBudgetIds);
+      const map: Record<string, string> = {};
+      for (const r of (rows as unknown as {
+        id: string;
+        budget_record_id: string | null;
+      }[]) ?? []) {
+        if (r.budget_record_id) map[r.budget_record_id] = r.id;
+      }
+      return map;
+    },
+  });
+
   if (addonsLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -316,12 +353,13 @@ export default function BudgetsPage() {
               // Phase 5 prep — split the Aceptados column into 3
               // visual sub-groups based on the new acceptance_status
               // states: "Por iniciar" (accepted) → "En curso"
-              // (in_progress) → "Completados" (completed).
+              // (in_progress) → "Cerrados" (completed).
               <AcceptedSubGroups
                 items={filtered}
                 acceptedUnstartedCount={counts.accepted_unstarted ?? counts.accepted}
                 inProgressCount={counts.in_progress ?? 0}
                 completedCount={counts.completed ?? 0}
+                treatmentIdByBudget={treatmentIdByBudget ?? {}}
                 onChanged={refresh}
               />
             ) : (
@@ -498,9 +536,9 @@ function PendingSubGroups({
 // "Por iniciar"  = acceptance_status='accepted' (still pre-start). The
 //                  card shows urgency-tinted age based on accepted_at
 //                  (gray <7d, amber 7-14d, red >14d).
-// "En curso"     = acceptance_status='in_progress'. Admin/owner can
-//                  mark the budget as completed.
-// "Completados"  = acceptance_status='completed'. Read-only.
+// "En curso"     = acceptance_status='in_progress'. El cierre ya no vive
+//                  aquí: se decide en el tratamiento (con desenlace).
+// "Cerrados"     = acceptance_status='completed'. Solo lectura.
 //
 // Items are split client-side. The header counts come from the API
 // response so badges remain authoritative across paginated responses.
@@ -510,12 +548,14 @@ function AcceptedSubGroups({
   acceptedUnstartedCount,
   inProgressCount,
   completedCount,
+  treatmentIdByBudget,
   onChanged,
 }: {
   items: BudgetWithJoins[];
   acceptedUnstartedCount: number;
   inProgressCount: number;
   completedCount: number;
+  treatmentIdByBudget: Record<string, string>;
   onChanged: () => void;
 }) {
   const unstarted = items.filter((b) => b.acceptance_status === "accepted");
@@ -580,6 +620,7 @@ function AcceptedSubGroups({
                 key={item.id}
                 budget={item}
                 bucket="in_progress"
+                treatmentId={treatmentIdByBudget[item.id] ?? null}
                 onChanged={onChanged}
               />
             ))}
@@ -590,7 +631,7 @@ function AcceptedSubGroups({
       <section>
         <header className="mb-2 flex items-center gap-2">
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-emerald-600">
-            Completados
+            Cerrados
           </span>
           <span className="ml-auto text-[11px] font-semibold text-muted-foreground">
             {completedCount}
@@ -599,7 +640,7 @@ function AcceptedSubGroups({
         {completed.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/60 p-4 text-center">
             <p className="text-xs text-muted-foreground">
-              Aún no hay tratamientos completados.
+              Aún no hay tratamientos cerrados.
             </p>
           </div>
         ) : (
@@ -609,6 +650,7 @@ function AcceptedSubGroups({
                 key={item.id}
                 budget={item}
                 bucket="completed"
+                treatmentId={treatmentIdByBudget[item.id] ?? null}
                 onChanged={onChanged}
               />
             ))}
