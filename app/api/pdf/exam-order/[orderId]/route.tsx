@@ -1,17 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { renderToBuffer } from "@react-pdf/renderer";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
-import { ExamOrderDocument } from "@/lib/pdf/exam-order-document";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
+import { resolveOrgTimezone, todayInTz } from "@/lib/org-time";
+import { buildOrgDocBlock } from "@/lib/pdf/html/org";
+import { formatShortDate, renderDocumentHtml } from "@/lib/pdf/html/render";
+import { htmlToPdfBuffer } from "@/lib/pdf/html/chromium";
 import {
-  toClinicHeaderData,
-  fallbackClinicHeader,
-} from "@/lib/pdf/clinic-header-data";
-import { substituteVariables } from "@/lib/sanitize-email-html";
+  ORG_DOC_COLUMNS,
+  clinicalDocVariables,
+  docCode,
+  fileSlug,
+  generatedFooterNote,
+  patientDoctorMeta,
+  patientFullName,
+  renderTemplateBody,
+  type DocDoctor,
+  type DocPatient,
+  type DocTemplate,
+  type OrgDocRow,
+} from "@/lib/pdf/prescription-data";
 
-export const runtime = "nodejs";
+export const runtime = "nodejs"; // Chromium headless (puppeteer-core) no corre en edge
 
 // GET /api/pdf/exam-order/[orderId]
+// Orden de examen con el cuerpo editable `clinical_document_templates
+// (slug='exam_order')`. Motor: Handlebars (exam-order.hbs) → Chromium.
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ orderId: string }> }
@@ -31,10 +45,11 @@ export async function GET(
     supabase
       .from("exam_orders")
       .select(
-        "id, organization_id, diagnosis, diagnosis_code, notes, appointment_id, " +
+        "id, organization_id, patient_id, diagnosis, diagnosis_code, notes, " +
+          "appointment_id, created_at, " +
           "exam_order_items(exam_name, instructions), " +
           "doctors(full_name, cmp), " +
-          "patients(first_name, last_name, dni), " +
+          "patients(first_name, last_name, dni, birth_date), " +
           "appointments(appointment_date)"
       )
       .eq("id", orderId)
@@ -53,13 +68,15 @@ export async function GET(
   const order = orderRes.data as unknown as {
     id: string;
     organization_id: string;
+    patient_id: string;
     diagnosis: string | null;
     diagnosis_code: string | null;
     notes: string | null;
     appointment_id: string | null;
+    created_at: string;
     exam_order_items: { exam_name: string; instructions: string | null }[];
-    doctors: { full_name: string; cmp: string | null } | null;
-    patients: { first_name: string; last_name: string; dni: string | null } | null;
+    doctors: DocDoctor | null;
+    patients: DocPatient | null;
     appointments: { appointment_date: string } | null;
   };
 
@@ -77,50 +94,95 @@ export async function GET(
     );
   }
 
-  const { data: org } = await supabase
+  const { data: orgRes } = await supabase
     .from("organizations")
-    .select("*")
+    .select(ORG_DOC_COLUMNS)
     .eq("id", order.organization_id)
     .maybeSingle();
+  if (!orgRes) {
+    return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
+  }
+  const orgRow = orgRes as unknown as OrgDocRow;
 
-  const clinic = org ? toClinicHeaderData(org) : fallbackClinicHeader(undefined);
-  const patientName = `${order.patients.first_name} ${order.patients.last_name}`.trim();
-  const appointmentDate = order.appointments?.appointment_date ?? new Date().toISOString().slice(0, 10);
-  const tpl = tplRes.data as { body_html: string; is_enabled: boolean } | null;
+  // Fecha civil del documento: la de la cita; sin cita, el día en que se
+  // creó la orden EN LA ZONA DE LA ORG (antes caía a new Date() en UTC).
+  const tz = resolveOrgTimezone(orgRow.timezone);
+  const date = order.appointments?.appointment_date
+    ? String(order.appointments.appointment_date).slice(0, 10)
+    : todayInTz(tz, new Date(order.created_at));
 
-  const customBodyHtml =
-    tpl?.is_enabled && tpl.body_html?.trim()
-      ? substituteVariables(tpl.body_html, {
-          "{{paciente_nombre}}": patientName,
-          "{{paciente_dni}}": order.patients.dni ?? "",
-          "{{doctor_nombre}}": order.doctors.full_name,
-          "{{doctor_cmp}}": order.doctors.cmp ?? "",
-          "{{fecha}}": appointmentDate,
-          "{{clinica_nombre}}": clinic.name,
-        })
-      : null;
+  const org = buildOrgDocBlock(orgRow);
+  const patientName = patientFullName(order.patients);
 
-  const buffer = await renderToBuffer(
-    <ExamOrderDocument
-      items={order.exam_order_items}
-      diagnosis={order.diagnosis}
-      diagnosisCode={order.diagnosis_code}
-      notes={order.notes}
-      patientName={patientName}
-      patientDni={order.patients.dni}
-      doctorName={order.doctors.full_name}
-      doctorCmp={order.doctors.cmp}
-      appointmentDate={appointmentDate}
-      clinic={clinic}
-      customBodyHtml={customBodyHtml}
-    />
-  );
+  const diagnosis = (order.diagnosis ?? "").trim();
+  const diagnosisCode = (order.diagnosis_code ?? "").trim();
+  const meta = [
+    ...patientDoctorMeta(order.patients, order.doctors, date),
+    {
+      label: "Diagnóstico",
+      // Sin texto pero con código: el código es el valor.
+      value: diagnosis || diagnosisCode,
+      hint: diagnosis && diagnosisCode ? `CIE-10 ${diagnosisCode}` : "",
+      // Sexta celda: siempre fila propia (la plantilla la estira a todo el
+      // ancho). Si no hay diagnóstico, el partial omite la celda.
+      wide: true,
+    },
+  ];
 
-  return new NextResponse(buffer as unknown as BodyInit, {
+  const items = order.exam_order_items.map((it) => ({
+    name: (it.exam_name ?? "").trim(),
+    hint: (it.instructions ?? "").trim(),
+  }));
+  const n = items.length;
+
+  const data = {
+    doc: {
+      title: "Orden de examen",
+      eyebrow: "Solicitud",
+      code: docCode("OX", orderId),
+      issued_label: `Emitida ${formatShortDate(date)}`,
+      footer_note: generatedFooterNote(tz),
+    },
+    org,
+    meta,
+    items,
+    count_label: n === 1 ? "1 examen" : `${n} exámenes`,
+    notes: (order.notes ?? "").trim(),
+    body_html: renderTemplateBody(
+      (tplRes.data as DocTemplate | null) ?? null,
+      clinicalDocVariables({
+        patient: order.patients,
+        doctor: order.doctors,
+        date,
+        orgName: org.display_name,
+      }),
+    ),
+    signer: {
+      name: order.doctors.full_name,
+      role: "Médico tratante",
+      cmp: order.doctors.cmp?.trim() ?? "",
+    },
+  };
+
+  const html = await renderDocumentHtml("exam-order.hbs", data);
+  const pdf = await htmlToPdfBuffer(html);
+
+  // Mismo resource_type que el resto de rutas de órdenes de examen.
+  logClinicalAccess({
+    organizationId: order.organization_id,
+    userId: user.id,
+    resourceType: "lab_result",
+    action: "print",
+    patientId: order.patient_id,
+    resourceId: orderId,
+    metadata: { document: "exam_order_pdf", count: n },
+  });
+
+  return new NextResponse(pdf as unknown as BodyInit, {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="orden-examenes-${patientName.replace(/\s+/g, "-")}-${appointmentDate}.pdf"`,
+      "Content-Disposition": `inline; filename="orden-examenes-${fileSlug(patientName)}-${date}.pdf"`,
       "Cache-Control": "no-store",
     },
   });

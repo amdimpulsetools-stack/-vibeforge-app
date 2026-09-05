@@ -1,0 +1,78 @@
+{{!--
+  Yenda · RECETA MÉDICA (motor HTML → Chromium).
+  Datos: lib/pdf/prescription-data.ts (buildPrescriptionDocData).
+  Rutas: /api/pdf/prescription/[appointmentId] · /api/pdf/prescription/batch/[batchId]
+
+  Variables: doc.{title, eyebrow, code, issued_label, footer_note} ·
+  org.* (lib/pdf/html/org.ts) · meta[] · items[] ({medication, dosage,
+  pharmaceutical_form, dose_per_take, route, frequency, duration, quantity,
+  instructions}) · count_label · body_html (YA sanitizado: triple llave) ·
+  signer.{name, role, cmp}
+
+  La hoja NO es `.fixed`: una receta larga pagina sola (`.rx li` lleva
+  break-inside: avoid). Los márgenes de las páginas 2+ los pone @page.
+--}}
+{{> head}}
+<style>
+  /* Documentos que paginan: el margen vertical va en @page (se repite en
+     cada hoja) y no en el padding de .sheet (solo vale para la primera). */
+  @page { size: A4; margin: 14mm 0 12mm; }
+  @media print {
+    .sheet { padding-top: 0; min-height: calc(297mm - 26mm - 1px); }
+  }
+  /* Rejilla meta con celda ancha: cada celda cierra por la derecha y el
+     contenedor cede su borde derecho (el nth-child(3n) base no aplica). */
+  .meta { border-right: 0; }
+  .meta .cell, .meta .cell:nth-child(3n) { border-right: 1px solid var(--line); }
+  /* Rp/ */
+  .section.rp > h2 .rp-mark { font-size: 12pt; letter-spacing: 0; text-transform: none; font-style: italic; }
+  .rx .rx-ind { white-space: pre-line; }
+  .rx .rx-ind b { color: var(--brand-deep); font-weight: 600; }
+  .meta .val small { white-space: nowrap; }
+  .body-html p { orphans: 2; widows: 2; }
+  .signs { margin-top: 40px; }
+  /* El pie viaja con la firma: nunca solo en una hoja nueva. */
+  .page-footer { break-inside: avoid; break-before: avoid; }
+</style>
+
+  <section class="sheet">
+    <div class="sheet-body">
+{{> sheetHead}}
+{{> titleRow}}
+{{> meta}}
+
+      <section class="section rp">
+        <h2><span class="rp-mark">Rp/</span> <span class="count">{{count_label}}</span></h2>
+        <ol class="rx">
+          {{#each items}}
+          <li>
+            <div class="rx-n">{{inc @index}}</div>
+            <div class="rx-body">
+              <div class="rx-name">{{medication}}{{#if dosage}} <span class="rx-dose">{{dosage}}</span>{{/if}}</div>
+              <div class="rx-chips">
+                {{#if pharmaceutical_form}}<span class="chip"><b>Forma</b>{{pharmaceutical_form}}</span>{{/if}}
+                {{#if dose_per_take}}<span class="chip"><b>Dosis</b>{{dose_per_take}}</span>{{/if}}
+                {{#if route}}<span class="chip"><b>Vía</b>{{route}}</span>{{/if}}
+                {{#if frequency}}<span class="chip"><b>Frecuencia</b>{{frequency}}</span>{{/if}}
+                {{#if duration}}<span class="chip"><b>Duración</b>{{duration}}</span>{{/if}}
+                {{#if quantity}}<span class="chip"><b>Cantidad</b>{{quantity}}</span>{{/if}}
+              </div>
+              {{#if instructions}}<div class="rx-ind"><b>Indicaciones:</b> {{instructions}}</div>{{/if}}
+            </div>
+          </li>
+          {{/each}}
+        </ol>
+      </section>
+
+{{#if body_html}}
+      <section class="section">
+        <div class="body-html">{{{body_html}}}</div>
+      </section>
+{{/if}}
+
+{{> signature}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+{{> docEnd}}

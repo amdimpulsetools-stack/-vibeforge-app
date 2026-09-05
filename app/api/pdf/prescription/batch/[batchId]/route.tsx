@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { logClinicalAccess } from "@/lib/audit/clinical-access";
+import { resolveOrgTimezone, todayInTz } from "@/lib/org-time";
 import { renderDocumentHtml } from "@/lib/pdf/html/render";
 import { htmlToPdfBuffer } from "@/lib/pdf/html/chromium";
 import {
@@ -18,17 +19,22 @@ import {
 
 export const runtime = "nodejs"; // Chromium headless (puppeteer-core) no corre en edge
 
-// GET /api/pdf/prescription/[appointmentId]
-// Receta de la cita: todas las prescripciones ACTIVAS de esa cita, con el
-// cuerpo editable `clinical_document_templates(slug='prescription')` de la
-// org. Motor: Handlebars (lib/pdf/html/templates/prescription.hbs) →
-// Chromium. Las recetas creadas por lote (mig 247) se imprimen por
-// /api/pdf/prescription/batch/[batchId].
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// GET /api/pdf/prescription/batch/[batchId]
+// Receta de un LOTE (mig 247): los medicamentos recetados en un mismo
+// gesto desde la cita o desde el drawer del paciente, con o sin cita.
+// Imprime las filas activas con ese `batch_id`; 404 si no hay ninguna
+// (o si el lote es de otra org: RLS).
 export async function GET(
   _request: NextRequest,
-  { params }: { params: Promise<{ appointmentId: string }> }
+  { params }: { params: Promise<{ batchId: string }> }
 ) {
-  const { appointmentId } = await params;
+  const { batchId } = await params;
+  if (!UUID_RE.test(batchId)) {
+    return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
+  }
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -39,25 +45,17 @@ export async function GET(
   if (!rl.success)
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
-  // 1. Cita + prescripciones + template en paralelo. RLS scopea cada query
-  // a la org del usuario: una cita ajena no aparece → 404 limpio.
-  const [apptRes, rxRes, tplRes] = await Promise.all([
-    supabase
-      .from("appointments")
-      .select(
-        "id, organization_id, patient_id, appointment_date, " +
-          "patients(first_name, last_name, dni, birth_date), " +
-          "doctors(full_name, cmp)"
-      )
-      .eq("id", appointmentId)
-      .maybeSingle(),
+  const [rxRes, tplRes] = await Promise.all([
     supabase
       .from("prescriptions")
       .select(
-        "medication, dosage, frequency, duration, route, quantity, instructions, " +
-          "pharmaceutical_form, dose_per_take"
+        "id, organization_id, patient_id, doctor_id, start_date, " +
+          "medication, dosage, frequency, duration, route, quantity, instructions, " +
+          "pharmaceutical_form, dose_per_take, " +
+          "patients(first_name, last_name, dni, birth_date), " +
+          "doctors(full_name, cmp)"
       )
-      .eq("appointment_id", appointmentId)
+      .eq("batch_id", batchId)
       .eq("is_active", true)
       .order("created_at"),
     supabase
@@ -67,75 +65,70 @@ export async function GET(
       .maybeSingle(),
   ]);
 
-  if (apptRes.error || !apptRes.data) {
-    return NextResponse.json({ error: "Cita no encontrada" }, { status: 404 });
-  }
-
-  const appt = apptRes.data as unknown as {
-    id: string;
-    organization_id: string;
-    patient_id: string | null;
-    appointment_date: string;
-    patients: DocPatient | null;
-    doctors: DocDoctor | null;
-  };
-
-  if (!appt.patients || !appt.doctors) {
-    return NextResponse.json(
-      { error: "La cita no tiene paciente o doctor asociado" },
-      { status: 400 }
-    );
-  }
-
   if (rxRes.error) {
     return NextResponse.json({ error: rxRes.error.message }, { status: 500 });
   }
-  const prescriptions = (rxRes.data ?? []) as unknown as PrescriptionRow[];
-  if (prescriptions.length === 0) {
+
+  type BatchRow = PrescriptionRow & {
+    id: string;
+    organization_id: string;
+    patient_id: string;
+    doctor_id: string;
+    start_date: string | null;
+    patients: DocPatient | null;
+    doctors: DocDoctor | null;
+  };
+  const rows = (rxRes.data ?? []) as unknown as BatchRow[];
+  if (rows.length === 0) {
+    return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
+  }
+
+  const first = rows[0];
+  if (!first.patients || !first.doctors) {
     return NextResponse.json(
-      { error: "Esta cita no tiene recetas activas para imprimir" },
+      { error: "La receta no tiene paciente o doctor asociado" },
       { status: 400 }
     );
   }
 
-  // 2. Branding real de la org (Ajustes → General) + zona horaria.
   const { data: orgRow } = await supabase
     .from("organizations")
     .select(ORG_DOC_COLUMNS)
-    .eq("id", appt.organization_id)
+    .eq("id", first.organization_id)
     .maybeSingle();
   if (!orgRow) {
     return NextResponse.json({ error: "Organización no encontrada" }, { status: 404 });
   }
   const org = orgRow as unknown as OrgDocRow;
 
-  // La fecha del documento es la de la cita (date civil, sin hora).
-  const date = String(appt.appointment_date).slice(0, 10);
+  // Fecha del documento: start_date del lote; si no hay, "hoy" civil en
+  // la zona de la org (nunca new Date().toISOString(): Vercel corre en UTC).
+  const tz = resolveOrgTimezone(org.timezone);
+  const date = first.start_date ? String(first.start_date).slice(0, 10) : todayInTz(tz);
 
-  // 3. Render.
   const data = buildPrescriptionDocData({
     org,
-    codeSource: appointmentId,
+    codeSource: batchId,
     date,
-    patient: appt.patients,
-    doctor: appt.doctors,
-    prescriptions,
+    patient: first.patients,
+    doctor: first.doctors,
+    prescriptions: rows,
     template: (tplRes.data as DocTemplate | null) ?? null,
   });
   const html = await renderDocumentHtml("prescription.hbs", data);
   const pdf = await htmlToPdfBuffer(html);
 
   logClinicalAccess({
-    organizationId: appt.organization_id,
+    organizationId: first.organization_id,
     userId: user.id,
     resourceType: "prescription",
     action: "print",
-    patientId: appt.patient_id,
-    resourceId: appointmentId,
-    metadata: { document: "prescription_pdf", appointment_id: appointmentId, count: prescriptions.length },
+    patientId: first.patient_id,
+    resourceId: batchId,
+    metadata: { document: "prescription_pdf", batch_id: batchId, count: rows.length },
   });
 
-  const patientName = patientFullName(appt.patients);
+  const patientName = patientFullName(first.patients);
   return new NextResponse(pdf as unknown as BodyInit, {
     status: 200,
     headers: {

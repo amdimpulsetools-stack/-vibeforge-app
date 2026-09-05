@@ -1,0 +1,70 @@
+{{!--
+  Yenda · ORDEN DE EXAMEN (motor HTML → Chromium).
+  Datos: app/api/pdf/exam-order/[orderId]/route.tsx (helpers en
+  lib/pdf/prescription-data.ts).
+
+  Variables: doc.{title, eyebrow, code, issued_label, footer_note} ·
+  org.* (lib/pdf/html/org.ts) · meta[] (incluye Diagnóstico con hint CIE-10;
+  `wide` si es largo) · items[] ({name, hint}) · count_label · notes ·
+  body_html (YA sanitizado: triple llave) · signer.{name, role, cmp}
+--}}
+{{> head}}
+<style>
+  @page { size: A4; margin: 14mm 0 12mm; }
+  @media print {
+    .sheet { padding-top: 0; min-height: calc(297mm - 26mm - 1px); }
+  }
+  /* Rejilla meta con celdas anchas: cada celda cierra por la derecha y el
+     contenedor cede su borde derecho (el nth-child(3n) base no aplica). */
+  .meta { border-right: 0; }
+  .meta .cell, .meta .cell:nth-child(3n) { border-right: 1px solid var(--line); }
+  /* Diagnóstico (6.ª celda, `wide`) ocupa su propia fila completa. */
+  .meta .cell.wide:last-child { grid-column: 1 / -1; }
+  /* Exámenes: un poco más de aire entre ítems que la lista base. */
+  ul.checks.exams li { padding: 5px 0 5px 20px; border-bottom: 1px solid var(--line-2); }
+  ul.checks.exams li:last-child { border-bottom: 0; }
+  ul.checks.exams li::before { top: 4px; }
+  ul.checks.exams li .name { font-weight: 500; color: var(--ink); }
+  ul.checks.exams li .hint { margin-top: 1px; white-space: pre-line; }
+  .callout p { white-space: pre-line; }
+  .meta .val small { white-space: nowrap; }
+  .body-html p { orphans: 2; widows: 2; }
+  .signs { margin-top: 40px; }
+  /* El pie viaja con la firma: nunca solo en una hoja nueva. */
+  .page-footer { break-inside: avoid; break-before: avoid; }
+</style>
+
+  <section class="sheet">
+    <div class="sheet-body">
+{{> sheetHead}}
+{{> titleRow}}
+{{> meta}}
+
+      <section class="section">
+        <h2>Exámenes solicitados <span class="count">{{count_label}}</span></h2>
+        <ul class="checks exams">
+          {{#each items}}
+          <li><span class="name">{{name}}</span>{{#if hint}}<span class="hint">{{hint}}</span>{{/if}}</li>
+          {{/each}}
+        </ul>
+      </section>
+
+{{#if notes}}
+      <div class="callout">
+        <h3>Indicaciones generales</h3>
+        <p>{{notes}}</p>
+      </div>
+{{/if}}
+
+{{#if body_html}}
+      <section class="section">
+        <div class="body-html">{{{body_html}}}</div>
+      </section>
+{{/if}}
+
+{{> signature}}
+    </div>
+{{> pageFooter}}
+  </section>
+
+{{> docEnd}}
