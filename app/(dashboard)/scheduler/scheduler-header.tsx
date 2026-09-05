@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { format, addDays, subDays, isToday } from "date-fns";
+import { format, addDays, subDays, isToday, startOfWeek } from "date-fns";
 import { es } from "date-fns/locale";
 import { useLanguage } from "@/components/language-provider";
-import type { AppointmentWithRelations, Office } from "@/types/admin";
-import { SCHEDULER_START_HOUR, SCHEDULER_END_HOUR, SCHEDULER_INTERVAL } from "@/types/admin";
+import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
+import type { SchedulerConfig } from "@/lib/scheduler-config";
+import { computeOccupancy } from "@/lib/scheduler-occupancy";
 import type { ViewMode } from "./page";
 import {
   ChevronLeft,
@@ -49,6 +50,10 @@ interface SchedulerHeaderProps {
   offices: Office[];
   selectedOfficeIds: string[];
   onOfficeFilterChange: (officeIds: string[]) => void;
+  /** Bloqueos del rango cargado — restan capacidad en la ocupación. */
+  blocks?: ScheduleBlock[];
+  /** Config de agenda de la org (ventana, días deshabilitados). */
+  schedulerConfig: SchedulerConfig;
 }
 
 export function SchedulerHeader({
@@ -65,6 +70,8 @@ export function SchedulerHeader({
   offices,
   selectedOfficeIds,
   onOfficeFilterChange,
+  blocks = [],
+  schedulerConfig,
 }: SchedulerHeaderProps) {
   const { t } = useLanguage();
   const [officeDropdownOpen, setOfficeDropdownOpen] = useState(false);
@@ -105,18 +112,35 @@ export function SchedulerHeader({
     }
   };
 
-  const totalSlots =
-    ((SCHEDULER_END_HOUR - SCHEDULER_START_HOUR) * 60) / SCHEDULER_INTERVAL;
-  const todayAppointments = appointments.filter(
-    (a) => a.appointment_date === format(currentDate, "yyyy-MM-dd")
+  // ── Resumen del período VISIBLE (día o semana) ────────────────────────
+  // Total, pendientes y ocupación siguen a la vista: en Semana cuentan los
+  // 7 días (lunes a domingo, igual que week-view). Ocupación: fórmula única
+  // en lib/scheduler-occupancy (ventana real de la org, consultorios activos
+  // del filtro, bloqueos, duración de citas) — antes era citas ÷ (48 × 2).
+  const periodDays =
+    viewMode === "week"
+      ? Array.from({ length: 7 }, (_, i) =>
+          format(addDays(startOfWeek(currentDate, { weekStartsOn: 1 }), i), "yyyy-MM-dd")
+        )
+      : [format(currentDate, "yyyy-MM-dd")];
+  const periodDaySet = new Set(periodDays);
+  const todayAppointments = appointments.filter((a) =>
+    periodDaySet.has(a.appointment_date)
   );
   const pending = todayAppointments.filter(
     (a) => a.status === "scheduled" || a.status === "confirmed"
   ).length;
-  const occupationPercent =
-    totalSlots > 0
-      ? Math.round((todayAppointments.length / (totalSlots * 2)) * 100)
-      : 0;
+  // Consultorios activos del filtro (offices ya viene solo con activos).
+  const activeOfficeIds = offices
+    .map((o) => o.id)
+    .filter((id) => selectedOfficeIds.includes(id));
+  const occupationPercent = computeOccupancy({
+    days: periodDays,
+    officeIds: activeOfficeIds,
+    appointments,
+    blocks,
+    config: schedulerConfig,
+  }).percent;
 
   const navigateDate = (direction: number) => {
     if (viewMode === "day") {

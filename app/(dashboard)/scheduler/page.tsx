@@ -673,6 +673,8 @@ export default function SchedulerPage() {
           offices={offices}
           selectedOfficeIds={selectedOfficeIds}
           onOfficeFilterChange={handleOfficeFilterChange}
+          blocks={allBlocks}
+          schedulerConfig={schedulerConfig}
         />
 
         <div ref={gridScrollRef} className="flex-1 overflow-auto">
