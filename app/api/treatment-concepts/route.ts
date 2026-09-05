@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { assertActiveMembership } from "@/lib/followups/org-scope";
+import { assertFertilityAddon } from "@/lib/fertility/assert-fertility-addon";
 import { normalizeSearchText } from "@/lib/utils";
 import type { Database } from "@/types/database";
 import type { TreatmentPaymentConcept } from "@/types/treatments";
@@ -86,6 +87,8 @@ async function resolveAccess(request: NextRequest): Promise<Access> {
   }
   const denied = await assertActiveMembership(supabase, user.id, orgId);
   if (denied) return { error: denied };
+  const noAddon = await assertFertilityAddon(supabase, orgId);
+  if (noAddon) return { error: noAddon };
 
   const { data: membership } = await supabase
     .from("organization_members")

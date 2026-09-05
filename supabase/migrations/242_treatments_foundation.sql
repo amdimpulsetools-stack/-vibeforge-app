@@ -150,12 +150,20 @@ COMMENT ON TABLE treatment_payment_concepts IS
 -- Seed idempotente. Derivado de las líneas que ya itemizan las plantillas
 -- de presupuesto (lib/budget-pdf/patricia/data/fiv.ts): honorarios vs el
 -- resto. Editable después desde Admin.
+-- SECURITY DEFINER con GRANT a authenticated: sin este guard cualquier
+-- usuario logueado podía sembrar el catálogo de OTRA org conociendo su id.
+-- auth.uid() NULL = migración / service_role (el backfill de abajo).
 CREATE OR REPLACE FUNCTION seed_treatment_payment_concepts(p_org_id UUID)
 RETURNS void
-LANGUAGE sql
+LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
+BEGIN
+  IF auth.uid() IS NOT NULL AND NOT is_org_admin(p_org_id) THEN
+    RAISE EXCEPTION 'forbidden' USING ERRCODE = 'insufficient_privilege';
+  END IF;
+
   INSERT INTO treatment_payment_concepts (organization_id, key, label, revenue_bucket, display_order)
   VALUES
     (p_org_id, 'consulta_estimulacion',    'Consulta / estimulación',       'general',     10),
@@ -169,7 +177,7 @@ AS $$
     (p_org_id, 'a_cuenta',                 'A cuenta (sin detalle)',        'general',     90),
     (p_org_id, 'otro',                     'Otro',                          'general',     100)
   ON CONFLICT (organization_id, key) DO NOTHING;
-$$;
+END $$;
 REVOKE ALL ON FUNCTION seed_treatment_payment_concepts(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION seed_treatment_payment_concepts(UUID) TO authenticated, service_role;
 
@@ -186,9 +194,15 @@ BEGIN
 END $$;
 
 -- ── 3. patient_payments → tratamiento + concepto ─────────────────────
+-- ON DELETE RESTRICT (no SET NULL): un pago que perdiera su treatment_id
+-- pasaría a contar como cobro de CITAS (mig 243 filtra por treatment_id
+-- IS NULL) — S/ 8 000 de un FIV borrado "pagarían" ecografías. Un
+-- tratamiento con cobros no se borra; uno vacío sí (policy admin arriba).
+-- El concepto tampoco: patient_payments_treatment_concept_chk exige
+-- concepto en todo pago de tratamiento (desactivar con is_active=false).
 ALTER TABLE patient_payments
-  ADD COLUMN IF NOT EXISTS treatment_id UUID REFERENCES treatments(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS treatment_concept_id UUID REFERENCES treatment_payment_concepts(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS treatment_id UUID REFERENCES treatments(id) ON DELETE RESTRICT,
+  ADD COLUMN IF NOT EXISTS treatment_concept_id UUID REFERENCES treatment_payment_concepts(id) ON DELETE RESTRICT,
   -- Snapshot del bucket al momento del cobro (no cambia si se reclasifica).
   ADD COLUMN IF NOT EXISTS revenue_bucket TEXT
     CHECK (revenue_bucket IS NULL OR revenue_bucket IN ('honorarium','general','third_party')),

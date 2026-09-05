@@ -151,8 +151,8 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
     doctorScopeId = (doctorRow as { id: string } | null)?.id ?? null;
     if (!doctorScopeId) {
-      // Sin ficha de doctor no hay nada que mostrar; tampoco pedimos KPIs
-      // porque el RPC, sin ficha, devolvería los de TODA la clínica.
+      // Sin ficha de doctor no hay nada que mostrar (el RPC aplica el mismo
+      // criterio y devolvería ceros): se ahorra la llamada.
       return NextResponse.json({
         items: [] as TreatmentListItem[],
         kpis: EMPTY_OVERVIEW(seesFees),

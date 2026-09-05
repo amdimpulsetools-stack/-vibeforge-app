@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { assertActiveMembership } from "@/lib/followups/org-scope";
+import { assertFertilityAddon } from "@/lib/fertility/assert-fertility-addon";
 import { resolveOrgTimezone, todayInTz } from "@/lib/org-time";
 import { treatmentMoney, type TreatmentMoney } from "@/lib/treatments/money";
 import type { Database } from "@/types/database";
@@ -79,6 +80,8 @@ async function loadContext(supabase: SupaClient, userId: string, id: string): Pr
 
   const denied = await assertActiveMembership(supabase, userId, treatment.organization_id);
   if (denied) return { error: denied };
+  const noAddon = await assertFertilityAddon(supabase, treatment.organization_id);
+  if (noAddon) return { error: noAddon };
 
   const { data: membershipRow } = await supabase
     .from("organization_members")
@@ -281,6 +284,21 @@ export async function DELETE(
   }
 
   if (kind === "clinic") {
+    // Un cobro con comprobante emitido (mig 108) no se borra: primero la
+    // nota de crédito. Mismo criterio que la facturación electrónica.
+    const { data: existing } = await supabase
+      .from("patient_payments")
+      .select("einvoice_id")
+      .eq("id", paymentId)
+      .eq("treatment_id", treatment.id)
+      .maybeSingle();
+    if ((existing as { einvoice_id: string | null } | null)?.einvoice_id) {
+      return NextResponse.json(
+        { error: "Este cobro tiene un comprobante emitido. Anúlalo con una nota de crédito antes de eliminarlo." },
+        { status: 409 },
+      );
+    }
+
     // Si el turno de Caja ya está cerrado, el trigger (mig 214) rechaza el
     // DELETE con check_violation: se devuelve su mensaje tal cual (409).
     const { data: deleted, error: delErr } = await supabase

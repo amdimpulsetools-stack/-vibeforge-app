@@ -108,6 +108,26 @@ export async function POST(
     );
   }
 
+  // Módulo Tratamientos (migs 242/245): si el presupuesto ya tiene un
+  // tratamiento, el cierre vive AHÍ (treatment_close deja el budget en
+  // `completed` en la misma transacción). Completar el budget por este
+  // camino dejaría el tratamiento en curso con su presupuesto cerrado.
+  const { data: linkedTreatment } = await supabase
+    .from("treatments")
+    .select("id")
+    .eq("budget_record_id", id)
+    .maybeSingle();
+  if (linkedTreatment) {
+    return NextResponse.json(
+      {
+        error:
+          "Este presupuesto tiene un tratamiento en curso: ciérralo desde Tratamientos",
+        treatment_id: linkedTreatment.id,
+      },
+      { status: 409 },
+    );
+  }
+
   const now = new Date().toISOString();
   const { data: updated, error: updErr } = await supabase
     .from("budget_records")

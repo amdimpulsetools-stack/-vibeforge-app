@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
+import { assertFertilityAddon } from "@/lib/fertility/assert-fertility-addon";
 import type { Treatment } from "@/types/treatments";
 
 /**
@@ -68,12 +69,15 @@ export async function POST(
   // colapsan en el mismo 404 antes de tocar el RPC.
   const { data: existing } = await supabase
     .from("treatments")
-    .select("id, status")
+    .select("id, status, organization_id")
     .eq("id", id)
     .maybeSingle();
   if (!existing) {
     return NextResponse.json({ error: "Tratamiento no encontrado" }, { status: 404 });
   }
+  // Gate del addon (el RPC valida rol y estado, no el addon).
+  const noAddon = await assertFertilityAddon(supabase, existing.organization_id);
+  if (noAddon) return noAddon;
 
   const { error: rpcErr } = await supabase.rpc("treatment_close", {
     p_treatment_id: id,

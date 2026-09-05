@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
+import { useOrganization } from "@/components/organization-provider";
 import { useOrgToday } from "@/hooks/use-org-today";
 import type { TreatmentStartInput } from "@/types/treatments";
 
@@ -72,6 +73,7 @@ export function TreatmentStartDialog({
   onStarted,
 }: TreatmentStartDialogProps) {
   const router = useRouter();
+  const { organizationId } = useOrganization();
   // Fecha civil de la org (mig 240): tras las 19:00 Lima, toISOString()
   // proponía el día siguiente como inicio del tratamiento.
   const { today: orgToday } = useOrgToday();
@@ -109,14 +111,17 @@ export function TreatmentStartDialog({
     },
   });
 
+  // Acotado a la org activa: la RLS devuelve los doctores de TODAS las orgs
+  // del usuario y el RPC rechaza una doctora de otra clínica.
   const { data: doctors = [] } = useQuery({
-    queryKey: ["treatment-start-doctors"],
-    enabled: open,
+    queryKey: ["treatment-start-doctors", organizationId],
+    enabled: open && !!organizationId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<DoctorOption[]> => {
       const { data } = await createClient()
         .from("doctors")
         .select("id, full_name")
+        .eq("organization_id", organizationId as string)
         .eq("is_active", true)
         .order("full_name");
       return (data as unknown as DoctorOption[]) ?? [];

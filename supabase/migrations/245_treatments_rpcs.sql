@@ -64,6 +64,7 @@ DECLARE
   v_title  TEXT;
   v_id     UUID;
   v_addon  BOOLEAN;
+  v_today  DATE;
 BEGIN
   SELECT * INTO b FROM budget_records WHERE id = p_budget_id;
   IF b.id IS NULL OR b.organization_id NOT IN (SELECT get_user_org_ids()) THEN
@@ -92,9 +93,46 @@ BEGIN
     RAISE EXCEPTION 'Este presupuesto ya tiene un tratamiento' USING ERRCODE = 'unique_violation';
   END IF;
 
+  -- Condición bloqueante #4 (COMING-UPDATES → Tratamientos): si la paciente
+  -- tiene una CITA de tratamiento viva (servicio con is_bookable=false,
+  -- precio > 0, no cancelada) el acordado se duplicaría (cita de S/ 17 000
+  -- + tratamiento) y la deuda de citas quedaría fantasma. Primero se migra
+  -- con scripts/ops/2026-09-04-migrar-citas-tra-a-tratamientos.sql.
+  IF EXISTS (
+    SELECT 1
+    FROM appointments a
+    JOIN services s ON s.id = a.service_id
+    WHERE a.patient_id = b.patient_id
+      AND a.organization_id = b.organization_id
+      AND s.is_bookable = false
+      AND a.status <> 'cancelled'
+      AND COALESCE(a.price_snapshot, s.base_price, 0) > 0
+  ) THEN
+    RAISE EXCEPTION 'La paciente tiene una cita de tratamiento agendada con precio. Migra esa cita al módulo Tratamientos antes de iniciar (o déjala en S/ 0).'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
+  -- Doctora y asistente deben ser de la MISMA org del presupuesto: la FK
+  -- sola dejaría colgar un doctor de otra clínica (usuario multi-org).
+  IF p_doctor_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM doctors WHERE id = p_doctor_id AND organization_id = b.organization_id
+  ) THEN
+    RAISE EXCEPTION 'Doctor no encontrado en esta organización' USING ERRCODE = 'check_violation';
+  END IF;
+  IF p_assistant_member_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM organization_members
+    WHERE id = p_assistant_member_id AND organization_id = b.organization_id AND is_active = true
+  ) THEN
+    RAISE EXCEPTION 'Miembro no encontrado en esta organización' USING ERRCODE = 'check_violation';
+  END IF;
+
   SELECT COALESCE(s.name, b.treatment_type) INTO v_title
     FROM services s WHERE s.id = b.service_id;
   IF v_title IS NULL THEN v_title := b.treatment_type; END IF;
+
+  -- "Hoy" civil en la zona de la org (mig 240), no CURRENT_DATE en UTC.
+  SELECT (now() AT TIME ZONE COALESCE(o.timezone, 'America/Lima'))::date INTO v_today
+    FROM organizations o WHERE o.id = b.organization_id;
 
   INSERT INTO treatments (
     organization_id, patient_id, budget_record_id, doctor_id, assistant_member_id,
@@ -104,7 +142,7 @@ BEGIN
     COALESCE(p_doctor_id, b.assigned_doctor_id), p_assistant_member_id,
     b.service_id, b.treatment_type, v_title,
     COALESCE(b.amount, 0), 'in_progress',
-    COALESCE(p_started_at, CURRENT_DATE), auth.uid(), NULLIF(btrim(COALESCE(p_notes,'')), '')
+    COALESCE(p_started_at, v_today, CURRENT_DATE), auth.uid(), NULLIF(btrim(COALESCE(p_notes,'')), '')
   ) RETURNING id INTO v_id;
 
   UPDATE budget_records
@@ -132,8 +170,9 @@ SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-  t      treatments%ROWTYPE;
-  v_role TEXT;
+  t       treatments%ROWTYPE;
+  v_role  TEXT;
+  v_today DATE;
 BEGIN
   SELECT * INTO t FROM treatments WHERE id = p_treatment_id;
   IF t.id IS NULL OR t.organization_id NOT IN (SELECT get_user_org_ids()) THEN
@@ -143,6 +182,13 @@ BEGIN
   IF v_role IS NULL OR v_role NOT IN ('owner','admin','doctor') THEN
     RAISE EXCEPTION 'forbidden';
   END IF;
+  -- Un doctor solo cierra SUS tratamientos (o los que no tienen doctora).
+  IF v_role = 'doctor' AND t.doctor_id IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM doctors d
+    WHERE d.id = t.doctor_id AND d.user_id = auth.uid() AND d.organization_id = t.organization_id
+  ) THEN
+    RAISE EXCEPTION 'forbidden';
+  END IF;
   IF t.status <> 'in_progress' THEN
     RAISE EXCEPTION 'El tratamiento ya está cerrado' USING ERRCODE = 'check_violation';
   END IF;
@@ -150,11 +196,15 @@ BEGIN
     RAISE EXCEPTION 'Estado de cierre inválido' USING ERRCODE = 'check_violation';
   END IF;
 
+  -- "Hoy" civil en la zona de la org (mig 240), no CURRENT_DATE en UTC.
+  SELECT (now() AT TIME ZONE COALESCE(o.timezone, 'America/Lima'))::date INTO v_today
+    FROM organizations o WHERE o.id = t.organization_id;
+
   UPDATE treatments
      SET status = p_status,
          outcome = COALESCE(p_outcome, CASE p_status WHEN 'abandoned' THEN 'abandoned' ELSE 'other' END),
          outcome_reason = NULLIF(btrim(COALESCE(p_reason,'')), ''),
-         closed_at = COALESCE(p_closed_at, CURRENT_DATE),
+         closed_at = COALESCE(p_closed_at, v_today, CURRENT_DATE),
          closed_by = auth.uid()
    WHERE id = t.id;
 
@@ -231,10 +281,13 @@ BEGIN
   END IF;
   v_sees_fees := v_role IN ('owner','admin','doctor');
 
+  -- Un doctor SIN ficha en `doctors` (v_doctor_id NULL) no ve nada: con
+  -- "v_doctor_id IS NULL OR …" recibía los KPIs de TODA la clínica (el RPC
+  -- es callable directo desde supabase-js, no solo vía /api/treatments).
   WITH scope AS (
     SELECT t.* FROM treatments t
     WHERE t.organization_id = p_org_id
-      AND (v_doctor_id IS NULL OR t.doctor_id = v_doctor_id)
+      AND (v_role <> 'doctor' OR t.doctor_id = v_doctor_id)
   ),
   period_pay AS (
     SELECT pp.amount, pp.revenue_bucket

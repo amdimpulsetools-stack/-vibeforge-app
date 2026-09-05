@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { assertActiveMembership } from "@/lib/followups/org-scope";
+import { assertFertilityAddon } from "@/lib/fertility/assert-fertility-addon";
 import { treatmentMoney } from "@/lib/treatments/money";
 import type { Database } from "@/types/database";
 import type {
@@ -62,6 +63,8 @@ async function loadContext(supabase: SupaClient, userId: string, id: string): Pr
 
   const denied = await assertActiveMembership(supabase, userId, treatment.organization_id);
   if (denied) return { error: denied };
+  const noAddon = await assertFertilityAddon(supabase, treatment.organization_id);
+  if (noAddon) return { error: noAddon };
 
   const { data: membershipRow } = await supabase
     .from("organization_members")
@@ -150,6 +153,25 @@ export async function GET(
   const isAdmin = role === "owner" || role === "admin";
   const seesFees = isAdmin || role === "doctor";
   const patientName = [patients?.first_name, patients?.last_name].filter(Boolean).join(" ").trim();
+
+  // Un doctor solo ve el detalle de SUS tratamientos (o de los que no tienen
+  // doctora asignada) — mismo scope que la lista y que treatment_close (245).
+  if (role === "doctor" && treatment.doctor_id) {
+    const { data: ownDoctor } = await supabase
+      .from("doctors")
+      .select("id")
+      .eq("organization_id", treatment.organization_id)
+      .eq("user_id", user.id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+    if ((ownDoctor as { id: string } | null)?.id !== treatment.doctor_id) {
+      return NextResponse.json(
+        { error: "Este tratamiento pertenece a otra doctora" },
+        { status: 403 },
+      );
+    }
+  }
 
   const body: TreatmentDetailResponse = {
     treatment: {

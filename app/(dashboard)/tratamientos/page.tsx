@@ -47,7 +47,8 @@ type PeriodKey = "month" | "7d" | "today" | "range";
 
 interface ListResponse {
   items: TreatmentListItem[];
-  kpis: TreatmentsOverview;
+  /** null si el RPC de KPIs falló (la API no bloquea la lista por eso). */
+  kpis: TreatmentsOverview | null;
 }
 
 const PERIODS: { key: PeriodKey; label: string }[] = [
