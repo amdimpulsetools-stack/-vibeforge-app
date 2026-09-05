@@ -52,8 +52,24 @@ Ni Culqi ni NubeFact son el cuello de botella (ambos soportan USD nativo): **el 
 
 **Lectura sincera**: para fertilidad vale la F1 ya — FIV cotizada en USD, cobrada por transferencia en USD, facturada en USD, y el dashboard viendo soles al TC del día. Lo que NO prometer ahora: dólares en efectivo en Caja ni farmacia en dólares (los dos huecos caros que nadie necesita todavía). Siguiente paso cuando el founder lo priorice: diseño técnico de F1 con migraciones y puntos exactos.
 
-## 🧬 Módulo Tratamientos (addon fertilidad) — evaluado, decisiones pendientes (2026-09-02)
+## 🧬 Módulo Tratamientos (addon fertilidad) — ✅ ENTREGADO 2026-09-05 (migs 242-246, PR #338)
 
+**Estado:** en producción y verificado (5 RPCs, 12 policies, conceptos sembrados en 4 orgs); primer tratamiento
+real en Vitra (FIV S/ 16 260). Las 4 condiciones bloqueantes de abajo se cumplieron (243 + `lib/patient-debt.ts`
+en el mismo commit; ruta propia `app/api/treatments`; pagos con el cliente del usuario; guard H1 contra citas TRA
+vivas + `scripts/ops/2026-09-04-migrar-citas-tra-a-tratamientos.sql`). Las 5 decisiones pendientes se resolvieron:
+tabla nueva ✔, recepción no ve honorarios ✔, card aparte "Cobros por tratamientos" ✔, campo "N° comprobante
+externo" (NubeFact por fase queda para Entrega 2), migración de FIV agendadas = manual con el script cuando Vitra
+lo pida. Detalle: CHANGELOG v0.15.39. Regla de dinero nueva en `CLAUDE.md`.
+
+**Fast-follows (en orden):**
+- [ ] **Auditoría de cambios** (punto 11 del founder, monitoreo del piloto): mig 247 `treatment_events` append-only — quién/cuándo/qué (estado, desenlace, pago añadido/eliminado, monto acordado, doctora/asistente) + pestaña "Historial" en el detalle. ~½ día.
+- [ ] Rótulo "Terceros" → "Para terceros" en KPIs y barra (cobros de conceptos de terceros recibidos por la clínica ≠ "pagado directo a un tercero").
+- [ ] Del revisor: doctor con `is_doctor_patients_restricted` podría sub-contar dinero (calcular `money` en RPC o extender policy 032); `/api/members/responsibles` resuelve org con `limit(1)`; badge "Cerrados" usa el conteo del período; validar `payment_method` contra catálogo.
+- [ ] **Entrega 2:** devoluciones de tratamiento (movimiento de Caja, nunca pago negativo), comprobante NubeFact por fase desde el detalle, honorarios pagados a terceros como gasto (→ Caja fase 2) para rentabilidad real por tratamiento.
+
+> **Evaluación original (2026-09-02), conservada como referencia:**
+>
 > Origen: conversación founder ↔ Dra. Patricia. Una FIV (S/ 17 000-21 000) se paga por fases, puede
 > abandonarse, y mucho de lo cobrado va a terceros; agendarla como cita de S/ 20 000 infla "Deuda
 > pendiente"/"Total facturado" e incomoda a la doctora. **Caso 1 entregado** (mig 239, `is_bookable`).
@@ -141,6 +157,27 @@ que no necesitó cambios.
 | ✅ F5 (parcial) | HECHO 18-ago (PR #299) | Emisión NubeFact desde el POS: botón "Emitir boleta / factura" en el éxito de la venta, solo con NubeFact conectado; aritmética certificada reutilizada; enlace único venta↔comprobante. Pendiente de F5: comprobante mixto + test sandbox en Vitra (grants caja+almacen ya otorgados) |
 | F6 | Próximo | Secciones de productos en la ficha de paciente (diseño listo del agente UI): "Productos aplicados" en tab Clínico, "Productos vendidos" en Finanzas con estado de anulación, sin séptima pestaña, fix del overflow de tabs |
 | F7 | Higiene | Bug Cupos extra (cancelar deja el módulo gratis), ~~Rentabilidad neta de IGV~~ → ya corregida en Almacén (netOfIgv por afectación; queda el barrido de consistencia — ver "Próximas verificaciones" arriba), normalizar vocabulario `payment_method` en patient-drawer y budgets-panel, FK `patient_id`→SET NULL, regenerar `types/database.ts` |
+| ✅ Fase 1 cerrada | 5-sep (decisión founder) | Evaluación completa en CHANGELOG v0.15.39: los **7 caminos de ingreso** (cita sidebar/modal, drawer, adelanto de presupuesto, POS, tratamiento, link Culqi) entran a Caja por el trigger. Criterio del founder cumplido: "absolutamente todo lo que ingrese se vea reflejado en esa caja". Condición operativa: **abrir caja cada día** (prod 5-sep: Dra. Patricia 101 cobros fuera de turno / 0 turnos; Vitra 18 / 1) → capacitación |
+| F8 | Fase 2 — **Gastos** (cuando lo pida la doctora/contadora) | Ver sección "Caja fase 2 — Gastos" abajo |
+
+### 💸 Caja fase 2 — Gastos (diseño aprobado en principio 5-sep, sin fecha)
+
+> Pregunta del founder: "necesito una versión que aplique para compras u otros gastos, si no las orgs tendrían
+> que manejar diferentes cajas". Diagnóstico: Caja es un **arqueo de efectivo por turno** y lo hace bien; no es
+> un libro de gastos. Hoy un egreso exige turno abierto (trigger `cash_movements_block_closed_shift`), se graba
+> siempre como efectivo (`caja/page.tsx`), no tiene fecha de negocio, proveedor, comprobante ni IGV, ningún
+> reporte lo consume (`get_reports_overview` no tiene gastos; solo `devolucion` entra al dashboard, mig 230) y no
+> cruza con las entradas de Almacén. La raíz: *cajón* (efectivo físico) y *gasto* (hecho económico) viven en la
+> misma tabla, y por eso cada gasto "necesita" un cajón. **No** se recomienda "varias cajas".
+
+**Diseño:** apartado **Gastos** = libro de egresos de la org, separado de Caja.
+- Tabla `expenses` a nivel org (sin turno): `expense_date` civil en la zona de la org (mig 240), monto bruto, afectación/IGV (crédito fiscal para la contadora), categoría de catálogo por org con seed (patrón `treatment_payment_concepts`), proveedor texto + RUC opcional (sin proveedores-entidad — línea roja ERP), método de pago del catálogo, N° comprobante, foto opcional a Storage, notas, `created_by`, `treatment_id` e `inventory_movement_id` opcionales, `currency` + `fx_rate` congelado desde el día 1 (plan híbrido multimoneda).
+- **Puente con Caja, no fusión:** RPC `expense_register` — si se pagó en efectivo del cajón y hay turno abierto, crea el gasto **y** el egreso en `cash_movements` (`expense_id`) en una transacción; por transferencia/Yape o sin turno, solo el gasto (ese dinero nunca estuvo en el cajón: el arqueo no debe verlo). La fórmula del arqueo no cambia. Backfill: egresos existentes → gastos.
+- **Armonía:** Yenda base → Gastos debería ser base (toda clínica tiene gastos aunque no haga arqueo; el addon Caja aporta el vínculo al turno) — decisión comercial del founder. Almacén → checkbox "registrar el pago" en la entrada (compra) crea el gasto 1:1 (el COGS sigue en Almacén). Fertilidad → `treatment_external_payments` **siguen fuera** (plata de la paciente a terceros); los honorarios que la clínica paga a doctora/lab/anestesiólogo sí son gasto con `treatment_id` → rentabilidad real por tratamiento. Farmacia → nada nuevo. Reportes → card "Gastos del período" y línea opcional "Resultado" (cobros − gastos, ambos netos ÷1.18 por afectación). **"Ingresos" del dashboard no se toca** (bruto). Pendiente confirmar con la doctora si quiere ver la línea "Resultado".
+- **No se hace:** cuentas bancarias/conciliación, órdenes de compra, proveedores-entidad, presupuestos de gasto (eso es contabilidad).
+- **Esfuerzo:** 1 migración (tablas + RPC + `cash_movements.expense_id` + backfill + `get_reports_overview`), página `/gastos` (filtros fecha/categoría/medio, modal, CSV para la contadora), hook en Almacén, card en Reportes. ~2-3 días con agentes.
+- **Fix pequeño independiente (pendiente de decisión):** pagos grabados por el sistema (link Culqi, sin `auth.uid()`) caen en "Fuera de turno" con `shift_scope='user'`; ajustar `caja_stamp_payment` para atarlos al turno abierto de la org. ~10 líneas, 1 migración.
+
 
 **Decisión comercial (founder, 15-ago): la facturación se terceriza por ahora.** Cada clínica abre su
 cuenta NubeFact directa (S/70/mes tarifa pública) y Yenda cobra el addon de integración. Reseller
@@ -329,6 +366,27 @@ Tab Fertilidad ya en producción (PRs #198/#199): embudo 1ª→2ª con doble vis
 - [ ] **Tracking de respuesta de WhatsApp**: hoy el `wa.me` es one-way (no sabemos si la paciente abrió/respondió). Opcional: contador "Sin respuesta tras N días" para que la asesora reenvíe por otro canal.
 - [ ] **Filtro por asesora en el embudo**: el ranking ya está, pero el embudo 1ª→2ª no se cruza con `is_fertility_advisor`. Vitra quiere ver el funnel por asesora individual para coaching.
 - [ ] **Export del tab Fertilidad a Excel/PDF**: hoy es read-only en la web. Reuniones de management piden screenshot; un export con timestamp eliminaría screenshots.
+
+## 📄 PDFs base — receta y presupuesto con la estética de los plugins (evaluado 5-sep, sin código)
+
+> Pedido del founder: los PDFs de **receta/prescripción** y de **presupuesto desde la historia clínica** en
+> Yenda base tienen "un diseño bastante precario"; quiere la misma estética de los presupuestos de Vitra y de
+> la Dra. Patricia (plugins per-org) para todas las orgs.
+
+**Por qué se ven distintos — dos motores:**
+| | Base (Capa 1) | Plugins (Capa 2: Vitra, Patricia) |
+|---|---|---|
+| Motor | `@react-pdf/renderer` (Helvetica, sin fuentes propias, subset de CSS) | Handlebars `.hbs` → HTML/CSS completo → Puppeteer + `@sparticuz/chromium` (ya en prod en Vercel) |
+| Presupuesto | `lib/budget-pdf/document.tsx`: total + tier + "qué incluye" + términos | fases itemizadas, partials (`head`, `sheetHead`, `titleRow`, `meta`, `total`, términos, firmas), color de marca, precios en `data/*.ts` |
+| Receta y otros 4 (orden de examen, consentimiento, nota clínica, plan) | `lib/pdf/*-document.tsx` sobre `shared-pdf.tsx`; el `body_html` editable de `clinical_document_templates` pasa por `html-to-react-pdf.tsx` (subset → se ve pobre) | — |
+
+**Plan propuesto (una sola capa visual para todo Yenda):**
+1. **Layout base HTML "documento Yenda"** reutilizando los partials de Patricia (membrete con logo, color `print_color_primary`, tipografía, pie legal) en `lib/pdf/html/`. Un solo membrete para todos los documentos.
+2. **Receta** al nuevo motor (1 día): membrete, datos paciente/DNI/edad, doctor + CMP (+ RNE si existe), fecha, tabla Rp/ con medicamento · concentración · forma · dosis · vía · frecuencia · duración · cantidad · indicaciones, `body_html` del template renderizado nativo, firma/sello (imagen opcional). Requisitos de receta en Perú (DS 021-2001-SA / Ley 26842) cubiertos.
+3. **Presupuesto base** al nuevo motor (1-1.5 días) con lo que ya existe: título, paciente, tratamiento, monto, "qué incluye" como lista, términos, vigencia, firmas. **Fase B** (separada): fases itemizadas editables desde admin (`service_budget_phase_breakdowns` — ya anotado abajo como "Sincronía precios admin ↔ PDF opción B") para que una org sin plugin tenga el desglose de Patricia sin código por org.
+4. Orden de examen, consentimiento, nota clínica y plan heredan el layout (mismo membrete) en una tanda posterior.
+
+**Riesgos/decisiones:** Puppeteer arranca en frío ~2-4 s en Vercel (ya aceptado en plugins); los plugins de Vitra/Patricia **no se tocan**; feature flag por org no hace falta (reemplazo directo con rollback por PR). **Qué se necesita del founder:** no hace falta Figma — las plantillas *son* HTML, así que el diseño se entrega como canvas con 2-3 variantes (receta y presupuesto) para elegir; si prefiere Figma, basta un enlace en modo ver. Confirmar: campos legales de la receta (RNE, sello/firma digital), si la edad del paciente va en la receta, y si el presupuesto base debe mostrar tier A/B/C o precio único por defecto.
 
 ## 🧬 Fertilidad / Presupuestos — pendientes post-pipeline FIV (2026-06-10)
 

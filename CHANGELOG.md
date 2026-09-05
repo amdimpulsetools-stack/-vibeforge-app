@@ -78,6 +78,7 @@
 - [Changelog — Sesiones 2026-08-27/28 (v0.15.36) — Barrido fiscal IGV de punta a punta + deshacer cancelación de citas](#changelog--sesiones-2026-08-2728-v01536--barrido-fiscal-igv-de-punta-a-punta--deshacer-cancelación-de-citas)
 - [Changelog — Sesiones 2026-08-28 a 08-31 (v0.15.37) — Google APROBADO + WhatsApp Embedded Signup (mig 234) + expediente Meta casi completo + mapa de arquitectura](#changelog--sesiones-2026-08-28-a-08-31-v01537--google-aprobado--whatsapp-embedded-signup-mig-234--expediente-meta-casi-completo--mapa-de-arquitectura)
 - [Changelog — Sesiones 2026-09-01 a 09-04 (v0.15.38) — Revisión de seguridad + dashboard de recepción + 2.º piloto Vitra + zona horaria por org + ocupación real + estudios Tratamientos y multimoneda](#changelog--sesiones-2026-09-01-a-09-04-v01538--revisión-de-seguridad--dashboard-de-recepción--2º-piloto-vitra--zona-horaria-por-org--ocupación-real--estudios-tratamientos-y-multimoneda)
+- [Changelog — Sesión 2026-09-05 (v0.15.39) — Módulo Tratamientos (addon fertilidad, migs 242-246) + Caja fase 1 cerrada](#changelog--sesión-2026-09-05-v01539--módulo-tratamientos-addon-fertilidad-migs-242-246--caja-fase-1-cerrada)
 
 ---
 
@@ -4715,6 +4716,54 @@ La semana del segundo piloto (capacitación Vitra el 2-sep a recepcionistas y ob
 ### Ops / infra de sesión
 - Verificaciones de prod vía MCP de Supabase (solo lectura): migs 237/238 aplicadas, servicios sin doctor asignado, firma del RPC del doctor.
 - Ritmo de PRs: cada tanda reinicia la rama desde `main` tras el merge del founder; una carrera push/merge perdió un commit (#332) y se recuperó por cherry-pick — desde entonces se verifica el `merge-base` antes de cada push.
+
+---
+
+## Changelog — Sesión 2026-09-05 (v0.15.39) — Módulo Tratamientos (addon fertilidad, migs 242-246) + Caja fase 1 cerrada
+
+El founder dio la orden ("hoy vamos a realizar el apartado de tratamientos… que todo vaya en armonía con facturación, caja, etc.") y el módulo evaluado el 2-sep se construyó y se llevó a producción el mismo día: **PR #338 mergeado, migs 242-246 aplicadas y verificadas** (solo lectura vía MCP: 12 policies, FKs RESTRICT, 5 RPCs, conceptos sembrados en 4 orgs, `get_patient_summary`/`get_reports_overview`/`get_budget_kpis` nuevos). Primer tratamiento real creado en Vitra (FIV, S/ 16 260, en curso) desde un presupuesto aceptado. Orquestación: columna vertebral escrita a mano (migraciones, RPCs, fórmula de dinero, tipos), 3 agentes en paralelo con propiedad de archivos (API · páginas · presupuesto/drawer/admin) y un revisor de armonía al final cuyas 10 correcciones entraron antes del merge. Typecheck limpio.
+
+### Modelo de datos (mig 242 `treatments_foundation`, con rollback)
+- Tabla **`treatments`**: puente 1:1 con `budget_records` (`budget_record_id` UNIQUE parcial; `in_progress` ⇔ existe tratamiento), `status` in_progress / completed / abandoned / cancelled, `outcome` pregnancy / no_pregnancy / abandoned / transferred / other, `expected_total` (acordado = monto del presupuesto), doctora, asistente (`organization_members`), fechas de inicio/cierre con autor.
+- Catálogo **`treatment_payment_concepts`** por org: etiqueta + `revenue_bucket` honorarium / general / third_party + `igv_affectation` opcional. `seed_treatment_payment_concepts(p_org_id)` (plpgsql, guardado por `is_org_admin`) siembra 10 conceptos desde las líneas de las plantillas de presupuesto; backfill para las orgs con addon.
+- **`patient_payments`** gana `treatment_id` (FK **ON DELETE RESTRICT** — borrar un tratamiento jamás convierte sus cobros en "pagos de citas"), `treatment_concept_id` (RESTRICT), snapshot `revenue_bucket` y `external_receipt_ref`. CHECK **"un cobro vive en UN solo contenedor"** (cita XOR plan XOR tratamiento) + trigger `treatments_stamp_payment` (copia bucket/org del concepto).
+- **`treatment_external_payments`**: pagos que la paciente hizo directo a un tercero (lab, anestesiólogo, banco de gametos). Informativos: cubren acordado, **no son cobro** (no tocan Ingresos, Caja ni comprobantes).
+- Seguimientos: `source_type='treatment'` + trigger `close_followups_on_treatment_close` (patrón mig 188).
+
+### Dinero — regla nueva en `CLAUDE.md`
+- **243** `get_patient_summary` verbatim 219 + `AND pp.treatment_id IS NULL` en `total_paid`/`payments_count`; `lib/patient-debt.ts` **exige `treatment_id` en el tipo** y filtra igual (mismo commit — condición bloqueante #1: sin esto, S/ 8 000 al FIV "pagaban" una ecografía de S/ 150).
+- **244** `get_reports_overview`: `payments_amount` excluye tratamientos y aparece `treatment_payments_amount` → card "Cobros por tratamientos" en `/reports`. "Pendiente" no cambia.
+- Cobros de tratamiento son plata clínica (`source='clinical'`): suman en Ingresos del dashboard (bruto), Caja y "Mis cobros"; **no cancelan deuda de citas**. Fórmula única en `lib/treatments/money.ts` (espejo de `get_treatments_overview`): `covered = paid_clinic + external_covered`, `pending = max(0, expected − covered)`, desglose honorarios / clínica / terceros por bucket.
+- Los pagos se insertan **con el cliente del usuario** (el trigger de Caja estampa autor, medio y turno); jamás con service role. Eliminar un pago de turno cerrado devuelve el error del trigger; un cobro con comprobante emitido no se elimina (409 → nota de crédito primero).
+
+### RPCs con gating de rol (mig 245, patrón M12)
+- `treatments_caller_role(p_org_id)` → owner/admin/doctor o `advisor` (`is_fertility_advisor`).
+- `treatment_start_from_budget(p_budget_id, p_doctor_id, p_assistant_member_id, p_started_at, p_notes)`: valida membresía, rol, addon, presupuesto aceptado y no iniciado, doctora/asistente **de la misma org**, "hoy" civil en la zona de la org (mig 240); crea el tratamiento y pasa el presupuesto a `in_progress` en una transacción. **Guard H1**: rechaza si la paciente tiene una cita de tratamiento viva con precio (`is_bookable=false`, no cancelada, precio > 0) — el acordado se duplicaría; primero `scripts/ops/2026-09-04-migrar-citas-tra-a-tratamientos.sql`.
+- `treatment_close(p_treatment_id, p_status, p_outcome, p_reason, p_closed_at)`: owner/admin/doctor; **un doctor solo cierra los suyos** (H2); presupuesto → `completed`; cierra seguimientos. `treatment_reopen` solo owner/admin.
+- `get_treatments_overview(p_org_id, p_from, p_to)`: cobrado en tratamientos, honorarios/terceros (NULL para recepción), por cobrar en curso, conteos; doctor acotado a su ficha (`doctors.user_id`).
+- **246** `get_budget_kpis`: "aceptados 30 d" y promedio cuentan `accepted` + `in_progress` + `completed` (iniciar un tratamiento restaba de aceptados).
+
+### API y UI
+- `app/api/treatments` (lista + KPIs, detalle con scope de doctor, PATCH), `[id]/payments` (clínica → `patient_payments`; tercero → `treatment_external_payments`; DELETE admin), `[id]/close`, `[id]/reopen`, `app/api/treatment-concepts` (GET/POST/PATCH + `?seed=1`). `POST /api/budgets/[id]/start` llama al RPC y conserva el cierre A/B del seguimiento "por iniciar"; `/complete` responde 409 si existe tratamiento. Gate `assertFertilityAddon` en todas las rutas.
+- Sidebar: grupo **Fertilidad** (Presupuestos · Tratamientos) gateado por addon; Agenda queda con Calendario · Seguimientos · Histórico. Admin → "Conceptos de tratamiento".
+- `/tratamientos`: 4 KPIs (Cobrado en tratamientos con desglose Honorarios · Terceros y nota "Incluido en Ingresos del dashboard", Honorarios cobrados, Por cobrar en curso, En curso), período, tabs En curso / Cerrados, buscador, cards con barra de avance y botón Pago.
+- `/tratamientos/[id]`: Acordado / Pagado (clínica) / Por cobrar, línea "Pagado directo a terceros" cuando existe, timeline unificado, notas, **Cerrar tratamiento** (Embarazo confirmado · Completado sin embarazo · Abandonado + motivo · Derivado; fecha; aviso del saldo pendiente), Reabrir (dirección).
+- **Registrar pago**: primera pregunta **"¿Quién recibió el dinero?"** (la clínica → entra a Ingresos, Caja y comprobantes · pagado directo a un tercero → registro informativo), concepto del catálogo, monto, fecha (hoy de la org), método de pago del catálogo, N° comprobante externo, "Por cobrar después de este pago".
+- Presupuestos: "Iniciar tratamiento" (modal: doctora, asistente, fecha) → navega al tratamiento; desaparece "Marcar completado"; "Ver tratamiento →"; tab "Completados" → "Cerrados".
+- Drawer del paciente: cards de dinero rotuladas "Citas:" con saldo clampado a 0 (bug preexistente), bloque "Tratamiento en curso", chip en el historial, radio "¿A qué corresponde?" al registrar pago, panel de planes oculto con el addon.
+
+### Caja — evaluación y cierre de la fase 1
+- Pregunta del founder: ¿Caja sirve para compras y otros gastos, o cada org necesitaría varias cajas? Diagnóstico sobre migs 213-215/230 y la UI: Caja es un **arqueo de efectivo por turno** (fondo + cobros en efectivo + movimientos en efectivo, turno cerrado inmutable) y lo hace bien; **no es un libro de gastos**: un egreso exige turno abierto, se graba siempre como efectivo (`page.tsx`), no tiene fecha de negocio ni proveedor ni IGV, ningún reporte lo consume y no cruza con las entradas de Almacén. Mezclar ambos conceptos en `cash_movements` es lo que empuja a "varias cajas".
+- Verificado que **los 7 caminos de ingreso** (cita desde sidebar/modal, drawer, adelanto de presupuesto, POS de Farmacia, tratamiento, link Culqi) escriben en `patient_payments` y el trigger los ata al turno. Dos condiciones: hay que **abrir caja** (en prod: Dra. Patricia 101 cobros "fuera de turno" desde el 15-ago con 0 turnos; Vitra 18 con 1 turno → capacitación, no código) y los pagos que graba el sistema (Culqi) caen en "Fuera de turno" con `shift_scope='user'` porque no hay `auth.uid()` (fix pequeño de trigger, pendiente de decisión).
+- **Decisión del founder: Caja fase 1 cerrada** ("que absolutamente todo lo que ingrese se vea reflejado en esa caja" ✔). Fase 2 = apartado **Gastos** separado de Caja, documentado en `COMING-UPDATES.md`. Los gastos jamás restan de "Ingresos" (bruto); aparecerían como card aparte y una línea "Resultado" opcional.
+
+### Fast-follows anotados
+- **Auditoría de tratamientos** (punto 11 del founder): mig 247 `treatment_events` (quién/cuándo/qué cambió: estado, pagos añadidos o eliminados, monto acordado) — siguiente entrega.
+- Rótulo "Terceros" en KPIs/barra = cobros de conceptos de terceros recibidos por la clínica (distinto de "pagado directo a un tercero"); posible cambio a "Para terceros".
+- Del revisor: doctor con `is_doctor_patients_restricted` podría sub-contar dinero en lista/detalle; `/api/members/responsibles` resuelve org con `limit(1)`; badge de "Cerrados" usa el conteo del período; validar `payment_method` contra catálogo. Entrega 2: devoluciones de tratamiento y comprobante por fase.
+
+### Ops
+- Mig 245 no había quedado aplicada en el primer intento del founder (0/5 funciones); se detectó por MCP antes del merge y se reaplicó. Verificación final: `rpcs_5 = 5`, `tratamientos = 1` (Vitra, `in_progress`, presupuesto `in_progress`).
 
 ---
 
