@@ -8,8 +8,13 @@ import {
   endOfMonth,
   subMonths,
   eachDayOfInterval,
-  getDay,
 } from "date-fns";
+import { resolveOrgTimezone, todayInTz, zonedNow } from "@/lib/org-time";
+import {
+  DEFAULT_SCHEDULER_CONFIG,
+  schedulerRowToConfig,
+} from "@/lib/scheduler-config";
+import { computeOccupancy } from "@/lib/scheduler-occupancy";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -29,6 +34,19 @@ export default async function DashboardPage() {
   if (!membership) redirect("/login");
 
   const role = membership.role as "owner" | "admin" | "receptionist" | "doctor";
+
+  // "Hoy" civil de la ORG (mig 240), no del servidor: Vercel corre en UTC y
+  // pasadas las 19:00 hora Lima `new Date()` ya era mañana — el dashboard
+  // pedía los ingresos del día siguiente. Consulta aparte y tolerante: si la
+  // columna aún no existe, data es null y cae a America/Lima.
+  const { data: orgRow } = await supabase
+    .from("organizations")
+    .select("timezone")
+    .eq("id", membership.organization_id)
+    .maybeSingle();
+  const orgTimezone = resolveOrgTimezone(
+    (orgRow as { timezone?: string | null } | null)?.timezone,
+  );
 
   // Asesoras de fertilidad (obstetras coordinadoras, mig 137): su rol
   // base es doctor o receptionist, pero su trabajo es el embudo
@@ -76,7 +94,7 @@ export default async function DashboardPage() {
   // la rama doctor. Si el RPC falla, initialData va null y el componente
   // pinta empty-states — NUNCA redirect a /scheduler (evitar bucles).
   if (role === "receptionist") {
-    const receptionistToday = format(new Date(), "yyyy-MM-dd");
+    const receptionistToday = todayInTz(orgTimezone);
     const [{ data: profile }, receptionistStatsRes, { ReceptionistDashboard }] =
       await Promise.all([
         profileQuery,
@@ -116,6 +134,8 @@ export default async function DashboardPage() {
         supabase.rpc("get_doctor_dashboard_enhanced", {
           p_user_id: user.id,
           org_id: membership.organization_id,
+          // mig 241: fecha civil de la org en vez de CURRENT_DATE (UTC).
+          p_today: todayInTz(orgTimezone),
         }),
         import("./doctor-dashboard-wrapper"),
       ]);
@@ -131,8 +151,8 @@ export default async function DashboardPage() {
     );
   }
 
-  // Date ranges
-  const now = new Date();
+  // Date ranges — reloj de pared de la org (mig 240), no UTC del servidor.
+  const now = zonedNow(orgTimezone);
   const today = format(now, "yyyy-MM-dd");
   const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
   const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
@@ -153,11 +173,24 @@ export default async function DashboardPage() {
   // dentro del propio RPC. Antes se traía UNA FILA POR CITA
   // (select("appointment_date")) solo para contarlas por día en JS —
   // ~50-100 kB de payload con volumen; ahora son <2 kB de conteos.
+  // Ocupación (misma fórmula que el header del scheduler, lib/scheduler-
+  // occupancy): ventana real de la org × consultorios ACTIVOS × días hábiles,
+  // menos bloqueos, contra los minutos de citas no canceladas. Antes era
+  // "12 slots por doctor por día" hardcodeado. Insumos en paralelo con el RPC.
+  // Rango = mes pasado … fin de mes (cubre hoy, la semana móvil y ambos meses).
+  const occupancyRangeStart = lastMonthStart;
+  const occupancyRangeEnd = monthEnd > today ? monthEnd : today;
+  const orgId = membership.organization_id;
+
   const [
     { data: profile },
     { data: stats },
     { data: linkedDoctor },
     { AdminDashboard },
+    { data: schedulerRow },
+    { data: activeOffices },
+    { data: occupancyAppointments },
+    { data: occupancyBlocks },
   ] = await Promise.all([
     profileQuery,
     // Single RPC call for all dashboard data (incl. daily series)
@@ -180,6 +213,28 @@ export default async function DashboardPage() {
       .limit(1)
       .maybeSingle(),
     import("./admin-dashboard"),
+    supabase
+      .from("scheduler_settings")
+      .select("*")
+      .eq("organization_id", orgId)
+      .maybeSingle(),
+    supabase
+      .from("offices")
+      .select("id")
+      .eq("organization_id", orgId)
+      .eq("is_active", true),
+    supabase
+      .from("appointments")
+      .select("appointment_date, start_time, end_time, status, office_id")
+      .eq("organization_id", orgId)
+      .gte("appointment_date", occupancyRangeStart)
+      .lte("appointment_date", occupancyRangeEnd),
+    supabase
+      .from("schedule_blocks")
+      .select("block_date, start_time, end_time, office_id, all_day")
+      .eq("organization_id", orgId)
+      .gte("block_date", occupancyRangeStart)
+      .lte("block_date", occupancyRangeEnd),
   ]);
 
   const displayName = nameFrom(profile?.full_name);
@@ -195,16 +250,35 @@ export default async function DashboardPage() {
         ? 100
         : 0;
 
-  const slotsPerDoctorPerDay = 12;
-
-  const countWorkingDays = (start: Date, end: Date) =>
-    eachDayOfInterval({ start, end }).filter((d) => {
-      const day = getDay(d);
-      return day !== 0 && day !== 6;
-    }).length;
+  // ── Ocupación: fórmula única (lib/scheduler-occupancy) ─────────────
+  const schedulerConfig = schedulerRow
+    ? schedulerRowToConfig(
+        schedulerRow as Parameters<typeof schedulerRowToConfig>[0],
+      )
+    : DEFAULT_SCHEDULER_CONFIG;
+  const activeOfficeIds = (activeOffices ?? []).map((o) => o.id);
+  const occupancyFor = (start: Date, end: Date) =>
+    computeOccupancy({
+      days: eachDayOfInterval({ start, end }).map((d) => format(d, "yyyy-MM-dd")),
+      officeIds: activeOfficeIds,
+      appointments: (occupancyAppointments ?? []) as Array<{
+        appointment_date: string;
+        start_time: string;
+        end_time: string;
+        status: string;
+        office_id: string | null;
+      }>,
+      blocks: (occupancyBlocks ?? []) as Array<{
+        block_date: string;
+        start_time: string | null;
+        end_time: string | null;
+        office_id: string | null;
+        all_day: boolean;
+      }>,
+      config: schedulerConfig,
+    }).percent;
 
   // ── Extract stats ────────────────────────────────────────────
-  const activeDoctors = stats.active_doctors ?? 0;
   const thisMonthAppts = stats.this_month_appts ?? 0;
   const completedMonth = stats.completed_month ?? 0;
   const cancelledMonth = stats.cancelled_month ?? 0;
@@ -214,9 +288,11 @@ export default async function DashboardPage() {
   // ── MONTH metrics ──
   const revenueThisMonth = Number(stats.revenue_this_month ?? 0);
   const revenueLastMonth = Number(stats.revenue_last_month ?? 0);
-  const monthWorkingDays = countWorkingDays(startOfMonth(now), endOfMonth(now));
-  const monthCapacity = activeDoctors * monthWorkingDays * slotsPerDoctorPerDay;
-  const monthNonCancelled = thisMonthAppts - cancelledMonth;
+  const monthOccupancy = occupancyFor(startOfMonth(now), endOfMonth(now));
+  const lastMonthOccupancy = occupancyFor(
+    startOfMonth(subMonths(now, 1)),
+    endOfMonth(subMonths(now, 1)),
+  );
 
   const monthData = {
     revenue: revenueThisMonth,
@@ -226,17 +302,8 @@ export default async function DashboardPage() {
     cancelledRate: thisMonthAppts > 0 ? Math.round((cancelledMonth / thisMonthAppts) * 100) : 0,
     noShowCount: noShowsMonth,
     noShowRate: thisMonthAppts > 0 ? Math.round((noShowsMonth / thisMonthAppts) * 100) : 0,
-    occupancyRate: monthCapacity > 0
-      ? Math.min(100, Math.round((monthNonCancelled / monthCapacity) * 100))
-      : 0,
-    occupancyGrowth: (() => {
-      const lastMonthAppts = stats.last_month_appts ?? 0;
-      const lastMonthWorkingDays = countWorkingDays(startOfMonth(subMonths(now, 1)), endOfMonth(subMonths(now, 1)));
-      const lastMonthCapacity = activeDoctors * lastMonthWorkingDays * slotsPerDoctorPerDay;
-      const lastRate = lastMonthCapacity > 0 ? Math.round((lastMonthAppts / lastMonthCapacity) * 100) : 0;
-      const currentRate = monthCapacity > 0 ? Math.round((monthNonCancelled / monthCapacity) * 100) : 0;
-      return computeGrowth(currentRate, lastRate);
-    })(),
+    occupancyRate: monthOccupancy,
+    occupancyGrowth: computeGrowth(monthOccupancy, lastMonthOccupancy),
     newPatients: stats.new_patients_this_month ?? 0,
     newPatientsGrowth: computeGrowth(stats.new_patients_this_month ?? 0, stats.new_patients_last_month ?? 0),
     recurringPatients: stats.recurring_patients_month ?? 0,
@@ -251,8 +318,7 @@ export default async function DashboardPage() {
   const weekCancelled = stats.week_cancelled ?? 0;
   const weekNoShows = stats.week_no_shows ?? 0;
   const weekRevenue = Number(stats.revenue_this_week ?? 0);
-  const weekWorkingDays = countWorkingDays(subDays(now, 6), now);
-  const weekCapacity = activeDoctors * weekWorkingDays * slotsPerDoctorPerDay;
+  const weekOccupancy = occupancyFor(subDays(now, 6), now);
 
   const weekData = {
     revenue: weekRevenue,
@@ -262,9 +328,7 @@ export default async function DashboardPage() {
     cancelledRate: weekTotal > 0 ? Math.round((weekCancelled / weekTotal) * 100) : 0,
     noShowCount: weekNoShows,
     noShowRate: weekTotal > 0 ? Math.round((weekNoShows / weekTotal) * 100) : 0,
-    occupancyRate: weekCapacity > 0
-      ? Math.min(100, Math.round(((weekTotal - weekCancelled) / weekCapacity) * 100))
-      : 0,
+    occupancyRate: weekOccupancy,
     occupancyGrowth: 0,
     newPatients: stats.new_patients_this_month ?? 0, // approximate
     newPatientsGrowth: 0,
@@ -279,8 +343,7 @@ export default async function DashboardPage() {
   const todayCancelled = stats.today_cancelled ?? 0;
   const todayNoShows = stats.today_no_shows ?? 0;
   const todayRevenue = Number(stats.revenue_today ?? 0);
-  const todayIsWorkday = getDay(now) !== 0 && getDay(now) !== 6;
-  const todayCapacity = todayIsWorkday ? activeDoctors * slotsPerDoctorPerDay : 0;
+  const todayOccupancy = occupancyFor(now, now);
 
   const todayData = {
     revenue: todayRevenue,
@@ -290,9 +353,7 @@ export default async function DashboardPage() {
     cancelledRate: todayAppts > 0 ? Math.round((todayCancelled / todayAppts) * 100) : 0,
     noShowCount: todayNoShows,
     noShowRate: todayAppts > 0 ? Math.round((todayNoShows / todayAppts) * 100) : 0,
-    occupancyRate: todayCapacity > 0
-      ? Math.min(100, Math.round(((todayAppts - todayCancelled) / todayCapacity) * 100))
-      : 0,
+    occupancyRate: todayOccupancy,
     occupancyGrowth: 0,
     newPatients: 0,
     newPatientsGrowth: 0,

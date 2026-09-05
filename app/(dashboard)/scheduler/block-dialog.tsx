@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useOrgToday } from "@/hooks/use-org-today";
 import { toast } from "sonner";
 import type { Office } from "@/types/admin";
 import { SCHEDULER_START_HOUR, SCHEDULER_END_HOUR, SCHEDULER_INTERVAL } from "@/types/admin";
@@ -47,7 +48,10 @@ export function BlockDialog({
     () => generateTimeOptions(scheduleStartMinutes, scheduleEndMinutes),
     [scheduleStartMinutes, scheduleEndMinutes],
   );
-  const today = new Date().toISOString().split("T")[0];
+  // Fecha civil de la org (mig 240): con toISOString() (UTC) el mínimo del
+  // picker era "mañana" tras las 19:00 Lima y no se podía bloquear hoy.
+  const { today: orgToday } = useOrgToday();
+  const today = orgToday();
   const [blockDate, setBlockDate] = useState(defaultDate ?? today);
   const [allDay, setAllDay] = useState(false);
   const [startTime, setStartTime] = useState(formatMinutes(scheduleStartMinutes));

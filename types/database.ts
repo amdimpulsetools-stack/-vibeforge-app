@@ -40,6 +40,9 @@ export interface Database {
           // 'emerald' | 'ocean' | 'sand' — ver lib/theme/accent-themes.ts.
           // No afecta a los colores semánticos ni a emails/PDFs/portal.
           accent_theme: string;
+          // Zona horaria IANA de la org (migration 240). Define el "hoy"
+          // civil de dashboards y cobros — ver lib/org-time.ts.
+          timezone: string;
         };
         Insert: {
           id?: string;

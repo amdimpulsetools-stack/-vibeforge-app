@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
+import { useOrgToday } from "@/hooks/use-org-today";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
 import { useLanguage } from "@/components/language-provider";
@@ -141,6 +142,8 @@ export function AppointmentFormModal({
   onShowWhatsAppFollowup,
 }: AppointmentFormModalProps) {
   const { t, language } = useLanguage();
+  // "Hoy" civil de la org (mig 240) para fecha de cita y de cobro.
+  const { today: orgToday } = useOrgToday();
   const { enabled: insuranceEnabled, carriers: orgInsuranceCarriers } = useOrgInsurance();
   // Current auth user — used to preselect the "Responsable" field with the
   // logged-in member when creating a new appointment.
@@ -270,7 +273,9 @@ export function AppointmentFormModal({
       doctor_id: currentDoctorId ?? "",
       office_id: defaults?.officeId ?? "",
       service_id: "",
-      appointment_date: defaults?.date ?? new Date().toISOString().split("T")[0],
+      // Fecha civil de la org (mig 240): toISOString() es UTC y tras las
+      // 19:00 Lima proponía mañana.
+      appointment_date: defaults?.date ?? orgToday(),
       start_time: defaults?.startTime ?? "",
       status: "scheduled",
       origin: "",
@@ -1100,7 +1105,7 @@ export function AppointmentFormModal({
           amount: Number(depositAmount),
           payment_method: depositMethod || null,
           notes: depositRef ? `Anticipo — ${depositRef}` : "Anticipo",
-          payment_date: new Date().toISOString().split("T")[0],
+          payment_date: orgToday(),
           organization_id: organizationId,
         } as any)
         .select("id")

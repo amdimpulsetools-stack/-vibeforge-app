@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useOrgToday } from "@/hooks/use-org-today";
 import { useLanguage } from "@/components/language-provider";
 import { useUserProfile } from "@/hooks/use-user-profile";
 import { toast } from "sonner";
@@ -145,6 +146,8 @@ export function AppointmentSidebar({
   const { t } = useLanguage();
   const { profile } = useUserProfile();
   const { isAdmin, isDoctor: isDoctorRole, isReceptionist } = useOrgRole();
+  // "Hoy" civil de la org (mig 240) para estampar payment_date.
+  const { today: orgToday } = useOrgToday();
   // Live status master toggle + "recepción puede finalizar" (mig 227) —
   // instant from the localStorage cache; the scheduler page keeps it
   // fresh via fetchSchedulerConfig().
@@ -655,7 +658,9 @@ export function AppointmentSidebar({
         amount: Number(payAmount),
         payment_method: payMethod || null,
         notes: payRef || null,
-        payment_date: new Date().toISOString().split("T")[0],
+        // Fecha civil de la org (mig 240), no UTC: tras las 19:00 Lima
+        // toISOString() estampaba el cobro en el día siguiente.
+        payment_date: orgToday(),
         organization_id: (appointment as any).organization_id,
       } as any)
       .select("id")

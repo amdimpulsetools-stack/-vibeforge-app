@@ -44,6 +44,7 @@ import {
 } from "@/components/icons/whatsapp-icon";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
+import { resolveOrgTimezone, todayInTz } from "@/lib/org-time";
 import { useOrgRole } from "@/hooks/use-org-role";
 import dynamic from "next/dynamic";
 import { FOLLOWUP_PRIORITY_CONFIG } from "@/types/clinical-history";
@@ -442,7 +443,11 @@ export function FollowupCard({
     linkedBudget !== null ||
     stepActiveIdx !== null;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // Fecha civil de la org (mig 240): con toISOString() (UTC) el mínimo del
+  // date picker era "mañana" tras las 19:00 Lima y no dejaba reagendar a hoy.
+  const todayStr = todayInTz(
+    resolveOrgTimezone((organization as { timezone?: string | null } | null)?.timezone),
+  );
   const ninetyDaysStr = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);

@@ -26,6 +26,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgToday } from "@/hooks/use-org-today";
 import { usePaymentMethods } from "./use-payment-methods";
 import { getPaymentIcon } from "@/lib/payment-icons";
 
@@ -66,6 +67,7 @@ export function BudgetsPanel({
   const [ref, setRef] = useState("");
   const [saving, setSaving] = useState(false);
   const { organizationId } = useOrganization();
+  const { today: orgToday } = useOrgToday();
   const paymentMethods = usePaymentMethods(organizationId);
 
   const fetchBudgets = useCallback(async () => {
@@ -187,7 +189,9 @@ export function BudgetsPanel({
       amount: n,
       payment_method: method || null,
       notes: ref ? `Anticipo al plan — ${ref}` : "Anticipo al plan",
-      payment_date: new Date().toISOString().split("T")[0],
+      // Fecha civil de la org (mig 240), no UTC: tras las 19:00 Lima
+      // toISOString() estampaba mañana.
+      payment_date: orgToday(),
       organization_id: orgId,
     } as any);
     setSaving(false);

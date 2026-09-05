@@ -223,8 +223,12 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
 
 // ─── Database-backed functions ───────────────────────────────────
 
-/** Convert DB row to SchedulerConfig */
-function dbRowToConfig(row: {
+/**
+ * Convert DB row to SchedulerConfig. Exportada para que el servidor (dashboard
+ * admin, ocupación) lea `scheduler_settings` con el mismo mapeo que el
+ * cliente — una sola traducción fila → config.
+ */
+export function schedulerRowToConfig(row: {
   start_hour: number;
   end_hour: number;
   start_minute?: number | null;
@@ -279,7 +283,7 @@ export async function fetchSchedulerConfig(orgId?: string | null): Promise<Sched
     const res = await fetch(url);
     if (!res.ok) return loadSchedulerConfig(); // fallback to localStorage
     const data = await res.json();
-    const config = dbRowToConfig(data);
+    const config = schedulerRowToConfig(data);
     // Cache in localStorage
     saveSchedulerConfig(config);
     return config;

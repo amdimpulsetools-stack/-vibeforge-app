@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { Sparkles, Printer, RotateCcw, Lock, AlertTriangle, X, Calendar } from "lucide-react";
+import { useOrgToday } from "@/hooks/use-org-today";
+import { todayInTz } from "@/lib/org-time";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -43,23 +45,22 @@ function formatDate(d: string): string {
   return dt.toLocaleDateString("es-PE", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function daysAgoIso(n: number): string {
+// Fechas civiles en la zona de la org (mig 240): toISOString() es UTC y
+// tras las 19:00 Lima el rango "hoy" del brief apuntaba a mañana.
+function daysAgoIso(tz: string, n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
+  return todayInTz(tz, d);
 }
 
 export function ExecutiveBriefWidget() {
   const { plan } = usePlan();
   const hasAiFeature = plan?.feature_ai_assistant ?? false;
+  const { timezone, today: todayIso } = useOrgToday();
   const [open, setOpen] = useState(false);
   const [period, setPeriod] = useState<Period>("week");
-  const [customFrom, setCustomFrom] = useState(daysAgoIso(13));
-  const [customTo, setCustomTo] = useState(todayIso());
+  const [customFrom, setCustomFrom] = useState(() => daysAgoIso(timezone, 13));
+  const [customTo, setCustomTo] = useState(() => todayIso());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [needsUpgrade, setNeedsUpgrade] = useState(false);
