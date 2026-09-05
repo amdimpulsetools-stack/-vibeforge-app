@@ -388,6 +388,41 @@ Tab Fertilidad ya en producción (PRs #198/#199): embudo 1ª→2ª con doble vis
 
 **Riesgos/decisiones:** Puppeteer arranca en frío ~2-4 s en Vercel (ya aceptado en plugins); los plugins de Vitra/Patricia **no se tocan**; feature flag por org no hace falta (reemplazo directo con rollback por PR). **Qué se necesita del founder:** no hace falta Figma — las plantillas *son* HTML, así que el diseño se entrega como canvas con 2-3 variantes (receta y presupuesto) para elegir; si prefiere Figma, basta un enlace en modo ver. Confirmar: campos legales de la receta (RNE, sello/firma digital), si la edad del paciente va en la receta, y si el presupuesto base debe mostrar tier A/B/C o precio único por defecto.
 
+## 💊 Atajos de Receta y Orden de examen desde la cita y el drawer (evaluado 5-sep, sin código)
+
+> Pedido del founder: hoy receta y orden de examen se emiten solo entrando a la historia clínica. Para fertilidad
+> (HC no optimizada aún) quiere botones "Receta" / "Orden de examen" en el sidebar de la cita y en el drawer del
+> paciente que abran un modal, asignen al paciente e impriman, con un apartado de variables configurables.
+> Evaluado por un agente (solo lectura).
+
+**Hallazgo principal: la atadura a la HC es solo de UI.** `prescriptions` (mig 053) y `exam_orders` (mig 078)
+tienen `appointment_id` y `clinical_note_id` **nullable**; las APIs ya los aceptan opcionales. Los formularios
+`PrescriptionsPanel` / `ExamOrdersPanel` ya son componentes autónomos (props `patientId, doctorId,
+appointmentId?, clinicalNoteId?`) montados en 3 sitios. Lo único que exige cita es el **PDF de receta**
+(`/api/pdf/prescription/[appointmentId]` agrupa las recetas activas de la cita); el de orden de examen ya
+funciona sin cita. Existe catálogo de exámenes por org (`exam_catalog`, admin); **no existe catálogo de
+medicamentos** (texto libre). Variables: `clinical_document_templates` con `{{paciente_nombre}}`,
+`{{paciente_dni}}`, `{{doctor_nombre}}`, `{{doctor_cmp}}`, `{{fecha}}`, `{{clinica_nombre}}`.
+
+**Riesgos encontrados:** la RLS de `prescriptions` deja insertar a cualquier miembro y el POST no valida rol ni
+que `doctor_id` sea el del usuario (hoy el guard es solo de UI) → al exponer más botones el check pasa al
+servidor. Las rutas PDF no registran acceso clínico (`print`) en el log NTS 139. `exam-order` PDF usa
+`new Date().toISOString()` (viola `org-time`). Recetas/exámenes son **base**, no addon: los atajos deben ser base.
+
+**Plan por fases:**
+| Fase | Qué | Esfuerzo |
+|---|---|---|
+| 1 Atajos | `PrescriptionFormModal` / `ExamOrderFormModal` (Dialog, multi-medicamento, "Guardar e imprimir") desde `appointment-sidebar` (junto a "Historia Clínica", con doctor de la cita) y desde el header del drawer (solo doctor/admin con ficha). Ruta PDF por receta/lote (`?ids=` o `batch_id` nullable) + log `print`. POST endurecido: rol ∈ owner/admin/doctor + coherencia `doctor_id` | 2-3 días |
+| 2 Catálogo y favoritos | `medication_catalog` por org (nombre, presentación, dosis/frecuencia/duración/vía por defecto) + favoritos por doctor para medicamentos y exámenes; CRUD admin calcado de `exam-catalog`; autocomplete con pestaña "Frecuentes" | 2-3 días |
+| 3 Variables | Vigencia parametrizable, `{{paciente_edad}}`, `{{doctor_rne}}`; se monta sobre la migración de PDFs a HTML+Chromium | 1 día |
+
+**Decisiones del founder:** (1) ¿un admin sin CMP puede emitir a nombre del doctor de la cita, o solo doctores?
+(2) receta sin cita: ¿queda solo con `patient_id` (recomendado) o se crea una cita "virtual"? (3) catálogo de
+medicamentos: ¿semilla global Yenda + favoritos por doctor (recomendado) o solo carga por org? (4) receta
+multi-medicamento: ¿`batch_id` nuevo (recomendado) o "todo lo activo de la cita"? (5) ¿hacer los atajos ya
+sobre `@react-pdf` o esperar el motor HTML? Recomendación: **receta al motor HTML primero, atajos encima**, para
+no construir la ruta PDF dos veces.
+
 ## 🧬 Fertilidad / Presupuestos — pendientes post-pipeline FIV (2026-06-10)
 
 Lo entregado: pipeline completo de PDF FIV para Vitra (template HTML + puppeteer en Vercel), doctor/asesora reales en el presupuesto (mig 167), arquitectura de plugins per-org (mig 169, Founder Panel → Plugins). Lo que quedó:
