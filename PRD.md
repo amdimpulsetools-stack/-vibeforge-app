@@ -1,8 +1,9 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-08-21
-> **Versión:** 0.15.32
+> **Última actualización:** 2026-09-04
+> **Versión:** 0.15.38
 > **Estado (resumen ejecutivo):**
+> - **2.º piloto (Vitra) capacitado y semana de estabilización con la Dra. Patricia (v0.15.38, migs 235-241 — 2026-09-01 a 09-04)**: revisión de seguridad completa (6.5/10, `docs/security-review-2026-09-01.md`; mig 235 endurece membresías), **dashboard propio del rol Recepcionista** "Mi día" (migs 236/238: agenda de hoy con estatus, falta-pago y recurrente; por confirmar mañana con WhatsApp; mis cobros; primer RPC con gating de rol), branding heredado por miembros (mig 237 — `organizations` solo tenía policies owner-only en prod), `services.is_bookable` "Se agenda como cita" (mig 239, tratamientos TRA fuera del select de citas), **zona horaria por org** (migs 240/241 — el "hoy" de dashboards y cobros dejaba de ser hoy a las 19:00 Lima por UTC), % de ocupación real en agenda y dashboard (consultorios activos, horario real, bloqueos), "Cerrar caso" en Seguimientos y método de pago en el extracto de Farmacia. Evaluados sin código: módulo **Tratamientos** del addon fertilidad y **multimoneda** — ver `COMING-UPDATES.md`. Detalle: Changelog v0.15.38.
 > - **MVP en producción** multi-tenant (RLS), 4 roles + Founder, agenda día/semana con precisión al minuto, pacientes, historia clínica/SOAP completa, reportes, planes 3-tiers (S/129 / S/349 / S/649).
 > - **P0 Seguridad del registro CERRADO y validado en producción (v0.15.33 — 2026-08-20)**: Cloudflare Turnstile en login/registro/recuperación + Attack Protection de Supabase + verificación de email obligatoria + bloqueo de contraseñas filtradas (HaveIBeenPwned) + errores de auth en español junto al campo. La puerta que dejó entrar 86 orgs bot está cerrada. Además esa semana: duración editable por cita (mig 221), vertical dermatología con comparativas fotográficas antes/después (migs 222-223), autosave de Historia Clínica a prueba de pérdidas + timeline master-detail, Farmacia→NubeFact (emisión desde el POS gateada por integración conectada), escala de movimiento con tokens (~113 cifras auditadas por agente, celebraciones en arqueo/venta/cita), drag & drop de agenda con confirmación y notificación opt-in al paciente, y fix de Caja: desactivar el addon apaga trigger y avisos (mig 226). Detalle: Changelog v0.15.33.
 > - **Módulos Caja y Farmacia POS certificados en producción (v0.15.32, migs 213-217 — 2026-08-15)**: Caja (addon `caja` S/19/mes, incluido desde Centro Médico) con turnos, arqueo ciego, movimientos con signo, turno cerrado inmutable y trigger `caja_stamp_payment` que ata cada pago al turno sin rechazar jamás un cobro; Farmacia POS (bajo el addon `almacen`) con venta NV-, FEFO, RPCs `pharmacy_confirm_sale`/`pharmacy_void_sale` idempotentes y deuda clínica no contaminada (`source='pos'`). Ambos certificados por el founder en prod. Además, 2 bugs de aritmética en la emisión NubeFact corregidos (IGV por línea con diferencia exacta + descuento global prorrateado por mayor resto) y NubeFact confinado a `nubefact-provider.ts` (prepara YendaFact). Detalle: Changelog v0.15.32.
@@ -293,6 +294,8 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 | `org_select_patients(org_id)` | Pacientes visibles para el doctor actual (todos o solo created_by según config org) |
 | `get_user_session_check()` | Validación de sesión: retorna memberships ordenadas por org con suscripción activa |
 | `notify_org_members(...)` | SECURITY DEFINER (mig 192): único camino de escritura en `notifications`. Fan-out de una fila por usuario destinatario según el routing por rol de la org; en eventos de agenda filtra al doctor dueño de la cita |
+| `get_receptionist_dashboard(p_org_id, p_today)` | Dashboard del rol recepción (migs 236/238). **Gating de rol explícito** (owner/admin/receptionist; doctor → `forbidden`): patrón M12 para todo RPC de dashboard futuro |
+| `get_doctor_dashboard_enhanced(p_user_id, org_id, p_today)` | Dashboard del doctor. Desde la mig 241 la fecha civil la manda el servidor con la zona horaria de la org (antes `CURRENT_DATE` en UTC) |
 
 > **Superficie de ejecución (mig 193, 2026-08-07):** todas las funciones `SECURITY DEFINER` de `public` tienen `EXECUTE` revocado a `PUBLIC`/`anon` salvo la allowlist mínima (`get_invitation_by_token` para el flujo pre-login por token, y los helpers usados dentro de policies RLS que se resuelven contra `auth.uid()`). `search_path` fijado en todas y default privileges revocados: **cualquier función nueva nace cerrada** y debe otorgar `EXECUTE` explícitamente a `authenticated`.
 
@@ -345,6 +348,17 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 > El addon `caja` (mig 214) cuesta **S/19/mes, incluido desde Centro Médico** (`included_from_plan='professional'`), en beta oculta (`is_active=false`) con grants a: las 2 orgs del founder + la org real de la Dra. Patricia. Farmacia (`/farmacia`) no tiene addon propio: **viaja con el addon `almacen`**. Al activarse el POS se retiró el motivo "Venta" manual del modal de Almacén (botón "Vender → Farmacia" — un solo camino de venta).
 >
 > **Certificación en producción (founder, 15-ago)**: Caja con 6 tests (aritmética, doble apertura, descuadre, inmutabilidad vía SQL admin, fuera de turno); Farmacia con venta a público general, venta a paciente y anulación completa. Suites: 37 tests numéricos de facturación (`npm run test:einvoice`) + 79 aserciones de farmacia con prueba de concurrencia real.
+
+### Seguridad de membresías, branding, recepción y tiempo civil — migs 235-241
+
+| Tabla / Objeto | Propósito |
+|-------|----------|
+| Helpers `get_user_org_ids` / `is_org_admin` / `get_user_org_role` + trigger `organization_members_guard` (mig 235) | Solo cuentan miembros **activos** y fijan `search_path`; el trigger congela `user_id`/`organization_id`, reserva el rol `owner` al owner e impide la auto-reactivación. `org_insert_members` con `WITH CHECK ... AND role <> 'owner'`. Origen: revisión de seguridad 2026-09-01 (C1/A1/A2) |
+| RPC `get_receptionist_dashboard(p_org_id, p_today)` (migs 236 + 238) | Dashboard "Mi día" de recepción: conteos de hoy, **agenda de hoy en lista** (status, `is_recurring` del paciente, precio/pagado por cita con la fórmula verbatim de la mig 233), por confirmar mañana, mis cobros de hoy (`created_by`, solo clínica, bruto), mis citas gestionadas 30 d (`responsible_user_id`) y serie diaria. **Primer RPC de dashboard con gating de rol** (owner/admin/receptionist; doctor → `forbidden`) — patrón para los siguientes |
+| Policies `org_select/update/insert_organizations` + trigger `organizations_guard` (mig 237) | En prod solo existían las policies owner-only de la mig 004: un miembro no podía leer su org (sin nombre/logo/acento). Ahora SELECT para miembros activos + owner, UPDATE owner/admin con `WITH CHECK`, INSERT a nombre propio; el trigger congela `owner_id` e `is_active` en updates de usuarios. Sin policy de DELETE |
+| `services.is_bookable` (mig 239) | "Se agenda como cita" (default `true`). `false` = el servicio no se ofrece al crear citas (scheduler, reserva online, POST público) pero sigue activo para presupuestos y planes. Para tratamientos que se cobran por fases (FIV, ovodonación) |
+| `organizations.timezone` (mig 240) | Zona IANA de la org (default `America/Lima`), editable en Ajustes. Define el **"hoy" civil** de dashboards, agenda y cobros vía `lib/org-time.ts` (`todayInTz`, `zonedNow`) y `useOrgToday()` en cliente — reemplaza `new Date()`/`toISOString()` (UTC en Vercel) que corrían la fecha a las 19:00 Lima |
+| RPC `get_doctor_dashboard_enhanced(p_user_id, org_id, p_today)` (mig 241) | Cuerpo verbatim de la 055 con `CURRENT_DATE` (sesión UTC) → `p_today` y `search_path` fijado; la firma de 2 args se elimina |
 
 ---
 
@@ -523,7 +537,8 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ### 7.7 Dashboard por Rol
 - **Admin/Owner:** KPIs globales (pacientes, doctores, citas, ingresos), top servicios, heatmap de citas, stats operacionales
 - **Doctor:** Dashboard personal con sus citas del día/mes, ingresos propios, próximas citas
-- **Receptionist:** Redirige directo a scheduler
+- **Receptionist:** Dashboard "Mi día" (v0.15.38, migs 236/238): hoy de un vistazo, **agenda de hoy en lista** con estatus / "Recurrente" / "Falta pago S/ X", por confirmar mañana con WhatsApp por fila, mis cobros de hoy (solo clínica, bruto, rotulado como cobros), seguimientos por contactar y gráfica de 30 días con chip personal. Todo el dinero importa las fórmulas de la mig 233. El "hoy" es el de la zona horaria de la org (mig 240)
+- **Todos:** el "hoy" y las ventanas semana/mes se calculan con `organizations.timezone` (mig 240), nunca con el reloj UTC del servidor
 
 ---
 
@@ -642,6 +657,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - Nombre y slug de la organización
 - Logo (upload/remove via Supabase Storage)
 - Idioma (español/inglés)
+- **Zona horaria** (mig 240): selector IANA (LatAm, ES, US) con guardado directo; default `America/Lima`. Define el "hoy" civil de dashboards, agenda y cobros. Cambiar solo si la clínica opera fuera de Perú
 
 ### Settings (Agenda)
 - Hora de inicio/fin del scheduler con **precisión de 15 minutos** (selects de hora + minuto 0/15/30/45; p.ej. abre 07:15, cierra 20:45) — columnas `start_minute`/`end_minute` en `scheduler_settings` (mig 175). Resumen de duración de la jornada calculado en vivo. Invariante open<close a nivel de minutos-desde-medianoche
@@ -930,6 +946,8 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [ ] Módulo de Laboratorio (addon `lab_integration`) — seed ya existe, falta UI y flujos
 - [ ] Grabación de consulta + transcripción con IA (Whisper/LLM → SOAP pre-llenada)
 - [ ] Bundle Consulta + Tratamiento (paquete con cobro único y creación automática de sesiones)
+- [ ] **Módulo Tratamientos (addon fertilidad)** — evaluado 2026-09-02 por 4 agentes (factible, ~50 h Entrega 1, 4 condiciones bloqueantes); tabla `treatments` + pagos con concepto (honorario / general / tercero) + desenlace; "Ingresos" sigue bruto, lente "lo que queda en la clínica" = cobrado − terceros. **Decisiones pendientes del founder** — detalle en `COMING-UPDATES.md`
+- [ ] **Multimoneda e internacionalización** — estudio 2026-09-04: ~700 puntos de contacto con soles; estrategia híbrida (moneda base por org + TC congelado por transacción; nativa solo en facturación, presupuestos y Culqi) en 3 fases (F0 bugs latentes, F1 USD, F2 Caja/plantillas, F3 país por org con IVA/IGV, facturador y pasarela intercambiables). Prioridad al llegar los siguientes clientes — detalle en `COMING-UPDATES.md`
 
 **Ya trackeado en `docs/coming-updates-core.md`** (no se duplica aquí): Módulo Dermatología antes/después, Dos atenciones en el mismo bloque de horario, Multi-gateway de pagos (Culqi/Openpay).
 
