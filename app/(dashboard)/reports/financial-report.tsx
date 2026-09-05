@@ -3,9 +3,12 @@
 import { useMemo, forwardRef, useImperativeHandle } from "react";
 import { useLanguage } from "@/components/language-provider";
 import { useBrandAccent } from "@/hooks/use-brand-accent";
+import { useFertilityAddon } from "@/hooks/use-fertility-addon";
+import { formatCurrency } from "@/lib/utils";
 import type { ReportsOverview } from "@/types/reports";
 import {
   DollarSign,
+  HeartPulse,
   Users,
   XCircle,
   UserX,
@@ -121,10 +124,16 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
     const totalRevenue = doctorData.reduce((sum, d) => sum + d.revenue, 0);
     const totalAttended = doctorData.reduce((sum, d) => sum + d.attended, 0);
     const totalCancelled = doctorData.reduce((sum, d) => sum + d.cancelled, 0);
+    // `payments_amount` = citas + farmacia (como siempre). Los cobros de
+    // TRATAMIENTOS (mig 244) vienen aparte y NO entran en "Pendiente": no
+    // tienen cita facturada contra la cual restarse.
     const totalPaid = Number(overview?.totals.payments_amount ?? 0);
     const totalPending = totalRevenue - totalPaid;
     const totalAppointments = overview?.totals.appointments ?? 0;
     const totalNoShows = overview?.totals.no_shows ?? 0;
+    const treatmentPaid = Number(overview?.totals.treatment_payments_amount ?? 0);
+    const { active: fertilityActive } = useFertilityAddon();
+    const showTreatments = fertilityActive || treatmentPaid > 0;
 
     // Expose export config via ref
     useImperativeHandle(ref, () => ({
@@ -135,6 +144,9 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
           { label: "Total Facturado", value: `S/. ${totalRevenue.toFixed(2)}` },
           { label: "Total Cobrado", value: `S/. ${totalPaid.toFixed(2)}` },
           { label: "Pendiente", value: `S/. ${totalPending.toFixed(2)}` },
+          ...(showTreatments
+            ? [{ label: "Cobros por tratamientos", value: `S/. ${treatmentPaid.toFixed(2)}` }]
+            : []),
           { label: "Atendidos", value: String(totalAttended) },
           { label: "Cancelados", value: String(totalCancelled) },
           { label: "No Shows", value: String(totalNoShows) },
@@ -149,14 +161,14 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
         }],
         filename: `reporte_financiero_${dateFrom}_${dateTo}`,
       }),
-    }), [doctorData, totalAppointments, totalRevenue, totalPaid, totalPending, totalAttended, totalCancelled, totalNoShows, dateFrom, dateTo]);
+    }), [doctorData, totalAppointments, totalRevenue, totalPaid, totalPending, totalAttended, totalCancelled, totalNoShows, treatmentPaid, showTreatments, dateFrom, dateTo]);
 
     const chartData = doctorData.map((d) => ({ name: d.name, Atendidos: d.attended, Confirmados: d.confirmed, Cancelados: d.cancelled }));
     const revenueChartData = doctorData.map((d) => ({ name: d.name, Facturado: Number(d.revenue.toFixed(2)) }));
 
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-6 max-md:[&>*]:min-w-0 max-md:[&_p]:break-words">
+        <div className={`grid grid-cols-2 gap-4 ${showTreatments ? "lg:grid-cols-7" : "lg:grid-cols-6"} max-md:[&>*]:min-w-0 max-md:[&_p]:break-words`}>
           <div className="rounded-xl border border-border bg-card p-4">
             <CardTitle icon={DollarSign} label={t("reports.total_billed")} tooltip={t("reports.tooltip_total_billed")} />
             <p className="mt-2 text-2xl font-bold">S/. {totalRevenue.toFixed(2)}</p>
@@ -169,6 +181,12 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
             <CardTitle icon={DollarSign} label={t("reports.total_pending")} tooltip={t("reports.tooltip_total_pending")} iconClass="text-amber-500" />
             <p className={`mt-2 text-2xl font-bold ${totalPending > 0 ? "text-amber-600" : "text-success-600"}`}>S/. {totalPending.toFixed(2)}</p>
           </div>
+          {showTreatments && (
+            <div className="rounded-xl border border-border bg-card p-4">
+              <CardTitle icon={HeartPulse} label="Cobros por tratamientos" tooltip="Cobros de tratamientos (Pack Fertilidad) en el periodo. Aparte de citas y farmacia." iconClass="text-primary" />
+              <p className="mt-2 text-2xl font-bold">{formatCurrency(treatmentPaid)}</p>
+            </div>
+          )}
           <div className="rounded-xl border border-border bg-card p-4">
             <CardTitle icon={Users} label={t("reports.total_attended")} tooltip={t("reports.tooltip_total_attended")} />
             <p className="mt-2 text-2xl font-bold">{totalAttended}</p>

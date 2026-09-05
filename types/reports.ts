@@ -45,7 +45,15 @@ export interface ReportsOverview {
   totals: {
     appointments: number;
     no_shows: number;
+    /** Cobros de citas + farmacia del período. EXCLUYE tratamientos (mig 244). */
     payments_amount: number;
+    /**
+     * Cobros de TRATAMIENTOS (patient_payments.treatment_id, mig 242) del
+     * período. Aparte: no tienen cita, así que sumarlos a "Cobrado" volvía
+     * negativo el "Pendiente = Facturado(citas) − Cobrado". Opcional porque
+     * llega solo con la mig 244 aplicada.
+     */
+    treatment_payments_amount?: number;
   };
   doctors: ReportsDoctorRow[];
   services: ReportsServiceRow[];

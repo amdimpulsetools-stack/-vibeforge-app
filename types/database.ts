@@ -730,6 +730,23 @@ export interface Database {
           payment_date: string;
           organization_id: string;
           created_at: string;
+          // Plan de tratamiento por sesiones (mig 099). Excluyente con
+          // appointment_id y treatment_id (CHECK mig 242).
+          treatment_plan_id: string | null;
+          // 'clinical' | 'pos' (mig 213). Solo lo clínico cancela deuda de citas.
+          source: string | null;
+          // Caja (mig 214): los estampa el trigger, nunca el cliente.
+          cash_shift_id: string | null;
+          tender_kind: string | null;
+          created_by: string | null;
+          // Comprobante emitido desde Yenda (mig 108).
+          einvoice_id: string | null;
+          // Módulo Tratamientos (mig 242). source sigue 'clinical'; la deuda
+          // de CITAS lo excluye por treatment_id (mig 243).
+          treatment_id: string | null;
+          treatment_concept_id: string | null;
+          revenue_bucket: "honorarium" | "general" | "third_party" | null;
+          external_receipt_ref: string | null;
         };
         Insert: {
           id?: string;
@@ -741,6 +758,16 @@ export interface Database {
           payment_date?: string;
           organization_id: string;
           created_at?: string;
+          treatment_plan_id?: string | null;
+          source?: string | null;
+          cash_shift_id?: string | null;
+          tender_kind?: string | null;
+          created_by?: string | null;
+          einvoice_id?: string | null;
+          treatment_id?: string | null;
+          treatment_concept_id?: string | null;
+          revenue_bucket?: "honorarium" | "general" | "third_party" | null;
+          external_receipt_ref?: string | null;
         };
         Update: {
           id?: string;
@@ -751,6 +778,16 @@ export interface Database {
           notes?: string | null;
           payment_date?: string;
           organization_id?: string;
+          treatment_plan_id?: string | null;
+          source?: string | null;
+          cash_shift_id?: string | null;
+          tender_kind?: string | null;
+          created_by?: string | null;
+          einvoice_id?: string | null;
+          treatment_id?: string | null;
+          treatment_concept_id?: string | null;
+          revenue_bucket?: "honorarium" | "general" | "third_party" | null;
+          external_receipt_ref?: string | null;
         };
       };
       schedule_blocks: {
@@ -1261,6 +1298,155 @@ export interface Database {
           }>;
           status?: "uploading" | "processing" | "completed" | "failed";
           updated_at?: string;
+        };
+      };
+      // ── Módulo TRATAMIENTOS (addon fertilidad, migs 242/245) ──────────
+      // Escritas a mano (no se corre `npm run types`). Espejo de
+      // types/treatments.ts — cambiar JUNTO con las migraciones.
+      treatments: {
+        Row: {
+          id: string;
+          organization_id: string;
+          patient_id: string;
+          budget_record_id: string | null;
+          doctor_id: string | null;
+          assistant_member_id: string | null;
+          service_id: string | null;
+          treatment_type: string;
+          title: string;
+          // Monto ACORDADO, bruto (con IGV, como se cobra).
+          expected_total: number;
+          status: "in_progress" | "completed" | "abandoned" | "cancelled";
+          outcome: "pregnancy" | "no_pregnancy" | "abandoned" | "transferred" | "other" | null;
+          outcome_reason: string | null;
+          external_receipt_ref: string | null;
+          started_at: string;
+          started_by: string | null;
+          closed_at: string | null;
+          closed_by: string | null;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          patient_id: string;
+          budget_record_id?: string | null;
+          doctor_id?: string | null;
+          assistant_member_id?: string | null;
+          service_id?: string | null;
+          treatment_type: string;
+          title: string;
+          expected_total?: number;
+          status?: "in_progress" | "completed" | "abandoned" | "cancelled";
+          outcome?: "pregnancy" | "no_pregnancy" | "abandoned" | "transferred" | "other" | null;
+          outcome_reason?: string | null;
+          external_receipt_ref?: string | null;
+          started_at?: string;
+          started_by?: string | null;
+          closed_at?: string | null;
+          closed_by?: string | null;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          patient_id?: string;
+          budget_record_id?: string | null;
+          doctor_id?: string | null;
+          assistant_member_id?: string | null;
+          service_id?: string | null;
+          treatment_type?: string;
+          title?: string;
+          expected_total?: number;
+          status?: "in_progress" | "completed" | "abandoned" | "cancelled";
+          outcome?: "pregnancy" | "no_pregnancy" | "abandoned" | "transferred" | "other" | null;
+          outcome_reason?: string | null;
+          external_receipt_ref?: string | null;
+          started_at?: string;
+          started_by?: string | null;
+          closed_at?: string | null;
+          closed_by?: string | null;
+          notes?: string | null;
+          updated_at?: string;
+        };
+      };
+      treatment_payment_concepts: {
+        Row: {
+          id: string;
+          organization_id: string;
+          key: string;
+          label: string;
+          // Clasifica el cobro; NO decide IGV (eso lo hereda del servicio
+          // salvo override en igv_affectation).
+          revenue_bucket: "honorarium" | "general" | "third_party";
+          igv_affectation: number | null;
+          display_order: number;
+          is_active: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          key: string;
+          label: string;
+          revenue_bucket: "honorarium" | "general" | "third_party";
+          igv_affectation?: number | null;
+          display_order?: number;
+          is_active?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          key?: string;
+          label?: string;
+          revenue_bucket?: "honorarium" | "general" | "third_party";
+          igv_affectation?: number | null;
+          display_order?: number;
+          is_active?: boolean;
+        };
+      };
+      // Pagos que la paciente hizo DIRECTO a un tercero: informativos, no
+      // son cobro de la clínica (no tocan Ingresos, Caja ni comprobantes).
+      treatment_external_payments: {
+        Row: {
+          id: string;
+          organization_id: string;
+          treatment_id: string;
+          concept_id: string | null;
+          amount: number;
+          payee_name: string | null;
+          paid_on: string;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          treatment_id: string;
+          concept_id?: string | null;
+          amount: number;
+          payee_name?: string | null;
+          paid_on?: string;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          organization_id?: string;
+          treatment_id?: string;
+          concept_id?: string | null;
+          amount?: number;
+          payee_name?: string | null;
+          paid_on?: string;
+          notes?: string | null;
+          created_by?: string | null;
         };
       };
     };
