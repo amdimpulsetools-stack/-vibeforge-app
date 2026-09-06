@@ -6,6 +6,8 @@ import { APP_NAME } from "@/lib/constants";
 import { ArrowRight, Menu, X, ChevronDown, Sparkles, BookOpen, Calculator, HelpCircle, Handshake, Mail, FileText, Headphones } from "lucide-react";
 import { YendaLogo } from "@/components/icons/yenda-logo";
 import { PRODUCT_FEATURES } from "@/lib/product-features";
+import { trackLanding } from "@/lib/landing-analytics";
+import { useLandingProfile } from "@/components/landing/use-landing-profile";
 
 const SIMPLE_LINKS = [
   { label: "Planes", href: "/#pricing" },
@@ -21,6 +23,7 @@ export function Navbar() {
   const [mobileResourcesOpen, setMobileResourcesOpen] = useState(false);
   const productRef = useRef<HTMLDivElement>(null);
   const resourcesRef = useRef<HTMLDivElement>(null);
+  const profile = useLandingProfile();
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 50);
@@ -326,6 +329,12 @@ export function Navbar() {
           </Link>
           <Link
             href="/register"
+            onClick={() =>
+              trackLanding("cta_trial_click", {
+                perfil: profile,
+                ubicacion: "navbar",
+              })
+            }
             className="inline-flex h-9 items-center justify-center gap-2 rounded-lg gradient-primary px-5 text-sm font-semibold text-white shadow-md transition-all hover:opacity-90 hover:shadow-lg"
           >
             Empezar ahora
@@ -433,6 +442,12 @@ export function Navbar() {
               </Link>
               <Link
                 href="/register"
+                onClick={() =>
+                  trackLanding("cta_trial_click", {
+                    perfil: profile,
+                    ubicacion: "navbar-movil",
+                  })
+                }
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-lg gradient-primary px-5 text-sm font-semibold text-white shadow-md"
               >
                 Empezar ahora

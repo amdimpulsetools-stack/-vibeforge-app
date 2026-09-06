@@ -367,7 +367,11 @@ Tab Fertilidad ya en producción (PRs #198/#199): embudo 1ª→2ª con doble vis
 - [ ] **Filtro por asesora en el embudo**: el ranking ya está, pero el embudo 1ª→2ª no se cruza con `is_fertility_advisor`. Vitra quiere ver el funnel por asesora individual para coaching.
 - [ ] **Export del tab Fertilidad a Excel/PDF**: hoy es read-only en la web. Reuniones de management piden screenshot; un export con timestamp eliminaría screenshots.
 
-## 📄 PDFs base — receta y presupuesto con la estética de los plugins (evaluado 5-sep, sin código)
+## 📄 PDFs base — receta y presupuesto con la estética de los plugins — ✅ ENTREGADO 5-sep (PR #340, mig 247; Changelog v0.15.40)
+
+> Entregado el mismo día: motor `lib/pdf/html/` + receta + orden de examen + presupuesto genérico.
+> **Queda de este plan:** consentimiento, nota clínica y plan de tratamiento al mismo motor (tanda siguiente),
+> y fases itemizadas del presupuesto editables desde admin (Fase B). Evaluación original:
 
 > Pedido del founder: los PDFs de **receta/prescripción** y de **presupuesto desde la historia clínica** en
 > Yenda base tienen "un diseño bastante precario"; quiere la misma estética de los presupuestos de Vitra y de
@@ -388,7 +392,12 @@ Tab Fertilidad ya en producción (PRs #198/#199): embudo 1ª→2ª con doble vis
 
 **Riesgos/decisiones:** Puppeteer arranca en frío ~2-4 s en Vercel (ya aceptado en plugins); los plugins de Vitra/Patricia **no se tocan**; feature flag por org no hace falta (reemplazo directo con rollback por PR). **Qué se necesita del founder:** no hace falta Figma — las plantillas *son* HTML, así que el diseño se entrega como canvas con 2-3 variantes (receta y presupuesto) para elegir; si prefiere Figma, basta un enlace en modo ver. Confirmar: campos legales de la receta (RNE, sello/firma digital), si la edad del paciente va en la receta, y si el presupuesto base debe mostrar tier A/B/C o precio único por defecto.
 
-## 💊 Atajos de Receta y Orden de examen desde la cita y el drawer (evaluado 5-sep, sin código)
+## 💊 Atajos de Receta y Orden de examen — ✅ Fases 1 y 2 ENTREGADAS 5-sep (PRs #340/#341, migs 247-248; Changelog v0.15.40)
+
+> Fase 1 (atajos + lote + POST endurecido) en #340; Fase 2 (catálogo `medication_catalog` + importar desde
+> Farmacia + favoritos vía "Guardar en el catálogo") en #341. **Queda la Fase 3** (vigencia parametrizable;
+> `{{paciente_edad}}` y `{{doctor_rne}}` ya existen en parte) y favoritos POR DOCTOR si el uso lo pide.
+> Evaluación original:
 
 > Pedido del founder: hoy receta y orden de examen se emiten solo entrando a la historia clínica. Para fertilidad
 > (HC no optimizada aún) quiere botones "Receta" / "Orden de examen" en el sidebar de la cita y en el drawer del

@@ -4,27 +4,54 @@ import { Mail, MessageCircle, ArrowRight, CalendarClock } from "lucide-react";
 import { Navbar } from "@/components/landing/navbar";
 import { Footer } from "@/components/landing/footer";
 
-export const metadata: Metadata = {
-  title: "Contacto",
-  description:
-    "Escríbenos y te respondemos el mismo día hábil. Soporte en español, desde Perú.",
-};
+// Next 15: searchParams llega como Promise en Server Components.
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+/** El CTA primario del hero (perfiles centro y clínica) apunta aquí. */
+function isDemo(params: Record<string, string | string[] | undefined>) {
+  return params.tipo === "demo";
+}
+
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}): Promise<Metadata> {
+  if (isDemo(await searchParams)) {
+    return {
+      title: "Agenda una demo",
+      description:
+        "Una demo de 20 minutos de Yenda: agenda, historia clínica, caja y boletas SUNAT. Coordinamos por WhatsApp o correo.",
+    };
+  }
+  return {
+    title: "Contacto",
+    description:
+      "Escríbenos y te respondemos el mismo día hábil. Soporte en español, desde Perú.",
+  };
+}
 
 // Página mínima pero real: hasta la auditoría del 2026-08-21, el menú y el
 // CTA de Enterprise ("Contactar ventas") apuntaban a /contacto… que no
 // existía. Un 404 en el canal del cliente de mayor ticket.
-export default function ContactoPage() {
+export default async function ContactoPage({
+  searchParams,
+}: {
+  searchParams: SearchParams;
+}) {
+  const demo = isDemo(await searchParams);
+
   return (
     <div className="min-h-screen bg-white">
       <Navbar />
       <main className="mx-auto max-w-3xl px-6 pt-32 pb-24">
         <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900">
-          Hablemos de tu clínica
+          {demo ? "Agenda tu demo de 20 minutos" : "Hablemos de tu clínica"}
         </h1>
         <p className="mt-4 text-lg text-slate-600 leading-relaxed max-w-xl">
-          Te respondemos el mismo día hábil, en español y sin bots de por
-          medio. Cuéntanos cómo trabaja tu clínica hoy y te decimos con
-          honestidad si Yenda te sirve.
+          {demo
+            ? "Escríbenos por WhatsApp o correo y coordinamos hora hoy mismo."
+            : "Te respondemos el mismo día hábil, en español y sin bots de por medio. Cuéntanos cómo trabaja tu clínica hoy y te decimos con honestidad si Yenda te sirve."}
         </p>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2">

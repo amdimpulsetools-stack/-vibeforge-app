@@ -44,6 +44,13 @@ const jetbrainsMono = localFont({
   display: "swap",
 });
 
+// Un solo par título/descripción para OG y Twitter, alineado con el H1 nuevo
+// del hero. Sin "la contacta automáticamente" (el envío automático está
+// pausado) ni promesas de facturación atribuida.
+const OG_TITLE = `${APP_NAME} — Los demás sistemas guardan citas. Yenda trae de vuelta a las pacientes que dejaron de venir.`;
+const OG_DESCRIPTION =
+  "Los demás sistemas guardan citas. Yenda detecta a la paciente que dejó de venir, te avisa para contactarla por WhatsApp y junta agenda, historia clínica, caja y boletas SUNAT. Desde S/129 al mes, 14 días gratis sin tarjeta.";
+
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://yenda.app"),
   title: {
@@ -53,18 +60,19 @@ export const metadata: Metadata = {
   description:
     "Agenda, historia clínica, cobros y boletas SUNAT en una sola pantalla, con recordatorios automáticos por WhatsApp. Hecho en Perú. Prueba 14 días gratis, sin tarjeta.",
   openGraph: {
-    title: `${APP_NAME} — Deja de manejar tu clínica entre el Excel y el WhatsApp`,
-    description:
-      "Agenda, historia clínica, caja, boletas SUNAT y recordatorios por WhatsApp en un solo sistema. Desde S/129 al mes, 14 días gratis sin tarjeta.",
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
     locale: "es_PE",
     type: "website",
     siteName: APP_NAME,
   },
+  // Twitter = OG (brief ítem 6). Tenerlos distintos significaba que la
+  // tarjeta de X/Twitter prometía otra cosa que la de LinkedIn y WhatsApp,
+  // que son los canales que realmente traen tráfico.
   twitter: {
     card: "summary_large_image",
-    title: `${APP_NAME} — Gestión integral para clínicas`,
-    description:
-      "Agenda inteligente, pacientes, reportes y asistente IA. Desde doctor independiente hasta clínica grande.",
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
   },
 };
 

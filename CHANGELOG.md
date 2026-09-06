@@ -79,6 +79,7 @@
 - [Changelog — Sesiones 2026-08-28 a 08-31 (v0.15.37) — Google APROBADO + WhatsApp Embedded Signup (mig 234) + expediente Meta casi completo + mapa de arquitectura](#changelog--sesiones-2026-08-28-a-08-31-v01537--google-aprobado--whatsapp-embedded-signup-mig-234--expediente-meta-casi-completo--mapa-de-arquitectura)
 - [Changelog — Sesiones 2026-09-01 a 09-04 (v0.15.38) — Revisión de seguridad + dashboard de recepción + 2.º piloto Vitra + zona horaria por org + ocupación real + estudios Tratamientos y multimoneda](#changelog--sesiones-2026-09-01-a-09-04-v01538--revisión-de-seguridad--dashboard-de-recepción--2º-piloto-vitra--zona-horaria-por-org--ocupación-real--estudios-tratamientos-y-multimoneda)
 - [Changelog — Sesión 2026-09-05 (v0.15.39) — Módulo Tratamientos (addon fertilidad, migs 242-246) + Caja fase 1 cerrada](#changelog--sesión-2026-09-05-v01539--módulo-tratamientos-addon-fertilidad-migs-242-246--caja-fase-1-cerrada)
+- [Changelog — Sesión 2026-09-05 noche (v0.15.40) — Motor HTML único de PDFs + atajos Receta/Orden de examen + catálogo de medicamentos](#changelog--sesión-2026-09-05-noche-v01540--motor-html-único-de-pdfs--atajos-recetaorden-de-examen--catálogo-de-medicamentos)
 
 ---
 
@@ -4764,6 +4765,34 @@ El founder dio la orden ("hoy vamos a realizar el apartado de tratamientos… qu
 
 ### Ops
 - Mig 245 no había quedado aplicada en el primer intento del founder (0/5 funciones); se detectó por MCP antes del merge y se reaplicó. Verificación final: `rpcs_5 = 5`, `tratamientos = 1` (Vitra, `in_progress`, presupuesto `in_progress`).
+
+---
+
+## Changelog — Sesión 2026-09-05 noche (v0.15.40) — Motor HTML único de PDFs + atajos Receta/Orden de examen + catálogo de medicamentos
+
+Decisión del founder: **un solo motor de documentos para todo Yenda** — del consultorio sin especialidad a la clínica de fertilidad — con la estética de los plugins (HTML/CSS → Chromium) y el membrete del branding real de cada org. Dos PRs mergeados el mismo día (#340, #341; migs 247-248 aplicadas y verificadas), construidos con la columna vertebral a mano + 3 agentes en paralelo + revisor de armonía (#340) y 2 agentes + integración (#341).
+
+### Motor HTML único (`lib/pdf/html/`) — PR #340, mig 247
+- `chromium.ts` (`htmlToPdfBuffer`), `render.ts` (Handlebars aislado, helpers `money/longDate/shortDate/nl2br/join`), `org.ts` (`buildOrgDocBlock`: membrete desde `organizations` — logo solo `http(s)`, color `print_color_primary` validado hex con fallback esmeralda; org sin logo → nombre en color de marca). Partials compartidos: estilos con **tintas derivadas de `--brand` vía `color-mix()`** (cualquier color de Ajustes produce un documento coherente), membrete, título+código, rejilla de metadatos, firma con CMP/RNE, pie repetido. Vista previa local: `scripts/pdf-preview.ts` + fixtures.
+- **Receta** al motor: Rp/ con chips (forma, dosis por toma, vía, frecuencia, duración, cantidad), indicaciones, cuerpo editable de Plantillas HC **sanitizado antes de Chromium** (antes se guardaba sin sanitizar y con Chromium era XSS/exfiltración), firma, variables nuevas `{{paciente_edad}}` y `{{fecha_larga}}`. Rutas: por cita (misma URL) y **nueva por lote** `GET /api/pdf/prescription/batch/[batchId]` (recetas sin cita; 409 si el lote mezcla paciente/doctor/org). Mig 247: `prescriptions.batch_id` + `pharmaceutical_form` + `dose_per_take` (aditivas).
+- **Orden de examen** al motor: diagnóstico + CIE-10, exámenes con instrucciones, notas; corrige la fecha de órdenes sin cita (`new Date()` UTC → día civil de la org).
+- **Presupuesto genérico** (orgs sin plugin) al motor con la estética de Vitra/Patricia: código `P-AAAA-XXXX`, paquete A/B/C solo si no es precio único, "qué incluye", términos, vigencia y firmas desde `org_budget_pdf_settings`; `@react-pdf` eliminado de la rama de presupuestos. **Plugins Vitra/Patricia bit a bit intactos** (verificado: diff vacío).
+- Las 3 rutas registran `logClinicalAccess(action:'print')` y resuelven la plantilla HC **por org** (con `maybeSingle()` por slug, un usuario de 2 clínicas perdía el cuerpo editable). Quedan en react-pdf: consentimiento, nota clínica, plan de tratamiento (siguiente tanda).
+
+### Atajos Receta / Orden de examen — PR #340
+- Hallazgo del agente evaluador: la atadura a la Historia Clínica era **solo de UI** (`appointment_id`/`clinical_note_id` nullable desde migs 053/078).
+- `components/clinical/`: modales de dos paneles (formulario | lista con contador), chips de frecuencia y duración, stepper de dosis, "Guardar" / "Guardar e imprimir", confirmación al cerrar con ítems. Montados junto a "Historia Clínica" en el sidebar de la cita (firmante = doctor de la cita) y en el drawer del paciente (solo doctor con ficha; sin cita).
+- POST `/api/prescriptions` y `/api/exam-orders` **endurecidos**: org desde el paciente (se eliminó `organization_members … limit(1)`), membresía activa, rol owner/admin/doctor (recepción 403 — recetar es acto médico), un doctor solo firma con SU ficha, `exam_catalog_id` validado contra el catálogo de la org, un solo paciente/doctor por lote.
+- Revisor de armonía (5 fixes): lote homogéneo en el PDF, catálogo de exámenes por org, logo solo http(s), plantilla por org, confirmación al cerrar.
+
+### Catálogo de medicamentos — PR #341, mig 248
+- Feedback del founder con capturas de prod: modal de Receta muy alto → **dos columnas** hasta 1180 px; y "un apartado para añadir las plantillas o nombres de los medicamentos, que permita seleccionar también del apartado Farmacia pero también añadir otros".
+- Mig 248 `medication_catalog` por org: nombre + concentración + forma + defaults (vía, frecuencia, duración, dosis por toma, indicaciones), `inventory_product_id` opcional a Farmacia (SET NULL), únicos (org, nombre, concentración) y (org, producto), RLS lectura miembros / escritura owner-admin-doctor. Base, no addon.
+- **Admin → Catálogo de medicamentos**: tabla con búsqueda, chips "Farmacia"/"Inactivo", CRUD, e **"Importar desde Farmacia"** (addon `almacen`): productos vendibles no descontinuados, forma inferida de la presentación, fila por fila (un duplicado no tumba el resto), "N importados · M ya estaban".
+- En el modal: el campo Medicamento busca primero en el catálogo (prellena todo al elegir), luego lo recetado antes ("Usado antes"), texto libre siempre; checkbox **"Guardar en el catálogo"** (owner/admin/doctor) que inserta tras guardar la receta sin bloquearla jamás.
+
+### Ops
+- Migs 247/248 aplicadas por el founder y verificadas (3 columnas; RLS activa). Typecheck limpio en ambos PRs.
 
 ---
 
