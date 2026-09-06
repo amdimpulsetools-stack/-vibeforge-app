@@ -5,16 +5,48 @@ import { useEffect, useRef } from "react";
 import {
   ArrowRight,
   Calculator,
-  Calendar,
-  Shield,
   BarChart3,
   Bell,
   Plus,
   Sparkles,
 } from "lucide-react";
+import { trackLanding } from "@/lib/landing-analytics";
+import {
+  HERO_HEADLINE,
+  LANDING_CTAS,
+  LANDING_PROFILES,
+  LANDING_PROFILE_CONTENT,
+} from "./landing-copy";
+import {
+  selectLandingProfile,
+  useLandingProfileContent,
+} from "./use-landing-profile";
 
 export function Hero() {
   const dashboardRef = useRef<HTMLDivElement>(null);
+  const { profile, content } = useLandingProfileContent();
+  const primary = LANDING_CTAS[content.primary];
+  const secondary = content.secondary ? LANDING_CTAS[content.secondary] : null;
+
+  // Flechas mueven el foco Y seleccionan (comportamiento estándar de un
+  // radiogroup). Aquí sí puede seleccionar al mover, al revés que en el quiz:
+  // cambiar de perfil no avanza ninguna pantalla, solo reescribe el subtítulo.
+  const onSegmentKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!["ArrowDown", "ArrowUp", "ArrowLeft", "ArrowRight"].includes(e.key))
+      return;
+    e.preventDefault();
+    const dir = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1;
+    const idx = LANDING_PROFILES.indexOf(profile);
+    const next =
+      LANDING_PROFILES[
+        (idx + dir + LANDING_PROFILES.length) % LANDING_PROFILES.length
+      ];
+    selectLandingProfile(next);
+    const btns = Array.from(
+      e.currentTarget.querySelectorAll<HTMLButtonElement>("[role='radio']")
+    );
+    btns[LANDING_PROFILES.indexOf(next)]?.focus({ preventScroll: true });
+  };
 
   useEffect(() => {
     const el = dashboardRef.current;
@@ -34,7 +66,7 @@ export function Hero() {
 
 
   return (
-    <section className="relative z-10 pt-32 pb-0 sm:pt-40">
+    <section className="relative z-10 pt-28 pb-0 sm:pt-32">
       {/* Background effects - light mode */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 hidden sm:block w-[700px] h-[480px] rounded-full bg-emerald-100/40 blur-[120px]" />
@@ -55,32 +87,85 @@ export function Hero() {
             Prueba 14 días gratis · Sin tarjeta · Desde S/129 al mes
           </div>
 
-          {/* Title */}
-          <h1 className="text-4xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl text-slate-900 opacity-0 animate-[fadeUp_0.6s_0.2s_ease-out_forwards]">
-            Tu clínica no se cae por falta de pacientes. Se cae entre{" "}
+          {/* Title — fijo, no rota (brief: nada de titulares rotando) */}
+          <h1 className="text-[2rem] leading-[1.08] font-extrabold tracking-tight sm:text-5xl lg:text-[3.5rem] text-slate-900 opacity-0 animate-[fadeUp_0.6s_0.2s_ease-out_forwards]">
+            {HERO_HEADLINE.lead}{" "}
             <span className="agenda-inteligente bg-clip-text text-transparent">
-              el Excel, el cuaderno y tu WhatsApp
+              {HERO_HEADLINE.highlight}
             </span>
-            .
           </h1>
 
-          {/* Subtitle */}
-          <p className="mt-6 text-lg text-slate-600 sm:text-xl max-w-2xl mx-auto leading-relaxed opacity-0 animate-[fadeUp_0.6s_0.35s_ease-out_forwards]">
-            Yenda junta la agenda, la historia clínica, la caja, la boleta
-            SUNAT y los recordatorios de WhatsApp en una sola pantalla. Tu
-            recepcionista deja de copiar datos de un lado a otro y tú dejas de
-            perder plata por citas que nadie confirmó.
+          {/* Segmentador de perfil — cambia subtítulo, CTA primario y el plan
+              destacado de Pricing. Nunca el H1 ni el mockup: mover el bloque
+              más alto de la página al tocar un chip hace saltar el layout
+              justo donde el visitante está leyendo. */}
+          <div
+            role="radiogroup"
+            aria-label="¿Qué describe mejor tu práctica?"
+            onKeyDown={onSegmentKeyDown}
+            className="mt-6 flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 opacity-0 animate-[fadeUp_0.5s_0.3s_ease-out_forwards]"
+          >
+            {LANDING_PROFILES.map((p) => {
+              const selected = p === profile;
+              return (
+                <button
+                  key={p}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  tabIndex={selected ? 0 : -1}
+                  onClick={() => selectLandingProfile(p)}
+                  className={`inline-flex min-h-9 sm:min-h-11 cursor-pointer items-center rounded-full border px-3 py-1.5 sm:px-4 sm:py-2 text-[13px] sm:text-sm font-medium transition-all duration-200 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${
+                    selected
+                      ? "border-emerald-500 bg-emerald-50 text-emerald-800 shadow-[0_0_0_1px_rgb(16_185_129/0.35)]"
+                      : "border-slate-200 bg-white text-slate-600 shadow-sm hover:border-emerald-300 hover:bg-emerald-50/40 hover:text-slate-900"
+                  }`}
+                >
+                  {LANDING_PROFILE_CONTENT[p].label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Subtitle — el único texto largo que cambia con el perfil */}
+          <p className="mt-5 text-base text-slate-600 sm:text-lg lg:text-xl max-w-2xl mx-auto leading-relaxed opacity-0 animate-[fadeUp_0.6s_0.35s_ease-out_forwards]">
+            {content.subtitle}
           </p>
 
-          {/* CTA buttons */}
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 opacity-0 animate-[fadeUp_0.6s_0.5s_ease-out_forwards]">
-            <Link
-              href="/register"
-              className="inline-flex h-12 items-center justify-center gap-2.5 rounded-xl gradient-primary px-8 text-sm font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Empezar mis 14 días gratis
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+          {/* CTAs — el primario (prueba gratis) es el mismo en los tres
+              perfiles; la demo solo aparece para centro y clínica. La
+              calculadora baja a una segunda fila: sigue siendo un botón
+              visible, pero deja de competir con la conversión principal. */}
+          <div className="mt-8 flex flex-col items-center gap-3 opacity-0 animate-[fadeUp_0.6s_0.5s_ease-out_forwards]">
+            <div className="flex w-full flex-col items-center justify-center gap-4 sm:w-auto sm:flex-row">
+              <Link
+                href={primary.href}
+                onClick={() =>
+                  trackLanding(primary.event, {
+                    perfil: profile,
+                    ubicacion: "hero",
+                  })
+                }
+                className="inline-flex h-12 items-center justify-center gap-2.5 rounded-xl gradient-primary px-8 text-sm font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+              >
+                {primary.label}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              {secondary && (
+                <Link
+                  href={secondary.href}
+                  onClick={() =>
+                    trackLanding(secondary.event, {
+                      perfil: profile,
+                      ubicacion: "hero",
+                    })
+                  }
+                  className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-8 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
+                >
+                  {secondary.label}
+                </Link>
+              )}
+            </div>
             <a
               href="#revenue-impact"
               className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-8 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"

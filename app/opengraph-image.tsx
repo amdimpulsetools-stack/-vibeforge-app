@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
 export const alt =
-  "Yenda: Agenda, historia clínica, caja y boletas SUNAT en una sola pantalla";
+  "Yenda: los demás sistemas guardan citas, Yenda trae de vuelta a las pacientes que dejaron de venir";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -45,20 +45,30 @@ export default function OpengraphImage() {
           </div>
         </div>
 
+        {/* El H1 nuevo, en dos líneas explícitas. 54 px: por encima del mínimo
+            legible en la miniatura de WhatsApp (~48 px) y con margen para que
+            la segunda oración —la promesa— no desborde los 630 px de alto. */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div
             style={{
+              display: "flex",
+              flexDirection: "column",
               color: "#ffffff",
-              fontSize: 62,
+              fontSize: 54,
               fontWeight: 800,
               lineHeight: 1.15,
               letterSpacing: "-1px",
-              maxWidth: 980,
+              maxWidth: 1040,
             }}
           >
-            Deja de manejar tu clínica entre el Excel y el WhatsApp.
+            <div style={{ color: "#a7f3d0" }}>
+              Los demás sistemas guardan citas.
+            </div>
+            <div>
+              Yenda trae de vuelta a las pacientes que dejaron de venir.
+            </div>
           </div>
-          <div style={{ color: "#a7f3d0", fontSize: 30, maxWidth: 950 }}>
+          <div style={{ color: "#6ee7b7", fontSize: 28, maxWidth: 950 }}>
             Agenda · Historia clínica · Caja · Boletas SUNAT · Recordatorios
             por WhatsApp
           </div>

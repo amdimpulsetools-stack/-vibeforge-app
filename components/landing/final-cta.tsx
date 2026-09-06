@@ -1,8 +1,14 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Reveal } from "@/components/landing/reveal";
+import { trackLanding } from "@/lib/landing-analytics";
+import { useLandingProfile } from "@/components/landing/use-landing-profile";
 
 export function FinalCTA() {
+  const profile = useLandingProfile();
+
   return (
     <section className="relative py-20 sm:py-28 overflow-hidden">
       {/* Background gradient */}
@@ -26,6 +32,12 @@ export function FinalCTA() {
           <div className="mt-8">
             <Link
               href="/register"
+              onClick={() =>
+                trackLanding("cta_trial_click", {
+                  perfil: profile,
+                  ubicacion: "final-cta",
+                })
+              }
               className="inline-flex h-14 items-center justify-center gap-2.5 rounded-xl gradient-primary px-10 text-base font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
             >
               Empezar mis 14 días gratis
