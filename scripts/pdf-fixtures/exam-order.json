@@ -1,0 +1,46 @@
+{
+  "doc": {
+    "title": "Orden de examen",
+    "eyebrow": "Solicitud",
+    "code": "OX-B21D4E90",
+    "issued_label": "Emitida 05/09/2026",
+    "footer_note": "Documento generado por Yenda · 05/09/2026 14:40"
+  },
+  "org": {
+    "display_name": "Clínica Ejemplo",
+    "legal_name": "Clínica Ejemplo S.A.C.",
+    "tagline": "Medicina integral para toda la familia",
+    "tax_id": "20512345678",
+    "logo_url": "",
+    "brand_color": "#7c3aed",
+    "address": "Av. Javier Prado Este 1234, San Isidro",
+    "contact_line": "(01) 555-0100 / 987 654 321 · citas@clinicaejemplo.pe",
+    "website": "clinicaejemplo.pe",
+    "footer_html": "<p>Av. Javier Prado Este 1234, San Isidro</p>\n<p>teléf.: <span class=\"loc\">(01) 555-0100 / 987 654 321</span></p>\n<p>citas@clinicaejemplo.pe&nbsp;&nbsp;|&nbsp;&nbsp;clinicaejemplo.pe</p>"
+  },
+  "meta": [
+    { "label": "Paciente", "value": "Jorge Luis Paredes Castillo" },
+    { "label": "Documento", "value": "DNI 09876543" },
+    { "label": "Edad", "value": "58 años" },
+    { "label": "Médico", "value": "Dra. Ana Lucía Torres Vega", "hint": "CMP 067890", "wide": true },
+    { "label": "Fecha", "value": "5 de septiembre de 2026" },
+    { "label": "Diagnóstico", "value": "Diabetes mellitus tipo 2 no insulinodependiente, con complicaciones renales en estudio", "hint": "CIE-10 E11.2", "wide": true }
+  ],
+  "count_label": "7 exámenes",
+  "items": [
+    { "name": "Hemograma completo", "hint": "" },
+    { "name": "Glucosa en ayunas", "hint": "Ayuno de 8 a 12 horas. Solo agua." },
+    { "name": "Hemoglobina glicosilada (HbA1c)", "hint": "" },
+    { "name": "Perfil lipídico completo", "hint": "Ayuno de 12 horas. No consumir alcohol 48 horas antes." },
+    { "name": "Creatinina sérica y urea", "hint": "" },
+    { "name": "Microalbuminuria en orina de 24 horas", "hint": "Recolectar toda la orina de 24 horas en el frasco entregado por el laboratorio, mantener refrigerado. Descartar la primera micción del día y recolectar hasta la primera del día siguiente." },
+    { "name": "Examen completo de orina", "hint": "Primera orina de la mañana, chorro medio, en frasco estéril." }
+  ],
+  "notes": "Traer los resultados a la próxima consulta de control (en 2 semanas). Si toma metformina, no suspenderla para los exámenes.\nPresentar esta orden en el laboratorio junto con su DNI.",
+  "body_html": "<p>Los exámenes pueden realizarse en cualquier laboratorio de su preferencia. Para atención en Clínica Ejemplo, coordinar cita al (01) 555-0100.</p>",
+  "signer": {
+    "name": "Dra. Ana Lucía Torres Vega",
+    "role": "Médico tratante",
+    "cmp": "067890"
+  }
+}

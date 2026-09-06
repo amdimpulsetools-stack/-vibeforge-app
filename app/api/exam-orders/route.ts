@@ -19,6 +19,13 @@ const examOrderSchema = z.object({
   })).min(1),
 });
 
+/**
+ * Ordenar exámenes es un acto médico: recepción NO ordena. Los roles
+ * administrativos (owner/admin) sí pueden registrar la orden de un médico
+ * de su clínica, pero un `doctor` solo puede firmar con SU propia ficha.
+ */
+const CLINICAL_WRITE_ROLES = new Set(["owner", "admin", "doctor"]);
+
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -74,16 +81,87 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Datos inválidos", details: parsed.error.flatten().fieldErrors }, { status: 400 });
   }
 
+  const { items, ...orderData } = parsed.data;
+
+  // La organización sale del PACIENTE, no de una membresía arbitraria: con
+  // `organization_members … limit(1)` un usuario de dos clínicas podía
+  // escribir la orden en la org equivocada (mismo bug corregido en
+  // lib/followups/org-scope.ts).
+  const { data: patient } = await supabase
+    .from("patients")
+    .select("organization_id")
+    .eq("id", orderData.patient_id)
+    .maybeSingle();
+
+  if (!patient) {
+    return NextResponse.json({ error: "Paciente no encontrado" }, { status: 404 });
+  }
+  const organizationId = patient.organization_id as string;
+
+  // Membresía ACTIVA en ESA org (get_user_org_ids() del RLS no mira is_active).
   const { data: membership } = await supabase
     .from("organization_members")
-    .select("organization_id")
+    .select("role")
     .eq("user_id", user.id)
-    .limit(1)
-    .single();
+    .eq("organization_id", organizationId)
+    .eq("is_active", true)
+    .maybeSingle();
 
-  if (!membership) return NextResponse.json({ error: "No organization" }, { status: 403 });
+  if (!membership) {
+    return NextResponse.json(
+      { error: "No perteneces a esta organización" },
+      { status: 403 },
+    );
+  }
+  if (!CLINICAL_WRITE_ROLES.has(membership.role as string)) {
+    return NextResponse.json(
+      { error: "Tu rol no puede crear órdenes de exámenes" },
+      { status: 403 },
+    );
+  }
 
-  const { items, ...orderData } = parsed.data;
+  // El firmante debe ser un médico de esta org; si quien escribe es un
+  // doctor, además tiene que ser SU propia ficha.
+  const { data: signer } = await supabase
+    .from("doctors")
+    .select("id, user_id")
+    .eq("id", orderData.doctor_id)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+
+  if (!signer) {
+    return NextResponse.json(
+      { error: "El médico firmante no pertenece a esta organización" },
+      { status: 403 },
+    );
+  }
+  if (membership.role === "doctor" && signer.user_id !== user.id) {
+    return NextResponse.json(
+      { error: "Solo puedes ordenar exámenes con tu propia ficha de médico" },
+      { status: 403 },
+    );
+  }
+
+  // Los ítems de catálogo deben ser de ESTA org: un `exam_catalog_id` ajeno
+  // (otra clínica del mismo usuario, o un uuid inventado) no entra. El
+  // examen libre (`exam_catalog_id` null) sigue permitido.
+  const catalogIds = Array.from(
+    new Set(items.map((i) => i.exam_catalog_id).filter((id): id is string => !!id)),
+  );
+  if (catalogIds.length > 0) {
+    const { data: catalogRows } = await supabase
+      .from("exam_catalog")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .in("id", catalogIds);
+    const found = new Set((catalogRows ?? []).map((r) => r.id as string));
+    if (catalogIds.some((id) => !found.has(id))) {
+      return NextResponse.json(
+        { error: "Uno o más exámenes no pertenecen al catálogo de esta organización" },
+        { status: 400 },
+      );
+    }
+  }
 
   // Server-side guard: if the linked clinical note is signed, forbid creating new orders
   if (orderData.appointment_id) {
@@ -105,7 +183,7 @@ export async function POST(request: NextRequest) {
     .from("exam_orders")
     .insert({
       ...orderData,
-      organization_id: membership.organization_id,
+      organization_id: organizationId,
     })
     .select()
     .single();
@@ -136,7 +214,7 @@ export async function POST(request: NextRequest) {
     .single();
 
   logClinicalAccess({
-    organizationId: membership.organization_id,
+    organizationId,
     userId: user.id,
     resourceType: "lab_result",
     action: "create",

@@ -1,0 +1,103 @@
+{
+  "doc": {
+    "title": "Receta médica",
+    "eyebrow": "Prescripción",
+    "code": "RX-7F3A91C2",
+    "issued_label": "Emitida 05/09/2026",
+    "footer_note": "Documento generado por Yenda · 05/09/2026 14:32"
+  },
+  "org": {
+    "display_name": "Clínica Ejemplo",
+    "legal_name": "Clínica Ejemplo S.A.C.",
+    "tagline": "Medicina integral para toda la familia",
+    "tax_id": "20512345678",
+    "logo_url": "",
+    "brand_color": "#0f766e",
+    "address": "Av. Javier Prado Este 1234, San Isidro",
+    "contact_line": "(01) 555-0100 / 987 654 321 · citas@clinicaejemplo.pe",
+    "website": "clinicaejemplo.pe",
+    "footer_html": "<p>Av. Javier Prado Este 1234, San Isidro</p>\n<p>teléf.: <span class=\"loc\">(01) 555-0100 / 987 654 321</span></p>\n<p>citas@clinicaejemplo.pe&nbsp;&nbsp;|&nbsp;&nbsp;clinicaejemplo.pe</p>"
+  },
+  "meta": [
+    { "label": "Paciente", "value": "María Fernanda Quispe Huamán" },
+    { "label": "Documento", "value": "DNI 45678912" },
+    { "label": "Edad", "value": "34 años" },
+    { "label": "Médico", "value": "Dr. Carlos Alberto Mendoza Ríos", "hint": "CMP 045678", "wide": true },
+    { "label": "Fecha", "value": "5 de septiembre de 2026" }
+  ],
+  "count_label": "6 medicamentos",
+  "items": [
+    {
+      "medication": "Amoxicilina + Ácido clavulánico",
+      "dosage": "875 mg / 125 mg",
+      "pharmaceutical_form": "Tableta recubierta",
+      "dose_per_take": "1 tableta",
+      "route": "Oral",
+      "frequency": "Cada 12 horas",
+      "duration": "7 días",
+      "quantity": "14 tabletas",
+      "instructions": "Tomar con alimentos para reducir molestias gástricas. Completar el tratamiento aunque los síntomas mejoren antes. Si aparece diarrea intensa, erupción cutánea o dificultad para respirar, suspender y acudir a emergencia."
+    },
+    {
+      "medication": "Paracetamol",
+      "dosage": "500 mg",
+      "pharmaceutical_form": "Tableta",
+      "dose_per_take": "1 tableta",
+      "route": "Oral",
+      "frequency": "Cada 8 horas",
+      "duration": "5 días",
+      "quantity": "15 tabletas",
+      "instructions": "Solo si hay fiebre mayor a 38 °C o dolor. No exceder 3 g al día. Evitar combinar con otros productos que contengan paracetamol (antigripales)."
+    },
+    {
+      "medication": "Ibuprofeno",
+      "dosage": "400 mg",
+      "pharmaceutical_form": "Cápsula blanda",
+      "dose_per_take": "1 cápsula",
+      "route": "Oral",
+      "frequency": "Cada 8 horas",
+      "duration": "3 días",
+      "quantity": "9 cápsulas",
+      "instructions": "Después de las comidas. Suspender si aparece dolor de estómago o sangrado. No usar junto con otros antiinflamatorios."
+    },
+    {
+      "medication": "Loratadina",
+      "dosage": "10 mg",
+      "pharmaceutical_form": "Tableta",
+      "dose_per_take": "1 tableta",
+      "route": "Oral",
+      "frequency": "Cada 24 horas",
+      "duration": "10 días",
+      "quantity": "10 tabletas",
+      "instructions": "Preferentemente en la noche. Puede causar somnolencia leve."
+    },
+    {
+      "medication": "Salbutamol",
+      "dosage": "100 mcg/dosis",
+      "pharmaceutical_form": "Inhalador",
+      "dose_per_take": "2 inhalaciones",
+      "route": "Inhalatoria",
+      "frequency": "Cada 6 horas (o según necesidad)",
+      "duration": "15 días",
+      "quantity": "1 inhalador (200 dosis)",
+      "instructions": "Agitar antes de usar. Exhalar completamente, colocar la boquilla, inhalar profundo mientras presiona el cartucho y contener la respiración 10 segundos. Esperar 1 minuto entre inhalaciones. Enjuagar la boca con agua después de cada uso.\nUsar espaciador si está disponible."
+    },
+    {
+      "medication": "Omeprazol",
+      "dosage": "20 mg",
+      "pharmaceutical_form": "Cápsula",
+      "dose_per_take": "1 cápsula",
+      "route": "Oral",
+      "frequency": "Cada 24 horas",
+      "duration": "14 días",
+      "quantity": "14 cápsulas",
+      "instructions": "En ayunas, 30 minutos antes del desayuno, mientras dure el tratamiento con ibuprofeno."
+    }
+  ],
+  "body_html": "<h3>Recomendaciones generales</h3><p>Reposo relativo durante 48 horas y abundante ingesta de líquidos. Acudir a control en 7 días o antes si persiste la fiebre. Esta receta tiene validez de 30 días desde su emisión.</p><p>Paciente: <strong>María Fernanda Quispe Huamán</strong> (34 años) · Atendida el 5 de septiembre de 2026 por Dr. Carlos Alberto Mendoza Ríos, CMP 045678 · Clínica Ejemplo.</p>",
+  "signer": {
+    "name": "Dr. Carlos Alberto Mendoza Ríos",
+    "role": "Médico tratante",
+    "cmp": "045678"
+  }
+}

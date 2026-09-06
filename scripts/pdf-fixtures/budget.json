@@ -1,0 +1,87 @@
+{
+  "doc": {
+    "title": "Fecundación in vitro (FIV-ICSI)",
+    "eyebrow": "Presupuesto de tratamiento",
+    "code": "P-2026-7B3C",
+    "issued_label": "Emitido 05/09/2026",
+    "footer_note": "Presupuesto P-2026-7B3C · generado el 05/09/2026"
+  },
+  "org": {
+    "display_name": "Clínica Fertilis",
+    "legal_name": "Fertilis Medicina Reproductiva S.A.C.",
+    "tagline": "Medicina reproductiva y ginecología",
+    "tax_id": "20601234567",
+    "logo_url": "",
+    "brand_color": "#7c3aed",
+    "address": "Av. Javier Prado Este 1234, of. 502, San Isidro, Lima",
+    "contact_line": "(01) 445 9900 / 987 654 321 · citas@fertilis.pe",
+    "website": "www.fertilis.pe",
+    "footer_html": "<p>Av. Javier Prado Este 1234, of. 502, San Isidro, Lima</p>\n<p>teléf.: <span class=\"loc\">(01) 445 9900 / 987 654 321</span></p>\n<p>citas@fertilis.pe&nbsp;&nbsp;|&nbsp;&nbsp;www.fertilis.pe</p>"
+  },
+  "meta": [
+    {
+      "label": "Paciente",
+      "value": "María Fernanda Rojas Delgado"
+    },
+    {
+      "label": "Documento",
+      "value": "DNI 45678912",
+      "num": true
+    },
+    {
+      "label": "Fecha de emisión",
+      "value": "05/09/2026",
+      "num": true
+    },
+    {
+      "label": "Médico tratante",
+      "value": "Dra. Lucía Paredes Montoya"
+    },
+    {
+      "label": "Asesora de fertilidad",
+      "value": "Carla Mendoza Ríos"
+    },
+    {
+      "label": "Vigencia",
+      "value": "hasta 20/10/2026",
+      "num": true
+    }
+  ],
+  "metaCols": 3,
+  "patient": {
+    "full_name": "María Fernanda Rojas Delgado"
+  },
+  "doctor": {
+    "full_name": "Dra. Lucía Paredes Montoya"
+  },
+  "advisor": {
+    "full_name": "Carla Mendoza Ríos",
+    "phone": "+51 951 222 333"
+  },
+  "budget": {
+    "amount": 18950,
+    "currency": "PEN",
+    "currency_label": "soles",
+    "tier_label": "Paquete B",
+    "valid_until_short": "20/10/2026",
+    "vigencia_days": 45
+  },
+  "includes": [
+    "Consulta médica y controles ecográficos de estimulación ovárica",
+    "Honorarios médicos del ciclo completo",
+    "Aspiración folicular bajo sedación",
+    "Procedimiento de FIV-ICSI en laboratorio",
+    "Cultivo embrionario hasta blastocisto (día 5)",
+    "Vitrificación de embriones excedentes",
+    "Control endometrial y transferencia embrionaria",
+    "Prueba de embarazo (β-hCG) a los 12 días"
+  ],
+  "terms": [
+    "El presupuesto tiene una vigencia de 45 días desde la fecha de emisión.",
+    "La medicación hormonal no está incluida; su costo depende de la respuesta ovárica de cada paciente.",
+    "Los exámenes de laboratorio previos al tratamiento se cotizan por separado.",
+    "En caso de suspensión del ciclo, se devolverá el monto de los procedimientos no realizados, con una retención del 10 % por gastos administrativos.",
+    "Servicios médicos no contemplados en este presupuesto serán cotizados por separado."
+  ],
+  "footer_text": "Los pagos se realizan en recepción o por transferencia bancaria a nombre de la razón social. Este documento no constituye comprobante de pago."
+}

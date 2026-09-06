@@ -1,0 +1,116 @@
+{{!--
+  Yenda · Presupuesto GENÉRICO (orgs sin plugin de presupuesto).
+  Datos: lib/budget-pdf/render-base.ts (buildBaseBudgetData).
+
+  Variables: doc.{title, eyebrow, code, issued_label, footer_note} ·
+  org.* (lib/pdf/html/org.ts) · meta[] · patient.full_name ·
+  doctor.full_name · advisor.{full_name, phone}|null ·
+  budget.{amount, currency, currency_label, tier_label} ·
+  includes[] · terms[] · footer_text
+
+  Un número, una fórmula: `budget.amount` se imprime tal cual con el
+  helper `money`; ningún cálculo vive en la plantilla.
+--}}
+{{> head}}
+<style>
+  /* Exclusivo del presupuesto genérico */
+  .pkg {
+    display: inline-block; margin-left: 10px; vertical-align: 2px;
+    font-size: 7.6pt; font-weight: 600; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--brand-deep); background: var(--brand-tint);
+    border: 1px solid var(--brand-tint-2); border-radius: 20px; padding: 1px 9px;
+  }
+  /* Ritmo vertical más compacto que el base: un presupuesto con 8 ítems
+     y 5 términos debe caber en UNA hoja A4 con firmas. */
+  .sheet { padding-top: 12mm; }
+  .head { padding-bottom: 10px; }
+  .head-org { line-height: 1.45; }
+  .title-row { margin-top: 14px; }
+  .meta { margin-top: 12px; }
+  .meta .cell { padding: 6px 12px; }
+  .total { margin-top: 14px; padding: 10px 18px; }
+  .total .t-lbl small { text-transform: none; letter-spacing: .02em; font-size: 7.6pt; }
+  .section { margin-top: 14px; }
+  .section > h2 { margin-bottom: 5px; padding-bottom: 5px; }
+  ul.checks li { padding: 1.5px 0 1.5px 18px; }
+  .terms li { padding: 1.5px 0 1.5px 18px; }
+  .terms .accept {
+    margin-top: 8px; padding: 6px 12px;
+    background: var(--wash); border-left: 3px solid var(--brand);
+    font-weight: 500; color: var(--ink); border-radius: 0 5px 5px 0;
+  }
+  .footer-text { margin: 8px 0 0; font-size: 8.4pt; color: var(--muted); line-height: 1.5; }
+  .signs { margin-top: 20px; }
+  .sign { padding-top: 20px; }
+  .advisor-line {
+    margin-top: 10px; padding-top: 6px;
+    border-top: 1px solid var(--line);
+    font-size: 8.4pt; color: var(--muted);
+  }
+  .page-footer { margin-top: 8px; padding: 6px 0 8px; }
+  .advisor-line b { color: var(--ink); font-weight: 600; }
+  .advisor-line .cel { color: var(--brand-deep); font-weight: 600; }
+</style>
+
+  <section class="sheet">
+    <div class="sheet-body">
+{{> sheetHead}}
+{{> titleRow}}
+{{> meta}}
+
+      <div class="total">
+        <div class="t-lbl">Total del tratamiento{{#if budget.tier_label}}<span class="pkg">{{budget.tier_label}}</span>{{/if}}<small>Monto total en {{budget.currency_label}}</small></div>
+        <div class="t-fig">{{money budget.amount budget.currency}}</div>
+      </div>
+
+{{#if includes.length}}
+      <section class="section">
+        <h2>Qué incluye <span class="count">{{includes.length}}</span></h2>
+        <ul class="checks">
+          {{#each includes}}
+          <li>{{this}}</li>
+          {{/each}}
+        </ul>
+      </section>
+{{/if}}
+
+{{#if terms.length}}
+      <section class="section">
+        <h2>Términos y condiciones</h2>
+        <div class="terms">
+          <ul>
+            {{#each terms}}
+            <li>{{this}}</li>
+            {{/each}}
+          </ul>
+          <div class="accept">He leído y acepto las condiciones y términos asociados a los servicios indicados en este presupuesto.</div>
+        </div>
+      </section>
+{{/if}}
+
+{{#if footer_text}}
+      <p class="footer-text">{{nl2br footer_text}}</p>
+{{/if}}
+
+      <div class="signs">
+        <div class="sign">
+          <div class="line"></div>
+          <div class="who">{{org.legal_name}}</div>
+          <div class="role">Representante legal</div>
+        </div>
+        <div class="sign">
+          <div class="line"></div>
+          <div class="who">Nombre y firma de la paciente</div>
+          <div class="role">{{patient.full_name}}</div>
+        </div>
+      </div>
+
+      <div class="advisor-line">
+        Médico tratante: <b>{{doctor.full_name}}</b>{{#if advisor}}<br>
+        Asesora de fertilidad: <b>{{advisor.full_name}}</b>{{#if advisor.phone}} · <span class="cel">{{advisor.phone}}</span>{{/if}}{{/if}}
+      </div>
+    </div>
+{{> pageFooter}}
+  </section>
+
+{{> docEnd}}

@@ -1,0 +1,14 @@
+{{!--
+  Partial · firma del profesional (una sola, centrada).
+  Recibe `signer` = { name, role?, cmp?, rne?, stamp_url? }.
+  CMP/RNE solo si están cargados en la ficha del doctor: nunca un literal.
+--}}
+      <div class="signs single">
+        <div class="sign">
+          {{#if signer.stamp_url}}<img class="stamp" src="{{signer.stamp_url}}" alt="">{{/if}}
+          <div class="line"></div>
+          <div class="who">{{signer.name}}</div>
+          {{#if signer.role}}<div class="role">{{signer.role}}</div>{{/if}}
+          {{#if signer.cmp}}<div class="lic">CMP {{signer.cmp}}{{#if signer.rne}} · RNE {{signer.rne}}{{/if}}</div>{{else}}{{#if signer.rne}}<div class="lic">RNE {{signer.rne}}</div>{{/if}}{{/if}}
+        </div>
+      </div>

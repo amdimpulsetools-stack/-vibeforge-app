@@ -1,0 +1,10 @@
+{{!--
+  Partial · pie repetido en cada hoja. `org.footer_html` viene ya
+  escapado desde lib/pdf/html/org.ts (datos reales de Ajustes; si la org
+  no los cargó, el pie sale vacío). `doc.footer_note` es opcional
+  (p. ej. "Documento generado el …" o el texto legal de la org).
+--}}
+    <footer class="page-footer">
+      <div class="pf-addr">{{{org.footer_html}}}</div>
+      {{#if doc.footer_note}}<div class="pf-meta">{{doc.footer_note}}</div>{{/if}}
+    </footer>

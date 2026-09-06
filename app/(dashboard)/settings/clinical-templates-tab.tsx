@@ -54,13 +54,20 @@ const COMMON_VARS = [
   { token: "{{clinica_nombre}}", description: "Nombre de la organización" },
 ] as const;
 
+// Variables extra de los documentos que ya imprimen con el motor HTML
+// (receta y orden de examen: lib/pdf/prescription-data.ts).
+const HTML_ENGINE_VARS = [
+  { token: "{{paciente_edad}}", description: "Edad del paciente (p. ej. 34 años)" },
+  { token: "{{fecha_larga}}", description: "Fecha del documento en letras (5 de septiembre de 2026)" },
+] as const;
+
 const SLUGS: SlugMeta[] = [
   {
     slug: "prescription",
     label: "Receta médica",
     icon: Pill,
     available: true,
-    variables: [...COMMON_VARS],
+    variables: [...COMMON_VARS, ...HTML_ENGINE_VARS],
   },
   {
     slug: "clinical_note",
@@ -74,7 +81,7 @@ const SLUGS: SlugMeta[] = [
     label: "Orden de exámenes",
     icon: TestTube,
     available: true,
-    variables: [...COMMON_VARS],
+    variables: [...COMMON_VARS, ...HTML_ENGINE_VARS],
   },
   {
     slug: "consent",

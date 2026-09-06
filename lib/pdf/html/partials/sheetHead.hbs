@@ -1,0 +1,18 @@
+{{!--
+  Partial · membrete de la página 1: logo (o el nombre en color de marca
+  si la org no subió logo) + bloque de datos. Cada línea se omite si el
+  dato está vacío. Datos: lib/pdf/html/org.ts.
+--}}
+      <header class="head">
+        <div class="head-logo">
+          {{#if org.logo_url}}<img src="{{org.logo_url}}" alt="{{org.display_name}}">{{else}}<div class="org-mark">{{org.display_name}}</div>{{/if}}
+        </div>
+        <div class="head-org">
+          <div class="org-name">{{org.legal_name}}</div>
+          {{#if org.tagline}}<div class="org-line org-tag">{{org.tagline}}</div>{{/if}}
+          {{#if org.tax_id}}<div class="org-line">RUC {{org.tax_id}}</div>{{/if}}
+          {{#if org.address}}<div class="org-line">{{org.address}}</div>{{/if}}
+          {{#if org.contact_line}}<div class="org-line">{{org.contact_line}}</div>{{/if}}
+          {{#if org.website}}<div class="org-line">{{org.website}}</div>{{/if}}
+        </div>
+      </header>
