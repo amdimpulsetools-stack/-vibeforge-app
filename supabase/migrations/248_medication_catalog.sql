@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS medication_catalog (
   inventory_product_id  uuid REFERENCES inventory_products(id) ON DELETE SET NULL,
   is_active             boolean NOT NULL DEFAULT true,
   display_order         integer NOT NULL DEFAULT 0,
-  created_by            uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  -- Quién lo agregó (admin desde el catálogo o doctor desde la receta);
+  -- DEFAULT auth.uid() para no depender de que la UI lo mande.
+  created_by            uuid REFERENCES auth.users(id) ON DELETE SET NULL DEFAULT auth.uid(),
   created_at            timestamptz NOT NULL DEFAULT now(),
   updated_at            timestamptz NOT NULL DEFAULT now()
 );

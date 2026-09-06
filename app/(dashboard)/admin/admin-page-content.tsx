@@ -10,6 +10,7 @@ import {
   ListOrdered,
   UsersRound,
   FlaskConical,
+  Pill,
   BookOpen,
   Tag,
   Tags,
@@ -83,6 +84,12 @@ export function AdminPageContent({
       href: "/admin/exam-catalog",
       icon: FlaskConical,
       count: examCount,
+    },
+    {
+      title: "Catálogo de medicamentos",
+      desc: "Los que tu equipo receta seguido, con sus valores por defecto",
+      href: "/admin/medication-catalog",
+      icon: Pill,
     },
     {
       title: "Diagnósticos CIE-10",
