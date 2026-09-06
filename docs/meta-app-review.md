@@ -58,19 +58,23 @@ rechazo.
 
 ### `whatsapp_business_messaging`
 
-> We need `whatsapp_business_messaging` to send and receive messages on behalf of
-> each clinic that connected its own WhatsApp Business Account to Yenda.
+> We need `whatsapp_business_messaging` to send WhatsApp messages on behalf of
+> each clinic that connected its own WhatsApp Business Account to Yenda, and to
+> receive the delivery webhooks for those messages.
 >
-> Outbound: appointment reminders (24h and 2h before the appointment),
-> appointment confirmations, cancellations and treatment follow-ups — all sent
-> with message templates that the clinic itself created and Meta approved.
-> Inbound: patient replies are received through our webhook and displayed to the
-> clinic's staff in their private panel, so they can answer within the 24-hour
-> customer service window.
+> Outbound: when the clinic's staff confirms an appointment in Yenda, the
+> patient automatically receives the confirmation template; reminders are sent
+> 24 hours and 2 hours before the appointment; and treatment follow-ups are sent
+> when the clinic's team triggers them. All messages use templates the clinic
+> itself created and Meta approved.
+>
+> Inbound: our webhook receives delivery and read statuses to keep the sending
+> history accurate, and stores patient replies (for example a quick-reply
+> "Confirm") so the clinic keeps a record of the conversation.
 >
 > Messages are only sent to patients of that clinic, from that clinic's own
 > number, and only for appointment-related communication. We do not send
-> marketing campaigns, and we do not use one customer's number to message
+> marketing campaigns, and we never use one customer's number to message
 > another customer's patients.
 
 ---
@@ -134,17 +138,35 @@ que se graba la experiencia real usando el **número de prueba de Meta** (el del
 3. En la consola, agregar tu celular como **destinatario verificado** del número
    de prueba (sin eso no se le puede enviar).
 
-**Grabación (perfil de Chrome limpio, cuenta demo)**
+**Grabación (perfil de Chrome limpio, cuenta demo, sin cortes, 3-4 min)**
 
-1. Login en Yenda → se ve que es un panel clínico (15 s).
-2. Settings → Integraciones → "Conectar con Facebook" → se abre el popup
-   oficial de Meta y se ve el flujo hasta donde permite (30 s). Demuestra el
-   Embedded Signup como experiencia del usuario.
-3. Plantillas (sustenta `management`): crear/abrir una plantilla de
-   recordatorio, enviarla a aprobación, ver el estado sincronizado (40 s).
-4. Envío (sustenta `messaging`): abrir una cita demo → disparar el recordatorio
-   → mostrar el mensaje llegando a tu celular (60 s).
-5. Responder desde el celular → la respuesta apareciendo en Yenda (30 s).
+1. **Contexto (15 s)** — login en yenda.app con la cuenta demo → dashboard.
+2. **Embedded Signup (30 s)** — Ajustes → Integraciones → WhatsApp →
+   "Conectar con Facebook" → el popup oficial de Meta hasta donde permita
+   (negocio, cuenta de WhatsApp); cuando bloquee, cerrar con calma.
+3. **Plantillas, sustenta `management` (40 s)** — Ajustes → Integraciones →
+   WhatsApp → Plantillas: mostrar la lista con `confirmacion_cita_demo`
+   "Aprobada"; crear la plantilla **"recordatorio 24 h antes de la cita"**
+   (auto: recordatorio), guardar, **Enviar** a revisión y mostrar el estado
+   "Pendiente".
+4. **Envío automático, sustenta `messaging` (60 s)** — Agenda → abrir la
+   cita demo (paciente ficticio con tu celular) → **Confirmar** desde la
+   tarjeta. No hay botón de WhatsApp: al confirmar, Yenda envía sola la
+   plantilla de confirmación. Cambiar a la ventana de WhatsApp Web (tu
+   número, chat con +1 555 167-2760, limpio) y mostrar el mensaje llegando
+   con nombre, fecha y hora rellenados. Si grabas el celular, igual.
+5. **Recepción (20 s)** — desde WhatsApp pulsar el botón "Confirmar" de la
+   plantilla o responder "Confirmo". Hoy Yenda no tiene bandeja de entrada
+   (el webhook guarda estados y respuestas); NO se muestra nada en Yenda:
+   solo se ve la respuesta saliendo desde el chat. Es coherente con la
+   justificación de `messaging` (recibimos estados y guardamos respuestas).
+6. **Cierre (10 s)** — volver a la card de Integraciones con el número
+   conectado y estado activo.
+
+**Qué NO debe aparecer**: nombres/teléfonos de pacientes reales, el selector
+de cuentas de Facebook con perfiles de terceros, nada de Patricia ni Vitra.
+El video se **sube directamente** en el formulario de cada permiso ("Subir
+archivo"); no hace falta YouTube. El mismo archivo sirve para los dos.
 
 **"Instrucciones para revisores" (pegar en inglés, tal cual)**
 
