@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 import type { PrescriptionWithDoctor } from "@/types/clinical-history";
 
 interface PrescriptionPrintProps {
-  /** ID de la cita — requerido. El PDF se renderiza server-side con
-   *  @react-pdf/renderer en /api/pdf/prescription/[appointmentId]. */
+  /** ID de la cita — requerido. El PDF se renderiza server-side con el
+   *  motor HTML → Chromium (lib/pdf/html) en /api/pdf/prescription/[appointmentId]. */
   appointmentId: string;
   /** Lista solo para decidir si mostrar el botón (si no hay activas, se oculta). */
   prescriptions: PrescriptionWithDoctor[];

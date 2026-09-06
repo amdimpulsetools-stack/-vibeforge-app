@@ -142,6 +142,27 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Los ítems de catálogo deben ser de ESTA org: un `exam_catalog_id` ajeno
+  // (otra clínica del mismo usuario, o un uuid inventado) no entra. El
+  // examen libre (`exam_catalog_id` null) sigue permitido.
+  const catalogIds = Array.from(
+    new Set(items.map((i) => i.exam_catalog_id).filter((id): id is string => !!id)),
+  );
+  if (catalogIds.length > 0) {
+    const { data: catalogRows } = await supabase
+      .from("exam_catalog")
+      .select("id")
+      .eq("organization_id", organizationId)
+      .in("id", catalogIds);
+    const found = new Set((catalogRows ?? []).map((r) => r.id as string));
+    if (catalogIds.some((id) => !found.has(id))) {
+      return NextResponse.json(
+        { error: "Uno o más exámenes no pertenecen al catálogo de esta organización" },
+        { status: 400 },
+      );
+    }
+  }
+
   // Server-side guard: if the linked clinical note is signed, forbid creating new orders
   if (orderData.appointment_id) {
     const { data: note } = await supabase

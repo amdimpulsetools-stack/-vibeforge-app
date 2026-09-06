@@ -56,9 +56,11 @@ export async function GET(
       .maybeSingle(),
     supabase
       .from("clinical_document_templates")
-      .select("body_html, is_enabled")
-      .eq("slug", "exam_order")
-      .maybeSingle(),
+      // Sin filtro de org aquí: la org sale del documento (más abajo). Un
+      // usuario con dos clínicas recibe una fila por org (UNIQUE org+slug),
+      // así que se elige la de ESTA org en vez de maybeSingle().
+      .select("organization_id, body_html, is_enabled")
+      .eq("slug", "exam_order"),
   ]);
 
   if (orderRes.error || !orderRes.data) {
@@ -149,7 +151,9 @@ export async function GET(
     count_label: n === 1 ? "1 examen" : `${n} exámenes`,
     notes: (order.notes ?? "").trim(),
     body_html: renderTemplateBody(
-      (tplRes.data as DocTemplate | null) ?? null,
+      ((tplRes.data ?? []) as Array<DocTemplate & { organization_id: string }>).find(
+      (t) => t.organization_id === order.organization_id,
+    ) ?? null,
       clinicalDocVariables({
         patient: order.patients,
         doctor: order.doctors,

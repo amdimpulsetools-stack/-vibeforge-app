@@ -62,9 +62,11 @@ export async function GET(
       .order("created_at"),
     supabase
       .from("clinical_document_templates")
-      .select("body_html, is_enabled")
-      .eq("slug", "prescription")
-      .maybeSingle(),
+      // Sin filtro de org aquí: la org sale del documento (más abajo). Un
+      // usuario con dos clínicas recibe una fila por org (UNIQUE org+slug),
+      // así que se elige la de ESTA org en vez de maybeSingle().
+      .select("organization_id, body_html, is_enabled")
+      .eq("slug", "prescription"),
   ]);
 
   if (apptRes.error || !apptRes.data) {
@@ -120,7 +122,9 @@ export async function GET(
     patient: appt.patients,
     doctor: appt.doctors,
     prescriptions,
-    template: (tplRes.data as DocTemplate | null) ?? null,
+    template: ((tplRes.data ?? []) as Array<DocTemplate & { organization_id: string }>).find(
+      (t) => t.organization_id === appt.organization_id,
+    ) ?? null,
   });
   const html = await renderDocumentHtml("prescription.hbs", data);
   const pdf = await htmlToPdfBuffer(html);

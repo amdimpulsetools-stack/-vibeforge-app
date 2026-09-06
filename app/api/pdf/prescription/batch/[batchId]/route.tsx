@@ -60,9 +60,11 @@ export async function GET(
       .order("created_at"),
     supabase
       .from("clinical_document_templates")
-      .select("body_html, is_enabled")
-      .eq("slug", "prescription")
-      .maybeSingle(),
+      // Sin filtro de org aquí: la org sale del documento (más abajo). Un
+      // usuario con dos clínicas recibe una fila por org (UNIQUE org+slug),
+      // así que se elige la de ESTA org en vez de maybeSingle().
+      .select("organization_id, body_html, is_enabled")
+      .eq("slug", "prescription"),
   ]);
 
   if (rxRes.error) {
@@ -84,6 +86,24 @@ export async function GET(
   }
 
   const first = rows[0];
+
+  // `batch_id` lo genera el cliente: si dos POST distintos reutilizaran el
+  // mismo uuid (o un usuario de dos clínicas lo cruzara entre orgs), aquí
+  // se imprimirían medicamentos de otro paciente bajo la cabecera del
+  // primero. Un lote válido es SIEMPRE un paciente, un médico y una org.
+  const mixed = rows.some(
+    (r) =>
+      r.patient_id !== first.patient_id ||
+      r.doctor_id !== first.doctor_id ||
+      r.organization_id !== first.organization_id,
+  );
+  if (mixed) {
+    return NextResponse.json(
+      { error: "El lote contiene recetas de distintos pacientes o médicos" },
+      { status: 409 },
+    );
+  }
+
   if (!first.patients || !first.doctors) {
     return NextResponse.json(
       { error: "La receta no tiene paciente o doctor asociado" },
@@ -113,7 +133,9 @@ export async function GET(
     patient: first.patients,
     doctor: first.doctors,
     prescriptions: rows,
-    template: (tplRes.data as DocTemplate | null) ?? null,
+    template: ((tplRes.data ?? []) as Array<DocTemplate & { organization_id: string }>).find(
+      (t) => t.organization_id === first.organization_id,
+    ) ?? null,
   });
   const html = await renderDocumentHtml("prescription.hbs", data);
   const pdf = await htmlToPdfBuffer(html);

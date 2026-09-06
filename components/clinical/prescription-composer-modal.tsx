@@ -269,7 +269,9 @@ export function PrescriptionComposerModal({
         medication: medication.trim(),
         dosage: dosage.trim(),
         pharmaceutical_form: form,
-        dose_per_take: doseLabel,
+        // Sin forma elegida y stepper en 1 no hay dato real: no imprimir
+        // "Dosis 1 unidad" en cada línea.
+        dose_per_take: form === "" && dosePerTake === 1 ? "" : doseLabel,
         route,
         frequency,
         duration,
@@ -282,6 +284,18 @@ export function PrescriptionComposerModal({
 
   const removeItem = (key: string) => {
     setItems((prev) => prev.filter((i) => i.key !== key));
+  };
+
+  // Cerrar (Esc, clic fuera, "Cancelar") con medicamentos ya agregados
+  // pide confirmación: el lote no se guarda hasta "Guardar".
+  const handleOpenChange = (next: boolean) => {
+    if (!next && !saving && items.length > 0) {
+      const ok = window.confirm(
+        "Tienes medicamentos sin guardar en esta receta. ¿Cerrar y descartarlos?",
+      );
+      if (!ok) return;
+    }
+    onOpenChange(next);
   };
 
   const save = async (print: boolean) => {
@@ -352,7 +366,7 @@ export function PrescriptionComposerModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12">
           <DialogTitle className="flex items-center gap-2">
@@ -655,7 +669,7 @@ export function PrescriptionComposerModal({
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
               <button
                 type="button"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
                 className="h-11 rounded-lg border border-border px-4 text-sm hover:bg-accent md:h-10"
               >
                 Cancelar

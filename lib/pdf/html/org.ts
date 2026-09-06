@@ -48,6 +48,18 @@ function isHexColor(v: unknown): v is string {
   return typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v.trim());
 }
 
+/**
+ * `logo_url` va a un `src` que carga Chromium en el servidor. Viene de
+ * Storage (https), pero la columna se escribe desde el cliente con
+ * PostgREST, así que solo se acepta http(s): nada de `javascript:`,
+ * `file:` ni rutas internas. Sin URL válida el partial imprime el nombre.
+ */
+function safeHttpUrl(v: unknown): string {
+  if (typeof v !== "string") return "";
+  const s = v.trim();
+  return /^https?:\/\//i.test(s) ? s : "";
+}
+
 export function buildOrgDocBlock(
   org: Partial<OrganizationRow> & { name?: string | null },
 ): OrgDocBlock {
@@ -80,7 +92,7 @@ export function buildOrgDocBlock(
     legal_name: legal,
     tagline: (org.tagline ?? "").trim(),
     tax_id: (org.ruc ?? "").trim(),
-    logo_url: (org.logo_url ?? "").trim(),
+    logo_url: safeHttpUrl(org.logo_url),
     brand_color: isHexColor(org.print_color_primary)
       ? org.print_color_primary.trim()
       : YENDA_BRAND_FALLBACK,

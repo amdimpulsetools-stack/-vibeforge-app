@@ -187,6 +187,18 @@ export function ExamOrderComposerModal({
       prev.map((i) => (i.key === key ? { ...i, instructions } : i)),
     );
 
+  // Cerrar (Esc, clic fuera, "Cancelar") con exámenes ya agregados pide
+  // confirmación: la orden no se guarda hasta "Guardar".
+  const handleOpenChange = (next: boolean) => {
+    if (!next && !saving && items.length > 0) {
+      const ok = window.confirm(
+        "Tienes exámenes sin guardar en esta orden. ¿Cerrar y descartarlos?",
+      );
+      if (!ok) return;
+    }
+    onOpenChange(next);
+  };
+
   const save = async (print: boolean) => {
     if (items.length === 0 || saving) return;
     setSaving(true);
@@ -252,7 +264,7 @@ export function ExamOrderComposerModal({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-1.5rem)] max-w-4xl flex-col gap-0 overflow-hidden p-0">
         <DialogHeader className="shrink-0 border-b border-border px-5 py-4 pr-12">
           <DialogTitle className="flex items-center gap-2">
@@ -473,7 +485,7 @@ export function ExamOrderComposerModal({
             <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
               <button
                 type="button"
-                onClick={() => onOpenChange(false)}
+                onClick={() => handleOpenChange(false)}
                 className="h-11 rounded-lg border border-border px-4 text-sm hover:bg-accent md:h-10"
               >
                 Cancelar
