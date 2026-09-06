@@ -42,8 +42,15 @@ export class WhatsAppClient {
     const data = await res.json();
 
     if (!res.ok) {
+      // Meta esconde la causa real en error_user_title/error_user_msg
+      // ("Template name already exists"…) y deja en `message` un genérico
+      // "(#100) Invalid parameter": priorizamos lo específico.
+      const userTitle = data?.error?.error_user_title;
+      const userMsg = data?.error?.error_user_msg;
       const errorMessage =
-        data?.error?.message || data?.error?.error_user_msg || "Meta API error";
+        (userTitle && userMsg ? `${userTitle}: ${userMsg}` : userMsg || userTitle) ||
+        data?.error?.message ||
+        "Meta API error";
       const errorCode = data?.error?.code || res.status;
       throw new WhatsAppApiError(errorMessage, errorCode, data);
     }

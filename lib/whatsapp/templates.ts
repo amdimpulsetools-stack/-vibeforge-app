@@ -118,6 +118,18 @@ export async function submitTemplateToMeta(
   client: WhatsAppClient,
   template: WhatsAppTemplate
 ): Promise<{ metaTemplateId: string }> {
+  // Un nombre ya usado en la WABA devuelve "(#100) Invalid parameter"
+  // sin más pistas. Varias orgs pueden compartir una WABA (p. ej. el
+  // número de prueba de Meta durante el App Review), así que la colisión
+  // es real aunque esta org nunca haya enviado esa plantilla.
+  const existing = await client.getTemplate(template.meta_template_name).catch(() => null);
+  if (existing?.data && existing.data.length > 0) {
+    throw new Error(
+      `Ya existe una plantilla llamada "${template.meta_template_name}" en esta cuenta de WhatsApp ` +
+        `(estado en Meta: ${existing.data[0].status ?? "desconocido"}). ` +
+        `Cámbiale el nombre (ej. "${template.meta_template_name}_v2") o usa la existente.`
+    );
+  }
   const payload = buildMetaTemplatePayload(template);
   const response = await client.createTemplate(payload);
   return { metaTemplateId: response.id };
