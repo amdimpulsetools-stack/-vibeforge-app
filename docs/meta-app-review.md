@@ -62,11 +62,13 @@ rechazo.
 > each clinic that connected its own WhatsApp Business Account to Yenda, and to
 > receive the delivery webhooks for those messages.
 >
-> Outbound: when the clinic's staff confirms an appointment in Yenda, the
-> patient automatically receives the confirmation template; reminders are sent
-> 24 hours and 2 hours before the appointment; and treatment follow-ups are sent
-> when the clinic's team triggers them. All messages use templates the clinic
-> itself created and Meta approved.
+> Outbound: transactional notifications about the patient's own appointment,
+> sent only with templates the clinic created and Meta approved: appointment
+> and teleconsultation confirmations (sent automatically when the clinic's
+> staff confirms the appointment), reminders 24 hours and 2 hours before,
+> rescheduling and cancellation notices, updated meeting links, payment
+> receipts and invoices, and treatment follow-ups triggered by the clinic's
+> team.
 >
 > Inbound: our webhook receives delivery and read statuses to keep the sending
 > history accurate, and stores patient replies (for example a quick-reply
