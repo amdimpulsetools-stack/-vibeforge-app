@@ -116,6 +116,61 @@ dato de la clínica de Patricia.
 
 ---
 
+## 3b. Plan B — el video con acceso estándar (lo que sí se puede grabar HOY)
+
+Con acceso estándar, el popup de Embedded Signup se corta antes de terminar
+("no puede registrar clientes en este momento"). Meta pide igual el video, así
+que se graba la experiencia real usando el **número de prueba de Meta** (el del
+"Paso 1: Pruébalo", con su WABA de prueba en el portfolio, sin datos de nadie).
+
+**Preparación (una vez)**
+
+1. Consola de Meta → caso de uso WhatsApp → *API Setup* del paso 1: copiar
+   `phone_number_id`, el WABA id de prueba y el token temporal.
+2. Yenda con la cuenta demo → Settings → Integraciones → WhatsApp →
+   **"Configuración manual avanzada"** (wizard de credenciales) → pegar los
+   datos del número de prueba. La org demo queda conectada al número de prueba:
+   cero PII, cero riesgo con Patricia.
+3. En la consola, agregar tu celular como **destinatario verificado** del número
+   de prueba (sin eso no se le puede enviar).
+
+**Grabación (perfil de Chrome limpio, cuenta demo)**
+
+1. Login en Yenda → se ve que es un panel clínico (15 s).
+2. Settings → Integraciones → "Conectar con Facebook" → se abre el popup
+   oficial de Meta y se ve el flujo hasta donde permite (30 s). Demuestra el
+   Embedded Signup como experiencia del usuario.
+3. Plantillas (sustenta `management`): crear/abrir una plantilla de
+   recordatorio, enviarla a aprobación, ver el estado sincronizado (40 s).
+4. Envío (sustenta `messaging`): abrir una cita demo → disparar el recordatorio
+   → mostrar el mensaje llegando a tu celular (60 s).
+5. Responder desde el celular → la respuesta apareciendo en Yenda (30 s).
+
+**"Instrucciones para revisores" (pegar en inglés, tal cual)**
+
+> Yenda is a clinic-management SaaS acting as a WhatsApp Tech Provider (access
+> verification approved). Each clinic connects its own WhatsApp Business Account
+> via Embedded Signup from Settings → Integrations → "Connect with Facebook".
+>
+> Note on the screencast: our app currently has standard access, so Meta's
+> Embedded Signup flow blocks third-party business registration before
+> completion ("cannot register clients at this time"). The video therefore shows
+> the Embedded Signup entry point and popup, and demonstrates both permissions
+> end-to-end (template management, sending appointment reminders, receiving
+> patient replies) using Meta's test WhatsApp number connected to a demo clinic.
+> Once advanced access is granted, the Embedded Signup flow completes and is the
+> only onboarding path shown to customers.
+>
+> Test credentials — URL: https://yenda.app/login · User: demo@yenda.app ·
+> Password: [la de la demo]
+
+**Orden de envío**: video subido en Oculto → "Uso permitido" (descripciones de
+la sección 2 + enlace del video + confirmar) → Data Use Checkup (sección 4) →
+instrucciones para revisores (arriba) → enviar. Si el botón final devuelve el
+error de "previous submission", revisar por el MCP de Meta antes de reintentar.
+
+---
+
 ## 4. Cuestionario de manejo de datos — respuestas modelo
 
 Meta pregunta cómo se usan, guardan y protegen los datos. Respuestas honestas
