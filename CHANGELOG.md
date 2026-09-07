@@ -4815,6 +4815,12 @@ Decisión del founder: **un solo motor de documentos para todo Yenda** — del c
 - Guardas al guardar: con comprobante emitido el precio queda **bloqueado** (ajuste = nota de crédito, misma regla que los descuentos); con pagos, descuento o seguro pide confirmación mostrando el nuevo pendiente o saldo a favor; en sesiones de plan no se rellena desde catálogo. `price_snapshot` solo se escribe si cambió (una cita pre-snapshot sigue resolviendo por catálogo).
 - Doc de referencia para la reunión con la contadora: `docs/mapa-del-dinero.md` (+ artefacto), con las fórmulas de cada pantalla verificadas contra los RPC de prod y las tres divergencias encontradas (Reportes mezcla farmacia en "Cobrado"; deuda del Dashboard sin descuentos; caja vs devengado).
 
+### Reportes › Financiero: "Pendiente cobro" nunca negativo + desglose de "Total cobrado" — mig 250
+- **Caso real (7-sep, clínica de Patricia)**: la tarjeta mostraba **S/ −4 510** con deuda real S/ 0. Era `Facturado(citas del día) − Cobrado(todo lo que entró el día)`: S/ 2 660 de farmacia, S/ 550 de adelantos de citas de otras fechas y S/ 1 200 del inicio de un FIV restaban contra la facturación de 4 citas. Lo explicamos cuadrado al sol y la doctora seguía sin poder leerlo — un número negativo en "pendiente" no se puede leer.
+- Mig 250 en `get_reports_overview` (aditiva): `totals.pending_amount` = por cita atendida/confirmada del rango, `GREATEST(0, precio real − cobros clínicos de esa cita)` — la misma fórmula de la ficha del paciente; `totals.collected_breakdown` parte `payments_amount` en cubetas que siempre suman el total (citas del periodo · adelantos y pagos de otras fechas · planes · farmacia · sin cita). El precio real ahora resta el descuento en todo el RPC (antes /reports facturaba sin descuento; la ficha sí lo restaba).
+- Tarjeta "Total cobrado" con el desglose debajo (solo cubetas con monto); tooltips reescritos en ES/EN diciendo qué entra y qué no; el export hereda el desglose. Sin la mig aplicada, "Pendiente" se degrada a la resta anterior topada en 0.
+- Descartado a propósito el aviso de "saldo a favor": los S/ 200 cobrados por encima de la histerosonografía eran una consulta de la misma visita, no un exceso. El sistema no puede juzgar eso; lo que sí puede es no mostrar negativos.
+
 ---
 
 ## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)

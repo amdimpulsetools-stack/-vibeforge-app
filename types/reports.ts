@@ -54,6 +54,25 @@ export interface ReportsOverview {
      * llega solo con la mig 244 aplicada.
      */
     treatment_payments_amount?: number;
+    /**
+     * Mig 250: lo que de verdad falta cobrar de las citas atendidas y
+     * confirmadas del rango — por cita, GREATEST(0, precio real − cobros
+     * clínicos de esa cita). Nunca negativo. Farmacia, adelantos de otras
+     * fechas y tratamientos no entran. Opcional hasta aplicar la mig.
+     */
+    pending_amount?: number;
+    /**
+     * Mig 250: cubetas de `payments_amount` (siempre suman ese total).
+     * Farmacia primero (source='pos'), luego los cobros clínicos según a
+     * qué pertenecen.
+     */
+    collected_breakdown?: {
+      period_appointments: number;
+      other_appointments: number;
+      plans: number;
+      pharmacy: number;
+      other: number;
+    };
   };
   doctors: ReportsDoctorRow[];
   services: ReportsServiceRow[];
