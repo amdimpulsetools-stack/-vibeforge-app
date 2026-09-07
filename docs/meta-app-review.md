@@ -81,119 +81,55 @@ rechazo.
 
 ---
 
-## 3. Guion del screencast
+## 3. Screencasts — DOS videos separados (requisito de Meta)
 
-Un solo video cubre ambos permisos. Debe verse el **flujo completo**, no el
-resultado. Duración objetivo: 3-4 minutos, sin cortes bruscos.
-
-**Antes de grabar**
-- Perfil de Chrome **limpio** (nuevo, sin sesiones) — lección del video de
-  Google que YouTube retiró por PII.
-- Cerrar todo lo que muestre datos reales: correos, pestañas, notificaciones
-  del sistema, WhatsApp Web con chats de pacientes.
-- Cuenta de Yenda: la demo. Nada de la clínica de Patricia en pantalla.
-- Sube el video como **Oculto/No listado** y pega el enlace en la solicitud.
-
-**Secuencia**
-
-1. **Contexto (15 s)** — yenda.app, login con la cuenta demo. Se ve que es un
-   panel de gestión clínica.
-2. **Punto de entrada (10 s)** — Settings → Integraciones → card de WhatsApp →
-   clic en **"Conectar con Facebook"**. Se ve el diálogo con la elección
-   "Mantener mi app de WhatsApp Business" (Coexistence).
-3. **Embedded Signup — LO MÁS IMPORTANTE (60-90 s)** — el popup de Meta
-   completo y sin cortes: login, selección del portfolio comercial, selección
-   de la WABA y del número, y la pantalla de permisos (que se lea qué se está
-   concediendo). Este tramo es el que sustenta `whatsapp_business_management`.
-4. **Resultado (15 s)** — vuelta a Yenda: la card muestra el número conectado y
-   el nombre del negocio.
-5. **Plantillas — `whatsapp_business_management` (40 s)** — pantalla de
-   plantillas de WhatsApp en Yenda: crear o abrir una plantilla de recordatorio,
-   enviarla a aprobación y mostrar su estado sincronizado desde Meta.
-6. **Envío — `whatsapp_business_messaging` (60 s)** — abrir una cita de prueba,
-   disparar el recordatorio, y mostrar el mensaje **llegando al teléfono**
-   (grabar la pantalla del móvil o WhatsApp Web del número de prueba).
-7. **Recepción (30 s)** — responder desde ese teléfono y mostrar la respuesta
-   apareciendo dentro de Yenda. Cierra el circuito bidireccional.
-
-**Qué NO debe aparecer**: nombres, teléfonos o correos de pacientes reales;
-el selector de cuentas de Facebook con perfiles personales de terceros; ningún
-dato de la clínica de Patricia.
-
----
-
-## 3b. Plan B — el video con acceso estándar (lo que sí se puede grabar HOY)
-
-Con acceso estándar, el popup de Embedded Signup se corta antes de terminar
-("no puede registrar clientes en este momento"). Meta pide igual el video, así
-que se graba la experiencia real usando el **número de prueba de Meta** (el del
-"Paso 1: Pruébalo", con su WABA de prueba en el portfolio, sin datos de nadie).
-
-**Preparación (una vez)**
-
-1. Consola de Meta → caso de uso WhatsApp → *API Setup* del paso 1: copiar
-   `phone_number_id`, el WABA id de prueba y el token temporal.
-2. Yenda con la cuenta demo → Settings → Integraciones → WhatsApp →
-   **"Configuración manual avanzada"** (wizard de credenciales) → pegar los
-   datos del número de prueba. La org demo queda conectada al número de prueba:
-   cero PII, cero riesgo con Patricia.
-3. En la consola, agregar tu celular como **destinatario verificado** del número
-   de prueba (sin eso no se le puede enviar).
-
-**Grabación (perfil de Chrome limpio, cuenta demo, sin cortes, 3-4 min)**
-
-1. **Contexto (15 s)** — login en yenda.app con la cuenta demo → dashboard.
-2. **Embedded Signup (30 s)** — Ajustes → Integraciones → WhatsApp →
-   "Conectar con Facebook" → el popup oficial de Meta hasta donde permita
-   (negocio, cuenta de WhatsApp); cuando bloquee, cerrar con calma.
-3. **Plantillas, sustenta `management` (40 s)** — Ajustes → Integraciones →
-   WhatsApp → Plantillas: mostrar la lista con `confirmacion_cita_demo`
-   "Aprobada"; crear la plantilla **"recordatorio 24 h antes de la cita"**
-   (auto: recordatorio), guardar, **Enviar** a revisión y mostrar el estado
-   "Pendiente".
-4. **Envío automático, sustenta `messaging` (60 s)** — Agenda → abrir la
-   cita demo (paciente ficticio con tu celular) → **Confirmar** desde la
-   tarjeta. No hay botón de WhatsApp: al confirmar, Yenda envía sola la
-   plantilla de confirmación. Cambiar a la ventana de WhatsApp Web (tu
-   número, chat con +1 555 167-2760, limpio) y mostrar el mensaje llegando
-   con nombre, fecha y hora rellenados. Si grabas el celular, igual.
-5. **Recepción (20 s)** — desde WhatsApp pulsar el botón "Confirmar" de la
-   plantilla o responder "Confirmo". Hoy Yenda no tiene bandeja de entrada
-   (el webhook guarda estados y respuestas); NO se muestra nada en Yenda:
-   solo se ve la respuesta saliendo desde el chat. Es coherente con la
-   justificación de `messaging` (recibimos estados y guardamos respuestas).
-6. **Cierre (10 s)** — volver a la card de Integraciones con el número
-   conectado y estado activo.
-
-**Qué NO debe aparecer**: nombres/teléfonos de pacientes reales, el selector
-de cuentas de Facebook con perfiles de terceros, nada de Patricia ni Vitra.
-El video se **sube directamente** en el formulario de cada permiso ("Subir
-archivo"); no hace falta YouTube. El mismo archivo sirve para los dos.
-
-**"Instrucciones para revisores" (pegar en inglés, tal cual)**
-
-> Yenda is a clinic-management SaaS acting as a WhatsApp Tech Provider (access
-> verification approved). Each clinic connects its own WhatsApp Business Account
-> via Embedded Signup from Settings → Integrations → "Connect with Facebook".
+> Verificado en la documentación oficial (developers.facebook.com →
+> Business Messaging → WhatsApp → Solution Providers → App Review,
+> y App Review Tutorial), 2026-09-07:
 >
-> Note on the screencast: our app currently has standard access, so Meta's
-> Embedded Signup flow blocks third-party business registration before
-> completion ("cannot register clients at this time"). The video therefore shows
-> the Embedded Signup entry point and popup, and demonstrates both permissions
-> end-to-end (template management, sending appointment reminders, receiving
-> patient replies) using Meta's test WhatsApp number connected to a demo clinic.
-> Once advanced access is granted, the Embedded Signup flow completes and is the
-> only onboarding path shown to customers.
->
-> Test credentials — URL: https://yenda.app/login · User: demo@yenda.app ·
-> Password: [la de la demo]
+> - **"Do not submit a video that includes multiple permissions supporting
+>   different use cases. You must submit a different video clip for each
+>   permission. Your submission may be rejected if you highlight multiple
+>   permissions being used as part of the same video."** → un video por permiso.
+> - `whatsapp_business_management` → *"Record a video of your app, or WhatsApp
+>   Manager, being used to create a message template."*
+> - `whatsapp_business_messaging` → *"Record a video showing your app being used
+>   to send a message to a WhatsApp number, and the WhatsApp client (either web
+>   or mobile app) receiving and displaying the sent message."*
+> - El **Embedded Signup NO hace falta grabarlo**: *"You don't need to wait for
+>   Embedded Signup to be fully implemented to start this process."* Tampoco
+>   aparece en los requisitos de video de ninguno de los dos permisos.
+> - Turnaround medio: ~24 h.
 
-**Orden de envío**: video subido en Oculto → "Uso permitido" (descripciones de
-la sección 2 + enlace del video + confirmar) → Data Use Checkup (sección 4) →
-instrucciones para revisores (arriba) → enviar. Si el botón final devuelve el
-error de "previous submission", revisar por el MCP de Meta antes de reintentar.
+**Reglas de grabación (de la guía de Meta, las que nos aplican)**
+- 1080p o mejor; ancho de pantalla ≤ 1440; grabar solo la ventana de la app.
+- **UI en inglés si se puede** (Yenda tiene ES/EN en el selector de idioma) o
+  subtítulos explicando cada pantalla y botón no evidente.
+- **Sin audio** (los revisores no lo escuchan). Cursor grande. Usar el ratón,
+  no atajos de teclado.
+- Al menos 1 llamada API exitosa por permiso en los últimos 30 días (la consola
+  ya las marca en verde).
+- Nada de credenciales personales de Facebook en pantalla; ningún dato de
+  pacientes reales, ni de Patricia ni de Vitra.
 
----
+### Video A — `whatsapp_business_management` (~45 s)
+1. Login en yenda.app con la cuenta demo (5 s).
+2. Ajustes → Integraciones → WhatsApp → **Plantillas**: se ve la lista con el
+   número conectado (10 s).
+3. Abrir `confirmacion_cita_demo` en **Editar**: nombre, categoría Utilidad,
+   idioma, cuerpo con variables, mapeo de cada `{{n}}` y "Usar para
+   (automático)". Cerrar sin guardar (15 s).
+4. **Crear** la plantilla de recordatorio, mapear variables, **Enviar a
+   revisión** y mostrar el estado "En revisión" / "Aprobada" tras sincronizar (15 s).
+
+### Video B — `whatsapp_business_messaging` (~60 s)
+1. Agenda → cita demo del paciente ficticio (5 s).
+2. **Confirmar** la cita desde la tarjeta: Yenda envía sola la plantilla de
+   confirmación (10 s).
+3. Cambiar a WhatsApp Web o al móvil y mostrar **el mensaje llegando** con
+   nombre, fecha y hora rellenados (30 s).
+4. Opcional: pulsar el botón "Confirmar" de la plantilla desde el chat, para
+   mostrar la respuesta del paciente que nuestro webhook recibe (15 s).
 
 ## 4. Cuestionario de manejo de datos — respuestas modelo
 
