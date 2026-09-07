@@ -4809,6 +4809,12 @@ Decisión del founder: **un solo motor de documentos para todo Yenda** — del c
 - Reservas huérfanas (request muerta a mitad de vuelo) se liberan a los 2 minutos. Si la mig 249 aún no está aplicada, el `CHECK` rechaza la reserva (23514) y el código **degrada al comportamiento anterior** en vez de dejar al paciente sin mensaje.
 - Segundo agujero del guard corregido: filtraba solo por `status = 'sent'`, pero el acuse del webhook mueve la fila a `delivered`/`read` en segundos → ahora cuenta `sending/sent/delivered/read`.
 
+### Precio de la cita al cambiar de servicio (sidebar)
+- **Caso real de la clínica de Patricia (7-sep)**: paciente agendada para control ovulatorio (S/ 350) terminó en histerosonografía (S/ 550). Recepción editó el servicio desde el sidebar y el precio se quedó en 350: el guardado tocaba `service_id` y la hora de fin, pero nunca `price_snapshot` (congelado al crear, mig 011).
+- Ahora el formulario de edición muestra un campo **Precio** siempre visible. Al cambiar de servicio se rellena solo con el precio de catálogo del nuevo **si el precio guardado era el de catálogo del original**; si era personalizado se conserva y el campo se resalta en ámbar pidiendo revisarlo. Nada cambia de forma invisible.
+- Guardas al guardar: con comprobante emitido el precio queda **bloqueado** (ajuste = nota de crédito, misma regla que los descuentos); con pagos, descuento o seguro pide confirmación mostrando el nuevo pendiente o saldo a favor; en sesiones de plan no se rellena desde catálogo. `price_snapshot` solo se escribe si cambió (una cita pre-snapshot sigue resolviendo por catálogo).
+- Doc de referencia para la reunión con la contadora: `docs/mapa-del-dinero.md` (+ artefacto), con las fórmulas de cada pantalla verificadas contra los RPC de prod y las tres divergencias encontradas (Reportes mezcla farmacia en "Cobrado"; deuda del Dashboard sin descuentos; caja vs devengado).
+
 ---
 
 ## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)
