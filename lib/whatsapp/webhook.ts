@@ -49,6 +49,58 @@ export function parseWebhookStatusUpdates(
   return updates;
 }
 
+/** Cambio de estado de una plantilla, avisado por Meta. */
+export interface TemplateStatusUpdate {
+  metaTemplateId: string | null;
+  templateName: string;
+  language: string | null;
+  /** APPROVED | REJECTED | PENDING | PAUSED | DISABLED */
+  status: string;
+  reason?: string | null;
+}
+
+/**
+ * Extrae los cambios de estado de plantilla (`message_template_status_update`).
+ *
+ * Hasta ahora el estado solo se refrescaba pulsando "Sincronizar" en cada
+ * plantilla: Meta aprobaba en minutos y Yenda seguía diciendo "En revisión".
+ * Requiere suscribir ese campo en la consola (WhatsApp → Configuración →
+ * Webhooks → Administrar); sin suscripción esto simplemente no se dispara.
+ */
+export function parseTemplateStatusUpdates(
+  payload: MetaWebhookPayload
+): TemplateStatusUpdate[] {
+  const updates: TemplateStatusUpdate[] = [];
+  if (payload.object !== "whatsapp_business_account") return updates;
+
+  for (const entry of payload.entry) {
+    for (const change of entry.changes as unknown as Array<{
+      field: string;
+      value: Record<string, unknown>;
+    }>) {
+      if (change.field !== "message_template_status_update") continue;
+      const v = change.value ?? {};
+      const name = typeof v.message_template_name === "string" ? v.message_template_name : null;
+      const event = typeof v.event === "string" ? v.event : null;
+      if (!name || !event) continue;
+
+      updates.push({
+        metaTemplateId:
+          v.message_template_id != null ? String(v.message_template_id) : null,
+        templateName: name,
+        language:
+          typeof v.message_template_language === "string"
+            ? v.message_template_language
+            : null,
+        status: event.toUpperCase(),
+        reason: typeof v.reason === "string" && v.reason !== "NONE" ? v.reason : null,
+      });
+    }
+  }
+
+  return updates;
+}
+
 /**
  * Verifies the webhook subscription challenge from Meta.
  */

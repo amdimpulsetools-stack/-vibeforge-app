@@ -271,6 +271,9 @@ export async function POST(req: NextRequest) {
       // Captured so the failure branch can still reference the template that
       // was being sent (may stay null if we fail before resolving it).
       let waTemplateId: string | null = null;
+      // Fila reservada en estado "sending" antes de llamar a Meta (mig 249).
+      // Si existe, el final del envío la actualiza en vez de insertar otra.
+      let claimId: string | null = null;
       try {
         // Fetch WhatsApp config for this org
         const { data: waConfig } = await supabase
@@ -301,13 +304,17 @@ export async function POST(req: NextRequest) {
             // en los últimos 10 minutos, no se reenvía. La ventana corta
             // permite reenvíos legítimos posteriores (ej. cancelar y volver
             // a confirmar días después).
+            //
+            // El acuse del webhook mueve la fila a delivered/read en
+            // segundos: filtrar solo por "sent" dejaba pasar el segundo
+            // disparo si Meta ya había confirmado la entrega.
             const tenMinAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
             const { data: recentDup } = await adminForLogs
               .from("whatsapp_message_logs")
               .select("id")
               .eq("appointment_id", appointment.id)
               .eq("template_id", waTemplate.id)
-              .eq("status", "sent")
+              .in("status", ["sending", "sent", "delivered", "read"])
               .gte("created_at", tenMinAgo)
               .limit(1)
               .maybeSingle();
@@ -316,9 +323,65 @@ export async function POST(req: NextRequest) {
               return NextResponse.json({
                 success: true,
                 to: patientEmail,
+                ...results,
                 whatsapp: "skipped_duplicate",
               });
             }
+
+            // …pero leer y después escribir no basta: entre esta consulta y
+            // el insert final pasa la llamada a Meta (~1 s), y dos disparos
+            // simultáneos leen los dos "no hay nada" (reproducido en prod el
+            // 7-sep: dos filas de la misma cita/plantilla a 1,3 s de
+            // distancia). La reserva cierra esa ventana: se inserta la fila
+            // en "sending" ANTES de llamar a Meta y el índice único parcial
+            // de la mig 249 deja pasar una sola por (cita, plantilla).
+
+            // Reservas huérfanas (request muerta a mitad de vuelo): se
+            // liberan a los 2 minutos para no bloquear envíos legítimos.
+            const staleClaimBefore = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+            await adminForLogs
+              .from("whatsapp_message_logs")
+              .update({
+                status: "failed",
+                error_message: "Reserva de envío vencida (sin respuesta de Meta)",
+              })
+              .eq("appointment_id", appointment.id)
+              .eq("template_id", waTemplate.id)
+              .eq("status", "sending")
+              .lt("created_at", staleClaimBefore);
+
+            const { data: claim, error: claimError } = await adminForLogs
+              .from("whatsapp_message_logs")
+              .insert({
+                organization_id: orgId,
+                template_id: waTemplate.id,
+                recipient_phone: recipientPhone,
+                patient_id: appointment.patient_id || null,
+                appointment_id: appointment.id,
+                status: "sending",
+              })
+              .select("id")
+              .single();
+
+            if (claimError) {
+              // 23505 → otro disparo ya tiene la reserva: es el duplicado.
+              if (claimError.code === "23505") {
+                return NextResponse.json({
+                  success: true,
+                  to: patientEmail,
+                  ...results,
+                  whatsapp: "skipped_duplicate",
+                });
+              }
+              // 23514 → el CHECK todavía no admite "sending" (mig 249 sin
+              // aplicar): se sigue con el comportamiento anterior en vez de
+              // dejar al paciente sin mensaje.
+              if (claimError.code !== "23514") {
+                throw new Error(claimError.message);
+              }
+            }
+
+            claimId = claim?.id ?? null;
 
             const client = new WhatsAppClient({
               accessToken: decrypt(waConfig.access_token),
@@ -352,16 +415,29 @@ export async function POST(req: NextRequest) {
               variableValues
             );
 
-            // Log the message (service-role: RLS-safe regardless of caller role)
-            await adminForLogs.from("whatsapp_message_logs").insert({
-              organization_id: orgId,
-              template_id: waTemplate.id,
-              recipient_phone: recipientPhone,
-              patient_id: appointment.patient_id || null,
-              appointment_id: appointment.id,
-              wamid,
-              status: "sent",
-            });
+            // Cierra la reserva (service-role: RLS-safe sea cual sea el rol
+            // de quien llamó). Sin reserva —mig 249 aún sin aplicar— se
+            // inserta la fila como antes.
+            if (claimId) {
+              await adminForLogs
+                .from("whatsapp_message_logs")
+                .update({
+                  status: "sent",
+                  wamid,
+                  sent_at: new Date().toISOString(),
+                })
+                .eq("id", claimId);
+            } else {
+              await adminForLogs.from("whatsapp_message_logs").insert({
+                organization_id: orgId,
+                template_id: waTemplate.id,
+                recipient_phone: recipientPhone,
+                patient_id: appointment.patient_id || null,
+                appointment_id: appointment.id,
+                wamid,
+                status: "sent",
+              });
+            }
 
             results.whatsapp = { success: true, wamid };
           }
@@ -372,16 +448,25 @@ export async function POST(req: NextRequest) {
 
         // Persist the failure so it is visible in the WA message log
         // (previously this was only console.error'd and silently lost).
+        // Si había reserva, se marca ESA fila: así se libera el índice
+        // único y un reintento manual del staff puede volver a enviar.
         try {
-          await adminForLogs.from("whatsapp_message_logs").insert({
-            organization_id: orgId,
-            template_id: waTemplateId,
-            recipient_phone: recipientPhone,
-            patient_id: appointment.patient_id || null,
-            appointment_id: appointment.id,
-            status: "failed",
-            error_message: message,
-          });
+          if (claimId) {
+            await adminForLogs
+              .from("whatsapp_message_logs")
+              .update({ status: "failed", error_message: message })
+              .eq("id", claimId);
+          } else {
+            await adminForLogs.from("whatsapp_message_logs").insert({
+              organization_id: orgId,
+              template_id: waTemplateId,
+              recipient_phone: recipientPhone,
+              patient_id: appointment.patient_id || null,
+              appointment_id: appointment.id,
+              status: "failed",
+              error_message: message,
+            });
+          }
         } catch (logErr) {
           console.error("[Notification WhatsApp Error] failed to persist log:", logErr);
         }

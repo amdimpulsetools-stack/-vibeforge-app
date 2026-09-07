@@ -31,6 +31,7 @@ export default function WhatsAppConfigTab() {
     verified: boolean;
     phoneNumber?: string;
     qualityRating?: string;
+    error?: string;
   } | null>(null);
 
   const es = language === "es";
@@ -272,6 +273,11 @@ export default function WhatsAppConfigTab() {
                 {verificationResult.verified
                   ? (es ? "Conexión exitosa" : "Connection successful")
                   : (es ? "No se pudo conectar" : "Connection failed")}
+                {!verificationResult.verified && verificationResult.error && (
+                  <span className="block font-normal opacity-90">
+                    {verificationResult.error}
+                  </span>
+                )}
               </p>
               {verificationResult.phoneNumber && (
                 <p className="text-xs text-muted-foreground">

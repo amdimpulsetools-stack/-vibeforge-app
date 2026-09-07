@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   parseWebhookStatusUpdates,
+  parseTemplateStatusUpdates,
   verifyWebhookChallenge,
 } from "@/lib/whatsapp/webhook";
 import {
@@ -56,12 +57,15 @@ export async function GET(req: NextRequest) {
  */
 async function handleWebhookPayload(payload: MetaWebhookPayload) {
   const updates = parseWebhookStatusUpdates(payload);
+  // Estado de plantillas (APPROVED/REJECTED/…): sin esto el estado en
+  // Yenda solo cambiaba al pulsar "Sincronizar" a mano.
+  const templateUpdates = parseTemplateStatusUpdates(payload);
   // Captación F1: los mensajes ENTRANTES antes se descartaban aquí
   // (solo se procesaban statuses). Ahora se capturan en silencio —
   // best-effort, sin afectar jamás la vía de los acuses.
   const inbound = parseInboundMessages(payload);
 
-  if (updates.length === 0 && inbound.length === 0) {
+  if (updates.length === 0 && inbound.length === 0 && templateUpdates.length === 0) {
     return NextResponse.json({ received: true });
   }
 
@@ -100,9 +104,33 @@ async function handleWebhookPayload(payload: MetaWebhookPayload) {
       .eq("wamid", update.wamid);
   }
 
+  for (const t of templateUpdates) {
+    const patch: Record<string, unknown> = {
+      status: t.status,
+      last_synced_at: new Date().toISOString(),
+    };
+    if (t.status === "APPROVED" || t.status === "REJECTED") {
+      patch.reviewed_at = new Date().toISOString();
+    }
+    patch.rejection_reason = t.status === "REJECTED" ? t.reason ?? null : null;
+
+    // Una misma WABA puede servir a varias orgs (número de prueba
+    // compartido durante el App Review): se actualiza por nombre, que es
+    // único dentro de la cuenta, y por id de Meta cuando viene.
+    let q = supabase.from("whatsapp_templates").update(patch);
+    q = t.metaTemplateId
+      ? q.eq("meta_template_id", t.metaTemplateId)
+      : q.eq("meta_template_name", t.templateName);
+    const { error } = await q;
+    if (error) {
+      console.error("[WhatsApp] estado de plantilla no aplicado:", error.message);
+    }
+  }
+
   return NextResponse.json({
     received: true,
     processed: updates.length,
+    templates: templateUpdates.length,
     captured,
   });
 }

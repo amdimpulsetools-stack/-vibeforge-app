@@ -747,6 +747,33 @@ export function AppointmentSidebar({
   const [editNotes, setEditNotes] = useState(appointment.notes ?? "");
   const [editMeetingUrl, setEditMeetingUrl] = useState((appointment as any).meeting_url ?? "");
 
+  // ── Precio editable al cambiar de servicio ──────────────────────────────
+  // El precio se congela al crear la cita (price_snapshot, mig 011) para que
+  // un cambio de catálogo no altere citas viejas. Pero el caso real "vino
+  // por control ovulatorio y terminó en histerosonografía" cambiaba el
+  // servicio y dejaba el precio del servicio anterior (reproducido en prod
+  // el 7-sep). Regla: si el precio guardado ERA el de catálogo del servicio
+  // original, al elegir otro servicio se propone el de catálogo del nuevo;
+  // si era personalizado, se conserva y se pide revisarlo. Siempre visible y
+  // editable — nada cambia de forma invisible.
+  const [editPrice, setEditPrice] = useState("");
+  // La persona ya tocó el precio a mano en esta edición: no se pisa.
+  const [editPriceTouched, setEditPriceTouched] = useState(false);
+  // El precio se rellenó solo desde el catálogo del nuevo servicio.
+  const [editPriceAutoFilled, setEditPriceAutoFilled] = useState(false);
+
+  const originalServiceCatalogPrice = Number(
+    appointment.services?.base_price ??
+      services.find((s) => s.id === appointment.service_id)?.base_price ??
+      0
+  );
+  const isPlanSession = Boolean(
+    (appointment as { treatment_session_id?: string | null }).treatment_session_id
+  );
+  const hasInsurance =
+    (appointment as { payment_mode?: string | null }).payment_mode === "insurance" ||
+    Number((appointment as { insurance_coverage_amount?: number | null }).insurance_coverage_amount ?? 0) > 0;
+
   const statusColor = APPOINTMENT_STATUS_COLORS[appointment.status] ?? "#9ca3af";
   const StatusIcon = STATUS_ICONS[appointment.status] ?? AlertCircle;
 
@@ -966,6 +993,9 @@ export function AppointmentSidebar({
     setStaleResponsibleLabel(r.staleLabel);
     setEditNotes(appointment.notes ?? "");
     setEditMeetingUrl((appointment as any).meeting_url ?? "");
+    setEditPrice(grossPrice.toFixed(2));
+    setEditPriceTouched(false);
+    setEditPriceAutoFilled(false);
     setEditing(true);
   };
 
@@ -973,7 +1003,75 @@ export function AppointmentSidebar({
     setEditing(false);
   };
 
+  // El precio guardado coincide con el catálogo del servicio ORIGINAL (o la
+  // cita es anterior al snapshot): no fue pactado a mano, así que seguir al
+  // nuevo servicio es lo que la persona espera.
+  const storedPriceIsCatalog =
+    appointment.price_snapshot == null ||
+    Math.abs(grossPrice - originalServiceCatalogPrice) < 0.005;
+  // Con comprobante emitido el precio no se toca: el ajuste es nota de
+  // crédito, misma regla que ya aplican los descuentos.
+  const priceLocked = alreadyInvoiced > 0;
+
+  const handleEditServiceChange = (serviceId: string) => {
+    setEditService(serviceId);
+    if (priceLocked || isPlanSession || editPriceTouched) return;
+    if (serviceId === appointment.service_id) {
+      // Volvió al servicio original: se restaura el precio guardado.
+      setEditPrice(grossPrice.toFixed(2));
+      setEditPriceAutoFilled(false);
+      return;
+    }
+    if (!storedPriceIsCatalog) return;
+    const next = services.find((s) => s.id === serviceId);
+    if (!next) return;
+    setEditPrice(Number(next.base_price ?? 0).toFixed(2));
+    setEditPriceAutoFilled(true);
+  };
+
   const handleSaveEdit = async () => {
+    // ── Precio ──
+    const newPrice = Number(editPrice.replace(",", "."));
+    if (!Number.isFinite(newPrice) || newPrice < 0) {
+      toast.error("El precio debe ser un número mayor o igual a 0.");
+      return;
+    }
+    const priceChanged = Math.abs(newPrice - grossPrice) > 0.005;
+    if (priceChanged && priceLocked) {
+      toast.error(
+        "Esta cita ya tiene comprobante emitido: el precio no se puede cambiar. Ajusta el monto con una nota de crédito."
+      );
+      return;
+    }
+    if (priceChanged && (totalPaid > 0 || discountAmount > 0 || hasInsurance)) {
+      const newTotal = Math.max(0, newPrice - discountAmount);
+      const newPending = newTotal - totalPaid;
+      const lines: string[] = [
+        `Precio: S/. ${grossPrice.toFixed(2)} → S/. ${newPrice.toFixed(2)}.`,
+      ];
+      if (discountAmount > 0) {
+        lines.push(
+          `Se mantiene el descuento de S/. ${discountAmount.toFixed(2)}: total S/. ${newTotal.toFixed(2)}.`
+        );
+      }
+      if (totalPaid > 0) {
+        lines.push(
+          newPending >= 0
+            ? `Ya hay S/. ${totalPaid.toFixed(2)} pagados: el pendiente pasa a S/. ${newPending.toFixed(2)}.`
+            : `Ya hay S/. ${totalPaid.toFixed(2)} pagados: queda un saldo a favor de S/. ${Math.abs(newPending).toFixed(2)}.`
+        );
+      }
+      if (hasInsurance) {
+        lines.push("La cita tiene seguro: la cobertura y el copago no se recalculan solos, revísalos.");
+      }
+      const ok = await confirm({
+        title: "¿Cambiar el precio de la cita?",
+        description: lines.join(" "),
+        confirmText: "Sí, cambiar",
+      });
+      if (!ok) return;
+    }
+
     setUpdating(true);
     const supabase = createClient();
 
@@ -1025,6 +1123,9 @@ export function AppointmentSidebar({
         meeting_url: newMeetingUrl,
         edited_by_name: userName,
         edited_at: new Date().toISOString(),
+        // Solo se escribe el snapshot si cambió: una cita anterior al
+        // snapshot (NULL) sigue resolviendo por catálogo como hasta ahora.
+        ...(priceChanged ? { price_snapshot: Number(newPrice.toFixed(2)) } : {}),
         // responsible_user_id lives outside the generated Update type (mig 073),
         // so we widen the payload — same escape hatch the create modal uses.
       } as Record<string, unknown>)
@@ -1035,6 +1136,9 @@ export function AppointmentSidebar({
     if (error) {
       toast.error(t("scheduler.save_error"));
       return;
+    }
+    if (priceChanged) {
+      toast.info(`Precio de la cita actualizado a S/. ${newPrice.toFixed(2)}`);
     }
 
     // Propagate the edited origin back to the patient. Use case: recepcionista
@@ -1234,7 +1338,7 @@ export function AppointmentSidebar({
             {editing && services.length > 0 ? (
               <select
                 value={editService}
-                onChange={(e) => setEditService(e.target.value)}
+                onChange={(e) => handleEditServiceChange(e.target.value)}
                 className={selectClass}
               >
                 {services.map((s) => (
@@ -1247,6 +1351,53 @@ export function AppointmentSidebar({
               <p className="text-sm">{appointment.services?.name}</p>
             )}
           </div>
+
+          {/* Precio — editable junto al servicio. Se rellena solo al cambiar
+              de servicio cuando el precio guardado era el de catálogo; si era
+              personalizado se conserva y se pide revisarlo. */}
+          {editing && (
+            <div className="space-y-1">
+              <div className="flex items-center gap-3">
+                <Wallet className="h-4 w-4 text-muted-foreground" />
+                <div className="flex w-full items-center gap-2">
+                  <span className="text-sm text-muted-foreground">S/.</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step="0.01"
+                    value={editPrice}
+                    disabled={priceLocked}
+                    onChange={(e) => {
+                      setEditPrice(e.target.value);
+                      setEditPriceTouched(true);
+                      setEditPriceAutoFilled(false);
+                    }}
+                    className={cn(
+                      selectClass,
+                      editPriceAutoFilled && "border-primary/60 ring-1 ring-primary/30",
+                      !storedPriceIsCatalog &&
+                        editService !== appointment.service_id &&
+                        !editPriceTouched &&
+                        "border-amber-500/60 ring-1 ring-amber-500/30"
+                    )}
+                    aria-label="Precio de la cita"
+                  />
+                </div>
+              </div>
+              <p className="pl-7 text-[11px] leading-snug text-muted-foreground">
+                {priceLocked
+                  ? "Precio bloqueado: la cita ya tiene comprobante emitido. Ajusta el monto con una nota de crédito."
+                  : isPlanSession
+                    ? "Sesión de un plan de tratamiento: el precio lo fija el plan. Cámbialo solo si corresponde."
+                    : editPriceAutoFilled
+                      ? `Actualizado al precio de catálogo de ${selectedService?.name ?? "este servicio"}.`
+                      : !storedPriceIsCatalog && editService !== appointment.service_id
+                        ? `Esta cita tenía precio personalizado (S/. ${grossPrice.toFixed(2)}). Revísalo para el nuevo servicio.`
+                        : "Precio de esta cita. Cambiar el servicio lo actualiza al de catálogo."}
+              </p>
+            </div>
+          )}
 
           {/* Meeting URL — Zoom branded */}
           {editing ? (
