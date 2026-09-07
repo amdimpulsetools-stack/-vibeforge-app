@@ -79,6 +79,32 @@ rechazo.
 > marketing campaigns, and we never use one customer's number to message
 > another customer's patients.
 
+### Notas del video — `whatsapp_business_messaging` (pegar en el campo de
+### detalles/descripción junto al video, en inglés)
+
+> The screen is split in two: on the left, Yenda (our web app) with a clinic
+> staff account of our demo clinic; on the right, the WhatsApp client that
+> receives the message.
+>
+> 1. The staff member opens the Schedule and creates an appointment for a test
+>    patient. The patient's phone is the WhatsApp test number registered in our
+>    app.
+> 2. When the appointment is created and confirmed by the staff member, Yenda
+>    calls the Cloud API and sends the clinic's approved "appointment
+>    confirmation" template from the clinic's own WhatsApp Business number. No
+>    extra button is needed: the send is triggered by the confirmation itself,
+>    exactly as it works for our clinics in production.
+> 3. On the right side, the WhatsApp client displays the message with the
+>    patient name, date, time, doctor, service and amount filled in from the
+>    appointment record, plus a quick-reply "Confirm" button.
+> 4. Pressing that button sends the patient's reply, which our webhook receives
+>    and stores in the clinic's message history.
+>
+> All data shown is test data: test clinic, fictitious patient and Meta's test
+> phone number. We are using the test number because the app does not have
+> Advanced Access yet and therefore cannot onboard a real customer number
+> through Embedded Signup; the flow is identical with a real clinic number.
+
 ---
 
 ## 3. Screencasts — DOS videos separados (requisito de Meta)

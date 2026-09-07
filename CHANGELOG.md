@@ -4796,6 +4796,21 @@ Decisión del founder: **un solo motor de documentos para todo Yenda** — del c
 
 ---
 
+## Changelog — Sesión 2026-09-07 (v0.15.41) — App Review de Meta enviado + idempotencia real de envíos WhatsApp (mig 249)
+
+### App Review (WhatsApp Cloud API)
+- Enviados los dos permisos (`whatsapp_business_management` y `whatsapp_business_messaging`) con **un screencast por permiso**, como exige la doc oficial ("You must submit a different video clip for each permission"). El Embedded Signup **no** se graba: no aparece en los requisitos de video de ninguno de los dos permisos y no se puede ejecutar sin el acceso avanzado que justamente se está pidiendo (el asistente IA de la consola afirmó lo contrario; manda la documentación).
+- Cuatro bloqueos diagnosticados en el camino, cada uno con evidencia de prod: nombre de plantilla ya usado en la WABA compartida (`confirmacion_cita` de la org de Patricia) → renombrada a `confirmacion_cita_demo`; token de 24 h caducado con el error tragado por un `catch {}`; `services.send_reminders = false` en "Consulta General" silenciando la confirmación (0 filas en `whatsapp_message_logs`, nunca llegó a llamar a Meta); y el horario recreado tras cancelar una cita en el mismo bloque.
+- `docs/meta-app-review.md`: justificaciones finales, notas de video para el revisor, reglas de grabación y cuestionario de datos.
+
+### Idempotencia de envío — mig 249
+- **Bug reproducido en prod**: al confirmar una cita el paciente recibió la MISMA confirmación dos veces (DemoClinic, 05:15:22.263 y 05:15:23.548 UTC, misma cita y misma plantilla). El guard existente era *leer y después escribir*: entre la consulta y el insert está la llamada a Meta (~1 s), así que los dos disparos —el formulario al crear la cita ya "confirmada" y el cambio de estado; un doble clic hace lo mismo— leían "no hay nada".
+- Mig 249: `'sending'` entra en el CHECK de estados y un **índice único parcial** `(appointment_id, template_id) where status = 'sending'` deja una sola reserva viva. El envío ahora **reserva la fila antes de llamar a Meta**; el segundo disparo choca con 23505 y devuelve `skipped_duplicate`. Al cerrar, la fila pasa a `sent` (con su `wamid`) o `failed`, liberando el índice; el guard de 10 minutos sigue permitiendo reenvíos legítimos posteriores.
+- Reservas huérfanas (request muerta a mitad de vuelo) se liberan a los 2 minutos. Si la mig 249 aún no está aplicada, el `CHECK` rechaza la reserva (23514) y el código **degrada al comportamiento anterior** en vez de dejar al paciente sin mensaje.
+- Segundo agujero del guard corregido: filtraba solo por `status = 'sent'`, pero el acuse del webhook mueve la fila a `delivered`/`read` en segundos → ahora cuenta `sending/sent/delivered/read`.
+
+---
+
 ## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)
 
 > Detalle largo de cada feature implementada, movido verbatim desde la Sección 12 del PRD (que ahora es un checklist de una línea). Se conserva aquí para no perder contenido único.
