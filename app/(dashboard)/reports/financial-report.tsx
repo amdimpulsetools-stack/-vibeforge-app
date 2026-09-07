@@ -87,7 +87,7 @@ function CardTitle({ icon: Icon, label, tooltip, iconClass }: { icon: typeof Dol
       <div className="invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-150 absolute left-0 top-full mt-2 z-50">
         <div className="relative rounded-lg bg-popover border border-border px-3 py-1.5 shadow-lg">
           <div className="absolute -top-1 left-4 h-2 w-2 rotate-45 bg-popover border-l border-t border-border" />
-          <span className="text-xs font-medium text-foreground whitespace-nowrap">{tooltip}</span>
+          <span className="block w-max max-w-[18rem] text-xs font-medium text-foreground leading-snug">{tooltip}</span>
         </div>
       </div>
     </div>
@@ -124,11 +124,34 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
     const totalRevenue = doctorData.reduce((sum, d) => sum + d.revenue, 0);
     const totalAttended = doctorData.reduce((sum, d) => sum + d.attended, 0);
     const totalCancelled = doctorData.reduce((sum, d) => sum + d.cancelled, 0);
-    // `payments_amount` = citas + farmacia (como siempre). Los cobros de
-    // TRATAMIENTOS (mig 244) vienen aparte y NO entran en "Pendiente": no
-    // tienen cita facturada contra la cual restarse.
+    // `payments_amount` = citas + farmacia + planes (como siempre). Los
+    // cobros de TRATAMIENTOS (mig 244) vienen aparte.
     const totalPaid = Number(overview?.totals.payments_amount ?? 0);
-    const totalPending = totalRevenue - totalPaid;
+    // "Pendiente" (mig 250) es deuda real: por cita atendida/confirmada del
+    // rango, lo que falta cobrar de ESA cita. Antes era Facturado − Cobrado
+    // y salía negativo en cuanto entraba farmacia o un adelanto de otra
+    // fecha (−4 510 en la clínica de Patricia el 7-sep, con deuda real 0).
+    // Sin la mig aplicada se degrada a la resta de antes, topada en 0.
+    const pendingFromRpc = overview?.totals.pending_amount;
+    const totalPending =
+      pendingFromRpc != null
+        ? Number(pendingFromRpc)
+        : Math.max(0, totalRevenue - totalPaid);
+    // Desglose de "Total cobrado": de dónde viene cada sol (mig 250).
+    const breakdown = overview?.totals.collected_breakdown ?? null;
+    const breakdownRows = breakdown
+      ? (
+          [
+            ["reports.collected_period_appts", breakdown.period_appointments],
+            ["reports.collected_other_appts", breakdown.other_appointments],
+            ["reports.collected_plans", breakdown.plans],
+            ["reports.collected_pharmacy", breakdown.pharmacy],
+            ["reports.collected_other", breakdown.other],
+          ] as const
+        )
+          .map(([key, value]) => ({ label: t(key), value: Number(value) }))
+          .filter((r) => r.value > 0)
+      : [];
     const totalAppointments = overview?.totals.appointments ?? 0;
     const totalNoShows = overview?.totals.no_shows ?? 0;
     const treatmentPaid = Number(overview?.totals.treatment_payments_amount ?? 0);
@@ -143,6 +166,10 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
         kpis: [
           { label: "Total Facturado", value: `S/. ${totalRevenue.toFixed(2)}` },
           { label: "Total Cobrado", value: `S/. ${totalPaid.toFixed(2)}` },
+          ...breakdownRows.map((r) => ({
+            label: `  · ${r.label}`,
+            value: `S/. ${r.value.toFixed(2)}`,
+          })),
           { label: "Pendiente", value: `S/. ${totalPending.toFixed(2)}` },
           ...(showTreatments
             ? [{ label: "Cobros por tratamientos", value: `S/. ${treatmentPaid.toFixed(2)}` }]
@@ -161,7 +188,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
         }],
         filename: `reporte_financiero_${dateFrom}_${dateTo}`,
       }),
-    }), [doctorData, totalAppointments, totalRevenue, totalPaid, totalPending, totalAttended, totalCancelled, totalNoShows, treatmentPaid, showTreatments, dateFrom, dateTo]);
+    }), [doctorData, totalAppointments, totalRevenue, totalPaid, totalPending, breakdownRows, totalAttended, totalCancelled, totalNoShows, treatmentPaid, showTreatments, dateFrom, dateTo]);
 
     const chartData = doctorData.map((d) => ({ name: d.name, Atendidos: d.attended, Confirmados: d.confirmed, Cancelados: d.cancelled }));
     const revenueChartData = doctorData.map((d) => ({ name: d.name, Facturado: Number(d.revenue.toFixed(2)) }));
@@ -176,6 +203,18 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
           <div className="rounded-xl border border-border bg-card p-4">
             <CardTitle icon={DollarSign} label={t("reports.total_collected")} tooltip={t("reports.tooltip_total_collected")} iconClass="text-success-500" />
             <p className="mt-2 text-2xl font-bold text-success-600">S/. {totalPaid.toFixed(2)}</p>
+            {/* De dónde viene cada sol (mig 250). Solo las cubetas con
+                monto: una clínica sin farmacia no ve la línea de farmacia. */}
+            {breakdownRows.length > 0 && (
+              <dl className="mt-2 space-y-0.5 border-t border-border/60 pt-2 text-[11px] leading-snug text-muted-foreground">
+                {breakdownRows.map((r) => (
+                  <div key={r.label} className="flex items-baseline justify-between gap-2">
+                    <dt className="truncate">{r.label}</dt>
+                    <dd className="shrink-0 tabular-nums font-medium text-foreground">S/. {r.value.toFixed(2)}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
             <CardTitle icon={DollarSign} label={t("reports.total_pending")} tooltip={t("reports.tooltip_total_pending")} iconClass="text-amber-500" />

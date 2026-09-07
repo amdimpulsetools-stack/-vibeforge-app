@@ -51,9 +51,9 @@ atendió al paciente.
 
 | Tarjeta | Fórmula |
 |---|---|
-| **Total facturado** | Σ del precio de las citas **atendidas + confirmadas** del rango. No cuenta programadas ni canceladas. |
-| **Total cobrado** | Σ de los cobros del rango que **no son de tratamiento**. |
-| **Pendiente** | Total facturado − Total cobrado. |
+| **Total facturado** | Σ del precio real (con descuento) de las citas **atendidas + confirmadas** del rango. No cuenta programadas ni canceladas. |
+| **Total cobrado** | Σ de los cobros del rango que **no son de tratamiento**, con su desglose debajo: citas del periodo · adelantos y pagos de otras fechas · planes · farmacia · sin cita. |
+| **Pendiente cobro** | Por cada cita atendida o confirmada del rango: precio real − lo cobrado de esa cita (sin importar cuándo se pagó). Solo suma saldos positivos: **nunca negativo**. Farmacia, adelantos y tratamientos no entran. |
 | **Cobros por tratamientos** | Σ de los cobros de tratamientos del rango. Va aparte, nunca dentro de "Pendiente". |
 | **Facturado por doctor** | Σ del precio de las citas atendidas + confirmadas de ese doctor. |
 | **Ingresos por servicio** | Σ del precio de las citas **atendidas** de ese servicio. |
@@ -135,12 +135,12 @@ son dos actos distintos. Lo cobrado y lo facturado a SUNAT pueden no coincidir.
 
 ## Tres avisos honestos para la reunión
 
-1. **En Reportes, "Total cobrado" incluye las ventas de farmacia, pero "Total
-   facturado" solo cuenta citas.** Con eso, "Pendiente" sale más bajo de lo real
-   en las clínicas que venden productos. En la organización de la Dra. Patricia
-   hay 32 cobros de farmacia, así que le afecta hoy. La regla interna dice que la
-   plata de clínica y la de farmacia no se mezclan; esta pantalla se salta la
-   regla y hay que corregirla.
+1. ~~**En Reportes, "Total cobrado" incluye las ventas de farmacia, pero "Total
+   facturado" solo cuenta citas.**~~ **Corregido (mig 250).** El 7-sep la
+   tarjeta llegó a mostrar "Pendiente cobro S/ −4 510" con deuda real S/ 0:
+   restaba farmacia (2 660), adelantos de otras fechas (550) y un FIV (1 200)
+   contra la facturación de 4 citas. Ahora "Pendiente" es deuda real por cita
+   y "Total cobrado" muestra de dónde viene cada sol.
 2. **La "Deuda pendiente" del Dashboard no resta los descuentos** (la ficha del
    paciente sí). En la organización de la Dra. Patricia hay 7 citas con descuento,
    así que ese número está ligeramente inflado y no cuadra con el saldo que se ve
@@ -149,5 +149,5 @@ son dos actos distintos. Lo cobrado y lo facturado a SUNAT pueden no coincidir.
    (cuándo entró el dinero) y el otro devengado (cuándo se atendió). Que no
    coincidan no es un error; que se contradigan dentro de la misma pantalla, sí.
 
-Los puntos 1 y 2 son arreglables sin tocar datos: es cambiar la fórmula de esas
-dos tarjetas para que usen las mismas funciones que ya usa la ficha del paciente.
+El punto 2 sigue pendiente y se arregla sin tocar datos: cambiar la fórmula de
+esa tarjeta para que use la misma función que la ficha del paciente.
