@@ -113,6 +113,7 @@ export class WhatsAppClient {
     verified: boolean;
     phoneNumber?: string;
     qualityRating?: string;
+    error?: string;
   }> {
     try {
       const data = await this.request<{
@@ -126,8 +127,15 @@ export class WhatsAppClient {
         phoneNumber: data.display_phone_number,
         qualityRating: data.quality_rating,
       };
-    } catch {
-      return { verified: false };
+    } catch (err) {
+      // Antes se tragaba el error y la UI solo decía "No se pudo
+      // conectar": con un token caducado (los temporales duran 24 h y
+      // volver a autorizar la app invalida el anterior) nadie sabía por
+      // qué. Ahora viaja el mensaje de Meta hasta la pantalla.
+      return {
+        verified: false,
+        error: err instanceof Error ? err.message : "Error desconocido de Meta",
+      };
     }
   }
 }
