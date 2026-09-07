@@ -333,7 +333,12 @@ export default function WhatsAppTemplatesTab() {
                     toast.success(es ? `Estado: ${data.status}` : `Status: ${data.status}`);
                     fetchTemplates();
                   } else {
-                    toast.error(es ? "Error al sincronizar" : "Sync error");
+                    // El servidor manda el motivo real (token caducado,
+                    // plantilla borrada en Meta…): mostrarlo, no ocultarlo.
+                    const data = await res.json().catch(() => null);
+                    toast.error(es ? "Error al sincronizar" : "Sync error", {
+                      description: data?.error,
+                    });
                   }
                 }}
                 onSubmit={async () => {
