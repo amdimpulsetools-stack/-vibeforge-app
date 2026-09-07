@@ -101,6 +101,35 @@ rechazo.
 >   aparece en los requisitos de video de ninguno de los dos permisos.
 > - Turnaround medio: ~24 h.
 
+> **Contraste con el asistente IA de la consola (7-sep):** afirmó que grabar el
+> Embedded Signup es obligatorio. La documentación dice lo contrario y es la
+> que manda. *Become a Tech Provider → Step 10: Capture videos for App Review*:
+> **"you will be asked to provide two video recordings: The first video must
+> show a message created and sent from your app and received in the WhatsApp
+> client (mobile app or web app). The second video must show your app being
+> used to create a message template."** No menciona el Embedded Signup en
+> ninguno de los dos, y la página de App Review insiste: *"You don't need to
+> wait for Embedded Signup to be fully implemented to start this process."*
+>
+> Esa misma página añade dos cosas útiles:
+> - **Alternativas válidas al video de la app**: grabar el cURL del panel
+>   *API Setup* enviando un mensaje a un número de prueba, o el *WhatsApp
+>   Manager* creando una plantilla. No las necesitamos (Yenda hace ambas),
+>   pero sirven de red si algo falla el día de grabar.
+> - **"For the App verification details dialog, when your app review submission
+>   only involves whatsapp_business_messaging and whatsapp_business_management,
+>   you do not need to provide testing instructions."** Aun así conviene
+>   explicar ahí la limitación del Embedded Signup: el propio asistente dijo
+>   que hacerlo no impide la aprobación.
+>
+> **Si aun así se quiere mostrar el Embedded Signup** (no cuesta y calla la
+> objeción): grabarlo desde **otra organización de Yenda que no tenga WhatsApp
+> conectado** — la card aparece como "Disponible" y el botón "Conectar con
+> Facebook" abre el popup — o desde la URL de *Hosted Embedded Signup*
+> (WhatsApp → Quickstart → View onboarding → tarjeta "Zero integration
+> onboarding"). Ninguna de las dos toca la configuración ya funcionando de la
+> org demo. **Nunca desconectar la org demo para grabar.**
+
 **Reglas de grabación (de la guía de Meta, las que nos aplican)**
 - 1080p o mejor; ancho de pantalla ≤ 1440; grabar solo la ventana de la app.
 - **UI en inglés si se puede** (Yenda tiene ES/EN en el selector de idioma) o
