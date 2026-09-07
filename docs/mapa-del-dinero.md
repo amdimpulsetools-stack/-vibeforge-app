@@ -51,16 +51,17 @@ atendió al paciente.
 
 | Tarjeta | Fórmula |
 |---|---|
-| **Total facturado** | Σ del precio real (con descuento) de las citas **atendidas + confirmadas** del rango. No cuenta programadas ni canceladas. |
-| **Total cobrado** | Σ de los cobros del rango que **no son de tratamiento**, con su desglose debajo: citas del periodo · adelantos y pagos de otras fechas · planes · farmacia · sin cita. |
-| **Pendiente cobro** | Por cada cita atendida o confirmada del rango: precio real − lo cobrado de esa cita (sin importar cuándo se pagó). Solo suma saldos positivos: **nunca negativo**. Farmacia, adelantos y tratamientos no entran. |
+| **Facturado por citas** | Σ de los cobros del rango **sobre citas del rango** (consultas y procedimientos de estas fechas, incluidos los pagos añadidos a la cita). Sin farmacia, sin adelantos de otras fechas, sin tratamientos. |
+| **Cobrado total** | Σ de los cobros del rango que **no son de tratamiento**, con su desglose debajo: citas del periodo · adelantos y pagos de otras fechas · planes · farmacia · sin cita. La primera línea es igual a "Facturado por citas". |
+| **Pendiente por cobrar** | Por cada cita atendida o confirmada del rango: precio real − lo cobrado de esa cita (sin importar cuándo se pagó). Solo suma saldos positivos: **nunca negativo**. Farmacia, adelantos y tratamientos no entran. |
 | **Cobros por tratamientos** | Σ de los cobros de tratamientos del rango. Va aparte, nunca dentro de "Pendiente". |
-| **Facturado por doctor** | Σ del precio de las citas atendidas + confirmadas de ese doctor. |
-| **Ingresos por servicio** | Σ del precio de las citas **atendidas** de ese servicio. |
+| **Facturación por doctor** | Lo cobrado en el rango sobre las citas de ese doctor. La suma de la tabla es igual a "Facturado por citas". |
+| **Ingresos por servicio** (pestaña Operacional) | Σ del precio de las citas **atendidas** de ese servicio. Es la única cifra de esta pantalla que sigue midiendo precio, no cobro. |
 
-Ojo con la diferencia de naturaleza: **Facturado** es lo devengado (lo que se
-atendió) y **Cobrado** es caja (lo que entró). No tienen por qué coincidir con el
-Dashboard, que es solo caja.
+Desde la mig 251 toda la pestaña Financiero mide **caja** (dinero que entró),
+igual que el Dashboard. La medida de producción (precio de las citas) sigue
+existiendo en el RPC (`doctors[].revenue`) pero no se muestra: la clínica pidió
+ver lo cobrado, no lo atendido.
 
 ## 5. Ficha del paciente (drawer y lista)
 

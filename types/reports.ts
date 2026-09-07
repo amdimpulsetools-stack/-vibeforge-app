@@ -12,7 +12,15 @@ export interface ReportsDoctorRow {
   confirmed: number;
   cancelled: number;
   scheduled: number;
+  /** Precio de las citas atendidas + confirmadas del doctor (producción). */
   revenue: number;
+  /**
+   * Mig 251: cobrado en el rango sobre las citas del doctor (clínico, sin
+   * farmacia ni tratamientos). Es lo que la pantalla llama "Facturado por
+   * citas"; Σ de todos los doctores == collected_breakdown.period_appointments.
+   * Opcional hasta aplicar la mig.
+   */
+  collected?: number;
 }
 
 export interface ReportsServiceRow {
