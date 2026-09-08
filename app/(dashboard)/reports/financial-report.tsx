@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, forwardRef, useImperativeHandle } from "react";
+import { useMemo, useState, forwardRef, useImperativeHandle } from "react";
+import { cn } from "@/lib/utils";
 import { useLanguage } from "@/components/language-provider";
 import { useBrandAccent } from "@/hooks/use-brand-accent";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
@@ -12,6 +13,7 @@ import {
   Users,
   XCircle,
   UserX,
+  ChevronDown,
 } from "lucide-react";
 import {
   BarChart,
@@ -99,6 +101,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
     const { t } = useLanguage();
     // Color de marca del chart (sigue el tema de acento de la org).
     const accent = useBrandAccent();
+    const [breakdownOpen, setBreakdownOpen] = useState(false);
 
     // El RPC ya entrega la productividad agrupada por doctor; aquí solo se
     // calcula el promedio por cita.
@@ -212,15 +215,31 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
             <p className="mt-2 text-2xl font-bold text-success-600">S/. {totalPaid.toFixed(2)}</p>
             {/* De dónde viene cada sol (mig 250). Solo las cubetas con
                 monto: una clínica sin farmacia no ve la línea de farmacia. */}
+            {/* Desglose colapsable: cerrado por defecto para que las siete
+                tarjetas compartan altura (feedback del founder: abierto
+                dejaba un hueco en blanco en las demás). */}
             {breakdownRows.length > 0 && (
-              <dl className="mt-2 space-y-0.5 border-t border-border/60 pt-2 text-[11px] leading-snug text-muted-foreground">
-                {breakdownRows.map((r) => (
-                  <div key={r.label} className="flex items-baseline justify-between gap-2">
-                    <dt className="truncate">{r.label}</dt>
-                    <dd className="shrink-0 tabular-nums font-medium text-foreground">S/. {r.value.toFixed(2)}</dd>
-                  </div>
-                ))}
-              </dl>
+              <div className="mt-2 border-t border-border/60 pt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setBreakdownOpen((v) => !v)}
+                  aria-expanded={breakdownOpen}
+                  className="flex w-full items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <span>{breakdownOpen ? t("reports.collected_breakdown_hide") : t("reports.collected_breakdown_show")}</span>
+                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", breakdownOpen && "rotate-180")} />
+                </button>
+                {breakdownOpen && (
+                  <dl className="mt-1.5 space-y-1 text-[11px] leading-snug text-muted-foreground">
+                    {breakdownRows.map((r) => (
+                      <div key={r.label} className="flex items-baseline justify-between gap-2">
+                        <dt className="min-w-0">{r.label}</dt>
+                        <dd className="shrink-0 tabular-nums font-medium text-foreground">S/. {r.value.toFixed(2)}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </div>
             )}
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
