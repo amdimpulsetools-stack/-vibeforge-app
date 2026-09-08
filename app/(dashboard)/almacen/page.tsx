@@ -41,6 +41,7 @@ import { DiscountModal, type DiscountPayload } from "./discount-modal";
 import { EntryModal, type EntryPayload } from "./entry-modal";
 import { ProductModal, type ProductPayload } from "./product-modal";
 import { LotsModal } from "./lots-modal";
+import { PriceModal, type PricePayload } from "./price-modal";
 import {
   DEFAULT_SETTINGS,
   LOT_COLUMNS,
@@ -50,6 +51,7 @@ import {
   computeStock,
   computeStockByLot,
   fmtQty,
+  formatPEN,
   lastCostByProduct,
   monthToLastDay,
   nearestLotByProduct,
@@ -96,6 +98,7 @@ export default function AlmacenPage() {
   const [entryFor, setEntryFor] = useState<string | null>(null);
   const [productOpen, setProductOpen] = useState(false);
   const [lotsFor, setLotsFor] = useState<InventoryProduct | null>(null);
+  const [priceFor, setPriceFor] = useState<InventoryProduct | null>(null);
 
   // Tabs por query param, sin useSearchParams: la página no necesita
   // suspenderse por esto y así la campanita puede enlazar ?tab=movimientos.
@@ -454,6 +457,51 @@ export default function AlmacenPage() {
   );
 
   // ── Nuevo producto ─────────────────────────────────────────────────────
+  // Precio de venta sin entrada (mig 252). El RPC actualiza el producto y
+  // estampa el motivo en el historial que escribe el trigger de la 209. Si
+  // la mig aún no está aplicada (42883: función inexistente) se degrada al
+  // update directo de antes — el historial se escribe igual, sin motivo.
+  const updateSalePrice = useCallback(
+    async (payload: PricePayload): Promise<boolean> => {
+      const supabase = createClient();
+      const { product, salePrice, reason } = payload;
+
+      let error: { code?: string; message: string } | null = null;
+      const rpc = await supabase.rpc("inventory_set_sale_price", {
+        p_product: product.id,
+        p_price: salePrice,
+        p_reason: reason,
+      });
+      error = rpc.error;
+      if (error && (error.code === "42883" || error.code === "PGRST202")) {
+        const direct = await supabase
+          .from("inventory_products")
+          .update({ sale_price: salePrice })
+          .eq("id", product.id);
+        error = direct.error;
+      }
+
+      if (error) {
+        toast.error("No se pudo cambiar el precio", {
+          description:
+            error.code === "42501" || /administrador/i.test(error.message)
+              ? "Cambiar el precio de venta requiere permiso de administrador."
+              : error.message,
+        });
+        return false;
+      }
+
+      setProducts((prev) =>
+        prev.map((p) => (p.id === product.id ? { ...p, sale_price: salePrice } : p))
+      );
+      toast.success(`${product.name}: precio de venta ${formatPEN(salePrice)}`, {
+        description: reason ?? undefined,
+      });
+      return true;
+    },
+    []
+  );
+
   const createProduct = useCallback(
     async (payload: ProductPayload): Promise<boolean> => {
       if (!organizationId || !user?.id) return false;
@@ -703,6 +751,7 @@ export default function AlmacenPage() {
                 setEntryFor(p.id);
                 setEntryOpen(true);
               }}
+              onEditPrice={(p) => setPriceFor(p)}
               onNewProduct={() => setProductOpen(true)}
             />
           )}
@@ -762,6 +811,14 @@ export default function AlmacenPage() {
         lots={lotsFor ? lots.filter((l) => l.product_id === lotsFor.id) : []}
         stockByLot={stockByLot}
         expiryAlertDays={settings.expiry_alert_days}
+      />
+
+      <PriceModal
+        open={priceFor !== null}
+        onOpenChange={(o) => !o && setPriceFor(null)}
+        product={priceFor}
+        referenceCost={priceFor ? (avgCosts[priceFor.id] ?? lastCosts[priceFor.id] ?? null) : null}
+        onSubmit={updateSalePrice}
       />
 
       <DiscountModal

@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import {
   expiryStatus,
   fmtQty,
+  formatPEN,
   TONE_CLS,
   type InventoryLot,
   type InventoryProduct,
@@ -114,6 +115,18 @@ export function LotsModal({
                   <p className="mt-0.5 text-xs text-muted-foreground">
                     {fmtExpiry(lot.expiry_date)}
                   </p>
+                  {/* Costo del lote: la compra se digita SIN IGV (regla del
+                      kardex). Antes estaba guardado pero no se veía. */}
+                  {lot.unit_cost != null && (
+                    <p className="mt-0.5 text-xs tabular-nums text-muted-foreground">
+                      Comprado a{" "}
+                      <span className="font-medium text-foreground">
+                        {formatPEN(Number(lot.unit_cost))}
+                      </span>{" "}
+                      <span className="text-[10px]">sin IGV</span>
+                      {lot.supplier ? ` · ${lot.supplier}` : ""}
+                    </p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {exp.chip && (

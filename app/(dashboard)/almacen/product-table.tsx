@@ -12,7 +12,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Layers, Minus, PackagePlus, Search, X } from "lucide-react";
+import { AlertTriangle, Layers, Minus, PackagePlus, Search, Tag, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -46,6 +46,8 @@ interface Props {
   /** Abre la vista rápida de lotes y vencimientos de ese producto. */
   onShowLots: (product: InventoryProduct) => void;
   onEntry: (product: InventoryProduct) => void;
+  /** Editar precio de venta sin registrar entrada (solo owner/admin). */
+  onEditPrice: (product: InventoryProduct) => void;
   onNewProduct: () => void;
 }
 
@@ -58,6 +60,7 @@ export function ProductTable({
   onDiscount,
   onShowLots,
   onEntry,
+  onEditPrice,
   onNewProduct,
 }: Props) {
   const [rawSearch, setRawSearch] = useState("");
@@ -458,6 +461,17 @@ export function ProductTable({
                         >
                           <PackagePlus className="h-4 w-4" />
                         </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => onEditPrice(p)}
+                            aria-label={`Editar precio de venta de ${p.name}`}
+                            title="Editar precio de venta"
+                            className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                          >
+                            <Tag className="h-4 w-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -524,6 +538,16 @@ export function ProductTable({
                     </div>
                   )}
                 </div>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => onEditPrice(p)}
+                    aria-label={`Editar precio de venta de ${p.name}`}
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground active:scale-95"
+                  >
+                    <Tag className="h-5 w-5" />
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => onDiscount(p)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, forwardRef, useImperativeHandle } from "react";
+import { useMemo, useState, useRef, useEffect, forwardRef, useImperativeHandle } from "react";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/components/language-provider";
 import { useBrandAccent } from "@/hooks/use-brand-accent";
@@ -102,6 +102,22 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
     // Color de marca del chart (sigue el tema de acento de la org).
     const accent = useBrandAccent();
     const [breakdownOpen, setBreakdownOpen] = useState(false);
+    const collectedCardRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+      if (!breakdownOpen) return;
+      const onDown = (e: MouseEvent) => {
+        if (!collectedCardRef.current?.contains(e.target as Node)) setBreakdownOpen(false);
+      };
+      const onKey = (e: KeyboardEvent) => {
+        if (e.key === "Escape") setBreakdownOpen(false);
+      };
+      document.addEventListener("mousedown", onDown);
+      document.addEventListener("keydown", onKey);
+      return () => {
+        document.removeEventListener("mousedown", onDown);
+        document.removeEventListener("keydown", onKey);
+      };
+    }, [breakdownOpen]);
 
     // El RPC ya entrega la productividad agrupada por doctor; aquí solo se
     // calcula el promedio por cita.
@@ -210,36 +226,47 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
             <CardTitle icon={DollarSign} label={t("reports.total_billed")} tooltip={t("reports.tooltip_total_billed")} />
             <p className="mt-2 text-2xl font-bold">S/. {totalRevenue.toFixed(2)}</p>
           </div>
-          <div className="rounded-xl border border-border bg-card p-4">
+          <div ref={collectedCardRef} className="relative rounded-xl border border-border bg-card p-4">
             <CardTitle icon={DollarSign} label={t("reports.total_collected")} tooltip={t("reports.tooltip_total_collected")} iconClass="text-success-500" />
             <p className="mt-2 text-2xl font-bold text-success-600">S/. {totalPaid.toFixed(2)}</p>
-            {/* De dónde viene cada sol (mig 250). Solo las cubetas con
-                monto: una clínica sin farmacia no ve la línea de farmacia. */}
-            {/* Desglose colapsable: cerrado por defecto para que las siete
-                tarjetas compartan altura (feedback del founder: abierto
-                dejaba un hueco en blanco en las demás). */}
+            {/* De dónde viene cada sol (mig 250). El desglose NO vive dentro
+                de la tarjeta: un botón en la esquina abre un panel flotante
+                por encima de lo que hay debajo, así las siete tarjetas de
+                la fila miden exactamente lo mismo (feedback del founder:
+                tanto abierto como plegado dejaba un hueco en las demás).
+                Solo las cubetas con monto: una clínica sin farmacia no ve
+                la línea de farmacia. */}
             {breakdownRows.length > 0 && (
-              <div className="mt-2 border-t border-border/60 pt-1.5">
+              <>
                 <button
                   type="button"
                   onClick={() => setBreakdownOpen((v) => !v)}
                   aria-expanded={breakdownOpen}
-                  className="flex w-full items-center justify-between gap-2 text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  aria-label={breakdownOpen ? t("reports.collected_breakdown_hide") : t("reports.collected_breakdown_show")}
+                  title={breakdownOpen ? t("reports.collected_breakdown_hide") : t("reports.collected_breakdown_show")}
+                  className={cn(
+                    "absolute right-2.5 top-2.5 flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50",
+                    breakdownOpen && "bg-muted text-foreground"
+                  )}
                 >
-                  <span>{breakdownOpen ? t("reports.collected_breakdown_hide") : t("reports.collected_breakdown_show")}</span>
-                  <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", breakdownOpen && "rotate-180")} />
+                  <ChevronDown className={cn("h-4 w-4 transition-transform", breakdownOpen && "rotate-180")} />
                 </button>
                 {breakdownOpen && (
-                  <dl className="mt-1.5 space-y-1 text-[11px] leading-snug text-muted-foreground">
-                    {breakdownRows.map((r) => (
-                      <div key={r.label} className="flex items-baseline justify-between gap-2">
-                        <dt className="min-w-0">{r.label}</dt>
-                        <dd className="shrink-0 tabular-nums font-medium text-foreground">S/. {r.value.toFixed(2)}</dd>
-                      </div>
-                    ))}
-                  </dl>
+                  <div className="absolute left-2 right-2 top-full z-50 mt-1.5 rounded-lg border border-border bg-popover p-3 shadow-lg">
+                    <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {t("reports.collected_breakdown_title")}
+                    </p>
+                    <dl className="space-y-1 text-[11px] leading-snug text-muted-foreground">
+                      {breakdownRows.map((r) => (
+                        <div key={r.label} className="flex items-baseline justify-between gap-2">
+                          <dt className="min-w-0">{r.label}</dt>
+                          <dd className="shrink-0 tabular-nums font-medium text-foreground">S/. {r.value.toFixed(2)}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </div>
                 )}
-              </div>
+              </>
             )}
           </div>
           <div className="rounded-xl border border-border bg-card p-4">
