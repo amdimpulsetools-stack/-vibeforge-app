@@ -53,11 +53,17 @@ interface DayViewProps {
 // linear scans ran 50,000+ comparisons per render; now it's ~250 Map
 // lookups. See buildAppointmentIndices below.
 interface AppointmentIndices {
-  /** The appointment that renders its CARD at this slot, keyed `${officeId}|${slotTime}`.
+  /** The appointments that render their CARD at this slot, keyed `${officeId}|${slotTime}`.
    *  The anchor is the single grid slot whose half-open range contains the
    *  appointment's start time (last slot with slotStart ≤ apptStart < nextSlotStart).
-   *  Exactly one slot per appointment, so a card can never render twice. */
-  byAnchorSlot: Map<string, AppointmentWithRelations>;
+   *  Exactly one slot per appointment, so a card can never render twice.
+   *  It is a LIST, not a single card: two appointments may start inside the
+   *  same row (14:00 and 14:20 with a 30-min grid — e.g. after "Liberar
+   *  hueco" shortened the first one). Keeping one per cell made the later
+   *  insert overwrite the earlier one, so the 14:00 card vanished from the
+   *  agenda while the appointment still existed. Sorted by start time so
+   *  the earlier card paints first and the later one stacks above it. */
+  byAnchorSlot: Map<string, AppointmentWithRelations[]>;
   /** "Is this slot occupied by ANY appointment (start or continuation)" — keyed `${officeId}|${slotTime}`. */
   occupiedSlots: Set<string>;
 }
@@ -68,7 +74,7 @@ function buildAppointmentIndices(
   timeSlots: string[],
   slotMinutes: number
 ): AppointmentIndices {
-  const byAnchorSlot = new Map<string, AppointmentWithRelations>();
+  const byAnchorSlot = new Map<string, AppointmentWithRelations[]>();
   const occupiedSlots = new Set<string>();
 
   // Real grid boundaries in minutes. The grid is a uniform stride, but rows
@@ -104,19 +110,29 @@ function buildAppointmentIndices(
       }
     }
     if (anchorIdx >= 0) {
-      byAnchorSlot.set(`${a.office_id}|${timeSlots[anchorIdx]}`, a);
+      const key = `${a.office_id}|${timeSlots[anchorIdx]}`;
+      const list = byAnchorSlot.get(key);
+      if (list) list.push(a);
+      else byAnchorSlot.set(key, [a]);
+    }
+  }
+  for (const list of byAnchorSlot.values()) {
+    if (list.length > 1) {
+      list.sort((x, y) => x.start_time.localeCompare(y.start_time));
     }
   }
 
   return { byAnchorSlot, occupiedSlots };
 }
 
-function getAppointmentForSlot(
+const NO_APPOINTMENTS: AppointmentWithRelations[] = [];
+
+function getAppointmentsForSlot(
   indices: AppointmentIndices,
   officeId: string,
   slotTime: string
-): AppointmentWithRelations | null {
-  return indices.byAnchorSlot.get(`${officeId}|${slotTime}`) ?? null;
+): AppointmentWithRelations[] {
+  return indices.byAnchorSlot.get(`${officeId}|${slotTime}`) ?? NO_APPOINTMENTS;
 }
 
 function isSlotOccupied(
@@ -451,30 +467,18 @@ export function DayView({
 
               {/* Office columns */}
               {offices.map((office) => {
-                const startAppt = getAppointmentForSlot(apptIndices, office.id, time);
+                const startAppts = getAppointmentsForSlot(apptIndices, office.id, time);
                 const occupied = isSlotOccupied(apptIndices, office.id, time);
                 const block = getBlockForSlot(blocks, dateStr, office.id, time);
 
-                // ---- APPOINTMENT starting here ----
-                if (startAppt) {
-                  const startMinutes =
-                    parseInt(startAppt.start_time.slice(0, 2)) * 60 +
-                    parseInt(startAppt.start_time.slice(3, 5));
-                  const endMinutes =
-                    parseInt(startAppt.end_time.slice(0, 2)) * 60 +
-                    parseInt(startAppt.end_time.slice(3, 5));
-
-                  // Linear geometry: offset & height are pure minutes × pxPerMin,
-                  // so a 45-min card is exactly slotHeight tall regardless of
-                  // which (compressed or full) row it anchors to.
+                // ---- APPOINTMENT(S) starting here ----
+                // One cell may anchor several cards (14:00 and 14:20 in a
+                // 30-min row). Each card is absolutely positioned by its own
+                // minutes, so they paint at their real vertical offset and
+                // overflow into the following rows as continuation cells.
+                if (startAppts.length > 0) {
                   const [slotH, slotM] = time.split(":").map(Number);
                   const slotStartMin = slotH * 60 + slotM;
-                  const offsetMinutes = startMinutes - slotStartMin;
-                  const offsetPx = offsetMinutes * pxPerMin;
-                  const heightPx = (endMinutes - startMinutes) * pxPerMin - 4;
-
-                  // Doctor role: other doctors' appointments are desaturated & non-interactive
-                  const isOtherDoctorAppt = currentDoctorId != null && startAppt.doctor_id !== currentDoctorId;
 
                   return (
                     <div
@@ -495,27 +499,50 @@ export function DayView({
                         dragApptId.current = null;
                       }}
                     >
-                      <AppointmentCard
-                        appointment={startAppt}
-                        topPx={offsetPx + 2}
-                        heightPx={heightPx}
-                        isSelected={selectedAppointmentId === startAppt.id}
-                        isOtherDoctor={isOtherDoctorAppt}
-                        paymentTotal={paymentTotals[startAppt.id] ?? 0}
-                        onClick={() => onAppointmentClick(startAppt)}
-                        onDragStartCard={(id) => {
-                          dragApptId.current = id;
-                        }}
-                        onDragEndCard={() => {
-                          dragApptId.current = null;
-                          setDragOverSlot(null);
-                        }}
-                        liveStatusEnabled={liveStatusEnabled}
-                        canEnd={canEnd}
-                        canReopen={canReopen}
-                        isStale={staleApptIds.has(startAppt.id)}
-                        onLiveChanged={onLiveChanged}
-                      />
+                      {startAppts.map((startAppt) => {
+                        const startMinutes =
+                          parseInt(startAppt.start_time.slice(0, 2)) * 60 +
+                          parseInt(startAppt.start_time.slice(3, 5));
+                        const endMinutes =
+                          parseInt(startAppt.end_time.slice(0, 2)) * 60 +
+                          parseInt(startAppt.end_time.slice(3, 5));
+
+                        // Linear geometry: offset & height are pure minutes × pxPerMin,
+                        // so a 45-min card is exactly slotHeight tall regardless of
+                        // which (compressed or full) row it anchors to.
+                        const offsetMinutes = startMinutes - slotStartMin;
+                        const offsetPx = offsetMinutes * pxPerMin;
+                        const heightPx = (endMinutes - startMinutes) * pxPerMin - 4;
+
+                        // Doctor role: other doctors' appointments are desaturated & non-interactive
+                        const isOtherDoctorAppt =
+                          currentDoctorId != null && startAppt.doctor_id !== currentDoctorId;
+
+                        return (
+                          <AppointmentCard
+                            key={startAppt.id}
+                            appointment={startAppt}
+                            topPx={offsetPx + 2}
+                            heightPx={heightPx}
+                            isSelected={selectedAppointmentId === startAppt.id}
+                            isOtherDoctor={isOtherDoctorAppt}
+                            paymentTotal={paymentTotals[startAppt.id] ?? 0}
+                            onClick={() => onAppointmentClick(startAppt)}
+                            onDragStartCard={(id) => {
+                              dragApptId.current = id;
+                            }}
+                            onDragEndCard={() => {
+                              dragApptId.current = null;
+                              setDragOverSlot(null);
+                            }}
+                            liveStatusEnabled={liveStatusEnabled}
+                            canEnd={canEnd}
+                            canReopen={canReopen}
+                            isStale={staleApptIds.has(startAppt.id)}
+                            onLiveChanged={onLiveChanged}
+                          />
+                        );
+                      })}
                     </div>
                   );
                 }
