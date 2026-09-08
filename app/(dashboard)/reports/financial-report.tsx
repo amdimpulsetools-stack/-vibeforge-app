@@ -100,12 +100,19 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
     // Color de marca del chart (sigue el tema de acento de la org).
     const accent = useBrandAccent();
 
-    // El RPC ya entrega la productividad agrupada por doctor y ordenada por
-    // revenue desc (mismos buckets de status que el reduce anterior); aquí
-    // solo se calcula el promedio por cita, con la misma fórmula de antes.
+    // El RPC ya entrega la productividad agrupada por doctor; aquí solo se
+    // calcula el promedio por cita.
+    //
+    // "Facturado" en esta pantalla = lo COBRADO en el rango sobre las citas
+    // del doctor (mig 251, `collected`), no el precio de las citas. Decisión
+    // del founder con la clínica de Patricia: la tarjeta de precio de citas
+    // (S/ 750) no la leía nadie; la doctora quiere ver cuánto entró por
+    // atenciones (S/ 2 050). Toda la pantalla —tarjeta, gráfico, tabla y
+    // export— usa el mismo número, así la suma por doctor cuadra con la
+    // tarjeta. Sin la mig aplicada se degrada al precio de las citas.
     const doctorData = useMemo<DoctorProductivity[]>(() => {
       return (overview?.doctors ?? []).map((d) => {
-        const revenue = Number(d.revenue);
+        const revenue = Number(d.collected ?? d.revenue);
         const activeAppts = d.attended + d.confirmed;
         return {
           name: d.name,
@@ -164,13 +171,13 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
         title: "Reporte Financiero",
         dateRange: { from: dateFrom, to: dateTo },
         kpis: [
-          { label: "Total Facturado", value: `S/. ${totalRevenue.toFixed(2)}` },
-          { label: "Total Cobrado", value: `S/. ${totalPaid.toFixed(2)}` },
+          { label: "Facturado por citas", value: `S/. ${totalRevenue.toFixed(2)}` },
+          { label: "Cobrado total", value: `S/. ${totalPaid.toFixed(2)}` },
           ...breakdownRows.map((r) => ({
             label: `  · ${r.label}`,
             value: `S/. ${r.value.toFixed(2)}`,
           })),
-          { label: "Pendiente", value: `S/. ${totalPending.toFixed(2)}` },
+          { label: "Pendiente por cobrar", value: `S/. ${totalPending.toFixed(2)}` },
           ...(showTreatments
             ? [{ label: "Cobros por tratamientos", value: `S/. ${treatmentPaid.toFixed(2)}` }]
             : []),

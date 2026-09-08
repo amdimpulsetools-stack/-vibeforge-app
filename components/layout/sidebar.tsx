@@ -57,6 +57,10 @@ interface NavItem {
   /** Hidden specifically for users with role=doctor (e.g. billing pages
    *  that doctors should never see, even if recepcionistas can). */
   hideForDoctor?: boolean;
+  /** Simétrico del anterior: oculto para role=receptionist. Presupuestos es
+   *  el caso — recepción no puede registrarlos ni enviarlos (403 en ambos
+   *  endpoints), así que verlos en el menú solo llevaba a un callejón. */
+  hideForReceptionist?: boolean;
   /** Only visible if the org has at least one of the listed addons enabled. */
   requiresAnyAddon?: string[];
 }
@@ -118,9 +122,13 @@ const navSections: NavSection[] = [
         requiresAnyAddon: ["fertility_basic", "fertility_premium"],
         items: [
           {
+            // Recepción no registra ni envía presupuestos (la API devuelve
+            // 403 en los dos casos): el enlace solo servía para chocar con
+            // el permiso. Tratamientos SÍ lo ve — ahí registra los pagos.
             titleKey: "nav.scheduler_budgets",
             href: "/scheduler/budgets",
             icon: Wallet,
+            hideForReceptionist: true,
           },
           {
             titleKey: "nav.treatments",
@@ -226,7 +234,7 @@ export function Sidebar() {
   const router = useRouter();
   const { t } = useLanguage();
   const { organization } = useOrganization();
-  const { isAdmin, isDoctor } = useOrgRole();
+  const { isAdmin, isDoctor, isReceptionist } = useOrgRole();
   const { isOpen: mobileOpen, setOpen: setMobileOpen } = useMobileNav();
   const einvoice = useEInvoiceConfig();
   const { hasAnyAddon } = useOrgAddons();
@@ -301,6 +309,7 @@ export function Sidebar() {
   const renderNavItem = (item: NavItem) => {
     if (item.adminOnly && !isAdmin) return null;
     if (item.hideForDoctor && isDoctor) return null;
+    if (item.hideForReceptionist && isReceptionist) return null;
     if (item.requiresAnyAddon && !hasAnyAddon(item.requiresAnyAddon)) return null;
     // Gate the /facturacion entry behind an active e-invoice config —
     // shows up only after the org has finished the Nubefact wizard.
@@ -511,10 +520,12 @@ export function Sidebar() {
             const meta = e as {
               adminOnly?: boolean;
               hideForDoctor?: boolean;
+              hideForReceptionist?: boolean;
               requiresAnyAddon?: string[];
             };
             if (meta.adminOnly && !isAdmin) return false;
             if (meta.hideForDoctor && isDoctor) return false;
+            if (meta.hideForReceptionist && isReceptionist) return false;
             // Grupos con gate de addon también cuentan aquí: si no, una
             // sección podía quedar "visible" con cero entradas pintadas.
             if (meta.requiresAnyAddon && !hasAnyAddon(meta.requiresAnyAddon))

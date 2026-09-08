@@ -17,7 +17,9 @@ import {
   Clock,
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Link from "next/link";
 import { useOrgAddons } from "@/hooks/use-org-addons";
+import { useOrgRole } from "@/hooks/use-org-role";
 import {
   FERTILITY_BASIC_KEY,
   FERTILITY_PREMIUM_KEY,
@@ -83,6 +85,10 @@ const DEFAULT_FILTERS: BudgetFilters = {
 
 export default function BudgetsPage() {
   const { hasAnyAddon, loading: addonsLoading } = useOrgAddons();
+  // Recepción no registra ni envía presupuestos (403 en ambos endpoints) y
+  // ya no ve la entrada en el menú: el gate se repite aquí para que escribir
+  // la URL a mano tampoco abra la pantalla.
+  const { isReceptionist, loading: roleLoading } = useOrgRole();
   const fertilityActive = hasAnyAddon([FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY]);
 
   const queryClient = useQueryClient();
@@ -202,10 +208,27 @@ export default function BudgetsPage() {
     },
   });
 
-  if (addonsLoading) {
+  if (addonsLoading || roleLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (isReceptionist) {
+    return (
+      <div className="rounded-xl border border-dashed border-border p-10 text-center">
+        <Wallet className="mx-auto mb-2 h-6 w-6 text-muted-foreground" />
+        <p className="text-base font-semibold">Sección no disponible para recepción</p>
+        <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+          Los presupuestos los registran y envían las asesoras de fertilidad y el
+          equipo médico. Los pagos de tratamiento sí se registran desde{" "}
+          <Link href="/tratamientos" className="font-medium text-primary hover:underline">
+            Tratamientos
+          </Link>
+          .
+        </p>
       </div>
     );
   }
