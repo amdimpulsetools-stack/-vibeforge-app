@@ -124,6 +124,27 @@ interface AppointmentSidebarProps {
 // selected (as a disabled option) so the data isn't silently lost on screen.
 const STALE_RESPONSIBLE_VALUE = "__stale_responsible__";
 
+/** "HH:MM" ± minutos, acotado a [00:00, 23:55]. */
+function shiftTime(t: string, delta: number): string {
+  const [h, m] = t.slice(0, 5).split(":").map(Number);
+  const total = Math.min(23 * 60 + 55, Math.max(0, h * 60 + m + delta));
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+}
+/** "Ahora" en el reloj de la org, redondeado al siguiente múltiplo de 5 min. */
+function orgNowRounded(tz: string): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date());
+  const get = (k: string) => Number(parts.find((p) => p.type === k)?.value ?? "0");
+  const sec = get("hour") * 3600 + get("minute") * 60 + get("second");
+  const min = Math.min(23 * 60 + 55, Math.ceil(sec / 300) * 5);
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+}
+
 const STATUS_ICONS: Record<string, typeof AlertCircle> = {
   scheduled: AlertCircle,
   confirmed: CheckCircle2,
@@ -148,7 +169,7 @@ export function AppointmentSidebar({
   const { profile } = useUserProfile();
   const { isAdmin, isDoctor: isDoctorRole, isReceptionist } = useOrgRole();
   // "Hoy" civil de la org (mig 240) para estampar payment_date.
-  const { today: orgToday } = useOrgToday();
+  const { today: orgToday, timezone: orgTimezone } = useOrgToday();
   // Live status master toggle + "recepción puede finalizar" (mig 227) —
   // instant from the localStorage cache; the scheduler page keeps it
   // fresh via fetchSchedulerConfig().
@@ -757,6 +778,9 @@ export function AppointmentSidebar({
   // si era personalizado, se conserva y se pide revisarlo. Siempre visible y
   // editable — nada cambia de forma invisible.
   const [editPrice, setEditPrice] = useState("");
+  // Hora de fin editable (mig 253): acortar siempre se permite (libera el
+  // bloque); alargar pasa por el mismo control de choques que Reprogramar.
+  const [editEndTime, setEditEndTime] = useState("");
   // La persona ya tocó el precio a mano en esta edición: no se pisa.
   const [editPriceTouched, setEditPriceTouched] = useState(false);
   // El precio se rellenó solo desde el catálogo del nuevo servicio.
@@ -994,6 +1018,7 @@ export function AppointmentSidebar({
     setEditNotes(appointment.notes ?? "");
     setEditMeetingUrl((appointment as any).meeting_url ?? "");
     setEditPrice(grossPrice.toFixed(2));
+    setEditEndTime(appointment.end_time.slice(0, 5));
     setEditPriceTouched(false);
     setEditPriceAutoFilled(false);
     setEditing(true);
@@ -1012,6 +1037,8 @@ export function AppointmentSidebar({
   // Con comprobante emitido el precio no se toca: el ajuste es nota de
   // crédito, misma regla que ya aplican los descuentos.
   const priceLocked = alreadyInvoiced > 0;
+  // El bloque nunca queda en cero: mínimo inicio + 5 min.
+  const minEndTime = shiftTime(appointment.start_time, 5);
 
   const handleEditServiceChange = (serviceId: string) => {
     setEditService(serviceId);
@@ -1072,16 +1099,79 @@ export function AppointmentSidebar({
       if (!ok) return;
     }
 
+    // ── Hora de fin (mig 253) ──
+    const currentEnd = appointment.end_time.slice(0, 5);
+    const endTouched = /^\d{2}:\d{2}$/.test(editEndTime) && editEndTime !== currentEnd;
+    if (endTouched && editEndTime < minEndTime) {
+      toast.error(`La cita debe terminar después de las ${minEndTime}.`);
+      return;
+    }
+    // Alargar puede chocar con otra cita del mismo doctor o consultorio, o
+    // con un bloqueo: misma comprobación que Reprogramar, sobre el día.
+    if (endTouched && editEndTime > currentEnd) {
+      const supabaseCheck = createClient();
+      const [{ data: others }, { data: dayBlocks }] = await Promise.all([
+        supabaseCheck
+          .from("appointments")
+          .select("id, start_time, end_time, doctor_id, office_id, patient_name")
+          .eq("organization_id", appointment.organization_id)
+          .eq("appointment_date", appointment.appointment_date)
+          .neq("status", "cancelled")
+          .neq("id", appointment.id),
+        supabaseCheck
+          .from("schedule_blocks")
+          .select("start_time, end_time, office_id, all_day, reason")
+          .eq("organization_id", appointment.organization_id)
+          .eq("block_date", appointment.appointment_date),
+      ]);
+      const startHM = appointment.start_time.slice(0, 5);
+      const clash = (others ?? []).find(
+        (a) =>
+          (a.doctor_id === editDoctor || a.office_id === appointment.office_id) &&
+          a.start_time.slice(0, 5) < editEndTime &&
+          a.end_time.slice(0, 5) > startHM
+      );
+      if (clash) {
+        toast.error(
+          `Choca con la cita de ${clash.patient_name ?? "otro paciente"} a las ${clash.start_time.slice(0, 5)}.`
+        );
+        return;
+      }
+      const block = (dayBlocks ?? []).find((b) => {
+        if (b.office_id && b.office_id !== appointment.office_id) return false;
+        if (b.all_day) return true;
+        const bs = b.start_time?.slice(0, 5) ?? "00:00";
+        const be = b.end_time?.slice(0, 5) ?? "23:59";
+        return startHM < be && editEndTime > bs;
+      });
+      if (block) {
+        toast.error(
+          block.reason === "__break_time__"
+            ? "La nueva hora de fin entra en el Break Time."
+            : `La nueva hora de fin entra en un bloqueo${block.reason ? `: ${block.reason}` : ""}.`
+        );
+        return;
+      }
+    }
+
     setUpdating(true);
     const supabase = createClient();
 
-    // Recalculate end_time if service changed
+    // Hora de fin: la escrita a mano manda; si no se tocó y cambió el
+    // servicio, se recalcula con la duración del nuevo servicio.
     let newEndTime = appointment.end_time;
-    if (editService !== appointment.service_id && selectedService) {
+    if (endTouched) {
+      newEndTime = `${editEndTime}:00`;
+    } else if (editService !== appointment.service_id && selectedService) {
       const [h, m] = appointment.start_time.slice(0, 5).split(":").map(Number);
       const totalMin = h * 60 + m + selectedService.duration_minutes;
       newEndTime = `${Math.floor(totalMin / 60).toString().padStart(2, "0")}:${(totalMin % 60).toString().padStart(2, "0")}`;
     }
+    // Si se alarga más allá de la hora original guardada al liberar el
+    // hueco, esa marca ya no tiene sentido para la reserva online.
+    const onlineBusyUntil = (appointment as { online_busy_until?: string | null }).online_busy_until ?? null;
+    const clearOnlineBusy =
+      onlineBusyUntil != null && newEndTime.slice(0, 5) >= onlineBusyUntil.slice(0, 5);
 
     const userName = profile?.full_name || "Usuario";
 
@@ -1126,6 +1216,7 @@ export function AppointmentSidebar({
         // Solo se escribe el snapshot si cambió: una cita anterior al
         // snapshot (NULL) sigue resolviendo por catálogo como hasta ahora.
         ...(priceChanged ? { price_snapshot: Number(newPrice.toFixed(2)) } : {}),
+        ...(clearOnlineBusy ? { online_busy_until: null } : {}),
         // responsible_user_id lives outside the generated Update type (mig 073),
         // so we widen the payload — same escape hatch the create modal uses.
       } as Record<string, unknown>)
@@ -1139,6 +1230,13 @@ export function AppointmentSidebar({
     }
     if (priceChanged) {
       toast.info(`Precio de la cita actualizado a S/. ${newPrice.toFixed(2)}`);
+    }
+    if (endTouched) {
+      toast.info(
+        editEndTime < currentEnd
+          ? `Cita acortada: termina a las ${editEndTime}. El hueco ya está libre en la agenda.`
+          : `Cita alargada hasta las ${editEndTime}.`
+      );
     }
 
     // Propagate the edited origin back to the patient. Use case: recepcionista
@@ -1237,6 +1335,9 @@ export function AppointmentSidebar({
                   appointment.consultation_ended_at ?? null,
               }}
               size="sidebar"
+              endTime={appointment.end_time}
+              appointmentDate={appointment.appointment_date}
+              timezone={orgTimezone}
               // Finalizar: recepción solo con el toggle por-org (mig 227).
               // Reabrir: nunca recepción, toggle o no.
               canEnd={!isReceptionist || receptionCanEnd}
@@ -1295,9 +1396,64 @@ export function AppointmentSidebar({
           </div>
           <div className="flex items-center gap-3">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            <p className="text-sm">
-              {appointment.start_time.slice(0, 5)} — {appointment.end_time.slice(0, 5)}
-            </p>
+            {editing ? (
+              <div className="w-full space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">{appointment.start_time.slice(0, 5)} —</span>
+                  <input
+                    type="time"
+                    step={300}
+                    value={editEndTime}
+                    min={minEndTime}
+                    onChange={(e) => setEditEndTime(e.target.value)}
+                    className={cn(selectClass, "w-auto")}
+                    aria-label="Hora de fin de la cita"
+                  />
+                </div>
+                {/* Atajos: −15 / −30 sobre la hora de fin actual, y "Ahora"
+                    (reloj de la clínica, redondeado a 5 min) solo el día
+                    de la cita. También se puede escribir a mano. */}
+                <div className="flex flex-wrap gap-1.5 pl-0.5">
+                  {[15, 30].map((m) => {
+                    const v = shiftTime(appointment.end_time, -m);
+                    const ok = v > minEndTime;
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        disabled={!ok}
+                        onClick={() => setEditEndTime(v)}
+                        className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40"
+                      >
+                        −{m} min
+                      </button>
+                    );
+                  })}
+                  {appointment.appointment_date === orgToday() && (
+                    <button
+                      type="button"
+                      onClick={() => setEditEndTime(orgNowRounded(orgTimezone))}
+                      className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                    >
+                      Ahora
+                    </button>
+                  )}
+                  {editEndTime !== appointment.end_time.slice(0, 5) && (
+                    <button
+                      type="button"
+                      onClick={() => setEditEndTime(appointment.end_time.slice(0, 5))}
+                      className="rounded-full px-2 py-0.5 text-[11px] text-muted-foreground underline-offset-2 hover:underline"
+                    >
+                      Restaurar {appointment.end_time.slice(0, 5)}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm">
+                {appointment.start_time.slice(0, 5)} — {appointment.end_time.slice(0, 5)}
+              </p>
+            )}
           </div>
 
           {/* Doctor — editable */}

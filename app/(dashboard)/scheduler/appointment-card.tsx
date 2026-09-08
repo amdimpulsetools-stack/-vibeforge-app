@@ -24,6 +24,7 @@ import type { AppointmentWithRelations } from "@/types/admin";
 import { RecurringDot } from "@/components/patients/recurring-badge";
 import { cn } from "@/lib/utils";
 import { LiveStatusPill, deriveLiveState } from "./live-status-pill";
+import { useOrgToday } from "@/hooks/use-org-today";
 
 /**
  * Color helpers — verbatim copies of the ones that lived in
@@ -96,6 +97,8 @@ function AppointmentCardInner({
   isStale = false,
   onLiveChanged,
 }: AppointmentCardProps) {
+  // Zona horaria de la org para "Liberar hueco" (mig 253).
+  const { timezone: orgTimezone } = useOrgToday();
   const doctorColor = appointment.doctors?.color ?? "#9ca3af";
 
   // Single-slot cards (15-min @ 40 px base = ~36 px tall) can't fit
@@ -203,6 +206,9 @@ function AppointmentCardInner({
             canReopen={canReopen}
             readOnly={isOtherDoctor}
             onChanged={() => onLiveChanged?.()}
+            endTime={appointment.end_time}
+            appointmentDate={appointment.appointment_date}
+            timezone={orgTimezone}
           />
         )}
         {/* Virtual indicator */}

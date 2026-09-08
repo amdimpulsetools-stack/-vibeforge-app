@@ -136,13 +136,31 @@ export async function GET(
   maxDate.setDate(maxDate.getDate() + bookingSettings.max_advance_days);
   const maxDateStr = maxDate.toISOString().split("T")[0];
 
-  const { data: existingAppointments } = await supabase
+  const { data: existingAppointmentsRaw } = await supabase
     .from("appointments")
-    .select("doctor_id, office_id, appointment_date, start_time, end_time")
+    .select("doctor_id, office_id, appointment_date, start_time, end_time, online_busy_until")
     .eq("organization_id", org.id)
     .in("status", ["scheduled", "confirmed"])
     .gte("appointment_date", today)
     .lte("appointment_date", maxDateStr);
+  // Mig 253: un hueco liberado al finalizar antes ("Liberar hueco") abre
+  // la agenda interna pero NO la reserva online todavía (decisión de la
+  // clínica): de cara al público el bloque sigue ocupado hasta su hora
+  // original.
+  const existingAppointments = (existingAppointmentsRaw ?? []).map((a) => {
+    const row = a as typeof a & { online_busy_until?: string | null };
+    const busyUntil =
+      row.online_busy_until && row.online_busy_until > row.end_time
+        ? row.online_busy_until
+        : row.end_time;
+    return {
+      doctor_id: row.doctor_id,
+      office_id: row.office_id,
+      appointment_date: row.appointment_date,
+      start_time: row.start_time,
+      end_time: busyUntil,
+    };
+  });
 
   // 10. Fetch schedule blocks
   const { data: scheduleBlocks } = await supabase

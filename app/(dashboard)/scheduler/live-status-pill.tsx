@@ -31,6 +31,7 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
+import { resolveOrgTimezone, todayInTz } from "@/lib/org-time";
 import {
   CheckCircle2,
   Clock,
@@ -103,7 +104,29 @@ function shortTime(iso: string | null): string | null {
     .padStart(2, "0")}`;
 }
 
-type Action = "arrive" | "unarrive" | "start" | "end" | "reopen";
+type Action = "arrive" | "unarrive" | "start" | "end" | "reopen" | "release_slot";
+
+/** Minutos desde medianoche del reloj de pared de la org, ahora mismo. */
+function orgNowMinutes(tz: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: resolveOrgTimezone(tz),
+    hourCycle: "h23",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  }).formatToParts(new Date());
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  // Siguiente múltiplo de 5 min, igual que el servidor (10:22:xx → 10:25).
+  const sec = get("hour") * 3600 + get("minute") * 60 + get("second");
+  return Math.ceil(sec / 300) * 5;
+}
+function hhmmToMinutes(t: string): number {
+  const [h, m] = t.slice(0, 5).split(":").map(Number);
+  return h * 60 + m;
+}
+function minutesToHHMM(min: number): string {
+  return `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+}
 
 interface ActionDef {
   action: Action;
@@ -122,6 +145,7 @@ function actionsFor(
   state: LiveState,
   canEnd: boolean,
   canReopen: boolean,
+  canRelease: boolean,
 ): ActionDef[] {
   switch (state) {
     case "scheduled":
@@ -145,10 +169,14 @@ function actionsFor(
             undo: canReopen ? "reopen" : undefined,
           }]
         : [];
-    case "ended":
-      return canReopen
-        ? [{ action: "reopen", label: "Reabrir consulta" }]
-        : [];
+    case "ended": {
+      const defs: ActionDef[] = [];
+      // Mig 253: la consulta terminó antes de la hora de fin del bloque →
+      // ofrecer liberar lo que queda. Mismo permiso que "Finalizar".
+      if (canRelease && canEnd) defs.push({ action: "release_slot", label: "Liberar hueco" });
+      if (canReopen) defs.push({ action: "reopen", label: "Reabrir consulta" });
+      return defs;
+    }
   }
 }
 
@@ -191,6 +219,14 @@ export interface LiveStatusPillProps {
   compact?: boolean;
   /** Called after any successful transition so the parent refreshes. */
   onChanged: () => void;
+  /**
+   * Mig 253 — para "Liberar hueco": hora de fin y fecha de la cita, y la
+   * zona horaria de la org para saber si todavía queda bloque por liberar.
+   * Opcionales: sin ellos la acción no se ofrece.
+   */
+  endTime?: string | null;
+  appointmentDate?: string | null;
+  timezone?: string;
 }
 
 export function LiveStatusPill({
@@ -202,11 +238,23 @@ export function LiveStatusPill({
   readOnly = false,
   compact = false,
   onChanged,
+  endTime = null,
+  appointmentDate = null,
+  timezone = "America/Lima",
 }: LiveStatusPillProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const state = deriveLiveState(live);
+
+  // ¿Queda bloque por liberar? Solo el mismo día de la cita y si "ahora"
+  // (redondeado a 5 min) cae antes de la hora de fin.
+  const releaseAt = (() => {
+    if (!endTime || !appointmentDate) return null;
+    if (todayInTz(timezone) !== appointmentDate) return null;
+    const now = orgNowMinutes(timezone);
+    return now < hhmmToMinutes(endTime) ? minutesToHHMM(now) : null;
+  })();
   const meta = STATE_META[state];
   const time =
     state === "arrived"
@@ -228,6 +276,15 @@ export function LiveStatusPill({
       toast.error(err.error ?? "No se pudo actualizar el estado");
       return false;
     }
+    if (action === "release_slot") {
+      const json = (await res.json().catch(() => ({}))) as { end_time?: string };
+      toast.success(
+        json.end_time
+          ? `Hueco liberado desde las ${json.end_time.slice(0, 5)}`
+          : "Hueco liberado",
+        { description: "El bloque ya está libre en la agenda para encajar otra cita." }
+      );
+    }
     return true;
   };
 
@@ -238,6 +295,22 @@ export function LiveStatusPill({
       if (!ok) return;
       setOpen(false);
       onChanged();
+      // Finalizó antes de la hora de fin → ofrecer liberar lo que queda
+      // (siempre preguntando; decisión del founder, mig 253).
+      if (def.action === "end" && releaseAt) {
+        toast.info(`El bloque sigue reservado hasta las ${endTime!.slice(0, 5)}`, {
+          duration: 12000,
+          action: {
+            label: `Liberar hueco desde ${releaseAt}`,
+            onClick: () => {
+              void fire("release_slot").then((done) => {
+                if (done) onChanged();
+              });
+            },
+          },
+        });
+      }
+      if (def.action === "release_slot") return;
       if (def.undo) {
         const undoAction = def.undo;
         toast.success(def.label, {
@@ -259,7 +332,7 @@ export function LiveStatusPill({
     }
   };
 
-  const actions = actionsFor(state, canEnd, canReopen);
+  const actions = actionsFor(state, canEnd, canReopen, releaseAt !== null);
   const interactive = !readOnly && actions.length > 0;
   // Explanation for a permission-blocked pill (reception without the
   // toggle, or reception on a closed consultation). Read-only renders
