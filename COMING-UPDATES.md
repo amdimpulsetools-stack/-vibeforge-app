@@ -230,6 +230,33 @@ desconocida (jamás "0.0"); soft-delete siempre. Línea roja ERP: sin OC, provee
 multi-almacén, SUNAT 13.1, DIGEMID, barras ni DELETE. Desplaza a Captación F5 (especulativo);
 NO desplaza CAPTCHA P0 ni trámites Meta. Validar cada campo del MVP contra Vitra (anti-sobreajuste).
 
+### 🏷️ Precios — Fase A ✅ ENTREGADA 7-sep (PR #347, mig 252) · Fase B en cola (sin fecha)
+
+> Pedido del founder tras la reunión con la Dra. Patricia (7-sep): "el laboratorio me avisa que
+> subió y todavía me queda mercancía; no debería tener que inventar un lote para subir el precio".
+
+**Fase A (hecha):** editar precio de venta desde la tabla sin registrar entrada (owner/admin), con
+motivo, margen neto estimado e historial (el trigger de la mig 209 ya lo escribía; faltaba la
+pantalla) · costo por lote visible en el modal de lotes ("Comprado a S/ X sin IGV · proveedor").
+**Decisión de diseño explicada a la clínica:** el costo de compra de un lote que ya está en almacén
+**no se edita** (hecho del kardex; reescribirlo haría mentir Rentabilidad hacia abajo) y **no hay
+precio de venta por lote** (el mostrador vende por producto; la boleta lleva un solo precio por ítem).
+
+**Fase B — precio de lista del proveedor (migración chica + 1 PR de pantalla):**
+
+| Qué | Antes | Ahora |
+|-----|-------|-------|
+| Anotar la subida del laboratorio sin comprar todavía | Queda en un WhatsApp o en la cabeza de Melissa | Campo **"Precio de lista del proveedor"** (sin IGV) en la ficha, con fecha y fuente. No toca kardex ni costos |
+| Registrar el próximo lote | Costo digitado a mano (un error queda congelado para siempre) | Costo **prellenado** con el precio de lista; se confirma o corrige contra la factura |
+| Saber si el precio de venta aguanta la subida | Se descubre en Rentabilidad al mes siguiente | La ficha muestra **dos márgenes**: stock actual (costo promedio real) vs próxima compra (precio de lista). Si el segundo cae bajo el **margen mínimo de la clínica** (Ajustes de Almacén, uno por org; por producto después si lo piden), **alerta en la tabla** antes de que entre el lote caro |
+| Comparar subidas entre productos | Lote por lote | Historial de precios de lista en la ficha + columna opcional "Lista proveedor" en la tabla |
+
+Por dentro: `inventory_products.list_price` + `list_price_updated_at` + `list_price_source`; tabla
+`inventory_list_price_history` con trigger calcado del de `sale_price`; `inventory_settings.min_margin_pct`.
+El modal de entrada prellena `unit_cost` con `list_price`. Rentabilidad **no cambia**: sigue con costo
+histórico (lo que la contadora cuadra contra facturas de compra). Pendiente de decidir antes de
+construir: margen mínimo por clínica (recomendado para empezar) o por producto.
+
 ## 🎯 Módulo Captación — fases pendientes (2026-08-12)
 
 > F1 (capturador silencioso, mig 206) y F2 (addon beta oculto + panel de campañas, mig 207) **entregadas** en v0.15.29. Spec completa y wireframes en el artifact "Módulo Captación". Beta activa solo para las orgs del founder.

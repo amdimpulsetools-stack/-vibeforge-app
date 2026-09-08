@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
+import { resolveOrgTimezone, todayInTz, zonedNow } from "@/lib/org-time";
 
 // ──────────────────────────────────────────────────────────────────
 // POST /api/appointments/[id]/live-status
@@ -30,9 +31,28 @@ import { generalLimiter } from "@/lib/rate-limit";
 // actions are org-scoped.
 // ──────────────────────────────────────────────────────────────────
 
+//   release_slot → (mig 253) tras finalizar ANTES de la hora de fin:
+//               acorta end_time a "ahora" en la zona horaria de la org,
+//               redondeado al siguiente múltiplo de 5 min (10:22 → 10:25),
+//               y guarda la hora original en online_busy_until para que
+//               la reserva online siga viendo el bloque ocupado. La
+//               agenda interna y el copiar-horarios ven el hueco al
+//               instante. Mismo permiso que `end`.
 const bodySchema = z.object({
-  action: z.enum(["arrive", "unarrive", "start", "end", "reopen"]),
+  action: z.enum(["arrive", "unarrive", "start", "end", "reopen", "release_slot"]),
 });
+
+/** "HH:MM" → minutos desde medianoche. */
+function toMinutes(t: string): number {
+  const [h, m] = t.slice(0, 5).split(":").map(Number);
+  return h * 60 + m;
+}
+/** minutos → "HH:MM:00". */
+function toTime(min: number): string {
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+}
 
 interface MembershipRow {
   organization_id: string;
@@ -89,7 +109,7 @@ export async function POST(
   const { data: appt } = await supabase
     .from("appointments")
     .select(
-      "id, organization_id, arrived_at, consultation_started_at, consultation_ended_at",
+      "id, organization_id, arrived_at, consultation_started_at, consultation_ended_at, appointment_date, start_time, end_time, online_busy_until",
     )
     .eq("id", id)
     .eq("organization_id", membership.organization_id)
@@ -110,7 +130,7 @@ export async function POST(
         { status: 403 },
       );
     }
-    if (action === "end") {
+    if (action === "end" || action === "release_slot") {
       const receptionCanEnd = await readReceptionCanEndSetting(
         supabase,
         membership.organization_id,
@@ -198,6 +218,74 @@ export async function POST(
         .eq("id", id);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       return NextResponse.json({ ok: true, consultation_ended_at: nowIso });
+    }
+
+    case "release_slot": {
+      if (!appt.consultation_ended_at) {
+        return NextResponse.json(
+          { error: "Primero finaliza la consulta" },
+          { status: 409 },
+        );
+      }
+      const a = appt as typeof appt & {
+        appointment_date: string;
+        start_time: string;
+        end_time: string;
+        online_busy_until: string | null;
+      };
+
+      // "Ahora" en el reloj de la clínica, nunca el del servidor (Vercel
+      // corre en UTC). Solo tiene sentido el mismo día de la cita.
+      const { data: orgRow } = await supabase
+        .from("organizations")
+        .select("timezone")
+        .eq("id", membership.organization_id)
+        .maybeSingle();
+      const tz = resolveOrgTimezone((orgRow as { timezone?: string | null } | null)?.timezone);
+      if (todayInTz(tz) !== a.appointment_date) {
+        return NextResponse.json(
+          { error: "El hueco solo se puede liberar el mismo día de la cita" },
+          { status: 409 },
+        );
+      }
+      const wall = zonedNow(tz);
+      const nowSec = wall.getHours() * 3600 + wall.getMinutes() * 60 + wall.getSeconds();
+      // Siguiente múltiplo de 5 min (10:22:xx → 10:25; 10:25:00 exacto → 10:25).
+      const roundedMin = Math.ceil(nowSec / 300) * 5;
+      const startMin = toMinutes(a.start_time);
+      const endMin = toMinutes(a.end_time);
+      if (roundedMin >= endMin) {
+        return NextResponse.json(
+          { error: "No hay hueco que liberar: la cita ya termina" },
+          { status: 409 },
+        );
+      }
+      // Nunca por debajo del inicio + 5 min (el bloque no puede quedar en cero).
+      const newEndMin = Math.max(roundedMin, startMin + 5);
+      const newEnd = toTime(newEndMin);
+
+      const editorName =
+        (user.user_metadata?.full_name as string | undefined) ??
+        (user.user_metadata?.name as string | undefined) ??
+        user.email ??
+        null;
+
+      const { error } = await supabase
+        .from("appointments")
+        .update({
+          end_time: newEnd,
+          // Se conserva la PRIMERA hora original si ya se había liberado antes.
+          online_busy_until: a.online_busy_until ?? a.end_time,
+          edited_at: nowIso,
+          edited_by_name: editorName,
+        } as Record<string, unknown>)
+        .eq("id", id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({
+        ok: true,
+        end_time: newEnd,
+        previous_end_time: a.end_time,
+      });
     }
 
     case "reopen": {

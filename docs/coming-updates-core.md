@@ -110,6 +110,24 @@ Opción A para el launch; B después en Q2 si se quiere consistencia con el rest
 
 ### 🟢 P2 — Post-launch (futuro)
 
+#### Almacén Fase B — precio de lista del proveedor y alerta de margen
+
+**Contexto**: Fase A entregada 7-sep (PR #347, mig 252): precio de venta editable sin entrada, con motivo e historial; costo visible por lote. Lo que queda es el caso "el laboratorio avisa que subió y todavía no compro".
+
+**Plan**:
+- `inventory_products.list_price` (sin IGV) + `list_price_updated_at` + `list_price_source`; historial `inventory_list_price_history` con trigger calcado del de `sale_price` (mig 209).
+- `inventory_settings.min_margin_pct` (por org; por producto después si lo piden).
+- Ficha del producto: campo de precio de lista, dos márgenes lado a lado (stock actual con costo promedio real vs próxima compra con precio de lista), historial.
+- Modal de entrada: `unit_cost` prellenado con `list_price`.
+- Tabla: columna opcional "Lista proveedor" + alerta cuando el margen de la próxima compra cae bajo el mínimo.
+- Rentabilidad **no cambia**: costo histórico. El costo de lotes existentes sigue sin editarse (kardex append-only). Sin precio de venta por lote.
+
+Detalle "antes vs ahora" para la clínica en `COMING-UPDATES.md` → Módulo Almacén → Precios.
+
+**Estimado**: 1 migración chica + 1 PR de pantalla (~1 día).
+
+---
+
 #### Phase 5 — Stats dashboard per-asesora
 
 Para `/scheduler/budgets` y `/scheduler/follow-ups`, dashboard avanzado con:
