@@ -4796,7 +4796,9 @@ Decisión del founder: **un solo motor de documentos para todo Yenda** — del c
 
 ---
 
-## Changelog — Sesión 2026-09-07 (v0.15.41) — App Review de Meta enviado + idempotencia real de envíos WhatsApp (mig 249)
+## Changelog — Sesión 2026-09-07 → 08 (v0.15.41) — App Review de Meta enviado + idempotencia WhatsApp (mig 249) + dinero en Reportes (migs 250/251) + Almacén Fase A (mig 252) + Agenda "Liberar hueco" (mig 253)
+
+PRs de la sesión: #343 (precio en sidebar + mapa del dinero), #344 (mig 250), #345 (mig 251 + Presupuestos oculto a recepción), #346 (desglose colapsable), #347 (desglose flotante + Almacén Fase A, mig 252), #348 (Agenda mig 253 + docs Fase B), #349 (fix vista Día).
 
 ### App Review (WhatsApp Cloud API)
 - Enviados los dos permisos (`whatsapp_business_management` y `whatsapp_business_messaging`) con **un screencast por permiso**, como exige la doc oficial ("You must submit a different video clip for each permission"). El Embedded Signup **no** se graba: no aparece en los requisitos de video de ninguno de los dos permisos y no se puede ejecutar sin el acceso avanzado que justamente se está pidiendo (el asistente IA de la consola afirmó lo contrario; manda la documentación).
@@ -4835,6 +4837,12 @@ Decisión del founder: **un solo motor de documentos para todo Yenda** — del c
 - **Hora de fin editable** en Editar del sidebar: campo manual (pasos de 5 min) + atajos −15 / −30 / Ahora / Restaurar. Acortar siempre se permite (mínimo inicio + 5); alargar pasa por el mismo control de choques que Reprogramar (citas del doctor o del consultorio ese día, bloqueos y Break Time) y dice con quién choca. Alargar más allá de la hora original limpia la marca online. Queda `editado por / fecha`.
 - Sin sobreturno real: siguen sin caber dos citas en el mismo minuto (decisión pendiente en el roadmap). El bloque se ajusta a lo que de verdad duró.
 - **Fix vista Día — la cita acortada "desaparecía"** (prueba en Vitra, 8-sep): Nicoleta 14:00–14:20 y Johanna 14:20–14:50 en el mismo consultorio con agenda de 30 min. Ambas empiezan dentro de la fila 14:00 y el índice de la vista Día guardaba UNA sola tarjeta por celda (consultorio × fila), así que la segunda cita pisaba a la primera: seguía existiendo (Historial la mostraba) pero no se dibujaba. Ahora la celda guarda una lista ordenada por hora y pinta todas las tarjetas, cada una en su altura real. Semana ya lo manejaba (badge +N).
+
+### Roles y Vitra (8-sep)
+- **Presupuestos oculto para recepción** (PR #345): en las orgs de fertilidad la recepcionista ya no ve Presupuestos en el sidebar y la ruta muestra "Sección no disponible para recepción". **Tratamientos se mantiene** porque recepción registra cobros ahí. Ya en el servidor: crear presupuesto devolvía 403 a recepción; enviar lo permite owner/admin/doctor/asesora.
+- **"Sin permisos para enviar presupuestos" de Verenisse (clínica de Patricia)**: su cuenta es doctora + asesora de fertilidad y ya había enviado presupuestos el 1-sep. El error salió de la sesión de recepción (`reprofertilidad@…`), no de la suya. Sin cambios de código.
+- **Guion de pruebas por rol para Vitra** (`.docx`, v2): 5 cuentas, sin "resultado esperado", sin automatizaciones de WhatsApp. Trial de Vitra extendido hasta el 7-nov (SQL aplicado por el founder). Detectado: `vitrafertilidadmarketing@…` entró por Google y creó una org vacía "Mi Clínica" aparte (los altas por OAuth crean org sin fila de suscripción: pendiente); contraseñas de los usuarios de prueba solo desde Supabase Auth, nunca por SQL.
+- **Cita con precio no actualizado (Melissa, cita 313317f0)**: corregida por SQL del founder tras el fix del sidebar.
 
 ### Almacén Fase A (cont.)
 - **Decisión de diseño, explicada a la doctora**: el costo de compra de un lote que ya está en almacén **no se edita**. Es un hecho del kardex (append-only) y es el costo con el que Rentabilidad calcula la ganancia de cada venta; reescribirlo cuando el laboratorio sube haría mentir el margen hacia abajo. Lo que se ajusta es el precio de venta; el costo nuevo entra con el siguiente lote. Tampoco precio de venta por lote: el mostrador vende por producto y la boleta lleva un solo precio por ítem. Fase B (pendiente): precio de lista del proveedor a nivel producto, que prellena la próxima entrada y muestra el margen esperado.
