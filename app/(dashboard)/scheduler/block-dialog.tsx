@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useOrgToday } from "@/hooks/use-org-today";
 import { toast } from "sonner";
 import type { Office } from "@/types/admin";
@@ -67,21 +66,39 @@ export function BlockDialog({
   const handleSave = async () => {
     if (!isValid) return;
     setSaving(true);
-    const supabase = createClient();
 
-    const { error } = await supabase.from("schedule_blocks").insert({
-      block_date: blockDate,
-      all_day: allDay,
-      start_time: allDay ? null : startTime,
-      end_time: allDay ? null : endTime,
-      office_id: officeId === "all" ? null : officeId,
-      reason: reason.trim() || null,
-      organization_id: organizationId,
-    });
+    // Mig 254: pasa por el API para estampar quién bloqueó y dejar la fila
+    // en el registro de auditoría (antes insertaba directo y created_by
+    // quedaba NULL).
+    let errorMessage: string | null = null;
+    try {
+      const res = await fetch("/api/scheduler/blocks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          org_id: organizationId,
+          block_date: blockDate,
+          all_day: allDay,
+          start_time: allDay ? null : startTime,
+          end_time: allDay ? null : endTime,
+          office_id: officeId === "all" ? null : officeId,
+          reason: reason.trim() || null,
+        }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: string } | null;
+        errorMessage =
+          res.status === 403
+            ? "No tienes permiso para bloquear horarios en esta clínica"
+            : j?.error ?? `Error ${res.status}`;
+      }
+    } catch (e) {
+      errorMessage = e instanceof Error ? e.message : "Sin conexión";
+    }
 
     setSaving(false);
-    if (error) {
-      toast.error("Error al crear bloqueo: " + error.message);
+    if (errorMessage) {
+      toast.error("Error al crear bloqueo: " + errorMessage);
       return;
     }
     toast.success("Horario bloqueado correctamente");

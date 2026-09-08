@@ -29,6 +29,24 @@ const schedulerSettingsSchema = z.object({
   // Duración editable por cita (mig 221). El PUT ya exige owner/admin más
   // abajo, que es exactamente quien puede encender el flag.
   allow_custom_duration: z.boolean(),
+  // Break Time por org (mig 254): {enabled, days[0-6], startTime, endTime}.
+  // Mínimo 30 min cuando está activo (misma regla que el diálogo ☕).
+  break_time: z
+    .object({
+      enabled: z.boolean(),
+      days: z.array(z.number().int().min(0).max(6)).max(7),
+      startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+      endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    })
+    .refine(
+      (b) => {
+        if (!b.enabled) return true;
+        const [sh, sm] = b.startTime.split(":").map(Number);
+        const [eh, em] = b.endTime.split(":").map(Number);
+        return b.days.length > 0 && eh * 60 + em - (sh * 60 + sm) >= 30;
+      },
+      { message: "break time must last at least 30 minutes and have at least one day" }
+    ),
 }).partial().refine(
   (d) => {
     // Cross-field: closing must be strictly after opening, at minute level.

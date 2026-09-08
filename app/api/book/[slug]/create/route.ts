@@ -5,6 +5,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { buildEmailHtml } from "@/lib/email-template";
 import { sendEmail, isEmailConfigured } from "@/lib/resend";
 import { z } from "zod";
+import { sanitizeBreakTime, overlapsBreakTime } from "@/lib/scheduler-config";
 
 export const runtime = "nodejs";
 
@@ -263,6 +264,41 @@ export async function POST(
   ];
 
   if (conflicts.length > 0) {
+    return NextResponse.json(
+      { error: "Este horario ya no está disponible. Intenta con otro horario." },
+      { status: 409 }
+    );
+  }
+
+  // 10.5. Bloqueos y Break Time (mig 254). La página pública ya no ofrece
+  // estas franjas; esto frena un POST manual. Sin la mig, `removed_at` no
+  // existe → se repite sin el filtro; `break_time` ausente → sin descanso.
+  let blocksRes = await supabase
+    .from("schedule_blocks")
+    .select("office_id, start_time, end_time, all_day")
+    .eq("organization_id", org.id)
+    .eq("block_date", data.appointment_date)
+    .is("removed_at", null);
+  if (blocksRes.error) {
+    blocksRes = await supabase
+      .from("schedule_blocks")
+      .select("office_id, start_time, end_time, all_day")
+      .eq("organization_id", org.id)
+      .eq("block_date", data.appointment_date);
+  }
+  const blocked = (blocksRes.data ?? []).some((b) => {
+    if (b.office_id && b.office_id !== data.office_id) return false;
+    if (b.all_day) return true;
+    if (!b.start_time || !b.end_time) return false;
+    return b.start_time.slice(0, 5) < endTime && b.end_time.slice(0, 5) > data.start_time;
+  });
+  const { data: settingsRow } = await supabase
+    .from("scheduler_settings")
+    .select("*")
+    .eq("organization_id", org.id)
+    .maybeSingle();
+  const breakTime = sanitizeBreakTime((settingsRow as { break_time?: unknown } | null)?.break_time);
+  if (blocked || overlapsBreakTime(breakTime, data.appointment_date, data.start_time, endTime)) {
     return NextResponse.json(
       { error: "Este horario ya no está disponible. Intenta con otro horario." },
       { status: 409 }

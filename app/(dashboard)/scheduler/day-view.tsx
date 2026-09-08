@@ -161,7 +161,29 @@ function getBlockForSlot(
   );
 }
 
-type ContextMenu = { x: number; y: number; blockId: string; reason?: string | null };
+type ContextMenu = {
+  x: number;
+  y: number;
+  blockId: string;
+  reason?: string | null;
+  /** Mig 254: "Bloqueado por X · fecha" (null en el descanso virtual). */
+  byLine?: string | null;
+};
+
+/** "Melissa · 08/09 10:15" para tooltip y menú del bloqueo (mig 254). */
+function blockByLine(block: ScheduleBlock): string | null {
+  if (block.reason === "__break_time__") return null;
+  const who = block.created_by_name?.trim();
+  if (!who) return null;
+  let when = "";
+  if (block.created_at) {
+    const d = new Date(block.created_at);
+    if (!Number.isNaN(d.getTime())) {
+      when = ` · ${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+  }
+  return `Bloqueado por ${who}${when}`;
+}
 
 // Color helpers (hexToPastel / hexToDark) moved to appointment-card.tsx
 // together with the card markup they styled.
@@ -567,6 +589,10 @@ export function DayView({
                   const bgColor = isBreakTime
                     ? "rgba(59,130,246,0.05)"
                     : "rgba(107,114,128,0.06)";
+                  const byLine = blockByLine(block);
+                  const tooltip = isBreakTime
+                    ? "Descanso"
+                    : [block.reason ?? "Bloqueado", byLine].filter(Boolean).join("\n");
 
                   return (
                     <div
@@ -575,11 +601,12 @@ export function DayView({
                       style={{ height: `${rowHeight}px` }}
                       onContextMenu={(e) => {
                         e.preventDefault();
-                        setContextMenu({ x: e.clientX, y: e.clientY, blockId: block.id, reason: block.reason });
+                        setContextMenu({ x: e.clientX, y: e.clientY, blockId: block.id, reason: block.reason, byLine });
                       }}
                     >
                       <div
                         className="absolute inset-0 flex items-center justify-between px-1.5"
+                        title={tooltip}
                         style={{
                           backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 4px, ${stripeColor} 4px, ${stripeColor} 8px)`,
                           backgroundColor: bgColor,
@@ -701,9 +728,12 @@ export function DayView({
           style={{ top: contextMenu.y, left: contextMenu.x }}
           onClick={(e) => e.stopPropagation()}
         >
-          {contextMenu.reason && (
-            <div className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border">
-              {contextMenu.reason === "__break_time__" ? "Descanso" : contextMenu.reason}
+          {(contextMenu.reason || contextMenu.byLine) && (
+            <div className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border space-y-0.5">
+              {contextMenu.reason && (
+                <div>{contextMenu.reason === "__break_time__" ? "Descanso" : contextMenu.reason}</div>
+              )}
+              {contextMenu.byLine && <div className="text-[10px]">{contextMenu.byLine}</div>}
             </div>
           )}
           <button

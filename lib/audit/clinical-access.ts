@@ -32,6 +32,10 @@ export type ClinicalResourceType =
   | "medical_history"
   | "appointment"
   | "ai_query"
+  // Mig 254: bloqueos de agenda (create al bloquear, delete al desbloquear).
+  // No es dato clínico, pero es la única bitácora con "quién y cuándo" que
+  // la clínica ya sabe leer (Administración → Registro de auditoría).
+  | "schedule_block"
   | "other";
 
 export type ClinicalAction =

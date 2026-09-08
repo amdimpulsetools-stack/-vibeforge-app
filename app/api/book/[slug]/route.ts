@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { rateLimit } from "@/lib/rate-limit";
+import { resolveOrgTimezone, todayInTz, zonedNow } from "@/lib/org-time";
+import { sanitizeBreakTime, breakTimeBlocksInRange } from "@/lib/scheduler-config";
 
 export const runtime = "nodejs";
 
@@ -34,7 +36,7 @@ export async function GET(
   // 1. Fetch organization by slug
   const { data: org, error: orgError } = await supabase
     .from("organizations")
-    .select("id, name, slug, logo_url, address, organization_type, is_active")
+    .select("id, name, slug, logo_url, address, organization_type, is_active, timezone")
     .eq("slug", slug)
     .eq("is_active", true)
     .single();
@@ -131,10 +133,14 @@ export async function GET(
     globalVars?.find((v) => v.key === "clinic_email")?.value || "";
 
   // 9. Fetch existing appointments for the next N days (for slot availability)
-  const today = new Date().toISOString().split("T")[0];
-  const maxDate = new Date();
+  // "Hoy" en el reloj de la clínica (mig 240): con toISOString() (UTC) el
+  // rango arrancaba en "mañana" después de las 19:00 Lima.
+  const orgTz = resolveOrgTimezone((org as { timezone?: string | null }).timezone);
+  const orgNow = zonedNow(orgTz);
+  const today = todayInTz(orgTz);
+  const maxDate = new Date(orgNow.getFullYear(), orgNow.getMonth(), orgNow.getDate());
   maxDate.setDate(maxDate.getDate() + bookingSettings.max_advance_days);
-  const maxDateStr = maxDate.toISOString().split("T")[0];
+  const maxDateStr = `${maxDate.getFullYear()}-${String(maxDate.getMonth() + 1).padStart(2, "0")}-${String(maxDate.getDate()).padStart(2, "0")}`;
 
   const { data: existingAppointmentsRaw } = await supabase
     .from("appointments")
@@ -162,13 +168,42 @@ export async function GET(
     };
   });
 
-  // 10. Fetch schedule blocks
-  const { data: scheduleBlocks } = await supabase
+  // 10. Fetch schedule blocks — solo vigentes (mig 254: desbloquear = marca
+  // removed_at). Sin la mig la columna no existe → se repite sin el filtro.
+  let blocksRes = await supabase
     .from("schedule_blocks")
     .select("office_id, block_date, start_time, end_time, all_day")
     .eq("organization_id", org.id)
+    .is("removed_at", null)
     .gte("block_date", today)
     .lte("block_date", maxDateStr);
+  if (blocksRes.error) {
+    blocksRes = await supabase
+      .from("schedule_blocks")
+      .select("office_id, block_date, start_time, end_time, all_day")
+      .eq("organization_id", org.id)
+      .gte("block_date", today)
+      .lte("block_date", maxDateStr);
+  }
+
+  // 11. Break Time de la org (mig 254) como bloqueos virtuales de todos los
+  // consultorios: la página pública ya sabe descartar bloqueos, así que el
+  // descanso viaja con la misma forma. Antes vivía en el navegador de cada
+  // usuario y la reserva online ofrecía esas franjas.
+  const { data: settingsRow } = await supabase
+    .from("scheduler_settings")
+    .select("*")
+    .eq("organization_id", org.id)
+    .maybeSingle();
+  const breakTime = sanitizeBreakTime((settingsRow as { break_time?: unknown } | null)?.break_time);
+  const breakBlocks = breakTimeBlocksInRange(breakTime, today, maxDateStr, org.id).map((b) => ({
+    office_id: null,
+    block_date: b.block_date,
+    start_time: b.start_time,
+    end_time: b.end_time,
+    all_day: false,
+  }));
+  const scheduleBlocks = [...(blocksRes.data ?? []), ...breakBlocks];
 
   return NextResponse.json({
     organization: {

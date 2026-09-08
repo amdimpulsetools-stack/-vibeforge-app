@@ -7,8 +7,7 @@ import { sendNotification } from "@/lib/send-notification";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import type { AppointmentWithRelations, Office, Doctor, ScheduleBlock } from "@/types/admin";
 import { X, Loader2, CalendarDays, Clock, RefreshCw } from "lucide-react";
-import { loadBreakTimeConfig } from "./break-time-dialog";
-import { loadSchedulerConfig, getScheduleStartMinutes, getScheduleEndMinutes } from "@/lib/scheduler-config";
+import { loadSchedulerConfig, getScheduleStartMinutes, getScheduleEndMinutes, overlapsBreakTime } from "@/lib/scheduler-config";
 
 interface RescheduleModalProps {
   appointment: AppointmentWithRelations;
@@ -81,16 +80,12 @@ export function RescheduleModal({
         : `Horario bloqueado: ${blockConflict.reason ?? "Bloqueado"}`;
     }
 
-    // Check break time config for dates not yet in blocks (e.g. future dates)
-    const breakConfig = loadBreakTimeConfig();
-    if (breakConfig.enabled) {
-      const selectedDate = new Date(newDate + "T12:00:00");
-      const dow = selectedDate.getDay();
-      if (breakConfig.days.includes(dow)) {
-        if (newTime < breakConfig.endTime && newEndTime > breakConfig.startTime) {
-          return "Ese horario está dentro del Break Time";
-        }
-      }
+    // Break Time para fechas fuera del rango visible (los bloqueos virtuales
+    // solo cubren el día/semana en pantalla). Mig 254: la config es de la
+    // org (scheduler_settings.break_time); la caché local se refresca en
+    // cada fetch de la config.
+    if (overlapsBreakTime(loadSchedulerConfig().breakTime, newDate, newTime, newEndTime)) {
+      return "Ese horario está dentro del Break Time";
     }
 
     const others = existingAppointments.filter((a) => a.id !== appointment.id);

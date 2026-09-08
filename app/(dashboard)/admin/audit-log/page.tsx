@@ -56,8 +56,33 @@ const RESOURCE_LABELS: Record<string, string> = {
   medical_history: "Antecedentes / biometría",
   appointment: "Seguimiento clínico",
   ai_query: "Consulta IA",
+  schedule_block: "Bloqueo de agenda",
   other: "Otro",
 };
+
+/**
+ * Detalle legible de un bloqueo de agenda (mig 254) a partir del metadata
+ * que escriben /api/scheduler/blocks: "08/09/2026 · 10:00–12:00 · Motivo".
+ * Al desbloquear se añade quién había bloqueado.
+ */
+function describeBlock(meta: Record<string, unknown> | null, action: string): string {
+  if (!meta) return "—";
+  const date =
+    typeof meta.block_date === "string"
+      ? meta.block_date.split("-").reverse().join("/")
+      : null;
+  const hours = meta.all_day
+    ? "Todo el día"
+    : typeof meta.start_time === "string" && typeof meta.end_time === "string"
+      ? `${meta.start_time}–${meta.end_time}`
+      : null;
+  const parts = [date, hours];
+  if (typeof meta.reason === "string" && meta.reason) parts.push(meta.reason);
+  if (action === "delete" && typeof meta.created_by_name === "string" && meta.created_by_name) {
+    parts.push(`bloqueado por ${meta.created_by_name}`);
+  }
+  return parts.filter(Boolean).join(" · ") || "—";
+}
 
 const ACTION_LABELS: Record<string, string> = {
   view: "Ver",
@@ -300,7 +325,7 @@ export default function AuditLogPage() {
                   <th className="px-3 py-2 text-left font-medium">Usuario</th>
                   <th className="px-3 py-2 text-left font-medium">Acción</th>
                   <th className="px-3 py-2 text-left font-medium">Recurso</th>
-                  <th className="px-3 py-2 text-left font-medium">Paciente</th>
+                  <th className="px-3 py-2 text-left font-medium">Paciente / Detalle</th>
                   <th className="px-3 py-2 text-left font-medium">IP</th>
                 </tr>
               </thead>
@@ -338,6 +363,11 @@ export default function AuditLogPage() {
                       </td>
                       <td className="px-3 py-2 whitespace-nowrap text-xs">
                         {(() => {
+                          // Bloqueos de agenda (mig 254) no tienen paciente:
+                          // la columna muestra el detalle del bloqueo.
+                          if (r.resource_type === "schedule_block") {
+                            return describeBlock(r.metadata, r.action);
+                          }
                           // Supabase embed returns array or object depending on PostgREST cardinality inference.
                           const p = Array.isArray(r.patients) ? r.patients[0] : r.patients;
                           if (p) return `${p.first_name ?? ""} ${p.last_name ?? ""}`.trim() || "—";

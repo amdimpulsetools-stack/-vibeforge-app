@@ -116,6 +116,10 @@ export type ScheduleBlock = {
   reason: string | null;
   organization_id: string;
   created_at: string;
+  /** Mig 254: quién bloqueó (snapshot del nombre). Los bloqueos virtuales del descanso no lo traen. */
+  created_by_name?: string | null;
+  /** Mig 254: desbloqueo = marca. Los lectores solo cargan filas con NULL. */
+  removed_at?: string | null;
 };
 
 // Paleta de colores para doctores

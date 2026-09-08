@@ -1120,7 +1120,7 @@ export function AppointmentSidebar({
           .neq("id", appointment.id),
         supabaseCheck
           .from("schedule_blocks")
-          .select("start_time, end_time, office_id, all_day, reason")
+          .select("start_time, end_time, office_id, all_day, reason, removed_at")
           .eq("organization_id", appointment.organization_id)
           .eq("block_date", appointment.appointment_date),
       ]);
@@ -1137,7 +1137,9 @@ export function AppointmentSidebar({
         );
         return;
       }
+      // Mig 254: los bloqueos quitados (removed_at) ya no cuentan.
       const block = (dayBlocks ?? []).find((b) => {
+        if ((b as { removed_at?: string | null }).removed_at) return false;
         if (b.office_id && b.office_id !== appointment.office_id) return false;
         if (b.all_day) return true;
         const bs = b.start_time?.slice(0, 5) ?? "00:00";
