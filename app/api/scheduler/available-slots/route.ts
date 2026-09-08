@@ -3,7 +3,10 @@ import {
   DEFAULT_SCHEDULER_CONFIG,
   getScheduleStartMinutes,
   getScheduleEndMinutes,
+  sanitizeBreakTime,
+  overlapsBreakTime,
 } from "@/lib/scheduler-config";
+import { resolveOrgTimezone, zonedNow } from "@/lib/org-time";
 import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
@@ -70,11 +73,20 @@ export async function GET(request: Request) {
   // slots line up with the real reservable rows of the grid. Absent row →
   // DEFAULT_SCHEDULER_CONFIG (no crash). See app/api/appointments/[id]/
   // live-status/route.ts for the same maybeSingle() read pattern.
-  const { data: settingsRow } = await supabase
-    .from("scheduler_settings")
-    .select("start_hour, end_hour, start_minute, end_minute, intervals")
-    .eq("organization_id", membership.organization_id)
-    .maybeSingle();
+  // select("*") en vez de la lista: `break_time` (mig 254) puede no existir
+  // aún y pedir una columna inexistente daría 400 en vez de "sin descanso".
+  const [{ data: settingsRow }, { data: orgRow }] = await Promise.all([
+    supabase
+      .from("scheduler_settings")
+      .select("*")
+      .eq("organization_id", membership.organization_id)
+      .maybeSingle(),
+    supabase
+      .from("organizations")
+      .select("timezone")
+      .eq("id", membership.organization_id)
+      .maybeSingle(),
+  ]);
 
   const settings = settingsRow as {
     start_hour: number | null;
@@ -82,7 +94,15 @@ export async function GET(request: Request) {
     start_minute: number | null;
     end_minute: number | null;
     intervals: unknown;
+    break_time?: unknown;
   } | null;
+  // Break Time por org (mig 254): antes vivía en el navegador y este
+  // endpoint ofrecía las franjas del descanso.
+  const breakTime = sanitizeBreakTime(settings?.break_time);
+  // "Hoy" y "ahora" en el reloj de la clínica (Vercel corre en UTC: después
+  // de las 19:00 Lima el servidor ya estaba en mañana y dejaba de descartar
+  // las horas pasadas de hoy).
+  const orgTz = resolveOrgTimezone((orgRow as { timezone?: string | null } | null)?.timezone);
 
   const orgConfig = {
     ...DEFAULT_SCHEDULER_CONFIG,
@@ -106,7 +126,10 @@ export async function GET(request: Request) {
   const doctorId = searchParams.get("doctor_id");
   const days = Math.min(parseInt(searchParams.get("days") || "7", 10) || 7, 14);
   const startDateParam = searchParams.get("start_date");
-  const startDate = startDateParam ? new Date(startDateParam + "T00:00:00") : new Date();
+  const orgNow = zonedNow(orgTz);
+  const startDate = startDateParam
+    ? new Date(startDateParam + "T00:00:00")
+    : new Date(orgNow.getFullYear(), orgNow.getMonth(), orgNow.getDate());
 
   if (!doctorId) {
     return NextResponse.json({ error: "missing_doctor_id" }, { status: 400 });
@@ -146,17 +169,28 @@ export async function GET(request: Request) {
     .lte("appointment_date", endStr)
     .neq("status", "cancelled");
 
-  // Schedule blocks for the org in range
-  const { data: blocks } = await supabase
+  // Schedule blocks for the org in range — solo vigentes (mig 254:
+  // desbloquear = marca removed_at). Sin la mig, la columna no existe y se
+  // repite la consulta sin el filtro.
+  let blocksQuery = await supabase
     .from("schedule_blocks")
     .select("block_date, start_time, end_time, office_id, all_day")
     .eq("organization_id", membership.organization_id)
+    .is("removed_at", null)
     .gte("block_date", startStr)
     .lte("block_date", endStr);
+  if (blocksQuery.error) {
+    blocksQuery = await supabase
+      .from("schedule_blocks")
+      .select("block_date, start_time, end_time, office_id, all_day")
+      .eq("organization_id", membership.organization_id)
+      .gte("block_date", startStr)
+      .lte("block_date", endStr);
+  }
+  const blocks = blocksQuery.data;
 
-  const now = new Date();
-  const todayStr = formatDateISO(now);
-  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const todayStr = formatDateISO(orgNow);
+  const nowMinutes = orgNow.getHours() * 60 + orgNow.getMinutes();
 
   type DayPayload = { date: string; dayOfWeek: number; slots: string[] };
   const daysOut: DayPayload[] = [];
@@ -219,6 +253,9 @@ export async function GET(request: Request) {
           return cursor < bEnd && slotEndMin > bStart;
         });
         if (overlapsBlock) continue;
+
+        // Break Time de la org (mig 254): misma regla que en la agenda.
+        if (overlapsBreakTime(breakTime, dateStr, slotStart, minutesToHHMM(slotEndMin))) continue;
 
         slotTimes.add(slotStart);
       }

@@ -38,6 +38,7 @@ const querySchema = z.object({
       "medical_history",
       "appointment",
       "ai_query",
+      "schedule_block",
       "other",
     ])
     .optional(),

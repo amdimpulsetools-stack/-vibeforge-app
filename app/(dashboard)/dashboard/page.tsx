@@ -13,6 +13,7 @@ import { resolveOrgTimezone, todayInTz, zonedNow } from "@/lib/org-time";
 import {
   DEFAULT_SCHEDULER_CONFIG,
   schedulerRowToConfig,
+  breakTimeBlocksInRange,
 } from "@/lib/scheduler-config";
 import { computeOccupancy } from "@/lib/scheduler-occupancy";
 
@@ -233,6 +234,8 @@ export default async function DashboardPage() {
       .from("schedule_blocks")
       .select("block_date, start_time, end_time, office_id, all_day")
       .eq("organization_id", orgId)
+      // Mig 254: desbloquear = marca; los quitados no ocupan.
+      .is("removed_at", null)
       .gte("block_date", occupancyRangeStart)
       .lte("block_date", occupancyRangeEnd),
   ]);
@@ -268,13 +271,23 @@ export default async function DashboardPage() {
         status: string;
         office_id: string | null;
       }>,
-      blocks: (occupancyBlocks ?? []) as Array<{
-        block_date: string;
-        start_time: string | null;
-        end_time: string | null;
-        office_id: string | null;
-        all_day: boolean;
-      }>,
+      // Mig 254: el Break Time de la org descuenta ocupación igual que en la
+      // cabecera de la agenda (antes solo lo veía el navegador que lo
+      // configuró).
+      blocks: [
+        ...((occupancyBlocks ?? []) as Array<{
+          block_date: string;
+          start_time: string | null;
+          end_time: string | null;
+          office_id: string | null;
+          all_day: boolean;
+        }>),
+        ...breakTimeBlocksInRange(
+          schedulerConfig.breakTime,
+          occupancyRangeStart,
+          occupancyRangeEnd,
+        ),
+      ],
       config: schedulerConfig,
     }).percent;
 

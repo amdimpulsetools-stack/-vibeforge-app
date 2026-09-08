@@ -13,9 +13,143 @@ export const SCHEDULER_CONFIG_KEYS = {
   liveStatusReceptionCanEnd: "vibeforge_live_status_reception_can_end",
   requiredFields: "vibeforge_scheduler_required_fields",
   allowCustomDuration: "vibeforge_scheduler_allow_custom_duration",
+  // Misma key que usaba break-time-dialog.tsx cuando el descanso vivía SOLO
+  // en localStorage (pre-254): la caché vieja sirve de placeholder hasta que
+  // llega la fila de la org.
+  breakTime: "vibeforge_break_time_config",
 };
 
 export type IntervalOption = 15 | 20 | 30 | 45 | 60;
+
+// ─── Break Time por org (mig 254) ────────────────────────────────────────
+
+/**
+ * Descanso diario de la clínica. Antes de la mig 254 vivía en el
+ * localStorage de cada navegador (por usuario, invisible para el servidor);
+ * ahora es una columna jsonb de scheduler_settings con esta misma forma, así
+ * que la agenda, "Compartir horarios" y la reserva online lo aplican igual.
+ */
+export interface BreakTimeConfig {
+  enabled: boolean;
+  /** 0=Dom … 6=Sáb */
+  days: number[];
+  /** "HH:MM" */
+  startTime: string;
+  /** "HH:MM" */
+  endTime: string;
+}
+
+export const DEFAULT_BREAK_TIME_CONFIG: BreakTimeConfig = {
+  // Off por default. La clínica activa explícitamente su break time desde el
+  // botón ☕ en el header del scheduler. Asumir 1-2pm como default era invasivo
+  // para clínicas que no tienen ese horario o trabajan sin almuerzo fijo.
+  enabled: false,
+  days: [1, 2, 3, 4, 5], // Mon–Fri
+  startTime: "13:00",
+  endTime: "14:00",
+};
+
+const HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Coerce JSON arbitrario (columna / caché) a un BreakTimeConfig seguro. */
+export function sanitizeBreakTime(raw: unknown): BreakTimeConfig {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return DEFAULT_BREAK_TIME_CONFIG;
+  const src = raw as Record<string, unknown>;
+  const days = Array.isArray(src.days)
+    ? Array.from(
+        new Set(
+          src.days.filter((d): d is number => Number.isInteger(d) && (d as number) >= 0 && (d as number) <= 6)
+        )
+      )
+    : DEFAULT_BREAK_TIME_CONFIG.days;
+  const startTime =
+    typeof src.startTime === "string" && HHMM_RE.test(src.startTime)
+      ? src.startTime
+      : DEFAULT_BREAK_TIME_CONFIG.startTime;
+  const endTime =
+    typeof src.endTime === "string" && HHMM_RE.test(src.endTime)
+      ? src.endTime
+      : DEFAULT_BREAK_TIME_CONFIG.endTime;
+  const enabled = src.enabled === true && days.length > 0 && startTime < endTime;
+  return { enabled, days, startTime, endTime };
+}
+
+/** Día de la semana (0=Dom) de una fecha civil "yyyy-MM-dd", sin zona horaria. */
+export function weekdayOf(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  // Mediodía local: inmune a DST y al offset del servidor (corre en UTC).
+  return new Date(y, m - 1, d, 12, 0, 0).getDay();
+}
+
+/** ¿El descanso aplica ese día? */
+export function breakTimeAppliesOn(config: BreakTimeConfig, dateStr: string): boolean {
+  return config.enabled && config.days.includes(weekdayOf(dateStr));
+}
+
+/**
+ * ¿La franja [startHHMM, endHHMM) pisa el descanso de ese día? Misma regla de
+ * choque que las citas: fin de una == inicio de la otra NO choca.
+ */
+export function overlapsBreakTime(
+  config: BreakTimeConfig,
+  dateStr: string,
+  startHHMM: string,
+  endHHMM: string
+): boolean {
+  if (!breakTimeAppliesOn(config, dateStr)) return false;
+  return startHHMM.slice(0, 5) < config.endTime && endHHMM.slice(0, 5) > config.startTime;
+}
+
+/** Marca de los bloqueos virtuales del descanso (id `bt-<fecha>`, sin fila en BD). */
+export const BREAK_TIME_REASON = "__break_time__";
+
+/**
+ * Bloqueos virtuales del descanso para cada fecha de [startDate, endDate]
+ * (fechas civiles "yyyy-MM-dd"). Misma forma que una fila de schedule_blocks
+ * para que los lectores (agenda, reserva online) los traten igual; office_id
+ * null = todos los consultorios.
+ */
+export function breakTimeBlocksInRange(
+  config: BreakTimeConfig,
+  startDate: string,
+  endDate: string,
+  organizationId = ""
+): Array<{
+  id: string;
+  block_date: string;
+  start_time: string;
+  end_time: string;
+  office_id: null;
+  all_day: false;
+  reason: string;
+  organization_id: string;
+  created_at: string;
+}> {
+  if (!config.enabled) return [];
+  const out: ReturnType<typeof breakTimeBlocksInRange> = [];
+  const [sy, sm, sd] = startDate.split("-").map(Number);
+  const [ey, em, ed] = endDate.split("-").map(Number);
+  const cursor = new Date(sy, sm - 1, sd, 12, 0, 0);
+  const end = new Date(ey, em - 1, ed, 12, 0, 0);
+  while (cursor <= end) {
+    if (config.days.includes(cursor.getDay())) {
+      const dateStr = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+      out.push({
+        id: `bt-${dateStr}`,
+        block_date: dateStr,
+        start_time: config.startTime,
+        end_time: config.endTime,
+        office_id: null,
+        all_day: false,
+        reason: BREAK_TIME_REASON,
+        organization_id: organizationId,
+        created_at: "",
+      });
+    }
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return out;
+}
 
 // ─── Configurable required fields for the New Appointment modal (mig 176) ───
 
@@ -105,6 +239,11 @@ export interface SchedulerConfig {
    * el default). Default false = byte-idéntico al comportamiento pre-221.
    */
   allowCustomDuration: boolean;
+  /**
+   * Descanso diario por org (mig 254). Default = apagado. Antes vivía en
+   * localStorage por navegador y el servidor no podía aplicarlo.
+   */
+  breakTime: BreakTimeConfig;
 }
 
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
@@ -120,6 +259,7 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   liveStatusReceptionCanEnd: true, // mig 227 — on = recepción puede finalizar
   requiredFields: {}, // mig 176 — empty = code defaults (back-compat)
   allowCustomDuration: false, // mig 221 — off = duración impuesta por el servicio
+  breakTime: DEFAULT_BREAK_TIME_CONFIG, // mig 254 — off hasta que la org lo active
 };
 
 /** Returns the smallest selected interval (used for the grid resolution). */
@@ -198,7 +338,15 @@ export function loadSchedulerConfig(): SchedulerConfig {
     // default es FALSE — una caché vieja sin la key deja el flag apagado, que
     // es el comportamiento anterior.
     const allowCustomDuration = (localStorage.getItem(SCHEDULER_CONFIG_KEYS.allowCustomDuration) ?? "false") === "true";
-    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose, liveStatusReceptionCanEnd, requiredFields, allowCustomDuration };
+    // Break Time (mig 254): la misma key que guardaba el diálogo pre-254, así
+    // la config que la clínica ya tenía en ESTE navegador sirve de placeholder
+    // hasta que baja la fila de la org (que manda).
+    let breakTime: BreakTimeConfig = DEFAULT_BREAK_TIME_CONFIG;
+    try {
+      const rawBreak = localStorage.getItem(SCHEDULER_CONFIG_KEYS.breakTime);
+      if (rawBreak) breakTime = sanitizeBreakTime(JSON.parse(rawBreak));
+    } catch { /* keep default */ }
+    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose, liveStatusReceptionCanEnd, requiredFields, allowCustomDuration, breakTime };
   } catch {
     return DEFAULT_SCHEDULER_CONFIG;
   }
@@ -219,6 +367,7 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
   if (config.liveStatusReceptionCanEnd !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.liveStatusReceptionCanEnd, String(config.liveStatusReceptionCanEnd));
   if (config.requiredFields !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.requiredFields, JSON.stringify(config.requiredFields));
   if (config.allowCustomDuration !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.allowCustomDuration, String(config.allowCustomDuration));
+  if (config.breakTime !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.breakTime, JSON.stringify(config.breakTime));
 }
 
 // ─── Database-backed functions ───────────────────────────────────
@@ -241,6 +390,7 @@ export function schedulerRowToConfig(row: {
   live_status_reception_can_end?: boolean | null;
   required_fields?: unknown;
   allow_custom_duration?: boolean | null;
+  break_time?: unknown;
 }): SchedulerConfig {
   const intervals = (Array.isArray(row.intervals) ? row.intervals : [15]).filter(
     (v: number) => [15, 20, 30, 45, 60].includes(v)
@@ -266,6 +416,8 @@ export function schedulerRowToConfig(row: {
     // mig 221 — columna ausente (fila anterior a la migración) → false, que
     // es el comportamiento de siempre.
     allowCustomDuration: row.allow_custom_duration ?? false,
+    // mig 254 — columna ausente (fila anterior a la migración) → apagado.
+    breakTime: sanitizeBreakTime(row.break_time),
   };
 }
 
@@ -314,6 +466,7 @@ export async function saveSchedulerConfigToDb(
     if (config.liveStatusReceptionCanEnd !== undefined) body.live_status_reception_can_end = config.liveStatusReceptionCanEnd;
     if (config.requiredFields !== undefined) body.required_fields = config.requiredFields;
     if (config.allowCustomDuration !== undefined) body.allow_custom_duration = config.allowCustomDuration;
+    if (config.breakTime !== undefined) body.break_time = config.breakTime;
     if (orgId) body.org_id = orgId;
 
     const res = await fetch("/api/scheduler-settings", {

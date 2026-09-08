@@ -33,11 +33,17 @@ const WhatsAppClipboardModal = dynamic(
 );
 import type { AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
 import {
-  loadBreakTimeConfig,
+  loadOfficeFilter,
+  saveOfficeFilter,
+  loadSchedulerConfig,
+  fetchSchedulerConfig,
+  saveSchedulerConfigToDb,
+  getScheduleStartMinutes,
+  getScheduleEndMinutes,
+  breakTimeBlocksInRange,
   DEFAULT_BREAK_TIME_CONFIG,
   type BreakTimeConfig,
-} from "./break-time-dialog";
-import { loadOfficeFilter, saveOfficeFilter, loadSchedulerConfig, fetchSchedulerConfig, getScheduleStartMinutes, getScheduleEndMinutes } from "@/lib/scheduler-config";
+} from "@/lib/scheduler-config";
 
 // Lazy-load heavy modal/sidebar components (only downloaded when opened)
 const ModalLoader = () => (
@@ -72,37 +78,6 @@ const AvailableSlotsModal = dynamic(
 );
 
 export type ViewMode = "day" | "week";
-
-function generateBreakTimeBlocks(
-  config: BreakTimeConfig,
-  startDate: string,
-  endDate: string
-): ScheduleBlock[] {
-  if (!config.enabled) return [];
-  const result: ScheduleBlock[] = [];
-  // Use noon to avoid DST/timezone edge cases when computing day-of-week
-  const cursor = new Date(startDate + "T12:00:00");
-  const end = new Date(endDate + "T12:00:00");
-  while (cursor <= end) {
-    const dow = cursor.getDay(); // 0=Sun … 6=Sat
-    if (config.days.includes(dow)) {
-      const dateStr = format(cursor, "yyyy-MM-dd");
-      result.push({
-        id: `bt-${dateStr}`,
-        block_date: dateStr,
-        start_time: config.startTime,
-        end_time: config.endTime,
-        office_id: null,
-        all_day: false,
-        reason: "__break_time__",
-        organization_id: "",
-        created_at: "",
-      });
-    }
-    cursor.setDate(cursor.getDate() + 1);
-  }
-  return result;
-}
 
 export default function SchedulerPage() {
   const { t } = useLanguage();
@@ -185,9 +160,10 @@ export default function SchedulerPage() {
   // Block dialog
   const [showBlockDialog, setShowBlockDialog] = useState(false);
 
-  // Break time
+  // Break time (mig 254): config de la org, no del navegador. Sale de la
+  // misma query que el resto de Configuración → Agenda.
   const [showBreakTimeDialog, setShowBreakTimeDialog] = useState(false);
-  const [breakTimeConfig, setBreakTimeConfig] = useState<BreakTimeConfig>(DEFAULT_BREAK_TIME_CONFIG);
+  const breakTimeConfig: BreakTimeConfig = schedulerConfig.breakTime ?? DEFAULT_BREAK_TIME_CONFIG;
 
   // Share available slots (lazy-loaded — data fetched only when opened)
   const [showAvailableSlots, setShowAvailableSlots] = useState(false);
@@ -208,11 +184,6 @@ export default function SchedulerPage() {
       return offices.map((o) => o.id);
     });
   }, [offices]);
-
-  // Load break time config from localStorage (client-side only)
-  useEffect(() => {
-    setBreakTimeConfig(loadBreakTimeConfig());
-  }, []);
 
   // Date range helpers
   const getDateRange = useCallback(() => {
@@ -281,12 +252,23 @@ export default function SchedulerPage() {
     enabled: !!organizationId,
     placeholderData: (prev) => prev,
     queryFn: async () => {
-      const { data } = await createClient()
+      // Mig 254: solo bloqueos vigentes (desbloquear = marca removed_at) y
+      // con el nombre de quien bloqueó para el tooltip / menú. Si la mig
+      // aún no corrió, las columnas no existen → se repite sin ellas.
+      const supabase = createClient();
+      const withAudit = await supabase
+        .from("schedule_blocks")
+        .select("id, block_date, start_time, end_time, office_id, all_day, reason, organization_id, created_at, created_by_name, removed_at")
+        .is("removed_at", null)
+        .gte("block_date", rangeStartKey)
+        .lte("block_date", rangeEndKey);
+      if (!withAudit.error) return (withAudit.data as ScheduleBlock[]) ?? [];
+      const legacy = await supabase
         .from("schedule_blocks")
         .select("id, block_date, start_time, end_time, office_id, all_day, reason, organization_id, created_at")
         .gte("block_date", rangeStartKey)
         .lte("block_date", rangeEndKey);
-      return (data as ScheduleBlock[]) ?? [];
+      return (legacy.data as ScheduleBlock[]) ?? [];
     },
   });
   const blocks = blocksData ?? [];
@@ -582,18 +564,47 @@ export default function SchedulerPage() {
       return;
     }
 
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("schedule_blocks")
-      .delete()
-      .eq("id", blockId);
-
-    if (error) {
-      toast.error("Error al desbloquear: " + error.message);
+    // Mig 254: desbloquear = marca "quitado por X" vía API (cualquier
+    // miembro activo), con fila en el registro de auditoría. Antes era un
+    // DELETE directo que RLS filtraba en silencio para doctor/recepción y
+    // la app decía "desbloqueado" sin haber hecho nada.
+    try {
+      const res = await fetch(`/api/scheduler/blocks/${blockId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => null)) as { error?: string } | null;
+        const msg =
+          res.status === 403
+            ? "No tienes permiso para desbloquear este horario"
+            : res.status === 404
+              ? "Ese bloqueo ya no existe"
+              : res.status === 409
+                ? "Ese bloqueo ya había sido quitado"
+                : j?.error ?? `Error ${res.status}`;
+        toast.error("Error al desbloquear: " + msg);
+        fetchBlocks();
+        return;
+      }
+    } catch (e) {
+      toast.error("Error al desbloquear: " + (e instanceof Error ? e.message : "Sin conexión"));
       return;
     }
     toast.success("Horario desbloqueado");
     fetchBlocks();
+  };
+
+  // Break Time (mig 254): persiste en scheduler_settings.break_time por org.
+  // El PUT exige owner/admin; el diálogo ya lo muestra en solo-lectura al
+  // resto, esto es la red de seguridad.
+  const handleSaveBreakTime = async (config: BreakTimeConfig): Promise<boolean> => {
+    const ok = await saveSchedulerConfigToDb({ breakTime: config }, organizationId);
+    if (!ok) {
+      toast.error("No se pudo guardar el descanso. Solo un administrador puede cambiarlo.");
+      return false;
+    }
+    queryClient.invalidateQueries({ queryKey: ["scheduler-config"] });
+    setShowBreakTimeDialog(false);
+    toast.success(config.enabled ? "Break Time activado para toda la clínica" : "Break Time desactivado");
+    return true;
   };
 
   // Block dialog date pre-selection
@@ -601,9 +612,9 @@ export default function SchedulerPage() {
 
   // Merge DB blocks with virtual break time blocks for rendering
   const { startDate: rangeStart, endDate: rangeEnd } = getDateRange();
-  const allBlocks = useMemo(
-    () => [...blocks, ...generateBreakTimeBlocks(breakTimeConfig, rangeStart, rangeEnd)],
-    [blocks, breakTimeConfig, rangeStart, rangeEnd]
+  const allBlocks = useMemo<ScheduleBlock[]>(
+    () => [...blocks, ...breakTimeBlocksInRange(breakTimeConfig, rangeStart, rangeEnd, organizationId ?? "")],
+    [blocks, breakTimeConfig, rangeStart, rangeEnd, organizationId]
   );
 
   // First-time empty state: 0 services AND 0 total appointments AND admin.
@@ -833,16 +844,12 @@ export default function SchedulerPage() {
       {/* Break time dialog */}
       {showBreakTimeDialog && (
         <BreakTimeDialog
+          initial={breakTimeConfig}
+          canEdit={isOwner || isAdmin}
           scheduleStartMinutes={getScheduleStartMinutes(schedulerConfig)}
           scheduleEndMinutes={getScheduleEndMinutes(schedulerConfig)}
           onClose={() => setShowBreakTimeDialog(false)}
-          onSaved={(config) => {
-            setBreakTimeConfig(config);
-            setShowBreakTimeDialog(false);
-            toast.success(
-              config.enabled ? "Break Time activado" : "Break Time desactivado"
-            );
-          }}
+          onSave={handleSaveBreakTime}
         />
       )}
 
