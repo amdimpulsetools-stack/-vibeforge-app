@@ -2416,7 +2416,11 @@ export function AppointmentSidebar({
         )}
 
         {/* ── Nota Clínica — opens in modal ───────────────────────────── */}
-        {!editing && (
+        {/* Recepción NO ve la historia clínica (8-sep): misma regla que la
+            pestaña "Clínico" de la ficha del paciente (canSeeClinical =
+            admin o usuario con ficha de médico). Antes el botón salía a
+            todos los roles y el modal abría la nota en solo-lectura. */}
+        {!editing && (isAdmin || !!currentDoctorId) && (
           <div className="border-t border-border pt-4">
             <button
               type="button"
