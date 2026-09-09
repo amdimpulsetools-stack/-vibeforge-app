@@ -218,13 +218,19 @@ export default function SchedulerPage() {
       // ~50% network transfer and JSON parse time at 500+ appointments/day.
       // Los montos de pagos vienen embebidos en el mismo select vía la FK
       // anidada (respaldada por idx_patient_payments_appt_amt, mig 103).
-      const apptRes = await supabase
-        .from("appointments")
-        .select("id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price), patients(is_recurring, dni, birth_date), patient_payments(amount)")
-        .gte("appointment_date", rangeStartKey)
-        .lte("appointment_date", rangeEndKey)
-        .neq("status", "cancelled")
-        .order("start_time");
+      // `services.color` (mig 255) va en un select propio: si la mig aún
+      // no corrió, pedir una columna inexistente tumba TODA la agenda
+      // (400), así que se repite sin ella.
+      const selectAppts = (withServiceColor: boolean) =>
+        supabase
+          .from("appointments")
+          .select(`id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price${withServiceColor ? ", color" : ""}), patients(is_recurring, dni, birth_date), patient_payments(amount)`)
+          .gte("appointment_date", rangeStartKey)
+          .lte("appointment_date", rangeEndKey)
+          .neq("status", "cancelled")
+          .order("start_time");
+      let apptRes = await selectAppts(true);
+      if (apptRes.error) apptRes = await selectAppts(false);
 
       // Supabase types the joined relations as arrays when an explicit column
       // list is used; at runtime they are single objects for to-one FKs. Cast

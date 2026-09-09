@@ -256,6 +256,10 @@ export interface Database {
           // "Se agenda como cita" (mig 239). false = fuera de los selects
           // de crear cita; sigue activo para presupuestos/planes.
           is_bookable: boolean;
+          // Color hex opcional para la tarjeta en la agenda (mig 255).
+          // NULL = color del doctor. Opcional en el tipo porque las filas
+          // anteriores a la migración no lo traen.
+          color?: string | null;
           display_order: number;
           organization_id: string;
           created_at: string;
@@ -270,6 +274,7 @@ export interface Database {
           pre_appointment_instructions?: string | null;
           is_active?: boolean;
           is_bookable?: boolean;
+          color?: string | null;
           display_order?: number;
           organization_id: string;
           created_at?: string;
@@ -284,6 +289,7 @@ export interface Database {
           pre_appointment_instructions?: string | null;
           is_active?: boolean;
           is_bookable?: boolean;
+          color?: string | null;
           display_order?: number;
           organization_id?: string;
           updated_at?: string;

@@ -72,7 +72,10 @@ import {
   AlertTriangle,
   Info,
   Search,
+  Palette,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { DOCTOR_COLORS } from "@/types/admin";
 
 export default function ServicesPage() {
   const { t } = useLanguage();
@@ -625,6 +628,14 @@ export default function ServicesPage() {
                         )}
                         <div>
                           <div className="flex items-center gap-2">
+                            {/* Color en la agenda (mig 255) */}
+                            {(service as { color?: string | null }).color && (
+                              <span
+                                className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
+                                style={{ backgroundColor: (service as { color?: string | null }).color ?? undefined }}
+                                title="Color en la agenda"
+                              />
+                            )}
                             <h4 className="font-medium">{service.name}</h4>
                             {fertilityActive && isAddonManaged && (
                               <span className="flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
@@ -1038,6 +1049,7 @@ function ServiceForm({
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<ServiceFormData>({
     resolver: zodResolver(serviceSchema),
@@ -1053,6 +1065,8 @@ function ServiceForm({
       send_reminders: (service as { send_reminders?: boolean })?.send_reminders ?? true,
       // mig 239 — "Se agenda como cita".
       is_bookable: (service as { is_bookable?: boolean })?.is_bookable ?? true,
+      // mig 255 — color en la agenda (null = color del doctor).
+      color: (service as { color?: string | null })?.color ?? null,
       is_active: service?.is_active ?? true,
       sunat_product_code: (service as { sunat_product_code?: string })?.sunat_product_code ?? "",
       unit_of_measure: (service as { unit_of_measure?: string })?.unit_of_measure ?? "ZZ",
@@ -1172,6 +1186,8 @@ function ServiceForm({
       send_reminders: values.send_reminders,
       // Visibilidad en los selects de crear cita (mig 239).
       is_bookable: values.is_bookable,
+      // Color en la agenda (mig 255). null = color del doctor.
+      color: values.color ?? null,
       is_active: values.is_active,
       // Seguimientos core (mig 182) — sin gate de addon: NULL = sin
       // seguimiento automático, que es el comportamiento actual.
@@ -1327,6 +1343,70 @@ function ServiceForm({
           <p className="text-xs text-destructive">{errors.pre_appointment_instructions.message}</p>
         )}
       </div>
+
+      {/* Color en la agenda (mig 255) — desplegable discreto: la mayoría
+          de servicios no lo necesita. Sin color = la tarjeta se pinta con
+          el color del doctor, como siempre; con color, el fondo y el
+          texto toman el del servicio y el borde izquierdo sigue siendo
+          del doctor. */}
+      <details className="group rounded-lg border border-border/60 bg-background px-3 py-2 text-sm" open={!!watch("color")}>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 [&::-webkit-details-marker]:hidden">
+          <span className="flex items-center gap-2 font-medium">
+            <Palette className="h-4 w-4 text-muted-foreground" />
+            Color en la agenda
+            {watch("color") ? (
+              <span
+                className="inline-block h-3.5 w-3.5 rounded-full border border-border/60"
+                style={{ backgroundColor: watch("color") ?? undefined }}
+                aria-label="Color elegido"
+              />
+            ) : (
+              <span className="text-xs font-normal text-muted-foreground">Color del doctor</span>
+            )}
+          </span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="mt-2 space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Pinta las citas de este servicio con su propio color para
+            distinguirlas de un vistazo (p. ej. todos los procedimientos en
+            naranja). El borde izquierdo conserva el color del doctor.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setValue("color", null, { shouldDirty: true })}
+              className={cn(
+                "flex h-8 items-center rounded-full border-2 px-2.5 text-xs transition-all",
+                !watch("color")
+                  ? "border-foreground font-medium"
+                  : "border-border text-muted-foreground hover:border-muted-foreground/50"
+              )}
+            >
+              Sin color
+            </button>
+            {DOCTOR_COLORS.map((c) => (
+              <button
+                key={c.value}
+                type="button"
+                onClick={() => setValue("color", c.value, { shouldDirty: true })}
+                className={cn(
+                  "h-8 w-8 rounded-full border-2 transition-all",
+                  watch("color") === c.value
+                    ? "border-foreground scale-110"
+                    : "border-transparent hover:scale-105"
+                )}
+                style={{ backgroundColor: c.value }}
+                title={c.label}
+                aria-label={c.label}
+              />
+            ))}
+          </div>
+          {errors.color && (
+            <p className="text-xs text-destructive">{errors.color.message as string}</p>
+          )}
+        </div>
+      </details>
 
       <label className="flex items-start gap-2 rounded-lg border border-border/60 bg-background px-3 py-2 text-sm">
         <input

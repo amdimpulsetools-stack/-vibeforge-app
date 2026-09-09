@@ -1,8 +1,9 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-09-05
-> **Versión:** 0.15.40
+> **Última actualización:** 2026-09-09
+> **Versión:** 0.15.41
 > **Estado (resumen ejecutivo):**
+> - **App Review de Meta enviado + semana de dinero y agenda con la Dra. Patricia y Vitra (v0.15.41, migs 249-255, PRs #343-#352 — 2026-09-07 a 09-09)**: App Review de WhatsApp Cloud API enviado (3 permisos, "Revisión en curso"); **idempotencia real de envíos** WhatsApp (mig 249: reserva `sending` + índice único parcial, fin de la confirmación duplicada); precio de la cita editable y actualizado al cambiar de servicio (sidebar); Reportes › Financiero sin "pendiente" negativo y con **Facturado por citas · Cobrado total (desglose flotante) · Pendiente por cobrar** (migs 250/251); **Almacén Fase A** (mig 252: editar precio de venta sin entrada, margen estimado, historial, costo por lote); **Agenda "Liberar hueco"** al finalizar antes + hora de fin editable (mig 253, reserva online sigue viendo ocupado); fix vista Día (dos citas en la misma fila); **bloqueos con autor y desbloqueo auditado** por cualquier miembro + **Break Time por org** aplicado también en Compartir horarios y reserva online (mig 254); **color por servicio en la agenda** (mig 255); recepción ya no ve Presupuestos (fertilidad) ni "Historia Clínica" en el sidebar. Doc para la contadora: `docs/mapa-del-dinero.md`. Detalle: Changelog v0.15.41.
 > - **Motor HTML único de documentos + atajos clínicos + catálogo de medicamentos (v0.15.40, migs 247-248, PRs #340/#341 — 2026-09-05)**: receta, orden de examen y presupuesto genérico se imprimen con el mismo motor de los plugins (Handlebars → Chromium) usando el membrete y color reales de cada org; botones "Receta" y "Orden de examen" en el sidebar de la cita y el drawer del paciente (modales de dos paneles, impresión por lote sin cita, servidor endurecido: recepción no receta y un doctor solo firma con su ficha); Admin → Catálogo de medicamentos con importación desde Farmacia y autocompletado con prellenado en la receta. Plugins Vitra/Patricia intactos. Detalle: Changelog v0.15.40.
 > - **Módulo Tratamientos del addon fertilidad en producción (v0.15.39, migs 242-246, PR #338 — 2026-09-05)**: tabla `treatments` (puente 1:1 con el presupuesto aceptado), catálogo de conceptos de pago por org (honorario / clínica / terceros), cobros en `patient_payments` con `treatment_id` (CHECK "un cobro vive en un solo contenedor": cita XOR plan XOR tratamiento), pagos directos a terceros informativos, RPCs con gating de rol (`treatment_start_from_budget` / `treatment_close` / `treatment_reopen` / `get_treatments_overview`), desenlace (embarazo / sin embarazo / abandono / derivado). Regla de dinero: los cobros de tratamiento son plata clínica (Ingresos, Caja, Mis cobros) pero **no cancelan deuda de citas** (`get_patient_summary` + `lib/patient-debt.ts` los excluyen). Sidebar: grupo **Fertilidad** (Presupuestos · Tratamientos). Misma sesión: evaluación de Caja → **fase 1 cerrada** (los 7 caminos de ingreso entran al turno por trigger); fase 2 = apartado Gastos, diseñado en `COMING-UPDATES.md`. Detalle: Changelog v0.15.39.
 > - **2.º piloto (Vitra) capacitado y semana de estabilización con la Dra. Patricia (v0.15.38, migs 235-241 — 2026-09-01 a 09-04)**: revisión de seguridad completa (6.5/10, `docs/security-review-2026-09-01.md`; mig 235 endurece membresías), **dashboard propio del rol Recepcionista** "Mi día" (migs 236/238: agenda de hoy con estatus, falta-pago y recurrente; por confirmar mañana con WhatsApp; mis cobros; primer RPC con gating de rol), branding heredado por miembros (mig 237 — `organizations` solo tenía policies owner-only en prod), `services.is_bookable` "Se agenda como cita" (mig 239, tratamientos TRA fuera del select de citas), **zona horaria por org** (migs 240/241 — el "hoy" de dashboards y cobros dejaba de ser hoy a las 19:00 Lima por UTC), % de ocupación real en agenda y dashboard (consultorios activos, horario real, bloqueos), "Cerrar caso" en Seguimientos y método de pago en el extracto de Farmacia. Evaluados sin código: módulo **Tratamientos** del addon fertilidad y **multimoneda** — ver `COMING-UPDATES.md`. Detalle: Changelog v0.15.38.
@@ -117,7 +118,7 @@
 
 ### Restricciones por Rol en UI
 - **Doctor:** No puede interactuar con citas de otros doctores en el scheduler. No puede reprogramar citas. Solo puede cancelar sus propias citas con motivo obligatorio. Restringido a consultorios asignados en su horario
-- **Receptionist:** Redirigido a `/scheduler` como página principal
+- **Receptionist:** Redirigido a `/scheduler` como página principal. En orgs de fertilidad no ve **Presupuestos** (sidebar + ruta; Tratamientos sí, porque registra cobros). No ve el botón **"Historia Clínica"** del sidebar de la cita (misma regla `canSeeClinical` que la pestaña Clínico de la ficha: admin o usuario con ficha de médico). Pendiente: la policy de lectura de `clinical_notes` (mig 050) sigue siendo "cualquier miembro"
 - **Admin/Owner:** Ve dashboard administrativo con KPIs globales de la org. Puede cancelar y reprogramar cualquier cita
 - **Non-admin:** Ve mensaje "acceso denegado" en `/settings` y secciones admin
 - **Owner+Doctor (Independiente):** Dashboard dual: AdminDashboard + sección colapsable "Mi Consulta" con DoctorDashboard
@@ -375,6 +376,18 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 | RPCs `treatments_caller_role`, `treatment_start_from_budget`, `treatment_close`, `treatment_reopen`, `get_treatments_overview` (mig 245) | Gating de rol (owner/admin/doctor/asesora inician; owner/admin/doctor cierran, doctor solo los suyos; admin reabre). Guard: no iniciar si hay cita TRA viva con precio. KPIs con honorarios ocultos a recepción. Fórmula única espejo en `lib/treatments/money.ts` |
 | RPC `get_budget_kpis` (mig 246) | "Aceptados" incluye `in_progress`/`completed` |
 
+### WhatsApp idempotente, dinero en Reportes, Almacén Fase A y agenda flexible — migs 249-255
+
+| Tabla / Objeto | Propósito |
+|-------|----------|
+| `whatsapp_message_logs.status = 'sending'` + índice único parcial `whatsapp_message_logs_inflight_uniq (appointment_id, template_id) WHERE status='sending'` (mig 249) | El envío **reserva la fila antes de llamar a Meta**; un segundo disparo (crear cita ya confirmada + cambio de estado, doble clic) choca con 23505 → `skipped_duplicate`. Reservas huérfanas se liberan a los 2 min. Sin la mig, el CHECK rechaza (23514) y el código degrada al comportamiento anterior |
+| RPC `get_reports_overview` (migs 250/251) | `totals.pending_amount` = Σ por cita atendida/confirmada del rango `GREATEST(0, precio real − cobros clínicos de esa cita)` (misma fórmula de la ficha); `totals.collected_breakdown` (citas del periodo · adelantos y otras fechas · planes · farmacia · sin cita, suman el total); `doctors[].collected` = cobrado en el rango sobre citas del rango (alimenta "Facturado por citas", gráfico y productividad). Precio real resta descuento en todo el RPC |
+| RPC `inventory_set_sale_price(p_product, p_price, p_reason)` (mig 252) | Owner/admin cambia el precio de venta **sin registrar una entrada** y estampa el motivo en la fila de `inventory_price_history` que escribe el trigger de la mig 209 (tabla sin policy de UPDATE). El costo de un lote existente **no se edita** (kardex append-only) |
+| `appointments.online_busy_until` (mig 253) | Hora de fin ORIGINAL al "Liberar hueco" tras finalizar antes. La agenda interna usa `end_time` (acortado al siguiente múltiplo de 5 min en el reloj de la clínica); `/api/book/[slug]` devuelve `GREATEST(end_time, online_busy_until)`: el hueco NO se abre a la reserva online (decisión de la clínica). Acción `release_slot` en `/api/appointments/[id]/live-status`, siempre preguntando |
+| `schedule_blocks.created_by DEFAULT auth.uid()`, `created_by_name`, `removed_at`, `removed_by`, `removed_by_name` + índice parcial `WHERE removed_at IS NULL` (mig 254) | Bloqueos con autor; **desbloquear = marca**, nunca DELETE, por cualquier miembro activo (`/api/scheduler/blocks`, `/api/scheduler/blocks/[id]`). Cada crear/quitar deja fila `schedule_block` en `clinical_access_log` (tipo nuevo) visible en Administración → Registro de auditoría. DELETE físico sigue siendo owner/admin (mig 031). Antes: 0 de 37 bloqueos con autor y la UI decía "desbloqueado" cuando RLS filtraba en silencio |
+| `scheduler_settings.break_time jsonb` (mig 254) | Descanso diario **por org** `{enabled, days, startTime, endTime}` (antes localStorage por navegador). Lo aplican la agenda, `/api/scheduler/available-slots`, `/api/book/[slug]` (listado y confirmación) y la ocupación del dashboard. Solo owner/admin lo cambian |
+| `services.color` (mig 255) | Color opcional por servicio (paleta de los doctores). NULL = la tarjeta se pinta como siempre (color del doctor). Con color: fondo y texto del servicio, **borde izquierdo siempre del doctor** |
+
 ---
 
 ## 7. Flujos Principales
@@ -415,6 +428,11 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 10. Historial de citas pasadas en `/scheduler/history`
 11. **Estado en vivo del card** (toggle en Settings→Agenda): además del pill (llegó / en consulta / finalizada), el fondo del card completo se tiñe — azul cuando la paciente llegó, verde durante la consulta, gris muted al finalizar o cuando la cita queda obsoleta (`app/(dashboard)/scheduler/appointment-card.tsx`, `deriveLiveState`)
 12. **Ventana y grilla con precisión de 15 min** (mig 175): la agenda abre/cierra en :00/:15/:30/:45 y los modales de cita validan a nivel de minuto contra la ventana configurada
+13. **Precio editable en el sidebar** (7-sep): al cambiar de servicio se rellena con el precio de catálogo del nuevo si el guardado era el de catálogo del original; bloqueado con comprobante emitido; pide confirmación con pagos/descuento/seguro
+14. **"Liberar hueco" + hora de fin editable** (mig 253): tras Finalizar antes de hora, un aviso y la píldora ofrecen acortar el bloque a "ahora" redondeado al siguiente múltiplo de 5 min (siempre preguntando). En Editar, la hora de fin admite entrada manual (pasos de 5) y atajos −15 / −30 / Ahora / Restaurar; alargar pasa por el control de choques. El hueco liberado **no** se abre a la reserva online. La regla de choque es por minutos: fin de una == inicio de la siguiente no choca; la vista Día pinta todas las citas que empiezan en la misma fila
+15. **Bloqueos con autor y desbloqueo auditado** (mig 254): tooltip y menú "Bloqueado por X · dd/mm HH:mm"; cualquier miembro activo desbloquea (marca, no borrado) y queda en Registro de auditoría como "Bloqueo de agenda". Vista Semana sigue sin botón de desbloqueo
+16. **Break Time por org** (mig 254): el botón ☕ guarda en la configuración de la clínica (owner/admin; el resto en solo-lectura). Compartir horarios y reserva online lo respetan
+17. **Color por servicio** (mig 255): fondo y texto de la tarjeta con el color del servicio si lo tiene; el borde izquierdo conserva el color del doctor. Tintes de llegó / en consulta / finalizada siguen mandando
 
 ### 7.4 Gestión de Pacientes
 1. Lista con búsqueda por nombre, DNI, teléfono
@@ -679,6 +697,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - Tamaño de slot / intervalo: 15, 20, 30, 45 o 60 minutos — la grilla es de **paso uniforme** desde `start_hour:start_minute` avanzando por el intervalo
 - Indicador de hora actual (on/off)
 - Estado de cita en vivo (on/off) — ver Sección 7.3
+- **Break Time por org** (mig 254): `break_time` {activo, días, inicio, fin} se edita desde el botón ☕ de la agenda (owner/admin) y lo aplican agenda, Compartir horarios, reserva online y ocupación
 
 ### Settings (WhatsApp)
 - Toggle para activar/desactivar modal de copia rápida post-cita
