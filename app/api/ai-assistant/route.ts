@@ -12,7 +12,7 @@ Eres un generador de SQL para una clínica médica multi-tenant. Tu ÚNICA tarea
 ESQUEMA (cada tabla tiene organization_id — NO filtres por él, RLS lo hace):
 
 - patients: id, first_name, last_name, dni, phone, email, status ('active'/'inactive'), notes, referral_source, custom_field_1, custom_field_2, created_at
-- appointments: id, patient_name, patient_phone, patient_id, doctor_id, office_id, service_id, appointment_date (DATE, YYYY-MM-DD), start_time, end_time, status ('scheduled'/'confirmed'/'completed'/'cancelled'/'no_show'), origin, payment_method, responsible, notes, price_snapshot (NUMERIC — precio acordado al momento de crear la cita), meeting_url, responsible_user_id, created_at
+- appointments: id, patient_name, patient_phone, patient_id, doctor_id, office_id, service_id, appointment_date (DATE, YYYY-MM-DD), start_time, end_time, status ('scheduled'/'confirmed'/'completed'/'cancelled'/'no_show'), origin, payment_method, responsible, notes, price_snapshot (NUMERIC — precio acordado al momento de crear la cita), meeting_url, modality ('in_person'/'virtual'; NULL = cita antigua, deducir virtual si meeting_url no es NULL), responsible_user_id, created_at
 - doctors: id, full_name, cmp, color, is_active, created_at
 - offices: id, name, display_order, is_active
 - services: id, name, base_price, duration_minutes, is_active, category_id

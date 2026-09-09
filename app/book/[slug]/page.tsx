@@ -18,8 +18,15 @@ import {
   IdCard,
   Search,
   X,
+  Video,
+  Building2,
 } from "lucide-react";
 import { useParams } from "next/navigation";
+import {
+  serviceAsksModality,
+  MODALITY_LABELS,
+  type AppointmentModality,
+} from "@/lib/appointment-modality";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -164,6 +171,9 @@ export default function PublicBookingPage() {
   // Form state
   const [selectedDoctor, setSelectedDoctor] = useState<string>("");
   const [selectedService, setSelectedService] = useState<string>("");
+  // Mig 256: solo se pregunta cuando el servicio es "Ambos"; sin selección
+  // por defecto (la paciente decide). "" = aún no elegida.
+  const [selectedModality, setSelectedModality] = useState<AppointmentModality | "">("");
   const [selectedDate, setSelectedDate] = useState<string>("");
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [selectedOffice, setSelectedOffice] = useState<string>("");
@@ -264,6 +274,16 @@ export default function PublicBookingPage() {
   const selectedDoctorObj = data?.doctors.find((d) => d.id === selectedDoctor);
   const selectedOfficeObj = data?.offices.find((o) => o.id === selectedOffice);
   const duration = selectedServiceObj?.duration_minutes || 30;
+  // ¿Este servicio deja elegir presencial/virtual? Para 'virtual' o
+  // 'in_person' la modalidad la impone el catálogo (el servidor la resuelve).
+  const asksModality = serviceAsksModality(selectedServiceObj?.modality);
+  const resolvedModalityLabel: string | null = asksModality
+    ? selectedModality
+      ? MODALITY_LABELS[selectedModality]
+      : null
+    : selectedServiceObj?.modality === "virtual"
+      ? MODALITY_LABELS.virtual
+      : null;
 
   // Available dates (based on doctor schedule)
   const availableDates = useMemo(() => {
@@ -367,6 +387,9 @@ export default function PublicBookingPage() {
           appointment_date: selectedDate,
           start_time: selectedTime,
           notes,
+          // Solo viaja cuando el servicio es "Ambos" y la paciente eligió;
+          // para el resto el servidor impone la del servicio.
+          ...(asksModality && selectedModality ? { modality: selectedModality } : {}),
         }),
       });
 
@@ -384,7 +407,7 @@ export default function PublicBookingPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [data, submitting, slug, firstName, lastName, phone, email, dni, selectedDoctor, selectedService, selectedOffice, selectedDate, selectedTime, notes]);
+  }, [data, submitting, slug, firstName, lastName, phone, email, dni, selectedDoctor, selectedService, selectedOffice, selectedDate, selectedTime, notes, asksModality, selectedModality]);
 
   // ── Loading state ───────────────────────────────────────────────────────────
   if (loading) {
@@ -430,6 +453,7 @@ export default function PublicBookingPage() {
             <div className="flex items-center gap-2 text-sm text-zinc-700">
               <Stethoscope className="h-4 w-4 text-zinc-500" />
               {selectedDoctorObj?.full_name} — {selectedServiceObj?.name}
+              {resolvedModalityLabel ? ` · ${resolvedModalityLabel}` : ""}
             </div>
             <div className="flex items-center gap-2 text-sm text-zinc-700">
               <Calendar className="h-4 w-4 text-zinc-500" />
@@ -471,7 +495,8 @@ export default function PublicBookingPage() {
       case "doctor":
         return !!selectedDoctor;
       case "service":
-        return !!selectedService && !!selectedOffice;
+        // Con servicio "Ambos" la modalidad es obligatoria (mig 256).
+        return !!selectedService && !!selectedOffice && (!asksModality || !!selectedModality);
       case "datetime":
         return !!selectedDate && !!selectedTime;
       case "info":
@@ -654,6 +679,7 @@ export default function PublicBookingPage() {
                   onClick={() => {
                     setSelectedDoctor(doc.id);
                     setSelectedService("");
+                    setSelectedModality("");
                     setSelectedDate("");
                     setSelectedTime("");
                   }}
@@ -715,6 +741,9 @@ export default function PublicBookingPage() {
                   key={svc.id}
                   onClick={() => {
                     setSelectedService(svc.id);
+                    // Cambiar de servicio limpia la modalidad: no arrastrar
+                    // "Virtual" elegido para otro servicio.
+                    if (svc.id !== selectedService) setSelectedModality("");
                     setSelectedDate("");
                     setSelectedTime("");
                   }}
@@ -751,6 +780,54 @@ export default function PublicBookingPage() {
                 </p>
               )}
             </div>
+
+            {/* Modalidad (mig 256): solo para servicios "Ambos". Sin
+                selección por defecto y obligatoria para continuar; para
+                servicios presencial/virtual no se pregunta. */}
+            {asksModality && (
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium text-zinc-700">
+                  ¿Cómo será tu consulta?
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      { value: "in_person", Icon: Building2 },
+                      { value: "virtual", Icon: Video },
+                    ] as { value: AppointmentModality; Icon: typeof Video }[]
+                  ).map(({ value, Icon }) => {
+                    const active = selectedModality === value;
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setSelectedModality(value)}
+                        aria-pressed={active}
+                        className={`flex items-center justify-center gap-2 rounded-xl border p-3 text-sm font-medium transition-all ${
+                          active
+                            ? "text-white"
+                            : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-300"
+                        }`}
+                        style={
+                          active
+                            ? { backgroundColor: accentColor, borderColor: accentColor }
+                            : undefined
+                        }
+                      >
+                        <Icon className="h-4 w-4" />
+                        {MODALITY_LABELS[value]}
+                      </button>
+                    );
+                  })}
+                </div>
+                {!selectedModality && (
+                  <p className="flex items-center gap-1.5 text-xs text-red-500">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    Elige si tu consulta será presencial o virtual
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Office is resolved automatically from doctor.default_office_id
                 (or fallback to first office) — patients do not pick rooms. */}
@@ -972,7 +1049,10 @@ export default function PublicBookingPage() {
               <div className="p-4 flex items-center gap-3">
                 <FileText className="h-5 w-5 text-zinc-500" />
                 <div>
-                  <p className="text-sm font-medium">{selectedServiceObj?.name}</p>
+                  <p className="text-sm font-medium">
+                    {selectedServiceObj?.name}
+                    {resolvedModalityLabel ? ` · ${resolvedModalityLabel}` : ""}
+                  </p>
                   <p className="text-xs text-zinc-500">
                     {selectedServiceObj?.duration_minutes} min — S/.{" "}
                     {Number(selectedServiceObj?.base_price).toFixed(2)}

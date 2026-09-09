@@ -6,12 +6,20 @@ import { buildEmailHtml } from "@/lib/email-template";
 import { sendEmail, isEmailConfigured } from "@/lib/resend";
 import { z } from "zod";
 import { sanitizeBreakTime, overlapsBreakTime } from "@/lib/scheduler-config";
+import {
+  modalityImposedByService,
+  serviceDisplayName,
+  type AppointmentModality,
+} from "@/lib/appointment-modality";
 
 export const runtime = "nodejs";
 
 const bookingCreateLimiter = rateLimit({ max: 5, windowMs: 60 * 1000 });
 
 const bookingSchema = z.object({
+  // Mig 256: solo cuenta cuando el servicio es "Ambos"; para servicios
+  // presencial/virtual la modalidad la impone el catálogo.
+  modality: z.enum(["in_person", "virtual"]).optional(),
   patient_first_name: z.string().min(2).max(100),
   patient_last_name: z.string().min(2).max(100),
   patient_phone: z.string().max(20).optional().or(z.literal("")),
@@ -158,7 +166,9 @@ export async function POST(
     .from("doctors")
     // user_id: destinatario de la notificación en vivo cuando el evento
     // "reserva online" está configurado con alcance "sólo sus citas".
-    .select("id, full_name, user_id")
+    // `*` para leer también default_meeting_url (mig 038, sin tipar en
+    // types/database.ts): el link de la teleconsulta cuando la cita es virtual.
+    .select("*")
     .eq("id", data.doctor_id)
     .eq("organization_id", org.id)
     .eq("is_active", true)
@@ -192,6 +202,28 @@ export async function POST(
       { status: 400 }
     );
   }
+
+  // 7.2. Modalidad de la cita (mig 256). El catálogo manda cuando el servicio
+  // es presencial o virtual; con "Ambos" decide la paciente y es obligatorio
+  // (la página pública muestra el selector solo en ese caso; esto frena un
+  // POST manual sin modalidad). Nunca se guarda "" — o un valor válido o
+  // la columna no se manda.
+  const modality: AppointmentModality | null =
+    modalityImposedByService((service as { modality?: string | null }).modality) ??
+    data.modality ??
+    null;
+  if (!modality) {
+    return NextResponse.json(
+      { error: "Elige si la consulta será presencial o virtual" },
+      { status: 400 }
+    );
+  }
+  // Virtual → link por defecto del doctor (si lo tiene); presencial → sin
+  // link, aunque el doctor tenga uno: así ninguna lectura por meeting_url
+  // (citas viejas, integraciones) la toma por teleconsulta.
+  const doctorDefaultMeetingUrl =
+    (doctor as { default_meeting_url?: string | null }).default_meeting_url?.trim() || null;
+  const meetingUrl = modality === "virtual" ? doctorDefaultMeetingUrl : null;
 
   // 7.5. Verify office belongs to this org (isolation: without this check a
   // public caller could inject another org's office_id into the appointment
@@ -355,27 +387,44 @@ export async function POST(
     }
   }
 
-  // 12. Create appointment
-  const { data: appointment, error: apptError } = await supabase
+  // 12. Create appointment. `modality` y `meeting_url` no están en el Insert
+  // tipado (types/database.ts no se regenera sin la mig aplicada) — se
+  // añaden por encima del payload base. Si la columna `modality` aún no
+  // existe (PGRST204 / mensaje con "modality") se reintenta sin ella: la
+  // cita queda con modality NULL y se deduce por meeting_url, como antes.
+  const appointmentBase = {
+    patient_name: fullName,
+    patient_phone: data.patient_phone || null,
+    patient_id: patientId,
+    doctor_id: data.doctor_id,
+    office_id: data.office_id,
+    service_id: data.service_id,
+    appointment_date: data.appointment_date,
+    start_time: data.start_time,
+    end_time: endTime,
+    status: "scheduled" as const,
+    origin: "Reserva en línea",
+    notes: data.notes || null,
+    price_snapshot: Number(service.base_price),
+    organization_id: org.id,
+    meeting_url: meetingUrl,
+  };
+  let apptRes = await supabase
     .from("appointments")
-    .insert({
-      patient_name: fullName,
-      patient_phone: data.patient_phone || null,
-      patient_id: patientId,
-      doctor_id: data.doctor_id,
-      office_id: data.office_id,
-      service_id: data.service_id,
-      appointment_date: data.appointment_date,
-      start_time: data.start_time,
-      end_time: endTime,
-      status: "scheduled",
-      origin: "Reserva en línea",
-      notes: data.notes || null,
-      price_snapshot: Number(service.base_price),
-      organization_id: org.id,
-    })
+    .insert({ ...appointmentBase, modality } as typeof appointmentBase)
     .select("id")
     .single();
+  if (
+    apptRes.error &&
+    (apptRes.error.code === "PGRST204" || /modality/i.test(apptRes.error.message ?? ""))
+  ) {
+    apptRes = await supabase
+      .from("appointments")
+      .insert(appointmentBase)
+      .select("id")
+      .single();
+  }
+  const { data: appointment, error: apptError } = apptRes;
 
   if (apptError) {
     console.error("[Public Booking] Error creating appointment:", apptError);
@@ -405,7 +454,9 @@ export async function POST(
   const serviceSendsToPatient =
     (service as { send_reminders?: boolean }).send_reminders !== false;
 
-  // 14. Send confirmation email (fire-and-forget)
+  // 14. Send confirmation email (fire-and-forget). La plantilla (normal o
+  // teleconsulta) y {{link_reunion}} salen de la modalidad resuelta arriba,
+  // no de "hay meeting_url".
   if (data.patient_email && serviceSendsToPatient) {
     sendBookingConfirmationEmail(
       supabase,
@@ -417,7 +468,8 @@ export async function POST(
       doctor.full_name,
       service.name,
       data.appointment_date,
-      data.start_time
+      data.start_time,
+      { modality, meeting_url: meetingUrl }
     ).catch((err) =>
       console.error("[Public Booking] Email error:", err)
     );
@@ -443,16 +495,26 @@ async function sendBookingConfirmationEmail(
   doctorName: string,
   serviceName: string,
   date: string,
-  time: string
+  time: string,
+  apptModality: { modality: AppointmentModality; meeting_url: string | null }
 ) {
   if (!isEmailConfigured()) return;
+
+  // Punto de decisión "¿es virtual?" (mig 256): la modalidad ya resuelta
+  // (servicio o elección de la paciente) elige la plantilla; el link va
+  // solo si es virtual y hay meeting_url.
+  const isVirtual = apptModality.modality === "virtual";
+  const templateSlug = isVirtual
+    ? "appointment_confirmation_virtual"
+    : "appointment_confirmation";
+  const linkReunion = isVirtual ? apptModality.meeting_url || "" : "";
 
   // Fetch email template
   const { data: template } = await supabase
     .from("email_templates")
     .select("id, slug, subject, body, body_html, is_enabled")
     .eq("organization_id", orgId)
-    .eq("slug", "appointment_confirmation")
+    .eq("slug", templateSlug)
     .eq("is_enabled", true)
     .single();
 
@@ -504,7 +566,7 @@ async function sendBookingConfirmationEmail(
     "{{doctor_nombre}}": doctorName,
     "{{fecha_cita}}": formattedDate,
     "{{hora_cita}}": time,
-    "{{servicio}}": serviceName,
+    "{{servicio}}": serviceDisplayName(serviceName, apptModality),
     "{{instrucciones_servicio}}": apptService?.pre_appointment_instructions || "",
     "{{monto_cita}}": montoCita,
     "{{clinica_nombre}}": orgName,
@@ -514,7 +576,7 @@ async function sendBookingConfirmationEmail(
     "{{consultorio}}": "",
     "{{link_cancelar}}": "",
     "{{link_reagendar}}": "",
-    "{{link_reunion}}": "",
+    "{{link_reunion}}": linkReunion,
   };
 
   let subject = template.subject;

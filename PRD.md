@@ -387,6 +387,7 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 | `schedule_blocks.created_by DEFAULT auth.uid()`, `created_by_name`, `removed_at`, `removed_by`, `removed_by_name` + índice parcial `WHERE removed_at IS NULL` (mig 254) | Bloqueos con autor; **desbloquear = marca**, nunca DELETE, por cualquier miembro activo (`/api/scheduler/blocks`, `/api/scheduler/blocks/[id]`). Cada crear/quitar deja fila `schedule_block` en `clinical_access_log` (tipo nuevo) visible en Administración → Registro de auditoría. DELETE físico sigue siendo owner/admin (mig 031). Antes: 0 de 37 bloqueos con autor y la UI decía "desbloqueado" cuando RLS filtraba en silencio |
 | `scheduler_settings.break_time jsonb` (mig 254) | Descanso diario **por org** `{enabled, days, startTime, endTime}` (antes localStorage por navegador). Lo aplican la agenda, `/api/scheduler/available-slots`, `/api/book/[slug]` (listado y confirmación) y la ocupación del dashboard. Solo owner/admin lo cambian |
 | `services.color` (mig 255) | Color opcional por servicio (paleta de los doctores). NULL = la tarjeta se pinta como siempre (color del doctor). Con color: fondo y texto del servicio, **borde izquierdo siempre del doctor** |
+| `appointments.modality` (mig 256) | `in_person` / `virtual` elegido en la cita; NULL = cita anterior (se deduce por `meeting_url`, como siempre). **Fuente única de lectura** `lib/appointment-modality.ts` (`resolveAppointmentModality`, `isVirtualAppointment`, `serviceDisplayName` → "Servicio · Virtual"). Servicio "Ambos" (mig 038) → selector inline obligatorio al crear/editar y en la reserva online; el link del doctor solo se rellena si es virtual. Confirmación y recordatorios eligen la plantilla virtual por modalidad, normalizado en `/api/notifications/send` |
 
 ---
 
@@ -433,6 +434,7 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 15. **Bloqueos con autor y desbloqueo auditado** (mig 254): tooltip y menú "Bloqueado por X · dd/mm HH:mm"; cualquier miembro activo desbloquea (marca, no borrado) y queda en Registro de auditoría como "Bloqueo de agenda". Vista Semana sigue sin botón de desbloqueo
 16. **Break Time por org** (mig 254): el botón ☕ guarda en la configuración de la clínica (owner/admin; el resto en solo-lectura). Compartir horarios y reserva online lo respetan
 17. **Color por servicio** (mig 255): fondo y texto de la tarjeta con el color del servicio si lo tiene; el borde izquierdo conserva el color del doctor. Tintes de llegó / en consulta / finalizada siguen mandando
+18. **Modalidad por cita** (mig 256): un servicio "Ambos" pregunta Presencial / Virtual con un selector inline sin opción marcada (crear, editar y reserva online); la tarjeta, el sidebar, el historial y la ficha muestran "Servicio · Virtual" con la camarita; el link de reunión y la plantilla virtual dependen de la modalidad, no de que exista link. Pendiente: los dashboards "Mi día" (recepción) y del doctor listan citas desde RPCs sin modalidad
 
 ### 7.4 Gestión de Pacientes
 1. Lista con búsqueda por nombre, DNI, teléfono
