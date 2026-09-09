@@ -25,6 +25,7 @@ import { RecurringDot } from "@/components/patients/recurring-badge";
 import { cn } from "@/lib/utils";
 import { LiveStatusPill, deriveLiveState } from "./live-status-pill";
 import { useOrgToday } from "@/hooks/use-org-today";
+import { isVirtualAppointment, serviceDisplayName } from "@/lib/appointment-modality";
 
 /**
  * Color helpers — verbatim copies of the ones that lived in
@@ -216,11 +217,12 @@ function AppointmentCardInner({
             timezone={orgTimezone}
           />
         )}
-        {/* Virtual indicator */}
-        {!isOtherDoctor &&
-          (appointment as { meeting_url?: string | null }).meeting_url && (
-            <Video className="h-3 w-3 shrink-0 text-blue-500" />
-          )}
+        {/* Virtual indicator — por modalidad (mig 256), NO por meeting_url:
+            un servicio "Ambos" rellena el link por defecto del doctor
+            aunque la cita sea presencial. */}
+        {!isOtherDoctor && isVirtualAppointment(appointment) && (
+          <Video className="h-3 w-3 shrink-0 text-blue-600" aria-label="Virtual" />
+        )}
         {/* Payment / Debt indicator */}
         {!isOtherDoctor &&
           appointment.price_snapshot != null &&
@@ -268,7 +270,10 @@ function AppointmentCardInner({
         style={{ color: hexToDark(bodyColor, 0.55) }}
       >
         {appointment.doctors?.full_name ?? "—"} ·{" "}
-        {appointment.services?.name ?? "—"}
+        {/* En compacto el sufijo " · Virtual" no cabe: ahí manda la camarita. */}
+        {isCompact
+          ? appointment.services?.name ?? "—"
+          : serviceDisplayName(appointment.services?.name, appointment)}
       </p>
     </button>
   );
@@ -288,6 +293,11 @@ export const AppointmentCard = memo(
     // has a set_updated_at trigger (mig 007), so any arrive/start/end
     // bumps it and busts this memo for exactly the touched card.
     prev.appointment.updated_at === next.appointment.updated_at &&
+    // Modalidad (mig 256): el sidebar la escribe junto a edited_at, así que
+    // updated_at ya la cubre; se compara igual por si algún camino la
+    // cambia sin tocar la fila (p. ej. un merge parcial en caché).
+    prev.appointment.modality === next.appointment.modality &&
+    prev.appointment.meeting_url === next.appointment.meeting_url &&
     prev.topPx === next.topPx &&
     prev.heightPx === next.heightPx &&
     prev.isSelected === next.isSelected &&

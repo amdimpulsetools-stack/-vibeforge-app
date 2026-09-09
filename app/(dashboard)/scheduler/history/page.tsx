@@ -32,7 +32,9 @@ import {
   ClipboardList,
   DollarSign,
   Download,
+  Video,
 } from "lucide-react";
+import { isVirtualAppointment, serviceDisplayName } from "@/lib/appointment-modality";
 
 const PAGE_SIZE = 50;
 // Hard cap for a single CSV export (rango filtrado completo).
@@ -121,31 +123,38 @@ export default function AppointmentHistoryPage() {
       const from = page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      const columns =
-        "id, appointment_date, start_time, end_time, patient_name, status, price_snapshot, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)";
+      // `modality` (mig 256) decide el "· Virtual" de la columna Servicio;
+      // `meeting_url` cubre las citas anteriores a la mig (se deduce). Si la
+      // columna aún no existe, PostgREST devuelve 400: se repite sin ella.
+      const buildQuery = (withModality: boolean) => {
+        const columns = `id, appointment_date, start_time, end_time, patient_name, status, price_snapshot, meeting_url${withModality ? ", modality" : ""}, doctors(id, full_name, color), offices(id, name), services(id, name, duration_minutes, base_price)`;
 
-      let query = supabase
-        .from("appointments")
-        .select(columns, page === 0 ? { count: "exact" } : undefined)
-        .gte("appointment_date", dateFrom)
-        .lte("appointment_date", dateTo)
-        .order("appointment_date", { ascending: dateSortAsc })
-        .order("start_time", { ascending: dateSortAsc })
-        .range(from, to);
+        let query = supabase
+          .from("appointments")
+          .select(columns, page === 0 ? { count: "exact" } : undefined)
+          .gte("appointment_date", dateFrom)
+          .lte("appointment_date", dateTo)
+          .order("appointment_date", { ascending: dateSortAsc })
+          .order("start_time", { ascending: dateSortAsc })
+          .range(from, to);
 
-      if (filterStatus !== "all") {
-        query = query.eq("status", filterStatus);
-      }
+        if (filterStatus !== "all") {
+          query = query.eq("status", filterStatus);
+        }
 
-      if (filterDoctor !== "all") {
-        query = query.eq("doctor_id", filterDoctor);
-      }
+        if (filterDoctor !== "all") {
+          query = query.eq("doctor_id", filterDoctor);
+        }
 
-      if (filterService !== "all") {
-        query = query.eq("service_id", filterService);
-      }
+        if (filterService !== "all") {
+          query = query.eq("service_id", filterService);
+        }
+        return query;
+      };
 
-      const { data, count } = await query;
+      let res = await buildQuery(true);
+      if (res.error) res = await buildQuery(false);
+      const { data, count } = res;
       return {
         rows: (data as unknown as AppointmentWithRelations[]) ?? [],
         count: count ?? null,
@@ -521,7 +530,14 @@ export default function AppointmentHistoryPage() {
                         {appt.doctors?.full_name}
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">{appt.services?.name}</td>
+                    <td className="px-4 py-3 text-muted-foreground">
+                      <span className="flex items-center gap-1.5">
+                        {isVirtualAppointment(appt) && (
+                          <Video className="h-3.5 w-3.5 shrink-0 text-blue-600" aria-label="Virtual" />
+                        )}
+                        {serviceDisplayName(appt.services?.name, appt)}
+                      </span>
+                    </td>
                     <td className="hidden px-4 py-3 text-muted-foreground md:table-cell">{appt.offices?.name}</td>
                     <td className="px-4 py-3 text-right font-medium tabular-nums">
                       S/. {displayPrice.toFixed(2)}

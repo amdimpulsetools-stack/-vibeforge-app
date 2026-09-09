@@ -23,6 +23,10 @@ const appointmentBaseSchema = z.object({
   responsible: z.string().optional().or(z.literal("")),
   notes: z.string().max(500, "Máximo 500 caracteres").optional().or(z.literal("")),
   meeting_url: z.string().url("URL inválida").optional().or(z.literal("")),
+  // Mig 256: modalidad de la cita. "" = sin elegir. Para servicios "Ambos"
+  // el modal la exige a nivel de runtime (superRefine con el servicio
+  // seleccionado); para presencial/virtual el modal la fija sola.
+  modality: z.enum(["in_person", "virtual"]).optional().or(z.literal("")),
 });
 
 // es-PE messages for each configurable field when an admin marks it mandatory.
@@ -37,6 +41,19 @@ const REQUIRED_MESSAGES: Partial<Record<keyof AppointmentRequiredFields, string>
   notes: "Las notas son obligatorias",
 };
 
+export const MODALITY_REQUIRED_MESSAGE = "Elige si la cita es presencial o virtual";
+
+export interface AppointmentSchemaOptions {
+  /**
+   * Mig 256: exige `modality` (servicio "Ambos"). Acepta un booleano o una
+   * función porque el modal decide en RUNTIME según el servicio elegido, y el
+   * resolver se construye una sola vez (antes de que exista `watch`).
+   */
+  requireModality?: boolean | (() => boolean);
+  /** Mensaje del error de modalidad (i18n desde el modal). */
+  modalityMessage?: string;
+}
+
 /**
  * Builds the appointment validation schema for a given per-org
  * `required_fields` map (mig 176). With the default empty map the schema is
@@ -47,7 +64,10 @@ const REQUIRED_MESSAGES: Partial<Record<keyof AppointmentRequiredFields, string>
  * TypeScript output type stays constant across every configuration — the modal
  * can keep a single `useForm<AppointmentFormData>`.
  */
-export function buildAppointmentSchema(req: AppointmentRequiredFields = {}) {
+export function buildAppointmentSchema(
+  req: AppointmentRequiredFields = {},
+  opts: AppointmentSchemaOptions = {}
+) {
   return appointmentBaseSchema.superRefine((data, ctx) => {
     (Object.keys(REQUIRED_MESSAGES) as (keyof typeof REQUIRED_MESSAGES)[]).forEach((key) => {
       if (!req[key]) return;
@@ -60,6 +80,16 @@ export function buildAppointmentSchema(req: AppointmentRequiredFields = {}) {
         });
       }
     });
+
+    const requireModality =
+      typeof opts.requireModality === "function" ? opts.requireModality() : !!opts.requireModality;
+    if (requireModality && !data.modality) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["modality"],
+        message: opts.modalityMessage ?? MODALITY_REQUIRED_MESSAGE,
+      });
+    }
   });
 }
 

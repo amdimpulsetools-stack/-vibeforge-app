@@ -14,6 +14,11 @@ import { toast } from "sonner";
 import { sendNotification } from "@/lib/send-notification";
 import { emitLiveNotification } from "@/lib/live-notifications/emit-client";
 import { buildAppointmentSchema, type AppointmentFormData } from "@/lib/validations/appointment";
+import {
+  modalityImposedByService,
+  serviceAsksModality,
+  serviceDisplayName,
+} from "@/lib/appointment-modality";
 import type { AppointmentRequiredFields } from "@/lib/scheduler-config";
 import { CustomFieldsBlock } from "@/components/custom-fields/custom-fields-block";
 import { useCustomFieldDefinitions } from "@/hooks/use-custom-field-definitions";
@@ -42,6 +47,7 @@ import {
   Tag,
   Video,
   Clock,
+  Building2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -158,9 +164,19 @@ export function AppointmentFormModal({
   // modal is mounted conditionally by scheduler/page.tsx (`showForm && …`), so
   // useForm is recreated on every open and the resolver is always fresh; the
   // memo only avoids rebuilding on unrelated re-renders within one open.
+  // Modalidad del servicio seleccionado (mig 256), espejada en un ref para que
+  // el superRefine del schema la lea en el momento del submit: el resolver se
+  // construye ANTES de que exista `watch`, así que no puede depender de él.
+  const serviceModalityRef = useRef<string | undefined>(undefined);
   const resolver = useMemo(
-    () => zodResolver(buildAppointmentSchema(requiredFields)),
-    [requiredFields]
+    () =>
+      zodResolver(
+        buildAppointmentSchema(requiredFields, {
+          requireModality: () => serviceAsksModality(serviceModalityRef.current),
+          modalityMessage: t("scheduler.modality_required"),
+        })
+      ),
+    [requiredFields, t]
   );
 
   // If current user is a doctor and restricted, only show their own record
@@ -261,6 +277,7 @@ export function AppointmentFormModal({
     handleSubmit,
     watch,
     setValue,
+    clearErrors,
     formState: { errors },
   } = useForm<AppointmentFormData>({
     resolver,
@@ -283,6 +300,9 @@ export function AppointmentFormModal({
       responsible: "",
       notes: "",
       meeting_url: "",
+      // Mig 256: "" = sin elegir. La fija el efecto de servicio (presencial /
+      // virtual) o el selector inline (servicio "Ambos").
+      modality: "",
     },
   });
 
@@ -291,7 +311,14 @@ export function AppointmentFormModal({
   const duration = selectedService?.duration_minutes ?? 30;
   const servicePrice = selectedService ? Number(selectedService.base_price) : 0;
   const serviceModality = (selectedService as any)?.modality as string | undefined;
-  const isVirtualService = serviceModality === "virtual" || serviceModality === "both";
+  serviceModalityRef.current = serviceModality;
+  // ¿El servicio deja elegir? ("Ambos", mig 038) → selector inline obligatorio.
+  const serviceLetsChooseModality = !!selectedService && serviceAsksModality(serviceModality);
+  // Modalidad de ESTA cita (mig 256). Única fuente para el link de reunión,
+  // la plantilla de confirmación y lo que se guarda — ya no se deduce de
+  // meeting_url ni del servicio.
+  const watchedModality = watch("modality");
+  const isVirtualModality = watchedModality === "virtual";
 
   // Precio efectivo de ESTA cita. Si el toggle "Precio personalizado" está
   // activo y el valor es un número válido (≥ 0), esa es la base; si no, el
@@ -463,9 +490,24 @@ export function AppointmentFormModal({
     setValue,
   ]);
 
-  // Auto-fill meeting URL from doctor's default when virtual service is selected
+  // ─── Modalidad según el servicio (mig 256) ────────────────────────────────
+  // Presencial / virtual la imponen en silencio; "Ambos" deja el campo vacío
+  // para que recepción elija en el selector inline. Sin servicio → vacío.
+  // Cualquier cambio de servicio limpia el error "Elige…" del intento previo.
+  // Deps SOLO primitivas (id + modalidad del catálogo): si dependiera del
+  // objeto `selectedService`, un re-render del padre con un array `services`
+  // nuevo volvería a disparar y borraría la elección hecha en un "Ambos".
   useEffect(() => {
-    if (isVirtualService && watchedDoctor) {
+    const imposed = selectedServiceId ? modalityImposedByService(serviceModality) : null;
+    setValue("modality", imposed ?? "");
+    clearErrors("modality");
+  }, [selectedServiceId, serviceModality, setValue, clearErrors]);
+
+  // Auto-fill meeting URL from doctor's default ONLY when the appointment is
+  // virtual (mig 256). Presencial, o "Ambos" sin elegir todavía → link vacío;
+  // pasar de virtual a presencial también lo limpia por la rama else.
+  useEffect(() => {
+    if (isVirtualModality && watchedDoctor) {
       const doctor = doctors.find((d) => d.id === watchedDoctor);
       const doctorUrl = (doctor as any)?.default_meeting_url;
       if (doctorUrl) {
@@ -474,7 +516,7 @@ export function AppointmentFormModal({
     } else {
       setValue("meeting_url", "");
     }
-  }, [isVirtualService, watchedDoctor, doctors, setValue]);
+  }, [isVirtualModality, watchedDoctor, doctors, setValue]);
 
   // ─── Reset service when doctor changes ───────────────────────────────────
   const prevDoctorRef = useRef(watchedDoctor);
@@ -1035,9 +1077,7 @@ export function AppointmentFormModal({
           ? Number(serviceForPrice.base_price)
           : null;
 
-    const { data: newAppt, error } = await supabase
-      .from("appointments")
-      .insert({
+    const appointmentRow: Record<string, unknown> = {
         patient_name: fullName,
         patient_phone: values.patient_phone || null,
         patient_id: patientId,
@@ -1057,6 +1097,8 @@ export function AppointmentFormModal({
         responsible_user_id: values.responsible || null,
         notes: values.notes || null,
         meeting_url: values.meeting_url || null,
+        // Mig 256: nunca "" (el CHECK solo admite in_person / virtual / NULL).
+        modality: values.modality || null,
         price_snapshot: priceSnapshot,
         // Discount captured at creation time — the contable-correct
         // moment to apply it (before any cobro/comprobante).
@@ -1079,9 +1121,33 @@ export function AppointmentFormModal({
         patient_copay: paymentMode === "insurance"
           ? (displayInsuranceQuotes.find((q) => q.carrier.id === selectedInsuranceCarrierId)?.patient_copay ?? 0)
           : Math.max(0, (priceSnapshot ?? 0) - (discountEnabled ? discountAmountComputed : 0)),
-      } as Record<string, unknown>)
+    };
+
+    let insertResult = await supabase
+      .from("appointments")
+      .insert(appointmentRow)
       .select("id")
       .single();
+
+    // Mig 256 aún no aplicada en esta BD: PostgREST rechaza la columna con
+    // PGRST204 ("Could not find the 'modality' column…"). Reintentamos sin
+    // ella para que la agenda no se rompa antes de correr la migración; las
+    // citas creadas así quedan con modality NULL y se deducen por meeting_url.
+    if (
+      insertResult.error &&
+      (insertResult.error.code === "PGRST204" ||
+        /modality/i.test(insertResult.error.message ?? ""))
+    ) {
+      const legacyRow = { ...appointmentRow };
+      delete legacyRow.modality;
+      insertResult = await supabase
+        .from("appointments")
+        .insert(legacyRow)
+        .select("id")
+        .single();
+    }
+
+    const { data: newAppt, error } = insertResult;
 
     // If we linked to a plan session, mirror the link on the session row too
     // (1:1 bidirectional). Done after the appointment insert succeeds.
@@ -1138,13 +1204,15 @@ export function AppointmentFormModal({
 
     // Send appointment confirmation email to patient
     if (newAppt) {
-      const isVirtual = isVirtualService && values.meeting_url;
+      // Mig 256: la plantilla virtual depende de la MODALIDAD elegida, no de
+      // que haya link (un "Ambos" presencial ya no recibe la de camarita).
+      const isVirtual = values.modality === "virtual";
       sendNotification({
         type: isVirtual ? "appointment_confirmation_virtual" : "appointment_confirmation",
         appointment_id: newAppt.id,
         extra_variables: {
           ...(patientEmail ? { patient_email: patientEmail } : {}),
-          ...(values.meeting_url ? { "{{link_reunion}}": values.meeting_url } : {}),
+          ...(isVirtual && values.meeting_url ? { "{{link_reunion}}": values.meeting_url } : {}),
         },
       });
     }
@@ -1164,7 +1232,13 @@ export function AppointmentFormModal({
         date: formattedDate,
         time: values.start_time,
         doctorName: doctor?.full_name ?? "",
-        serviceName: service?.name ?? "",
+        // "Servicio · Virtual" cuando la cita es virtual (mig 256).
+        serviceName: service
+          ? serviceDisplayName(service.name, {
+              modality: values.modality || null,
+              meeting_url: values.meeting_url || null,
+            })
+          : "",
         clinicName: organizationName,
         clinicAddress: organizationAddress,
       };
@@ -1524,6 +1598,9 @@ export function AppointmentFormModal({
 
           {/* Hidden patient_id */}
           <input type="hidden" {...register("patient_id")} />
+          {/* Hidden modality (mig 256) — la fija el efecto de servicio o el
+              selector inline; registrada para que RHF valide/limpie su error. */}
+          <input type="hidden" {...register("modality")} />
 
           {/* Date & Time */}
           <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
@@ -1730,8 +1807,56 @@ export function AppointmentFormModal({
             )}
           </div>
 
-          {/* Meeting URL — shown when virtual service selected */}
-          {isVirtualService && (
+          {/* Modalidad de la cita (mig 256) — SOLO para servicios "Ambos".
+              Presencial/virtual la fijan en silencio (nada nuevo visible).
+              Sin opción marcada por defecto: recepción debe elegir. Mismo
+              estilo que los botones de modalidad de /admin/services. */}
+          {serviceLetsChooseModality && (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium">{t("scheduler.modality")} *</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  aria-pressed={watchedModality === "in_person"}
+                  onClick={() =>
+                    setValue("modality", "in_person", { shouldValidate: true, shouldDirty: true })
+                  }
+                  className={cn(
+                    "flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium cursor-pointer transition-all",
+                    watchedModality === "in_person"
+                      ? "border-primary bg-primary/10 text-primary"
+                      : "border-border text-muted-foreground hover:border-muted-foreground/30"
+                  )}
+                >
+                  <Building2 className="h-4 w-4" />
+                  {t("scheduler.modality_in_person")}
+                </button>
+                <button
+                  type="button"
+                  aria-pressed={watchedModality === "virtual"}
+                  onClick={() =>
+                    setValue("modality", "virtual", { shouldValidate: true, shouldDirty: true })
+                  }
+                  className={cn(
+                    "flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium cursor-pointer transition-all",
+                    watchedModality === "virtual"
+                      ? "border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                      : "border-border text-muted-foreground hover:border-muted-foreground/30"
+                  )}
+                >
+                  <Video className="h-4 w-4" />
+                  {t("scheduler.modality_virtual")}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">{t("scheduler.modality_help")}</p>
+              {errors.modality && (
+                <p className="text-xs text-destructive">{errors.modality.message}</p>
+              )}
+            </div>
+          )}
+
+          {/* Meeting URL — solo cuando ESTA cita es virtual (mig 256) */}
+          {isVirtualModality && (
             <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-4 space-y-2">
               <label className="text-sm font-medium flex items-center gap-2">
                 <ZoomIcon className="h-4 w-4" />

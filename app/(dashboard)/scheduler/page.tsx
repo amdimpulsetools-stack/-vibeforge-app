@@ -218,19 +218,29 @@ export default function SchedulerPage() {
       // ~50% network transfer and JSON parse time at 500+ appointments/day.
       // Los montos de pagos vienen embebidos en el mismo select vía la FK
       // anidada (respaldada por idx_patient_payments_appt_amt, mig 103).
-      // `services.color` (mig 255) va en un select propio: si la mig aún
-      // no corrió, pedir una columna inexistente tumba TODA la agenda
+      // Columnas de migraciones recientes van en selects propios: si la mig
+      // aún no corrió, pedir una columna inexistente tumba TODA la agenda
       // (400), así que se repite sin ella.
-      const selectAppts = (withServiceColor: boolean) =>
+      //   - `services.color` (mig 255)
+      //   - `appointments.modality` (mig 256; sin ella la modalidad se
+      //     deduce por meeting_url — lib/appointment-modality.ts)
+      // Tipado como `string` a propósito: con dos interpolaciones el parser
+      // de tipos de PostgREST se desborda (TS2589); el resultado ya se
+      // castea abajo a AppointmentWithRelations[].
+      const apptColumns = ({ serviceColor, modality }: { serviceColor: boolean; modality: boolean }): string =>
+        `id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url${modality ? ", modality" : ""}, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price${serviceColor ? ", color" : ""}), patients(is_recurring, dni, birth_date), patient_payments(amount)`;
+      const selectAppts = (opts: { serviceColor: boolean; modality: boolean }) =>
         supabase
           .from("appointments")
-          .select(`id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price${withServiceColor ? ", color" : ""}), patients(is_recurring, dni, birth_date), patient_payments(amount)`)
+          .select(apptColumns(opts))
           .gte("appointment_date", rangeStartKey)
           .lte("appointment_date", rangeEndKey)
           .neq("status", "cancelled")
           .order("start_time");
-      let apptRes = await selectAppts(true);
-      if (apptRes.error) apptRes = await selectAppts(false);
+      let apptRes = await selectAppts({ serviceColor: true, modality: true });
+      if (apptRes.error) apptRes = await selectAppts({ serviceColor: true, modality: false });
+      if (apptRes.error) apptRes = await selectAppts({ serviceColor: false, modality: true });
+      if (apptRes.error) apptRes = await selectAppts({ serviceColor: false, modality: false });
 
       // Supabase types the joined relations as arrays when an explicit column
       // list is used; at runtime they are single objects for to-one FKs. Cast

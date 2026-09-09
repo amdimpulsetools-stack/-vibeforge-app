@@ -9,6 +9,7 @@ import { WhatsAppClient } from "@/lib/whatsapp/client";
 import { sendWhatsAppMessage, resolveVariableValues } from "@/lib/whatsapp/send";
 import { decrypt } from "@/lib/encryption";
 import type { WhatsAppTemplate } from "@/lib/whatsapp/types";
+import { isVirtualAppointment, serviceDisplayName } from "@/lib/appointment-modality";
 
 export const runtime = "nodejs";
 
@@ -48,9 +49,10 @@ export async function POST(req: NextRequest) {
 
   const parsed = await parseBody(req, sendNotificationSchema);
   if (parsed.error) return parsed.error;
-  const { type, appointment_id, extra_variables } = parsed.data;
+  const { type: requestedType, appointment_id, extra_variables } = parsed.data;
 
-  // 1. Fetch appointment with relations
+  // 1. Fetch appointment with relations. `*` trae `modality` (mig 256) y
+  // `meeting_url` sin romper si la migración aún no corrió.
   const { data: appointment, error: apptError } = await supabase
     .from("appointments")
     .select(
@@ -86,6 +88,21 @@ export async function POST(req: NextRequest) {
     "appointment_confirmation",
     "appointment_confirmation_virtual",
   ];
+
+  // Punto de decisión "¿es virtual?" (mig 256): lo decide la cita, no el
+  // cliente. `modality` manda; NULL (cita previa) cae a meeting_url. Antes el
+  // modal elegía la plantilla virtual por "tiene meeting_url" y el sidebar
+  // mandaba siempre la normal al confirmar — con un servicio "Ambos" toda
+  // cita salía como teleconsulta. Ahora la confirmación se normaliza aquí:
+  // pidan la que pidan, una cita presencial recibe `appointment_confirmation`
+  // y una virtual `appointment_confirmation_virtual`. Los demás slugs
+  // (recibos, reprogramación, cambio de link) pasan tal cual.
+  const isVirtual = isVirtualAppointment(appointment);
+  const type = CONFIRMATION_SLUGS.includes(requestedType)
+    ? isVirtual
+      ? "appointment_confirmation_virtual"
+      : "appointment_confirmation"
+    : requestedType;
   const apptService = appointment.services as { send_reminders?: boolean } | null;
   if (
     CONFIRMATION_SLUGS.includes(type) &&
@@ -175,13 +192,21 @@ export async function POST(req: NextRequest) {
       : null;
   const montoCita = rawAmount != null ? `S/. ${rawAmount.toFixed(2)}` : "";
 
+  // "Servicio · Virtual" solo cuando la cita es virtual (misma etiqueta que
+  // tarjetas y sidebar). El link de reunión se rellena SOLO si la cita es
+  // virtual Y tiene meeting_url: una presencial con el link por defecto del
+  // doctor arrastrado no debe mostrar "Ingresa a tu reunión aquí: …".
+  const servicioLabel = service?.name ? serviceDisplayName(service.name, appointment) : "";
+  const meetingUrl = (appointment as { meeting_url?: string | null }).meeting_url || "";
+  const linkReunion = isVirtual ? meetingUrl : "";
+
   const variables: Record<string, string> = {
     "{{paciente_nombre}}": patientName || "",
     "{{doctor_nombre}}": doctor?.full_name || "",
     "{{fecha_cita}}": formattedDate,
     "{{hora_cita}}": appointment.start_time?.slice(0, 5) || "",
     "{{consultorio}}": office?.name || "",
-    "{{servicio}}": service?.name || "",
+    "{{servicio}}": servicioLabel,
     "{{clinica_nombre}}": org?.name || "",
     "{{clinica_telefono}}": clinicPhoneVar?.value || "",
     "{{direccion_clinica}}": org?.address || "",
@@ -190,7 +215,7 @@ export async function POST(req: NextRequest) {
     "{{monto_cita}}": montoCita,
     "{{link_cancelar}}": "", // TODO: generate public links
     "{{link_reagendar}}": "",
-    "{{link_reunion}}": (appointment as any).meeting_url || "",
+    "{{link_reunion}}": linkReunion,
     // Fuera de eventos de pago no hay "monto pagado" — usamos el precio de
     // la cita (price_snapshot) para que la variable muestre algo útil en
     // confirmaciones/recordatorios en vez del fallback "-" (feedback del
@@ -396,7 +421,7 @@ export async function POST(req: NextRequest) {
               paciente_telefono: recipientPhone,
               fecha_cita: formattedDate,
               hora_cita: appointment.start_time?.slice(0, 5) || "",
-              servicio: service?.name || "",
+              servicio: servicioLabel,
               doctor_nombre: doctor?.full_name || "",
               clinica_nombre: org?.name || "",
               clinica_telefono: clinicPhoneVar?.value || "",

@@ -7,9 +7,33 @@ import { WhatsAppClient } from "@/lib/whatsapp/client";
 import { sendWhatsAppMessage, resolveVariableValues } from "@/lib/whatsapp/send";
 import { decrypt } from "@/lib/encryption";
 import type { WhatsAppTemplate } from "@/lib/whatsapp/types";
+import { isVirtualAppointment, serviceDisplayName } from "@/lib/appointment-modality";
 
 export const runtime = "nodejs";
 export const maxDuration = 60; // Allow up to 60s for processing all orgs
+
+// Columnas del recordatorio. Dos literales (no un template dinámico) para
+// que el parser de tipos de PostgREST siga infiriendo la fila.
+const REMINDER_SELECT = `
+        id,
+        created_at,
+        patient_name,
+        patient_phone,
+        patient_id,
+        appointment_date,
+        start_time,
+        end_time,
+        status,
+        organization_id,
+        price_snapshot,
+        discount_amount,
+        meeting_url,
+        doctors ( full_name ),
+        offices ( name ),
+        services ( name, base_price, pre_appointment_instructions, send_reminders ),
+        patients ( email, first_name, last_name, phone )
+      ` as const;
+const REMINDER_SELECT_WITH_MODALITY = `modality, ${REMINDER_SELECT}` as const;
 
 /**
  * GET /api/cron/reminders
@@ -73,33 +97,37 @@ export async function GET(req: NextRequest) {
     const startDate = windowStart.toISOString().split("T")[0];
     const endDate = windowEnd.toISOString().split("T")[0];
 
-    // 4. Fetch appointments in the window that haven't been reminded yet
-    const { data: appointments, error: apptError } = await supabase
-      .from("appointments")
-      .select(
-        `
-        id,
-        created_at,
-        patient_name,
-        patient_phone,
-        patient_id,
-        appointment_date,
-        start_time,
-        end_time,
-        status,
-        organization_id,
-        price_snapshot,
-        discount_amount,
-        doctors ( full_name ),
-        offices ( name ),
-        services ( name, base_price, pre_appointment_instructions, send_reminders ),
-        patients ( email, first_name, last_name, phone )
-      `
-      )
-      .in("appointment_date", getDateRange(startDate, endDate))
-      .in("status", ["scheduled", "confirmed"])
-      .order("appointment_date")
-      .order("start_time");
+    // 4. Fetch appointments in the window that haven't been reminded yet.
+    // `modality` (mig 256) + `meeting_url` alimentan isVirtualAppointment():
+    // el recordatorio de una cita virtual lleva "{{servicio}} · Virtual" y
+    // {{link_reunion}}; el de una presencial, no. Si la mig 256 aún no corrió
+    // PostgREST devuelve 400 por la columna → se repite sin `modality`
+    // (las citas se deducen por meeting_url, como antes).
+    const dateRange = getDateRange(startDate, endDate);
+    const fetchBase = () =>
+      supabase
+        .from("appointments")
+        .select(REMINDER_SELECT)
+        .in("appointment_date", dateRange)
+        .in("status", ["scheduled", "confirmed"])
+        .order("appointment_date")
+        .order("start_time");
+    const fetchWithModality = () =>
+      supabase
+        .from("appointments")
+        .select(REMINDER_SELECT_WITH_MODALITY)
+        .in("appointment_date", dateRange)
+        .in("status", ["scheduled", "confirmed"])
+        .order("appointment_date")
+        .order("start_time");
+
+    // Mismo shape que la consulta base (+ `modality`, leída con cast local).
+    type ReminderApptRes = Awaited<ReturnType<typeof fetchBase>>;
+    let apptRes = (await fetchWithModality()) as unknown as ReminderApptRes;
+    if (apptRes.error && /modality/i.test(apptRes.error.message ?? "")) {
+      apptRes = await fetchBase();
+    }
+    const { data: appointments, error: apptError } = apptRes;
 
     if (apptError) {
       console.error(`[Cron Reminders] Error fetching appointments:`, apptError);
@@ -335,6 +363,16 @@ export async function GET(req: NextRequest) {
             : null;
         const montoCita = rawAmount != null ? `S/. ${rawAmount.toFixed(2)}` : "";
 
+        // Punto de decisión "¿es virtual?" (mig 256): modality manda, NULL
+        // cae a meeting_url. "Servicio · Virtual" y el link SOLO si la cita
+        // es virtual y tiene meeting_url (nunca por el link por defecto del
+        // doctor arrastrado a una presencial).
+        const apptModality = appt as { modality?: string | null; meeting_url?: string | null };
+        const servicioLabel = service?.name ? serviceDisplayName(service.name, apptModality) : "";
+        const linkReunion = isVirtualAppointment(apptModality)
+          ? apptModality.meeting_url || ""
+          : "";
+
         // ── EMAIL CHANNEL (independent) ──────────────────────────────────
         // Only touch email if this reminder hasn't already gone out by email.
         if (!emailAlreadySent.has(appt.id)) {
@@ -360,7 +398,7 @@ export async function GET(req: NextRequest) {
               "{{fecha_cita}}": formattedDate,
               "{{hora_cita}}": appt.start_time?.slice(0, 5) || "",
               "{{consultorio}}": office?.name || "",
-              "{{servicio}}": service?.name || "",
+              "{{servicio}}": servicioLabel,
               "{{clinica_nombre}}": clinicName,
               "{{clinica_telefono}}": clinicPhoneVar?.value || "",
               "{{direccion_clinica}}": org?.address || "",
@@ -369,6 +407,7 @@ export async function GET(req: NextRequest) {
               "{{monto_cita}}": montoCita,
               "{{link_cancelar}}": portalBaseUrl ? `${portalBaseUrl}/mis-citas` : "",
               "{{link_reagendar}}": portalBaseUrl ? `${portalBaseUrl}/mis-citas` : "",
+              "{{link_reunion}}": linkReunion,
             };
 
             let subject = template.subject;
@@ -453,7 +492,7 @@ export async function GET(req: NextRequest) {
                   paciente_nombre: patientName || "",
                   fecha_cita: formattedDate,
                   hora_cita: appt.start_time?.slice(0, 5) || "",
-                  servicio: service?.name || "",
+                  servicio: servicioLabel,
                   doctor_nombre: doctor?.full_name || "",
                   clinica_nombre: clinicName,
                   clinica_telefono: clinicPhoneVar?.value || "",
