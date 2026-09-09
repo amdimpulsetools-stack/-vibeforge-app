@@ -270,10 +270,12 @@ function AppointmentCardInner({
         style={{ color: hexToDark(bodyColor, 0.55) }}
       >
         {appointment.doctors?.full_name ?? "—"} ·{" "}
-        {/* En compacto el sufijo " · Virtual" no cabe: ahí manda la camarita. */}
-        {isCompact
-          ? appointment.services?.name ?? "—"
-          : serviceDisplayName(appointment.services?.name, appointment)}
+        {/* Sufijo " · Virtual" SIEMPRE (pedido del founder, prueba en Vitra
+            9-sep: con agenda de 60 min una cita de una hora es "compacta" y
+            el sufijo desaparecía aunque la línea se pinta igual). Si la
+            columna es estrecha, truncate recorta al final y la camarita
+            de arriba sigue diciendo que es virtual. */}
+        {serviceDisplayName(appointment.services?.name, appointment)}
       </p>
     </button>
   );
