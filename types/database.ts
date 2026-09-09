@@ -578,6 +578,11 @@ export interface Database {
           consultation_started_at: string | null;
           consultation_ended_at: string | null;
           consultation_closed_reason: "manual" | "auto_next_started" | "auto_eod" | null;
+          // Mig 256: presencial/virtual elegido en la cita. NULL = cita
+          // previa (se deduce por meeting_url). Leer SIEMPRE vía
+          // resolveAppointmentModality() en lib/appointment-modality.ts.
+          modality?: "in_person" | "virtual" | null;
+          meeting_url?: string | null;
         };
         Insert: {
           id?: string;

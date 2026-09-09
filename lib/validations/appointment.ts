@@ -23,6 +23,10 @@ const appointmentBaseSchema = z.object({
   responsible: z.string().optional().or(z.literal("")),
   notes: z.string().max(500, "Máximo 500 caracteres").optional().or(z.literal("")),
   meeting_url: z.string().url("URL inválida").optional().or(z.literal("")),
+  // Mig 256: modalidad de la cita. "" = sin elegir. Para servicios "Ambos"
+  // el modal la exige a nivel de runtime (superRefine con el servicio
+  // seleccionado); para presencial/virtual el modal la fija sola.
+  modality: z.enum(["in_person", "virtual"]).optional().or(z.literal("")),
 });
 
 // es-PE messages for each configurable field when an admin marks it mandatory.
