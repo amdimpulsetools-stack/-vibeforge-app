@@ -39,6 +39,15 @@ export const serviceSchema = z.object({
   // tratamientos TRA (FIV, ovodonación…) que se cobran por fases.
   is_bookable: z.boolean().default(true),
 
+  // Color en la agenda (mig 255) — hex de la paleta de doctores o null
+  // (= color del doctor, como siempre). "" del formulario → null.
+  color: z
+    .preprocess(
+      (v) => (v === "" || v === undefined ? null : v),
+      z.string().regex(/^#[0-9a-fA-F]{6}$/, "Color inválido").nullable()
+    )
+    .default(null),
+
   // Fiscal data — only relevant if e-invoicing is connected. All optional so
   // services created before activation keep working.
   sunat_product_code: z

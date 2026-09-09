@@ -261,6 +261,10 @@ export function WeekView({
               <div className="space-y-1.5 px-3 py-2">
                 {dayAppointments.map((appt) => {
                   const doctorColor = appt.doctors?.color ?? "#9ca3af";
+                  // Color por servicio (mig 255): fondo y texto; el borde
+                  // izquierdo sigue siendo del doctor.
+                  const bodyColor =
+                    (appt.services as { color?: string | null } | null | undefined)?.color ?? doctorColor;
                   const isOtherDoctorAppt =
                     currentDoctorId != null && appt.doctor_id !== currentDoctorId;
                   const gross = Number(appt.price_snapshot ?? 0);
@@ -283,7 +287,7 @@ export function WeekView({
                           "ring-2 ring-primary"
                       )}
                       style={{
-                        backgroundColor: hexToPastel(doctorColor, 0.18),
+                        backgroundColor: hexToPastel(bodyColor, 0.18),
                         borderLeft: `4px solid ${doctorColor}`,
                         ...(isOtherDoctorAppt
                           ? { filter: "saturate(0.5)", opacity: 0.6 }
@@ -293,13 +297,13 @@ export function WeekView({
                       <div className="w-12 shrink-0">
                         <p
                           className="text-sm font-bold leading-tight"
-                          style={{ color: hexToDark(doctorColor) }}
+                          style={{ color: hexToDark(bodyColor) }}
                         >
                           {appt.start_time.slice(0, 5)}
                         </p>
                         <p
                           className="text-[11px] leading-tight"
-                          style={{ color: hexToDark(doctorColor, 0.55) }}
+                          style={{ color: hexToDark(bodyColor, 0.55) }}
                         >
                           {appt.end_time.slice(0, 5)}
                         </p>
@@ -311,14 +315,14 @@ export function WeekView({
                           )}
                           <p
                             className="truncate text-sm font-semibold"
-                            style={{ color: hexToDark(doctorColor) }}
+                            style={{ color: hexToDark(bodyColor) }}
                           >
                             {appt.patient_name}
                           </p>
                         </div>
                         <p
                           className="truncate text-xs"
-                          style={{ color: hexToDark(doctorColor, 0.55) }}
+                          style={{ color: hexToDark(bodyColor, 0.55) }}
                         >
                           {appt.services?.name ?? "—"} · {appt.doctors?.full_name ?? "—"}
                         </p>
@@ -546,6 +550,10 @@ export function WeekView({
                   const [slH2, slM2] = time.split(":").map(Number);
                   const offsetPx = (startMinutes - (slH2 * 60 + slM2)) * pxPerMin;
                   const doctorColor = startAppt.doctors?.color ?? "#9ca3af";
+                  // Color por servicio (mig 255): fondo y texto; el borde
+                  // izquierdo sigue siendo del doctor.
+                  const bodyColor =
+                    (startAppt.services as { color?: string | null } | null | undefined)?.color ?? doctorColor;
 
                   // Doctor role: other doctors' appointments are desaturated & non-interactive
                   const isOtherDoctorAppt = currentDoctorId != null && startAppt.doctor_id !== currentDoctorId;
@@ -571,7 +579,7 @@ export function WeekView({
                         style={{
                           top: `${offsetPx + 2}px`,
                           height: `${(endMinutes - startMinutes) * pxPerMin - 4}px`,
-                          backgroundColor: hexToPastel(doctorColor, 0.18),
+                          backgroundColor: hexToPastel(bodyColor, 0.18),
                           borderLeft: `4px solid ${doctorColor}`,
                           ...(isOtherDoctorAppt ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
                         }}
@@ -580,7 +588,7 @@ export function WeekView({
                           {startAppt.patients?.is_recurring && (
                             <RecurringDot className="shrink-0" />
                           )}
-                          <p className="text-[10px] font-semibold truncate flex-1" style={{ color: hexToDark(doctorColor) }}>
+                          <p className="text-[10px] font-semibold truncate flex-1" style={{ color: hexToDark(bodyColor) }}>
                             {startAppt.start_time.slice(0, 5)} {startAppt.patient_name}
                           </p>
                           {extraCount > 0 && (
@@ -608,12 +616,12 @@ export function WeekView({
                           })()}
                         </div>
                         {durationSlots > 1 && (
-                          <p className="text-[10px] truncate font-medium" style={{ color: hexToDark(doctorColor, 0.6) }}>
+                          <p className="text-[10px] truncate font-medium" style={{ color: hexToDark(bodyColor, 0.6) }}>
                             {startAppt.services?.name ?? "—"}
                           </p>
                         )}
                         {durationSlots > 2 && (
-                          <p className="text-[10px] truncate" style={{ color: hexToDark(doctorColor, 0.55) }}>
+                          <p className="text-[10px] truncate" style={{ color: hexToDark(bodyColor, 0.55) }}>
                             {startAppt.doctors?.full_name ?? "—"}
                           </p>
                         )}

@@ -100,6 +100,11 @@ function AppointmentCardInner({
   // Zona horaria de la org para "Liberar hueco" (mig 253).
   const { timezone: orgTimezone } = useOrgToday();
   const doctorColor = appointment.doctors?.color ?? "#9ca3af";
+  // Color por servicio (mig 255): si el servicio tiene color, el FONDO y el
+  // TEXTO lo usan; el borde izquierdo sigue siendo del doctor (identidad
+  // por doctor intacta: filtro, desaturado de "otro doctor", leyenda).
+  const bodyColor =
+    (appointment.services as { color?: string | null } | null | undefined)?.color ?? doctorColor;
 
   // Single-slot cards (15-min @ 40 px base = ~36 px tall) can't fit
   // the default two-line typography (≈40 px with paddings/leading).
@@ -166,7 +171,7 @@ function AppointmentCardInner({
         height: `${heightPx}px`,
         backgroundColor: isDone
           ? "hsl(var(--muted))"
-          : liveTint ?? hexToPastel(doctorColor, 0.18),
+          : liveTint ?? hexToPastel(bodyColor, 0.18),
         borderLeft: `4px solid ${doctorColor}`,
         ...(isOtherDoctor ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
         ...(isDone && !isOtherDoctor ? { opacity: 0.75 } : {}),
@@ -181,7 +186,7 @@ function AppointmentCardInner({
             "font-bold truncate flex-1",
             isCompact ? "text-[11px] leading-none" : "text-xs leading-tight",
           )}
-          style={{ color: hexToDark(doctorColor) }}
+          style={{ color: hexToDark(bodyColor) }}
         >
           {appointment.patient_name}
         </p>
@@ -260,7 +265,7 @@ function AppointmentCardInner({
             ? "text-[10px] leading-none mt-px"
             : "text-[11px] leading-tight",
         )}
-        style={{ color: hexToDark(doctorColor, 0.55) }}
+        style={{ color: hexToDark(bodyColor, 0.55) }}
       >
         {appointment.doctors?.full_name ?? "—"} ·{" "}
         {appointment.services?.name ?? "—"}
