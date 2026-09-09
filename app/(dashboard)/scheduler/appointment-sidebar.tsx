@@ -42,7 +42,16 @@ import {
   Receipt,
   Info,
   Bell,
+  Video,
 } from "lucide-react";
+import {
+  resolveAppointmentModality,
+  isVirtualAppointment,
+  modalityImposedByService,
+  serviceAsksModality,
+  MODALITY_LABELS,
+  type AppointmentModality,
+} from "@/lib/appointment-modality";
 import Link from "next/link";
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
@@ -123,6 +132,30 @@ interface AppointmentSidebarProps {
 // a historical label that no longer maps to any current org member. We keep it
 // selected (as a disabled option) so the data isn't silently lost on screen.
 const STALE_RESPONSIBLE_VALUE = "__stale_responsible__";
+
+/** Chip "Virtual" (camarita azul) / "Presencial" (edificio, muted) — mig 256. */
+function ModalityChip({ modality }: { modality: AppointmentModality }) {
+  const virtual = modality === "virtual";
+  const Icon = virtual ? Video : Building2;
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none",
+        virtual
+          ? "bg-blue-500/10 text-blue-600 dark:text-blue-400"
+          : "bg-muted text-muted-foreground"
+      )}
+    >
+      <Icon className="h-3 w-3" />
+      {MODALITY_LABELS[modality]}
+    </span>
+  );
+}
+
+/** `services.modality` (mig 038) no está en los generated types: lectura local. */
+function serviceModalityOf(service: Service | undefined): string | null {
+  return (service as { modality?: string | null } | undefined)?.modality ?? null;
+}
 
 /** "HH:MM" ± minutos, acotado a [00:00, 23:55]. */
 function shiftTime(t: string, delta: number): string {
@@ -767,6 +800,12 @@ export function AppointmentSidebar({
   );
   const [editNotes, setEditNotes] = useState(appointment.notes ?? "");
   const [editMeetingUrl, setEditMeetingUrl] = useState((appointment as any).meeting_url ?? "");
+  // Modalidad de la cita en edición (mig 256). Parte de la modalidad
+  // resuelta (columna o, en citas viejas, deducida por meeting_url); un
+  // servicio presencial/virtual la fija al elegirlo, uno "Ambos" deja elegir.
+  const [editModality, setEditModality] = useState<AppointmentModality>(() =>
+    resolveAppointmentModality(appointment)
+  );
 
   // ── Precio editable al cambiar de servicio ──────────────────────────────
   // El precio se congela al crear la cita (price_snapshot, mig 011) para que
@@ -1017,6 +1056,7 @@ export function AppointmentSidebar({
     setStaleResponsibleLabel(r.staleLabel);
     setEditNotes(appointment.notes ?? "");
     setEditMeetingUrl((appointment as any).meeting_url ?? "");
+    setEditModality(resolveAppointmentModality(appointment));
     setEditPrice(grossPrice.toFixed(2));
     setEditEndTime(appointment.end_time.slice(0, 5));
     setEditPriceTouched(false);
@@ -1040,8 +1080,32 @@ export function AppointmentSidebar({
   // El bloque nunca queda en cero: mínimo inicio + 5 min.
   const minEndTime = shiftTime(appointment.start_time, 5);
 
+  // Cambiar de modalidad en edición: pasar a presencial limpia el link (la
+  // cita presencial no lleva reunión); pasar a virtual propone el link por
+  // defecto del doctor si el campo está vacío — igual que el formulario.
+  const applyEditModality = (next: AppointmentModality) => {
+    setEditModality(next);
+    if (next === "in_person") {
+      setEditMeetingUrl("");
+      return;
+    }
+    if (!editMeetingUrl) {
+      const doctorUrl =
+        (doctors.find((d) => d.id === editDoctor) as { default_meeting_url?: string | null } | undefined)
+          ?.default_meeting_url ?? "";
+      setEditMeetingUrl(doctorUrl);
+    }
+  };
+
   const handleEditServiceChange = (serviceId: string) => {
     setEditService(serviceId);
+    // Servicio presencial/virtual → la modalidad se fija sola; "Ambos" →
+    // se conserva la elegida (el selector inline permite cambiarla).
+    const nextServiceModality = serviceModalityOf(services.find((s) => s.id === serviceId));
+    if (nextServiceModality) {
+      const imposed = modalityImposedByService(nextServiceModality);
+      if (imposed && imposed !== editModality) applyEditModality(imposed);
+    }
     if (priceLocked || isPlanSession || editPriceTouched) return;
     if (serviceId === appointment.service_id) {
       // Volvió al servicio original: se restaura el precio guardado.
@@ -1178,7 +1242,12 @@ export function AppointmentSidebar({
     const userName = profile?.full_name || "Usuario";
 
     const oldMeetingUrl = (appointment as any).meeting_url ?? "";
-    const newMeetingUrl = editMeetingUrl || null;
+    // Presencial nunca guarda link (mig 256): así una cita vieja sin columna
+    // tampoco se deduce como virtual por un link colgado.
+    const newMeetingUrl = editModality === "virtual" ? editMeetingUrl || null : null;
+    // `modality` solo se escribe si cambió respecto a la resuelta: las citas
+    // viejas (NULL) siguen deduciéndose por meeting_url mientras nadie las toque.
+    const modalityChanged = editModality !== resolveAppointmentModality(appointment);
 
     // Resolve BOTH responsible columns from the selected value. This fixes the
     // stale bug where the label was updated but responsible_user_id kept
@@ -1201,28 +1270,42 @@ export function AppointmentSidebar({
       responsibleUserId = null;
     }
 
-    const { error } = await supabase
-      .from("appointments")
-      .update({
-        doctor_id: editDoctor,
-        service_id: editService,
-        end_time: newEndTime,
-        origin: editOrigin || null,
-        payment_method: editPayment || null,
-        responsible: responsibleLabel,
-        responsible_user_id: responsibleUserId,
-        notes: editNotes || null,
-        meeting_url: newMeetingUrl,
-        edited_by_name: userName,
-        edited_at: new Date().toISOString(),
-        // Solo se escribe el snapshot si cambió: una cita anterior al
-        // snapshot (NULL) sigue resolviendo por catálogo como hasta ahora.
-        ...(priceChanged ? { price_snapshot: Number(newPrice.toFixed(2)) } : {}),
-        ...(clearOnlineBusy ? { online_busy_until: null } : {}),
-        // responsible_user_id lives outside the generated Update type (mig 073),
-        // so we widen the payload — same escape hatch the create modal uses.
-      } as Record<string, unknown>)
-      .eq("id", appointment.id);
+    const editPayload: Record<string, unknown> = {
+      doctor_id: editDoctor,
+      service_id: editService,
+      end_time: newEndTime,
+      origin: editOrigin || null,
+      payment_method: editPayment || null,
+      responsible: responsibleLabel,
+      responsible_user_id: responsibleUserId,
+      notes: editNotes || null,
+      meeting_url: newMeetingUrl,
+      edited_by_name: userName,
+      edited_at: new Date().toISOString(),
+      // Solo se escribe el snapshot si cambió: una cita anterior al
+      // snapshot (NULL) sigue resolviendo por catálogo como hasta ahora.
+      ...(priceChanged ? { price_snapshot: Number(newPrice.toFixed(2)) } : {}),
+      ...(clearOnlineBusy ? { online_busy_until: null } : {}),
+      // responsible_user_id lives outside the generated Update type (mig 073),
+      // so we widen the payload — same escape hatch the create modal uses.
+    };
+
+    const runUpdate = (payload: Record<string, unknown>) =>
+      supabase.from("appointments").update(payload).eq("id", appointment.id);
+
+    let { error } = await runUpdate(
+      modalityChanged ? { ...editPayload, modality: editModality } : editPayload
+    );
+    // Mig 256 sin aplicar: PostgREST rechaza la columna desconocida
+    // (PGRST204). Se reintenta sin `modality`; la deducción por meeting_url
+    // (link vacío en presencial) deja la cita coherente igual.
+    if (
+      error &&
+      modalityChanged &&
+      (error.code === "PGRST204" || /modality/i.test(error.message ?? ""))
+    ) {
+      ({ error } = await runUpdate(editPayload));
+    }
 
     setUpdating(false);
 
@@ -1506,9 +1589,53 @@ export function AppointmentSidebar({
                 ))}
               </select>
             ) : (
-              <p className="text-sm">{appointment.services?.name}</p>
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                <p className="text-sm">{appointment.services?.name}</p>
+                <ModalityChip modality={resolveAppointmentModality(appointment)} />
+              </div>
             )}
           </div>
+
+          {/* Modalidad en edición (mig 256): servicio "Ambos" → dos botones
+              Presencial / Virtual (mismo estilo que Admin → Servicios);
+              servicio fijo → chip informativo, se fija solo al elegirlo. */}
+          {editing &&
+            (serviceAsksModality(serviceModalityOf(selectedService)) ? (
+              <div className="flex items-center gap-3">
+                <Video className="h-4 w-4 text-muted-foreground" />
+                <div className="flex w-full gap-2" role="radiogroup" aria-label="Modalidad">
+                  {(["in_person", "virtual"] as const).map((opt) => (
+                    <button
+                      key={opt}
+                      type="button"
+                      role="radio"
+                      aria-checked={editModality === opt}
+                      onClick={() => applyEditModality(opt)}
+                      className={cn(
+                        "flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium cursor-pointer transition-all md:py-1.5",
+                        editModality === opt
+                          ? opt === "virtual"
+                            ? "border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+                            : "border-primary bg-primary/10 text-primary"
+                          : "border-border text-muted-foreground hover:border-muted-foreground/30"
+                      )}
+                    >
+                      {opt === "virtual" ? (
+                        <Video className="h-3.5 w-3.5" />
+                      ) : (
+                        <Building2 className="h-3.5 w-3.5" />
+                      )}
+                      {MODALITY_LABELS[opt]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Video className="h-4 w-4 text-muted-foreground" />
+                <ModalityChip modality={editModality} />
+              </div>
+            ))}
 
           {/* Precio — editable junto al servicio. Se rellena solo al cambiar
               de servicio cuando el precio guardado era el de catálogo; si era
@@ -1557,8 +1684,11 @@ export function AppointmentSidebar({
             </div>
           )}
 
-          {/* Meeting URL — Zoom branded */}
+          {/* Meeting URL — Zoom branded. Solo para citas virtuales: en
+              edición manda la modalidad elegida; en lectura la resuelta
+              (mig 256), nunca el mero hecho de tener meeting_url. */}
           {editing ? (
+            editModality === "virtual" && (
             <div className="space-y-1">
               <div className="flex items-center gap-3">
                 <ZoomIcon className="h-4 w-4" />
@@ -1576,19 +1706,24 @@ export function AppointmentSidebar({
                 </p>
               )}
             </div>
+            )
           ) : (
-            (appointment as any).meeting_url && (
+            isVirtualAppointment(appointment) && (
               <div className="flex items-center gap-3">
                 <ZoomIcon className="h-4 w-4" />
-                <a
-                  href={(appointment as any).meeting_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline truncate"
-                >
-                  Abrir reunión
-                  <ExternalLink className="h-3 w-3 shrink-0" />
-                </a>
+                {(appointment as any).meeting_url ? (
+                  <a
+                    href={(appointment as any).meeting_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline truncate"
+                  >
+                    Abrir reunión
+                    <ExternalLink className="h-3 w-3 shrink-0" />
+                  </a>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sin link de reunión</p>
+                )}
               </div>
             )
           )}

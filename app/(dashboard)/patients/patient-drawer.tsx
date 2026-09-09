@@ -48,7 +48,9 @@ import {
   Link2,
   Activity,
   ArrowRight,
+  Video,
 } from "lucide-react";
+import { isVirtualAppointment, serviceDisplayName } from "@/lib/appointment-modality";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { cn, formatCurrency } from "@/lib/utils";
@@ -318,13 +320,18 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     enabled: needsHistory,
     queryFn: async () => {
       const supabase = createClient();
-      const [apptRes, payRes] = await Promise.all([
+      // `modality` (mig 256) + `meeting_url` (citas previas, se deduce)
+      // alimentan el "· Virtual" del servicio. Si la columna aún no existe
+      // (400), se repite sin `modality`.
+      const selectAppts = (withModality: boolean) =>
         supabase
           .from("appointments")
-          .select("id, appointment_date, start_time, end_time, status, patient_id, notes, doctors(id, full_name, color), services(id, name, base_price), offices(id, name)")
+          .select(`id, appointment_date, start_time, end_time, status, patient_id, notes, meeting_url${withModality ? ", modality" : ""}, doctors(id, full_name, color), services(id, name, base_price), offices(id, name)`)
           .eq("patient_id", patient.id)
           .order("appointment_date", { ascending: false })
-          .order("start_time", { ascending: false }),
+          .order("start_time", { ascending: false });
+      const [apptRes, payRes] = await Promise.all([
+        selectAppts(true).then((res) => (res.error ? selectAppts(false) : res)),
         supabase
           .from("patient_payments")
           // `sale_id` (mig 213) no está en los generated types todavía: se
@@ -1246,7 +1253,12 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                       </span>
                     </div>
                     <div className="mt-1.5 text-xs text-muted-foreground [&_p]:break-words">
-                      <p>{appt.services?.name} — {appt.offices?.name}</p>
+                      <p className="flex items-center gap-1">
+                        {isVirtualAppointment(appt) && (
+                          <Video className="h-3 w-3 shrink-0 text-blue-600" aria-label="Virtual" />
+                        )}
+                        {serviceDisplayName(appt.services?.name, appt)} — {appt.offices?.name}
+                      </p>
                       <p className="flex items-center gap-1">
                         <span
                           className="inline-block h-2 w-2 shrink-0 rounded-full"
@@ -2189,8 +2201,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                             />
                             {appt.doctors?.full_name}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {appt.services?.name}
+                          <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                            {isVirtualAppointment(appt) && (
+                              <Video className="h-3 w-3 shrink-0 text-blue-600" aria-label="Virtual" />
+                            )}
+                            {serviceDisplayName(appt.services?.name, appt)}
                           </p>
                         </div>
                       ))}
@@ -2217,7 +2232,14 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                                   {appt.doctors?.full_name}
                                 </span>
                               </td>
-                              <td className="py-2.5 px-3 text-muted-foreground">{appt.services?.name}</td>
+                              <td className="py-2.5 px-3 text-muted-foreground">
+                                <span className="flex items-center gap-1.5">
+                                  {isVirtualAppointment(appt) && (
+                                    <Video className="h-3.5 w-3.5 shrink-0 text-blue-600" aria-label="Virtual" />
+                                  )}
+                                  {serviceDisplayName(appt.services?.name, appt)}
+                                </span>
+                              </td>
                               <td className="py-2.5 px-3">
                                 <span
                                   className="rounded-full px-2 py-0.5 text-[10px] font-medium"

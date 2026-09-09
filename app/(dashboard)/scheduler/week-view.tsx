@@ -14,6 +14,7 @@ import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActive
 // Color helpers shared with the day view — single source of truth in
 // appointment-card.tsx so the palettes can't drift apart.
 import { hexToPastel, hexToDark } from "./appointment-card";
+import { isVirtualAppointment, serviceDisplayName } from "@/lib/appointment-modality";
 
 /** Minimum px per slot in the week view (denser than day view). */
 const WEEK_BASE_SLOT_HEIGHT = 32;
@@ -324,14 +325,14 @@ export function WeekView({
                           className="truncate text-xs"
                           style={{ color: hexToDark(bodyColor, 0.55) }}
                         >
-                          {appt.services?.name ?? "—"} · {appt.doctors?.full_name ?? "—"}
+                          {serviceDisplayName(appt.services?.name, appt)} · {appt.doctors?.full_name ?? "—"}
                         </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1.5">
-                        {!isOtherDoctorAppt &&
-                          (appt as { meeting_url?: string | null }).meeting_url && (
-                            <Video className="h-4 w-4 text-blue-500" />
-                          )}
+                        {/* Virtual por modalidad (mig 256), no por meeting_url. */}
+                        {!isOtherDoctorAppt && isVirtualAppointment(appt) && (
+                          <Video className="h-4 w-4 text-blue-600" aria-label="Virtual" />
+                        )}
                         {!isOtherDoctorAppt && effective > 0 && (
                           paid >= effective ? (
                             <CheckCircle2 className="h-4 w-4 text-success-600" />
@@ -596,8 +597,9 @@ export function WeekView({
                               +{extraCount}
                             </span>
                           )}
-                          {!isOtherDoctorAppt && (startAppt as any).meeting_url && (
-                            <Video className="h-2.5 w-2.5 shrink-0 text-blue-500" />
+                          {/* Virtual por modalidad (mig 256), no por meeting_url. */}
+                          {!isOtherDoctorAppt && isVirtualAppointment(startAppt) && (
+                            <Video className="h-2.5 w-2.5 shrink-0 text-blue-600" aria-label="Virtual" />
                           )}
                           {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (() => {
                             const gross = Number(startAppt.price_snapshot);
@@ -617,7 +619,7 @@ export function WeekView({
                         </div>
                         {durationSlots > 1 && (
                           <p className="text-[10px] truncate font-medium" style={{ color: hexToDark(bodyColor, 0.6) }}>
-                            {startAppt.services?.name ?? "—"}
+                            {serviceDisplayName(startAppt.services?.name, startAppt)}
                           </p>
                         )}
                         {durationSlots > 2 && (
