@@ -13,11 +13,13 @@
   tiene logo, ese logo es toda la identidad del membrete. Si la org NO
   tiene logo se conserva el nombre comercial (`org.org-mark`): sin logo ni
   nombre el membrete quedaría literalmente vacío y el documento no se
-  podría atribuir a nadie. No se inventa ningún texto sustituto.
+  podría atribuir a nadie. No se inventa ningún texto sustituto. El `alt`
+  del logo también se vacía con la bandera: si la URL del logo fallara,
+  Chromium pinta el alt y el nombre volvería por la puerta de atrás.
 --}}
       <header class="head">
         <div class="head-logo">
-          {{#if org.logo_url}}<img src="{{org.logo_url}}" alt="{{org.display_name}}">{{else}}<div class="org-mark">{{org.display_name}}</div>{{/if}}
+          {{#if org.logo_url}}<img src="{{org.logo_url}}" alt="{{#unless doc.hide_org_name}}{{org.display_name}}{{/unless}}">{{else}}<div class="org-mark">{{org.display_name}}</div>{{/if}}
         </div>
         <div class="head-org">
           {{#unless doc.hide_org_name}}<div class="org-name">{{org.legal_name}}</div>{{/unless}}
