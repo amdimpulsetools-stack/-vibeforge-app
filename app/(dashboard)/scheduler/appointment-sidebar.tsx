@@ -43,6 +43,9 @@ import {
   Info,
   Bell,
   Video,
+  Pill,
+  Printer,
+  ChevronDown,
 } from "lucide-react";
 import {
   resolveAppointmentModality,
@@ -69,6 +72,24 @@ import { useFertilityAddon } from "@/hooks/use-fertility-addon";
 import { OPEN_FOLLOWUP_STATUSES } from "@/types/followups";
 import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
 import { ClinicalShortcuts } from "@/components/clinical/clinical-shortcuts";
+import { useQuery } from "@tanstack/react-query";
+import { useOrganization } from "@/components/organization-provider";
+import {
+  getLiveNotificationEvent,
+  readLiveNotificationSettings,
+  resolveAudiences,
+} from "@/lib/live-notifications/catalog";
+// `batchCode` vive en el compositor y de ahí lo toma también el atajo
+// clínico: se importa de la MISMA fuente para que el código del lote
+// (RX-XXXXXXXX) sea idéntico en los dos sitios. No añade peso al bundle —
+// `ClinicalShortcuts`, importado arriba, ya arrastra ese módulo.
+import { batchCode } from "@/components/clinical/prescription-composer-modal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   patientPendingBalance,
   totalClinicalPaid,
@@ -107,6 +128,83 @@ function CancelCountdown({ patientName }: { patientName?: string | null }) {
       </div>
     </div>
   );
+}
+
+// ── "Receta asignada": modelo mínimo de lectura ─────────────────────────
+//
+// Spec: `docs/spec-receta-a-recepcion.md` §3.4 (el sidebar es el destino),
+// §3.5 (cantidades), §3.6 (privacidad) y §3.7 (el interruptor).
+//
+// `prescriptions` no es cabecera + ítems: una FILA es UN medicamento
+// (mig 053), y `batch_id` (mig 247) agrupa las filas de un mismo gesto de
+// la médica — que es lo que se imprime junto.
+//
+// Se piden SEIS columnas y ni una más. `instructions`, `frequency`,
+// `duration` y `route` están fuera por decisión explícita de §3.6, y la
+// forma más barata y más difícil de romper de no enseñar un campo es no
+// traerlo del servidor: aunque alguien añada mañana una línea a este
+// bloque, no tendrá esos datos a mano para pintarlos.
+interface SidebarRxRow {
+  id: string;
+  batch_id: string | null;
+  medication: string;
+  /** Concentración ("500 mg"). §3.6: sí — "Losartán" a secas no identifica. */
+  dosage: string | null;
+  /** "Cápsula", "Jarabe". §3.6: sí — distingue el frasco de la caja. */
+  pharmaceutical_form: string | null;
+  /** `text` LIBRE y OPCIONAL (mig 053:82). Va a faltar a menudo: §3.5. */
+  quantity: string | null;
+}
+
+/** Un lote = una receta imprimible. Las filas sin lote son las históricas. */
+interface SidebarRxBatch {
+  key: string;
+  batchId: string | null;
+  medications: string[];
+}
+
+const SIDEBAR_RX_LEGACY_KEY = "__sin-lote__";
+
+function groupSidebarRxBatches(rows: SidebarRxRow[]): SidebarRxBatch[] {
+  const byKey = new Map<string, SidebarRxBatch>();
+  const ordered: SidebarRxBatch[] = [];
+  for (const row of rows) {
+    const key = row.batch_id ?? SIDEBAR_RX_LEGACY_KEY;
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.medications.push(row.medication);
+      continue;
+    }
+    const batch: SidebarRxBatch = {
+      key,
+      batchId: row.batch_id,
+      medications: [row.medication],
+    };
+    byKey.set(key, batch);
+    ordered.push(batch);
+  }
+  return ordered;
+}
+
+/**
+ * Cómo se nombra el medicamento en la lista: "Amoxicilina 500 mg · Cápsula".
+ * Exactamente el ejemplo de la spec (§3.4). Concentración y forma son parte
+ * de IDENTIFICAR el fármaco, no de cómo se toma.
+ */
+function sidebarRxTitle(row: SidebarRxRow): string {
+  const name = [row.medication?.trim(), row.dosage?.trim()]
+    .filter(Boolean)
+    .join(" ");
+  const form = row.pharmaceutical_form?.trim();
+  return form ? `${name} · ${form}` : name;
+}
+
+/** Resumen de un lote para el menú de impresión (mismo formato que el atajo). */
+function sidebarRxBatchSummary(batch: SidebarRxBatch): string {
+  const names = batch.medications.filter(Boolean);
+  if (names.length === 0) return "Receta";
+  const head = names.slice(0, 2).join(" · ");
+  return names.length > 2 ? `${head} +${names.length - 2}` : head;
 }
 
 const ClinicalNoteModal = dynamic(
@@ -286,6 +384,93 @@ export function AppointmentSidebar({
       cancelled = true;
     };
   }, [appointment.patient_id, appointment.organization_id]);
+
+  // ── "Receta asignada" — el interruptor ──────────────────────────────────
+  //
+  // El toggle de la función NO es un flag propio: ES la celda "Recepción"
+  // del evento `prescription_issued` en Ajustes → Notificaciones
+  // (`organizations.settings.live_notifications`, spec §3.7). Un solo dato
+  // gobierna el aviso Y este bloque; dos interruptores AND-eados serían el
+  // ticket "lo activé y no pasa nada".
+  //
+  // Apagado por defecto (`defaultAudiences: []` en el catálogo): en una org
+  // que no lo ha encendido esto es `false`, el bloque no se monta y la
+  // consulta de abajo ni siquiera se dispara. Cero cambios, cero bytes.
+  //
+  // La org ya viaja al cliente con su `settings` completo desde el
+  // `OrganizationProvider` del layout (`organizations(*)`), así que leer
+  // esto no cuesta ni una query nueva.
+  const { organization } = useOrganization();
+  const prescriptionBlockEnabled = useMemo(() => {
+    const event = getLiveNotificationEvent("prescription_issued");
+    if (!event) return false;
+    const settings = readLiveNotificationSettings(
+      (organization as { settings?: unknown } | null)?.settings,
+    );
+    return resolveAudiences(event, settings).includes("reception");
+  }, [organization]);
+
+  // ── "Receta asignada" — los datos ───────────────────────────────────────
+  //
+  // Mismo patrón que `components/clinical/clinical-shortcuts.tsx`: consulta
+  // directa por RLS (org-scoped, mig 053) en lugar de `/api/prescriptions`,
+  // porque la ruta gasta cupo del rate limit general y escribe un acceso
+  // clínico "list" por cada apertura del sidebar.
+  //
+  // La CLAVE comparte prefijo con la del atajo (`["appointment-prescriptions",
+  // id]`) y añade un segmento propio. Es a propósito y está verificado contra
+  // `@tanstack/query-core`: `invalidateQueries` sin `exact` hace match por
+  // PREFIJO (`partialMatchKey`), así que el `invalidateQueries` que el atajo
+  // ya dispara al guardar una receta (clinical-shortcuts.tsx:206) alcanza
+  // también a esta consulta — la doctora receta con el sidebar abierto y el
+  // bloque se actualiza sin recargar. El segmento extra evita compartir la
+  // entrada de caché: las dos consultas piden columnas distintas y devuelven
+  // formas distintas, y una sola clave con dos `queryFn` daría los datos del
+  // observer que montara primero.
+  const rxQueryKey = useMemo(
+    () => ["appointment-prescriptions", appointment.id, "sidebar-list"] as const,
+    [appointment.id],
+  );
+  const {
+    data: rxRows,
+    isError: rxError,
+    refetch: refetchRx,
+    isRefetching: rxRefetching,
+  } = useQuery({
+    queryKey: rxQueryKey,
+    enabled: prescriptionBlockEnabled && !!appointment.id,
+    // El mismo que el atajo: otra persona puede recetar mientras el sidebar
+    // está abierto.
+    staleTime: 30 * 1000,
+    queryFn: async (): Promise<SidebarRxRow[]> => {
+      const { data, error } = await createClient()
+        .from("prescriptions")
+        .select(
+          "id, batch_id, medication, dosage, pharmaceutical_form, quantity",
+        )
+        .eq("appointment_id", appointment.id)
+        // Una receta suspendida NO aparece: `is_active` es "vigente/
+        // suspendida" y el PDF del lote tampoco la saca (§5.9).
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as SidebarRxRow[];
+    },
+  });
+
+  const rxList = useMemo(() => rxRows ?? [], [rxRows]);
+  const rxBatches = useMemo(() => groupSidebarRxBatches(rxList), [rxList]);
+
+  /** Abre el PDF del lote; sin lote, el de la cita entera (recetas antiguas). */
+  const openRxBatchPdf = useCallback(
+    (batch: SidebarRxBatch) => {
+      const url = batch.batchId
+        ? `/api/pdf/prescription/batch/${batch.batchId}`
+        : `/api/pdf/prescription/${appointment.id}`;
+      window.open(url, "_blank", "noopener");
+    },
+    [appointment.id],
+  );
 
   // Fetch count of active budgets for this patient — shown next to
   // the "Asignar presupuesto" CTA. Only runs when fertility is on
@@ -2546,6 +2731,161 @@ export function AppointmentSidebar({
                   Registrar pago
                 </button>
               )
+            )}
+          </div>
+        )}
+
+        {/* ── Receta asignada ─────────────────────────────────────────── */}
+        {/* EXCEPCIÓN DELIBERADA Y ACOTADA a la regla del 8-sep que hay unas
+            líneas más abajo (`isAdmin || !!currentDoctorId`, que le cierra la
+            historia clínica a recepción). Este bloque SÍ lo ve recepción, y
+            eso NO es un descuido: es la feature entera
+            (`docs/spec-receta-a-recepcion.md`, §3.4 y §3.6).
+
+            Quien lo autoriza no es el rol sino la DUEÑA de la clínica: sale
+            solo si la celda "Recepción" del evento `prescription_issued` está
+            encendida en Ajustes → Notificaciones, y viene apagada de fábrica.
+            Por eso tampoco se filtra por rol aquí — lo ve todo el que abre la
+            cita, la doctora incluida; la celda es el interruptor de la
+            función, no un filtro de audiencia (§3.7).
+
+            El alcance está estrechado a conciencia para que la excepción sea
+            defendible: solo las recetas ACTIVAS de ESTA cita (no hay
+            búsqueda, ni histórico, ni "todas las recetas de la paciente"),
+            solo nombre + concentración + forma + cantidad, NUNCA indicaciones
+            ni posología (frecuencia/duración/vía), y sin poder editar ni
+            suspender nada — es una lista de lectura y un botón de imprimir.
+
+            Antes de "arreglar" esto metiéndolo dentro del gate clínico:
+            léase §3.6 de la spec. Quitarlo de aquí apaga la función.
+
+            Carga: mientras la consulta está en vuelo no hay filas y no hay
+            error, así que no se pinta NADA — ni esqueleto ni bloque vacío.
+            El caso mayoritario (una cita sin receta) no debe enseñar un
+            hueco que luego desaparece, y un "Receta asignada" en blanco
+            mientras carga es exactamente el bloque engañoso que no
+            queremos. El bloque aparece cuando hay algo que decir. */}
+        {prescriptionBlockEnabled && !editing && (rxList.length > 0 || rxError) && (
+          <div className="border-t border-border pt-4 space-y-3">
+            {/* Header — mismo lenguaje visual que "Cobros" */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Pill className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">Receta asignada</span>
+              </div>
+              {rxList.length > 0 && (
+                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  {rxList.length === 1
+                    ? "1 medicamento"
+                    : `${rxList.length} medicamentos`}
+                </span>
+              )}
+            </div>
+
+            {rxError && rxList.length === 0 ? (
+              // Callar el error sería peor que no tener el bloque: recepción
+              // creería que no hay receta cuando puede haberla, que es
+              // justo lo contrario de para lo que existe esto. (Si el fallo
+              // es de un refetch y ya había filas, se sigue enseñando la
+              // lista: los datos son lo que importa, no el aviso.)
+              <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/30 p-2.5 text-[11px] leading-relaxed text-muted-foreground">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                <span className="flex-1">
+                  No se pudieron cargar las recetas de esta cita.{" "}
+                  <button
+                    type="button"
+                    onClick={() => refetchRx()}
+                    disabled={rxRefetching}
+                    className="font-medium text-foreground hover:underline disabled:opacity-50"
+                  >
+                    {rxRefetching ? "Reintentando…" : "Reintentar"}
+                  </button>
+                </span>
+              </div>
+            ) : (
+              <>
+                <ul className="space-y-1.5">
+                  {rxList.map((row) => {
+                    // §3.5: la cantidad es texto libre y OPCIONAL. Cuando
+                    // falta se dice que falta. JAMÁS se calcula a partir de
+                    // dosis × frecuencia × días: una cantidad de dispensación
+                    // deducida por software y presentada como si la hubiera
+                    // escrito la médica es un error clínico esperando.
+                    const qty = row.quantity?.trim();
+                    return (
+                      <li
+                        key={row.id}
+                        className="flex items-start justify-between gap-3 rounded-lg bg-muted/40 px-3 py-2"
+                      >
+                        <span className="min-w-0 flex-1 text-[11px] font-medium leading-snug">
+                          {sidebarRxTitle(row)}
+                        </span>
+                        <span
+                          className={cn(
+                            "shrink-0 text-right text-[11px] leading-snug",
+                            qty
+                              ? "text-muted-foreground"
+                              : "italic text-muted-foreground/70",
+                          )}
+                        >
+                          {qty || "Cantidad no indicada"}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+
+                {/* Reimprimir (§5.2, aprobado): la impresión falla o la
+                    paciente pierde el papel, y en el mostrador no hay nadie
+                    más que pueda resolverlo sin interrumpir a la doctora. Es
+                    el MISMO documento firmado, no uno nuevo: recepción no
+                    edita ni suspende nada desde aquí.
+
+                    Con varios lotes NO se elige a ciegas: se listan, igual
+                    que hace hoy el atajo clínico ante el mismo problema. */}
+                {rxBatches.length === 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => openRxBatchPdf(rxBatches[0])}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 px-3 py-2 text-xs font-medium text-muted-foreground transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    Imprimir receta
+                  </button>
+                ) : rxBatches.length > 1 ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border/60 px-3 py-2 text-xs font-medium text-muted-foreground transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-primary"
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        Imprimir receta · {rxBatches.length}
+                        <ChevronDown className="h-3 w-3 opacity-60" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-64">
+                      {rxBatches.map((batch) => (
+                        <DropdownMenuItem
+                          key={batch.key}
+                          onSelect={() => openRxBatchPdf(batch)}
+                          className="flex min-h-11 flex-col items-start gap-0.5"
+                        >
+                          <span className="flex items-center gap-1.5 text-xs font-semibold">
+                            <Printer className="h-3.5 w-3.5" />
+                            {batch.batchId
+                              ? batchCode(batch.batchId)
+                              : "Receta de la consulta"}
+                          </span>
+                          <span className="w-full truncate pl-5 text-[11px] text-muted-foreground">
+                            {sidebarRxBatchSummary(batch)}
+                          </span>
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : null}
+              </>
             )}
           </div>
         )}
