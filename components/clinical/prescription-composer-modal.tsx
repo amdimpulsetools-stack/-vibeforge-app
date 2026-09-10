@@ -64,6 +64,13 @@ export interface PrescriptionComposerModalProps {
   doctorName?: string;
   /** Sin cita (drawer del paciente) va `null`. */
   appointmentId?: string | null;
+  /**
+   * Recetas que la cita YA tiene. Solo para avisar en la cabecera de que
+   * esta será una receta ADICIONAL (emitir otra es válido; hacerlo por
+   * accidente creyendo que la primera no se guardó, no). Default 0 para
+   * que los llamadores que no lo pasen sigan compilando igual.
+   */
+  existingBatchCount?: number;
   onSaved?: (batchId: string) => void;
 }
 
@@ -100,7 +107,31 @@ const ROUTES = [
   "Inhalatoria",
 ] as const;
 
+/**
+ * Texto EXACTO de la dosis única: la redacción del PDF lo compara por
+ * string, así que no admite variantes ("Dosis unica", "Única dosis"…).
+ */
+export const SINGLE_DOSE_FREQUENCY = "Dosis única";
+
+/**
+ * Orden deliberado. "Dosis única" va PRIMERA, no al final:
+ *
+ *  - No es una periodicidad, es su caso degenerado (cero repeticiones), y
+ *    el resto de la lista es una escalera monótona que se lee de un vistazo
+ *    (4→6→8→12 horas, 1→2→3 veces al día). Meterla en medio rompe esa
+ *    escalera; meterla al final la esconde junto a "Según necesidad".
+ *  - Los chips hacen wrap: la primera posición es la única garantizada a la
+ *    vista sin barrer la fila. Es un caso frecuente (inyectable de consulta,
+ *    antiparasitario, analgésico de rescate), no un caso raro.
+ *  - Es la opción que cambia el significado de los demás campos (la
+ *    duración deja de aplicar), así que verla primero fija el modelo mental
+ *    antes de que el médico llene el resto.
+ *
+ * "Según necesidad" se queda al final: es la otra no-periódica, pero es la
+ * salida de emergencia, no el caso frecuente.
+ */
 const FREQUENCIES = [
+  SINGLE_DOSE_FREQUENCY,
   "Cada 4 horas",
   "Cada 6 horas",
   "Cada 8 horas",
@@ -181,7 +212,7 @@ function parseDosePerTake(value: string | null | undefined): number | null {
 }
 
 /** Código legible del lote: RX-XXXXXXXX a partir del uuid del batch. */
-function batchCode(batchId: string): string {
+export function batchCode(batchId: string): string {
   return `RX-${batchId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
 
@@ -193,6 +224,7 @@ export function PrescriptionComposerModal({
   doctorId,
   doctorName,
   appointmentId = null,
+  existingBatchCount = 0,
   onSaved,
 }: PrescriptionComposerModalProps) {
   // Fecha civil de la org (CLAUDE.md): `new Date().toISOString()` en Vercel
@@ -219,6 +251,8 @@ export function PrescriptionComposerModal({
   const [route, setRoute] = useState("");
   const [frequency, setFrequency] = useState("");
   const [duration, setDuration] = useState("");
+  /** Solo UI: el médico pidió ver la duración pese a la dosis única. */
+  const [forceDuration, setForceDuration] = useState(false);
   const [quantity, setQuantity] = useState("");
   const [instructions, setInstructions] = useState("");
 
@@ -238,6 +272,7 @@ export function PrescriptionComposerModal({
     setRoute("");
     setFrequency("");
     setDuration("");
+    setForceDuration(false);
     setQuantity("");
     setInstructions("");
   }, []);
@@ -297,6 +332,13 @@ export function PrescriptionComposerModal({
         : "unidades";
     return `${dosePerTake} ${unit}`;
   }, [formMeta, dosePerTake]);
+
+  // Con dosis única la duración deja de tener sentido: NO se bloquea (el
+  // médico puede querer "dosis única" + una fecha), pero la interfaz deja de
+  // empujar a llenarla — los chips se pliegan tras un enlace explícito y, si
+  // ya había una duración elegida, se sigue viendo tal cual.
+  const isSingleDose = frequency === SINGLE_DOSE_FREQUENCY;
+  const showDurationChips = !isSingleDose || forceDuration || duration !== "";
 
   const applySuggestion = (s: MedicationSuggestion) => {
     setMedication(s.name);
@@ -470,6 +512,15 @@ export function PrescriptionComposerModal({
             {patientName}
             {doctorName ? ` · ${doctorName}` : ""}
           </DialogDescription>
+          {existingBatchCount > 0 && (
+            <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-500">
+              Esta cita ya tiene{" "}
+              {existingBatchCount === 1
+                ? "una receta"
+                : `${existingBatchCount} recetas`}
+              . Lo que guardes aquí se emitirá como una receta ADICIONAL.
+            </p>
+          )}
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto md:grid md:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] md:overflow-hidden">
@@ -658,19 +709,37 @@ export function PrescriptionComposerModal({
               </div>
 
               <div className="space-y-1.5">
-                <label className={labelClass}>Duración del tratamiento</label>
-                <div className="flex flex-wrap gap-2">
-                  {durationOptions.map((d) => (
+                <label className={labelClass}>
+                  Duración del tratamiento
+                  {isSingleDose && !duration ? " (no aplica)" : ""}
+                </label>
+                {showDurationChips ? (
+                  <div className="flex flex-wrap gap-2">
+                    {durationOptions.map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setDuration((cur) => (cur === d ? "" : d))}
+                        className={chipClass(duration === d)}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Una sola toma: no hace falta duración.
+                    </p>
                     <button
-                      key={d}
                       type="button"
-                      onClick={() => setDuration((cur) => (cur === d ? "" : d))}
-                      className={chipClass(duration === d)}
+                      onClick={() => setForceDuration(true)}
+                      className="min-h-9 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
-                      {d}
+                      Indicar una duración igual
                     </button>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Fila 5 — Cantidad total | Indicaciones adicionales */}
@@ -819,8 +888,9 @@ export function PrescriptionComposerModal({
                 type="button"
                 onClick={() => save(false)}
                 disabled={items.length === 0 || saving}
-                className="h-11 rounded-lg border border-border px-4 text-sm font-medium hover:bg-accent disabled:opacity-50 md:h-10"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-accent disabled:opacity-50 md:h-10"
               >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Guardar
               </button>
               <button
