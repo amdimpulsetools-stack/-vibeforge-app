@@ -29,6 +29,8 @@ interface DayViewProps {
   offices: Office[];
   blocks: ScheduleBlock[];
   paymentTotals?: Record<string, number>;
+  /** Recetas vigentes por cita (spec §3.4). Vacío = función apagada. */
+  prescriptionCounts?: Record<string, number>;
   selectedAppointmentId?: string;
   /** When set, appointments from other doctors are shown desaturated and non-interactive */
   currentDoctorId?: string | null;
@@ -194,6 +196,7 @@ export function DayView({
   offices,
   blocks,
   paymentTotals = {},
+  prescriptionCounts = {},
   selectedAppointmentId,
   currentDoctorId,
   onSlotClick,
@@ -549,6 +552,7 @@ export function DayView({
                             isSelected={selectedAppointmentId === startAppt.id}
                             isOtherDoctor={isOtherDoctorAppt}
                             paymentTotal={paymentTotals[startAppt.id] ?? 0}
+                            prescriptionCount={prescriptionCounts[startAppt.id] ?? 0}
                             onClick={() => onAppointmentClick(startAppt)}
                             onDragStartCard={(id) => {
                               dragApptId.current = id;

@@ -6,7 +6,7 @@ import { useLanguage } from "@/components/language-provider";
 import type { AppointmentWithRelations, Office, ScheduleBlock } from "@/types/admin";
 import { APPOINTMENT_STATUS_COLORS } from "@/types/admin";
 import { cn } from "@/lib/utils";
-import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign, Video } from "lucide-react";
+import { Plus, Coffee, Lock, CheckCircle2, CircleDollarSign, Video, Pill } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useOrganization } from "@/components/organization-provider";
@@ -28,6 +28,8 @@ interface WeekViewProps {
   offices: Office[];
   blocks: ScheduleBlock[];
   paymentTotals?: Record<string, number>;
+  /** Recetas vigentes por cita (spec §3.4). Vacío = función apagada. */
+  prescriptionCounts?: Record<string, number>;
   selectedAppointmentId?: string;
   /** When set, appointments from other doctors are shown desaturated and non-interactive */
   currentDoctorId?: string | null;
@@ -61,6 +63,7 @@ export function WeekView({
   offices,
   blocks,
   paymentTotals = {},
+  prescriptionCounts = {},
   selectedAppointmentId,
   currentDoctorId,
   onSlotClick,
@@ -333,6 +336,13 @@ export function WeekView({
                         {!isOtherDoctorAppt && isVirtualAppointment(appt) && (
                           <Video className="h-4 w-4 text-blue-600" aria-label="Virtual" />
                         )}
+                        {/* Receta asignada (§3.4): mismo criterio y mismo
+                            tamaño que la camarita de esta lista. */}
+                        {!isOtherDoctorAppt && (prescriptionCounts[appt.id] ?? 0) > 0 && (
+                          <Pill className="h-4 w-4 text-violet-600" aria-label="Receta asignada">
+                            <title>Receta asignada</title>
+                          </Pill>
+                        )}
                         {!isOtherDoctorAppt && effective > 0 && (
                           paid >= effective ? (
                             <CheckCircle2 className="h-4 w-4 text-success-600" />
@@ -600,6 +610,13 @@ export function WeekView({
                           {/* Virtual por modalidad (mig 256), no por meeting_url. */}
                           {!isOtherDoctorAppt && isVirtualAppointment(startAppt) && (
                             <Video className="h-2.5 w-2.5 shrink-0 text-blue-600" aria-label="Virtual" />
+                          )}
+                          {/* Receta asignada (§3.4): mismo criterio y mismo
+                              tamaño que la camarita de esta grilla. */}
+                          {!isOtherDoctorAppt && (prescriptionCounts[startAppt.id] ?? 0) > 0 && (
+                            <Pill className="h-2.5 w-2.5 shrink-0 text-violet-600" aria-label="Receta asignada">
+                              <title>Receta asignada</title>
+                            </Pill>
                           )}
                           {!isOtherDoctorAppt && startAppt.price_snapshot != null && Number(startAppt.price_snapshot) > 0 && (() => {
                             const gross = Number(startAppt.price_snapshot);

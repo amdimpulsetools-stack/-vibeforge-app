@@ -19,7 +19,7 @@
  */
 
 import { memo } from "react";
-import { CheckCircle2, CircleDollarSign, Video, AlertTriangle } from "lucide-react";
+import { CheckCircle2, CircleDollarSign, Video, AlertTriangle, Pill } from "lucide-react";
 import type { AppointmentWithRelations } from "@/types/admin";
 import { RecurringDot } from "@/components/patients/recurring-badge";
 import { cn } from "@/lib/utils";
@@ -61,6 +61,13 @@ export interface AppointmentCardProps {
   isOtherDoctor: boolean;
   /** Sum of payments registered for this appointment (0 = none). */
   paymentTotal: number;
+  /**
+   * Recetas VIGENTES emitidas en esta cita (0 = ninguna, o la función
+   * apagada para la org). Solo el conteo: los nombres de los medicamentos
+   * jamás viajan en el payload de la agenda (spec §3.4/§3.6).
+   * >0 pinta el icono `Pill`; el destino sigue siendo el sidebar.
+   */
+  prescriptionCount?: number;
   onClick: () => void;
   onDragStartCard?: (appointmentId: string) => void;
   onDragEndCard?: () => void;
@@ -89,6 +96,7 @@ function AppointmentCardInner({
   isSelected,
   isOtherDoctor,
   paymentTotal,
+  prescriptionCount = 0,
   onClick,
   onDragStartCard,
   onDragEndCard,
@@ -223,6 +231,27 @@ function AppointmentCardInner({
         {!isOtherDoctor && isVirtualAppointment(appointment) && (
           <Video className="h-3 w-3 shrink-0 text-blue-600" aria-label="Virtual" />
         )}
+        {/* Receta asignada (spec §3.4) — SEÑAL, no destino: no es
+            interactivo, el clic sigue abriendo el sidebar (la tarjeta ya es
+            un <button> arrastrable; meter otro dentro es HTML inválido y
+            pelea con el onDragStart). Exactamente el mismo coste visual y el
+            mismo criterio que la camarita de arriba: h-3 w-3 shrink-0, sin
+            texto, y por tanto vivo también en modo compacto — que es justo
+            donde recepción lo necesita.
+            Violeta y no el azul de "virtual": el azul ya significa otra cosa
+            en esta misma fila, y el violeta ES el color de receta en el
+            producto (prescriptions-panel.tsx:261). El tono 600 iguala el peso
+            de sus vecinos (blue-600 / red-600 / success-600) para que lea
+            igual sobre el pastel del doctor, el gris de "terminada" y los
+            tintes en vivo. */}
+        {!isOtherDoctor && prescriptionCount > 0 && (
+          <Pill className="h-3 w-3 shrink-0 text-violet-600" aria-label="Receta asignada">
+            {/* `<title>` como hijo del SVG y no `title=` en el nodo: los
+                tipos de lucide-react no aceptan el atributo, y el elemento
+                da el mismo tooltip nativo al pasar el cursor. */}
+            <title>Receta asignada</title>
+          </Pill>
+        )}
         {/* Payment / Debt indicator */}
         {!isOtherDoctor &&
           appointment.price_snapshot != null &&
@@ -305,6 +334,13 @@ export const AppointmentCard = memo(
     prev.isSelected === next.isSelected &&
     prev.isOtherDoctor === next.isOtherDoctor &&
     prev.paymentTotal === next.paymentTotal &&
+    // ⚠️ Receta asignada (spec §5.11 — el fallo silencioso más probable de
+    // toda la feature). Emitir una receta NO toca la fila de `appointments`,
+    // así que `updated_at` NO se mueve y las dos comparaciones de arriba dan
+    // iguales: sin ESTA línea, una receta creada a media mañana no repinta la
+    // tarjeta y el icono "a veces no sale". Cualquier prop que se añada a
+    // esta tarjeta tiene que aterrizar también aquí.
+    prev.prescriptionCount === next.prescriptionCount &&
     prev.liveStatusEnabled === next.liveStatusEnabled &&
     prev.canEnd === next.canEnd &&
     prev.canReopen === next.canReopen &&

@@ -2924,6 +2924,13 @@ export function AppointmentSidebar({
                   doctorId={appointment.doctor_id}
                   doctorName={appointment.doctors?.full_name}
                   appointmentId={appointment.id}
+                  // Emitir una receta NO toca la fila de `appointments`, así
+                  // que sin esto la agenda no se entera: el icono "Receta
+                  // asignada" de la tarjeta no aparecería hasta que la agenda
+                  // refetchee por otro motivo (staleTime 5 min y sin refetch
+                  // al volver al foco). `onUpdate` invalida el prefijo
+                  // ["scheduler","appts"], que es el que alimenta el contador.
+                  onSaved={onUpdate}
                 />
               )}
           </div>
