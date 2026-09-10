@@ -380,8 +380,13 @@ export function PrescriptionComposerModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          // `catalogId` y `saveToCatalog` son solo de UI: `prescriptions` no
-          // tiene esas columnas y el POST las rechazaría.
+          // `saveToCatalog` es solo de UI: dice si además hay que dar de alta
+          // el medicamento en el catálogo, y `prescriptions` no tiene esa
+          // columna. `catalogId` SÍ viaja desde la mig 257, como
+          // `medication_catalog_id`: es el vínculo receta → catálogo →
+          // producto de Farmacia que hasta hoy se calculaba y se tiraba.
+          // Si la mig aún no corrió, la ruta reintenta el insert sin esa
+          // columna (PGRST204), así que mandarla nunca rompe el guardado.
           items.map((i) => ({
             patient_id: patientId,
             doctor_id: doctorId,
@@ -396,6 +401,7 @@ export function PrescriptionComposerModal({
             frequency: i.frequency || null,
             duration: i.duration || null,
             quantity: i.quantity || null,
+            medication_catalog_id: i.catalogId,
             instructions: i.instructions || null,
             start_date: startDate,
           })),
@@ -707,8 +713,12 @@ export function PrescriptionComposerModal({
 
               {/* Fila 5 — Cantidad total | Indicaciones adicionales */}
               <div className="space-y-1.5">
+                {/* Sigue siendo opcional (decisión §5.3: hacerla obligatoria
+                    cambiaría el gesto de la médica y el primer efecto sería un
+                    "1" para pasar de pantalla). Lo único que cambia es la
+                    razón visible para rellenarla. */}
                 <label className={labelClass} htmlFor="rx-quantity">
-                  Cantidad total (opcional)
+                  Cantidad total (opcional · recepción la verá)
                 </label>
                 <input
                   id="rx-quantity"

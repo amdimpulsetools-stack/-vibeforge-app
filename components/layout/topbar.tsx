@@ -24,6 +24,7 @@ import {
   Inbox,
   Scale,
   Boxes,
+  Pill,
   Info,
   Check,
   CheckCheck,
@@ -56,6 +57,11 @@ const TYPE_CONFIG: Record<string, { icon: typeof Bell; className: string }> = {
   // Módulos: violeta, fuera de la escala de urgencia — no es una alerta,
   // es un cambio en la herramienta.
   module: { icon: Boxes, className: "text-violet-400" },
+  // Receta emitida (spec receta→recepción). Violeta 500: es el color con el
+  // que la receta ya se pinta en toda la app (prescriptions-panel.tsx:130,261),
+  // y queda igual que `module` fuera de la escala de urgencia — avisa de algo
+  // que ocurrió, no de algo que arde. El tono distinto lo separa de Módulos.
+  prescription: { icon: Pill, className: "text-violet-500" },
   info: { icon: Info, className: "text-blue-400" },
 };
 

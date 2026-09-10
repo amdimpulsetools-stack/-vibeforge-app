@@ -98,6 +98,14 @@ export interface Prescription {
   route: string | null;
   instructions: string | null;
   quantity: string | null;
+  /**
+   * Mig 257 — fila de `medication_catalog` elegida en el compositor de
+   * recetas. Opcional en el tipo, no solo nullable: mientras la migración no
+   * esté aplicada la columna no vuelve en el `select("*")`, y la V1
+   * (receta → recepción) no la lee. La usará la V2 para saltar al producto
+   * de Farmacia vía `medication_catalog.inventory_product_id`.
+   */
+  medication_catalog_id?: string | null;
   is_active: boolean;
   start_date: string | null;
   end_date: string | null;
