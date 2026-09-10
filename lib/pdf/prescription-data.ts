@@ -14,6 +14,7 @@
 
 import { buildOrgDocBlock, type OrgDocBlock } from "@/lib/pdf/html/org";
 import { formatLongDate, formatShortDate } from "@/lib/pdf/html/render";
+import { formatPrescriptionText } from "@/lib/prescriptions/format";
 import { resolveOrgTimezone } from "@/lib/org-time";
 import { sanitizeEmailHtml, substituteVariables } from "@/lib/sanitize-email-html";
 
@@ -191,6 +192,20 @@ export interface PrescriptionDocInput {
   template: DocTemplate | null | undefined;
 }
 
+/**
+ * Un item de la receta: los campos CRUDOS (los sigue leyendo cualquier
+ * plantilla per-org que los quiera en chips) + el texto ya redactado por
+ * `lib/prescriptions/format.ts`, que es lo que imprime `prescription.hbs`.
+ */
+export interface PrescriptionDocItem extends PrescriptionRow {
+  /** "Paracetamol 500 mg" */
+  name_text: string;
+  /** "Tableta por vía oral, 1 tableta cada 8 horas por 5 días." */
+  line_text: string;
+  /** "Presentación: 15 tabletas." */
+  quantity_text: string;
+}
+
 export interface PrescriptionDocData extends Record<string, unknown> {
   doc: {
     title: string;
@@ -198,10 +213,12 @@ export interface PrescriptionDocData extends Record<string, unknown> {
     code: string;
     issued_label: string;
     footer_note: string;
+    /** Receta: el membrete NO lleva el nombre comercial de la clínica. */
+    hide_org_name: boolean;
   };
   org: OrgDocBlock;
   meta: ReturnType<typeof patientDoctorMeta>;
-  items: PrescriptionRow[];
+  items: PrescriptionDocItem[];
   count_label: string;
   body_html: string | null;
   signer: { name: string; role: string; cmp: string };
@@ -209,17 +226,23 @@ export interface PrescriptionDocData extends Record<string, unknown> {
 
 export function buildPrescriptionDocData(input: PrescriptionDocInput): PrescriptionDocData {
   const org = buildOrgDocBlock(input.org);
-  const items = input.prescriptions.map((p) => ({
-    medication: (p.medication ?? "").trim(),
-    dosage: p.dosage?.trim() || null,
-    frequency: p.frequency?.trim() || null,
-    duration: p.duration?.trim() || null,
-    route: p.route?.trim() || null,
-    quantity: p.quantity?.trim() || null,
-    instructions: p.instructions?.trim() || null,
-    pharmaceutical_form: p.pharmaceutical_form?.trim() || null,
-    dose_per_take: p.dose_per_take?.trim() || null,
-  }));
+  const items: PrescriptionDocItem[] = input.prescriptions.map((p) => {
+    const row = {
+      medication: (p.medication ?? "").trim(),
+      dosage: p.dosage?.trim() || null,
+      frequency: p.frequency?.trim() || null,
+      duration: p.duration?.trim() || null,
+      route: p.route?.trim() || null,
+      quantity: p.quantity?.trim() || null,
+      instructions: p.instructions?.trim() || null,
+      pharmaceutical_form: p.pharmaceutical_form?.trim() || null,
+      dose_per_take: p.dose_per_take?.trim() || null,
+    };
+    // Una sola redacción (PDF y futura vista previa): lib/prescriptions/format.ts.
+    // Los campos crudos se conservan tal cual por si una plantilla per-org
+    // los pinta a su manera.
+    return { ...row, ...formatPrescriptionText(row) };
+  });
   const n = items.length;
 
   return {
@@ -229,6 +252,10 @@ export function buildPrescriptionDocData(input: PrescriptionDocInput): Prescript
       code: docCode("RX", input.codeSource),
       issued_label: `Emitida ${formatShortDate(input.date)}`,
       footer_note: generatedFooterNote(input.org.timezone),
+      // La receta sale SIN el nombre comercial de la clínica (pedido del
+      // founder tras la prueba en consultorio): el membrete se queda con
+      // logo, RUC, dirección, contacto y web. Ver `partials/sheetHead.hbs`.
+      hide_org_name: true,
     },
     org,
     meta: patientDoctorMeta(input.patient, input.doctor, input.date),
