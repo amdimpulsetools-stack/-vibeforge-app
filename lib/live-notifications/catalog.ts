@@ -257,6 +257,27 @@ export const LIVE_NOTIFICATION_EVENTS: readonly LiveNotificationEvent[] = [
     defaultAudiences: ["owner_admin", "doctor", "reception"],
     doctorScope: "all",
   },
+  {
+    key: "prescription_issued",
+    type: "prescription",
+    label: { es: "Receta emitida", en: "Prescription issued" },
+    description: {
+      es: "El médico recetó medicamentos. Recepción ve \"Receta asignada\" en la cita y recibe el aviso al emitirse. Apagado por defecto.",
+      en: "A doctor prescribed medication. Reception sees it on the appointment and is notified when it is issued. Off by default.",
+    },
+    // El médico que la firmó no necesita que le anuncien lo que acaba de
+    // hacer, y otro médico no tiene por qué enterarse: "doctor" ni siquiera
+    // es elegible. La asesora tampoco — no es una tarea suya.
+    eligibleAudiences: ["owner_admin", "reception"],
+    // Apagado por defecto: una clínica que no receta en Yenda no debe notar
+    // que esto existe. Esta celda gobierna MÁS que el aviso — también el
+    // icono en la tarjeta de la cita y el bloque del sidebar (por eso la
+    // descripción lo dice). Es un uso ampliado y deliberado de la matriz:
+    // la alternativa (un flag propio AND-eado con la matriz) garantiza el
+    // ticket "lo activé y no pasa nada".
+    defaultAudiences: [],
+    doctorScope: "all",
+  },
 ] as const;
 
 export type LiveNotificationEventKey = (typeof LIVE_NOTIFICATION_EVENTS)[number]["key"];

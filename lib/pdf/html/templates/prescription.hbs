@@ -3,11 +3,17 @@
   Datos: lib/pdf/prescription-data.ts (buildPrescriptionDocData).
   Rutas: /api/pdf/prescription/[appointmentId] · /api/pdf/prescription/batch/[batchId]
 
-  Variables: doc.{title, eyebrow, code, issued_label, footer_note} ·
-  org.* (lib/pdf/html/org.ts) · meta[] · items[] ({medication, dosage,
-  pharmaceutical_form, dose_per_take, route, frequency, duration, quantity,
-  instructions}) · count_label · body_html (YA sanitizado: triple llave) ·
+  Variables: doc.{title, eyebrow, code, issued_label, footer_note,
+  hide_org_name} · org.* (lib/pdf/html/org.ts) · meta[] · items[]
+  ({medication, dosage, pharmaceutical_form, dose_per_take, route,
+  frequency, duration, quantity, instructions} + el texto YA redactado
+  {name_text, line_text, quantity_text} de lib/prescriptions/format.ts) ·
+  count_label · body_html (YA sanitizado: triple llave) ·
   signer.{name, role, cmp}
+
+  El cuerpo del medicamento se imprime en prosa (`line_text`), no en
+  chips: el paciente lo lee de corrido. Los campos crudos siguen en el
+  contexto para plantillas per-org que los quieran sueltos.
 
   La hoja NO es `.fixed`: una receta larga pagina sola (`.rx li` lleva
   break-inside: avoid). Los márgenes de las páginas 2+ los pone @page.
@@ -30,7 +36,27 @@
   .rx .rx-ind b { color: var(--brand-deep); font-weight: 600; }
   .meta .val small { white-space: nowrap; }
   .body-html p { orphans: 2; widows: 2; }
-  .signs { margin-top: 40px; }
+
+  /* Redacción legible (lib/prescriptions/format.ts) en vez de chips:
+     el paciente lee la indicación de corrido. */
+  .rx .rx-line { margin-top: 3px; font-size: 10pt; color: var(--ink-2); line-height: 1.45; }
+  .rx .rx-qty { margin-top: 2px; font-size: 8.4pt; color: var(--muted); }
+
+  /* Firma pegada al final del área de contenido, justo encima del pie.
+     `.sheet` ya es flex column (styles.hbs) con `.sheet-body { flex:1 }`,
+     así que basta con volver `.sheet-body` un flex column y empujar la
+     firma con `margin-top: auto`:
+       · receta corta (1 hoja) → sobra espacio, el auto lo consume entero
+         y la firma baja hasta el pie;
+       · receta larga (2+ hojas) → no sobra espacio, el auto vale 0 y la
+         firma sigue al último medicamento con el aire del `padding-top`.
+     El `padding-top` (y no un margin) garantiza ese aire mínimo en el
+     caso multipágina, donde el margin auto ya se comió a sí mismo.
+     La firma es un único nodo al final del flujo: no se repite. Que no
+     quede huérfana lo cuidan `.signs { break-inside: avoid }` (styles.hbs)
+     y el `break-before: avoid` del pie, que lo arrastra con ella. */
+  .sheet-body { display: flex; flex-direction: column; }
+  .signs { margin-top: auto; padding-top: 40px; }
   /* El pie viaja con la firma: nunca solo en una hoja nueva. */
   .page-footer { break-inside: avoid; break-before: avoid; }
 </style>
@@ -49,14 +75,8 @@
             <div class="rx-n">{{inc @index}}</div>
             <div class="rx-body">
               <div class="rx-name">{{medication}}{{#if dosage}} <span class="rx-dose">{{dosage}}</span>{{/if}}</div>
-              <div class="rx-chips">
-                {{#if pharmaceutical_form}}<span class="chip"><b>Forma</b>{{pharmaceutical_form}}</span>{{/if}}
-                {{#if dose_per_take}}<span class="chip"><b>Dosis</b>{{dose_per_take}}</span>{{/if}}
-                {{#if route}}<span class="chip"><b>Vía</b>{{route}}</span>{{/if}}
-                {{#if frequency}}<span class="chip"><b>Frecuencia</b>{{frequency}}</span>{{/if}}
-                {{#if duration}}<span class="chip"><b>Duración</b>{{duration}}</span>{{/if}}
-                {{#if quantity}}<span class="chip"><b>Cantidad</b>{{quantity}}</span>{{/if}}
-              </div>
+              {{#if line_text}}<div class="rx-line">{{line_text}}</div>{{/if}}
+              {{#if quantity_text}}<div class="rx-qty">{{quantity_text}}</div>{{/if}}
               {{#if instructions}}<div class="rx-ind"><b>Indicaciones:</b> {{instructions}}</div>{{/if}}
             </div>
           </li>

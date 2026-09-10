@@ -3,7 +3,8 @@
   Datos: app/api/pdf/exam-order/[orderId]/route.tsx (helpers en
   lib/pdf/prescription-data.ts).
 
-  Variables: doc.{title, eyebrow, code, issued_label, footer_note} ·
+  Variables: doc.{title, eyebrow, code, issued_label, footer_note,
+  hide_org_name} ·
   org.* (lib/pdf/html/org.ts) · meta[] (incluye Diagnóstico con hint CIE-10;
   `wide` si es largo) · items[] ({name, hint}) · count_label · notes ·
   body_html (YA sanitizado: triple llave) · signer.{name, role, cmp}
@@ -29,7 +30,17 @@
   .callout p { white-space: pre-line; }
   .meta .val small { white-space: nowrap; }
   .body-html p { orphans: 2; widows: 2; }
-  .signs { margin-top: 40px; }
+
+  /* Firma pegada al final del área de contenido, justo encima del pie
+     (mismo mecanismo que prescription.hbs). `.sheet` ya es flex column
+     con `.sheet-body { flex:1 }`: al volver `.sheet-body` flex column, el
+     `margin-top: auto` de la firma se come el espacio sobrante en una
+     orden corta y vale 0 cuando la orden ocupa 2+ hojas, donde el aire lo
+     pone el `padding-top`. Nodo único al final del flujo: no se repite;
+     `.signs { break-inside: avoid }` y el `break-before: avoid` del pie
+     evitan que quede huérfana. */
+  .sheet-body { display: flex; flex-direction: column; }
+  .signs { margin-top: auto; padding-top: 40px; }
   /* El pie viaja con la firma: nunca solo en una hoja nueva. */
   .page-footer { break-inside: avoid; break-before: avoid; }
 </style>

@@ -16,6 +16,11 @@ import type {
   AppointmentWithRelations,
   ScheduleBlock,
 } from "@/types/admin";
+import {
+  getLiveNotificationEvent,
+  readLiveNotificationSettings,
+  resolveAudiences,
+} from "@/lib/live-notifications/catalog";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useIsFertilityAdvisor } from "@/hooks/use-is-fertility-advisor";
 import { useOrgRole } from "@/hooks/use-org-role";
@@ -103,6 +108,31 @@ export default function SchedulerPage() {
     enabled: !!organizationId,
   });
   const queryClient = useQueryClient();
+
+  // ── "Receta asignada" en la tarjeta (spec §3.4 / §3.7) ────────────────
+  // El interruptor de la función NO es un flag propio: ES la celda
+  // "Recepción" del evento `prescription_issued` en la matriz de Ajustes →
+  // Notificaciones (`organizations.settings.live_notifications`). Un solo
+  // dato, cero migraciones, y ningún "lo activé y no pasa nada" (§5.5).
+  //
+  // COSTE CERO CUANDO ESTÁ APAGADO — que es el default del catálogo
+  // (`defaultAudiences: []`): el JSONB ya viaja al cliente dentro del
+  // `organizations(*)` que carga OrganizationProvider (organization-provider
+  // .tsx:51), así que resolverlo no cuesta ninguna query nueva; y con `false`
+  // el select de la agenda de abajo queda BYTE-IDÉNTICO al de siempre.
+  //
+  // El icono lo ve TODO el que mire la agenda (la doctora también verá que
+  // esa cita tiene receta, y eso es correcto): la celda "recepción" es el
+  // interruptor de la FUNCIÓN, no un filtro por rol — §3.7.
+  const prescriptionSignalEnabled = useMemo(() => {
+    const event = getLiveNotificationEvent("prescription_issued");
+    if (!event) return false;
+    const settings = readLiveNotificationSettings(
+      (organization as { settings?: unknown } | null)?.settings
+    );
+    return resolveAudiences(event, settings).includes("reception");
+  }, [organization]);
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<ViewMode>("day");
 
@@ -227,20 +257,50 @@ export default function SchedulerPage() {
       // Tipado como `string` a propósito: con dos interpolaciones el parser
       // de tipos de PostgREST se desborda (TS2589); el resultado ya se
       // castea abajo a AppointmentWithRelations[].
-      const apptColumns = ({ serviceColor, modality }: { serviceColor: boolean; modality: boolean }): string =>
-        `id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url${modality ? ", modality" : ""}, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price${serviceColor ? ", color" : ""}), patients(is_recurring, dni, birth_date), patient_payments(amount)`;
-      const selectAppts = (opts: { serviceColor: boolean; modality: boolean }) =>
-        supabase
+      //
+      // `prescriptions` (spec §3.4) NO entra en la cascada de arriba: la
+      // tabla, la FK `appointment_id` y `is_active` existen desde la mig 053,
+      // mucho antes que 255/256, así que no hay ningún esquema vivo que tenga
+      // `modality` y no tenga recetas. Va como tercera bandera del mismo
+      // constructor y se recorre la cascada dos veces como mucho (ver abajo),
+      // en vez de multiplicar los cuatro casos por ocho.
+      // Solo `id`: el CONTEO es lo único que la tarjeta necesita. Mandar
+      // `medication` de 200 citas al navegador de cualquiera que abra la
+      // agenda sería una divulgación clínica gratuita y además invisible para
+      // la auditoría (§3.6) — los nombres se piden al abrir el sidebar.
+      const apptColumns = ({ serviceColor, modality, prescriptions }: { serviceColor: boolean; modality: boolean; prescriptions: boolean }): string =>
+        `id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url${modality ? ", modality" : ""}, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price${serviceColor ? ", color" : ""}), patients(is_recurring, dni, birth_date), patient_payments(amount)${prescriptions ? ", prescriptions(id)" : ""}`;
+      const selectAppts = (opts: { serviceColor: boolean; modality: boolean; prescriptions: boolean }) => {
+        const q = supabase
           .from("appointments")
           .select(apptColumns(opts))
           .gte("appointment_date", rangeStartKey)
           .lte("appointment_date", rangeEndKey)
-          .neq("status", "cancelled")
-          .order("start_time");
-      let apptRes = await selectAppts({ serviceColor: true, modality: true });
-      if (apptRes.error) apptRes = await selectAppts({ serviceColor: true, modality: false });
-      if (apptRes.error) apptRes = await selectAppts({ serviceColor: false, modality: true });
-      if (apptRes.error) apptRes = await selectAppts({ serviceColor: false, modality: false });
+          .neq("status", "cancelled");
+        // Una receta SUSPENDIDA (`is_active = false`, el Ban/RotateCcw de
+        // prescriptions-panel.tsx:289-294) no debe pintar icono. PostgREST sí
+        // sabe filtrar dentro del embed: el filtro con ruta punteada se aplica
+        // a las filas EMBEBIDAS, no al padre — sin `!inner` la cita sigue
+        // viniendo, con `prescriptions: []`. Así no hay que traerse la columna
+        // `is_active` al cliente para filtrarla a mano.
+        // El `.eq` solo se encadena cuando el embed existe: con la función
+        // apagada la query es la de siempre, sin un parámetro de más.
+        return (opts.prescriptions ? q.eq("prescriptions.is_active", true) : q).order("start_time");
+      };
+      // Cascada de fallbacks por columnas que pueden no existir (255/256).
+      const runCascade = async (prescriptions: boolean) => {
+        let res = await selectAppts({ serviceColor: true, modality: true, prescriptions });
+        if (res.error) res = await selectAppts({ serviceColor: true, modality: false, prescriptions });
+        if (res.error) res = await selectAppts({ serviceColor: false, modality: true, prescriptions });
+        if (res.error) res = await selectAppts({ serviceColor: false, modality: false, prescriptions });
+        return res;
+      };
+      let apptRes = await runCascade(prescriptionSignalEnabled);
+      // Red de seguridad: si lo que rompiera fuese el embed nuevo (caché de
+      // esquema de PostgREST recién desplegada, RLS futura…), la AGENDA no se
+      // cae — se repite la cascada sin él y lo único que se pierde es el
+      // icono. La agenda es la pantalla más caliente del producto.
+      if (apptRes.error && prescriptionSignalEnabled) apptRes = await runCascade(false);
 
       // Supabase types the joined relations as arrays when an explicit column
       // list is used; at runtime they are single objects for to-one FKs. Cast
@@ -261,6 +321,23 @@ export default function SchedulerPage() {
       totals[a.id] = payments.reduce((sum, p) => sum + Number(p.amount), 0);
     }
     return totals;
+  }, [appointments]);
+
+  // Recetas VIGENTES por cita — mismo patrón exacto que `paymentTotals`:
+  // derivado del embed `prescriptions(id)` del mismo select, cero queries.
+  // Con la función apagada el embed no viaja, el bucle no encuentra nada y
+  // esto es `{}` — cada tarjeta recibe 0 y no pinta nada (que es también su
+  // valor por defecto, así que el comportamiento es el de antes de la
+  // feature). Las suspendidas ya vienen filtradas por PostgREST (arriba).
+  const prescriptionCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const a of appointments) {
+      const rx = (a as unknown as { prescriptions?: { id: string }[] | null })
+        .prescriptions;
+      if (!rx || rx.length === 0) continue;
+      counts[a.id] = rx.length;
+    }
+    return counts;
   }, [appointments]);
 
   const { data: blocksData } = useQuery({
@@ -716,6 +793,7 @@ export default function SchedulerPage() {
                 offices={filteredOffices}
                 blocks={allBlocks}
                 paymentTotals={paymentTotals}
+                prescriptionCounts={prescriptionCounts}
                 selectedAppointmentId={selectedAppointment?.id}
                 currentDoctorId={restrictedDoctor ? currentDoctorId : null}
                 onSlotClick={handleSlotClick}
@@ -741,6 +819,7 @@ export default function SchedulerPage() {
                 offices={filteredOffices}
                 blocks={allBlocks}
                 paymentTotals={paymentTotals}
+                prescriptionCounts={prescriptionCounts}
                 selectedAppointmentId={selectedAppointment?.id}
                 currentDoctorId={restrictedDoctor ? currentDoctorId : null}
                 onSlotClick={handleSlotClick}

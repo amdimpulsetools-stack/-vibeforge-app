@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import { logClinicalAccess, logClinicalBatchAccess } from "@/lib/audit/clinical-access";
+import { notifyOrgMembers } from "@/lib/live-notifications/notify";
 
 const prescriptionSchema = z.object({
   patient_id: z.string().uuid(),
@@ -20,6 +21,10 @@ const prescriptionSchema = z.object({
   route: z.string().max(50).nullable().optional(),
   instructions: z.string().max(1000).nullable().optional(),
   quantity: z.string().max(50).nullable().optional(),
+  // Mig 257 — fila de `medication_catalog` que la médica eligió en el
+  // compositor. V1 no la lee; se guarda para que la V2 (puente con Farmacia)
+  // no nazca sin historia. Opcional siempre: el texto libre sigue valiendo.
+  medication_catalog_id: z.string().uuid().nullable().optional(),
   start_date: z.string().nullable().optional(),
   end_date: z.string().nullable().optional(),
 });
@@ -118,9 +123,11 @@ export async function POST(request: NextRequest) {
   // `organization_members … limit(1)` un usuario de dos clínicas podía
   // escribir la receta en la org equivocada (mismo bug corregido en
   // lib/followups/org-scope.ts).
+  // `first_name`/`last_name` viajan aquí para el aviso en vivo de más abajo:
+  // es la misma consulta que ya se hacía, sin round-trip extra.
   const { data: patient } = await supabase
     .from("patients")
-    .select("organization_id")
+    .select("organization_id, first_name, last_name")
     .eq("id", firstItem.patient_id)
     .maybeSingle();
 
@@ -155,7 +162,7 @@ export async function POST(request: NextRequest) {
   // doctor, además tiene que ser SU propia ficha.
   const { data: signer } = await supabase
     .from("doctors")
-    .select("id, user_id")
+    .select("id, user_id, full_name")
     .eq("id", firstItem.doctor_id)
     .eq("organization_id", organizationId)
     .maybeSingle();
@@ -193,10 +200,34 @@ export async function POST(request: NextRequest) {
     organization_id: organizationId,
   }));
 
-  const { data, error } = await supabase
+  let insertRes = await supabase
     .from("prescriptions")
     .insert(insertData)
     .select("*, doctors(full_name)");
+
+  // Si la mig 257 aún no corrió, PostgREST rechaza el lote entero con
+  // PGRST204 ("Could not find the 'medication_catalog_id' column…").
+  // Se reintenta sin la columna: la receta se guarda exactamente como antes
+  // y solo se pierde el vínculo con el catálogo, que la V1 ni siquiera lee.
+  // Mismo patrón que `modality` en app/api/book/[slug]/create/route.ts:415-425.
+  if (
+    insertRes.error &&
+    (insertRes.error.code === "PGRST204" ||
+      /medication_catalog_id/i.test(insertRes.error.message ?? ""))
+  ) {
+    insertRes = await supabase
+      .from("prescriptions")
+      .insert(
+        insertData.map((row) => {
+          const withoutLink = { ...row };
+          delete withoutLink.medication_catalog_id;
+          return withoutLink;
+        }),
+      )
+      .select("*, doctors(full_name)");
+  }
+
+  const { data, error } = insertRes;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -219,6 +250,57 @@ export async function POST(request: NextRequest) {
       patientId: firstItem.patient_id,
       resourceId: data[0].id,
     });
+  }
+
+  // ── Aviso en vivo "Receta emitida" (spec §3.8) ───────────────────────────
+  //
+  // UN aviso por LOTE, no uno por medicamento: el compositor manda las N
+  // filas en un solo POST con array (prescription-composer-modal.tsx), así
+  // que el lote ES esta petición y no hay que agrupar nada ni inventar
+  // estado. El formulario de la historia clínica manda un objeto suelto por
+  // gesto (prescriptions-panel.tsx), y ahí un aviso por petición sigue
+  // siendo un aviso por gesto. En los dos casos: una receta, un aviso.
+  //
+  // Apagado por defecto (`defaultAudiences: []` en el catálogo): una org que
+  // no encienda la celda "Receta emitida → Recepción" en Ajustes no recibe
+  // nada y no nota que esto existe.
+  //
+  // FIRE-AND-FORGET, sin `await` y con `catch`: la receta YA está guardada y
+  // el 201 sale igual aunque el aviso falle. Contrato de notify.ts:22-24.
+  // Sin nombres de medicamentos en el texto (§3.6): la campanita se lee en
+  // pantallas compartidas del mostrador.
+  try {
+    const count = data?.length ?? validItems.length;
+    const patientName =
+      `${patient.first_name ?? ""} ${patient.last_name ?? ""}`.trim();
+    const doctorName = (signer.full_name as string | null) ?? "";
+
+    // Fecha CIVIL de la cita, leída de la propia fila: nunca `new Date()`
+    // (Vercel corre en UTC). Sin cita —receta desde el drawer del paciente,
+    // §5.10— el aviso lleva al paciente y no a la agenda.
+    let actionUrl = `/patients?patient=${firstItem.patient_id}`;
+    if (firstItem.appointment_id) {
+      const { data: appt } = await supabase
+        .from("appointments")
+        .select("appointment_date")
+        .eq("id", firstItem.appointment_id)
+        .maybeSingle();
+      if (appt?.appointment_date) {
+        actionUrl = `/scheduler?date=${appt.appointment_date}&appointment=${firstItem.appointment_id}`;
+      }
+    }
+
+    void notifyOrgMembers(supabase, {
+      organizationId,
+      event: "prescription_issued",
+      title: `Receta para ${patientName || "paciente"}`,
+      body: `${count} ${count === 1 ? "medicamento" : "medicamentos"}${doctorName ? ` · ${doctorName}` : ""}`,
+      actionUrl,
+      // Quien acaba de firmar la receta no necesita que se la anuncien.
+      excludeUserId: user.id,
+    }).catch(() => {});
+  } catch {
+    // Un aviso que no sale jamás tumba el guardado de una receta.
   }
 
   // `batch_id` (mig 247) vuelve al cliente para abrir el PDF del lote

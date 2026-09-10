@@ -53,6 +53,11 @@ import {
   type CatalogDraft,
   type MedicationSuggestion,
 } from "./use-medication-catalog";
+import {
+  PRESCRIPTION_FREQUENCIES,
+  PRESCRIPTION_ROUTES,
+  SINGLE_DOSE_FREQUENCY,
+} from "@/types/clinical-history";
 
 export interface PrescriptionComposerModalProps {
   open: boolean;
@@ -64,6 +69,13 @@ export interface PrescriptionComposerModalProps {
   doctorName?: string;
   /** Sin cita (drawer del paciente) va `null`. */
   appointmentId?: string | null;
+  /**
+   * Recetas que la cita YA tiene. Solo para avisar en la cabecera de que
+   * esta será una receta ADICIONAL (emitir otra es válido; hacerlo por
+   * accidente creyendo que la primera no se guardó, no). Default 0 para
+   * que los llamadores que no lo pasen sigan compilando igual.
+   */
+  existingBatchCount?: number;
   onSaved?: (batchId: string) => void;
 }
 
@@ -85,31 +97,13 @@ const PHARMACEUTICAL_FORMS: { value: string; one: string; many: string }[] = [
   { value: "Otro", one: "unidad", many: "unidades" },
 ];
 
-const ROUTES = [
-  "Oral",
-  "Sublingual",
-  "Tópica",
-  "Intramuscular",
-  "Intravenosa",
-  "Subcutánea",
-  "Vaginal",
-  "Rectal",
-  "Oftálmica",
-  "Ótica",
-  "Nasal",
-  "Inhalatoria",
-] as const;
-
-const FREQUENCIES = [
-  "Cada 4 horas",
-  "Cada 6 horas",
-  "Cada 8 horas",
-  "Cada 12 horas",
-  "Una vez al día",
-  "Dos veces al día",
-  "Tres veces al día",
-  "Según necesidad",
-] as const;
+// Vías y frecuencias viven en `types/clinical-history.ts` (fuente única): el
+// formulario de la historia clínica usa esas mismas listas y las recetas de
+// ambos caminos acaban en la misma tabla. Antes eran dos catálogos
+// divergentes ("Subcutánea" aquí, "Subcutánea (SC)" allá) y ya habían
+// ensuciado los datos en producción.
+const ROUTES = PRESCRIPTION_ROUTES;
+const FREQUENCIES = PRESCRIPTION_FREQUENCIES;
 
 const DURATIONS = [
   "3 días",
@@ -181,7 +175,7 @@ function parseDosePerTake(value: string | null | undefined): number | null {
 }
 
 /** Código legible del lote: RX-XXXXXXXX a partir del uuid del batch. */
-function batchCode(batchId: string): string {
+export function batchCode(batchId: string): string {
   return `RX-${batchId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
 
@@ -193,6 +187,7 @@ export function PrescriptionComposerModal({
   doctorId,
   doctorName,
   appointmentId = null,
+  existingBatchCount = 0,
   onSaved,
 }: PrescriptionComposerModalProps) {
   // Fecha civil de la org (CLAUDE.md): `new Date().toISOString()` en Vercel
@@ -219,6 +214,8 @@ export function PrescriptionComposerModal({
   const [route, setRoute] = useState("");
   const [frequency, setFrequency] = useState("");
   const [duration, setDuration] = useState("");
+  /** Solo UI: el médico pidió ver la duración pese a la dosis única. */
+  const [forceDuration, setForceDuration] = useState(false);
   const [quantity, setQuantity] = useState("");
   const [instructions, setInstructions] = useState("");
 
@@ -238,6 +235,7 @@ export function PrescriptionComposerModal({
     setRoute("");
     setFrequency("");
     setDuration("");
+    setForceDuration(false);
     setQuantity("");
     setInstructions("");
   }, []);
@@ -297,6 +295,13 @@ export function PrescriptionComposerModal({
         : "unidades";
     return `${dosePerTake} ${unit}`;
   }, [formMeta, dosePerTake]);
+
+  // Con dosis única la duración deja de tener sentido: NO se bloquea (el
+  // médico puede querer "dosis única" + una fecha), pero la interfaz deja de
+  // empujar a llenarla — los chips se pliegan tras un enlace explícito y, si
+  // ya había una duración elegida, se sigue viendo tal cual.
+  const isSingleDose = frequency === SINGLE_DOSE_FREQUENCY;
+  const showDurationChips = !isSingleDose || forceDuration || duration !== "";
 
   const applySuggestion = (s: MedicationSuggestion) => {
     setMedication(s.name);
@@ -375,8 +380,13 @@ export function PrescriptionComposerModal({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          // `catalogId` y `saveToCatalog` son solo de UI: `prescriptions` no
-          // tiene esas columnas y el POST las rechazaría.
+          // `saveToCatalog` es solo de UI: dice si además hay que dar de alta
+          // el medicamento en el catálogo, y `prescriptions` no tiene esa
+          // columna. `catalogId` SÍ viaja desde la mig 257, como
+          // `medication_catalog_id`: es el vínculo receta → catálogo →
+          // producto de Farmacia que hasta hoy se calculaba y se tiraba.
+          // Si la mig aún no corrió, la ruta reintenta el insert sin esa
+          // columna (PGRST204), así que mandarla nunca rompe el guardado.
           items.map((i) => ({
             patient_id: patientId,
             doctor_id: doctorId,
@@ -391,6 +401,7 @@ export function PrescriptionComposerModal({
             frequency: i.frequency || null,
             duration: i.duration || null,
             quantity: i.quantity || null,
+            medication_catalog_id: i.catalogId,
             instructions: i.instructions || null,
             start_date: startDate,
           })),
@@ -470,6 +481,15 @@ export function PrescriptionComposerModal({
             {patientName}
             {doctorName ? ` · ${doctorName}` : ""}
           </DialogDescription>
+          {existingBatchCount > 0 && (
+            <p className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-500">
+              Esta cita ya tiene{" "}
+              {existingBatchCount === 1
+                ? "una receta"
+                : `${existingBatchCount} recetas`}
+              . Lo que guardes aquí se emitirá como una receta ADICIONAL.
+            </p>
+          )}
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto md:grid md:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)] md:overflow-hidden">
@@ -658,25 +678,47 @@ export function PrescriptionComposerModal({
               </div>
 
               <div className="space-y-1.5">
-                <label className={labelClass}>Duración del tratamiento</label>
-                <div className="flex flex-wrap gap-2">
-                  {durationOptions.map((d) => (
+                <label className={labelClass}>
+                  Duración del tratamiento
+                  {isSingleDose && !duration ? " (no aplica)" : ""}
+                </label>
+                {showDurationChips ? (
+                  <div className="flex flex-wrap gap-2">
+                    {durationOptions.map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setDuration((cur) => (cur === d ? "" : d))}
+                        className={chipClass(duration === d)}
+                      >
+                        {d}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      Una sola toma: no hace falta duración.
+                    </p>
                     <button
-                      key={d}
                       type="button"
-                      onClick={() => setDuration((cur) => (cur === d ? "" : d))}
-                      className={chipClass(duration === d)}
+                      onClick={() => setForceDuration(true)}
+                      className="min-h-9 rounded-lg border border-dashed border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     >
-                      {d}
+                      Indicar una duración igual
                     </button>
-                  ))}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Fila 5 — Cantidad total | Indicaciones adicionales */}
               <div className="space-y-1.5">
+                {/* Sigue siendo opcional (decisión §5.3: hacerla obligatoria
+                    cambiaría el gesto de la médica y el primer efecto sería un
+                    "1" para pasar de pantalla). Lo único que cambia es la
+                    razón visible para rellenarla. */}
                 <label className={labelClass} htmlFor="rx-quantity">
-                  Cantidad total (opcional)
+                  Cantidad total (opcional · recepción la verá)
                 </label>
                 <input
                   id="rx-quantity"
@@ -819,8 +861,9 @@ export function PrescriptionComposerModal({
                 type="button"
                 onClick={() => save(false)}
                 disabled={items.length === 0 || saving}
-                className="h-11 rounded-lg border border-border px-4 text-sm font-medium hover:bg-accent disabled:opacity-50 md:h-10"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-border px-4 text-sm font-medium hover:bg-accent disabled:opacity-50 md:h-10"
               >
+                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
                 Guardar
               </button>
               <button

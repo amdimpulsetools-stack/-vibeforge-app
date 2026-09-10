@@ -144,6 +144,10 @@ export async function GET(
       code: docCode("OX", orderId),
       issued_label: `Emitida ${formatShortDate(date)}`,
       footer_note: generatedFooterNote(tz),
+      // Igual que la receta: la orden de examen sale SIN el nombre
+      // comercial de la clínica en el membrete (logo, RUC, dirección,
+      // contacto y web se conservan). Ver `partials/sheetHead.hbs`.
+      hide_org_name: true,
     },
     org,
     meta,

@@ -98,6 +98,14 @@ export interface Prescription {
   route: string | null;
   instructions: string | null;
   quantity: string | null;
+  /**
+   * Mig 257 — fila de `medication_catalog` elegida en el compositor de
+   * recetas. Opcional en el tipo, no solo nullable: mientras la migración no
+   * esté aplicada la columna no vuelve en el `select("*")`, y la V1
+   * (receta → recepción) no la lee. La usará la V2 para saltar al producto
+   * de Farmacia vía `medication_catalog.inventory_product_id`.
+   */
+  medication_catalog_id?: string | null;
   is_active: boolean;
   start_date: string | null;
   end_date: string | null;
@@ -109,6 +117,23 @@ export interface PrescriptionWithDoctor extends Prescription {
   doctors: { full_name: string } | null;
 }
 
+// ── Catálogos de prescripción — FUENTE ÚNICA ────────────────────────────────
+//
+// Hasta el 10-sep-2026 había DOS listas divergentes para los mismos campos:
+// estas (formulario dentro de la historia clínica, `prescriptions-panel.tsx`)
+// y otras dentro de `components/clinical/prescription-composer-modal.tsx` (el
+// atajo "Receta" del sidebar de la cita). Las recetas de ambos caminos acaban
+// en la MISMA tabla y en la misma historia clínica, así que la divergencia ya
+// había ensuciado los datos en producción: conviven "Subcutánea" (compositor)
+// e "Intravenosa (IV)" (historia clínica) para la misma vía, y "Dosis única"
+// existía solo en una de las dos listas.
+//
+// Ahora estas son las únicas listas: el compositor las importa desde aquí.
+// Un valor guardado que ya no esté en la lista NO se pierde — el compositor
+// lo añade como opción extra (`routeOptions`/`frequencyOptions`) y
+// `matchOption` devuelve el valor crudo si no encuentra equivalencia.
+
+/** Siglas incluidas a propósito: la botica y enfermería leen IM/IV/SC. */
 export const PRESCRIPTION_ROUTES = [
   "Oral",
   "Sublingual",
@@ -124,7 +149,32 @@ export const PRESCRIPTION_ROUTES = [
   "Vaginal",
 ] as const;
 
+/**
+ * Texto EXACTO de la dosis única: la redacción del PDF
+ * (`lib/prescriptions/format.ts`) lo compara por string, así que no admite
+ * variantes ("Dosis unica", "Única dosis"…).
+ */
+export const SINGLE_DOSE_FREQUENCY = "Dosis única";
+
+/**
+ * Orden deliberado. "Dosis única" va PRIMERA, no al final:
+ *
+ *  - No es una periodicidad, es su caso degenerado (cero repeticiones), y el
+ *    resto de la lista es una escalera monótona que se lee de un vistazo
+ *    (4→6→8→12→24 horas, 1→2→3 veces al día). Meterla en medio rompe esa
+ *    escalera; meterla al final la esconde junto a "Según necesidad".
+ *  - En el compositor las opciones son chips que hacen wrap: la primera
+ *    posición es la única garantizada a la vista sin barrer la fila.
+ *  - Es la opción que cambia el significado de los demás campos (la duración
+ *    deja de aplicar), así que verla primero fija el modelo mental.
+ *
+ * "Según necesidad" (antes "PRN (según necesidad)" en esta lista) se queda al
+ * final: es la otra no-periódica, pero es la salida de emergencia. Se elige
+ * esa redacción y no la sigla porque la receta la lee la paciente, y porque
+ * es la única de las dos que aparece en los datos de producción.
+ */
 export const PRESCRIPTION_FREQUENCIES = [
+  SINGLE_DOSE_FREQUENCY,
   "Cada 4 horas",
   "Cada 6 horas",
   "Cada 8 horas",
@@ -135,8 +185,7 @@ export const PRESCRIPTION_FREQUENCIES = [
   "Tres veces al día",
   "En ayunas",
   "Antes de dormir",
-  "PRN (según necesidad)",
-  "Dosis única",
+  "Según necesidad",
 ] as const;
 
 // ── Clinical Attachments ─────────────────────────────────────────────────────

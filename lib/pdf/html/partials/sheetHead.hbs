@@ -2,13 +2,27 @@
   Partial · membrete de la página 1: logo (o el nombre en color de marca
   si la org no subió logo) + bloque de datos. Cada línea se omite si el
   dato está vacío. Datos: lib/pdf/html/org.ts.
+
+  `doc.hide_org_name` (bandera del data-builder, NUNCA hardcodeada aquí):
+  documentos que salen sin el nombre de la empresa. Hoy la activan la
+  receta (lib/pdf/prescription-data.ts) y la orden de examen
+  (app/api/pdf/exam-order/[orderId]/route.tsx); el presupuesto genérico y
+  los plugins per-org no la mandan, así que siguen igual.
+
+  Con la bandera se oculta la RAZÓN SOCIAL (`org.legal_name`) y, si la org
+  tiene logo, ese logo es toda la identidad del membrete. Si la org NO
+  tiene logo se conserva el nombre comercial (`org.org-mark`): sin logo ni
+  nombre el membrete quedaría literalmente vacío y el documento no se
+  podría atribuir a nadie. No se inventa ningún texto sustituto. El `alt`
+  del logo también se vacía con la bandera: si la URL del logo fallara,
+  Chromium pinta el alt y el nombre volvería por la puerta de atrás.
 --}}
       <header class="head">
         <div class="head-logo">
-          {{#if org.logo_url}}<img src="{{org.logo_url}}" alt="{{org.display_name}}">{{else}}<div class="org-mark">{{org.display_name}}</div>{{/if}}
+          {{#if org.logo_url}}<img src="{{org.logo_url}}" alt="{{#unless doc.hide_org_name}}{{org.display_name}}{{/unless}}">{{else}}<div class="org-mark">{{org.display_name}}</div>{{/if}}
         </div>
         <div class="head-org">
-          <div class="org-name">{{org.legal_name}}</div>
+          {{#unless doc.hide_org_name}}<div class="org-name">{{org.legal_name}}</div>{{/unless}}
           {{#if org.tagline}}<div class="org-line org-tag">{{org.tagline}}</div>{{/if}}
           {{#if org.tax_id}}<div class="org-line">RUC {{org.tax_id}}</div>{{/if}}
           {{#if org.address}}<div class="org-line">{{org.address}}</div>{{/if}}
