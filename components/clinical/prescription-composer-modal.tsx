@@ -53,6 +53,11 @@ import {
   type CatalogDraft,
   type MedicationSuggestion,
 } from "./use-medication-catalog";
+import {
+  PRESCRIPTION_FREQUENCIES,
+  PRESCRIPTION_ROUTES,
+  SINGLE_DOSE_FREQUENCY,
+} from "@/types/clinical-history";
 
 export interface PrescriptionComposerModalProps {
   open: boolean;
@@ -92,55 +97,13 @@ const PHARMACEUTICAL_FORMS: { value: string; one: string; many: string }[] = [
   { value: "Otro", one: "unidad", many: "unidades" },
 ];
 
-const ROUTES = [
-  "Oral",
-  "Sublingual",
-  "Tópica",
-  "Intramuscular",
-  "Intravenosa",
-  "Subcutánea",
-  "Vaginal",
-  "Rectal",
-  "Oftálmica",
-  "Ótica",
-  "Nasal",
-  "Inhalatoria",
-] as const;
-
-/**
- * Texto EXACTO de la dosis única: la redacción del PDF lo compara por
- * string, así que no admite variantes ("Dosis unica", "Única dosis"…).
- */
-export const SINGLE_DOSE_FREQUENCY = "Dosis única";
-
-/**
- * Orden deliberado. "Dosis única" va PRIMERA, no al final:
- *
- *  - No es una periodicidad, es su caso degenerado (cero repeticiones), y
- *    el resto de la lista es una escalera monótona que se lee de un vistazo
- *    (4→6→8→12 horas, 1→2→3 veces al día). Meterla en medio rompe esa
- *    escalera; meterla al final la esconde junto a "Según necesidad".
- *  - Los chips hacen wrap: la primera posición es la única garantizada a la
- *    vista sin barrer la fila. Es un caso frecuente (inyectable de consulta,
- *    antiparasitario, analgésico de rescate), no un caso raro.
- *  - Es la opción que cambia el significado de los demás campos (la
- *    duración deja de aplicar), así que verla primero fija el modelo mental
- *    antes de que el médico llene el resto.
- *
- * "Según necesidad" se queda al final: es la otra no-periódica, pero es la
- * salida de emergencia, no el caso frecuente.
- */
-const FREQUENCIES = [
-  SINGLE_DOSE_FREQUENCY,
-  "Cada 4 horas",
-  "Cada 6 horas",
-  "Cada 8 horas",
-  "Cada 12 horas",
-  "Una vez al día",
-  "Dos veces al día",
-  "Tres veces al día",
-  "Según necesidad",
-] as const;
+// Vías y frecuencias viven en `types/clinical-history.ts` (fuente única): el
+// formulario de la historia clínica usa esas mismas listas y las recetas de
+// ambos caminos acaban en la misma tabla. Antes eran dos catálogos
+// divergentes ("Subcutánea" aquí, "Subcutánea (SC)" allá) y ya habían
+// ensuciado los datos en producción.
+const ROUTES = PRESCRIPTION_ROUTES;
+const FREQUENCIES = PRESCRIPTION_FREQUENCIES;
 
 const DURATIONS = [
   "3 días",
