@@ -13,8 +13,9 @@ import {
 // ──────────────────────────────────────────────────────────────────
 // POST /api/budgets/[id]/start
 //
-// Presupuesto aceptado → TRATAMIENTO en curso (módulo Tratamientos,
-// migs 242/245). Antes esta ruta solo hacía UPDATE de `acceptance_status`
+// Presupuesto (pendiente o aceptado) → TRATAMIENTO en curso (módulo
+// Tratamientos, migs 242/245/259).
+// Antes esta ruta solo hacía UPDATE de `acceptance_status`
 // a `in_progress`; ahora delega en el RPC `treatment_start_from_budget`,
 // que crea la fila en `treatments` y deja el budget `in_progress` en la
 // MISMA transacción (si una falla, no queda un budget iniciado sin
@@ -22,10 +23,19 @@ import {
 // cuenta; los pre-checks de aquí solo existen para devolver mensajes
 // claros con el status HTTP correcto.
 //
-// Conserva el cierre del auto-followup
-// `fertility.budget_accepted_pending_start` (creado por el cron diario)
-// honrando la atribución: `agendado_via_contacto` si hubo contacto
-// previo (Categoría A) o `agendado_organico_dentro_ventana` (Categoría B).
+// Mig 259 — se puede iniciar DIRECTO desde `pending_acceptance`: el paso
+// intermedio "Marcar como aceptado" desapareció de la UI (pedido del
+// founder). El RPC estampa `accepted_at` si venía vacío, porque iniciar un
+// tratamiento implica que el presupuesto fue aceptado.
+//
+// Cierra DOS seguimientos, ambos con atribución honesta
+// (`agendado_via_contacto` si hubo contacto previo — Categoría A — o
+// `agendado_organico_dentro_ventana` — Categoría B):
+//   · `budget_records.followup_id` ("esperando respuesta"), que antes
+//     cerraba PATCH /mark-accepted y que en el flujo directo ya no pasa
+//     por ahí.
+//   · el auto-followup `fertility.budget_accepted_pending_start` creado
+//     por el cron diario.
 //
 // Roles: owner | admin | doctor | asesora de fertilidad.
 // (Recepción bloqueada — decisión con impacto clínico.)
@@ -173,15 +183,25 @@ export async function POST(
     );
   }
 
-  if (budget.acceptance_status !== "accepted") {
+  // Mig 259 — iniciar es LA decisión: ya no hace falta pasar antes por
+  // 'accepted'. Este pre-check solo existe para devolver un 409 con un
+  // mensaje claro; la guarda real (y la que manda) vive en el RPC.
+  // 'accepted' sigue admitido por las filas heredadas del flujo anterior.
+  if (
+    budget.acceptance_status !== "pending_acceptance" &&
+    budget.acceptance_status !== "accepted"
+  ) {
     return NextResponse.json(
       {
         error:
-          "Solo presupuestos aceptados pueden marcarse como en curso",
+          "Solo presupuestos pendientes o aceptados pueden iniciar un tratamiento",
       },
       { status: 409 },
     );
   }
+  // Se recuerda ANTES del RPC: el RPC deja la fila en 'in_progress' y
+  // después ya no se puede distinguir si venía del flujo directo.
+  const startedFromPending = budget.acceptance_status === "pending_acceptance";
   if (budget.started_at) {
     return NextResponse.json(
       { error: "Este presupuesto ya está marcado como iniciado" },
@@ -222,6 +242,55 @@ export async function POST(
       { error: updErr?.message ?? "No se pudo actualizar" },
       { status: 500 },
     );
+  }
+
+  // Mig 259 — cuando el inicio se hace DIRECTO desde 'pending_acceptance',
+  // nadie pasó ya por PATCH /mark-accepted, que era quien cerraba el
+  // followup de "esperando respuesta" (`budget_records.followup_id`). Sin
+  // esto, ese seguimiento quedaría abierto para siempre y el cron seguiría
+  // recordando contactar a una paciente que ya empezó su tratamiento.
+  // Misma atribución honesta que /mark-accepted (mig 128): con contacto
+  // previo → Categoría A, sin contacto → Categoría B.
+  if (startedFromPending && budget.followup_id) {
+    const { data: fu } = await supabase
+      .from("clinical_followups")
+      .select("contact_events, first_contact_at, closed_at")
+      .eq("id", budget.followup_id)
+      .maybeSingle();
+
+    if (fu && !fu.closed_at) {
+      const events: ContactEvent[] = Array.isArray(fu.contact_events)
+        ? (fu.contact_events as unknown as ContactEvent[])
+        : [];
+      const hadContact = Boolean(fu.first_contact_at);
+      const closureStatus = hadContact
+        ? "agendado_via_contacto"
+        : "agendado_organico_dentro_ventana";
+      const closeEvent: ContactEvent = {
+        type: "treatment_started",
+        at: now,
+        by_user_id: user.id,
+        delivery_status: "unknown",
+        budget_record_id: budget.id,
+        reason: hadContact
+          ? "Tratamiento iniciado (con contacto previo)"
+          : "Tratamiento iniciado (orgánico, sin contacto previo)",
+      };
+
+      await supabase
+        .from("clinical_followups")
+        .update({
+          status: closureStatus,
+          closure_reason: closureStatus,
+          closed_at: now,
+          is_resolved: true,
+          resolved_at: now,
+          resolved_by: user.id,
+          contact_events: [...events, closeEvent],
+        })
+        .eq("id", budget.followup_id)
+        .eq("organization_id", membership.organization_id);
+    }
   }
 
   // Close any open followup with rule_key

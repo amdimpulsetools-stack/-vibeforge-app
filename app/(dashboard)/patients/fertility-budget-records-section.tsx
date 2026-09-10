@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
+  Activity,
+  CheckCircle,
   Loader2,
+  Play,
   Plus,
   Sparkles,
   Check,
@@ -23,6 +26,7 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import { useBudgetDocSettings } from "@/hooks/use-budget-doc-settings";
 import { BudgetRecordModal } from "@/components/clinical/budget-record-modal";
 import { AssignBudgetModal } from "@/components/addons/fertility/assign-budget-modal";
+import { TreatmentStartDialog } from "@/components/treatments/treatment-start-dialog";
 import {
   BUDGET_TREATMENT_TYPE_LABELS,
   FERTILITY_BASIC_KEY,
@@ -70,6 +74,10 @@ export function FertilityBudgetRecordsSection({
   const [rejectFor, setRejectFor] = useState<BudgetWithJoins | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  // Mig 259 — mismo flujo que el panel de Presupuestos: iniciar el
+  // tratamiento ES la respuesta afirmativa. El modal vive en la sección (no
+  // en cada fila) para no montar N diálogos por paciente.
+  const [startFor, setStartFor] = useState<BudgetWithJoins | null>(null);
 
   const refresh = useCallback(async () => {
     if (!fertilityActive) return;
@@ -94,21 +102,6 @@ export function FertilityBudgetRecordsSection({
   useEffect(() => {
     refresh();
   }, [refresh]);
-
-  const markAccepted = async (b: BudgetWithJoins) => {
-    setActionLoading(b.id);
-    const res = await fetch(`/api/budgets/${b.id}/mark-accepted`, {
-      method: "PATCH",
-    });
-    setActionLoading(null);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error ?? "No se pudo marcar como aceptado");
-      return;
-    }
-    toast.success("Presupuesto marcado como aceptado");
-    refresh();
-  };
 
   const submitReject = async () => {
     if (!rejectFor) return;
@@ -202,7 +195,7 @@ export function FertilityBudgetRecordsSection({
             <BudgetRow
               key={b.id}
               budget={b}
-              onAccept={() => markAccepted(b)}
+              onStart={() => setStartFor(b)}
               onReject={() => {
                 setRejectFor(b);
                 setRejectReason("");
@@ -226,6 +219,29 @@ export function FertilityBudgetRecordsSection({
         patientId={patientId}
         onCreated={() => refresh()}
       />
+
+      {/* Mig 259 — mismo modal de confirmación que el panel (doctora,
+          asistente, fecha). Solo se monta con una fila elegida, y la `key`
+          lo reinicia al cambiar de presupuesto. */}
+      {startFor && (
+        <TreatmentStartDialog
+          key={startFor.id}
+          open
+          onOpenChange={(v) => !v && setStartFor(null)}
+          budgetId={startFor.id}
+          patientName={patientFullName}
+          treatmentTypeLabel={
+            BUDGET_TREATMENT_TYPE_LABELS[
+              startFor.treatment_type as BudgetTreatmentType
+            ] ?? startFor.treatment_type
+          }
+          amount={startFor.amount ?? null}
+          onStarted={() => {
+            setStartFor(null);
+            refresh();
+          }}
+        />
+      )}
 
       {/* Rejection sub-modal */}
       <Dialog open={!!rejectFor} onOpenChange={(v) => !v && setRejectFor(null)}>
@@ -277,13 +293,13 @@ export function FertilityBudgetRecordsSection({
 
 function BudgetRow({
   budget,
-  onAccept,
+  onStart,
   onReject,
   actionLoading,
   canEdit,
 }: {
   budget: BudgetWithJoins;
-  onAccept: () => void;
+  onStart: () => void;
   onReject: () => void;
   actionLoading: boolean;
   canEdit: boolean;
@@ -355,6 +371,28 @@ function BudgetRow({
           {days} día{days === 1 ? "" : "s"} desde envío
         </span>
       ) : null;
+  } else if (budget.acceptance_status === "in_progress") {
+    // Mig 259 — con el flujo directo este es el estado normal de un
+    // presupuesto aceptado. Antes la ficha no pintaba nada para
+    // in_progress/completed: la fila salía sin badge y sin explicación.
+    badge = (
+      <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 px-2 py-0.5 text-[10px] font-semibold text-blue-600">
+        <Activity className="h-3 w-3" />
+        En curso desde {formatDate(budget.started_at)}
+      </span>
+    );
+    extraLine = (
+      <span className="text-[11px] text-muted-foreground">
+        Los pagos y el cierre se gestionan en Tratamientos.
+      </span>
+    );
+  } else if (budget.acceptance_status === "completed") {
+    badge = (
+      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+        <CheckCircle className="h-3 w-3" />
+        Cerrado el {formatDate(budget.completed_at)}
+      </span>
+    );
   } else if (budget.acceptance_status === "rejected") {
     badge = (
       <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
@@ -419,27 +457,43 @@ function BudgetRow({
       {canEdit && budget.acceptance_status === "pending_acceptance" && (
         <div className="mt-3 flex flex-wrap gap-2">
           <button
-            onClick={onAccept}
-            disabled={actionLoading}
-            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
-          >
-            {actionLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Check className="h-3 w-3" />
-            )}
-            Marcar aceptado
-          </button>
-          <button
             onClick={onReject}
             disabled={actionLoading}
             className="inline-flex items-center gap-1.5 rounded-md bg-rose-500/15 px-2.5 py-1 text-[11px] font-semibold text-rose-600 hover:bg-rose-500/25 disabled:opacity-60"
           >
-            <XIcon className="h-3 w-3" />
+            {actionLoading ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <XIcon className="h-3 w-3" />
+            )}
             Marcar rechazado
           </button>
         </div>
       )}
+
+      {/* Mig 259 — la ficha y el panel de Presupuestos comparten flujo: la
+          doctora ve lo mismo entre desde donde entre. "Iniciar tratamiento"
+          es la respuesta afirmativa (ya no hay "Marcar aceptado") y va en
+          su propia franja porque CREA el tratamiento (mig 242/245).
+          'accepted' sigue contemplado por las filas heredadas. */}
+      {canEdit &&
+        (budget.acceptance_status === "pending_acceptance" ||
+          budget.acceptance_status === "accepted") && (
+          <div className="mt-3 border-t border-border/60 pt-3">
+            <button
+              onClick={onStart}
+              disabled={actionLoading}
+              className="inline-flex min-h-[36px] items-center gap-1.5 rounded-md bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            >
+              <Play className="h-3 w-3" />
+              Iniciar tratamiento
+            </button>
+            <p className="mt-1.5 text-[11px] text-muted-foreground">
+              La paciente aceptó: crea el tratamiento y el presupuesto pasa a
+              «En curso».
+            </p>
+          </div>
+        )}
     </div>
   );
 }

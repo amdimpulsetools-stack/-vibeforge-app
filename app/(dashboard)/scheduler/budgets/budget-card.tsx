@@ -121,21 +121,6 @@ export function BudgetCard({
     BUDGET_TREATMENT_TYPE_LABELS[budget.treatment_type as BudgetTreatmentType] ??
     budget.treatment_type;
 
-  const accept = async () => {
-    setActionLoading(true);
-    const res = await fetch(`/api/budgets/${budget.id}/mark-accepted`, {
-      method: "PATCH",
-    });
-    setActionLoading(false);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      toast.error(err.error ?? "No se pudo marcar como aceptado");
-      return;
-    }
-    toast.success("Presupuesto aceptado");
-    onChanged();
-  };
-
   const sendViaChannel = async (via: "email" | "whatsapp" | "other") => {
     setSendChannel(via);
     setSendLoading(true);
@@ -412,21 +397,6 @@ export function BudgetCard({
         </div>
       )}
 
-      {/* "Por iniciar": iniciar crea el TRATAMIENTO (mig 242/245), no solo
-          estampa una fecha — por eso pasa por un modal de confirmación con
-          doctora, asistente y fecha. */}
-      {budget.acceptance_status === "accepted" && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            onClick={() => setStartOpen(true)}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-          >
-            <Play className="h-3 w-3" />
-            Iniciar tratamiento
-          </button>
-        </div>
-      )}
-
       {/* Iniciado o cerrado: el presupuesto deja de ser el lugar donde se
           decide nada. El cierre (con desenlace) y los cobros viven en el
           tratamiento, así que desde aquí solo se navega hacia él. */}
@@ -477,18 +447,6 @@ export function BudgetCard({
             </button>
           )}
           <button
-            onClick={accept}
-            disabled={actionLoading || sendLoading}
-            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
-          >
-            {actionLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <Check className="h-3 w-3" />
-            )}
-            Marcar aceptado
-          </button>
-          <button
             onClick={() => setRejectOpen(true)}
             disabled={actionLoading || sendLoading}
             className="inline-flex items-center gap-1.5 rounded-md bg-rose-500/15 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-500/25 disabled:opacity-60"
@@ -496,6 +454,34 @@ export function BudgetCard({
             <X className="h-3 w-3" />
             Marcar rechazado
           </button>
+        </div>
+      )}
+
+      {/* Mig 259 — "Iniciar tratamiento" es AHORA la respuesta afirmativa:
+          ya no hay "Marcar aceptado" (el paso intermedio desapareció por
+          pedido del founder). Sigue apareciendo también en las filas
+          heredadas en 'accepted', que llegan a él por este mismo botón.
+
+          Vive en su propia franja, separada por una línea y con la nota de
+          qué hace: iniciar CREA el tratamiento y congela el monto acordado
+          (mig 242/245), no estampa una fecha. No debe pulsarse sin querer
+          junto a "Enviar al paciente". La confirmación real la pide el
+          modal (doctora, asistente, fecha). */}
+      {(budget.acceptance_status === "pending_acceptance" ||
+        budget.acceptance_status === "accepted") && (
+        <div className="mt-3 border-t border-border/60 pt-3">
+          <button
+            onClick={() => setStartOpen(true)}
+            disabled={actionLoading || sendLoading}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          >
+            <Play className="h-3 w-3" />
+            Iniciar tratamiento
+          </button>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            La paciente aceptó: crea el tratamiento y el presupuesto pasa a
+            «En curso».
+          </p>
         </div>
       )}
 
