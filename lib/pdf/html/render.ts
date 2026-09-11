@@ -26,7 +26,12 @@ const TEMPLATES_DIR = path.join(process.cwd(), "lib/pdf/html/templates");
 let envPromise: Promise<typeof Handlebars> | null = null;
 const compiled = new Map<string, HandlebarsTemplateDelegate>();
 
-function formatMoney(value: unknown, currency: unknown): string {
+/**
+ * Mismo formato que el helper `{{money}}`: "S/ 1,234.50" (es-PE). Exportado
+ * para que los data-builders que redactan texto con montos (p. ej. la celda
+ * "varios (S/ 180.00 – 200.00)" del Resumen de cobros) no dupliquen el formato.
+ */
+export function formatMoney(value: unknown, currency: unknown = "PEN"): string {
   const n = Number(value ?? 0);
   const cur = currency === "USD" ? "US$" : "S/";
   return `${cur} ${n.toLocaleString("es-PE", {
