@@ -265,9 +265,6 @@ function TreatmentConceptsAdmin() {
                     }}
                     className="min-h-[44px] w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
-                  <p className="text-[10px] font-mono text-muted-foreground">
-                    {c.key}
-                  </p>
                 </div>
 
                 <div className="space-y-1">
@@ -333,6 +330,18 @@ function TreatmentConceptsAdmin() {
                     className="min-h-[44px] w-full rounded-lg border border-input bg-background px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
                   />
                 </div>
+
+                {/* La clave técnica vivía DENTRO de la celda de "Concepto",
+                    que así era más alta que las demás; con `items-end` el
+                    input de Concepto quedaba por encima de Tipo / IGV /
+                    Orden (feedback del founder, 11-sep). Ahora es una fila
+                    propia de la rejilla, anclada a la primera columna: los
+                    cinco campos comparten altura y la clave sigue debajo de
+                    su input. `-mt-2` compensa el `gap-3` para que quede
+                    pegada al campo. */}
+                <p className="-mt-2 text-[10px] font-mono text-muted-foreground sm:col-start-1">
+                  {c.key}
+                </p>
 
                 <div className="flex items-center gap-2">
                   <button
