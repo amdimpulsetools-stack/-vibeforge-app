@@ -8,6 +8,29 @@ import {
 } from "@/types/fertility";
 import type { ContactEvent } from "@/types/fertility";
 
+// ──────────────────────────────────────────────────────────────────
+// PATCH /api/budgets/[id]/mark-accepted
+//
+// DEUDA CONSCIENTE (mig 259, 10-sep-2026): esta ruta YA NO TIENE
+// LLAMADORES EN LA UI. El paso intermedio "Marcar como aceptado" se
+// eliminó del panel de Presupuestos y de la ficha de la paciente: ahora
+// se va directo a "Iniciar tratamiento" (POST /api/budgets/[id]/start),
+// que estampa `accepted_at` y deja el presupuesto en 'in_progress'.
+//
+// Se CONSERVA, no se retira, por tres motivos:
+//   1. Es la única forma de dejar un presupuesto en 'accepted' sin
+//      crear el tratamiento, y producción tiene 3 filas heredadas en ese
+//      estado: la ruta es el punto de referencia de cómo se llegó ahí.
+//   2. Si hubiera que revertir (rollbacks/259_...), la UI vuelve a
+//      necesitarla tal cual; borrarla obligaría a reescribirla, incluido
+//      el cierre del followup con atribución honesta (mig 128).
+//   3. Retirarla es un cambio de contrato de API que no aporta nada al
+//      pedido del founder.
+//
+// Si dentro de unos meses no hay filas en 'accepted' y nadie la llamó,
+// esta ruta se puede borrar junto con la sección "Por iniciar" del panel.
+// ──────────────────────────────────────────────────────────────────
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

@@ -172,6 +172,21 @@ export default function BudgetsPage() {
 
   const filtered = useMemo(() => data?.items ?? [], [data]);
 
+  // Mig 259 — "Aceptados" ya no es un estado en el que un presupuesto se
+  // quede: iniciar el tratamiento lo lleva directo a 'in_progress'. Un
+  // presupuesto aceptado SIGUE aceptado aunque su tratamiento haya
+  // empezado o terminado (mismo criterio que get_budget_kpis, mig 246, que
+  // es quien calcula el % de conversión del subtítulo). Si el KPI contara
+  // solo `counts.accepted`, con el flujo nuevo mostraría 0 aceptados
+  // debajo de un "60% conversión".
+  const acceptedTotal =
+    (counts.accepted_unstarted ?? counts.accepted) +
+    (counts.in_progress ?? 0) +
+    (counts.completed ?? 0);
+  // Las 3 filas heredadas del flujo anterior (aceptadas y sin iniciar).
+  // Cuando llegue a 0, la sección "Por iniciar" deja de pintarse sola.
+  const acceptedUnstarted = counts.accepted_unstarted ?? counts.accepted;
+
   // Puente presupuesto → tratamiento (mig 242): las cards iniciadas o
   // cerradas enlazan a /tratamientos/[id]. Se resuelve en UNA consulta para
   // toda la página (un fetch por card sería N+1 en un kanban de 20 filas).
@@ -296,7 +311,7 @@ export default function BudgetsPage() {
         <KpiCard
           icon={<CheckCircle2 className="h-4 w-4 text-success-500" />}
           label="Aceptados"
-          value={kpis ? `${counts.accepted}` : "—"}
+          value={kpis ? `${acceptedTotal}` : "—"}
           subtitle={kpis ? `${kpis.acceptance_rate_pct}% conversión` : undefined}
         />
         <KpiCard
@@ -330,17 +345,17 @@ export default function BudgetsPage() {
           </TabsTrigger>
           <TabsTrigger value="accepted">
             <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-            Aceptados (
-            {(counts.accepted_unstarted ?? counts.accepted) +
-              (counts.in_progress ?? 0) +
-              (counts.completed ?? 0)}
-            )
-            {(counts.accepted_unstarted ?? counts.accepted) > 0 && (
+            Aceptados ({acceptedTotal})
+            {/* Mig 259 — el badge ámbar solo tiene sentido mientras queden
+                filas heredadas en 'accepted': señala la sección "Por
+                iniciar", que con 0 filas ya no se pinta. Cuando se
+                inicien las últimas, badge y sección desaparecen juntos. */}
+            {acceptedUnstarted > 0 && (
               <span
                 className="ml-1.5 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-500/20 px-1 text-[10px] font-semibold text-amber-700 dark:text-amber-400"
-                title="Aceptados aún sin marcar como iniciados"
+                title="Aceptados en el flujo anterior, aún sin iniciar"
               >
-                {counts.accepted_unstarted ?? counts.accepted}
+                {acceptedUnstarted}
               </span>
             )}
           </TabsTrigger>
@@ -379,7 +394,7 @@ export default function BudgetsPage() {
               // (in_progress) → "Cerrados" (completed).
               <AcceptedSubGroups
                 items={filtered}
-                acceptedUnstartedCount={counts.accepted_unstarted ?? counts.accepted}
+                acceptedUnstartedCount={acceptedUnstarted}
                 inProgressCount={counts.in_progress ?? 0}
                 completedCount={counts.completed ?? 0}
                 treatmentIdByBudget={treatmentIdByBudget ?? {}}
@@ -565,6 +580,14 @@ function PendingSubGroups({
 //
 // Items are split client-side. The header counts come from the API
 // response so badges remain authoritative across paginated responses.
+//
+// Mig 259 — "Por iniciar" es un limbo que ya NO se produce: desde
+// Pendientes se va directo a «En curso». La sección sigue pintándose
+// mientras queden filas heredadas (3 en producción al desplegar) para no
+// dejarlas huérfanas y sin forma de llegar a ellas; en cuanto la última se
+// inicie, `acceptedUnstartedCount` llega a 0 y la pestaña queda con solo
+// "En curso" y "Cerrados". No se borra el código: es el camino de salida
+// de esas filas, y desaparece solo.
 // ─────────────────────────────────────────────────────────────────────
 function AcceptedSubGroups({
   items,
@@ -587,15 +610,21 @@ function AcceptedSubGroups({
   );
   const completed = items.filter((b) => b.acceptance_status === "completed");
 
+  // La sección solo existe mientras haya filas heredadas: o el contador de
+  // la org (autoritativo, cubre las páginas que no están a la vista) o las
+  // filas que sí llegaron en esta página con los filtros aplicados.
+  const showUnstarted = acceptedUnstartedCount > 0 || unstarted.length > 0;
+
   return (
     <div className="space-y-5">
+      {showUnstarted && (
       <section>
         <header className="mb-2 flex items-center gap-2">
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-amber-600">
             Por iniciar
           </span>
           <span className="text-[11px] text-muted-foreground">
-            Aceptados, pendientes de iniciar tratamiento
+            Aceptados en el flujo anterior, pendientes de iniciar
           </span>
           <span className="ml-auto text-[11px] font-semibold text-muted-foreground">
             {acceptedUnstartedCount}
@@ -604,7 +633,8 @@ function AcceptedSubGroups({
         {unstarted.length === 0 ? (
           <div className="rounded-xl border border-dashed border-border/60 p-4 text-center">
             <p className="text-xs text-muted-foreground">
-              No hay presupuestos aceptados pendientes de iniciar.
+              No hay presupuestos aceptados pendientes de iniciar en esta
+              vista.
             </p>
           </div>
         ) : (
@@ -620,6 +650,7 @@ function AcceptedSubGroups({
           </div>
         )}
       </section>
+      )}
 
       <section>
         <header className="mb-2 flex items-center gap-2">
