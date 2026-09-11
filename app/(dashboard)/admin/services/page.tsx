@@ -1302,7 +1302,11 @@ function ServiceForm({
           {SERVICE_MODALITY_OPTIONS.map((opt) => (
             <label
               key={opt.value}
-              className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium cursor-pointer transition-all ${
+              // `relative`: el radio `sr-only` de dentro es position:absolute;
+              // sin ancestro posicionado su bloque contenedor es el documento
+              // y, fuera del scroller, puede estirar la página (mismo fallo
+              // que la franja gris de Conceptos de pago, 11-sep).
+              className={`relative flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium cursor-pointer transition-all ${
                 watch("modality") === opt.value
                   ? opt.value === "virtual"
                     ? "border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400"
