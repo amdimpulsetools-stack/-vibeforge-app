@@ -572,6 +572,39 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════
+   RESPALDO `dvh` → `vh`
+   El shell del dashboard, la barra lateral y el panel IA miden
+   `h-[100dvh]` (y varias pantallas `calc(100dvh - …)`). En un navegador
+   que no entiende `dvh` (Chrome/Edge < 108, Safari < 15.4, Firefox <
+   101) esa declaración se descarta y el shell queda con alto automático:
+   crece hasta su contenido, `overflow-hidden` ya no recorta nada y TODO
+   el documento hace scroll — la barra lateral se va hacia arriba y bajo
+   ella aparece una franja gris del alto que sobra (caso real, 11-sep,
+   Conceptos de pago con 10 filas).
+
+   Va en `@layer base` a propósito, no fuera de capas: así en un
+   navegador moderno la utilidad de Tailwind (capa utilities, con `dvh`
+   válido) la pisa y NO cambia nada; y en uno viejo la de Tailwind se
+   descarta por inválida y el cascade cae a este `vh`. Las variantes
+   responsive (`md:h-auto` en los modales) siguen ganando porque viven en
+   utilities. Sin `@supports`: no hace falta, la capa lo resuelve.
+   ═══════════════════════════════════════════════════════════════════ */
+@layer base {
+  .h-\[100dvh\] { height: 100vh; }
+  .max-h-\[100dvh\] { max-height: 100vh; }
+  .h-\[calc\(100dvh-5rem\)\] { height: calc(100vh - 5rem); }
+  .h-\[calc\(100dvh-6rem\)\] { height: calc(100vh - 6rem); }
+  .min-h-\[calc\(100dvh-6rem\)\] { min-height: calc(100vh - 6rem); }
+  .max-h-\[calc\(100dvh-2rem\)\] { max-height: calc(100vh - 2rem); }
+  .max-h-\[calc\(100dvh-3rem\)\] { max-height: calc(100vh - 3rem); }
+  @media (width >= 48rem) {
+    .md\:h-\[calc\(100dvh-4rem\)\] { height: calc(100vh - 4rem); }
+    .md\:max-h-\[92dvh\] { max-height: 92vh; }
+    .md\:max-h-\[95dvh\] { max-height: 95vh; }
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    GLASS MORPHISM UTILITIES
    ═══════════════════════════════════════════════════════════════════ */
 .glass {
