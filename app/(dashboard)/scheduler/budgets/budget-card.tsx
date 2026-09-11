@@ -374,50 +374,105 @@ export function BudgetCard({
         </div>
       </div>
 
-      {/* Phase 4 — Descargar PDF. Visible for any status except
-          'expired' (admins might still want to archive accepted/
-          rejected). The current acceptance_status enum has no
-          'expired' literal yet but the guard is forward-compatible.
-          Oculto en modo solo-seguimiento (mig 181). */}
-      {documentsEnabled &&
-        budget.acceptance_status !== ("expired" as BudgetAcceptanceStatus) && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            onClick={downloadPdf}
-            disabled={pdfLoading}
-            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 disabled:opacity-60 dark:text-emerald-400"
-          >
-            {pdfLoading ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
-            ) : (
-              <FileDown className="h-3 w-3" />
+      {/* UNA sola fila de acciones (pedido del founder, 11-sep): antes PDF,
+          Enviar/Rechazar e Iniciar vivían en tres franjas apiladas y la
+          tarjeta crecía en alto. Todos los botones miden lo mismo (min-h-9):
+          los pequeños suben de ~30 px y "Iniciar tratamiento" baja de 44.
+          `flex-wrap` para que en móvil se plieguen sin desbordar. */}
+      {(documentsEnabled &&
+        budget.acceptance_status !== ("expired" as BudgetAcceptanceStatus)) ||
+      budget.acceptance_status === "pending_acceptance" ||
+      budget.acceptance_status === "accepted" ||
+      budget.acceptance_status === "in_progress" ||
+      budget.acceptance_status === "completed" ? (
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {/* Phase 4 — Descargar PDF. Visible for any status except
+              'expired' (admins might still want to archive accepted/
+              rejected). The current acceptance_status enum has no
+              'expired' literal yet but the guard is forward-compatible.
+              Oculto en modo solo-seguimiento (mig 181). */}
+          {documentsEnabled &&
+            budget.acceptance_status !== ("expired" as BudgetAcceptanceStatus) && (
+              <button
+                onClick={downloadPdf}
+                disabled={pdfLoading}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 disabled:opacity-60 dark:text-emerald-400"
+              >
+                {pdfLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  <FileDown className="h-3 w-3" />
+                )}
+                Descargar PDF
+              </button>
             )}
-            Descargar PDF
-          </button>
-        </div>
-      )}
 
-      {/* Iniciado o cerrado: el presupuesto deja de ser el lugar donde se
-          decide nada. El cierre (con desenlace) y los cobros viven en el
-          tratamiento, así que desde aquí solo se navega hacia él. */}
-      {(budget.acceptance_status === "in_progress" ||
-        budget.acceptance_status === "completed") && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {treatmentId ? (
-            <Link
-              href={`/tratamientos/${treatmentId}`}
-              className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
+          {/* Phase 3 — "Enviar al paciente" turns Sin procesar → Enviado.
+              Only renders for sent_at IS NULL. Phase 4 — also triggers PDF
+              generation server-side and returns the signed URL, opened in
+              a new tab. */}
+          {budget.acceptance_status === "pending_acceptance" && isUnsent && (
+            <button
+              onClick={() => setSendOpen(true)}
+              disabled={sendLoading || actionLoading}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-amber-500 px-3 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
             >
-              Ver tratamiento
-              <ArrowRight className="h-3 w-3" />
-            </Link>
-          ) : (
-            <span className="text-[11px] text-muted-foreground">
-              Los pagos y el cierre se gestionan en Tratamientos.
-            </span>
+              <Send className="h-3 w-3" />
+              Enviar al paciente
+            </button>
           )}
+          {budget.acceptance_status === "pending_acceptance" && (
+            <button
+              onClick={() => setRejectOpen(true)}
+              disabled={actionLoading || sendLoading}
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-rose-500/15 px-3 text-xs font-semibold text-rose-600 hover:bg-rose-500/25 disabled:opacity-60"
+            >
+              <X className="h-3 w-3" />
+              Marcar rechazado
+            </button>
+          )}
+
+          {/* Mig 259 — "Iniciar tratamiento" es la respuesta afirmativa: ya
+              no hay "Marcar aceptado". Sigue apareciendo también en las
+              filas heredadas en 'accepted'. Iniciar CREA el tratamiento y
+              congela el monto acordado (mig 242/245): la confirmación real
+              la pide el modal (doctora, asistente, fecha), y la nota de qué
+              hace vive en el tooltip para no gastar una línea de alto.
+              `sm:ml-auto`: en escritorio queda al extremo derecho, lejos
+              de "Enviar al paciente". */}
+          {(budget.acceptance_status === "pending_acceptance" ||
+            budget.acceptance_status === "accepted") && (
+            <button
+              onClick={() => setStartOpen(true)}
+              disabled={actionLoading || sendLoading}
+              title="La paciente aceptó: crea el tratamiento y el presupuesto pasa a «En curso»."
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-md bg-emerald-600 px-3 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60 sm:ml-auto"
+            >
+              <Play className="h-3 w-3" />
+              Iniciar tratamiento
+            </button>
+          )}
+
+          {/* Iniciado o cerrado: el presupuesto deja de ser el lugar donde
+              se decide nada. El cierre (con desenlace) y los cobros viven en
+              el tratamiento, así que desde aquí solo se navega hacia él. */}
+          {(budget.acceptance_status === "in_progress" ||
+            budget.acceptance_status === "completed") &&
+            (treatmentId ? (
+              <Link
+                href={`/tratamientos/${treatmentId}`}
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-400"
+              >
+                Ver tratamiento
+                <ArrowRight className="h-3 w-3" />
+              </Link>
+            ) : (
+              <span className="text-[11px] text-muted-foreground">
+                Los pagos y el cierre se gestionan en Tratamientos.
+              </span>
+            ))}
         </div>
-      )}
+      ) : null}
 
       <TreatmentStartDialog
         open={startOpen}
@@ -430,60 +485,6 @@ export function BudgetCard({
       />
 
 
-      {budget.acceptance_status === "pending_acceptance" && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {/* Phase 3 — "Enviar al paciente" turns Sin procesar → Enviado.
-              Only renders for sent_at IS NULL. Phase 4 — also
-              triggers PDF generation server-side and returns the
-              signed URL, opened in a new tab. */}
-          {isUnsent && (
-            <button
-              onClick={() => setSendOpen(true)}
-              disabled={sendLoading || actionLoading}
-              className="inline-flex items-center gap-1.5 rounded-md bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
-            >
-              <Send className="h-3 w-3" />
-              Enviar al paciente
-            </button>
-          )}
-          <button
-            onClick={() => setRejectOpen(true)}
-            disabled={actionLoading || sendLoading}
-            className="inline-flex items-center gap-1.5 rounded-md bg-rose-500/15 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-500/25 disabled:opacity-60"
-          >
-            <X className="h-3 w-3" />
-            Marcar rechazado
-          </button>
-        </div>
-      )}
-
-      {/* Mig 259 — "Iniciar tratamiento" es AHORA la respuesta afirmativa:
-          ya no hay "Marcar aceptado" (el paso intermedio desapareció por
-          pedido del founder). Sigue apareciendo también en las filas
-          heredadas en 'accepted', que llegan a él por este mismo botón.
-
-          Vive en su propia franja, separada por una línea y con la nota de
-          qué hace: iniciar CREA el tratamiento y congela el monto acordado
-          (mig 242/245), no estampa una fecha. No debe pulsarse sin querer
-          junto a "Enviar al paciente". La confirmación real la pide el
-          modal (doctora, asistente, fecha). */}
-      {(budget.acceptance_status === "pending_acceptance" ||
-        budget.acceptance_status === "accepted") && (
-        <div className="mt-3 border-t border-border/60 pt-3">
-          <button
-            onClick={() => setStartOpen(true)}
-            disabled={actionLoading || sendLoading}
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
-          >
-            <Play className="h-3 w-3" />
-            Iniciar tratamiento
-          </button>
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
-            La paciente aceptó: crea el tratamiento y el presupuesto pasa a
-            «En curso».
-          </p>
-        </div>
-      )}
 
       {/* mig 172 — Send modal: pick the channel before stamping
           sent_at. This makes "presupuestos enviados" measure real
