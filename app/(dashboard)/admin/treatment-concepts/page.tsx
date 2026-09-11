@@ -340,9 +340,16 @@ function TreatmentConceptsAdmin() {
                     que, con `items-end`, el toggle quede centrado en la
                     línea de los campos. */}
                 <div className="flex min-h-[44px] items-center gap-2">
+                  {/* `relative` es OBLIGATORIO: el input `sr-only` es
+                      `position:absolute`, y sin un ancestro posicionado su
+                      bloque contenedor era el documento entero. Al estar
+                      fuera del scroller `main`, cada checkbox quedaba en su
+                      coordenada de documento y el último (fila 10, y≈1477)
+                      estiraba la página: 616 px de franja gris al pie
+                      (founder, 11-sep; diagnosticado desde la consola). */}
                   <label
                     className={cn(
-                      "flex cursor-pointer select-none items-center gap-2",
+                      "relative flex cursor-pointer select-none items-center gap-2",
                       savingId === c.id && "cursor-wait opacity-60",
                     )}
                     title={c.is_active ? "Activo — clic para desactivar" : "Inactivo — clic para activar"}
