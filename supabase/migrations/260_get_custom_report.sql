@@ -1,7 +1,3 @@
--- ESPEJO de supabase/migrations/260_get_custom_report.sql (mantener idéntico:
--- run.sh carga ESTE archivo contra el stub + la mig 251 verbatim). Si cambia la
--- migración, se copia entera aquí; el diff entre ambos debe ser solo esta cabecera.
-
 -- Pendiente de aplicar en producción (la aplica el orquestador)
 --
 -- 260: get_custom_report — "Resumen de cobros del periodo" de /reports
