@@ -331,35 +331,63 @@ function TreatmentConceptsAdmin() {
                   />
                 </div>
 
-                {/* La clave técnica vivía DENTRO de la celda de "Concepto",
-                    que así era más alta que las demás; con `items-end` el
-                    input de Concepto quedaba por encima de Tipo / IGV /
-                    Orden (feedback del founder, 11-sep). Ahora es una fila
-                    propia de la rejilla, anclada a la primera columna: los
-                    cinco campos comparten altura y la clave sigue debajo de
-                    su input. `-mt-2` compensa el `gap-3` para que quede
-                    pegada al campo. */}
-                <p className="-mt-2 text-[10px] font-mono text-muted-foreground sm:col-start-1">
-                  {c.key}
-                </p>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => void patch(c.id, { is_active: !c.is_active })}
-                    disabled={savingId === c.id}
+                {/* Activo/Inactivo como toggle (pedido del founder, 11-sep).
+                    Va ANTES de la clave técnica en el DOM a propósito: la
+                    clave fuerza una segunda fila de la rejilla (col-start-1)
+                    y todo lo que venga detrás cae con ella — así se fue el
+                    "Activo" a la fila de abajo en la primera versión. La
+                    celda mide lo mismo que los inputs (min-h-[44px]) para
+                    que, con `items-end`, el toggle quede centrado en la
+                    línea de los campos. */}
+                <div className="flex min-h-[44px] items-center gap-2">
+                  <label
                     className={cn(
-                      "min-h-[44px] rounded-full px-3 py-1 text-xs font-medium transition-colors disabled:opacity-60",
-                      c.is_active
-                        ? "bg-success-500/10 text-success-500"
-                        : "bg-muted text-muted-foreground",
+                      "flex cursor-pointer select-none items-center gap-2",
+                      savingId === c.id && "cursor-wait opacity-60",
                     )}
+                    title={c.is_active ? "Activo — clic para desactivar" : "Inactivo — clic para activar"}
                   >
-                    {c.is_active ? "Activo" : "Inactivo"}
-                  </button>
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={c.is_active}
+                      disabled={savingId === c.id}
+                      onChange={() => void patch(c.id, { is_active: !c.is_active })}
+                      aria-label={`${c.label}: ${c.is_active ? "activo" : "inactivo"}`}
+                    />
+                    <span className="relative inline-block h-6 w-11 shrink-0 rounded-full bg-muted transition-colors peer-checked:bg-success-500 peer-focus-visible:ring-2 peer-focus-visible:ring-primary/50">
+                      <span
+                        className={cn(
+                          "absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform",
+                          c.is_active && "translate-x-5",
+                        )}
+                      />
+                    </span>
+                    <span
+                      className={cn(
+                        "text-xs font-medium",
+                        c.is_active ? "text-success-500" : "text-muted-foreground",
+                      )}
+                    >
+                      {c.is_active ? "Activo" : "Inactivo"}
+                    </span>
+                  </label>
                   {savingId === c.id && (
                     <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                   )}
                 </div>
+
+                {/* La clave técnica vivía DENTRO de la celda de "Concepto",
+                    que así era más alta que las demás; con `items-end` el
+                    input de Concepto quedaba por encima de Tipo / IGV /
+                    Orden. Ahora es una fila propia de la rejilla, anclada
+                    a la primera columna: los campos comparten altura y la
+                    clave sigue debajo de su input. `-mt-2` compensa el
+                    `gap-3` para que quede pegada al campo. Debe ser el
+                    ÚLTIMO hijo de la rejilla (ver el toggle de arriba). */}
+                <p className="-mt-2 text-[10px] font-mono text-muted-foreground sm:col-start-1">
+                  {c.key}
+                </p>
               </div>
             </div>
           ))}
