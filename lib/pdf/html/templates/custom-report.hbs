@@ -1,0 +1,176 @@
+{{!--
+  Yenda · RESUMEN DE COBROS DEL PERIODO (reporte personalizado; motor HTML → Chromium).
+  Datos: lib/pdf/custom-report-data.ts (buildCustomReportDocData).
+  Ruta:  /api/pdf/custom-report?org_id=…&from=YYYY-MM-DD&to=YYYY-MM-DD&sections=a,b
+
+  Variables: doc.{title, subtitle, eyebrow, range_label, generated_at,
+  generated_by, issued_label, footer_note} · org.* (lib/pdf/html/org.ts) ·
+  meta[] + metaCols · sections[] = { key, title, includes, qty_label,
+  count_label, groups[], total, empty } · groups[] = { label|null, rows[] } ·
+  rows[] = { description, quantity_text, price_text, total, muted } ·
+  grand = { total, reconciles, included_label, parts[], excluded[],
+  recon_label, recon_state, refunds_abs, refunds_negative } · footnote
+
+  Un número, una fórmula: filas y totales llegan calculados del MISMO RPC
+  (get_custom_report) que alimenta la pantalla; aquí solo se formatean con
+  `money`. Documento contable: el membrete SÍ lleva la razón social (no se
+  pasa `hide_org_name`). Sin firma.
+
+  La hoja NO es `.fixed`: pagina sola. `thead` se repite en cada hoja;
+  `tfoot` se fuerza a table-row-group para que el total de sección salga
+  UNA sola vez; cada fila lleva break-inside: avoid.
+--}}
+{{> head}}
+<style>
+  /* Documentos que paginan: el margen vertical va en @page (se repite en
+     cada hoja) y no en el padding de .sheet (solo vale para la primera). */
+  @page { size: A4; margin: 14mm 0 16mm; }
+  @media print {
+    .sheet { padding-top: 0; min-height: calc(297mm - 30mm - 1px); }
+  }
+
+  /* Subtítulo bajo el título del documento. */
+  .subtitle { margin: 5px 0 0; font-size: 9.4pt; color: var(--muted); }
+  .title-row { align-items: flex-start; }
+  .title-row .doc-code { padding-top: 14px; }
+
+  /* Cabecera de sección: título + chip a la izquierda, total a la derecha.
+     El ::after de relleno del base no hace falta: lo empuja margin-left:auto. */
+  .section { margin-top: 18px; }
+  .section > h2 { break-after: avoid; margin-bottom: 4px; }
+  .section > h2::after { content: none; }
+  .section > h2 .sec-total {
+    margin-left: auto; font-size: 10pt; letter-spacing: 0; text-transform: none;
+    color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 600;
+  }
+  .section > h2 .sec-total small {
+    font-size: 6.8pt; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; margin-right: 6px;
+  }
+  /* "Qué incluye": línea llana para la doctora (spec §2). */
+  .section .includes { margin: 0 0 7px; font-size: 8.4pt; color: var(--muted); break-after: avoid; }
+
+  /* Tabla de cobros: datos ≥ 9pt, cifras a la derecha en tabular-nums. */
+  table.grid { font-size: 9.4pt; }
+  table.grid thead { display: table-header-group; }   /* se repite en cada hoja */
+  table.grid tfoot { display: table-row-group; }      /* total UNA sola vez */
+  table.grid tr { break-inside: avoid; }
+  table.grid thead th { font-size: 8pt; }
+  table.grid th.amt { text-align: right; }
+  /* La celda del total de fila se llama `sum`, NO `total`: `.total` es el
+     bloque de marca de styles.hbs (fondo, flex, radio) y lo pintaría. */
+  table.grid td.desc { width: 52%; word-break: break-word; }
+  table.grid td.qty, table.grid td.price, table.grid td.sum {
+    text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums;
+  }
+  table.grid td.qty { width: 12%; }
+  table.grid td.price { width: 18%; font-weight: 400; }
+  table.grid td.sum { width: 18%; font-weight: 600; }
+  /* Subtítulo de grupo (Adelantos por tipo · Ventas anuladas). */
+  table.grid tbody tr.grp td {
+    background: var(--wash); color: var(--brand-deep);
+    font-size: 7.6pt; letter-spacing: .1em; text-transform: uppercase; font-weight: 600;
+    padding: 4px 12px;
+  }
+  table.grid tbody tr.grp + tr { break-before: avoid; }
+  table.grid tbody tr.muted td { color: var(--muted); }
+  table.grid tbody tr.empty td.desc { color: var(--muted); font-style: italic; }
+  /* El total de sección viaja con la última fila: nunca solo en una hoja nueva. */
+  table.grid tfoot tr { break-before: avoid; }
+  table.grid tfoot td { text-align: right; }
+  table.grid tfoot td.lbl { font-size: 7.6pt; letter-spacing: .1em; text-transform: uppercase; }
+
+  /* Total final + partes + cuadre: un solo bloque que no se parte (≈30mm).
+     La nota al pie queda fuera para no engordarlo; el pie de página viaja
+     con lo último (break-before: avoid), nunca solo en una hoja nueva. */
+  .grand { margin-top: 22px; break-inside: avoid; }
+  .grand .total { margin-top: 0; }
+  .total .t-lbl small { text-transform: none; letter-spacing: .02em; font-size: 7.6pt; }
+  .grand-parts { margin: 8px 2px 0; font-size: 8.4pt; color: var(--muted); }
+  .grand-parts b { color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .recon { margin: 8px 2px 0; font-size: 9pt; color: var(--ink-2); }
+  .recon.ok::before, .recon.partial::before { content: "\2713"; color: var(--brand); font-weight: 700; margin-right: 6px; }
+  .recon.partial::before { content: "\2022"; }
+  .recon.diff { color: #92400e; }
+  .recon.diff::before { content: "!"; color: #b45309; font-weight: 700; margin-right: 6px; }
+  .refunds { margin: 4px 2px 0; font-size: 8.6pt; color: var(--muted); }
+  .refunds b { color: var(--ink-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .footnote { margin: 10px 2px 0; font-size: 8pt; color: var(--muted); line-height: 1.45; break-before: avoid; }
+  .page-footer { break-inside: avoid; break-before: avoid; }
+</style>
+
+  <section class="sheet">
+    <div class="sheet-body">
+{{> sheetHead}}
+{{> titleRow}}
+      <p class="subtitle">{{doc.subtitle}}</p>
+{{> meta}}
+
+{{#each sections}}
+      <section class="section">
+        <h2>{{title}} <span class="count">{{count_label}}</span><span class="sec-total"><small>Total</small>{{money total}}</span></h2>
+        <p class="includes">{{includes}}</p>
+        <table class="grid">
+          <thead>
+            <tr>
+              <th>Descripción</th>
+              <th class="amt">{{qty_label}}</th>
+              <th class="amt">Precio</th>
+              <th class="amt">Total</th>
+            </tr>
+          </thead>
+          {{#if empty}}
+          <tbody>
+            <tr class="empty">
+              <td class="desc">Sin cobros</td>
+              <td class="qty">—</td>
+              <td class="price">—</td>
+              <td class="sum">{{money 0}}</td>
+            </tr>
+          </tbody>
+          {{else}}
+          {{#each groups}}
+          <tbody>
+            {{#if label}}
+            <tr class="grp"><td colspan="4">{{label}}</td></tr>
+            {{/if}}
+            {{#each rows}}
+            <tr{{#if muted}} class="muted"{{/if}}>
+              <td class="desc">{{description}}</td>
+              <td class="qty">{{quantity_text}}</td>
+              <td class="price">{{price_text}}</td>
+              <td class="sum">{{money total}}</td>
+            </tr>
+            {{/each}}
+          </tbody>
+          {{/each}}
+          {{/if}}
+          <tfoot>
+            <tr>
+              <td colspan="3" class="lbl">Total {{title}}</td>
+              <td class="amt">{{money total}}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </section>
+{{/each}}
+
+      <div class="grand">
+        <div class="total">
+          <div class="t-lbl">Total final<small>{{#if grand.included_label}}Suma de {{grand.included_label}}{{else}}Sin secciones{{/if}}</small></div>
+          <div class="t-fig">{{money grand.total}}</div>
+        </div>
+{{#if grand.parts.length}}
+        <p class="grand-parts">{{#each grand.parts}}{{#if @index}} · {{/if}}{{title}} <b>{{money total}}</b>{{/each}}</p>
+{{/if}}
+        <p class="recon {{grand.recon_state}}">{{grand.recon_label}}</p>
+{{#if grand.refunds_abs}}
+        <p class="refunds">Devoluciones registradas en Caja en el rango: <b>{{#if grand.refunds_negative}}−{{/if}}{{money grand.refunds_abs}}</b> (informativas, no restadas del total).</p>
+{{/if}}
+      </div>
+      <p class="footnote">{{footnote}}</p>
+    </div>
+{{> pageFooter}}
+  </section>
+
+{{> docEnd}}

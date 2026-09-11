@@ -1065,3 +1065,17 @@
 .driver-popover.yenda-tour-popover .driver-popover-arrow-side-bottom.driver-popover-arrow {
   border-bottom-color: var(--card);
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   IMPRESIÓN — RED DE SEGURIDAD (Ctrl+P sobre cualquier pantalla)
+   No había ningún @media print global: en modo oscuro `--foreground`
+   es casi blanco y los navegadores no pintan fondos por defecto, así
+   que Almacén, Caja o Reportes salían con texto casi invisible sobre
+   papel blanco. Los PDF "de verdad" van por lib/pdf/html (Chromium) y
+   no pasan por aquí. Fuera de @layer: debe ganar a las utilidades.
+   ═══════════════════════════════════════════════════════════════════ */
+@media print {
+  html, body { background: #fff !important; color: #000 !important; }
+  .grain::before { display: none; }
+  * { box-shadow: none !important; text-shadow: none !important; }
+}

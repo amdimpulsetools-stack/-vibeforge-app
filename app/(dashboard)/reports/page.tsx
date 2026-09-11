@@ -20,13 +20,16 @@ import {
   Loader2,
   HeartPulse,
   Baby,
+  ListChecks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AiReportProvider, AiSummaryButton, AiSummaryPanel } from "./ai-summary-panel";
 import { useOrgAddons } from "@/hooks/use-org-addons";
+import { useOrgToday } from "@/hooks/use-org-today";
+import { zonedNow } from "@/lib/org-time";
 import { FERTILITY_BASIC_KEY, FERTILITY_PREMIUM_KEY } from "@/types/fertility";
 
-type ReportTab = "financial" | "marketing" | "operational" | "retention" | "fertility";
+type ReportTab = "financial" | "custom" | "marketing" | "operational" | "retention" | "fertility";
 
 // Los cinco reportes son excluyentes (solo se ve uno) y cuatro de ellos
 // importan recharts, pero los cinco entraban estáticos en el First Load de
@@ -42,6 +45,7 @@ type ReportTab = "financial" | "marketing" | "operational" | "retention" | "fert
 //   · Se precarga también al pasar el puntero por cada pestaña.
 const REPORT_LOADERS: Record<ReportTab, () => Promise<unknown>> = {
   financial: () => import("./financial-report"),
+  custom: () => import("./custom-report"),
   marketing: () => import("./marketing-report"),
   operational: () => import("./operational-report"),
   retention: () => import("./retention-report"),
@@ -56,6 +60,12 @@ const ReportChunkFallback = () => (
 
 const FinancialReport = dynamic(
   () => import("./financial-report").then((m) => m.FinancialReport),
+  { ssr: false, loading: ReportChunkFallback },
+);
+// Autocontenido como Retención/Fertilidad: trae su propio payload por
+// React Query y no dispara el fetch compartido.
+const CustomReport = dynamic(
+  () => import("./custom-report").then((m) => m.CustomReport),
   { ssr: false, loading: ReportChunkFallback },
 );
 const MarketingReport = dynamic(
@@ -94,8 +104,17 @@ export default function ReportsPage() {
   useEffect(() => {
     void REPORT_LOADERS[activeTab]();
   }, [activeTab]);
-  const [dateFrom, setDateFrom] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
+
+  // "Hoy" civil de la org (mig 240), no el reloj del navegador: después de
+  // las 19:00 Lima `new Date()` en un cliente en UTC ya es mañana. `today()`
+  // da el yyyy-MM-dd directo; `zonedNow(timezone)` es un Date con el reloj
+  // de pared de la org para la aritmética de date-fns (startOfMonth, subDays).
+  // Mientras la org carga cae a America/Lima (resolveOrgTimezone).
+  const { timezone: orgTimezone, today: orgToday } = useOrgToday();
+  const [dateFrom, setDateFrom] = useState(() =>
+    format(startOfMonth(zonedNow(orgTimezone)), "yyyy-MM-dd"),
+  );
+  const [dateTo, setDateTo] = useState(() => orgToday());
 
   // Debounce de los inputs de fecha (300 ms): editarlas con el teclado
   // dispara un evento por tecla/flecha, y cada uno era un fetch triple. Los
@@ -168,22 +187,31 @@ export default function ReportsPage() {
   const loading = needsSharedData && (!organizationId || sharedPending);
 
   const applyPreset = (preset: typeof DATE_PRESETS[number]) => {
-    const today = new Date();
+    // Reloj de pared de la org, no `new Date()` (ver arriba).
+    const today = zonedNow(orgTimezone);
     if (preset.key === "this_month") {
       setDateFrom(format(startOfMonth(today), "yyyy-MM-dd"));
       setDateTo(format(endOfMonth(today), "yyyy-MM-dd"));
     } else if (preset.days === 0) {
-      const todayStr = format(today, "yyyy-MM-dd");
+      const todayStr = orgToday();
       setDateFrom(todayStr);
       setDateTo(todayStr);
     } else {
       setDateFrom(format(subDays(today, preset.days), "yyyy-MM-dd"));
-      setDateTo(format(today, "yyyy-MM-dd"));
+      setDateTo(orgToday());
     }
   };
 
+  // El "Resumen IA" no aplica al Resumen de cobros: `aiReportSchema`
+  // (lib/validations/api.ts) valida `reportType` con un enum cerrado y con
+  // "custom" devolvería 400. Se ocultan botón y panel en esa pestaña.
+  const aiApplies = activeTab !== "custom";
+
   const tabs: { key: ReportTab; label: string; icon: typeof BarChart3 }[] = [
     { key: "financial", label: t("reports.tab_financial"), icon: BarChart3 },
+    // Segunda posición: la doctora alterna Financiero ↔ Resumen de cobros
+    // con el mismo rango, y en móvil la fila de tabs scrollea.
+    { key: "custom", label: t("reports.custom_tab"), icon: ListChecks },
     { key: "marketing", label: t("reports.tab_marketing"), icon: Megaphone },
     { key: "operational", label: t("reports.tab_operational"), icon: TrendingUp },
     { key: "retention", label: t("reports.tab_retention"), icon: HeartPulse },
@@ -209,9 +237,11 @@ export default function ReportsPage() {
 
           `dvh` porque 100vh en iOS incluye la barra de URL colapsable; en
           escritorio dvh == vh. */}
-      <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] flex-col md:-mx-7 md:-mb-7 md:-mt-7 md:h-[calc(100dvh-4rem)]">
-        {/* Header */}
-        <div className="border-b border-border bg-background px-4 py-3 md:px-6 md:py-4">
+      <div className="-mx-4 -mt-4 flex h-[calc(100dvh-5rem)] flex-col md:-mx-7 md:-mb-7 md:-mt-7 md:h-[calc(100dvh-4rem)] print:h-auto print:overflow-visible">
+        {/* Header. `print:hidden`: un Ctrl+P accidental imprime solo el
+            reporte, sin rango ni pestañas (red de seguridad del Resumen de
+            cobros; el PDF con membrete es la salida principal). */}
+        <div className="border-b border-border bg-background px-4 py-3 md:px-6 md:py-4 print:hidden">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-bold">{t("reports.title")}</h1>
@@ -251,8 +281,12 @@ export default function ReportsPage() {
                     </button>
                   ))}
                 </div>
-                <div className="hidden sm:block h-5 w-px bg-border" />
-                <AiSummaryButton />
+                {aiApplies && (
+                  <>
+                    <div className="hidden sm:block h-5 w-px bg-border" />
+                    <AiSummaryButton />
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -289,9 +323,12 @@ export default function ReportsPage() {
             ya están saneados en los reportes (min-w-0 + wrap), así que en
             móvil se clava a `hidden`; las tablas anchas siguen scrolleando
             en su propio wrapper. Desde md nada cambia. */}
-        <div className="flex-1 overflow-y-auto p-4 max-md:overflow-x-hidden md:p-6">
-          {/* AI Summary Panel (appears when active) */}
-          <AiSummaryPanel reportType={activeTab} dateFrom={debounced.dateFrom} dateTo={debounced.dateTo} />
+        <div className="flex-1 overflow-y-auto p-4 max-md:overflow-x-hidden md:p-6 print:h-auto print:overflow-visible">
+          {/* AI Summary Panel (appears when active). Oculto en el Resumen de
+              cobros: su barra sticky debe ser el primer hijo del scroller. */}
+          {aiApplies && (
+            <AiSummaryPanel reportType={activeTab} dateFrom={debounced.dateFrom} dateTo={debounced.dateTo} />
+          )}
 
           {loading ? (
             <div className="flex items-center justify-center py-20">
@@ -303,6 +340,9 @@ export default function ReportsPage() {
               dateFrom={debounced.dateFrom}
               dateTo={debounced.dateTo}
             />
+          ) : activeTab === "custom" ? (
+            // Autocontenido: su propio useQuery; hereda el rango de la cabecera.
+            <CustomReport dateFrom={debounced.dateFrom} dateTo={debounced.dateTo} />
           ) : activeTab === "marketing" ? (
             <MarketingReport
               appointments={appointments}
