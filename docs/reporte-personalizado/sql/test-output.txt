@@ -1,0 +1,212 @@
+NOTICE:  custom_report = {
+    "role": "owner",
+    "range": {
+        "to": "2026-09-07",
+        "from": "2026-09-01",
+        "timezone": "America/Lima"
+    },
+    "sections": {
+        "advances": {
+            "rows": [
+                {
+                    "kind": "appointment_future",
+                    "price": 200.00,
+                    "total": 50.00,
+                    "quantity": 1,
+                    "price_max": 200.00,
+                    "price_min": 200.00,
+                    "description": "1era consulta de fertilidad"
+                },
+                {
+                    "kind": "appointment_past",
+                    "price": 150.00,
+                    "total": 150.00,
+                    "quantity": 1,
+                    "price_max": 150.00,
+                    "price_min": 150.00,
+                    "description": "Ecografía"
+                },
+                {
+                    "kind": "direct",
+                    "price": 300.00,
+                    "total": 300.00,
+                    "quantity": 1,
+                    "price_max": 300.00,
+                    "price_min": 300.00,
+                    "description": "Abono directo (sin cita asociada)"
+                },
+                {
+                    "kind": "plan",
+                    "price": 400.00,
+                    "total": 400.00,
+                    "quantity": 1,
+                    "price_max": 400.00,
+                    "price_min": 400.00,
+                    "description": "Anticipo a plan — Plan Fisio"
+                }
+            ],
+            "total": 900.00,
+            "by_bucket": {
+                "other": 300.00,
+                "plans": 400.00,
+                "other_appointments": 200.00
+            }
+        },
+        "pharmacy": {
+            "rows": [
+                {
+                    "price": 45.00,
+                    "total": 135.00,
+                    "voided": false,
+                    "quantity": 3.000,
+                    "price_max": 45.00,
+                    "price_min": 45.00,
+                    "description": "Ovusitol"
+                },
+                {
+                    "price": 2.50,
+                    "total": 7.00,
+                    "voided": false,
+                    "quantity": 3.000,
+                    "price_max": 2.50,
+                    "price_min": 2.50,
+                    "description": "Paracetamol"
+                },
+                {
+                    "price": 45.00,
+                    "total": 45.00,
+                    "voided": true,
+                    "quantity": 1,
+                    "price_max": 45.00,
+                    "price_min": 45.00,
+                    "description": "Ventas anuladas (cobro aún registrado; devolución por Caja)"
+                }
+            ],
+            "total": 187.00
+        },
+        "services": {
+            "rows": [
+                {
+                    "price": null,
+                    "total": 300.00,
+                    "attended": 2,
+                    "quantity": 2,
+                    "price_max": 200.00,
+                    "price_min": 180.00,
+                    "description": "1era consulta de fertilidad",
+                    "production_total": 380.00
+                },
+                {
+                    "price": 150.00,
+                    "total": 150.00,
+                    "attended": 0,
+                    "quantity": 1,
+                    "price_max": 150.00,
+                    "price_min": 150.00,
+                    "description": "Ecografía",
+                    "production_total": 0
+                },
+                {
+                    "price": 80.00,
+                    "total": 80.00,
+                    "attended": 1,
+                    "quantity": 1,
+                    "price_max": 80.00,
+                    "price_min": 80.00,
+                    "description": "Control",
+                    "production_total": 80.00
+                }
+            ],
+            "total": 530.00
+        },
+        "treatments": {
+            "rows": [
+                {
+                    "price": 2500.00,
+                    "total": 2500.00,
+                    "quantity": 1,
+                    "price_max": 2500.00,
+                    "price_min": 2500.00,
+                    "description": "Honorarios — aspiración"
+                },
+                {
+                    "price": null,
+                    "total": 2000.00,
+                    "quantity": 2,
+                    "price_max": 1200.00,
+                    "price_min": 800.00,
+                    "description": "Medicación"
+                }
+            ],
+            "total": 4500.00
+        }
+    },
+    "grand_total": 6117.00,
+    "reconciliation": {
+        "payments_amount": 1617.00,
+        "refunds_in_range": -95.00,
+        "collected_breakdown": {
+            "other": 300.00,
+            "plans": 400.00,
+            "pharmacy": 187.00,
+            "other_appointments": 200.00,
+            "period_appointments": 530.00
+        },
+        "expected_grand_total": 6117.00,
+        "treatment_payments_amount": 4500.00
+    },
+    "sections_available": {
+        "advances": true,
+        "pharmacy": true,
+        "services": true,
+        "treatments": true
+    }
+}
+NOTICE:  PASS  period_appointments (SERVICIOS)  (=530.00)
+NOTICE:  PASS  other_appointments  (=200.00)
+NOTICE:  PASS  other (abono directo)  (=300.00)
+NOTICE:  PASS  plans  (=400.00)
+NOTICE:  PASS  pharmacy (incluye anulada)  (=187.00)
+NOTICE:  PASS  treatment_payments_amount  (=4500.00)
+NOTICE:  PASS  SERVICIOS.total == period_appointments  (=530.00)
+NOTICE:  PASS  ABONOS.total == other_appointments+other+plans  (=900.00)
+NOTICE:  PASS  FARMACIA.total == pharmacy  (=187.00)
+NOTICE:  PASS  TRATAMIENTOS.total == treatment_payments_amount  (=4500.00)
+NOTICE:  PASS  Σ filas SERVICIOS  (=530.00)
+NOTICE:  PASS  Σ filas ABONOS  (=900.00)
+NOTICE:  PASS  Σ filas FARMACIA  (=187.00)
+NOTICE:  PASS  Σ filas TRATAMIENTOS  (=4500.00)
+NOTICE:  PASS  TOTAL FINAL == overview.payments_amount + treatment_payments_amount  (=6117.00)
+NOTICE:  PASS  TOTAL FINAL (valor)  (=6117.00)
+NOTICE:  PASS  overview.payments_amount  (=1617.00)
+NOTICE:  PASS  overview.period_appointments == Σ doctors[].collected  (=530.00)
+NOTICE:  PASS  Consulta: 2 citas cobradas  (=2)
+NOTICE:  PASS  Consulta: precio NULL (varios 180/200)  (=1)
+NOTICE:  PASS  Consulta: producción (services[].revenue mig 198) = 380  (=380.00)
+NOTICE:  PASS  Control: precio real con descuento = 80  (=80.00)
+NOTICE:  PASS  Ecografía cancelada con cobro cuenta (mig 251)  (=150.00)
+NOTICE:  PASS  Ovusitol qty 3 (anulada fuera)  (=3.000)
+NOTICE:  PASS  Paracetamol total 7.00 (descuento de línea)  (=7.00)
+NOTICE:  PASS  Fila ventas anuladas = 45  (=45.00)
+NOTICE:  PASS  Medicación: 2 cobros  (=2)
+NOTICE:  PASS  Adelanto cita futura = 50  (=50.00)
+NOTICE:  PASS  Pago atrasado cita pasada = 150  (=150.00)
+NOTICE:  PASS  Devoluciones en Caja (informativo, fecha civil Lima) = -95  (=-95.00)
+NOTICE:  PASS  Solo SERVICIOS+FARMACIA  (=717.00)
+NOTICE:  PASS  sección no marcada viene NULL  (=1)
+NOTICE:  PASS  hoy: from == to  (=1)
+NOTICE:  PASS  cobro POS editado: fila de ajuste = 10  (=10.00)
+NOTICE:  PASS  cobro POS editado: FARMACIA.total == pharmacy  (=197.00)
+NOTICE:  PASS  cobro POS editado: TOTAL FINAL sigue cuadrando  (=6127.00)
+NOTICE:  PASS  gating: receptionist ⇒ forbidden
+NOTICE:  PASS  gating: otra org ⇒ forbidden
+           QUERY PLAN           
+--------------------------------
+ Result (actual rows=1 loops=1)
+(1 row)
+
+          resultado           
+------------------------------
+ TODAS LAS ASERCIONES PASARON
+(1 row)
+
