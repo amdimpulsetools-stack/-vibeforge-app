@@ -156,7 +156,9 @@ export async function GET(
 
   // Un doctor solo ve el detalle de SUS tratamientos (o de los que no tienen
   // doctora asignada) — mismo scope que la lista y que treatment_close (245).
-  if (role === "doctor" && treatment.doctor_id) {
+  // Doctora + asesora de fertilidad ve todos (mig 261).
+  const doctorScoped = role === "doctor" && !membership.is_fertility_advisor;
+  if (doctorScoped && treatment.doctor_id) {
     const { data: ownDoctor } = await supabase
       .from("doctors")
       .select("id")
