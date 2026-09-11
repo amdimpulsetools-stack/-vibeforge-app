@@ -136,11 +136,14 @@ export async function GET(request: NextRequest) {
   const from = fromParam && DATE_RE.test(fromParam) ? fromParam : format(startOfMonth(nowZoned), "yyyy-MM-dd");
   const to = toParam && DATE_RE.test(toParam) ? toParam : format(endOfMonth(nowZoned), "yyyy-MM-dd");
 
-  // Un doctor (que no es owner/admin) solo ve sus tratamientos.
+  // Un doctor (que no es owner/admin) solo ve sus tratamientos. Si además
+  // es asesora de fertilidad ve TODOS, como una asesora sin ficha (mig 261:
+  // misma condición que `treatments_doctor_scoped` en el RPC).
   const role = membership.role;
   const seesFees = role === "owner" || role === "admin" || role === "doctor";
+  const doctorScoped = role === "doctor" && !membership.is_fertility_advisor;
   let doctorScopeId: string | null = null;
-  if (role === "doctor") {
+  if (doctorScoped) {
     const { data: doctorRow } = await supabase
       .from("doctors")
       .select("id")

@@ -9,6 +9,7 @@
  * rotula "Cobrado" / "Por cobrar" — nunca "Ingresos" ni "ganancia".
  *
  * Un doctor ve solo sus tratamientos (lo filtra la API por doctor_scope_id);
+ * si además es asesora de fertilidad ve todos (mig 261);
  * recepción ve todo pero sin honorarios (`sees_fees` = false).
  */
 
