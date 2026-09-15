@@ -3,7 +3,7 @@
 Paquete para solicitar **acceso avanzado** a `whatsapp_business_management` y
 `whatsapp_business_messaging`. Último trámite del expediente Meta.
 
-**Estado del expediente (31-ago-2026)**
+**Estado del expediente (15-sep-2026): EXPEDIENTE COMPLETO — App Review aprobado**
 
 | Requisito | Estado |
 |---|---|
@@ -12,7 +12,7 @@ Paquete para solicitar **acceso avanzado** a `whatsapp_business_management` y
 | Proveedor de tecnología — verificación de acceso | ✅ 31-ago-2026 |
 | Configuración de Embedded Signup (`config_id`) | ✅ 4454930594731788 |
 | Flujo construido en Yenda | ✅ PR #327 (mig 234 aplicada) |
-| **Acceso avanzado a los 2 permisos** | ⬜ **este documento** |
+| **Acceso avanzado a los 2 permisos** | ✅ **APROBADO 15-sep-2026** (`whatsapp_business_messaging`, `whatsapp_business_management` y `public_profile`, envío del 15-sep 04:12 PET, respuesta el mismo día) |
 
 Ruta: Casos de uso → *Conectarte con los clientes a través de WhatsApp* →
 Permisos y funciones → en cada permiso, **Acciones → Ir a revisión de la app**.
@@ -213,6 +213,13 @@ que reflejan cómo está construido el sistema:
 ---
 
 ## 5. Después de enviar
+
+> **Resultado (15-sep-2026): APROBADO.** Meta aprobó los tres permisos y la
+> configuración de la app en el mismo día del envío (04:12 PET). Los dos
+> screencasts (uno por permiso, sin Embedded Signup) bastaron, como decía la
+> documentación y no el asistente de la consola. Siguen los pasos de "Si
+> aprueban" de abajo: conectar el primer número real por Embedded Signup y
+> validar `register` en Coexistence y el `postMessage` del signup (PR #327).
 
 - Meta responde normalmente en pocos días hábiles.
 - Si aprueban: los dos permisos pasan a **Acceso avanzado** y el popup deja de
