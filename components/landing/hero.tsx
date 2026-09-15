@@ -8,6 +8,7 @@ import {
   BarChart3,
   Bell,
   Plus,
+  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { trackLanding } from "@/lib/landing-analytics";
@@ -180,6 +181,27 @@ export function Hero() {
             Sin tarjeta. Sin contrato. Lo configuras en una tarde y tu
             recepcionista lo entiende el mismo día.
           </p>
+
+          {/* Sellos de confianza (founder, 15-sep-2026). REGLA de la landing
+              (auditoría 21-ago): solo afirmaciones verificables. Ambas lo
+              son: verificación OAuth de Google aprobada (28-ago-2026,
+              calendar.events) y Yenda registrada como Proveedor de
+              tecnología de WhatsApp con App Review aprobado (15-sep-2026).
+              Sin logotipos de Google ni de Meta: su uso exige permiso de
+              marca; texto + icono neutro. */}
+          <ul
+            aria-label="Verificaciones"
+            className="mt-4 flex flex-wrap items-center justify-center gap-2 opacity-0 animate-[fadeUp_0.5s_0.8s_ease-out_forwards]"
+          >
+            <li className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+              App verificada por Google
+            </li>
+            <li className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
+              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+              Proveedor de tecnología de WhatsApp verificado por Meta
+            </li>
+          </ul>
         </div>
 
         {/* ── Mockup: réplica fiel del scheduler real al ~80% ──
