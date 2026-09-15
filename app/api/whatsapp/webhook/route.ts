@@ -141,7 +141,21 @@ async function handleWebhookPayload(payload: MetaWebhookPayload) {
  * Validates X-Hub-Signature-256 when WHATSAPP_APP_SECRET is configured.
  */
 export async function POST(req: NextRequest) {
-  const appSecret = process.env.WHATSAPP_APP_SECRET;
+  // El "app secret" de Meta es uno solo por app: WHATSAPP_APP_SECRET es el
+  // nombre histórico de este webhook y META_APP_SECRET el del Embedded
+  // Signup. Se acepta cualquiera de los dos.
+  const appSecret = process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET;
+
+  // Sin secreto NO se procesa en producción (revisión Captación 15-sep-2026;
+  // antes solo avisaba y aceptaba el payload: cualquiera podía insertar
+  // leads, mensajes y estados con service role). Meta reintenta el webhook,
+  // así que un 500 aquí no pierde mensajes una vez configurado el secreto.
+  if (!appSecret && process.env.NODE_ENV === "production") {
+    console.error(
+      "[WhatsApp Webhook] Falta WHATSAPP_APP_SECRET / META_APP_SECRET: payload rechazado"
+    );
+    return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
+  }
 
   if (appSecret) {
     // Verify HMAC signature from Meta
@@ -175,13 +189,8 @@ export async function POST(req: NextRequest) {
     return handleWebhookPayload(payload);
   }
 
-  // No app secret configured — accept but warn in production
-  if (process.env.NODE_ENV === "production") {
-    console.warn(
-      "[WhatsApp Webhook] WHATSAPP_APP_SECRET not set — signature verification disabled"
-    );
-  }
-
+  // Solo desarrollo local sin secreto: se acepta para poder probar con
+  // payloads a mano. En producción nunca se llega aquí (500 arriba).
   let payload: MetaWebhookPayload;
   try {
     payload = await req.json();
