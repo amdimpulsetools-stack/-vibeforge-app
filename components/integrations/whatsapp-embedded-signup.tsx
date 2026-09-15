@@ -39,6 +39,14 @@ const FB_SDK_GRAPH_VERSION = "v21.0";
 const META_APP_ID = process.env.NEXT_PUBLIC_META_APP_ID;
 const META_ES_CONFIG_ID = process.env.NEXT_PUBLIC_META_ES_CONFIG_ID;
 
+// Versión del flujo de Embedded Signup (extras.version). Sin ella Meta
+// corre v2, que se deprecia el 15-oct-2026 y cuya variante Coexistence NO
+// se migra sola. v4 es la vigente (doc "Versions", 2026). Se deja como env
+// opcional para poder volver a v3 sin redeploy de código si Meta cambia
+// algo; el valor va a extras tal cual, sin validar (Meta lo rechaza si no
+// existe y el listener lo muestra como ERROR).
+const META_ES_VERSION = process.env.NEXT_PUBLIC_META_ES_VERSION || "v4";
+
 /** Gate: sin App ID + Config ID el botón de Embedded Signup no existe. */
 export function isEmbeddedSignupEnabled(): boolean {
   return !!META_APP_ID && !!META_ES_CONFIG_ID;
@@ -58,7 +66,12 @@ interface FacebookSdk {
       config_id: string;
       response_type: string;
       override_default_response_type: boolean;
-      extras: { setup: Record<string, never>; featureType: string; sessionInfoVersion: string };
+      extras: {
+        version: string;
+        setup: Record<string, never>;
+        featureType: string;
+        sessionInfoVersion: string;
+      };
     }
   ): void;
 }
@@ -93,16 +106,35 @@ function loadFacebookSdk(): Promise<FacebookSdk> {
       });
       resolve(window.FB);
     };
+    // La CSP que permite connect.facebook.net es SOLO la de /settings
+    // (lib/supabase/middleware.ts). Con el App Router, llegar a Ajustes por
+    // el menú es una navegación suave: el documento sigue siendo el de la
+    // ruta anterior, con la CSP global, y el navegador bloquea el SDK en
+    // silencio (aparecería como "desactiva el bloqueador"). Si el bloqueo
+    // es de la CSP, se recarga la página UNA vez para que el documento
+    // traiga la CSP correcta; el guard en sessionStorage evita un bucle.
+    const onViolation = (ev: SecurityPolicyViolationEvent) => {
+      if (!ev.blockedURI?.includes("connect.facebook.net")) return;
+      window.removeEventListener("securitypolicyviolation", onViolation);
+      const key = "wa-es-csp-reload";
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+      window.location.reload();
+    };
+    window.addEventListener("securitypolicyviolation", onViolation);
+
     const script = document.createElement("script");
     script.src = "https://connect.facebook.net/en_US/sdk.js";
     script.async = true;
     script.defer = true;
     script.crossOrigin = "anonymous";
     script.onerror = () => {
+      window.removeEventListener("securitypolicyviolation", onViolation);
       // Permite reintentar (p. ej. adblocker desactivado después).
       sdkPromise = null;
       reject(new Error("No se pudo cargar el SDK de Facebook"));
     };
+    script.onload = () => window.removeEventListener("securitypolicyviolation", onViolation);
     document.body.appendChild(script);
   });
   return sdkPromise;
@@ -161,8 +193,11 @@ export function WhatsAppEmbeddedSignup({
     const code = codeRef.current;
     const session = sessionRef.current;
     if (!code || !session || finalizedRef.current) return;
-    if (!session.phoneNumberId) {
-      // FINISH_ONLY_WABA: se creó la WABA pero no se llegó a elegir número.
+    // En Coexistence (v3/v4) el evento FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING
+    // solo trae waba_id: el número ya está registrado y el servidor lo
+    // resuelve listando los números de la WABA. Sin Coexistence, un FINISH
+    // sin número es FINISH_ONLY_WABA: se creó la WABA pero no se eligió número.
+    if (!session.phoneNumberId && !coexistenceRef.current) {
       setPhase("error");
       setErrorMsg(
         es
@@ -180,7 +215,7 @@ export function WhatsAppEmbeddedSignup({
         body: JSON.stringify({
           code,
           waba_id: session.wabaId,
-          phone_number_id: session.phoneNumberId,
+          phone_number_id: session.phoneNumberId ?? undefined,
           coexistence: coexistenceRef.current,
         }),
       });
@@ -241,8 +276,18 @@ export function WhatsAppEmbeddedSignup({
         return;
       }
       if (payload?.type !== "WA_EMBEDDED_SIGNUP") return;
+      // Traza de diagnóstico (15-sep-2026: un bucle dentro del popup de Meta
+      // era indistinguible de "no llegó nada"). Sin datos sensibles: ids de
+      // activos y nombre del paso, nunca el code.
+      console.info("[wa-es] evento", payload.event, payload.data?.current_step ?? "", payload.data?.waba_id ?? "");
 
-      if (payload.event === "FINISH" || payload.event === "FINISH_ONLY_WABA") {
+      if (
+        payload.event === "FINISH" ||
+        payload.event === "FINISH_ONLY_WABA" ||
+        // Coexistence (v3/v4): el número ya está registrado en la app del
+        // celular; el servidor salta el register. Mismo cierre que FINISH.
+        payload.event === "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING"
+      ) {
         sessionRef.current = {
           wabaId: payload.data?.waba_id ?? "",
           phoneNumberId: payload.data?.phone_number_id ?? null,
@@ -306,6 +351,7 @@ export function WhatsAppEmbeddedSignup({
     setPhase("popup");
     fb.login(
       (response) => {
+        console.info("[wa-es] FB.login", response?.status ?? "", response?.authResponse?.code ? "code recibido" : "sin code");
         const code = response?.authResponse?.code;
         if (code) {
           codeRef.current = code;
@@ -321,6 +367,7 @@ export function WhatsAppEmbeddedSignup({
         response_type: "code",
         override_default_response_type: true,
         extras: {
+          version: META_ES_VERSION,
           setup: {},
           featureType: coexistenceRef.current ? COEXISTENCE_FEATURE_TYPE : "",
           sessionInfoVersion: "3",

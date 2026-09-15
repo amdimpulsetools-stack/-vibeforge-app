@@ -91,7 +91,11 @@ const cspSettings = [
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
   `connect-src 'self' https://${supabaseDomain} https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.mercadopago.com https://www.facebook.com https://web.facebook.com https://graph.facebook.com`,
-  "frame-src 'self' https://challenges.cloudflare.com https://www.facebook.com https://web.facebook.com",
+  //   - frame-src https://staticxx.facebook.com → xd_arbiter, el iframe
+  //     oculto por el que el SDK entrega el `code` del popup a la página.
+  //     Sin él, el popup termina y el callback de FB.login nunca dispara
+  //     (hallazgo de la revisión del 15-sep-2026).
+  "frame-src 'self' https://challenges.cloudflare.com https://www.facebook.com https://web.facebook.com https://staticxx.facebook.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

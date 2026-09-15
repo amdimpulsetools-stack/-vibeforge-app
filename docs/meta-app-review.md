@@ -12,6 +12,7 @@ Paquete para solicitar **acceso avanzado** a `whatsapp_business_management` y
 | Proveedor de tecnología — verificación de acceso | ✅ 31-ago-2026 |
 | Configuración de Embedded Signup (`config_id`) | ✅ 4454930594731788 |
 | Flujo construido en Yenda | ✅ PR #327 (mig 234 aplicada) |
+| **Registro como Proveedor de tecnología (Independent Tech Provider)** | ✅ 15-sep-2026 — **era el paso que faltaba**: Casos de uso → WhatsApp → Personalizar → *Convertirte en socio* → *Conviértete en proveedor de tecnología* → Iniciar registro. Es un trámite aparte de la verificación de acceso y del App Review; sin él el popup dice "no puede registrar clientes" y al crear una configuración de Login for Business no aparece la variación WhatsApp Embedded Signup |
 | **Acceso avanzado a los 2 permisos** | ✅ **APROBADO 15-sep-2026** (`whatsapp_business_messaging`, `whatsapp_business_management` y `public_profile`, envío del 15-sep 04:12 PET, respuesta el mismo día) |
 
 Ruta: Casos de uso → *Conectarte con los clientes a través de WhatsApp* →
@@ -228,6 +229,29 @@ que reflejan cómo está construido el sistema:
   dos puntos que quedaron implementados de forma defensiva en el PR #327.
 - Si rechazan: el correo indica el motivo exacto. Corregir solo eso y reenviar
   (mismo criterio que funcionó con la verificación de Google).
+
+## 5b. Post-aprobación (15-sep-2026): el bucle del popup y el registro de Tech Provider
+
+Con los permisos aprobados, el popup seguía en bucle ("Anteriormente vinculaste
+Yenda App… ¿continuar?") y, tras "Editar configuración", mostraba
+"ADMimpuse no puede registrar clientes en este momento". Cero llamadas a Graph
+desde la app (MCP de Meta): nada llegaba a Yenda. Causa: el **registro como
+Proveedor de tecnología** nunca se había iniciado (ver tabla). Al completarlo
+("2 de 2 pasos"), el Embedded Signup Builder pasó a mostrar los tres
+requisitos en verde y a permitir lanzar el flujo en **v4**.
+
+Cambios de código asociados (PR del 15-sep):
+- `extras.version` (env `NEXT_PUBLIC_META_ES_VERSION`, default `v4`): sin
+  ella Meta corría v2, que se deprecia el 15-oct-2026 y cuya variante
+  Coexistence no se migra sola.
+- Evento `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING` (Coexistence v3/v4) solo
+  trae `waba_id`: cliente y servidor resuelven el número listando los de la
+  WABA (si hay exactamente uno).
+- CSP de /settings: `frame-src https://staticxx.facebook.com` (xd_arbiter, el
+  iframe por el que el SDK entrega el `code`). Navegación suave a Ajustes:
+  el documento traía la CSP global y bloqueaba el SDK → recarga única al
+  detectar la violación.
+- Trazas `[wa-es]` en consola (evento, paso, waba_id; nunca el code).
 
 ## 6. Pendiente posterior (no bloquea el review)
 
