@@ -32,7 +32,10 @@ import { z } from "zod";
 const bodySchema = z.object({
   code: z.string().min(1),
   waba_id: z.string().min(1),
-  phone_number_id: z.string().min(1),
+  // Opcional desde el 15-sep-2026: en Coexistence (ES v3/v4) el evento
+  // FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING solo trae waba_id; el número se
+  // resuelve abajo listando los de la WABA.
+  phone_number_id: z.string().min(1).optional(),
   coexistence: z.boolean().optional().default(true),
 });
 
@@ -108,7 +111,14 @@ export async function POST(req: NextRequest) {
       { status: 400 }
     );
   }
-  const { code, waba_id, phone_number_id, coexistence } = parsed.data;
+  const { code, waba_id, coexistence } = parsed.data;
+  let phone_number_id = parsed.data.phone_number_id;
+  if (!phone_number_id && !coexistence) {
+    return NextResponse.json(
+      { error: "El proceso terminó sin seleccionar un número. Vuelve a intentarlo y completa el paso del número." },
+      { status: 400 }
+    );
+  }
 
   // ── 1. Code → business token del cliente ──────────────────────────
   let accessToken: string;
@@ -162,6 +172,25 @@ export async function POST(req: NextRequest) {
       `${META_BASE_URL}/${waba_id}/phone_numbers?fields=id,display_phone_number,verified_name`,
       { headers: authHeaders }
     );
+    // Coexistence sin id: la WABA recién conectada tiene el número de la app
+    // del celular. Si hay exactamente uno, es ese; si hay varios no se
+    // adivina (el usuario repite el flujo eligiendo el número).
+    if (!phone_number_id) {
+      const list = phones.data ?? [];
+      if (list.length === 1) {
+        phone_number_id = list[0].id;
+      } else {
+        return NextResponse.json(
+          {
+            error:
+              list.length === 0
+                ? "La cuenta de WhatsApp autorizada no tiene ningún número. Completa el paso del número en Meta y vuelve a intentarlo."
+                : "La cuenta de WhatsApp autorizada tiene varios números. Vuelve a intentarlo y elige el número en la ventana de Meta.",
+          },
+          { status: 400 }
+        );
+      }
+    }
     const phone = phones.data?.find((p) => p.id === phone_number_id);
     if (!phone) {
       return NextResponse.json(
