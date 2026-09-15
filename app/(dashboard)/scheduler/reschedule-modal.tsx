@@ -34,18 +34,22 @@ export function RescheduleModal({
   const [newDoctorId, setNewDoctorId] = useState(appointment.doctor_id);
   const [saving, setSaving] = useState(false);
 
-  // Generate time options — always 15-min intervals for scheduling flexibility
-  // (independent of the visual grid interval configured in settings)
-  const timeOptions = useMemo(() => {
+  // Hora libre, misma lógica que al crear la cita (pedido del founder,
+  // 15-sep-2026): antes era un <select> de 15 en 15 min acotado al horario de
+  // apertura, así que no se podía reprogramar a las 07:00 si la agenda abre a
+  // las 07:15, ni elegir 14:20 (caso Vitra: la opción no existía y el select
+  // pintaba la primera hora). Ahora <input type="time"> en pasos de 5 min; el
+  // horario de apertura solo genera el aviso informativo de abajo, nunca
+  // bloquea. Los choques (consultorio, doctor, bloqueos, Break Time) ya se
+  // evaluaban sobre cualquier hora, no sobre la grilla.
+  const { scheduleStartMinutes, scheduleEndMinutes } = useMemo(() => {
     const config = loadSchedulerConfig();
-    const startMin = getScheduleStartMinutes(config);
-    const endMin = getScheduleEndMinutes(config);
-    const opts: string[] = [];
-    for (let mins = startMin; mins < endMin; mins += 15) {
-      opts.push(`${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60).toString().padStart(2, "0")}`);
-    }
-    return opts;
+    return {
+      scheduleStartMinutes: getScheduleStartMinutes(config),
+      scheduleEndMinutes: getScheduleEndMinutes(config),
+    };
   }, []);
+  const timeValid = /^\d{2}:\d{2}$/.test(newTime);
 
   // Compute new end time based on original duration
   const newEndTime = useMemo(() => {
@@ -55,15 +59,37 @@ export function RescheduleModal({
     const [eh, em] = origEnd.split(":").map(Number);
     const duration = (eh * 60 + em) - (sh * 60 + sm);
 
+    if (!/^\d{2}:\d{2}$/.test(newTime)) return "";
     const [nh, nm] = newTime.split(":").map(Number);
     const newEndMinutes = nh * 60 + nm + duration;
+    // Con hora libre el fin puede pasar de medianoche (23:50 + 30 min): el
+    // <select> lo hacía imposible; ahora se rechaza abajo con un aviso.
+    if (newEndMinutes > 24 * 60) return "";
     const endH = Math.floor(newEndMinutes / 60);
     const endM = newEndMinutes % 60;
     return `${endH.toString().padStart(2, "0")}:${endM.toString().padStart(2, "0")}`;
   }, [newTime, appointment.start_time, appointment.end_time]);
 
+  // Aviso informativo, copiado del modal de crear cita: fuera del horario de
+  // apertura se agenda igual y la agenda lo muestra; nunca por reserva online.
+  const outsideWindowNotice = useMemo(() => {
+    if (!timeValid || !newEndTime) return null;
+    const toMin = (t: string) => {
+      const [h, m] = t.split(":").map(Number);
+      return h * 60 + m;
+    };
+    const fmt = (mins: number) =>
+      `${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}`;
+    if (toMin(newTime) < scheduleStartMinutes || toMin(newEndTime) > scheduleEndMinutes) {
+      return `Fuera del horario de apertura de la agenda (${fmt(scheduleStartMinutes)} - ${fmt(scheduleEndMinutes)}). La cita se reprogramará igualmente y la agenda la mostrará; no se ofrece por reserva online.`;
+    }
+    return null;
+  }, [timeValid, newTime, newEndTime, scheduleStartMinutes, scheduleEndMinutes]);
+
   // Conflict check (exclude this appointment itself)
   const conflict = useMemo(() => {
+    if (!timeValid) return "Indica la nueva hora";
+    if (!newEndTime) return "La cita terminaría después de medianoche; elige una hora más temprana";
     // Check schedule blocks (DB blocks)
     const blockConflict = blocks.find((b) => {
       if (b.block_date !== newDate) return false;
@@ -109,7 +135,7 @@ export function RescheduleModal({
     if (doctorConflict) return "El doctor ya tiene una cita en ese horario";
 
     return null;
-  }, [newDate, newTime, newEndTime, newOfficeId, newDoctorId, existingAppointments, appointment.id, blocks]);
+  }, [timeValid, newDate, newTime, newEndTime, newOfficeId, newDoctorId, existingAppointments, appointment.id, blocks]);
 
   const handleSave = async () => {
     if (conflict) return;
@@ -203,19 +229,25 @@ export function RescheduleModal({
               <Clock className="h-4 w-4" /> Nueva hora *
             </label>
             <div className="flex gap-2">
-              <select
+              <input
+                type="time"
+                step="300"
                 value={newTime}
                 onChange={(e) => setNewTime(e.target.value)}
-                className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
-              >
-                {timeOptions.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+                /* Mismo fix anti-desborde iOS que el modal de crear cita. */
+                className="flex-1 min-w-0 max-md:appearance-none rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
+              />
               <div className="flex items-center px-3 py-2 rounded-lg border border-input bg-muted text-sm text-muted-foreground min-w-[80px]">
-                → {newEndTime}
+                → {newEndTime || "--:--"}
               </div>
             </div>
+            {/* Fuera del horario de apertura: informativo, nunca bloquea */}
+            {!conflict && outsideWindowNotice && (
+              <div className="flex items-center gap-2 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-sm text-sky-700 dark:text-sky-400">
+                <Clock className="h-4 w-4 shrink-0" />
+                {outsideWindowNotice}
+              </div>
+            )}
           </div>
 
           {/* Office */}
