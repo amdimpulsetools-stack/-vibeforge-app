@@ -92,10 +92,13 @@ export async function persistInboundMessages(
   const phoneIds = [...new Set(captured.map((c) => c.phoneNumberId).filter(Boolean))];
   if (phoneIds.length === 0) return 0;
 
+  // Solo configs ACTIVAS: la mig 262 garantiza un phone_number_id activo
+  // por org, así que el Map de abajo ya no puede pisar una org con otra.
   const { data: configs } = await admin
     .from("whatsapp_config")
     .select("organization_id, phone_number_id")
-    .in("phone_number_id", phoneIds);
+    .in("phone_number_id", phoneIds)
+    .eq("is_active", true);
 
   const orgByPhoneId = new Map(
     (configs ?? []).map((c) => [c.phone_number_id as string, c.organization_id as string]),

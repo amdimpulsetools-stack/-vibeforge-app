@@ -111,13 +111,16 @@ export const LANDING_PROFILE_CONTENT: Record<
     subtitle:
       "Varios doctores, varios consultorios, una sola agenda. Yenda detecta a la paciente que no volvió, te avisa para contactarla por WhatsApp en un clic y deja registro de cuáles regresaron. Historia clínica, caja y boletas SUNAT incluidas.",
     primary: "trial",
-    secondary: "demo",
+    // 15-sep-2026 (founder): sin demo en el hero; en su lugar, sellos de
+    // confianza bajo la línea "Sin tarjeta…" (ver hero.tsx). La demo sigue
+    // ofreciéndose en la sección del motor de seguimientos.
+    secondary: null,
   },
   clinica: {
     label: "Dirijo una clínica",
     subtitle:
       "Yenda detecta a la paciente que no agendó su siguiente control, te avisa para contactarla por WhatsApp en un clic y deja registro de cuáles volvieron. Agenda multi-doctor, historia clínica, caja y boletas SUNAT incluidas.",
     primary: "trial",
-    secondary: "demo",
+    secondary: null,
   },
 };
