@@ -15,9 +15,14 @@ import {
   Hourglass,
   Users,
   CalendarRange,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
+import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrgToday } from "@/hooks/use-org-today";
 import { zonedNow } from "@/lib/org-time";
 
@@ -38,6 +43,8 @@ import { zonedNow } from "@/lib/org-time";
 interface CampaignRow {
   ad_id: string; // 'organic' = sin anuncio
   headline: string | null;
+  /** Nombre que la clínica le puso al anuncio (mig 263); null si no lo nombró. */
+  label: string | null;
   source_type: string | null;
   chats: number;
   leads: number;
@@ -111,6 +118,7 @@ function formatYmd(ymd: string): string {
 export default function CaptacionPage() {
   const { organizationId } = useOrganization();
   const { timezone, today } = useOrgToday();
+  const { isAdmin } = useOrgRole();
 
   const [preset, setPreset] = useState<PresetKey>("90");
   const [customFrom, setCustomFrom] = useState("");
@@ -165,6 +173,37 @@ export default function CaptacionPage() {
 
   const s = data?.summary ?? null;
   const tz = data?.range.timezone ?? timezone;
+
+  // Etiqueta propia del anuncio (mig 263): Meta no manda el nombre de la
+  // campaña, la clínica se lo pone aquí. Solo owner/admin (la API y la RLS
+  // lo vuelven a comprobar). Actualización optimista de la fila.
+  const saveLabel = async (adId: string, label: string) => {
+    if (!organizationId) return;
+    const res = await fetch("/api/captacion/ad-labels", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ org_id: organizationId, ad_id: adId, label }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(d.error || "No se pudo guardar el nombre");
+      return false;
+    }
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            summary: {
+              ...prev.summary,
+              campaigns: prev.summary.campaigns.map((c) =>
+                c.ad_id === adId ? { ...c, label: d.label ?? null } : c,
+              ),
+            },
+          }
+        : prev,
+    );
+    return true;
+  };
 
   return (
     <div className="mx-auto max-w-6xl space-y-5 px-4 pb-14 pt-6 sm:px-6">
@@ -319,14 +358,10 @@ export default function CaptacionPage() {
                           className={cn("border-t border-border/40", organic && "text-muted-foreground")}
                         >
                           <td className="px-4 py-3">
-                            <p className="font-medium">
-                              {organic ? "Sin anuncio (orgánico)" : c.headline || "Sin titular"}
-                            </p>
-                            {!organic && (
-                              <p className="text-[11px] text-muted-foreground">
-                                ID {c.ad_id}
-                                {c.source_type ? ` · ${c.source_type}` : ""}
-                              </p>
+                            {organic ? (
+                              <p className="font-medium">Sin anuncio (orgánico)</p>
+                            ) : (
+                              <AdNameCell row={c} canEdit={isAdmin} onSave={saveLabel} />
                             )}
                           </td>
                           <td className="px-4 py-3">{c.chats}</td>
@@ -342,8 +377,9 @@ export default function CaptacionPage() {
                   </tbody>
                 </table>
                 <p className="border-t border-border/40 px-4 py-2 text-[11px] text-muted-foreground">
-                  Meta envía el titular y el ID del anuncio, no el nombre de la campaña.
-                  Agendaron, asistieron y facturado se cuentan solo sobre leads nuevos
+                  Meta envía el titular y el ID del anuncio, no el nombre de la campaña:
+                  {isAdmin ? " ponle el nombre que uses en tu Administrador de anuncios con el lápiz." : " el administrador puede ponerle nombre."}
+                  {" "}Agendaron, asistieron y facturado se cuentan solo sobre leads nuevos
                   (sin ficha previa en Yenda).
                 </p>
               </div>
@@ -397,6 +433,91 @@ export default function CaptacionPage() {
             </ul>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Celda "Anuncio": nombre propio (editable por admin) + titular + ID. */
+function AdNameCell({
+  row,
+  canEdit,
+  onSave,
+}: {
+  row: CampaignRow;
+  canEdit: boolean;
+  onSave: (adId: string, label: string) => Promise<boolean | undefined>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(row.label ?? "");
+  const [saving, setSaving] = useState(false);
+
+  const commit = async () => {
+    setSaving(true);
+    const ok = await onSave(row.ad_id, draft);
+    setSaving(false);
+    if (ok) setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1.5">
+        <input
+          autoFocus
+          value={draft}
+          maxLength={80}
+          placeholder={row.headline ?? "Nombre del anuncio"}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void commit();
+            if (e.key === "Escape") setEditing(false);
+          }}
+          className="w-56 min-w-0 rounded-lg border border-input bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+        />
+        <button
+          type="button"
+          onClick={() => void commit()}
+          disabled={saving}
+          aria-label="Guardar nombre"
+          className="rounded-md p-1 text-primary hover:bg-primary/10 disabled:opacity-50"
+        >
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+        </button>
+        <button
+          type="button"
+          onClick={() => setEditing(false)}
+          aria-label="Cancelar"
+          className="rounded-md p-1 text-muted-foreground hover:bg-accent"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group flex items-start gap-1.5">
+      <div className="min-w-0">
+        <p className="font-medium">{row.label || row.headline || "Sin titular"}</p>
+        <p className="truncate text-[11px] text-muted-foreground">
+          {row.label && row.headline ? `${row.headline} · ` : ""}
+          ID {row.ad_id}
+          {row.source_type ? ` · ${row.source_type}` : ""}
+        </p>
+      </div>
+      {canEdit && (
+        <button
+          type="button"
+          onClick={() => {
+            setDraft(row.label ?? "");
+            setEditing(true);
+          }}
+          aria-label="Ponerle nombre al anuncio"
+          title="Ponerle nombre al anuncio"
+          className="mt-0.5 rounded-md p-1 text-muted-foreground opacity-60 hover:bg-accent hover:opacity-100 group-hover:opacity-100"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+        </button>
       )}
     </div>
   );
