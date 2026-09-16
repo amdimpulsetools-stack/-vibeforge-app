@@ -8,10 +8,10 @@ import {
   BarChart3,
   Bell,
   Plus,
-  ShieldCheck,
   Sparkles,
 } from "lucide-react";
 import { trackLanding } from "@/lib/landing-analytics";
+import { TrustCredentials } from "./trust-credentials";
 import {
   HERO_HEADLINE,
   LANDING_CTAS,
@@ -134,39 +134,38 @@ export function Hero() {
           </p>
 
           {/* CTAs — el primario (prueba gratis) es el mismo en los tres
-              perfiles; la demo solo aparece para centro y clínica. La
-              calculadora baja a una segunda fila: sigue siendo un botón
-              visible, pero deja de competir con la conversión principal. */}
-          <div className="mt-8 flex flex-col items-center gap-3 opacity-0 animate-[fadeUp_0.6s_0.5s_ease-out_forwards]">
-            <div className="flex w-full flex-col items-center justify-center gap-4 sm:w-auto sm:flex-row">
+              perfiles; la demo (secondary) hoy es null en landing-copy. La
+              calculadora va EN LA MISMA FILA que el primario (founder,
+              16-sep): misma altura, primario a la izquierda; en móvil se
+              apilan. */}
+          <div className="mt-8 flex w-full flex-col items-center justify-center gap-3 sm:w-auto sm:flex-row sm:gap-4 opacity-0 animate-[fadeUp_0.6s_0.5s_ease-out_forwards]">
+            <Link
+              href={primary.href}
+              onClick={() =>
+                trackLanding(primary.event, {
+                  perfil: profile,
+                  ubicacion: "hero",
+                })
+              }
+              className="inline-flex h-12 items-center justify-center gap-2.5 rounded-xl gradient-primary px-8 text-sm font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+            >
+              {primary.label}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+            {secondary && (
               <Link
-                href={primary.href}
+                href={secondary.href}
                 onClick={() =>
-                  trackLanding(primary.event, {
+                  trackLanding(secondary.event, {
                     perfil: profile,
                     ubicacion: "hero",
                   })
                 }
-                className="inline-flex h-12 items-center justify-center gap-2.5 rounded-xl gradient-primary px-8 text-sm font-semibold text-white shadow-lg transition-all hover:opacity-90 hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-8 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
               >
-                {primary.label}
-                <ArrowRight className="h-4 w-4" />
+                {secondary.label}
               </Link>
-              {secondary && (
-                <Link
-                  href={secondary.href}
-                  onClick={() =>
-                    trackLanding(secondary.event, {
-                      perfil: profile,
-                      ubicacion: "hero",
-                    })
-                  }
-                  className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-8 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
-                >
-                  {secondary.label}
-                </Link>
-              )}
-            </div>
+            )}
             <a
               href="#revenue-impact"
               className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-200 bg-white px-8 text-sm font-medium text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
@@ -182,26 +181,10 @@ export function Hero() {
             recepcionista lo entiende el mismo día.
           </p>
 
-          {/* Sellos de confianza (founder, 15-sep-2026). REGLA de la landing
-              (auditoría 21-ago): solo afirmaciones verificables. Ambas lo
-              son: verificación OAuth de Google aprobada (28-ago-2026,
-              calendar.events) y Yenda registrada como Proveedor de
-              tecnología de WhatsApp con App Review aprobado (15-sep-2026).
-              Sin logotipos de Google ni de Meta: su uso exige permiso de
-              marca; texto + icono neutro. */}
-          <ul
-            aria-label="Verificaciones"
-            className="mt-4 flex flex-wrap items-center justify-center gap-2 opacity-0 animate-[fadeUp_0.5s_0.8s_ease-out_forwards]"
-          >
-            <li className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
-              App verificada por Google
-            </li>
-            <li className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
-              <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
-              Proveedor de tecnología de WhatsApp verificado por Meta
-            </li>
-          </ul>
+          {/* Credenciales (founder, 16-sep-2026): dos tarjetas con los logos
+              de Google y WhatsApp, estilo "logo cloud". Textos, reglas de
+              marca y fuentes de verificación en trust-credentials.tsx. */}
+          <TrustCredentials className="mt-6 opacity-0 animate-[fadeUp_0.5s_0.8s_ease-out_forwards]" />
         </div>
 
         {/* ── Mockup: réplica fiel del scheduler real al ~80% ──
