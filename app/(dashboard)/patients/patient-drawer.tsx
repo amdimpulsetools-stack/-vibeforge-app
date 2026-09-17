@@ -195,6 +195,9 @@ type AppointmentWithDetails = Appointment & {
 /** `sale_id` existe desde la mig 213 pero aún no en los generated types. */
 type PaymentRow = PatientPayment & { sale_id: string | null };
 
+/** Mig 265: motivo obligatorio en el cobro SIN cita asociada (mín. 3 caracteres). */
+const PAYMENT_NOTES_REQUIRED_MSG = "Indica el motivo del abono (mín. 3 caracteres)";
+
 export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps) {
   const { t } = useLanguage();
   const { organizationId, organization } = useOrganization();
@@ -688,8 +691,20 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     onUpdate();
   };
 
+  // Mig 265: sin cita asociada ("-- Ninguna --") el abono cae en "Abono
+  // directo" del Resumen de cobros y el motivo es lo ÚNICO que dice de qué
+  // es: obligatorio (mín. 3 caracteres). Con cita sigue opcional. Solo
+  // validación de UI: el histórico tiene NULL y no hay CHECK en BD.
+  const paymentNotesTrimmed = paymentNotes.trim();
+  const paymentNotesRequired = !paymentAppointmentId;
+  const paymentNotesInvalid = paymentNotesRequired && paymentNotesTrimmed.length < 3;
+
   const handleSavePayment = async () => {
     if (!paymentAmount || Number(paymentAmount) <= 0) return;
+    if (paymentNotesInvalid) {
+      toast.error(PAYMENT_NOTES_REQUIRED_MSG);
+      return;
+    }
     setSavingPayment(true);
     const supabase = createClient();
     const { error } = await supabase.from("patient_payments").insert({
@@ -698,7 +713,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
       appointment_id: paymentAppointmentId || null,
       amount: Number(paymentAmount),
       payment_method: paymentMethod || null,
-      notes: paymentNotes || null,
+      notes: paymentNotesTrimmed || null,
       payment_date: paymentDate,
     });
 
@@ -1767,18 +1782,39 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                         />
                       )}
                     </div>
-                    {/* Motivo: el estado paymentNotes existía y se guardaba
-                        en el insert, pero ningún input lo renderizaba — todo
-                        pago del drawer salía sin nota. Opcional a propósito:
-                        obligarlo rompería el flujo rápido de recepción. */}
+                    {/* Motivo: opcional con cita (el flujo rápido de
+                        recepción no se toca); OBLIGATORIO sin cita (mig 265:
+                        en el Resumen de cobros ese abono solo se explica por
+                        su motivo). */}
                     <div className="space-y-1">
-                      <label className="text-xs text-muted-foreground">Motivo / referencia (opcional)</label>
+                      <label htmlFor="patient-payment-notes" className="text-xs text-muted-foreground">
+                        Motivo / referencia{paymentNotesRequired ? "" : " (opcional)"}
+                      </label>
                       <input
+                        id="patient-payment-notes"
                         value={paymentNotes}
                         onChange={(e) => setPaymentNotes(e.target.value)}
-                        className="w-full rounded border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
-                        placeholder="Adelanto, pago a cuenta, nro. de operación…"
+                        required={paymentNotesRequired}
+                        minLength={paymentNotesRequired ? 3 : undefined}
+                        aria-invalid={paymentNotesInvalid || undefined}
+                        aria-describedby={paymentNotesInvalid ? "patient-payment-notes-hint" : undefined}
+                        className={cn(
+                          "w-full rounded border bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50",
+                          paymentNotesInvalid && paymentNotes.length > 0
+                            ? "border-amber-500/60"
+                            : "border-input",
+                        )}
+                        placeholder={
+                          paymentNotesRequired
+                            ? "Adelanto, pago a cuenta, nro. de operación… (obligatorio sin cita)"
+                            : "Adelanto, pago a cuenta, nro. de operación…"
+                        }
                       />
+                      {paymentNotesInvalid && (
+                        <p id="patient-payment-notes-hint" className="text-[11px] text-amber-600 dark:text-amber-400">
+                          {PAYMENT_NOTES_REQUIRED_MSG}
+                        </p>
+                      )}
                     </div>
                     {appointments.length > 0 && (
                       <div className="space-y-1">
@@ -1808,7 +1844,7 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                       </button>
                       <button
                         onClick={handleSavePayment}
-                        disabled={savingPayment || !paymentAmount || Number(paymentAmount) <= 0}
+                        disabled={savingPayment || !paymentAmount || Number(paymentAmount) <= 0 || paymentNotesInvalid}
                         className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
                       >
                         {savingPayment ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}

@@ -6,8 +6,10 @@
   Variables: doc.{title, subtitle, eyebrow, range_label, generated_at,
   generated_by, issued_label, footer_note} · org.* (lib/pdf/html/org.ts) ·
   meta[] + metaCols · sections[] = { key, title, includes, qty_label,
-  count_label, groups[], total, empty } · groups[] = { label|null, rows[] } ·
-  rows[] = { description, quantity_text, price_text, total, muted } ·
+  count_label, groups[], total, empty } · groups[] = { label|null, rows[],
+  detail[], detail_more } · rows[] = { description, quantity_text,
+  price_text, total, muted } · detail[] (mig 265, solo "Abono directo") =
+  { date_text, patient_name, notes_text, method_text, amount } ·
   grand = { total, reconciles, included_label, parts[], excluded[],
   recon_label, recon_state, refunds_abs, refunds_negative } · footnote
 
@@ -74,6 +76,25 @@
   }
   table.grid tbody tr.grp + tr { break-before: avoid; }
   table.grid tbody tr.muted td { color: var(--muted); }
+  /* Subtabla de abonos directos (mig 265): una subfila por cobro, atenuada,
+     con sangría y sin el rayado par/impar de la tabla madre. La subfila
+     no se parte y viaja pegada a la anterior. */
+  table.grid tbody tr.detail td, table.grid tbody tr.detail-head td {
+    font-size: 8.4pt; color: var(--muted); font-weight: 400;
+    padding-top: 2px; padding-bottom: 2px; background: transparent;
+  }
+  table.grid tbody tr.detail-head td {
+    font-size: 6.8pt; letter-spacing: .1em; text-transform: uppercase; font-weight: 600;
+    padding-top: 4px; padding-left: 26px;
+  }
+  table.grid tbody tr.detail td.desc { padding-left: 26px; }
+  table.grid tbody tr.detail td.sum { font-weight: 400; }
+  table.grid tbody tr.detail .d-date { font-variant-numeric: tabular-nums; margin-right: 6px; }
+  table.grid tbody tr.detail .d-name { color: var(--ink-2); font-weight: 500; margin-right: 6px; }
+  table.grid tbody tr.detail .d-note { color: var(--muted); }
+  table.grid tbody tr.detail-more td { font-style: italic; padding-left: 26px; }
+  table.grid tbody tr.detail, table.grid tbody tr.detail-head, table.grid tbody tr.detail-more { break-inside: avoid; }
+  table.grid tbody tr.detail-head + tr.detail { break-before: avoid; }
   table.grid tbody tr.empty td.desc { color: var(--muted); font-style: italic; }
   /* El total de sección viaja con la última fila: nunca solo en una hoja nueva. */
   table.grid tfoot tr { break-before: avoid; }
@@ -142,6 +163,23 @@
               <td class="sum">{{money total}}</td>
             </tr>
             {{/each}}
+            {{#if detail.length}}
+            <tr class="detail-head">
+              <td colspan="2">Detalle por cobro · fecha · paciente · motivo</td>
+              <td class="price">Medio</td>
+              <td class="sum">Monto</td>
+            </tr>
+            {{#each detail}}
+            <tr class="detail">
+              <td class="desc" colspan="2"><span class="d-date">{{date_text}}</span><span class="d-name">{{patient_name}}</span><span class="d-note">{{notes_text}}</span></td>
+              <td class="price">{{method_text}}</td>
+              <td class="sum">{{money amount}}</td>
+            </tr>
+            {{/each}}
+            {{#if detail_more}}
+            <tr class="detail detail-more"><td colspan="4">y {{detail_more}} más (el total del grupo los incluye)</td></tr>
+            {{/if}}
+            {{/if}}
           </tbody>
           {{/each}}
           {{/if}}

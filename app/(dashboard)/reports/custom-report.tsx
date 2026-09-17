@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   ListChecks,
   Printer,
   RefreshCw,
@@ -22,6 +24,7 @@ import { formatPEN } from "@/lib/format-pen";
 import {
   CUSTOM_REPORT_SECTIONS,
   type CustomReport as CustomReportPayload,
+  type CustomReportAdvanceDetail,
   type CustomReportAdvanceKind,
   type CustomReportAdvanceRow,
   type CustomReportPharmacyRow,
@@ -177,6 +180,16 @@ function priceCell(row: CustomReportRowBase, variousLabel: string): string {
     return `${variousLabel} (${formatPEN(row.price_min)} – ${max})`;
   }
   return "—";
+}
+
+/** "dd/mm" de una fecha yyyy-MM-dd (texto; nunca Date). */
+function ddmm(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
+/** "dd/mm/yyyy": la cita de un adelanto puede caer en otro año que el rango. */
+function ddmmyyyy(iso: string): string {
+  return `${ddmm(iso)}/${iso.slice(0, 4)}`;
 }
 
 /** Suma a dos decimales: los totales son numeric(10,2) y la comparación es a tolerancia cero. */
@@ -516,6 +529,15 @@ interface RowGroup {
   hint?: string;
   muted?: boolean;
   rows: CustomReportRowBase[];
+  /**
+   * Mig 265: detalle por cobro del subgrupo (solo Adelantos), desplegable
+   * bajo sus filas agregadas. Viene del MISMO payload que `rows`: no se
+   * suma nada aquí, cada monto se pinta tal cual.
+   */
+  detail?: CustomReportAdvanceDetail[];
+  /** Abono directo abre por defecto (es lo que la doctora quiere cuadrar); el resto plegado. */
+  detailOpen?: boolean;
+  detailTruncated?: boolean;
 }
 
 function groupsFor(
@@ -524,10 +546,15 @@ function groupsFor(
   t: (key: string) => string,
 ): RowGroup[] {
   if (key === "advances") {
-    const rows = (data.sections.advances?.rows ?? []) as CustomReportAdvanceRow[];
+    const section = data.sections.advances;
+    const rows = (section?.rows ?? []) as CustomReportAdvanceRow[];
+    const detail = section?.detail ?? [];
     return ADVANCE_KINDS.map((kind) => ({
       label: t(`reports.custom_kind_${kind}`),
       rows: rows.filter((r) => r.kind === kind),
+      detail: detail.filter((d) => d.kind === kind),
+      detailOpen: kind === "direct",
+      detailTruncated: section?.detail_truncated === true,
     })).filter((g) => g.rows.length > 0);
   }
   if (key === "pharmacy") {
@@ -628,7 +655,7 @@ function SectionCard({ sectionKey, title, qtyHeader, includes, total, groups, t 
               </tr>
             ) : (
               groups.map((g, gi) => (
-                <GroupRows key={gi} group={g} various={various} />
+                <GroupRows key={gi} group={g} various={various} t={t} />
               ))
             )}
           </tbody>
@@ -648,7 +675,21 @@ function SectionCard({ sectionKey, title, qtyHeader, includes, total, groups, t 
   );
 }
 
-function GroupRows({ group, various }: { group: RowGroup; various: string }) {
+function GroupRows({
+  group,
+  various,
+  t,
+}: {
+  group: RowGroup;
+  various: string;
+  t: (key: string) => string;
+}) {
+  // Desplegable del detalle (mig 265). Estado local por subgrupo: no se
+  // persiste, y al cambiar el rango se remonta la tarjeta.
+  const [open, setOpen] = useState(group.detailOpen === true);
+  const detail = group.detail ?? [];
+  const hasDetail = detail.length > 0;
+
   return (
     <>
       {group.label && (
@@ -677,7 +718,85 @@ function GroupRows({ group, various }: { group: RowGroup; various: string }) {
           </td>
         </tr>
       ))}
+
+      {hasDetail && (
+        <tr className="border-b border-border/50 bg-muted/10">
+          <td colSpan={4} className="px-4 py-1">
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              className="inline-flex min-h-9 items-center gap-1 rounded px-1 text-xs font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-7"
+            >
+              {open ? (
+                <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {open
+                ? t("reports.custom_detail_hide")
+                : detail.length === 1
+                  ? t("reports.custom_detail_show_one")
+                  : fill(t("reports.custom_detail_show_many"), { n: detail.length })}
+            </button>
+          </td>
+        </tr>
+      )}
+
+      {hasDetail && open && detail.map((d) => <DetailRow key={d.payment_id} d={d} t={t} />)}
+
+      {hasDetail && open && group.detailTruncated && (
+        <tr className="border-b border-border/50 bg-muted/10">
+          <td colSpan={4} className="px-4 py-1.5 pl-8 text-[11px] italic text-muted-foreground">
+            {t("reports.custom_detail_truncated")}
+          </td>
+        </tr>
+      )}
     </>
+  );
+}
+
+/**
+ * Subfila de un cobro de Adelantos: fecha · paciente · medio · motivo (y la
+ * cita o el plan al que va). Solo presentación: `amount` se pinta tal cual.
+ */
+function DetailRow({ d, t }: { d: CustomReportAdvanceDetail; t: (key: string) => string }) {
+  const notes = (d.notes ?? "").trim();
+  const method = (d.method ?? "").trim();
+  const ref =
+    d.appointment_date
+      ? fill(t("reports.custom_detail_appt"), {
+          date: ddmmyyyy(d.appointment_date),
+          service: d.service_name ?? "",
+        })
+      : d.plan_title ?? "";
+  return (
+    <tr className="border-b border-border/40 bg-muted/10 text-xs text-muted-foreground">
+      <td colSpan={3} className="min-w-0 px-4 py-1.5 pl-8">
+        <span className="tabular-nums">{ddmm(d.payment_date)}</span>
+        <span className="mx-1.5">·</span>
+        <span className="font-medium text-foreground">{d.patient_name}</span>
+        {method && (
+          <>
+            <span className="mx-1.5">·</span>
+            <span>{method}</span>
+          </>
+        )}
+        {notes && (
+          <>
+            <span className="mx-1.5">·</span>
+            <span className="break-words">{notes}</span>
+          </>
+        )}
+        {ref && (
+          <>
+            <span className="mx-1.5">·</span>
+            <span className="italic">{ref}</span>
+          </>
+        )}
+      </td>
+      <td className="px-4 py-1.5 text-right tabular-nums whitespace-nowrap">{formatPEN(d.amount)}</td>
+    </tr>
   );
 }
 

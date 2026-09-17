@@ -8,7 +8,8 @@ set -euo pipefail
 PGBIN=${PGBIN:-/usr/lib/postgresql/16/bin}
 PORT=${PORT:-55434}
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO=/home/user/-vibeforge-app
+# Raíz del checkout que contiene ESTE archivo (vale también en un worktree).
+REPO="$(cd "$HERE/../../.." && pwd)"
 PGHOME=/var/lib/postgresql
 DATA="$PGHOME/custom_report_pgdata"
 SOCK="$PGHOME"
@@ -24,6 +25,6 @@ $AS_PG "$PGBIN/psql" -h "$SOCK" -p $PORT -U postgres -q -c "CREATE DATABASE cust
 run() { cat "$1" | $AS_PG "$PGBIN/psql" -h "$SOCK" -p $PORT -U postgres -d custom_report_test -v ON_ERROR_STOP=1 -q; }
 run "$HERE/00_stub_schema.sql"                                        >/dev/null && echo "  ok  stub"
 run "$REPO/supabase/migrations/251_reports_collected_by_doctor.sql"   >/dev/null && echo "  ok  mig 251 (verbatim)"
-run "$HERE/get_custom_report.sql"                                     >/dev/null && echo "  ok  get_custom_report (borrador)"
+run "$HERE/get_custom_report.sql"                                     >/dev/null && echo "  ok  get_custom_report (espejo mig 265)"
 run "$HERE/10_reconcile_test.sql" > "$HERE/test-output.txt" 2>&1 || { echo "  FALLÓ (ver test-output.txt)"; grep -E "ERROR|FAIL" "$HERE/test-output.txt" | head -20; exit 1; }
 grep -E "PASS|FAIL|TODAS" "$HERE/test-output.txt"

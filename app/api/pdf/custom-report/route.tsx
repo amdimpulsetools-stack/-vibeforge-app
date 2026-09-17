@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
+import { logClinicalAccess } from "@/lib/audit/clinical-access";
 import { resolveOrgTimezone, todayInTz } from "@/lib/org-time";
 import { renderDocumentHtml } from "@/lib/pdf/html/render";
 import { htmlToPdfBuffer } from "@/lib/pdf/html/chromium";
@@ -19,7 +20,9 @@ export const runtime = "nodejs"; // Chromium headless (puppeteer-core) no corre 
 // "Resumen de cobros del periodo" en A4 con membrete. Mismo RPC que la
 // pestaña de Reportes (`get_custom_report`, un número una fórmula), con el
 // cliente del USUARIO: el RPC vuelve a comprobar la membresía y el rol.
-// No es dato clínico: sin logClinicalAccess. Motor: Handlebars
+// Desde la mig 265 la hoja imprime nombre + motivo de cada abono directo
+// (dato personal): la impresión queda en clinical_access_log con
+// logClinicalAccess, como la receta. Motor: Handlebars
 // (lib/pdf/html/templates/custom-report.hbs) → Chromium.
 //
 //   org_id    obligatorio (uuid). Un usuario con dos clínicas elige cuál.
@@ -147,6 +150,28 @@ export async function GET(request: NextRequest) {
   const data = buildCustomReportDocData(report, orgRow, generatedBy);
   const html = await renderDocumentHtml("custom-report.hbs", data);
   const pdf = await htmlToPdfBuffer(html);
+
+  // 6. Auditoría (mig 265): la hoja lleva nombre + motivo de los abonos
+  //    directos. Acción a nivel de org (patientId null): un reporte no es
+  //    de un paciente. resource_type 'other' (no existe uno para reportes).
+  //    Se registra solo el acceso EXITOSO, tras el gating del RPC.
+  const advances = report.sections.advances;
+  logClinicalAccess({
+    organizationId: orgId,
+    userId: user.id,
+    resourceType: "other",
+    action: "print",
+    patientId: null,
+    resourceId: null,
+    metadata: {
+      document: "custom_report_pdf",
+      from: report.range.from,
+      to: report.range.to,
+      sections: sections ?? [...CUSTOM_REPORT_SECTIONS],
+      advance_detail_count: advances?.detail?.length ?? 0,
+      advance_detail_truncated: advances?.detail_truncated === true,
+    },
+  });
 
   return new NextResponse(pdf as unknown as BodyInit, {
     status: 200,
