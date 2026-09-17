@@ -33,6 +33,13 @@ export interface InventoryProduct {
   min_stock: number;
   track_lots: boolean;
   is_discontinued: boolean;
+  /**
+   * Baja lógica (mig 209; la escribe el RPC de la mig 264). Opcionales
+   * porque el POS (`farmacia/types.ts`) selecciona sus propias columnas y
+   * nunca carga archivados.
+   */
+  discontinued_at?: string | null;
+  discontinued_reason?: string | null;
   notes: string | null;
   created_at: string;
 }
@@ -102,7 +109,7 @@ export const DEFAULT_SETTINGS: InventorySettings = {
 
 /** Columnas que la UI selecciona, en el orden en que se leen. */
 export const PRODUCT_COLUMNS =
-  "id,organization_id,name,sku,category,presentation,base_unit,units_per_presentation,sale_price,igv_affectation,min_stock,track_lots,is_discontinued,notes,created_at";
+  "id,organization_id,name,sku,category,presentation,base_unit,units_per_presentation,sale_price,igv_affectation,min_stock,track_lots,is_discontinued,discontinued_at,discontinued_reason,notes,created_at";
 export const LOT_COLUMNS =
   "id,organization_id,product_id,lot_code,expiry_date,unit_cost,supplier,received_at";
 export const MOVEMENT_COLUMNS =
@@ -162,6 +169,19 @@ export const PRESENTATION_OPTIONS = [
 ];
 
 // ── Formato ─────────────────────────────────────────────────────────────
+
+/**
+ * Rellena `{clave}` en una cadena de `t()` (el provider no interpola).
+ * `fillTemplate("Tiene {n} lotes", { n: 2 })` → "Tiene 2 lotes".
+ */
+export function fillTemplate(
+  template: string,
+  vars: Record<string, string | number>
+): string {
+  return template.replace(/\{(\w+)\}/g, (m, k: string) =>
+    k in vars ? String(vars[k]) : m
+  );
+}
 
 /** S/ 2,285.00 — mismo formato que /facturacion. */
 export function formatPEN(n: number): string {

@@ -42,6 +42,8 @@ import { EntryModal, type EntryPayload } from "./entry-modal";
 import { ProductModal, type ProductPayload } from "./product-modal";
 import { LotsModal } from "./lots-modal";
 import { PriceModal, type PricePayload } from "./price-modal";
+import { ArchiveModal, type ArchivePayload, type ProductHistory } from "./archive-modal";
+import { useLanguage } from "@/components/language-provider";
 import {
   DEFAULT_SETTINGS,
   LOT_COLUMNS,
@@ -50,6 +52,7 @@ import {
   avgCostByProduct,
   computeStock,
   computeStockByLot,
+  fillTemplate,
   fmtQty,
   formatPEN,
   lastCostByProduct,
@@ -81,6 +84,7 @@ function today(): string {
 export default function AlmacenPage() {
   const { organizationId, isOrgAdmin } = useOrganization();
   const { user } = useUser();
+  const { t } = useLanguage();
   const { hasAddon, loading: addonsLoading } = useOrgAddons();
   const almacenEnabled = hasAddon("almacen");
 
@@ -99,6 +103,7 @@ export default function AlmacenPage() {
   const [productOpen, setProductOpen] = useState(false);
   const [lotsFor, setLotsFor] = useState<InventoryProduct | null>(null);
   const [priceFor, setPriceFor] = useState<InventoryProduct | null>(null);
+  const [archiveFor, setArchiveFor] = useState<InventoryProduct | null>(null);
 
   // Tabs por query param, sin useSearchParams: la página no necesita
   // suspenderse por esto y así la campanita puede enlazar ?tab=movimientos.
@@ -123,11 +128,14 @@ export default function AlmacenPage() {
     setLoadError(null);
 
     const [prodRes, lotRes, movRes, setRes] = await Promise.all([
+      // TODOS los productos, archivados incluidos (mig 264): el kardex y
+      // Rentabilidad necesitan resolver el nombre de un producto archivado
+      // con ventas históricas. La tabla, Entrada y Salida reciben solo
+      // `activeProducts`; el POS (`farmacia/page.tsx`) sigue excluyéndolos.
       supabase
         .from("inventory_products")
         .select(PRODUCT_COLUMNS)
         .eq("organization_id", organizationId)
-        .eq("is_discontinued", false)
         .order("name"),
       supabase
         .from("inventory_lots")
@@ -189,16 +197,37 @@ export default function AlmacenPage() {
   }, [load]);
 
   // ── Derivados ──────────────────────────────────────────────────────────
+  const activeProducts = useMemo(
+    () => products.filter((p) => !p.is_discontinued),
+    [products]
+  );
+  const archivedProducts = useMemo(
+    () => products.filter((p) => p.is_discontinued),
+    [products]
+  );
   const stockByProduct = useMemo(() => computeStock(movements), [movements]);
   const stockByLot = useMemo(() => computeStockByLot(movements), [movements]);
   const lotByProduct = useMemo(() => nearestLotByProduct(lots), [lots]);
   const lastCosts = useMemo(() => lastCostByProduct(movements), [movements]);
   const avgCosts = useMemo(() => avgCostByProduct(movements), [movements]);
+  // Historial por producto para decidir "Archivar" vs "Eliminar" (mig 264).
+  // Solo es afirmable si el kardex entró completo en memoria.
+  const movementCountByProduct = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const m of movements) map[m.product_id] = (map[m.product_id] ?? 0) + 1;
+    return map;
+  }, [movements]);
+  const lotCountByProduct = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const l of lots) map[l.product_id] = (map[l.product_id] ?? 0) + 1;
+    return map;
+  }, [lots]);
+  const historyComplete = movements.length < MOVEMENT_FETCH_LIMIT;
   const categories = useMemo(() => {
     const set = new Set<string>();
-    for (const p of products) if (p.category?.trim()) set.add(p.category.trim());
+    for (const p of activeProducts) if (p.category?.trim()) set.add(p.category.trim());
     return [...set].sort((a, b) => a.localeCompare(b, "es"));
-  }, [products]);
+  }, [activeProducts]);
 
   // ── Deshacer: contra-asiento, jamás DELETE ─────────────────────────────
   const undoMovement = useCallback(
@@ -502,6 +531,103 @@ export default function AlmacenPage() {
     []
   );
 
+  // ── Archivar / eliminar / restaurar (mig 264) ──────────────────────────
+  // La decisión archivar-vs-eliminar es del RPC (cuenta movimientos, lotes,
+  // ventas y comprobantes en la base); la API solo traduce errores a HTTP.
+  // El toast dice lo que pasó de verdad, aunque el menú dijera "Eliminar".
+  const archiveProduct = useCallback(
+    async (payload: ArchivePayload): Promise<boolean> => {
+      const { product, reason } = payload;
+      let res: Response;
+      try {
+        res = await fetch(`/api/almacen/products/${product.id}/archive`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        });
+      } catch {
+        toast.error(t("almacen.archive.toast_error_archive"), {
+          description: "Revisa tu conexión e intenta de nuevo.",
+        });
+        return false;
+      }
+      const body = (await res.json().catch(() => ({}))) as {
+        action?: "archived" | "deleted";
+        discontinued_at?: string;
+        movements?: number;
+        error?: string;
+      };
+      if (!res.ok) {
+        toast.error(t("almacen.archive.toast_error_archive"), {
+          description: body.error ?? `Error ${res.status}`,
+        });
+        return false;
+      }
+
+      if (body.action === "deleted") {
+        setProducts((prev) => prev.filter((p) => p.id !== product.id));
+        toast.success(fillTemplate(t("almacen.archive.toast_deleted"), { name: product.name }), {
+          description: t("almacen.archive.toast_deleted_desc"),
+        });
+        return true;
+      }
+
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === product.id
+            ? {
+                ...p,
+                is_discontinued: true,
+                // La fecha la estampa el RPC (now() del servidor); si no
+                // llegara, se muestra "Archivado" sin fecha.
+                discontinued_at: body.discontinued_at ?? null,
+                discontinued_reason: reason,
+              }
+            : p
+        )
+      );
+      toast.success(fillTemplate(t("almacen.archive.toast_archived"), { name: product.name }), {
+        description: fillTemplate(t("almacen.archive.toast_archived_desc"), {
+          movements: body.movements ?? movementCountByProduct[product.id] ?? 0,
+        }),
+      });
+      return true;
+    },
+    [t, movementCountByProduct]
+  );
+
+  const restoreProduct = useCallback(
+    async (product: InventoryProduct) => {
+      let res: Response;
+      try {
+        res = await fetch(`/api/almacen/products/${product.id}/restore`, { method: "POST" });
+      } catch {
+        toast.error(t("almacen.archive.toast_error_restore"), {
+          description: "Revisa tu conexión e intenta de nuevo.",
+        });
+        return;
+      }
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        // 409: "Ya existe otro producto activo con ese nombre; renómbralo…"
+        toast.error(t("almacen.archive.toast_error_restore"), {
+          description: body.error ?? `Error ${res.status}`,
+          duration: 8000,
+        });
+        return;
+      }
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === product.id
+            ? { ...p, is_discontinued: false, discontinued_at: null, discontinued_reason: null }
+            : p
+        )
+      );
+      toast.success(fillTemplate(t("almacen.archive.toast_restored"), { name: product.name }));
+    },
+    [t]
+  );
+
   const createProduct = useCallback(
     async (payload: ProductPayload): Promise<boolean> => {
       if (!organizationId || !user?.id) return false;
@@ -677,7 +803,7 @@ export default function AlmacenPage() {
               setEntryFor(null);
               setEntryOpen(true);
             }}
-            disabled={products.length === 0}
+            disabled={activeProducts.length === 0}
           >
             <PackagePlus className="h-4 w-4" /> Entrada
           </Button>
@@ -699,7 +825,7 @@ export default function AlmacenPage() {
                 setEntryFor(null);
                 setEntryOpen(true);
               }}
-              disabled={products.length === 0}
+              disabled={activeProducts.length === 0}
             >
               <PackagePlus className="mr-2 h-4 w-4" /> Entrada de mercadería
             </DropdownMenuItem>
@@ -740,9 +866,13 @@ export default function AlmacenPage() {
             <TableSkeleton />
           ) : (
             <ProductTable
-              products={products}
+              products={activeProducts}
+              archivedProducts={archivedProducts}
               stockByProduct={stockByProduct}
               lotByProduct={lotByProduct}
+              movementCountByProduct={movementCountByProduct}
+              lotCountByProduct={lotCountByProduct}
+              historyComplete={historyComplete}
               expiryAlertDays={settings.expiry_alert_days}
               isAdmin={isOrgAdmin}
               onDiscount={(p) => setDiscountFor(p)}
@@ -752,6 +882,8 @@ export default function AlmacenPage() {
                 setEntryOpen(true);
               }}
               onEditPrice={(p) => setPriceFor(p)}
+              onArchive={(p) => setArchiveFor(p)}
+              onRestore={(p) => void restoreProduct(p)}
               onNewProduct={() => setProductOpen(true)}
             />
           )}
@@ -841,10 +973,26 @@ export default function AlmacenPage() {
       <EntryModal
         open={entryOpen}
         onOpenChange={setEntryOpen}
-        products={products}
+        products={activeProducts}
         preselectedProductId={entryFor}
         lastCosts={lastCosts}
         onSubmit={registerEntry}
+      />
+
+      <ArchiveModal
+        open={archiveFor !== null}
+        onOpenChange={(o) => !o && setArchiveFor(null)}
+        product={archiveFor}
+        history={
+          archiveFor && historyComplete
+            ? ({
+                movements: movementCountByProduct[archiveFor.id] ?? 0,
+                lots: lotCountByProduct[archiveFor.id] ?? 0,
+              } satisfies ProductHistory)
+            : null
+        }
+        stock={archiveFor ? (stockByProduct[archiveFor.id] ?? 0) : 0}
+        onSubmit={archiveProduct}
       />
 
       <ProductModal
