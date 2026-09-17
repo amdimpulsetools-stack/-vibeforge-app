@@ -12,12 +12,32 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Layers, Minus, PackagePlus, Search, Tag, X } from "lucide-react";
+import {
+  AlertTriangle,
+  Archive,
+  Layers,
+  Minus,
+  MoreHorizontal,
+  PackagePlus,
+  RotateCcw,
+  Search,
+  Tag,
+  Trash2,
+  X,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useLanguage } from "@/components/language-provider";
+import {
   TONE_CLS,
   expiryStatus,
+  fillTemplate,
   fmtQty,
   formatPEN,
   stockStatus,
@@ -25,7 +45,7 @@ import {
   type InventoryProduct,
 } from "./types";
 
-type StatusFilter = "stock_bajo" | "por_vencer" | null;
+type StatusFilter = "stock_bajo" | "por_vencer" | "archivados" | null;
 type SortKey = "nombre" | "stock_bajo" | "vence";
 
 const SORT_LABELS: Record<SortKey, string> = {
@@ -37,9 +57,21 @@ const SORT_LABELS: Record<SortKey, string> = {
 const SORT_STORAGE_KEY = "almacen:orden";
 
 interface Props {
+  /** Productos ACTIVOS (is_discontinued = false). */
   products: InventoryProduct[];
+  /** Archivados (mig 264): solo se ven con el chip "Archivados" y se restauran. */
+  archivedProducts: InventoryProduct[];
   stockByProduct: Record<string, number>;
   lotByProduct: Record<string, InventoryLot | undefined>;
+  /** Nº de movimientos y de lotes por producto, del kardex en memoria. */
+  movementCountByProduct: Record<string, number>;
+  lotCountByProduct: Record<string, number>;
+  /**
+   * false cuando el kardex llegó al tope de carga: ya no se puede afirmar
+   * que un producto sin movimientos en memoria esté virgen, así que el
+   * menú ofrece "Archivar" y el RPC decide.
+   */
+  historyComplete: boolean;
   expiryAlertDays: number;
   isAdmin: boolean;
   onDiscount: (product: InventoryProduct) => void;
@@ -48,21 +80,58 @@ interface Props {
   onEntry: (product: InventoryProduct) => void;
   /** Editar precio de venta sin registrar entrada (solo owner/admin). */
   onEditPrice: (product: InventoryProduct) => void;
+  /** Archivar (o eliminar si está virgen) — solo owner/admin. */
+  onArchive: (product: InventoryProduct) => void;
+  /** Volver a activar un archivado — solo owner/admin. */
+  onRestore: (product: InventoryProduct) => void;
   onNewProduct: () => void;
+}
+
+function decorate(
+  list: InventoryProduct[],
+  stockByProduct: Record<string, number>,
+  lotByProduct: Record<string, InventoryLot | undefined>,
+  expiryAlertDays: number
+) {
+  return list.map((p) => {
+    const stock = stockByProduct[p.id] ?? 0;
+    const lot = lotByProduct[p.id];
+    return {
+      product: p,
+      stock,
+      lot,
+      st: stockStatus(stock, Number(p.min_stock)),
+      exp: expiryStatus(lot?.expiry_date, expiryAlertDays),
+    };
+  });
+}
+
+/** dd/mm/aaaa a partir de un timestamptz ISO. */
+function fmtDayMonthYear(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.toLocaleDateString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 export function ProductTable({
   products,
+  archivedProducts,
   stockByProduct,
   lotByProduct,
+  movementCountByProduct,
+  lotCountByProduct,
+  historyComplete,
   expiryAlertDays,
   isAdmin,
   onDiscount,
   onShowLots,
   onEntry,
   onEditPrice,
+  onArchive,
+  onRestore,
   onNewProduct,
 }: Props) {
+  const { t } = useLanguage();
   const [rawSearch, setRawSearch] = useState("");
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string | null>(null);
@@ -112,21 +181,19 @@ export function ProductTable({
     return [...set].sort((a, b) => a.localeCompare(b, "es"));
   }, [products]);
 
+  // Los semáforos (stock bajo, por vencer) se calculan SOLO sobre activos:
+  // un archivado con stock 0 no es una alerta, es historia.
   const decorated = useMemo(
-    () =>
-      products.map((p) => {
-        const stock = stockByProduct[p.id] ?? 0;
-        const lot = lotByProduct[p.id];
-        return {
-          product: p,
-          stock,
-          lot,
-          st: stockStatus(stock, Number(p.min_stock)),
-          exp: expiryStatus(lot?.expiry_date, expiryAlertDays),
-        };
-      }),
+    () => decorate(products, stockByProduct, lotByProduct, expiryAlertDays),
     [products, stockByProduct, lotByProduct, expiryAlertDays]
   );
+  const decoratedArchived = useMemo(
+    () => decorate(archivedProducts, stockByProduct, lotByProduct, expiryAlertDays),
+    [archivedProducts, stockByProduct, lotByProduct, expiryAlertDays]
+  );
+
+  const archivedView = statusFilter === "archivados";
+  const source = archivedView ? archivedProducts : products;
 
   const lowStockCount = decorated.filter((d) => d.st?.tone === "warn" || d.st?.tone === "crit").length;
   const expiringCount = decorated.filter(
@@ -134,8 +201,17 @@ export function ProductTable({
   ).length;
   const expiredCount = decorated.filter((d) => d.exp.days !== null && d.exp.days < 0).length;
 
+  /**
+   * "Eliminar" solo cuando se puede AFIRMAR que el producto está virgen con
+   * lo que hay en memoria; en cualquier duda, "Archivar" y el RPC decide.
+   */
+  const canDelete = (p: InventoryProduct) =>
+    historyComplete &&
+    (movementCountByProduct[p.id] ?? 0) === 0 &&
+    (lotCountByProduct[p.id] ?? 0) === 0;
+
   const rows = useMemo(() => {
-    let out = decorated;
+    let out = archivedView ? decoratedArchived : decorated;
 
     if (search) {
       out = out.filter((d) => {
@@ -171,7 +247,7 @@ export function ProductTable({
       });
     }
     return sorted;
-  }, [decorated, search, category, statusFilter, sort, expiryAlertDays]);
+  }, [decorated, decoratedArchived, archivedView, search, category, statusFilter, sort, expiryAlertDays]);
 
   function applyFilter(f: StatusFilter) {
     setStatusFilter((cur) => (cur === f ? null : f));
@@ -188,7 +264,9 @@ export function ProductTable({
   }
 
   // ── Vacío primera vez ────────────────────────────────────────────────
-  if (products.length === 0) {
+  // Con solo archivados no está vacío: hay que poder llegar al chip
+  // "Archivados" para restaurar.
+  if (products.length === 0 && archivedProducts.length === 0) {
     return (
       <div className="rounded-2xl border border-primary/30 bg-primary/5 p-10 text-center">
         <PackagePlus className="mx-auto mb-3 h-8 w-8 text-primary" />
@@ -305,6 +383,14 @@ export function ProductTable({
               Por vencer ({expiringCount + expiredCount})
             </Chip>
           )}
+          {archivedProducts.length > 0 && (
+            <Chip active={archivedView} onClick={() => applyFilter("archivados")}>
+              <span className="inline-flex items-center gap-1">
+                <Archive className="h-3 w-3" />
+                {t("almacen.archive.chip")} ({archivedProducts.length})
+              </span>
+            </Chip>
+          )}
         </div>
 
         <label className="hidden items-center gap-1.5 text-xs text-muted-foreground lg:flex">
@@ -348,6 +434,20 @@ export function ProductTable({
             <p className="text-sm text-muted-foreground">
               Ningún producto por vencer. Todo en orden.
             </p>
+          ) : archivedView ? (
+            <p className="text-sm text-muted-foreground">{t("almacen.archive.empty_archived")}</p>
+          ) : products.length === 0 ? (
+            <>
+              <p className="text-sm text-muted-foreground">{t("almacen.archive.empty_active")}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-4"
+                onClick={() => applyFilter("archivados")}
+              >
+                {t("almacen.archive.see_archived")} ({archivedProducts.length})
+              </Button>
+            </>
           ) : (
             <p className="text-sm text-muted-foreground">
               Ningún producto en esta categoría.
@@ -377,7 +477,8 @@ export function ProductTable({
                     key={p.id}
                     className={cn(
                       "border-t border-border/40",
-                      exp.days !== null && exp.days < 0 && "bg-red-500/[.04]"
+                      exp.days !== null && exp.days < 0 && "bg-red-500/[.04]",
+                      archivedView && "opacity-75"
                     )}
                   >
                     <td className="px-4 py-2">
@@ -442,37 +543,73 @@ export function ProductTable({
                       {formatPEN(Number(p.sale_price))}
                     </td>
                     <td className="px-4 py-2">
-                      <div className="flex justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() => onDiscount(p)}
-                          aria-label={`Registrar salida de ${p.name}`}
-                          title="Registrar salida"
-                          className="grid h-9 w-9 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary transition-colors hover:bg-primary/20 active:scale-95"
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => onEntry(p)}
-                          aria-label={`Registrar entrada de ${p.name}`}
-                          title="Registrar entrada"
-                          className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                        >
-                          <PackagePlus className="h-4 w-4" />
-                        </button>
-                        {isAdmin && (
+                      {archivedView ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <span
+                            className="hidden max-w-56 truncate text-[11px] text-muted-foreground lg:inline"
+                            title={p.discontinued_reason ?? undefined}
+                          >
+                            {p.discontinued_at
+                              ? fillTemplate(t("almacen.archive.archived_on"), {
+                                  date: fmtDayMonthYear(p.discontinued_at),
+                                })
+                              : t("almacen.archive.archived_badge")}
+                            {p.discontinued_reason ? ` · ${p.discontinued_reason}` : ""}
+                          </span>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => onRestore(p)}
+                              aria-label={`${t("almacen.archive.restore_action")} ${p.name}`}
+                              title={t("almacen.archive.restore_action")}
+                              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/20 active:scale-95"
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                              {t("almacen.archive.restore_action")}
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex justify-end gap-1">
                           <button
                             type="button"
-                            onClick={() => onEditPrice(p)}
-                            aria-label={`Editar precio de venta de ${p.name}`}
-                            title="Editar precio de venta"
+                            onClick={() => onDiscount(p)}
+                            aria-label={`Registrar salida de ${p.name}`}
+                            title="Registrar salida"
+                            className="grid h-9 w-9 place-items-center rounded-lg border border-primary/30 bg-primary/10 text-primary transition-colors hover:bg-primary/20 active:scale-95"
+                          >
+                            <Minus className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onEntry(p)}
+                            aria-label={`Registrar entrada de ${p.name}`}
+                            title="Registrar entrada"
                             className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                           >
-                            <Tag className="h-4 w-4" />
+                            <PackagePlus className="h-4 w-4" />
                           </button>
-                        )}
-                      </div>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => onEditPrice(p)}
+                              aria-label={`Editar precio de venta de ${p.name}`}
+                              title="Editar precio de venta"
+                              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                            >
+                              <Tag className="h-4 w-4" />
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <ProductMenu
+                              product={p}
+                              canDelete={canDelete(p)}
+                              onArchive={onArchive}
+                              size="sm"
+                            />
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -487,11 +624,25 @@ export function ProductTable({
                 key={p.id}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3",
-                  exp.days !== null && exp.days < 0 && "bg-red-500/[.04]"
+                  exp.days !== null && exp.days < 0 && "bg-red-500/[.04]",
+                  archivedView && "opacity-75"
                 )}
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{p.name}</p>
+                  {archivedView && (
+                    <p
+                      className="mt-0.5 truncate text-[11px] text-muted-foreground"
+                      title={p.discontinued_reason ?? undefined}
+                    >
+                      {p.discontinued_at
+                        ? fillTemplate(t("almacen.archive.archived_on"), {
+                            date: fmtDayMonthYear(p.discontinued_at),
+                          })
+                        : t("almacen.archive.archived_badge")}
+                      {p.discontinued_reason ? ` · ${p.discontinued_reason}` : ""}
+                    </p>
+                  )}
                   <p className="mt-0.5 truncate text-xs tabular-nums text-muted-foreground">
                     <span className={cn(stock < 0 && "font-bold text-red-500")}>
                       {fmtQty(stock)} {p.base_unit.toLowerCase()}
@@ -538,36 +689,112 @@ export function ProductTable({
                     </div>
                   )}
                 </div>
-                {isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => onEditPrice(p)}
-                    aria-label={`Editar precio de venta de ${p.name}`}
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground active:scale-95"
-                  >
-                    <Tag className="h-5 w-5" />
-                  </button>
+                {archivedView ? (
+                  isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => onRestore(p)}
+                      aria-label={`${t("almacen.archive.restore_action")} ${p.name}`}
+                      className="inline-flex h-11 shrink-0 items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-3 text-xs font-semibold text-primary active:scale-95"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      {t("almacen.archive.restore_action")}
+                    </button>
+                  )
+                ) : (
+                  <>
+                    {isAdmin && (
+                      <ProductMenu
+                        product={p}
+                        canDelete={canDelete(p)}
+                        onArchive={onArchive}
+                        size="lg"
+                      />
+                    )}
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => onEditPrice(p)}
+                        aria-label={`Editar precio de venta de ${p.name}`}
+                        className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground active:scale-95"
+                      >
+                        <Tag className="h-5 w-5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => onDiscount(p)}
+                      aria-label={`Registrar salida de ${p.name}`}
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-primary/30 bg-primary/10 text-primary active:scale-95"
+                    >
+                      <Minus className="h-5 w-5" />
+                    </button>
+                  </>
                 )}
-                <button
-                  type="button"
-                  onClick={() => onDiscount(p)}
-                  aria-label={`Registrar salida de ${p.name}`}
-                  className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-primary/30 bg-primary/10 text-primary active:scale-95"
-                >
-                  <Minus className="h-5 w-5" />
-                </button>
               </li>
             ))}
           </ul>
 
           <div className="border-t border-border/40 px-4 py-2.5 text-[11px] text-muted-foreground">
-            {rows.length === products.length
-              ? `${products.length} ${products.length === 1 ? "producto" : "productos"}`
-              : `${rows.length} de ${products.length} productos`}
+            {rows.length === source.length
+              ? `${source.length} ${source.length === 1 ? "producto" : "productos"}`
+              : `${rows.length} de ${source.length} productos`}
+            {archivedView ? ` · ${t("almacen.archive.chip").toLowerCase()}` : ""}
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Menú "⋯" de administración por fila (solo owner/admin). Hoy una sola
+ * acción: "Archivar", que se llama "Eliminar" cuando el kardex en memoria
+ * permite afirmar que el producto está virgen (la decisión final es del
+ * RPC de la mig 264).
+ */
+function ProductMenu({
+  product,
+  canDelete,
+  onArchive,
+  size,
+}: {
+  product: InventoryProduct;
+  canDelete: boolean;
+  onArchive: (product: InventoryProduct) => void;
+  size: "sm" | "lg";
+}) {
+  const { t } = useLanguage();
+  const label = canDelete ? t("almacen.archive.delete_action") : t("almacen.archive.action");
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          aria-label={`${t("almacen.archive.more_actions")}: ${product.name}`}
+          title={t("almacen.archive.more_actions")}
+          className={cn(
+            "grid shrink-0 place-items-center border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground active:scale-95",
+            size === "sm" ? "h-9 w-9 rounded-lg" : "h-11 w-11 rounded-xl"
+          )}
+        >
+          <MoreHorizontal className={size === "sm" ? "h-4 w-4" : "h-5 w-5"} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          onSelect={() => onArchive(product)}
+          className={cn(canDelete && "text-destructive focus:text-destructive")}
+        >
+          {canDelete ? (
+            <Trash2 className="mr-2 h-4 w-4" />
+          ) : (
+            <Archive className="mr-2 h-4 w-4" />
+          )}
+          {label}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

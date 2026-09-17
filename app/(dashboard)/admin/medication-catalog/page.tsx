@@ -44,6 +44,22 @@ interface PharmacyProduct {
   category: string | null;
 }
 
+/**
+ * Fila del catálogo con el estado del producto enlazado (mig 264): el
+ * vínculo `inventory_product_id` se conserva cuando el producto se archiva
+ * (es historia y vuelve al restaurar), pero el chip "Farmacia" se oculta
+ * mientras esté archivado. `null` si el producto no existe o no es legible.
+ */
+type CatalogRow = MedicationCatalogItem & {
+  inventory_product?: { is_discontinued: boolean } | null;
+};
+
+const CATALOG_ROW_COLUMNS = `${MEDICATION_CATALOG_COLUMNS}, inventory_product:inventory_products!inventory_product_id(is_discontinued)`;
+
+function showsPharmacyChip(item: CatalogRow): boolean {
+  return !!item.inventory_product_id && item.inventory_product?.is_discontinued !== true;
+}
+
 const labelClass =
   "text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
 const inputClass =
@@ -106,7 +122,7 @@ export default function MedicationCatalogPage() {
   const { hasAddon } = useOrgAddons();
   const confirm = useConfirm();
 
-  const [items, setItems] = useState<MedicationCatalogItem[]>([]);
+  const [items, setItems] = useState<CatalogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
@@ -132,12 +148,12 @@ export default function MedicationCatalogPage() {
     // RLS ya filtra por org; el .eq() explícito documenta el alcance.
     const { data, error } = await supabase
       .from("medication_catalog")
-      .select(MEDICATION_CATALOG_COLUMNS)
+      .select(CATALOG_ROW_COLUMNS)
       .eq("organization_id", organizationId)
       .order("display_order")
       .order("name");
     if (error) toast.error(error.message);
-    setItems((data ?? []) as unknown as MedicationCatalogItem[]);
+    setItems((data ?? []) as unknown as CatalogRow[]);
     setLoading(false);
   }, [organizationId]);
 
@@ -439,7 +455,7 @@ export default function MedicationCatalogPage() {
                       {item.name}
                       {item.concentration ? ` ${item.concentration}` : ""}
                     </span>
-                    {item.inventory_product_id && (
+                    {showsPharmacyChip(item) && (
                       <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
                         Farmacia
                       </span>
