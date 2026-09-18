@@ -46,11 +46,62 @@ NOTICE:  custom_report = {
                 }
             ],
             "total": 900.00,
+            "detail": [
+                {
+                    "kind": "appointment_past",
+                    "notes": null,
+                    "amount": 150.00,
+                    "method": "Efectivo",
+                    "payment_id": "cad267b0-9f84-4231-a9d5-97e0c1b8229c",
+                    "plan_title": null,
+                    "patient_name": "Ana Pérez",
+                    "payment_date": "2026-09-01",
+                    "service_name": "Ecografía",
+                    "appointment_date": "2026-08-20"
+                },
+                {
+                    "kind": "direct",
+                    "notes": "A cuenta",
+                    "amount": 300.00,
+                    "method": "Transferencia",
+                    "payment_id": "a7f78b08-14ff-4245-86af-970ad7c60312",
+                    "plan_title": null,
+                    "patient_name": "Ana Pérez",
+                    "payment_date": "2026-09-02",
+                    "service_name": null,
+                    "appointment_date": null
+                },
+                {
+                    "kind": "plan",
+                    "notes": "Anticipo al plan",
+                    "amount": 400.00,
+                    "method": "Efectivo",
+                    "payment_id": "a703d08a-9389-4920-bc85-069b70d8c205",
+                    "plan_title": "Plan Fisio",
+                    "patient_name": "Ana Pérez",
+                    "payment_date": "2026-09-03",
+                    "service_name": null,
+                    "appointment_date": null
+                },
+                {
+                    "kind": "appointment_future",
+                    "notes": null,
+                    "amount": 50.00,
+                    "method": "Efectivo",
+                    "payment_id": "05e91648-7803-4e88-9a9f-ee6c56df3188",
+                    "plan_title": null,
+                    "patient_name": "Ana Pérez",
+                    "payment_date": "2026-09-05",
+                    "service_name": "1era consulta de fertilidad",
+                    "appointment_date": "2026-09-20"
+                }
+            ],
             "by_bucket": {
                 "other": 300.00,
                 "plans": 400.00,
                 "other_appointments": 200.00
-            }
+            },
+            "detail_truncated": false
         },
         "pharmacy": {
             "rows": [
@@ -176,6 +227,13 @@ NOTICE:  PASS  Σ filas SERVICIOS  (=530.00)
 NOTICE:  PASS  Σ filas ABONOS  (=900.00)
 NOTICE:  PASS  Σ filas FARMACIA  (=187.00)
 NOTICE:  PASS  Σ filas TRATAMIENTOS  (=4500.00)
+NOTICE:  PASS  Σ detail[direct].amount == by_bucket.other  (=300.00)
+NOTICE:  PASS  Σ detail.amount == ABONOS.total  (=900.00)
+NOTICE:  PASS  detail: 4 cobros (futura, pasada, directo, plan), sin recorte  (=4)
+NOTICE:  PASS  detail[direct]: paciente, medio y motivo del drawer  (=1)
+NOTICE:  PASS  detail[appointment_future]: fecha y servicio de la cita  (=1)
+NOTICE:  PASS  detail[plan]: título del plan  (=1)
+NOTICE:  PASS  detail: nada de farmacia, tratamientos ni citas del rango  (=0)
 NOTICE:  PASS  TOTAL FINAL == overview.payments_amount + treatment_payments_amount  (=6117.00)
 NOTICE:  PASS  TOTAL FINAL (valor)  (=6117.00)
 NOTICE:  PASS  overview.payments_amount  (=1617.00)

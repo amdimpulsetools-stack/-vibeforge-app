@@ -169,6 +169,31 @@ BEGIN
   PERFORM t_assert_eq('Σ filas FARMACIA',    (SELECT SUM((x->>'total')::numeric) FROM json_array_elements(r->'sections'->'pharmacy'->'rows') x),   187);
   PERFORM t_assert_eq('Σ filas TRATAMIENTOS',(SELECT SUM((x->>'total')::numeric) FROM json_array_elements(r->'sections'->'treatments'->'rows') x), 4500);
 
+  -- Mig 265: detalle por operación de ABONOS sale de la MISMA CTE que los totales
+  PERFORM t_assert_eq('Σ detail[direct].amount == by_bucket.other',
+    (SELECT SUM((x->>'amount')::numeric) FROM json_array_elements(r->'sections'->'advances'->'detail') x WHERE x->>'kind' = 'direct'),
+    (r->'sections'->'advances'->'by_bucket'->>'other')::numeric);
+  PERFORM t_assert_eq('Σ detail.amount == ABONOS.total',
+    (SELECT SUM((x->>'amount')::numeric) FROM json_array_elements(r->'sections'->'advances'->'detail') x),
+    (r->'sections'->'advances'->>'total')::numeric);
+  PERFORM t_assert_eq('detail: 4 cobros (futura, pasada, directo, plan), sin recorte',
+    (SELECT COUNT(*) FROM json_array_elements(r->'sections'->'advances'->'detail') x)
+      + CASE WHEN (r->'sections'->'advances'->>'detail_truncated')::boolean THEN 100 ELSE 0 END, 4);
+  PERFORM t_assert_eq('detail[direct]: paciente, medio y motivo del drawer',
+    (SELECT COUNT(*) FROM json_array_elements(r->'sections'->'advances'->'detail') x
+      WHERE x->>'kind' = 'direct' AND x->>'patient_name' = 'Ana Pérez' AND x->>'method' = 'Transferencia'
+        AND x->>'notes' = 'A cuenta' AND x->>'payment_date' = '2026-09-02' AND x->>'appointment_date' IS NULL), 1);
+  PERFORM t_assert_eq('detail[appointment_future]: fecha y servicio de la cita',
+    (SELECT COUNT(*) FROM json_array_elements(r->'sections'->'advances'->'detail') x
+      WHERE x->>'kind' = 'appointment_future' AND x->>'appointment_date' = '2026-09-20'
+        AND x->>'service_name' = '1era consulta de fertilidad' AND (x->>'amount')::numeric = 50), 1);
+  PERFORM t_assert_eq('detail[plan]: título del plan',
+    (SELECT COUNT(*) FROM json_array_elements(r->'sections'->'advances'->'detail') x
+      WHERE x->>'kind' = 'plan' AND x->>'plan_title' = 'Plan Fisio' AND (x->>'amount')::numeric = 400), 1);
+  PERFORM t_assert_eq('detail: nada de farmacia, tratamientos ni citas del rango',
+    (SELECT COUNT(*) FROM json_array_elements(r->'sections'->'advances'->'detail') x
+      WHERE x->>'kind' NOT IN ('appointment_future','appointment_past','direct','plan')), 0);
+
   -- TOTAL FINAL == payments_amount + treatment_payments_amount (get_reports_overview mig 251)
   PERFORM t_assert_eq('TOTAL FINAL == overview.payments_amount + treatment_payments_amount',
     (r->>'grand_total')::numeric,

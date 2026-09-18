@@ -2,7 +2,8 @@
  * Contrato del "Resumen de cobros del periodo" (reporte personalizado).
  *
  * Es la forma EXACTA del JSON que devuelve el RPC `get_custom_report`
- * (mig 260; borrador validado en docs/reporte-personalizado/sql/). Lo
+ * (mig 260, detalle de Adelantos mig 265; validado en
+ * docs/reporte-personalizado/sql/). Lo
  * consumen la pestaña de Reportes, la ruta GET /api/reports/custom y el PDF
  * /api/pdf/custom-report: un solo tipo para las tres, ninguna reinterpreta
  * nada. Diseño completo: docs/spec-reporte-personalizado.md.
@@ -75,12 +76,42 @@ export interface CustomReportSection<R extends CustomReportRowBase> {
   total: number;
 }
 
+/**
+ * Mig 265: una fila por COBRO de "Adelantos y pagos a cuenta". Sale de la
+ * misma CTE que `rows` y `by_bucket`, así Σ `amount` por `kind` == la
+ * cubeta correspondiente (con la lista completa, ver `detail_truncated`).
+ * Lleva nombre y motivo: dato personal, la ruta del PDF lo audita.
+ */
+export interface CustomReportAdvanceDetail {
+  payment_id: string;
+  kind: CustomReportAdvanceKind;
+  /** yyyy-MM-dd, fecha de cobro (siempre dentro del rango). */
+  payment_date: string;
+  /** "Nombre Apellido" de la ficha; "Paciente sin ficha" si el pago no tiene paciente. */
+  patient_name: string;
+  amount: number;
+  /** Medio de pago tal cual se guardó (texto libre o etiqueta del lookup). */
+  method: string | null;
+  /** "Motivo / referencia" del cobro. Obligatorio desde la ficha SOLO sin cita (histórico puede ser null). */
+  notes: string | null;
+  /** Solo `appointment_*`: fecha de la cita (fuera del rango por definición). */
+  appointment_date: string | null;
+  /** Solo `appointment_*`: servicio de la cita ("Sin servicio" si no tiene). */
+  service_name: string | null;
+  /** Solo `plan`: título del plan ("Plan sin título" si no tiene). */
+  plan_title: string | null;
+}
+
 export interface CustomReportAdvancesSection extends CustomReportSection<CustomReportAdvanceRow> {
   by_bucket: {
     other_appointments: number;
     plans: number;
     other: number;
   };
+  /** Mig 265. Orden: payment_date, created_at. Como máximo 300 filas. */
+  detail: CustomReportAdvanceDetail[];
+  /** true si había más de 300 cobros: entonces Σ detail < total (la cifra que manda sigue siendo `total`). */
+  detail_truncated: boolean;
 }
 
 export interface CustomReport {

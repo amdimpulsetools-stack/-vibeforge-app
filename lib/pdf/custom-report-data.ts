@@ -23,8 +23,10 @@ import { generatedFooterNote, type OrgDocRow } from "@/lib/pdf/prescription-data
 import {
   CUSTOM_REPORT_SECTIONS,
   type CustomReport,
+  type CustomReportAdvanceDetail,
   type CustomReportAdvanceKind,
   type CustomReportAdvanceRow,
+  type CustomReportAdvancesSection,
   type CustomReportPharmacyRow,
   type CustomReportRowBase,
   type CustomReportSectionKey,
@@ -79,6 +81,14 @@ const ADVANCE_KINDS: ReadonlyArray<{ kind: CustomReportAdvanceKind; label: strin
 
 const PHARMACY_VOIDED_LABEL = "Ventas anuladas (siguen contadas en Cobrado total)";
 
+/**
+ * Detalle por cobro en el PDF (mig 265): SOLO bajo "Abono directo" (es lo
+ * que la doctora cuadra con la contadora; las citas de otras fechas ya
+ * salen por servicio). Tope de filas impresas y recorte del motivo.
+ */
+const PDF_DETAIL_MAX_ROWS = 300;
+const PDF_DETAIL_NOTE_MAX = 60;
+
 export const CUSTOM_REPORT_FOOTNOTE =
   "Montos brutos con IGV, por fecha de cobro. Cantidad × Precio puede no coincidir con Total por cobros parciales y descuentos.";
 
@@ -124,6 +134,19 @@ const MONTHS_PE = [
 function ymd(s: string): { y: number; m: number; d: number } {
   const [y, m, d] = s.slice(0, 10).split("-").map(Number);
   return { y, m, d };
+}
+
+/** "dd/mm" de una fecha yyyy-MM-dd (texto, sin Date de negocio). */
+function ddmm(s: string): string {
+  return `${s.slice(8, 10)}/${s.slice(5, 7)}`;
+}
+
+/** Motivo recortado a `max` caracteres (con "…"); "—" si viene vacío. */
+export function detailNoteCell(notes: string | null | undefined, max = PDF_DETAIL_NOTE_MAX): string {
+  const s = (notes ?? "").replace(/\s+/g, " ").trim();
+  if (!s) return "—";
+  const chars = Array.from(s);
+  return chars.length > max ? `${chars.slice(0, max - 1).join("")}…` : s;
 }
 
 /**
@@ -172,10 +195,27 @@ export interface CustomReportDocRow {
   muted: boolean;
 }
 
+/** Subfila de un abono directo (mig 265): fecha · paciente · motivo · medio · monto. */
+export interface CustomReportDocDetailRow {
+  /** "dd/mm" (la fecha de cobro siempre cae dentro del rango del título). */
+  date_text: string;
+  patient_name: string;
+  /** Motivo recortado a 60 caracteres; "—" si vacío. */
+  notes_text: string;
+  /** Medio de pago; "—" si vacío. */
+  method_text: string;
+  /** Se imprime con `{{money amount}}`. */
+  amount: number;
+}
+
 export interface CustomReportDocGroup {
   /** Subtítulo del grupo (Adelantos por `kind`, "Ventas anuladas…"); null = sin subtítulo. */
   label: string | null;
   rows: CustomReportDocRow[];
+  /** Solo "Abono directo": una subfila por cobro (≤ 300). Vacío = sin subtabla. */
+  detail: CustomReportDocDetailRow[];
+  /** Cobros del grupo que NO se imprimen ("y N más"); 0 = todos impresos. */
+  detail_more: number;
 }
 
 export interface CustomReportDocSection {
@@ -238,27 +278,61 @@ function toDocRow(row: CustomReportRowBase, muted = false): CustomReportDocRow {
   };
 }
 
+function toDocDetailRow(d: CustomReportAdvanceDetail): CustomReportDocDetailRow {
+  return {
+    date_text: ddmm(d.payment_date),
+    patient_name: (d.patient_name ?? "").trim() || "—",
+    notes_text: detailNoteCell(d.notes),
+    method_text: (d.method ?? "").trim() || "—",
+    amount: Number(d.amount ?? 0),
+  };
+}
+
+/**
+ * Subtabla de "Abono directo" (mig 265). "y N más" se calcula contra la
+ * CANTIDAD de la fila agregada (`rows[kind='direct'].quantity` = nº de
+ * cobros del RPC), así sigue siendo exacta aunque el RPC haya recortado
+ * `detail` a 300 filas en total.
+ */
+function directDetailFor(
+  section: CustomReportAdvancesSection,
+  directRows: CustomReportAdvanceRow[],
+): Pick<CustomReportDocGroup, "detail" | "detail_more"> {
+  const all = (section.detail ?? []).filter((d) => d.kind === "direct");
+  const shown = all.slice(0, PDF_DETAIL_MAX_ROWS);
+  const declared = directRows.reduce((acc, r) => acc + Math.round(Number(r.quantity ?? 0)), 0);
+  const more = Math.max(0, Math.max(declared, all.length) - shown.length);
+  return { detail: shown.map(toDocDetailRow), detail_more: more };
+}
+
 function groupsFor(
   key: CustomReportSectionKey,
   rows: CustomReportRowBase[],
+  advances: CustomReportAdvancesSection | null = null,
 ): CustomReportDocGroup[] {
   if (key === "advances") {
     const byKind = rows as CustomReportAdvanceRow[];
-    return ADVANCE_KINDS.map(({ kind, label }) => ({
-      label,
-      rows: byKind.filter((r) => r.kind === kind).map((r) => toDocRow(r)),
-    })).filter((g) => g.rows.length > 0);
+    return ADVANCE_KINDS.map(({ kind, label }) => {
+      const kindRows = byKind.filter((r) => r.kind === kind);
+      const sub =
+        kind === "direct" && advances
+          ? directDetailFor(advances, kindRows)
+          : { detail: [], detail_more: 0 };
+      return { label, rows: kindRows.map((r) => toDocRow(r)), ...sub };
+    }).filter((g) => g.rows.length > 0);
   }
   if (key === "pharmacy") {
     const ph = rows as CustomReportPharmacyRow[];
     const live = ph.filter((r) => !r.voided).map((r) => toDocRow(r));
     const voided = ph.filter((r) => r.voided).map((r) => toDocRow(r, true));
     const groups: CustomReportDocGroup[] = [];
-    if (live.length) groups.push({ label: null, rows: live });
-    if (voided.length) groups.push({ label: PHARMACY_VOIDED_LABEL, rows: voided });
+    if (live.length) groups.push({ label: null, rows: live, detail: [], detail_more: 0 });
+    if (voided.length) groups.push({ label: PHARMACY_VOIDED_LABEL, rows: voided, detail: [], detail_more: 0 });
     return groups;
   }
-  return rows.length ? [{ label: null, rows: rows.map((r) => toDocRow(r)) }] : [];
+  return rows.length
+    ? [{ label: null, rows: rows.map((r) => toDocRow(r)), detail: [], detail_more: 0 }]
+    : [];
 }
 
 export interface BuildCustomReportDocOptions {
@@ -300,7 +374,7 @@ export function buildCustomReportDocData(
       includes: meta.includes,
       qty_label: meta.qty_label,
       count_label: `${n} ${n === 1 ? meta.unit[0] : meta.unit[1]}`,
-      groups: groupsFor(key, rows),
+      groups: groupsFor(key, rows, key === "advances" ? report.sections.advances : null),
       total: Number(data.total ?? 0),
       empty: n === 0,
     });

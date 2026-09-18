@@ -1,55 +1,7 @@
--- ESPEJO de supabase/migrations/265_get_custom_report_detail.sql (mantener idéntico:
--- run.sh carga ESTE archivo contra el stub + la mig 251 verbatim). Si cambia la
--- migración, se copia entera aquí; el diff entre ambos debe ser solo esta cabecera.
-
--- Pendiente de aplicar en producción (la aplica el orquestador)
---
--- 265: get_custom_report — detalle por operación de "Adelantos y pagos a cuenta"
---
--- Caso (17-sep-2026): en el "Resumen de cobros" (mig 260) la sección
--- "Adelantos y pagos a cuenta" agrupa los abonos sin cita en UNA fila fija
--- ("Abono directo (sin cita asociada)") y los cobros de citas de otras
--- fechas por servicio. La doctora no puede saber de QUIÉN es cada abono ni
--- por qué se cobró: para cuadrar con la contadora hoy hay que abrir ficha
--- por ficha.
---
--- Decisión del founder: se añade una lista de DETALLE por cobro (fecha,
--- paciente, monto, medio, motivo; y para citas de otras fechas la fecha de
--- la cita y el servicio; para planes, el título del plan) que sale de la
--- MISMA CTE que ya calcula los totales (`range_payments`), así
--- Σ detail == by_bucket por construcción. Las filas agregadas (`rows`) no
--- cambian: la pantalla y el PDF siguen cuadrando con lo de siempre.
---
--- Qué cambia respecto a la 260 (cuerpo VERBATIM salvo esto):
---   · range_payments: expone además patient_id, payment_method,
---     payment_date y created_at (solo para el detalle; el CASE de cubetas
---     sigue VERBATIM mig 251:71-80).
---   · Nueva CTE adv_detail: una fila por cobro de las cubetas
---     other_appointments + other + plans, con `kind` calculado con el MISMO
---     criterio que adv_appt / adv_direct / adv_plan (cita > v_to ⇒
---     appointment_future, si no appointment_past; plans ⇒ plan; other ⇒
---     direct). LEFT JOIN a patients (paciente sin ficha ⇒ 'Paciente sin
---     ficha'), appointments + services (fecha y servicio de la cita) y
---     treatment_plans (título).
---   · sections.advances gana `detail` (ordenado por payment_date,
---     created_at; LIMIT 300) y `detail_truncated` (había más de 300). Con
---     la lista completa, Σ detail.amount == advances.total y
---     Σ detail[kind='direct'].amount == by_bucket.other (aserciones del
---     banco de pruebas docs/reporte-personalizado/sql/).
---
--- El detalle lleva nombre + motivo (dato personal, Ley 29733): la ruta del
--- PDF registra la impresión con logClinicalAccess. El acceso al RPC sigue
--- gateado a owner/admin (patrón M12, sin cambios).
---
--- Columnas nuevas verificadas contra las migraciones reales:
---   patient_payments.patient_id/payment_method/notes/payment_date (008),
---     created_by/tender_kind/cash_shift_id (213), created_at (008).
---   patients.first_name/last_name NOT NULL (008); patient_id del pago
---     puede ser NULL (link de cobro sin ficha).
---
--- MISMA firma que la 260: CREATE OR REPLACE sin DROP (los grants y el
--- COMMENT se reafirman). Rollback = cuerpo exacto de la 260.
--- Espejo obligatorio: docs/reporte-personalizado/sql/get_custom_report.sql.
+-- Rollback 265: devuelve get_custom_report al cuerpo EXACTO de la mig 260
+-- (misma firma, CREATE OR REPLACE: sin DROP, la pestaña de Reportes sigue
+-- respondiendo). Solo desaparecen `sections.advances.detail` y
+-- `detail_truncated`; pantalla y PDF los tratan como lista vacía.
 
 CREATE OR REPLACE FUNCTION public.get_custom_report(
   p_org_id   uuid,
@@ -159,8 +111,7 @@ BEGIN
   range_payments AS (
     -- Cobros del rango por fecha de pago, ya clasificados en su cubeta.
     -- CASE VERBATIM mig 251:71-80 (custom: columnas extra para agrupar y
-    -- organization_id = p_org_id; mig 265: patient_id, payment_method,
-    -- payment_date y created_at solo para el detalle de Adelantos).
+    -- organization_id = p_org_id).
     SELECT
       pp.id,
       pp.amount,
@@ -169,10 +120,6 @@ BEGIN
       pp.treatment_concept_id,
       pp.sale_id,
       pp.notes,
-      pp.patient_id,
-      pp.payment_method,
-      pp.payment_date,
-      pp.created_at,
       CASE
         WHEN COALESCE(pp.source, 'clinical') = 'pos'            THEN 'pharmacy'
         WHEN pp.treatment_id IS NOT NULL                        THEN 'treatments'
@@ -263,48 +210,6 @@ BEGIN
     SELECT * FROM adv_appt
     UNION ALL SELECT * FROM adv_direct
     UNION ALL SELECT * FROM adv_plan
-  ),
-  adv_detail AS (
-    -- Mig 265: detalle por operación de las MISMAS cubetas que las filas
-    -- agregadas de arriba (other_appointments + other + plans). Sale de
-    -- range_payments, así Σ amount == by_bucket por construcción. `kind`
-    -- con el mismo criterio que adv_appt / adv_direct / adv_plan.
-    SELECT
-      rp.id                                                               AS payment_id,
-      rp.payment_date,
-      rp.created_at,
-      CASE
-        WHEN rp.bucket = 'other_appointments' AND a.appointment_date > v_to THEN 'appointment_future'
-        WHEN rp.bucket = 'other_appointments'                              THEN 'appointment_past'
-        WHEN rp.bucket = 'plans'                                           THEN 'plan'
-        ELSE 'direct'
-      END                                                                 AS kind,
-      -- Paciente: nombre de la ficha; el pago puede no tener patient_id
-      -- (link de cobro sin ficha) o la ficha puede haberse borrado.
-      COALESCE(
-        NULLIF(btrim(COALESCE(p.first_name, '') || ' ' || COALESCE(p.last_name, '')), ''),
-        'Paciente sin ficha'
-      )                                                                   AS patient_name,
-      rp.amount,
-      rp.payment_method                                                   AS method,
-      rp.notes,
-      a.appointment_date,
-      CASE WHEN a.id IS NOT NULL THEN COALESCE(s.name, 'Sin servicio') END AS service_name,
-      CASE WHEN rp.treatment_plan_id IS NOT NULL
-           THEN COALESCE(tp.title, 'Plan sin título') END                  AS plan_title
-    FROM range_payments rp
-    LEFT JOIN patients p         ON p.id  = rp.patient_id
-    LEFT JOIN appointments a     ON a.id  = rp.appointment_id
-    LEFT JOIN services s         ON s.id  = a.service_id
-    LEFT JOIN treatment_plans tp ON tp.id = rp.treatment_plan_id
-    WHERE rp.bucket IN ('other_appointments', 'other', 'plans')
-  ),
-  adv_detail_page AS (
-    -- Tope 300 (la hoja impresa y la pantalla no aguantan más; el flag
-    -- detail_truncated avisa). Orden cronológico de cobro.
-    SELECT * FROM adv_detail
-    ORDER BY payment_date, created_at, payment_id
-    LIMIT 300
   ),
 
   -- ── 3. FARMACIA = cubeta pharmacy, detallada por producto ──
@@ -452,21 +357,7 @@ BEGIN
                  ) ORDER BY kind, total DESC, description ASC), '[]'::json) FROM adv),
         'total', t.advances_total,
         'by_bucket', json_build_object(
-          'other_appointments', t.other_appointments, 'other', t.other, 'plans', t.plans),
-        -- Mig 265: detalle por cobro (misma CTE que los totales).
-        'detail', (SELECT COALESCE(json_agg(json_build_object(
-                     'payment_id', payment_id,
-                     'kind', kind,
-                     'payment_date', payment_date,
-                     'patient_name', patient_name,
-                     'amount', amount,
-                     'method', method,
-                     'notes', notes,
-                     'appointment_date', appointment_date,
-                     'service_name', service_name,
-                     'plan_title', plan_title
-                   ) ORDER BY payment_date, created_at, payment_id), '[]'::json) FROM adv_detail_page),
-        'detail_truncated', (SELECT COUNT(*) > 300 FROM adv_detail)
+          'other_appointments', t.other_appointments, 'other', t.other, 'plans', t.plans)
       ) END,
       'pharmacy', CASE WHEN 'pharmacy' = ANY(v_sections) THEN json_build_object(
         'rows', (SELECT COALESCE(json_agg(json_build_object(
@@ -535,11 +426,4 @@ REVOKE ALL ON FUNCTION public.get_custom_report(uuid, date, date, text[]) FROM P
 GRANT EXECUTE ON FUNCTION public.get_custom_report(uuid, date, date, text[]) TO authenticated;
 
 COMMENT ON FUNCTION public.get_custom_report(uuid, date, date, text[]) IS
-  'Mig 260/265: "Resumen de cobros del periodo" de /reports. Tablas agrupadas (Descripción · Cantidad · Precio · Total) por sección + TOTAL FINAL. Cada sección reproduce una cubeta de get_reports_overview.collected_breakdown (misma CTE, mismo rango por payment_date, brutos con IGV). Mig 265: sections.advances.detail = una fila por cobro (paciente, medio, motivo; LIMIT 300 + detail_truncated) de la misma CTE. Gating M12: owner/admin de p_org_id. Contrato: types/custom-report.ts.';
-
--- Verificación sugerida (como owner/admin de la org):
--- SELECT r->'sections'->'advances'->>'total' AS total,
---        (SELECT SUM((d->>'amount')::numeric)
---           FROM json_array_elements(r->'sections'->'advances'->'detail') d) AS suma_detalle
---   FROM get_custom_report('<org>', '2026-09-01', '2026-09-07') r;
--- Ambas columnas deben coincidir salvo que detail_truncated sea true.
+  'Mig 260: "Resumen de cobros del periodo" de /reports. Tablas agrupadas (Descripción · Cantidad · Precio · Total) por sección + TOTAL FINAL. Cada sección reproduce una cubeta de get_reports_overview.collected_breakdown (misma CTE, mismo rango por payment_date, brutos con IGV). Gating M12: owner/admin de p_org_id. Contrato: types/custom-report.ts.';
