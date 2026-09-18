@@ -20,7 +20,7 @@ interface BadgeIconProps {
 }
 
 /** Marca de Google Calendar: marco de 4 colores en inglete + centro blanco. */
-function GoogleCalendarIcon({ className }: BadgeIconProps) {
+export function GoogleCalendarIcon({ className }: BadgeIconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
@@ -58,7 +58,7 @@ function GoogleCalendarIcon({ className }: BadgeIconProps) {
 }
 
 /** Marca de WhatsApp en su verde oficial. */
-function WhatsAppIcon({ className }: BadgeIconProps) {
+export function WhatsAppIcon({ className }: BadgeIconProps) {
   return (
     <svg
       viewBox="0 0 24 24"
