@@ -21,7 +21,7 @@ interface LogoProps {
 }
 
 /** "G" multicolor de Google: paths oficiales, colores oficiales. */
-function GoogleGLogo({ className }: LogoProps) {
+export function GoogleGLogo({ className }: LogoProps) {
   return (
     <svg
       viewBox="0 0 48 48"
@@ -50,7 +50,7 @@ function GoogleGLogo({ className }: LogoProps) {
 }
 
 /** Glifo de WhatsApp en su verde oficial. */
-function WhatsAppLogo({ className }: LogoProps) {
+export function WhatsAppLogo({ className }: LogoProps) {
   return (
     <svg
       viewBox="0 0 24 24"

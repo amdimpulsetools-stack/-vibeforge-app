@@ -281,7 +281,9 @@ export async function updateSession(request: NextRequest) {
   // producción mandaba las páginas legales al login).
   // /pagar = enlace público de cobro al paciente (Culqi): se abre desde
   // WhatsApp sin sesión; con redirect a login el paciente nunca podría pagar.
-  const publicPaths = ["/", "/login", "/register", "/forgot-password", "/reset-password", "/api", "/auth", "/book", "/pagar", "/portal", "/producto", "/blog", "/base-conocimientos", "/calculadora-whatsapp", "/contacto", "/socios", "/soporte", "/privacy", "/terms", "/data-deletion"];
+  // /2 = landing paralela en construcción (misma info y marca, otra
+  // estructura); vive junto a la home hasta que la reemplace. noindex.
+  const publicPaths = ["/", "/2", "/login", "/register", "/forgot-password", "/reset-password", "/api", "/auth", "/book", "/pagar", "/portal", "/producto", "/blog", "/base-conocimientos", "/calculadora-whatsapp", "/contacto", "/socios", "/soporte", "/privacy", "/terms", "/data-deletion"];
   const isPublic = publicPaths.some((path) =>
     pathname === path || pathname.startsWith(path + "/")
   );
