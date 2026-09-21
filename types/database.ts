@@ -114,6 +114,7 @@ export interface Database {
           role: "owner" | "admin" | "member";
           is_active: boolean;
           professional_title: "doctor" | "especialista" | "licenciada" | null;
+          can_manage_inventory: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -124,6 +125,7 @@ export interface Database {
           role?: "owner" | "admin" | "member";
           is_active?: boolean;
           professional_title?: "doctor" | "especialista" | "licenciada" | null;
+          can_manage_inventory?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -134,6 +136,7 @@ export interface Database {
           role?: "owner" | "admin" | "member";
           is_active?: boolean;
           professional_title?: "doctor" | "especialista" | "licenciada" | null;
+          can_manage_inventory?: boolean;
           updated_at?: string;
         };
       };

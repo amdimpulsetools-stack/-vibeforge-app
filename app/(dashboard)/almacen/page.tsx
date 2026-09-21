@@ -82,7 +82,13 @@ function today(): string {
 }
 
 export default function AlmacenPage() {
-  const { organizationId, isOrgAdmin } = useOrganization();
+  const { organizationId, isOrgAdmin, canManageInventory } = useOrganization();
+  // Crear y editar productos (incluido el precio de venta): owner y admin
+  // siempre, y los miembros a los que el owner les concedió el permiso de
+  // almacén (mig 266; en la clínica de Patricia las obstetras rellenan y
+  // actualizan el almacén). Archivar, eliminar y restaurar siguen siendo
+  // de owner/admin. La DB lo vuelve a comprobar por RLS.
+  const canEditProducts = canManageInventory;
   const { user } = useUser();
   const { t } = useLanguage();
   const { hasAddon, loading: addonsLoading } = useOrgAddons();
@@ -456,7 +462,7 @@ export default function AlmacenPage() {
           .eq("id", product.id);
         if (priceErr) {
           toast.warning("Entrada registrada, pero el precio no se actualizó", {
-            description: "Cambiar el precio de venta requiere permiso de administrador.",
+            description: "Cambiar el precio de venta requiere ser doctor o administrador.",
           });
         } else {
           setProducts((prev) =>
@@ -514,7 +520,7 @@ export default function AlmacenPage() {
         toast.error("No se pudo cambiar el precio", {
           description:
             error.code === "42501" || /administrador/i.test(error.message)
-              ? "Cambiar el precio de venta requiere permiso de administrador."
+              ? "Cambiar el precio de venta requiere ser doctor o administrador."
               : error.message,
         });
         return false;
@@ -807,7 +813,7 @@ export default function AlmacenPage() {
           >
             <PackagePlus className="h-4 w-4" /> Entrada
           </Button>
-          {isOrgAdmin && (
+          {canEditProducts && (
             <Button variant="outline" onClick={() => setProductOpen(true)}>
               <Plus className="h-4 w-4" /> Producto
             </Button>
@@ -829,7 +835,7 @@ export default function AlmacenPage() {
             >
               <PackagePlus className="mr-2 h-4 w-4" /> Entrada de mercadería
             </DropdownMenuItem>
-            {isOrgAdmin && (
+            {canEditProducts && (
               <DropdownMenuItem onSelect={() => setProductOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" /> Nuevo producto
               </DropdownMenuItem>
@@ -875,6 +881,7 @@ export default function AlmacenPage() {
               historyComplete={historyComplete}
               expiryAlertDays={settings.expiry_alert_days}
               isAdmin={isOrgAdmin}
+              canEditProducts={canEditProducts}
               onDiscount={(p) => setDiscountFor(p)}
               onShowLots={(p) => setLotsFor(p)}
               onEntry={(p) => {

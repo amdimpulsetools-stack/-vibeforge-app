@@ -73,12 +73,15 @@ interface Props {
    */
   historyComplete: boolean;
   expiryAlertDays: number;
+  /** owner/admin: archivar, eliminar y restaurar. */
   isAdmin: boolean;
+  /** owner/admin/doctor: crear productos y editar el precio de venta (mig 265). */
+  canEditProducts: boolean;
   onDiscount: (product: InventoryProduct) => void;
   /** Abre la vista rápida de lotes y vencimientos de ese producto. */
   onShowLots: (product: InventoryProduct) => void;
   onEntry: (product: InventoryProduct) => void;
-  /** Editar precio de venta sin registrar entrada (solo owner/admin). */
+  /** Editar precio de venta sin registrar entrada (owner/admin/doctor). */
   onEditPrice: (product: InventoryProduct) => void;
   /** Archivar (o eliminar si está virgen) — solo owner/admin. */
   onArchive: (product: InventoryProduct) => void;
@@ -123,6 +126,7 @@ export function ProductTable({
   historyComplete,
   expiryAlertDays,
   isAdmin,
+  canEditProducts,
   onDiscount,
   onShowLots,
   onEntry,
@@ -275,7 +279,7 @@ export function ProductTable({
           Agrega los medicamentos e insumos que manejas. Empieza por los 10 que
           más rotan — los demás los vas sumando sobre la marcha.
         </p>
-        {isAdmin && (
+        {canEditProducts && (
           <Button className="mt-5" onClick={onNewProduct}>
             Agregar producto
           </Button>
@@ -589,7 +593,7 @@ export function ProductTable({
                           >
                             <PackagePlus className="h-4 w-4" />
                           </button>
-                          {isAdmin && (
+                          {canEditProducts && (
                             <button
                               type="button"
                               onClick={() => onEditPrice(p)}
@@ -711,7 +715,7 @@ export function ProductTable({
                         size="lg"
                       />
                     )}
-                    {isAdmin && (
+                    {canEditProducts && (
                       <button
                         type="button"
                         onClick={() => onEditPrice(p)}
