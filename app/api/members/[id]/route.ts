@@ -39,7 +39,7 @@ export async function PATCH(
 
   const parsed = await parseBody(request, updateMemberSchema);
   if (parsed.error) return parsed.error;
-  const { role, is_active } = parsed.data;
+  const { role, is_active, can_manage_inventory } = parsed.data;
 
   // Get the target member
   const { data: targetMember } = await supabase
@@ -67,6 +67,30 @@ export async function PATCH(
       { error: "Cannot deactivate yourself" },
       { status: 403 }
     );
+  }
+
+  // Permiso de almacén (mig 266): solo el owner lo concede o lo quita. El
+  // trigger organization_members_guard lo vuelve a comprobar en la DB, así
+  // que este check es la primera línea, no la única.
+  if (typeof can_manage_inventory === "boolean") {
+    if (callerMembership.role !== "owner") {
+      return NextResponse.json(
+        { error: "Solo el owner puede conceder el permiso de almacén" },
+        { status: 403 }
+      );
+    }
+
+    const { error } = await supabase
+      .from("organization_members")
+      .update({ can_manage_inventory })
+      .eq("id", id);
+
+    if (error) {
+      console.error("Member update error:", error);
+      return NextResponse.json({ error: "internal_error" }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
   }
 
   // Handle is_active toggle

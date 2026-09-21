@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
   // clinics can hold a different title in each one.
   const { data: members, error } = await supabase
     .from("organization_members")
-    .select("id, user_id, role, is_active, professional_title, created_at")
+    .select("id, user_id, role, is_active, professional_title, can_manage_inventory, created_at")
     .eq("organization_id", membership.organization_id)
     .order("created_at");
 
@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
       phone: profile?.phone ?? null,
       email: profile?.email ?? null,
       professional_title: m.professional_title ?? null,
+      can_manage_inventory: m.can_manage_inventory === true,
     };
   });
 

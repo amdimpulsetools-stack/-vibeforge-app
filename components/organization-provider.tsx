@@ -13,6 +13,12 @@ interface OrganizationContextType {
   organization: Organization | null;
   orgRole: OrgRole | null;
   isOrgAdmin: boolean;
+  /**
+   * Puede crear y editar productos del almacén: owner y admin siempre, el
+   * resto solo con el permiso que concede el owner (mig 266). Espejo de
+   * `is_org_inventory_editor` en la DB, que es quien manda.
+   */
+  canManageInventory: boolean;
   loading: boolean;
   refetchOrg: () => void;
 }
@@ -22,9 +28,14 @@ const OrganizationContext = createContext<OrganizationContextType>({
   organization: null,
   orgRole: null,
   isOrgAdmin: false,
+  canManageInventory: false,
   loading: true,
   refetchOrg: () => {},
 });
+
+function canManageInventoryFor(role: OrgRole, flag: boolean | null | undefined) {
+  return role === "owner" || role === "admin" || flag === true;
+}
 
 export function OrganizationProvider({
   children,
@@ -37,6 +48,7 @@ export function OrganizationProvider({
     organization: null,
     orgRole: null,
     isOrgAdmin: false,
+    canManageInventory: false,
     loading: true,
   });
 
@@ -48,7 +60,7 @@ export function OrganizationProvider({
     // Try to fetch existing org membership
     const { data } = await supabase
       .from("organization_members")
-      .select("organization_id, role, organizations(*)")
+      .select("organization_id, role, can_manage_inventory, organizations(*)")
       .eq("user_id", user.id)
       .limit(1)
       .single();
@@ -61,6 +73,7 @@ export function OrganizationProvider({
         organization: org,
         orgRole: role,
         isOrgAdmin: role === "owner" || role === "admin",
+        canManageInventory: canManageInventoryFor(role, data.can_manage_inventory),
         loading: false,
       });
       return;
@@ -77,7 +90,7 @@ export function OrganizationProvider({
     // Re-fetch org membership after self-healing
     const { data: retryData } = await supabase
       .from("organization_members")
-      .select("organization_id, role, organizations(*)")
+      .select("organization_id, role, can_manage_inventory, organizations(*)")
       .eq("user_id", user.id)
       .limit(1)
       .single();
@@ -90,6 +103,7 @@ export function OrganizationProvider({
         organization: org,
         orgRole: role,
         isOrgAdmin: role === "owner" || role === "admin",
+        canManageInventory: canManageInventoryFor(role, retryData.can_manage_inventory),
         loading: false,
       });
     } else {

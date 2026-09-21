@@ -5,6 +5,8 @@ import { useLanguage } from "@/components/language-provider";
 import { useOrganization } from "@/components/organization-provider";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Package } from "lucide-react";
 import { toast } from "sonner";
 import { cn, getInitials } from "@/lib/utils";
 import { WhatsAppIcon, waSolidButton } from "@/components/icons/whatsapp-icon";
@@ -47,6 +49,8 @@ interface Member {
   role: "owner" | "admin" | "receptionist" | "doctor";
   professional_title: ProfessionalTitle;
   is_active: boolean;
+  /** Permiso de almacén concedido por el owner (mig 266). */
+  can_manage_inventory: boolean;
   created_at: string;
   full_name: string | null;
   avatar_url: string | null;
@@ -329,6 +333,43 @@ export default function MembersPage() {
     fetchMembers();
   };
 
+  // Permiso de almacén (mig 266): lo concede o lo quita solo el owner.
+  // Optimista: el interruptor cambia al instante y se revierte si la API
+  // lo rechaza.
+  const handleToggleInventory = async (member: Member) => {
+    const next = !member.can_manage_inventory;
+    setMembers((prev) =>
+      prev.map((m) => (m.id === member.id ? { ...m, can_manage_inventory: next } : m))
+    );
+
+    const res = await fetch(`/api/members/${member.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ can_manage_inventory: next }),
+    });
+
+    if (!res.ok) {
+      setMembers((prev) =>
+        prev.map((m) => (m.id === member.id ? { ...m, can_manage_inventory: !next } : m))
+      );
+      toast.error("No se pudo cambiar el permiso de almacén", {
+        description: "Solo el owner de la clínica puede concederlo o quitarlo.",
+      });
+      return;
+    }
+
+    toast.success(
+      next
+        ? `${member.full_name ?? "Este miembro"} ya puede gestionar el almacén`
+        : `${member.full_name ?? "Este miembro"} ya no gestiona el almacén`,
+      {
+        description: next
+          ? "Puede crear productos y editar precios de venta. Archivar y eliminar siguen siendo tuyos."
+          : "Sigue pudiendo registrar entradas y salidas.",
+      }
+    );
+  };
+
   const filtered = members.filter(
     (m) =>
       (m.full_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
@@ -539,6 +580,23 @@ export default function MembersPage() {
                   )}
                 </div>
               </div>
+
+              {/* Permiso de almacén: solo lo ve y lo cambia el owner; owner y
+                  admin lo tienen siempre, así que no se muestra para ellos. */}
+              {orgRole === "owner" && member.role !== "owner" && member.role !== "admin" && (
+                <div className="border-t border-border flex items-center justify-between gap-3 px-4 py-2.5">
+                  <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Package className="h-3.5 w-3.5" aria-hidden />
+                    Puede gestionar el almacén
+                  </span>
+                  <Switch
+                    checked={member.can_manage_inventory}
+                    onCheckedChange={() => handleToggleInventory(member)}
+                    disabled={!member.is_active}
+                    aria-label={`Permiso de almacén de ${member.full_name ?? member.email ?? "este miembro"}`}
+                  />
+                </div>
+              )}
 
               {/* Footer actions */}
               {isAdmin && member.role !== "owner" && (

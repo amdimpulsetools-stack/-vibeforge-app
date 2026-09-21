@@ -82,12 +82,13 @@ function today(): string {
 }
 
 export default function AlmacenPage() {
-  const { organizationId, orgRole, isOrgAdmin } = useOrganization();
-  // Crear y editar productos (incluido el precio de venta) lo pueden hacer
-  // owner, admin y doctor: en la clínica de Patricia las obstetras rellenan
-  // y actualizan el almacén (mig 265). Archivar, eliminar y restaurar siguen
-  // siendo de owner/admin.
-  const canEditProducts = isOrgAdmin || orgRole === "doctor";
+  const { organizationId, isOrgAdmin, canManageInventory } = useOrganization();
+  // Crear y editar productos (incluido el precio de venta): owner y admin
+  // siempre, y los miembros a los que el owner les concedió el permiso de
+  // almacén (mig 266; en la clínica de Patricia las obstetras rellenan y
+  // actualizan el almacén). Archivar, eliminar y restaurar siguen siendo
+  // de owner/admin. La DB lo vuelve a comprobar por RLS.
+  const canEditProducts = canManageInventory;
   const { user } = useUser();
   const { t } = useLanguage();
   const { hasAddon, loading: addonsLoading } = useOrgAddons();

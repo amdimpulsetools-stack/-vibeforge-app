@@ -20,10 +20,16 @@ export const updateMemberSchema = z
       })
       .optional(),
     is_active: z.boolean().optional(),
+    /** Permiso de almacén (mig 266): solo el owner lo concede o lo quita. */
+    can_manage_inventory: z.boolean().optional(),
   })
-  .refine((data) => data.role !== undefined || data.is_active !== undefined, {
-    message: "Debe incluir role o is_active",
-  });
+  .refine(
+    (data) =>
+      data.role !== undefined ||
+      data.is_active !== undefined ||
+      data.can_manage_inventory !== undefined,
+    { message: "Debe incluir role, is_active o can_manage_inventory" }
+  );
 
 // ── Plans ────────────────────────────────────────────────────────────
 export const selectPlanSchema = z.object({
