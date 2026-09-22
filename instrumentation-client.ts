@@ -1,5 +1,10 @@
 import * as Sentry from "@sentry/nextjs";
 
+// Sin este hook el SDK no instrumenta las navegaciones del App Router: un
+// error que ocurre al cambiar de página se queda sin la traza de a qué ruta
+// se iba. El build lo pedía con un "ACTION REQUIRED" en cada compilación.
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;
+
 if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
   Sentry.init({
     dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
