@@ -116,6 +116,12 @@ export function ProfitTab({
     const reversed = reversedPairIds(movements);
 
     let mermaLoss = 0;
+    // Mig 268: insumos aplicados a TRATAMIENTOS (addon fertilidad), al
+    // costo. No se restan de la ganancia: la farmacia no perdió esa plata,
+    // la clínica la invirtió en un tratamiento que se recupera por otro
+    // lado (la receptora de una ovodonación paga lo de su donante). Pero
+    // tiene que verse: es capital que salió del anaquel sin venta.
+    let treatmentSupplies = 0;
     for (const m of movements) {
       const d = m.movement_date.slice(0, 10);
       if (d < from || d > to) continue;
@@ -150,6 +156,12 @@ export function ProfitTab({
       } else {
         // Aplicación en consulta: todavía no sabemos si se cobró (F2).
         r.applications += qty;
+        if (m.treatment_id) {
+          treatmentSupplies +=
+            m.cost_total != null
+              ? Number(m.cost_total)
+              : qty * (avgCosts[m.product_id] ?? lastCosts[m.product_id] ?? 0);
+        }
       }
     }
 
@@ -205,10 +217,10 @@ export function ProfitTab({
       }
     }
 
-    return { rows, totals, capital, dormant, mermaLoss };
+    return { rows, totals, capital, dormant, mermaLoss, treatmentSupplies };
   }, [products, movements, stockByProduct, lastCosts, avgCosts, from, to, sortKey]);
 
-  const { rows, totals, capital, dormant, mermaLoss } = report;
+  const { rows, totals, capital, dormant, mermaLoss, treatmentSupplies } = report;
   const marginPct =
     totals.revenue > 0 ? (totals.profit / totals.revenue) * 100 : null;
 
@@ -284,7 +296,12 @@ export function ProfitTab({
       </div>
 
       {/* ── Los números que importan ── */}
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-2 lg:grid-cols-6",
+          treatmentSupplies > 0 && "xl:grid-cols-7",
+        )}
+      >
         <Kpi
           label="Ventas (sin IGV)"
           value={formatPEN(totals.revenue)}
@@ -312,6 +329,13 @@ export function ProfitTab({
           tone={mermaLoss > 0 ? "crit" : undefined}
           hint="Costo de lo roto, vencido o perdido en el período. No está restado de la ganancia: es la otra fuga."
         />
+        {treatmentSupplies > 0 && (
+          <Kpi
+            label="Aplicado a tratamientos"
+            value={formatPEN(treatmentSupplies)}
+            hint="Insumos aplicados desde la ficha de un tratamiento, al costo (sin IGV). No se restan de la ganancia de farmacia: se recuperan en el tratamiento."
+          />
+        )}
         <Kpi
           label="Capital en stock"
           value={formatPEN(capital)}

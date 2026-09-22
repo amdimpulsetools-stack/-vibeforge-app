@@ -1,6 +1,6 @@
 # Coming Updates — Yenda
 
-> **Última actualización:** 2026-09-04 (estudio **multimoneda / internacionalización** con inventario de ~700 puntos de contacto y estrategia híbrida · módulo **Tratamientos** del addon fertilidad evaluado por 4 agentes, decisiones pendientes del founder · entregados esta semana: zona horaria por org (migs 240/241), ocupación real, `is_bookable`, dashboard de recepción, mig 237 branding)
+> **Última actualización:** 2026-09-22 (donantes de óvulos: fase 1 entregada con la mig 268, fase 2 mapeada bajo Módulo Tratamientos) · 2026-09-04 (estudio **multimoneda / internacionalización** con inventario de ~700 puntos de contacto y estrategia híbrida · módulo **Tratamientos** del addon fertilidad evaluado por 4 agentes, decisiones pendientes del founder · entregados esta semana: zona horaria por org (migs 240/241), ocupación real, `is_bookable`, dashboard de recepción, mig 237 branding)
 > **Seguimiento activo de funcionalidades en desarrollo o planificadas**
 
 ---
@@ -67,6 +67,20 @@ lo pida. Detalle: CHANGELOG v0.15.39. Regla de dinero nueva en `CLAUDE.md`.
 - [ ] Rótulo "Terceros" → "Para terceros" en KPIs y barra (cobros de conceptos de terceros recibidos por la clínica ≠ "pagado directo a un tercero").
 - [ ] Del revisor: doctor con `is_doctor_patients_restricted` podría sub-contar dinero (calcular `money` en RPC o extender policy 032); `/api/members/responsibles` resuelve org con `limit(1)`; badge "Cerrados" usa el conteo del período; validar `payment_method` contra catálogo.
 - [ ] **Entrega 2:** devoluciones de tratamiento (movimiento de Caja, nunca pago negativo), comprobante NubeFact por fase desde el detalle, honorarios pagados a terceros como gasto (→ Caja fase 2) para rentabilidad real por tratamiento.
+
+### 🥚 Donantes de óvulos — Fase 2: vínculo donante ↔ receptora y margen neto (mapeado 2026-09-22, sin fecha)
+
+**Fase 1 ✅ entregada** (mig 268, PR #375, Changelog v0.15.44): servicio "— donante" a S/ 0 + insignia "Sin cobro" · cierre **"Completado"** sin desenlace clínico · **insumos de la propia farmacia** aplicados desde la ficha del tratamiento (`inventory_movements.treatment_id`, RPC `treatment_apply_product` con COGS = CPP vigente en servidor; nunca toca `patient_payments`) · costo de insumos aparte del acordado/pagado/pendiente (`treatmentSuppliesCost`, `lib/treatments/money.ts`) · KPI "Aplicado a tratamientos" en Rentabilidad de Almacén.
+
+**Lo que falta para que las matemáticas cierren de punta a punta** (hoy la relación "esta donante es de esta receptora" vive solo en la cabeza de quien lo sabe):
+
+- [ ] **Vínculo donante ↔ receptora**: `treatments.donor_treatment_id` (FK a sí misma, nullable, CHECK ≠ id). Se elige al iniciar la ovodonación de la receptora (selector "Donante" con los tratamientos abiertos o cerrados de tipo CRIO/donante de la org) o después desde la ficha (owner/admin). Una donante puede alimentar más de una receptora (ovodonación compartida) → sin UNIQUE; la ficha de la donante lista "Receptoras" y la de la receptora muestra "Donante: X".
+- [ ] **Margen neto del tratamiento** (la "Entrega 2" que `money.ts` ya anuncia): `acordado ÷ 1.18 según igv_affectation del servicio − pagos a terceros − insumos propios − insumos de la(s) donante(s) vinculada(s)`. RPC propio (patrón `get_treatments_overview`), solo owner/admin. Para la donante el margen es **−insumos** a propósito; para la receptora resta también los de su donante. Si una donante alimenta a N receptoras, sus insumos se reparten a partes iguales (decisión pendiente del founder: reparto igual vs. todo a la primera).
+- [ ] **Honorarios a terceros como gasto** (ya en la Entrega 2 original → depende de Caja fase 2 "Gastos") para que el margen reste lo que la clínica pagó al laboratorio/anestesiólogo, no solo lo que cobró para ellos.
+- [ ] **Rentabilidad por tratamiento** en `/reports`: tabla por ciclo con acordado, cobrado, terceros, insumos, margen; totales del período. Excluir donantes del promedio de "margen por ciclo" (o mostrarlas aparte) para no hundir el indicador.
+- [ ] **Aviso al iniciar** un tratamiento abierto para la misma paciente y servicio (el duplicado de la IIU del 21-sep se habría evitado). Independiente de donantes, mismo módulo.
+
+**Reglas que no cambian** (CLAUDE.md): un cobro vive en un solo contenedor · plata clínica y de farmacia no se mezclan · cobros en bruto, ganancia neta · el costo de insumos es costo, jamás cobro.
 
 > **Evaluación original (2026-09-02), conservada como referencia:**
 >

@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import { assertActiveMembership } from "@/lib/followups/org-scope";
 import { assertFertilityAddon } from "@/lib/fertility/assert-fertility-addon";
-import { treatmentMoney } from "@/lib/treatments/money";
+import { treatmentMoney, treatmentSuppliesCost } from "@/lib/treatments/money";
 import type { Database } from "@/types/database";
 import type {
   Treatment,
@@ -12,6 +12,7 @@ import type {
   TreatmentDetailResponse,
   TreatmentExternalPayment,
   TreatmentPaymentConcept,
+  TreatmentSupply,
 } from "@/types/treatments";
 
 /**
@@ -32,6 +33,7 @@ type SupaClient = Awaited<ReturnType<typeof createClient>>;
 interface MembershipRow {
   role: string;
   is_fertility_advisor: boolean | null;
+  can_manage_inventory: boolean | null;
 }
 
 interface TreatmentRow extends Treatment {
@@ -45,6 +47,74 @@ const PAYMENT_COLUMNS =
   "id, amount, payment_method, payment_date, notes, source, treatment_id, " +
   "treatment_concept_id, revenue_bucket, external_receipt_ref, created_by, " +
   "created_at, cash_shift_id, einvoice_id";
+
+/**
+ * Aplicaciones de almacén del tratamiento (mig 268). Kardex + producto y
+ * lote embebidos por FK. Se traen aparte los contra-asientos que apuntan
+ * a estas filas: el contra-asiento NO lleva treatment_id (patrón
+ * undoMovement de Almacén), así que filtrar por tratamiento lo dejaría
+ * fuera y la aplicación deshecha se mostraría para siempre (mismo
+ * hallazgo que la ficha del paciente, F6).
+ */
+interface SupplyRow {
+  id: string;
+  product_id: string;
+  lot_id: string | null;
+  quantity: number | string;
+  unit_cost: number | string | null;
+  cost_total: number | string | null;
+  movement_date: string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  inventory_products: { name: string; base_unit: string } | null;
+  inventory_lots: { lot_code: string } | null;
+}
+
+async function loadSupplies(supabase: SupaClient, treatmentId: string): Promise<TreatmentSupply[]> {
+  const { data } = await supabase
+    .from("inventory_movements")
+    .select(
+      "id, product_id, lot_id, quantity, unit_cost, cost_total, movement_date, notes, " +
+        "created_by, created_at, inventory_products(name, base_unit), inventory_lots(lot_code)",
+    )
+    .eq("treatment_id", treatmentId)
+    .order("movement_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  const rows = (data ?? []) as unknown as SupplyRow[];
+  if (rows.length === 0) return [];
+
+  const { data: reversals } = await supabase
+    .from("inventory_movements")
+    .select("reverses_movement_id")
+    .in(
+      "reverses_movement_id",
+      rows.map((r) => r.id),
+    );
+  const undone = new Set(
+    ((reversals ?? []) as { reverses_movement_id: string | null }[])
+      .map((r) => r.reverses_movement_id)
+      .filter((x): x is string => Boolean(x)),
+  );
+
+  return rows
+    .filter((r) => !undone.has(r.id))
+    .map((r) => ({
+      id: r.id,
+      product_id: r.product_id,
+      product_name: r.inventory_products?.name ?? "Producto",
+      base_unit: r.inventory_products?.base_unit ?? "",
+      lot_id: r.lot_id,
+      lot_code: r.inventory_lots?.lot_code ?? null,
+      quantity: Math.abs(Number(r.quantity)),
+      unit_cost: r.unit_cost == null ? null : Number(r.unit_cost),
+      cost_total: r.cost_total == null ? null : Number(r.cost_total),
+      movement_date: r.movement_date,
+      notes: r.notes,
+      created_by: r.created_by,
+      created_at: r.created_at,
+    }));
+}
 
 type Ctx =
   | { error: NextResponse; treatment?: never; membership?: never }
@@ -68,7 +138,7 @@ async function loadContext(supabase: SupaClient, userId: string, id: string): Pr
 
   const { data: membershipRow } = await supabase
     .from("organization_members")
-    .select("role, is_fertility_advisor")
+    .select("role, is_fertility_advisor, can_manage_inventory")
     .eq("user_id", userId)
     .eq("organization_id", treatment.organization_id)
     .eq("is_active", true)
@@ -98,7 +168,7 @@ export async function GET(
   const { treatment: row, membership } = ctx;
   const { patients, doctors, budget_records, ...treatment } = row;
 
-  const [paymentsRes, externalRes, conceptsRes, assistantRes] = await Promise.all([
+  const [paymentsRes, externalRes, conceptsRes, assistantRes, supplies, almacenRes] = await Promise.all([
     supabase
       .from("patient_payments")
       .select(PAYMENT_COLUMNS)
@@ -125,6 +195,16 @@ export async function GET(
           .eq("id", treatment.assistant_member_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
+    loadSupplies(supabase, id),
+    // Módulo Almacén: sin él no hay de dónde aplicar (el RPC lo vuelve a
+    // exigir; aquí solo decide si se muestra el botón).
+    supabase
+      .from("organization_addons")
+      .select("addon_key")
+      .eq("organization_id", treatment.organization_id)
+      .eq("addon_key", "almacen")
+      .eq("enabled", true)
+      .limit(1),
   ]);
 
   // Nombre de la asistente: user_profiles es visible entre pares de la org
@@ -175,6 +255,10 @@ export async function GET(
     }
   }
 
+  // Costo de insumos: fórmula única (lib/treatments/money.ts). Aparte de
+  // `money` a propósito: es costo, no cobro.
+  const suppliesCost = treatmentSuppliesCost(supplies);
+
   const body: TreatmentDetailResponse = {
     treatment: {
       ...(treatment as Treatment),
@@ -194,6 +278,14 @@ export async function GET(
     sees_fees: seesFees,
     can_close: seesFees && treatment.status === "in_progress",
     can_reopen: isAdmin && treatment.status !== "in_progress",
+    supplies,
+    supplies_cost: suppliesCost.cost,
+    supplies_estimated: suppliesCost.estimated,
+    // Cualquier miembro activo aplica (mig 268, misma regla que el kardex):
+    // recepción registra la aplicación igual que cobra en Farmacia.
+    can_apply_supplies:
+      treatment.status === "in_progress" && (almacenRes.data?.length ?? 0) > 0,
+    can_undo_supplies: isAdmin || Boolean(membership.can_manage_inventory),
   };
 
   return NextResponse.json(body);

@@ -4,7 +4,14 @@
  */
 
 export type TreatmentStatus = "in_progress" | "completed" | "abandoned" | "cancelled";
-export type TreatmentOutcome = "pregnancy" | "no_pregnancy" | "abandoned" | "transferred" | "other";
+/** `completed` (mig 268): terminó sin desenlace clínico que registrar (ciclo de donante). */
+export type TreatmentOutcome =
+  | "pregnancy"
+  | "no_pregnancy"
+  | "abandoned"
+  | "transferred"
+  | "completed"
+  | "other";
 export type RevenueBucket = "honorarium" | "general" | "third_party";
 
 export const TREATMENT_STATUS_LABELS: Record<TreatmentStatus, string> = {
@@ -19,6 +26,7 @@ export const TREATMENT_OUTCOME_LABELS: Record<TreatmentOutcome, string> = {
   no_pregnancy: "Completado sin embarazo",
   abandoned: "Abandonado",
   transferred: "Derivado a otro centro",
+  completed: "Completado",
   other: "Otro",
 };
 
@@ -129,6 +137,29 @@ export interface TreatmentsOverview {
   doctor_scope_id: string | null;
 }
 
+/**
+ * Aplicación de un producto del almacén al tratamiento (mig 268): una
+ * salida del kardex con `treatment_id`. Es un COSTO, nunca un cobro:
+ * no entra en `money` (acordado / pagado / pendiente).
+ */
+export interface TreatmentSupply {
+  id: string;
+  product_id: string;
+  product_name: string;
+  base_unit: string;
+  lot_id: string | null;
+  lot_code: string | null;
+  /** Unidades aplicadas (positivo; el kardex lo guarda negativo). */
+  quantity: number;
+  /** CPP congelado al aplicar (sin IGV). NULL si el producto nunca tuvo entrada con costo. */
+  unit_cost: number | null;
+  cost_total: number | null;
+  movement_date: string; // yyyy-MM-dd
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+}
+
 /** GET /api/treatments/[id] */
 export interface TreatmentDetailResponse {
   treatment: Treatment & {
@@ -147,6 +178,16 @@ export interface TreatmentDetailResponse {
   sees_fees: boolean;
   can_close: boolean;
   can_reopen: boolean;
+  /** Aplicaciones de almacén vivas (sin los pares deshechos), más recientes primero. */
+  supplies: TreatmentSupply[];
+  /** Σ cost_total de `supplies` (costo sin IGV). Ver lib/treatments/money.ts. */
+  supplies_cost: number;
+  /** Alguna aplicación sin costo estampado: `supplies_cost` está incompleto. */
+  supplies_estimated: boolean;
+  /** Tratamiento en curso + módulo Almacén activo: se puede aplicar producto. */
+  can_apply_supplies: boolean;
+  /** Puede deshacer aplicaciones: editor de almacén (mig 267). El autor de cada fila también (lo resuelve el RPC). */
+  can_undo_supplies: boolean;
 }
 
 /** POST /api/treatments/[id]/payments */
@@ -182,5 +223,14 @@ export interface TreatmentStartInput {
   doctor_id?: string | null;
   assistant_member_id?: string | null;
   started_at?: string;
+  notes?: string;
+}
+
+/** POST /api/treatments/[id]/supplies (mig 268: RPC treatment_apply_product). */
+export interface TreatmentSupplyInput {
+  product_id: string;
+  quantity: number;
+  lot_id?: string | null;
+  movement_date?: string;
   notes?: string;
 }

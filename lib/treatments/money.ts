@@ -91,3 +91,27 @@ export function treatmentMoney(
     progressPercent,
   };
 }
+
+/**
+ * COSTO de insumos del tratamiento (mig 268): Σ cost_total de las salidas
+ * del kardex con `treatment_id`, ya sin los pares deshechos (el que llama
+ * los filtra, patrón `reversedPairIds` de Almacén).
+ *
+ * No es cobro ni pago: NO entra en `treatmentMoney`. Es neto (el costo de
+ * compra viaja sin IGV), así que puede restarse de un ingreso neto en el
+ * margen del tratamiento (Entrega 2), nunca del acordado bruto.
+ * `estimated` = alguna fila sin costo estampado (producto sin entrada con
+ * costo): el total está incompleto y la UI lo marca con asterisco, igual
+ * que Rentabilidad.
+ */
+export function treatmentSuppliesCost(
+  supplies: { cost_total: number | string | null }[] | null | undefined,
+): { cost: number; estimated: boolean } {
+  let cost = 0;
+  let estimated = false;
+  for (const s of supplies ?? []) {
+    if (s.cost_total == null) estimated = true;
+    else cost += num(s.cost_total);
+  }
+  return { cost: Math.round(cost * 100) / 100, estimated };
+}
