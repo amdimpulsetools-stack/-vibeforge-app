@@ -27,16 +27,21 @@ import {
   Plus,
   RotateCcw,
   Save,
+  Syringe,
   Trash2,
   TriangleAlert,
+  Undo2,
   Wallet,
   X,
 } from "lucide-react";
 import { FertilityAddonGate } from "@/components/addons/fertility-addon-gate";
 import { TreatmentPaymentDialog } from "@/components/treatments/treatment-payment-dialog";
 import { TreatmentCloseDialog } from "@/components/treatments/treatment-close-dialog";
+import { TreatmentSupplyDialog } from "@/components/treatments/treatment-supply-dialog";
+import { useOrganization } from "@/components/organization-provider";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useOrgRole } from "@/hooks/use-org-role";
+import { useUser } from "@/hooks/use-user";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   REVENUE_BUCKET_LABELS,
@@ -86,8 +91,14 @@ function TreatmentDetail() {
   const queryClient = useQueryClient();
   const confirm = useConfirm();
   const { isAdmin } = useOrgRole();
+  const { organizationId } = useOrganization();
+  const { user } = useUser();
 
   const [payOpen, setPayOpen] = useState(false);
+  // Insumos de la propia farmacia (mig 268): salida del kardex al costo,
+  // sin cobro. Viven en su propio bloque, nunca dentro de `money`.
+  const [supplyOpen, setSupplyOpen] = useState(false);
+  const [undoingSupplyId, setUndoingSupplyId] = useState<string | null>(null);
   const [closeOpen, setCloseOpen] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
@@ -242,6 +253,34 @@ function TreatmentDetail() {
     }
   };
 
+  const undoSupply = async (supplyId: string, productName: string) => {
+    const ok = await confirm({
+      title: "¿Deshacer esta aplicación?",
+      description: `${productName} vuelve al stock con un contra-asiento en el kardex; la aplicación original no se borra.`,
+      variant: "destructive",
+      confirmText: "Deshacer",
+    });
+    if (!ok) return;
+    setUndoingSupplyId(supplyId);
+    try {
+      const res = await fetch(
+        `/api/treatments/${treatmentId}/supplies?movement_id=${encodeURIComponent(supplyId)}`,
+        { method: "DELETE" },
+      );
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(err.error ?? "No se pudo deshacer la aplicación");
+        return;
+      }
+      toast.success("Aplicación deshecha");
+      refresh();
+    } catch {
+      toast.error("No se pudo deshacer la aplicación");
+    } finally {
+      setUndoingSupplyId(null);
+    }
+  };
+
   const reopen = async () => {
     setReopening(true);
     try {
@@ -281,8 +320,22 @@ function TreatmentDetail() {
     );
   }
 
-  const { treatment, money, sees_fees, can_close, can_reopen } = data;
+  const {
+    treatment,
+    money,
+    sees_fees,
+    can_close,
+    can_reopen,
+    supplies,
+    supplies_cost,
+    supplies_estimated,
+    can_apply_supplies,
+    can_undo_supplies,
+  } = data;
   const covered = money.pending === 0 && money.expectedTotal > 0;
+  // Acordado en 0: donante de óvulos u otro acuerdo sin cobro. La barra de
+  // avance y "Todavía no hay pagos" harían parecer un tratamiento abandonado.
+  const noCharge = money.expectedTotal === 0;
   const overpaid = money.paidClinic > money.expectedTotal;
 
   return (
@@ -441,12 +494,14 @@ function TreatmentDetail() {
           />
         </div>
 
-        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
-          <div
-            className="h-full rounded-full bg-emerald-500 transition-[width] duration-300"
-            style={{ width: `${money.progressPercent}%` }}
-          />
-        </div>
+        {!noCharge && (
+          <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-[width] duration-300"
+              style={{ width: `${money.progressPercent}%` }}
+            />
+          </div>
+        )}
 
         {money.externalCovered > 0 && (
           <p className="mt-2 text-xs text-muted-foreground">
@@ -466,6 +521,12 @@ function TreatmentDetail() {
         )}
 
         <div className="mt-3 flex flex-wrap gap-2">
+          {noCharge && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+              Sin cobro
+              <span className="font-normal">(donante u otro acuerdo)</span>
+            </span>
+          )}
           {covered && (
             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-600">
               <CheckCircle2 className="h-3 w-3" />
@@ -479,6 +540,100 @@ function TreatmentDetail() {
             </span>
           )}
         </div>
+      </div>
+
+      {/* Insumos de la propia farmacia (mig 268). COSTO, no cobro: no toca
+          acordado/pagado/pendiente. Σ = lib/treatments/money.ts. */}
+      <div className="rounded-xl border border-border bg-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold">Insumos de farmacia</h2>
+            <p className="text-[11px] text-muted-foreground">
+              Productos del almacén aplicados a este tratamiento, al costo. No es un cobro.
+            </p>
+          </div>
+          {can_apply_supplies && (
+            <button
+              onClick={() => setSupplyOpen(true)}
+              className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium hover:bg-accent md:h-auto md:py-2"
+            >
+              <Syringe className="h-4 w-4" />
+              Aplicar producto
+            </button>
+          )}
+        </div>
+
+        {supplies.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+            Todavía no se aplicó ningún producto.
+          </p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {supplies.map((sp) => {
+              const canUndo = can_undo_supplies || (user?.id != null && sp.created_by === user.id);
+              return (
+                <li key={sp.id} className="flex gap-3 px-4 py-3">
+                  <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-violet-500/15 text-violet-600">
+                    <Syringe className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-medium">{sp.product_name}</span>
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        {sp.quantity} {sp.base_unit.toLowerCase()}
+                      </span>
+                      {sp.lot_code && (
+                        <span className="text-[10px] text-muted-foreground">Lote {sp.lot_code}</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {longDate(sp.movement_date)}
+                      {sp.unit_cost != null && ` · ${formatCurrency(sp.unit_cost)} c/u`}
+                    </p>
+                    {sp.notes && (
+                      <p className="text-[11px] text-muted-foreground">{sp.notes}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 items-start gap-2">
+                    <span className="text-sm font-semibold tabular-nums text-muted-foreground">
+                      {sp.cost_total != null ? formatCurrency(sp.cost_total) : "—"}
+                    </span>
+                    {canUndo && (
+                      <button
+                        onClick={() => undoSupply(sp.id, sp.product_name)}
+                        disabled={undoingSupplyId === sp.id}
+                        aria-label="Deshacer aplicación"
+                        title="Deshacer aplicación (contra-asiento en el kardex)"
+                        className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                      >
+                        {undoingSupplyId === sp.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Undo2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {supplies.length > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3 text-sm">
+            <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+              <Syringe className="h-4 w-4" />
+              Costo de insumos{supplies_estimated ? " *" : ""}
+            </span>
+            <span className="font-semibold">{formatCurrency(supplies_cost)}</span>
+            {supplies_estimated && (
+              <p className="w-full text-[11px] text-muted-foreground">
+                * Alguna aplicación sin costo conocido (producto sin entrada con costo): el total está incompleto.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Timeline unificado */}
@@ -655,6 +810,15 @@ function TreatmentDetail() {
         concepts={data.concepts}
         money={money}
         onSaved={() => refresh()}
+      />
+
+      <TreatmentSupplyDialog
+        open={supplyOpen}
+        onOpenChange={setSupplyOpen}
+        treatmentId={treatmentId}
+        organizationId={organizationId}
+        patientName={treatment.patient_name}
+        onApplied={refresh}
       />
 
       <TreatmentCloseDialog

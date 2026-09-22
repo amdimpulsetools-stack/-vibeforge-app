@@ -1331,7 +1331,7 @@ export interface Database {
           // Monto ACORDADO, bruto (con IGV, como se cobra).
           expected_total: number;
           status: "in_progress" | "completed" | "abandoned" | "cancelled";
-          outcome: "pregnancy" | "no_pregnancy" | "abandoned" | "transferred" | "other" | null;
+          outcome: "pregnancy" | "no_pregnancy" | "abandoned" | "transferred" | "completed" | "other" | null;
           outcome_reason: string | null;
           external_receipt_ref: string | null;
           started_at: string;
@@ -1354,7 +1354,7 @@ export interface Database {
           title: string;
           expected_total?: number;
           status?: "in_progress" | "completed" | "abandoned" | "cancelled";
-          outcome?: "pregnancy" | "no_pregnancy" | "abandoned" | "transferred" | "other" | null;
+          outcome?: "pregnancy" | "no_pregnancy" | "abandoned" | "transferred" | "completed" | "other" | null;
           outcome_reason?: string | null;
           external_receipt_ref?: string | null;
           started_at?: string;
@@ -1377,7 +1377,7 @@ export interface Database {
           title?: string;
           expected_total?: number;
           status?: "in_progress" | "completed" | "abandoned" | "cancelled";
-          outcome?: "pregnancy" | "no_pregnancy" | "abandoned" | "transferred" | "other" | null;
+          outcome?: "pregnancy" | "no_pregnancy" | "abandoned" | "transferred" | "completed" | "other" | null;
           outcome_reason?: string | null;
           external_receipt_ref?: string | null;
           started_at?: string;

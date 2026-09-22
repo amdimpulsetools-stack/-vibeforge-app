@@ -36,7 +36,7 @@ export interface TreatmentCloseDialogProps {
   onClosed: () => void;
 }
 
-type CloseChoice = "pregnancy" | "no_pregnancy" | "abandoned" | "transferred";
+type CloseChoice = "pregnancy" | "no_pregnancy" | "completed" | "abandoned" | "transferred";
 
 const CHOICES: { value: CloseChoice; label: string; help: string }[] = [
   {
@@ -48,6 +48,13 @@ const CHOICES: { value: CloseChoice; label: string; help: string }[] = [
     value: "no_pregnancy",
     label: "Completado sin embarazo",
     help: "Se terminó el ciclo acordado sin resultado positivo.",
+  },
+  {
+    // Mig 268: ciclos sin desenlace clínico que registrar (una donante de
+    // óvulos, una vitrificación). Antes había que inventar uno.
+    value: "completed",
+    label: "Completado",
+    help: "Terminó sin un desenlace clínico que registrar (p. ej. ciclo de donante).",
   },
   {
     value: "abandoned",
@@ -68,6 +75,7 @@ const CHOICE_TO_PAYLOAD: Record<
 > = {
   pregnancy: { status: "completed", outcome: "pregnancy" },
   no_pregnancy: { status: "completed", outcome: "no_pregnancy" },
+  completed: { status: "completed", outcome: "completed" },
   abandoned: { status: "abandoned", outcome: "abandoned" },
   transferred: { status: "completed", outcome: "transferred" },
 };

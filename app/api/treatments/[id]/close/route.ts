@@ -20,7 +20,9 @@ import type { Treatment } from "@/types/treatments";
 
 const bodySchema = z.object({
   status: z.enum(["completed", "abandoned", "cancelled"]),
-  outcome: z.enum(["pregnancy", "no_pregnancy", "abandoned", "transferred", "other"]).optional(),
+  outcome: z
+    .enum(["pregnancy", "no_pregnancy", "abandoned", "transferred", "completed", "other"])
+    .optional(),
   reason: z.string().max(1000).optional(),
   closed_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida").optional(),
 });

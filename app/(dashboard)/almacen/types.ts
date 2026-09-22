@@ -92,6 +92,13 @@ export interface InventoryMovement {
   reason_code: ReasonCode | null;
   notes: string | null;
   patient_id: string | null;
+  /**
+   * Mig 268: aplicación hecha desde la ficha de un tratamiento (addon
+   * fertilidad). Opcional a propósito: el optimistic update de
+   * almacen/page.tsx construye este literal a mano y un campo requerido
+   * rompería aquel archivo.
+   */
+  treatment_id?: string | null;
   reverses_movement_id: string | null;
   created_at: string;
   created_by: string | null;
@@ -113,7 +120,7 @@ export const PRODUCT_COLUMNS =
 export const LOT_COLUMNS =
   "id,organization_id,product_id,lot_code,expiry_date,unit_cost,supplier,received_at";
 export const MOVEMENT_COLUMNS =
-  "id,organization_id,product_id,lot_id,movement_type,quantity,unit_cost,unit_sale_price,cost_total,revenue_total,movement_date,reason_code,notes,patient_id,reverses_movement_id,created_at,created_by";
+  "id,organization_id,product_id,lot_id,movement_type,quantity,unit_cost,unit_sale_price,cost_total,revenue_total,movement_date,reason_code,notes,patient_id,treatment_id,reverses_movement_id,created_at,created_by";
 
 // ── Etiquetas ───────────────────────────────────────────────────────────
 
