@@ -3,7 +3,7 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["recharts"],
-  // El cliente ya no hace tracing (sentry.client.config.ts sin
+  // El cliente ya no hace tracing (instrumentation-client.ts sin
   // tracesSampleRate); este define elimina además el código de spans del
   // bundle del navegador. Solo cliente: server/edge SÍ trazan al 0.1 y el
   // flag global bundleSizeOptimizations.excludeTracing los rompería.
@@ -61,6 +61,12 @@ const nextConfig: NextConfig = {
 
 export default withSentryConfig(nextConfig, {
   silent: !process.env.CI,
+  // Sin org/project, la subida de source maps se salta con un warning y
+  // los stack traces llegan minificados, que es como no tenerlos. No son
+  // secretos (el secreto es SENTRY_AUTH_TOKEN, que inyecta la integración
+  // de Vercel); van con default para que un checkout limpio compile igual.
+  org: process.env.SENTRY_ORG ?? "yenda-s5",
+  project: process.env.SENTRY_PROJECT ?? "javascript-nextjs",
   sourcemaps: {
     disable: !process.env.SENTRY_DSN,
   },
