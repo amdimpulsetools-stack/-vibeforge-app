@@ -1,4 +1,4 @@
--- Rollback 265: vuelve a la regla "solo owner/admin escriben productos".
+-- Rollback 266: vuelve a la regla "solo owner/admin escriben productos".
 DROP POLICY IF EXISTS "Org inventory editors insert inventory_products" ON inventory_products;
 DROP POLICY IF EXISTS "Org inventory editors update inventory_products" ON inventory_products;
 DROP POLICY IF EXISTS "Org admins delete inventory_products" ON inventory_products;

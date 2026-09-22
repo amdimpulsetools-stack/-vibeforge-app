@@ -1,6 +1,6 @@
--- 266: Almacén — permiso por miembro, concedido solo por el owner
+-- 267: Almacén — permiso por miembro, concedido solo por el owner
 --
--- Corrige el alcance de la 265, que abría la creación y edición de
+-- Corrige el alcance de la 266, que abría la creación y edición de
 -- productos a TODOS los doctores de todas las orgs. La regla de negocio
 -- (founder, 21-sep-2026) es: owner y admin siempre; el resto de miembros
 -- solo si el owner los aprueba uno a uno. Es un permiso, no un rol: sirve
@@ -9,7 +9,7 @@
 --
 --   organization_members.can_manage_inventory (default false)
 --   is_org_inventory_editor(org) = owner/admin, o miembro activo con el
---                                  permiso. Las policies de la 265 y el RPC
+--                                  permiso. Las policies de la 266 y el RPC
 --                                  de precio ya apuntan aquí: no se tocan.
 --   Solo el owner cambia la columna: se amplía el trigger anti-escalada
 --   de la 235 (misma técnica que reserva el rol owner al owner), así un
@@ -38,7 +38,7 @@ AS $$
 $$;
 
 COMMENT ON FUNCTION public.is_org_inventory_editor(UUID) IS
-  'true si el usuario actual es owner/admin activo de la org, o un miembro activo con can_manage_inventory: puede crear y editar productos del almacén (mig 266).';
+  'true si el usuario actual es owner/admin activo de la org, o un miembro activo con can_manage_inventory: puede crear y editar productos del almacén (mig 267).';
 
 -- ── Trigger anti-escalada (mig 235) + regla del permiso de almacén ────
 CREATE OR REPLACE FUNCTION organization_members_guard()
@@ -81,7 +81,7 @@ BEGIN
     END IF;
   END IF;
 
-  -- El permiso de almacén lo concede y lo quita solo el owner (mig 266).
+  -- El permiso de almacén lo concede y lo quita solo el owner (mig 267).
   IF NEW.can_manage_inventory IS DISTINCT FROM OLD.can_manage_inventory
      AND v_role IS DISTINCT FROM 'owner'
   THEN
@@ -99,4 +99,4 @@ BEGIN
 END $$;
 
 COMMENT ON FUNCTION organization_members_guard() IS
-  'Seguridad (migs 235/266): congela user_id/organization_id, reserva el rol owner y el permiso de almacén al owner, e impide la auto-reactivación. Exime rutas de sistema (sin auth.uid()).';
+  'Seguridad (migs 235/267): congela user_id/organization_id, reserva el rol owner y el permiso de almacén al owner, e impide la auto-reactivación. Exime rutas de sistema (sin auth.uid()).';

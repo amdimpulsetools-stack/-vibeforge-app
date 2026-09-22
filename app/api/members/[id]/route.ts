@@ -69,7 +69,7 @@ export async function PATCH(
     );
   }
 
-  // Permiso de almacén (mig 266): solo el owner lo concede o lo quita. El
+  // Permiso de almacén (mig 267): solo el owner lo concede o lo quita. El
   // trigger organization_members_guard lo vuelve a comprobar en la DB, así
   // que este check es la primera línea, no la única.
   if (typeof can_manage_inventory === "boolean") {

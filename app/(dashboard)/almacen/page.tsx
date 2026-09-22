@@ -85,7 +85,7 @@ export default function AlmacenPage() {
   const { organizationId, isOrgAdmin, canManageInventory } = useOrganization();
   // Crear y editar productos (incluido el precio de venta): owner y admin
   // siempre, y los miembros a los que el owner les concedió el permiso de
-  // almacén (mig 266; en la clínica de Patricia las obstetras rellenan y
+  // almacén (mig 267; en la clínica de Patricia las obstetras rellenan y
   // actualizan el almacén). Archivar, eliminar y restaurar siguen siendo
   // de owner/admin. La DB lo vuelve a comprobar por RLS.
   const canEditProducts = canManageInventory;

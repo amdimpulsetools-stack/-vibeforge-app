@@ -15,7 +15,7 @@ interface OrganizationContextType {
   isOrgAdmin: boolean;
   /**
    * Puede crear y editar productos del almacén: owner y admin siempre, el
-   * resto solo con el permiso que concede el owner (mig 266). Espejo de
+   * resto solo con el permiso que concede el owner (mig 267). Espejo de
    * `is_org_inventory_editor` en la DB, que es quien manda.
    */
   canManageInventory: boolean;
