@@ -68,7 +68,9 @@ export default withSentryConfig(nextConfig, {
   org: process.env.SENTRY_ORG ?? "yenda-s5",
   project: process.env.SENTRY_PROJECT ?? "javascript-nextjs",
   sourcemaps: {
-    disable: !process.env.SENTRY_DSN,
+    // Misma regla que sentry.server.config.ts: la integración de Vercel solo
+    // crea la NEXT_PUBLIC_, y sin este fallback los mapas no subirían nunca.
+    disable: !(process.env.SENTRY_DSN ?? process.env.NEXT_PUBLIC_SENTRY_DSN),
   },
   // Tree-shaking de partes del SDK que no usamos: los mensajes de debug del
   // propio Sentry y las rutas de Replay para shadow DOM / iframes (la app no

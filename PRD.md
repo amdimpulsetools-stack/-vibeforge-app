@@ -761,7 +761,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | **Mercado Pago** | Gateway de pagos para suscripciones | Implementado |
 | **SMTP (Nodemailer)** | Envío de emails transaccionales (invitaciones, notificaciones) | Implementado (Gmail SMTP, migración a servicio pago pendiente) |
 | **AI Assistant** | Chat con AI para consultas sobre datos | Implementado (básico) |
-| **Sentry** | Monitoreo de errores en cliente, servidor y edge | **Cableado y listo; falta solo el DSN** (22-sep). Cuenta `yenda-s5` / proyecto `javascript-nextjs`. Ya resuelto en código: el ingest va en `connect-src` de las TRES políticas derivado del propio DSN (sin eso el navegador descartaba cada evento en silencio), `instrumentation-client.ts` en lugar del `sentry.client.config.ts` deprecado, `org`/`project` en `withSentryConfig` para que suban los source maps, y `sendDefaultPii: false` + Replay con `maskAllText`/`maskAllInputs`/`blockAllMedia` explícitos (la política de privacidad promete scrubbing y el Replay graba la historia clínica). Pendiente: pegar el DSN en `SENTRY_DSN` y `NEXT_PUBLIC_SENTRY_DSN` de Vercel y redesplegar. **Nunca `npx @sentry/wizard`**: sobrescribe los configs afinados en v0.15.27. Detalle: Changelog v0.15.43 |
+| **Sentry** | Monitoreo de errores en cliente, servidor y edge | **Cableado y listo; falta solo el DSN** (22-sep). Cuenta `yenda-s5` / proyecto `javascript-nextjs`. Ya resuelto en código: el ingest va en `connect-src` de las TRES políticas derivado del propio DSN (sin eso el navegador descartaba cada evento en silencio), `instrumentation-client.ts` en lugar del `sentry.client.config.ts` deprecado, `org`/`project` en `withSentryConfig` para que suban los source maps, y `sendDefaultPii: false` + Replay con `maskAllText`/`maskAllInputs`/`blockAllMedia` explícitos (la política de privacidad promete scrubbing y el Replay graba la historia clínica). La integración Sentry↔Vercel crea `NEXT_PUBLIC_SENTRY_DSN` + `SENTRY_AUTH_TOKEN` + org/project (no `SENTRY_DSN`), por eso server, edge y source maps hacen `SENTRY_DSN ?? NEXT_PUBLIC_SENTRY_DSN`. Pendiente: primer evento real y decidir Session Replay. **Nunca `npx @sentry/wizard`**: sobrescribe los configs afinados en v0.15.27. Detalle: Changelog v0.15.43 |
 | **WhatsApp Cloud API (Meta)** | Bidireccional: plantillas salientes (recordatorios/seguimientos) + **capturador de entrantes con referral de campaña** (Captación F1, mig 206). Config por org (`whatsapp_config`), webhook global con firma HMAC. **Embedded Signup construido** (mig 234, PR #327/#329): popup oficial "Conectar con Facebook" con Coexistence (el número sigue en la app del celular de la clínica), intercambio de code server-side, `subscribed_apps`, register best-effort, token/PIN cifrados; wizard manual conservado como camino alternativo | Implementado (1 org conectada; ES espera acceso avanzado de Meta) |
 | **Google Calendar (OAuth)** | Sincroniza cada cita con el calendario del doctor (crear/mover/cancelar). Scopes: openid, userinfo.email, calendar.events, drive.file | **Verificado por Google (28-ago-2026)** — integración pública, sin pantalla de "app no verificada" ni tope de 100 usuarios |
 | **Resend** | Emails transaccionales vía `lib/resend.ts` (soporte, alertas founder, billing) | Implementado |
@@ -1130,8 +1130,8 @@ SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_PROJECT_ID=
 MP_ACCESS_TOKEN=
 NEXT_PUBLIC_APP_URL=
-SENTRY_DSN=
-NEXT_PUBLIC_SENTRY_DSN=
+NEXT_PUBLIC_SENTRY_DSN=   # la crea la integración de Vercel; basta con esta
+SENTRY_DSN=               # opcional, override para servidor/edge
 SENTRY_AUTH_TOKEN=        # Source maps: lo inyecta la integración de Vercel
 SENTRY_ORG=               # Opcional: default yenda-s5 en next.config.ts
 SENTRY_PROJECT=           # Opcional: default javascript-nextjs en next.config.ts
