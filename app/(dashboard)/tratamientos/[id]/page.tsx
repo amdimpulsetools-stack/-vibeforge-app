@@ -23,12 +23,14 @@ import {
   ExternalLink,
   HandCoins,
   Loader2,
+  Pencil,
   Plus,
   RotateCcw,
   Save,
   Trash2,
   TriangleAlert,
   Wallet,
+  X,
 } from "lucide-react";
 import { FertilityAddonGate } from "@/components/addons/fertility-addon-gate";
 import { TreatmentPaymentDialog } from "@/components/treatments/treatment-payment-dialog";
@@ -89,6 +91,16 @@ function TreatmentDetail() {
   const [closeOpen, setCloseOpen] = useState(false);
   const [notesDraft, setNotesDraft] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
+  // Monto acordado editable (solo owner/admin, gateado igual en la API).
+  // El presupuesto y el tratamiento guardan una FOTO del precio al
+  // iniciarlo (mig 242): si el precio de lista cambia después, no se
+  // reescribe hacia atrás, y eso es correcto porque un presupuesto ya
+  // entregado es un compromiso. Pero cuando el monto se pactó mal, esta es
+  // la única forma de corregirlo sin tocar la base de datos a mano (caso
+  // real 21-sep: IIU registrada en 3,750 cuando lo acordado eran 2,750).
+  const [editingAmount, setEditingAmount] = useState(false);
+  const [amountDraft, setAmountDraft] = useState("");
+  const [savingAmount, setSavingAmount] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [reopening, setReopening] = useState(false);
 
@@ -168,6 +180,34 @@ function TreatmentDetail() {
       toast.error("No se pudieron guardar las notas");
     } finally {
       setSavingNotes(false);
+    }
+  };
+
+  const saveAmount = async () => {
+    const parsed = Number(amountDraft);
+    if (!Number.isFinite(parsed) || parsed < 0) {
+      toast.error("Escribe un monto válido (0 o mayor)");
+      return;
+    }
+    setSavingAmount(true);
+    try {
+      const res = await fetch(`/api/treatments/${treatmentId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expected_total: parsed }),
+      });
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        toast.error(err.error ?? "No se pudo cambiar el monto acordado");
+        return;
+      }
+      toast.success(`Monto acordado: ${formatCurrency(parsed)}`);
+      setEditingAmount(false);
+      refresh();
+    } catch {
+      toast.error("No se pudo cambiar el monto acordado");
+    } finally {
+      setSavingAmount(false);
     }
   };
 
@@ -325,7 +365,74 @@ function TreatmentDetail() {
       {/* Bloque de dinero */}
       <div className="rounded-xl border border-border bg-card p-4">
         <div className="grid grid-cols-3 gap-3">
-          <MoneyFigure label="Acordado" value={money.expectedTotal} />
+          {/* Acordado: lo edita owner/admin. No es un espejo del precio de
+              lista, es lo que se pactó con esta paciente. */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1">
+              <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Acordado
+              </p>
+              {isAdmin && !editingAmount && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAmountDraft(String(money.expectedTotal));
+                    setEditingAmount(true);
+                  }}
+                  aria-label="Editar el monto acordado"
+                  title="Editar el monto acordado"
+                  className="rounded p-0.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            {editingAmount ? (
+              <div className="mt-0.5 flex items-center gap-1">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  autoFocus
+                  value={amountDraft}
+                  onChange={(e) => setAmountDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveAmount();
+                    if (e.key === "Escape") setEditingAmount(false);
+                  }}
+                  disabled={savingAmount}
+                  aria-label="Monto acordado"
+                  className="w-24 rounded-md border border-input bg-background px-2 py-1 text-sm font-semibold transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50"
+                />
+                <button
+                  type="button"
+                  onClick={saveAmount}
+                  disabled={savingAmount}
+                  aria-label="Guardar el monto acordado"
+                  className="rounded p-1 text-emerald-600 transition-colors hover:bg-emerald-500/10 disabled:opacity-50"
+                >
+                  {savingAmount ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingAmount(false)}
+                  disabled={savingAmount}
+                  aria-label="Cancelar la edición del monto"
+                  className="rounded p-1 text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            ) : (
+              <p className="mt-0.5 truncate text-base font-bold md:text-lg">
+                {formatCurrency(money.expectedTotal)}
+              </p>
+            )}
+          </div>
           <MoneyFigure label="Pagado (clínica)" value={money.paidClinic} />
           <MoneyFigure
             label="Por cobrar"
