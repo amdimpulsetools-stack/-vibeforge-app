@@ -1,4 +1,4 @@
--- 265: Almacén — los doctores también crean y actualizan productos
+-- 266: Almacén — los doctores también crean y actualizan productos
 --
 -- Caso de la clínica de la Dra. Patricia (21-sep-2026): Verenisse
 -- (obstetra, rol `doctor`) no veía el botón "Producto" y, aunque lo viera,
@@ -33,7 +33,7 @@ REVOKE ALL ON FUNCTION public.is_org_inventory_editor(UUID) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.is_org_inventory_editor(UUID) TO authenticated;
 
 COMMENT ON FUNCTION public.is_org_inventory_editor(UUID) IS
-  'true si el usuario actual es owner, admin o doctor activo de la org: puede crear y editar productos del almacén (mig 265).';
+  'true si el usuario actual es owner, admin o doctor activo de la org: puede crear y editar productos del almacén (mig 266).';
 
 -- ── inventory_products: FOR ALL (admin) → INSERT/UPDATE (editor) + DELETE (admin)
 DROP POLICY IF EXISTS "Org admins write inventory_products" ON inventory_products;
@@ -116,4 +116,4 @@ REVOKE ALL ON FUNCTION public.inventory_set_sale_price(uuid, numeric, text) FROM
 GRANT EXECUTE ON FUNCTION public.inventory_set_sale_price(uuid, numeric, text) TO authenticated;
 
 COMMENT ON FUNCTION public.inventory_set_sale_price(uuid, numeric, text) IS
-  'Almacén: cambia el precio de venta de un producto (owner/admin/doctor, mig 265) y estampa el motivo en el historial que escribe el trigger de la mig 209. Devuelve el id de la fila de historial, o NULL si el precio no cambió.';
+  'Almacén: cambia el precio de venta de un producto (owner/admin/doctor, mig 266) y estampa el motivo en el historial que escribe el trigger de la mig 209. Devuelve el id de la fila de historial, o NULL si el precio no cambió.';

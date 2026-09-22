@@ -49,7 +49,7 @@ interface Member {
   role: "owner" | "admin" | "receptionist" | "doctor";
   professional_title: ProfessionalTitle;
   is_active: boolean;
-  /** Permiso de almacén concedido por el owner (mig 266). */
+  /** Permiso de almacén concedido por el owner (mig 267). */
   can_manage_inventory: boolean;
   created_at: string;
   full_name: string | null;
@@ -333,7 +333,7 @@ export default function MembersPage() {
     fetchMembers();
   };
 
-  // Permiso de almacén (mig 266): lo concede o lo quita solo el owner.
+  // Permiso de almacén (mig 267): lo concede o lo quita solo el owner.
   // Optimista: el interruptor cambia al instante y se revierte si la API
   // lo rechaza.
   const handleToggleInventory = async (member: Member) => {

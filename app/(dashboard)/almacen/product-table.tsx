@@ -75,7 +75,7 @@ interface Props {
   expiryAlertDays: number;
   /** owner/admin: archivar, eliminar y restaurar. */
   isAdmin: boolean;
-  /** owner/admin/doctor: crear productos y editar el precio de venta (mig 265). */
+  /** owner/admin/doctor: crear productos y editar el precio de venta (mig 266). */
   canEditProducts: boolean;
   onDiscount: (product: InventoryProduct) => void;
   /** Abre la vista rápida de lotes y vencimientos de ese producto. */

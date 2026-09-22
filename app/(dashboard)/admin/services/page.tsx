@@ -1276,6 +1276,17 @@ function ServiceForm({
           {errors.base_price && (
             <p className="text-xs text-destructive">{errors.base_price.message}</p>
           )}
+          {/* Dos precios conviven en esta pantalla y se confunden: este cobra
+              la CITA; el de abajo es el que se copia al presupuesto y al
+              tratamiento. Caso real del 21-sep en la clínica de Patricia:
+              se corrigió aquí y los presupuestos siguieron saliendo con el
+              precio viejo. */}
+          {isBudgetEligible && (
+            <p className="text-xs text-muted-foreground">
+              Este precio se cobra en las citas. Los presupuestos y
+              tratamientos usan el precio de más abajo.
+            </p>
+          )}
         </div>
         <div className="space-y-1.5">
           <label className="text-sm font-medium">{t("services.duration")}</label>
@@ -1529,8 +1540,8 @@ function ServiceForm({
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {singlePricing
-                      ? "Configura el precio estándar de este servicio y qué incluye."
-                      : "Configura los tres paquetes de precios de este servicio. Define qué incluye cada uno para que la paciente entienda la diferencia."}
+                      ? "Este es el monto que se copia al presupuesto de la paciente y al tratamiento. Cambiarlo no afecta a los presupuestos ya emitidos."
+                      : "Configura los tres paquetes de precios de este servicio. Define qué incluye cada uno para que la paciente entienda la diferencia. El monto se copia al presupuesto y al tratamiento; cambiarlo no afecta a los ya emitidos."}
                   </p>
                 </div>
               </div>

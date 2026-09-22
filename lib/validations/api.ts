@@ -20,7 +20,7 @@ export const updateMemberSchema = z
       })
       .optional(),
     is_active: z.boolean().optional(),
-    /** Permiso de almacén (mig 266): solo el owner lo concede o lo quita. */
+    /** Permiso de almacén (mig 267): solo el owner lo concede o lo quita. */
     can_manage_inventory: z.boolean().optional(),
   })
   .refine(

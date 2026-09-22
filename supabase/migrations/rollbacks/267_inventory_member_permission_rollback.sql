@@ -1,4 +1,4 @@
--- Rollback 266: vuelve al helper de la 265 (todos los doctores) y al
+-- Rollback 267: vuelve al helper de la 266 (todos los doctores) y al
 -- trigger de la 235 (sin la regla del permiso de almacén). Reaplicar la
 -- sección del trigger de 235_security_members_hardening.sql y luego:
 
