@@ -15,6 +15,40 @@ const supabaseDomain = process.env.NEXT_PUBLIC_SUPABASE_URL
   ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
   : "*.supabase.co";
 
+// El navegador manda cada error al ingest del DSN de Sentry
+// (o<id>.ingest.<región>.sentry.io). Sin ese origen en connect-src la CSP
+// lo bloquea EN SILENCIO: el SDK arranca, captura la excepción y el
+// navegador descarta el POST — Sentry no recibe nada y nadie se entera de
+// que no se entera. Se deriva del propio DSN para que no quede un dominio
+// suelto que se desincronice el día que cambie el proyecto; sin DSN no se
+// añade nada (el SDK tampoco arranca).
+const sentryIngest = (() => {
+  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+  if (!dsn) return null;
+  try {
+    return `https://${new URL(dsn).hostname}`;
+  } catch {
+    // DSN mal formado: mejor quedarse sin el origen extra que reventar
+    // TODA la CSP de la app en el arranque del middleware.
+    return null;
+  }
+})();
+
+/**
+ * connect-src de las tres políticas: la base común, lo propio de cada ruta
+ * y el ingest de Sentry. Estaba escrito a mano tres veces, así que añadir
+ * un origen global obligaba a acordarse de las tres.
+ */
+const connectSrc = (...extra: string[]) =>
+  [
+    "connect-src 'self'",
+    `https://${supabaseDomain}`,
+    "https://*.supabase.co",
+    "wss://*.supabase.co",
+    ...extra,
+    ...(sentryIngest ? [sentryIngest] : []),
+  ].join(" ");
+
 // challenges.cloudflare.com = Turnstile (CAPTCHA de los formularios de
 // auth): su script se carga desde ahí y el desafío corre en un iframe
 // del mismo origen. Sin las dos entradas, el widget no renderiza.
@@ -28,7 +62,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
-  `connect-src 'self' https://${supabaseDomain} https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.mercadopago.com`,
+  connectSrc("https://api.anthropic.com", "https://api.mercadopago.com"),
   "frame-src 'self' https://challenges.cloudflare.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -59,7 +93,11 @@ const cspPagar = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
-  `connect-src 'self' https://${supabaseDomain} https://*.supabase.co wss://*.supabase.co https://api.culqi.com https://secure.culqi.com https://checkout.culqi.com`,
+  connectSrc(
+    "https://api.culqi.com",
+    "https://secure.culqi.com",
+    "https://checkout.culqi.com",
+  ),
   "frame-src 'self' https://checkout.culqi.com https://js.culqi.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
@@ -90,7 +128,13 @@ const cspSettings = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
-  `connect-src 'self' https://${supabaseDomain} https://*.supabase.co wss://*.supabase.co https://api.anthropic.com https://api.mercadopago.com https://www.facebook.com https://web.facebook.com https://graph.facebook.com`,
+  connectSrc(
+    "https://api.anthropic.com",
+    "https://api.mercadopago.com",
+    "https://www.facebook.com",
+    "https://web.facebook.com",
+    "https://graph.facebook.com",
+  ),
   //   - frame-src https://staticxx.facebook.com → xd_arbiter, el iframe
   //     oculto por el que el SDK entrega el `code` del popup a la página.
   //     Sin él, el popup termina y el callback de FB.login nunca dispara

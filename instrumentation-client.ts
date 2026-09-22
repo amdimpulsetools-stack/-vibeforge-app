@@ -8,6 +8,12 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
     // sus configs. Reactivable añadiendo tracesSampleRate aquí.
     replaysSessionSampleRate: 0,
     replaysOnErrorSampleRate: 1.0,
+    // App médica: NUNCA la cabecera con datos del usuario ni el cuerpo de
+    // las peticiones. Es el default del SDK, pero va explícito porque la
+    // política de privacidad publicada promete "scrubbing de datos
+    // sensibles" y una promesa no debe depender de un default que el SDK
+    // pueda cambiar en una versión mayor.
+    sendDefaultPii: false,
   });
 
   // Session Replay pesa ~38 kB gz y con replaysSessionSampleRate: 0 solo se
@@ -20,7 +26,17 @@ if (process.env.NEXT_PUBLIC_SENTRY_DSN) {
   const loadReplay = () => {
     import("@sentry/nextjs")
       .then((S) => {
-        Sentry.addIntegration(S.replayIntegration());
+        // Enmascarado EXPLÍCITO por el mismo motivo que sendDefaultPii: la
+        // pantalla que se graba es la historia clínica de una paciente. Con
+        // esto la grabación conserva la forma de la interfaz (dónde hizo
+        // clic, qué se rompió) y ni un solo texto, valor de campo o imagen.
+        Sentry.addIntegration(
+          S.replayIntegration({
+            maskAllText: true,
+            maskAllInputs: true,
+            blockAllMedia: true,
+          }),
+        );
       })
       .catch(() => {
         // Si el chunk no carga, la app sigue funcionando sin replay.
