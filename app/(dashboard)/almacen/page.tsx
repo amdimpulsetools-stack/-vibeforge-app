@@ -950,6 +950,10 @@ export default function AlmacenPage() {
         lots={lotsFor ? lots.filter((l) => l.product_id === lotsFor.id) : []}
         stockByLot={stockByLot}
         expiryAlertDays={settings.expiry_alert_days}
+        canEdit={canManageInventory}
+        onLotUpdated={(lot) =>
+          setLots((prev) => prev.map((l) => (l.id === lot.id ? { ...l, ...lot } : l)))
+        }
       />
 
       <PriceModal
