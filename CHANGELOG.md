@@ -5027,6 +5027,13 @@ PRs de la sesión: #373 (Sentry cableado, mergeado), #374 (fuentes `.woff2` repu
 - Verificación: `tsc --noEmit` y `next build` en verde.
 - **Fase 2 (no en este PR)**: vínculo donante ↔ receptora (`treatments.donor_treatment_id`) y el margen neto del tratamiento que reste los insumos de la donante a la receptora.
 
+### Almacén: corregir código y vencimiento de un lote — mig 269
+- **Pedido del founder (23-sep)**: un lote cargado con la fecha de vencimiento equivocada no se podía corregir desde la app. La base ya lo permitía a owner/admin (policy de la 209) pero ninguna pantalla lo ofrecía: la ventana de lotes era de solo lectura.
+- **Por qué es seguro**: ni el código ni el vencimiento entran en una cuenta (stock = Σ movimientos, costo congelado por movimiento). Solo afectan a Vencimientos, las alertas y el orden FEFO. El **costo del lote no se edita**: el real vive en los movimientos.
+- **Mig 269**: `inventory_lot_changes` (auditoría append-only, lectura para la org, sin policies de escritura) · trigger `inventory_lots_audit` (AFTER UPDATE, registra cada cambio de `lot_code`/`expiry_date` **venga de donde venga**; el motivo viaja por `set_config('yenda.lot_change_reason')`) · trigger `inventory_lots_guard` (BEFORE UPDATE, prohíbe mover un lote de producto u organización) · RPC **`inventory_update_lot(p_lot_id, p_lot_code, p_expiry_date, p_reason)`**: editor de almacén (`is_org_inventory_editor`, mig 267), motivo ≥ 3 caracteres, código único por producto con mensaje legible, "No hay cambios" si nada cambia. Recibe los valores nuevos completos (`p_expiry_date` NULL = sin vencimiento).
+- **UI** (`almacen/lots-modal.tsx`): lápiz por lote para quien tiene "Puede gestionar el almacén" → código, mes de vencimiento (se guarda el último día, igual que al registrar la entrada) y motivo con atajos ("Error de digitación", "Dato del proveedor corregido"). Debajo de cada lote, el **historial de correcciones** ("Vencimiento 11/2027 → 01/2028 · 23/09/2026 · Nombre — motivo").
+- **Verificación en producción** (transacción revertida con `RAISE`, sin dejar datos): miembro sin permiso → `forbidden`; sin motivo → rechazado; editor → vencimiento y código corregidos, **2 filas de auditoría, stock del lote 10 → 10**; mover el lote de producto → bloqueado por el guard. De paso: Melissa (recepción, org de la Dra. Patricia) ya tiene "Puede gestionar el almacén" concedido por el owner.
+
 ## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)
 
 > Detalle largo de cada feature implementada, movido verbatim desde la Sección 12 del PRD (que ahora es un checklist de una línea). Se conserva aquí para no perder contenido único.
