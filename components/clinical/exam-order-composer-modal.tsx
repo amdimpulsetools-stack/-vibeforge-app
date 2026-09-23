@@ -37,6 +37,12 @@ export interface ExamOrderComposerModalProps {
   doctorName?: string;
   /** Sin cita (drawer del paciente) va `null`. */
   appointmentId?: string | null;
+  /**
+   * Nota clínica de la consulta, cuando el compositor se abre desde la
+   * historia clínica: liga el documento a la nota para que el Timeline lo
+   * agrupe por consulta. Los atajos (agenda, drawer) no la tienen.
+   */
+  clinicalNoteId?: string | null;
   onSaved?: (orderId: string) => void;
 }
 
@@ -74,6 +80,7 @@ export function ExamOrderComposerModal({
   doctorId,
   doctorName,
   appointmentId = null,
+  clinicalNoteId = null,
   onSaved,
 }: ExamOrderComposerModalProps) {
   const { organizationId } = useOrganization();
@@ -210,7 +217,7 @@ export function ExamOrderComposerModal({
           patient_id: patientId,
           doctor_id: doctorId,
           appointment_id: appointmentId || null,
-          clinical_note_id: null,
+          clinical_note_id: clinicalNoteId ?? null,
           diagnosis: diagnosis.trim() || null,
           diagnosis_code: diagnosisCode.trim() || null,
           notes: notes.trim() || null,

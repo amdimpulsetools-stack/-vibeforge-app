@@ -106,6 +106,12 @@ export interface Prescription {
    * de Farmacia vía `medication_catalog.inventory_product_id`.
    */
   medication_catalog_id?: string | null;
+  /** Mig 247: lote de medicamentos guardados juntos (un PDF por lote). */
+  batch_id?: string | null;
+  /** Compositor de recetas: "Tableta", "Ampolla"… */
+  pharmaceutical_form?: string | null;
+  /** Compositor de recetas: "1 tableta". */
+  dose_per_take?: string | null;
   is_active: boolean;
   start_date: string | null;
   end_date: string | null;
