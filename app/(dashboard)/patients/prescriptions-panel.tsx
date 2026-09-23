@@ -1,21 +1,33 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+/**
+ * Recetas de la consulta dentro de la historia clínica (y del drawer y del
+ * modal de historia del paciente).
+ *
+ * Emitir usa EL MISMO compositor que los atajos de la agenda
+ * (`PrescriptionComposerModal`): busca en el catálogo de medicamentos de la
+ * org (mig 248), agrupa varios medicamentos en un lote (`batch_id`, mig 247)
+ * y liga la receta al catálogo (mig 257). Antes este panel tenía su propio
+ * formulario de texto libre, sin catálogo ni forma farmacéutica: dos caminos
+ * para lo mismo que producían recetas distintas según desde dónde se
+ * emitieran. Aquí además viaja `clinicalNoteId`, para que el Timeline de la
+ * historia agrupe la receta con su nota.
+ */
+
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { PrescriptionWithDoctor } from "@/types/clinical-history";
-import { PRESCRIPTION_ROUTES, PRESCRIPTION_FREQUENCIES } from "@/types/clinical-history";
 import {
   Pill,
   Plus,
   Loader2,
-  Check,
-  X,
   ChevronDown,
   Ban,
   RotateCcw,
 } from "lucide-react";
 import { PrescriptionPrintButton } from "@/app/(dashboard)/scheduler/prescription-print";
+import { PrescriptionComposerModal } from "@/components/clinical/prescription-composer-modal";
 import {
   CLINICAL_PANEL_CTA,
   CLINICAL_PANEL_CTA_ICON,
@@ -41,18 +53,8 @@ interface PrescriptionsPanelProps {
 export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinicalNoteId, canEdit, isSigned = false, patientName, patientDni, doctorName, appointmentDate, clinicName }: PrescriptionsPanelProps) {
   const [prescriptions, setPrescriptions] = useState<PrescriptionWithDoctor[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   const [expandedRx, setExpandedRx] = useState<string | null>(null);
-
-  // Form
-  const [medication, setMedication] = useState("");
-  const [dosage, setDosage] = useState("");
-  const [frequency, setFrequency] = useState("");
-  const [duration, setDuration] = useState("");
-  const [route, setRoute] = useState("");
-  const [instructions, setInstructions] = useState("");
-  const [quantity, setQuantity] = useState("");
 
   const fetchPrescriptions = useCallback(async () => {
     const param = appointmentId ? `appointment_id=${appointmentId}` : `patient_id=${patientId}`;
@@ -66,40 +68,17 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
 
   useEffect(() => { fetchPrescriptions(); }, [fetchPrescriptions]);
 
-  const handleCreate = async () => {
-    if (!medication.trim() || !doctorId) return;
-    setSaving(true);
-    try {
-      const res = await fetch("/api/prescriptions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patient_id: patientId,
-          doctor_id: doctorId,
-          appointment_id: appointmentId || null,
-          clinical_note_id: clinicalNoteId || null,
-          medication: medication.trim(),
-          dosage: dosage || null,
-          frequency: frequency || null,
-          duration: duration || null,
-          route: route || null,
-          instructions: instructions || null,
-          quantity: quantity || null,
-        }),
-      });
-      if (res.ok) {
-        toast.success("Prescripción agregada");
-        setShowForm(false);
-        setMedication(""); setDosage(""); setFrequency(""); setDuration("");
-        setRoute(""); setInstructions(""); setQuantity("");
-        fetchPrescriptions();
-      } else {
-        const json = await res.json();
-        toast.error(json.error || "Error al crear prescripción");
-      }
-    } catch { toast.error("Sin conexión. Revisa tu internet e intenta otra vez."); }
-    setSaving(false);
-  };
+  // Lotes ya emitidos en esta consulta: el compositor avisa que la nueva
+  // será una receta ADICIONAL (válido, pero que no sea por accidente).
+  const existingBatchCount = useMemo(
+    () =>
+      new Set(
+        prescriptions
+          .filter((p) => p.is_active)
+          .map((p) => p.batch_id ?? p.id)
+      ).size,
+    [prescriptions]
+  );
 
   const toggleActive = async (rx: PrescriptionWithDoctor) => {
     try {
@@ -142,7 +121,7 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
           )}
           {canEdit && doctorId && !isSigned && (
             <button
-              onClick={() => setShowForm(!showForm)}
+              onClick={() => setComposerOpen(true)}
               className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.violet)}
               aria-label="Crear nueva receta"
             >
@@ -153,89 +132,13 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
         </div>
       </div>
 
-      {/* Create form */}
-      {showForm && !isSigned && (
-        <div className="rounded-lg border border-border bg-card p-3 space-y-2">
-          <input
-            type="text"
-            value={medication}
-            onChange={(e) => setMedication(e.target.value)}
-            placeholder="Medicamento *"
-            className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="text"
-              value={dosage}
-              onChange={(e) => setDosage(e.target.value)}
-              placeholder="Dosis (ej: 500mg)"
-              className="rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-            <select
-              value={route}
-              onChange={(e) => setRoute(e.target.value)}
-              className="rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <option value="">Vía</option>
-              {PRESCRIPTION_ROUTES.map((r) => <option key={r} value={r}>{r}</option>)}
-            </select>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <select
-              value={frequency}
-              onChange={(e) => setFrequency(e.target.value)}
-              className="rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <option value="">Frecuencia</option>
-              {PRESCRIPTION_FREQUENCIES.map((f) => <option key={f} value={f}>{f}</option>)}
-            </select>
-            <input
-              type="text"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              placeholder="Duración (ej: 7 días)"
-              className="rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              type="text"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              placeholder="Cantidad"
-              className="rounded-md border border-input bg-background px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
-          </div>
-          <textarea
-            value={instructions}
-            onChange={(e) => setInstructions(e.target.value)}
-            placeholder="Instrucciones adicionales"
-            rows={2}
-            className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-          <div className="flex gap-1">
-            <button
-              onClick={handleCreate}
-              disabled={saving || !medication.trim()}
-              className="flex-1 flex items-center justify-center gap-1 rounded-md bg-primary px-2 py-1.5 text-xs font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-              Agregar
-            </button>
-            <button onClick={() => setShowForm(false)} className="rounded-md border border-border px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent">
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Prescriptions list */}
-      {prescriptions.length === 0 && !showForm && (
+      {prescriptions.length === 0 && (
         <div className="flex flex-col items-center gap-2 py-6 text-center">
           <p className="text-xs text-muted-foreground">Aún no hay recetas para esta consulta</p>
           {canEdit && doctorId && !isSigned && (
             <button
-              onClick={() => setShowForm(true)}
+              onClick={() => setComposerOpen(true)}
               className={cn(CLINICAL_PANEL_CTA, CLINICAL_PANEL_CTA_VARIANTS.violet)}
             >
               <Plus className={CLINICAL_PANEL_CTA_ICON} />
@@ -275,6 +178,8 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
 
           {expandedRx === rx.id && (
             <div className="border-t border-border px-3 py-2 space-y-1 text-[10px]">
+              {rx.pharmaceutical_form && <p><span className="text-muted-foreground">Forma:</span> {rx.pharmaceutical_form}</p>}
+              {rx.dose_per_take && <p><span className="text-muted-foreground">Por toma:</span> {rx.dose_per_take}</p>}
               {rx.route && <p><span className="text-muted-foreground">Vía:</span> {rx.route}</p>}
               {rx.duration && <p><span className="text-muted-foreground">Duración:</span> {rx.duration}</p>}
               {rx.quantity && <p><span className="text-muted-foreground">Cantidad:</span> {rx.quantity}</p>}
@@ -298,6 +203,21 @@ export function PrescriptionsPanel({ patientId, doctorId, appointmentId, clinica
           )}
         </div>
       ))}
+
+      {composerOpen && doctorId && (
+        <PrescriptionComposerModal
+          open={composerOpen}
+          onOpenChange={setComposerOpen}
+          patientId={patientId}
+          patientName={patientName ?? ""}
+          doctorId={doctorId}
+          doctorName={doctorName}
+          appointmentId={appointmentId ?? null}
+          clinicalNoteId={clinicalNoteId ?? null}
+          existingBatchCount={existingBatchCount}
+          onSaved={() => fetchPrescriptions()}
+        />
+      )}
     </div>
   );
 }

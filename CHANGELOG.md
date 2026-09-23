@@ -5034,6 +5034,13 @@ PRs de la sesión: #373 (Sentry cableado, mergeado), #374 (fuentes `.woff2` repu
 - **UI** (`almacen/lots-modal.tsx`): lápiz por lote para quien tiene "Puede gestionar el almacén" → código, mes de vencimiento (se guarda el último día, igual que al registrar la entrada) y motivo con atajos ("Error de digitación", "Dato del proveedor corregido"). Debajo de cada lote, el **historial de correcciones** ("Vencimiento 11/2027 → 01/2028 · 23/09/2026 · Nombre — motivo").
 - **Verificación en producción** (transacción revertida con `RAISE`, sin dejar datos): miembro sin permiso → `forbidden`; sin motivo → rechazado; editor → vencimiento y código corregidos, **2 filas de auditoría, stock del lote 10 → 10**; mover el lote de producto → bloqueado por el guard. De paso: Melissa (recepción, org de la Dra. Patricia) ya tiene "Puede gestionar el almacén" concedido por el owner.
 
+### Historia clínica: recetas y órdenes con el mismo compositor que la agenda
+- **Pedido del founder (23-sep)**: en la historia clínica, "Nueva receta" era un formulario de texto libre sin el catálogo de medicamentos de la org, mientras que los atajos de la agenda y del drawer ya usaban el compositor con catálogo (migs 247/248/257). Dos caminos para lo mismo que producían recetas distintas según desde dónde se emitieran.
+- `prescriptions-panel.tsx` y `exam-orders-panel.tsx` (historia clínica, drawer y modal de historia del paciente) **abren ahora `PrescriptionComposerModal` y `ExamOrderComposerModal`**: búsqueda en el catálogo de medicamentos, forma farmacéutica y dosis por toma, varios medicamentos por lote (`batch_id`) con su PDF, alta en el catálogo desde la receta; y en exámenes, catálogo por categoría, diagnóstico presuntivo con CIE-10 e impresión al guardar. La lista, suspender/reactivar y marcar exámenes completados no cambian.
+- Los compositores aceptan `clinicalNoteId` (antes enviaban `clinical_note_id: null` siempre): emitidos desde la historia quedan ligados a la nota y el Timeline los agrupa por consulta. Desde los atajos sigue viajando `null`.
+- `Prescription` tipa `batch_id`, `pharmaceutical_form` y `dose_per_take` (ya existían en la tabla); el detalle de la receta muestra forma y dosis por toma.
+- Sin migraciones. `tsc` y `next build` en verde.
+
 ## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)
 
 > Detalle largo de cada feature implementada, movido verbatim desde la Sección 12 del PRD (que ahora es un checklist de una línea). Se conserva aquí para no perder contenido único.

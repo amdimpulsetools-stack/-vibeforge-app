@@ -76,6 +76,12 @@ export interface PrescriptionComposerModalProps {
    * que los llamadores que no lo pasen sigan compilando igual.
    */
   existingBatchCount?: number;
+  /**
+   * Nota clínica de la consulta, cuando el compositor se abre desde la
+   * historia clínica: liga el documento a la nota para que el Timeline lo
+   * agrupe por consulta. Los atajos (agenda, drawer) no la tienen.
+   */
+  clinicalNoteId?: string | null;
   onSaved?: (batchId: string) => void;
 }
 
@@ -188,6 +194,7 @@ export function PrescriptionComposerModal({
   doctorName,
   appointmentId = null,
   existingBatchCount = 0,
+  clinicalNoteId = null,
   onSaved,
 }: PrescriptionComposerModalProps) {
   // Fecha civil de la org (CLAUDE.md): `new Date().toISOString()` en Vercel
@@ -391,7 +398,7 @@ export function PrescriptionComposerModal({
             patient_id: patientId,
             doctor_id: doctorId,
             appointment_id: appointmentId || null,
-            clinical_note_id: null,
+            clinical_note_id: clinicalNoteId ?? null,
             batch_id: batchId,
             medication: i.medication,
             dosage: i.dosage || null,
