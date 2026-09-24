@@ -24,13 +24,14 @@ import type { PrescriptionWithDoctor } from "@/types/clinical-history";
 
 interface NotesTimelineProps {
   patientId: string | null;
-  /** ID de la nota actual (de la consulta abierta) — se omite del timeline. */
+  /** ID de la nota de la consulta abierta — se muestra marcada "Esta consulta". */
   currentNoteId?: string | null;
 }
 
 type TimelineNote = ClinicalNote & {
   doctors?: { full_name: string; color: string } | null;
   diagnoses?: ClinicalNoteDiagnosis[];
+  appointment?: { appointment_date: string | null; start_time: string | null } | null;
 };
 
 interface ExamOrderItemRow {
@@ -90,6 +91,31 @@ function noteTitle(note: TimelineNote): string {
   return dx[0]?.label ?? "Consulta";
 }
 
+// Fecha clínica de la nota = la de la cita (cuándo se atendió), no
+// created_at (cuándo se escribió): una nota redactada días antes o después
+// de la atención debe caer en su fecha real. Sin cita, created_at.
+// "yyyy-MM-ddTHH:mm:ss" sin offset se interpreta como hora local, que es
+// como se agendó la cita.
+function attendedAt(note: TimelineNote): { date: Date; hasTime: boolean } {
+  const apptDate = note.appointment?.appointment_date;
+  if (apptDate) {
+    const time = note.appointment?.start_time?.slice(0, 8);
+    return {
+      date: new Date(`${apptDate}T${time ?? "00:00:00"}`),
+      hasTime: Boolean(time),
+    };
+  }
+  return { date: new Date(note.created_at), hasTime: true };
+}
+
+function sameCalendarDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
 export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) {
   const [notes, setNotes] = useState<TimelineNote[]>([]);
   const [prescriptions, setPrescriptions] = useState<PrescriptionWithDoctor[]>([]);
@@ -105,7 +131,10 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
       setLoading(false);
       return;
     }
-    if (fetchedFor.current === patientId) return; // ya cargado para este paciente
+    // Clave incluye la nota abierta: si se crea al iniciar la consulta
+    // (después del primer fetch), recargamos para que aparezca.
+    const cacheKey = `${patientId}:${currentNoteId ?? ""}`;
+    if (fetchedFor.current === cacheKey) return; // ya cargado
     setLoading(true);
     setError(null);
     try {
@@ -129,13 +158,13 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
         const examJson = await examRes.json();
         setExamOrders((examJson.data ?? []) as ExamOrderRow[]);
       }
-      fetchedFor.current = patientId;
+      fetchedFor.current = cacheKey;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error de red");
     } finally {
       setLoading(false);
     }
-  }, [patientId]);
+  }, [patientId, currentNoteId]);
 
   useEffect(() => {
     fetchAll();
@@ -183,29 +212,32 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
     return map;
   }, [examOrders, noteByAppointment]);
 
+  // Todas las notas del paciente, incluida la de la consulta abierta
+  // (marcada "Esta consulta"): el conteo cuadra con lo que el doctor
+  // espera. Orden por fecha de atención; desempate por created_at.
   const visibleNotes = useMemo(() => {
-    const filtered = currentNoteId
-      ? notes.filter((n) => n.id !== currentNoteId)
-      : notes;
-    return filtered.slice().sort((a, b) => {
-      const aT = new Date(a.created_at).getTime();
-      const bT = new Date(b.created_at).getTime();
-      return sortOrder === "desc" ? bT - aT : aT - bT;
+    return notes.slice().sort((a, b) => {
+      const diff =
+        attendedAt(a).date.getTime() - attendedAt(b).date.getTime() ||
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      return sortOrder === "desc" ? -diff : diff;
     });
-  }, [notes, currentNoteId, sortOrder]);
+  }, [notes, sortOrder]);
 
-  // Master-detail: siempre hay una nota seleccionada (la primera de la
-  // lista por defecto). Si el orden cambia o la selección desaparece,
-  // volvemos a la primera.
+  // Master-detail: siempre hay una nota seleccionada. Por defecto la
+  // primera que NO es la consulta abierta (esa ya está en el editor; lo
+  // útil al abrir el historial es la anterior). Si la selección
+  // desaparece, volvemos al default.
   useEffect(() => {
     if (visibleNotes.length === 0) {
       setSelectedId(null);
       return;
     }
     if (!selectedId || !visibleNotes.some((n) => n.id === selectedId)) {
-      setSelectedId(visibleNotes[0].id);
+      const firstPast = visibleNotes.find((n) => n.id !== currentNoteId);
+      setSelectedId((firstPast ?? visibleNotes[0]).id);
     }
-  }, [visibleNotes, selectedId]);
+  }, [visibleNotes, selectedId, currentNoteId]);
 
   const selectedNote = useMemo(
     () => visibleNotes.find((n) => n.id === selectedId) ?? null,
@@ -292,6 +324,7 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
             <ol className="relative ml-2 border-l border-border/70">
               {visibleNotes.map((note) => {
                 const isSelected = note.id === selectedId;
+                const isCurrent = note.id === currentNoteId;
                 const dx = noteDiagnoses(note);
                 return (
                   <li key={note.id} className="relative">
@@ -314,12 +347,17 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
                           : "hover:bg-muted/40"
                       )}
                     >
-                      <p className="text-[11px] text-muted-foreground">
-                        {new Date(note.created_at).toLocaleDateString("es-PE", {
+                      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        {attendedAt(note).date.toLocaleDateString("es-PE", {
                           day: "numeric",
                           month: "short",
                           year: "numeric",
                         })}
+                        {isCurrent && (
+                          <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                            Esta consulta
+                          </span>
+                        )}
                       </p>
                       <p
                         className={cn(
@@ -375,6 +413,11 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
                   {selectedNote.is_signed && (
                     <Lock className="h-3.5 w-3.5 text-success-500" />
                   )}
+                  {selectedNote.id === currentNoteId && (
+                    <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                      Esta consulta
+                    </span>
+                  )}
                 </div>
                 <h3 className="mt-2 font-display text-lg font-semibold leading-snug text-balance">
                   {noteTitle(selectedNote)}
@@ -390,17 +433,39 @@ export function NotesTimeline({ patientId, currentNoteId }: NotesTimelineProps) 
                     </span>
                   )}
                   <span aria-hidden>·</span>
-                  <span>
-                    {new Date(selectedNote.created_at).toLocaleDateString("es-PE", {
-                      day: "numeric",
-                      month: "long",
-                      year: "numeric",
-                    })}{" "}
-                    {new Date(selectedNote.created_at).toLocaleTimeString("es-PE", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
+                  {(() => {
+                    const { date, hasTime } = attendedAt(selectedNote);
+                    const written = new Date(selectedNote.created_at);
+                    return (
+                      <>
+                        <span>
+                          {date.toLocaleDateString("es-PE", {
+                            day: "numeric",
+                            month: "long",
+                            year: "numeric",
+                          })}
+                          {hasTime &&
+                            ` ${date.toLocaleTimeString("es-PE", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}`}
+                        </span>
+                        {!sameCalendarDay(date, written) && (
+                          <>
+                            <span aria-hidden>·</span>
+                            <span className="text-muted-foreground/70">
+                              Registrada el{" "}
+                              {written.toLocaleDateString("es-PE", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })}
+                            </span>
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
                 </p>
               </header>
 

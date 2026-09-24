@@ -5048,6 +5048,12 @@ PRs de la sesión: #373 (Sentry cableado, mergeado), #374 (fuentes `.woff2` repu
 - Seguridad: la org viaja explícita y se exige membresía activa en ella (no `limit(1)`), addon fertilidad y rate limit. `next.config.ts` incluye plantillas y chromium en la función (`outputFileTracingIncludes`), verificado en el `.nft.json` del build (47 `.hbs`, binarios de chromium).
 - Verificado: las 12 plantillas de la Dra. Patricia renderizadas con el render de producción y los datos reales de su org (≈0,6 s c/u en caliente); `tsc` y `next build` en verde.
 
+### Historia clínica: Timeline por fecha de atención + "Esta consulta" + no firmar citas futuras
+- **Caso (24-sep, Dermosalud demo)**: el paciente tenía 3 notas pero el Timeline mostraba 2, con fechas que no cuadraban (la cita del 20-oct aparecía como "23 set", la del 28-abr como "30 abr").
+- **Fecha clínica**: `GET /api/clinical-notes?patient_id=` trae la cita (`appointment_date`, `start_time`) y el Timeline fecha y ordena por la atención, no por `created_at`. Si la nota se escribió otro día, la cabecera lo dice ("Registrada el …"). Sin cita, sigue usando `created_at`.
+- **La consulta abierta ya no se oculta**: aparece marcada "Esta consulta" y el conteo incluye todas. Por defecto se selecciona la consulta anterior (la abierta ya está en el editor). El Timeline recarga si la nota se crea después de abrirlo.
+- **Firma**: `PATCH /api/clinical-notes/[id]` rechaza (409 `appointment_in_future`) firmar la nota de una cita cuya fecha aún no llega según el "hoy" de la org (`todayInTz`). La firma certifica un acto clínico ya ocurrido.
+
 ## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)
 
 > Detalle largo de cada feature implementada, movido verbatim desde la Sección 12 del PRD (que ahora es un checklist de una línea). Se conserva aquí para no perder contenido único.
