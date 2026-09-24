@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
 import { useLanguage } from "@/components/language-provider";
+import { BudgetPdfPreviewCard } from "./budget-pdf-preview-card";
 import { toast } from "sonner";
 import {
   FileText,
@@ -340,6 +341,8 @@ export default function BudgetPdfSettingsTab() {
           ? "Guardar"
           : "Save"}
       </button>
+
+      <BudgetPdfPreviewCard organizationId={organizationId} />
     </div>
   );
 }

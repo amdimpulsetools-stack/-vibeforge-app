@@ -71,7 +71,7 @@ interface BudgetForPdf {
 // Columnas de branding que consumen los plugins (`props.org`) y el
 // presupuesto genérico (`buildOrgDocBlock` en lib/pdf/html/org.ts:
 // tagline, district, timezone…). Siempre datos reales de Ajustes.
-interface OrgRow {
+export interface OrgRow {
   id: string;
   name: string;
   ruc: string | null;
@@ -107,7 +107,7 @@ const FALLBACK_TERMS: string[] = [
   "Servicios médicos no contemplados en este presupuesto serán cotizados por separado.",
 ];
 
-async function loadBudgetPdfSettings(
+export async function loadBudgetPdfSettings(
   client: SupabaseClient,
   orgId: string,
 ): Promise<{
@@ -200,7 +200,7 @@ async function loadBudgetForPdf(
   return data as unknown as BudgetForPdf;
 }
 
-async function loadOrg(
+export async function loadOrg(
   client: SupabaseClient,
   orgId: string,
 ): Promise<OrgRow | null> {

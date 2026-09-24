@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { resolveOrgTimezone, todayInTz } from "@/lib/org-time";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { generalLimiter } from "@/lib/rate-limit";
@@ -36,7 +37,7 @@ export async function PATCH(
   // who belong to several organizations.
   const { data: noteCheck } = await supabase
     .from("clinical_notes")
-    .select("organization_id, doctor_id, is_signed")
+    .select("organization_id, doctor_id, is_signed, appointment_id")
     .eq("id", id)
     .single();
 
@@ -96,6 +97,37 @@ export async function PATCH(
     // A signed note is final — re-signing would silently rewrite signed_at.
     if (noteCheck.is_signed) {
       return NextResponse.json({ error: "La nota ya está firmada" }, { status: 409 });
+    }
+
+    // Una nota se firma el día de la atención o después, nunca antes: la
+    // firma certifica un acto clínico que ya ocurrió. Caso real (23-sep):
+    // una cita del 20-oct quedó "atendida" y con nota firmada un mes antes.
+    // "Hoy" = día civil de la org (Vercel corre en UTC).
+    if (noteCheck.appointment_id) {
+      const [{ data: appt }, { data: org }] = await Promise.all([
+        supabase
+          .from("appointments")
+          .select("appointment_date")
+          .eq("id", noteCheck.appointment_id)
+          .maybeSingle(),
+        supabase
+          .from("organizations")
+          .select("timezone")
+          .eq("id", noteCheck.organization_id)
+          .maybeSingle(),
+      ]);
+      const apptDate = (appt as { appointment_date: string | null } | null)?.appointment_date ?? null;
+      const today = todayInTz(resolveOrgTimezone((org as { timezone: string | null } | null)?.timezone));
+      if (apptDate && apptDate > today) {
+        const [y, m, d] = apptDate.split("-");
+        return NextResponse.json(
+          {
+            error: `La cita es del ${d}/${m}/${y} y todavía no ocurre: la nota se podrá firmar desde ese día.`,
+            code: "appointment_in_future",
+          },
+          { status: 409 }
+        );
+      }
     }
 
     // Use admin client to bypass RLS recursion issues on update

@@ -66,7 +66,11 @@ export async function GET(request: NextRequest) {
   // All notes for a patient (history)
   const { data, error } = await supabase
     .from("clinical_notes")
-    .select("*, doctors(full_name, color), diagnoses:clinical_note_diagnoses(*)")
+    // La cita da la fecha clínica (cuándo se atendió) — el timeline ordena
+    // por ella, no por created_at (cuándo se escribió la nota).
+    .select(
+      "*, doctors(full_name, color), diagnoses:clinical_note_diagnoses(*), appointment:appointments!clinical_notes_appointment_id_fkey(appointment_date, start_time)"
+    )
     .eq("patient_id", patientId!)
     .order("created_at", { ascending: false });
 

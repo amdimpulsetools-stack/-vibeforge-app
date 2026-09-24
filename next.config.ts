@@ -56,6 +56,14 @@ const nextConfig: NextConfig = {
       "./lib/budget-pdf/templates/patricia/**/*.hbs",
       "./node_modules/@sparticuz/chromium/bin/**",
     ],
+    // Vista previa con datos de ejemplo: mismo render, mismas plantillas
+    // y mismo chromium que el PDF real. Sin esto, en Vercel el .hbs no
+    // viaja con la función y la vista previa fallaría solo en producción.
+    "/api/budgets/preview-pdf": [
+      "./lib/budget-pdf/templates/**/*.hbs",
+      "./lib/budget-pdf/templates/patricia/**/*.hbs",
+      "./node_modules/@sparticuz/chromium/bin/**",
+    ],
   },
 };
 
