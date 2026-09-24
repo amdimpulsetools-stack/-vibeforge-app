@@ -5041,6 +5041,13 @@ PRs de la sesión: #373 (Sentry cableado, mergeado), #374 (fuentes `.woff2` repu
 - `Prescription` tipa `batch_id`, `pharmaceutical_form` y `dose_per_take` (ya existían en la tabla); el detalle de la receta muestra forma y dosis por toma.
 - Sin migraciones. `tsc` y `next build` en verde.
 
+### Presupuestos: vista previa con datos de ejemplo (plugins Dra. Patricia y Vitra)
+- **Pedido (24-sep)**: la Dra. Patricia quería ver cómo sale el PDF de cada tratamiento sin emitir el presupuesto de una paciente real.
+- **Ajustes → Presupuestos → "Vista previa del presupuesto"**: selector con las plantillas del plugin instalado (las 12 de la Dra. Patricia; los 7 tratamientos de Vitra) y botón que abre el PDF en otra pestaña. Solo aparece si la org tiene un plugin de presupuestos.
+- **Fidelidad**: `lib/budget-pdf/preview.ts` + `GET/POST /api/budgets/preview-pdf` recorren el MISMO camino que el PDF real — `getActiveBudgetPdfPlugin` + config de `org_plugins`, marca y contacto de la org, vigencia/términos/pie guardados en `org_budget_pdf_settings`, render HTML → Chromium. Solo es ficticia la paciente ("Paciente de Ejemplo", DNI 00000000) y el código (P-AAAA-0000); médico y asesora son reales de la org. **No se guarda nada** (ni `budget_records` ni Storage). Patricia enruta por nombre de servicio: cada opción usa el título de su plantilla y se verifica que el router lo devuelva a esa misma plantilla (si deja de cuadrar, la opción desaparece en vez de mostrar otra).
+- Seguridad: la org viaja explícita y se exige membresía activa en ella (no `limit(1)`), addon fertilidad y rate limit. `next.config.ts` incluye plantillas y chromium en la función (`outputFileTracingIncludes`), verificado en el `.nft.json` del build (47 `.hbs`, binarios de chromium).
+- Verificado: las 12 plantillas de la Dra. Patricia renderizadas con el render de producción y los datos reales de su org (≈0,6 s c/u en caliente); `tsc` y `next build` en verde.
+
 ## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)
 
 > Detalle largo de cada feature implementada, movido verbatim desde la Sección 12 del PRD (que ahora es un checklist de una línea). Se conserva aquí para no perder contenido único.
