@@ -1,4 +1,5 @@
--- Pendiente de aplicar en producción (la aplica el orquestador)
+-- Aplicada en producción el 25-sep-2026 (apply_migration; verificada: RPC,
+-- tabla con RLS, trigger de auditoría y GRANT solo a authenticated).
 --
 -- ═══════════════════════════════════════════════════════════════════
 -- 271: Almacén — editar un producto (nombre, categoría, presentación,
