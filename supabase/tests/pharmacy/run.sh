@@ -46,11 +46,17 @@ for m in 209_inventory_foundation 212_inventory_invariants_f2 \
   apply "$ROOT/supabase/migrations/$m.sql"
   echo "  aplicada  $m"
 done
+# Lotes sin asignar y edición de producto (migs 270/271) sobre su stub.
+apply "$HERE/05_prelude_inventory_editor_stub.sql"
+for m in 270_inventory_lot_assignment 271_inventory_product_edit; do
+  apply "$ROOT/supabase/migrations/$m.sql"
+  echo "  aplicada  $m"
+done
 
 echo
 # 10_ corre como superusuario (bypassa RLS): prueba aritmética y atomicidad.
 # 20_ se pone en la piel de un `authenticated`: prueba los permisos.
-for t in 10_pharmacy_invariants_test 20_pharmacy_rls_test; do
+for t in 10_pharmacy_invariants_test 20_pharmacy_rls_test 30_inventory_lots_and_edit_test; do
   psql -h $SOCK -p $PORT -U postgres -d farmacia_test -v ON_ERROR_STOP=1 -q \
     -f "$HERE/$t.sql" 2>&1 | grep -E "PASS|FAIL|TODAS"
 done

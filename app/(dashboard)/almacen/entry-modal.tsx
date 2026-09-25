@@ -11,6 +11,12 @@
  * entrada sin costo, y ese constraint es la respuesta a las 1 392 unidades
  * que entraron al Excel sin registro. Cuando hay un último costo conocido,
  * el campo llega prellenado con él para que igual cueste cero tipeo.
+ *
+ * Lote (25-sep): una entrada con el Lote vacío entra al kardex sin lote y,
+ * si se escribió un vencimiento, ese vencimiento se perdía en silencio. Así
+ * nacieron las 77 und "sin lote" de la clínica piloto. Ahora: vencimiento
+ * sin lote no pasa, y un producto que maneja lotes (control encendido o con
+ * lotes previos) exige el código.
  */
 
 import { useEffect, useMemo, useState } from "react";
@@ -47,6 +53,8 @@ interface Props {
   products: InventoryProduct[];
   preselectedProductId: string | null;
   lastCosts: Record<string, number>;
+  /** Nº de lotes por producto: si ya tiene lotes, la entrada exige código. */
+  lotCountByProduct: Record<string, number>;
   onSubmit: (payload: EntryPayload) => Promise<boolean>;
 }
 
@@ -59,6 +67,7 @@ export function EntryModal({
   products,
   preselectedProductId,
   lastCosts,
+  lotCountByProduct,
   onSubmit,
 }: Props) {
   const [productId, setProductId] = useState("");
@@ -92,6 +101,8 @@ export function EntryModal({
     [products, productId]
   );
   const lastCost = productId ? lastCosts[productId] : undefined;
+  const lotRequired =
+    !!product && (product.track_lots || (lotCountByProduct[product.id] ?? 0) > 0);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -102,6 +113,14 @@ export function EntryModal({
       return setError("La cantidad tiene que ser mayor que cero.");
     if (!Number.isFinite(cost) || cost < 0)
       return setError("El costo unitario es obligatorio en una entrada.");
+    if (!lotCode.trim() && expiryMonth)
+      return setError(
+        "Escribe el código del lote: sin lote, la fecha de vencimiento no se puede guardar."
+      );
+    if (!lotCode.trim() && lotRequired)
+      return setError(
+        "Este producto maneja lotes: escribe el código del lote como figura en la caja."
+      );
 
     // Precio de venta: solo viaja si la persona lo cambió respecto al
     // catálogo actual (vacío o igual = no tocar el producto).
@@ -264,7 +283,7 @@ export function EntryModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelCls} htmlFor="entry-lot">
-                Lote
+                Lote{lotRequired ? " *" : ""}
               </label>
               <Input
                 id="entry-lot"

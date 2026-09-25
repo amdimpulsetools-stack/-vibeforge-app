@@ -73,7 +73,9 @@ export type ReasonCode =
   | "devolucion_proveedor"
   | "donacion"
   | "muestra_medica"
-  | "otro";
+  | "otro"
+  /** Mig 270: par de ajustes que mueve unidades entre "sin lote" y un lote. */
+  | "asignacion_lote";
 
 export interface InventoryMovement {
   id: string;
@@ -153,6 +155,7 @@ export const REASON_LABELS: Record<ReasonCode, string> = {
   donacion: "Donación",
   muestra_medica: "Muestra médica",
   otro: "Otro",
+  asignacion_lote: "Asignación de lote",
 };
 
 /** Motivos de merma que se ofrecen en la hoja de salida. */
@@ -381,21 +384,85 @@ export function computeStockByLot(
   return map;
 }
 
-/** Lote más próximo a vencer por producto (FIFO por vencimiento). */
+/**
+ * Unidades "sin lote" por producto = Σ quantity con lot_id NULL (mig 270).
+ * Identidad: stock = Σ saldos de lotes + sin lote. Positivo = unidades en
+ * estante sin lote asignado (entradas con el campo Lote vacío); negativo =
+ * salieron unidades sin decir de qué lote (ventas/insumos de productos sin
+ * control de lotes), así que los lotes suman MÁS que el stock real.
+ */
+export function unlottedByProduct(
+  movements: InventoryMovement[]
+): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const m of movements) {
+    if (m.lot_id) continue;
+    map[m.product_id] = (map[m.product_id] ?? 0) + Number(m.quantity);
+  }
+  for (const k of Object.keys(map)) {
+    map[k] = Math.round(map[k] * 1000) / 1000;
+  }
+  return map;
+}
+
+/** Entradas sin lote de un producto (las más recientes primero): de dónde
+ *  salieron las unidades "sin lote" — fecha, costo y autor. */
+export function unlottedEntries(
+  movements: InventoryMovement[],
+  productId: string
+): InventoryMovement[] {
+  return movements
+    .filter(
+      (m) =>
+        m.product_id === productId &&
+        !m.lot_id &&
+        m.movement_type === "entrada"
+    )
+    .sort((a, b) =>
+      b.movement_date === a.movement_date
+        ? b.created_at.localeCompare(a.created_at)
+        : b.movement_date.localeCompare(a.movement_date)
+    );
+}
+
+/**
+ * Lote que se descuenta por defecto: el que vence primero ENTRE LOS QUE
+ * TIENEN SALDO (FEFO real). Alimenta la columna LOTE/VENCE, el lote de las
+ * salidas de Almacén, el chip del POS y el de insumos de tratamientos.
+ *
+ * Antes ignoraba el saldo y, con dos lotes del mismo vencimiento, se quedaba
+ * con el primero que devolvía la base (orden físico, sin ORDER BY). Caso real
+ * (25-sep, Adaptessens): la lista mostraba el lote 25-006 ya agotado en vez
+ * del 25-075 con 17 und, y una merma de Gonapeptyl se descontó de un lote en
+ * 0 (quedó en −2) teniendo otro con 21.
+ *
+ * Orden: vencimiento ascendente (sin vencimiento al final) → recepción →
+ * código. Un producto sin ningún lote con saldo no aparece en el mapa: la
+ * salida se registra sin lote en vez de hundir un lote vacío en negativo.
+ */
 export function nearestLotByProduct(
-  lots: InventoryLot[]
+  lots: InventoryLot[],
+  stockByLot: Record<string, number>
 ): Record<string, InventoryLot> {
   const map: Record<string, InventoryLot> = {};
   for (const l of lots) {
+    if ((stockByLot[l.id] ?? 0) <= 0) continue;
     const cur = map[l.product_id];
-    if (!cur) {
-      map[l.product_id] = l;
-      continue;
-    }
-    if (!l.expiry_date) continue;
-    if (!cur.expiry_date || l.expiry_date < cur.expiry_date) map[l.product_id] = l;
+    if (!cur || compareLotsFefo(l, cur) < 0) map[l.product_id] = l;
   }
   return map;
+}
+
+/** Orden FEFO estable: vence antes → recibido antes → código. */
+export function compareLotsFefo(a: InventoryLot, b: InventoryLot): number {
+  if (a.expiry_date !== b.expiry_date) {
+    if (!a.expiry_date) return 1;
+    if (!b.expiry_date) return -1;
+    return a.expiry_date.localeCompare(b.expiry_date);
+  }
+  const byReceived = (a.received_at ?? "").localeCompare(b.received_at ?? "");
+  if (byReceived !== 0) return byReceived;
+  return a.lot_code.localeCompare(b.lot_code, "es", { numeric: true });
 }
 
 /**
@@ -489,6 +556,27 @@ export function lastCostByProduct(
     if (seen.has(m.product_id)) continue;
     seen.add(m.product_id);
     map[m.product_id] = Number(m.unit_cost);
+  }
+  return map;
+}
+
+/**
+ * Costo de compra por lote tal como está en el KARDEX: la entrada más
+ * reciente de ese lote que no fue anulada. `inventory_lots.unit_cost` es
+ * solo informativo y no se corrige cuando se corrige la entrada (caso real
+ * 25-075: el lote decía S/ 101.60 "sin IGV" —era el precio CON IGV— y el
+ * kardex, ya corregido, S/ 86.10). La ventana de lotes muestra este.
+ */
+export function entryCostByLot(
+  movements: InventoryMovement[]
+): Record<string, number> {
+  const reversed = reversedPairIds(movements);
+  const map: Record<string, number> = {};
+  // `movements` llega DESC: la primera entrada vigente de cada lote gana.
+  for (const m of movements) {
+    if (!m.lot_id || m.movement_type !== "entrada" || m.unit_cost == null) continue;
+    if (reversed.has(m.id) || m.lot_id in map) continue;
+    map[m.lot_id] = Number(m.unit_cost);
   }
   return map;
 }

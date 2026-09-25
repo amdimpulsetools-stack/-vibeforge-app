@@ -209,6 +209,9 @@ export function MovementList({ movements, products, authors, onUndo }: Props) {
   function canCorrect(m: InventoryMovement): boolean {
     return (
       onUndo !== undefined &&
+      // Mig 270: una asignación de lote es un PAR que netea a cero; deshacer
+      // una sola fila descuadraría el stock (la base también lo impide).
+      m.reason_code !== "asignacion_lote" &&
       m.reverses_movement_id === null &&
       !reversed.has(m.id) &&
       !m.id.startsWith("tmp-")
