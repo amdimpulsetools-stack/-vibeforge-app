@@ -18,6 +18,7 @@ import {
   Layers,
   Minus,
   MoreHorizontal,
+  Pencil,
   PackagePlus,
   RotateCcw,
   Search,
@@ -63,6 +64,12 @@ interface Props {
   archivedProducts: InventoryProduct[];
   stockByProduct: Record<string, number>;
   lotByProduct: Record<string, InventoryLot | undefined>;
+  /**
+   * Σ movimientos sin lote por producto (mig 270). > 0: unidades sin lote
+   * asignado; < 0: salidas sin lote (los lotes suman de más). Se marca en
+   * la celda LOTE para que el almacén sepa qué productos cuadrar.
+   */
+  unlottedByProduct: Record<string, number>;
   /** Nº de movimientos y de lotes por producto, del kardex en memoria. */
   movementCountByProduct: Record<string, number>;
   lotCountByProduct: Record<string, number>;
@@ -75,7 +82,7 @@ interface Props {
   expiryAlertDays: number;
   /** owner/admin: archivar, eliminar y restaurar. */
   isAdmin: boolean;
-  /** owner/admin/doctor: crear productos y editar el precio de venta (mig 266). */
+  /** Editor de almacén (owner/admin o miembro con permiso, mig 267): crear y editar productos y su precio. */
   canEditProducts: boolean;
   onDiscount: (product: InventoryProduct) => void;
   /** Abre la vista rápida de lotes y vencimientos de ese producto. */
@@ -83,6 +90,8 @@ interface Props {
   onEntry: (product: InventoryProduct) => void;
   /** Editar precio de venta sin registrar entrada (owner/admin/doctor). */
   onEditPrice: (product: InventoryProduct) => void;
+  /** Editar nombre, categoría, presentación, mínimo y control de lotes (mig 271). */
+  onEdit: (product: InventoryProduct) => void;
   /** Archivar (o eliminar si está virgen) — solo owner/admin. */
   onArchive: (product: InventoryProduct) => void;
   /** Volver a activar un archivado — solo owner/admin. */
@@ -121,6 +130,7 @@ export function ProductTable({
   archivedProducts,
   stockByProduct,
   lotByProduct,
+  unlottedByProduct,
   movementCountByProduct,
   lotCountByProduct,
   historyComplete,
@@ -131,10 +141,20 @@ export function ProductTable({
   onShowLots,
   onEntry,
   onEditPrice,
+  onEdit,
   onArchive,
   onRestore,
   onNewProduct,
 }: Props) {
+  // Solo se marca en productos que manejan lotes: en un insumo sin lotes
+  // (guantes, gasas) todo el stock es "sin lote" y no hay nada que cuadrar.
+  const lotGap = (p: InventoryProduct): number => {
+    const u = unlottedByProduct[p.id] ?? 0;
+    if (Math.abs(u) < 0.001) return 0;
+    return p.track_lots || (lotCountByProduct[p.id] ?? 0) > 0 ? u : 0;
+  };
+  const lotGapLabel = (u: number) =>
+    u > 0 ? `${fmtQty(u)} sin lote` : `lotes +${fmtQty(-u)}`;
   const { t } = useLanguage();
   const [rawSearch, setRawSearch] = useState("");
   const [search, setSearch] = useState("");
@@ -541,6 +561,21 @@ export function ProductTable({
                             {exp.label}
                           </p>
                         )}
+                        {lotGap(p) !== 0 && (
+                          <span
+                            title={
+                              lotGap(p) > 0
+                                ? "Unidades que entraron sin lote: ábrelo para asignarlas"
+                                : "Salieron unidades sin lote: los lotes suman más que el stock"
+                            }
+                            className={cn(
+                              "mt-1 block w-fit rounded-full px-2 py-0.5 text-[10px] font-bold",
+                              lotGap(p) > 0 ? TONE_CLS.warn : TONE_CLS.crit
+                            )}
+                          >
+                            {lotGapLabel(lotGap(p))}
+                          </span>
+                        )}
                       </button>
                     </td>
                     <td className="px-4 py-2 text-right font-medium tabular-nums">
@@ -560,6 +595,17 @@ export function ProductTable({
                               : t("almacen.archive.archived_badge")}
                             {p.discontinued_reason ? ` · ${p.discontinued_reason}` : ""}
                           </span>
+                          {isAdmin && (
+                            <button
+                              type="button"
+                              onClick={() => onEdit(p)}
+                              aria-label={`Renombrar ${p.name}`}
+                              title="Renombrar (por ejemplo, para poder restaurarlo)"
+                              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
                           {isAdmin && (
                             <button
                               type="button"
@@ -604,10 +650,13 @@ export function ProductTable({
                               <Tag className="h-4 w-4" />
                             </button>
                           )}
-                          {isAdmin && (
+                          {(isAdmin || canEditProducts) && (
                             <ProductMenu
                               product={p}
                               canDelete={canDelete(p)}
+                              canArchive={isAdmin}
+                              canEdit={canEditProducts}
+                              onEdit={onEdit}
                               onArchive={onArchive}
                               size="sm"
                             />
@@ -667,7 +716,7 @@ export function ProductTable({
                       </>
                     )}
                   </p>
-                  {(st || lot) && (
+                  {(st || lot || lotGap(p) !== 0) && (
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       {st && (
                         <span
@@ -690,11 +739,32 @@ export function ProductTable({
                           <Layers className="h-2.5 w-2.5" />
                         </button>
                       )}
+                      {lotGap(p) !== 0 && (
+                        <button
+                          type="button"
+                          onClick={() => onShowLots(p)}
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[10px] font-bold active:scale-95",
+                            lotGap(p) > 0 ? TONE_CLS.warn : TONE_CLS.crit
+                          )}
+                        >
+                          {lotGapLabel(lotGap(p))}
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
                 {archivedView ? (
                   isAdmin && (
+                    <>
+                    <button
+                      type="button"
+                      onClick={() => onEdit(p)}
+                      aria-label={`Renombrar ${p.name}`}
+                      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-border text-muted-foreground active:scale-95"
+                    >
+                      <Pencil className="h-5 w-5" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => onRestore(p)}
@@ -704,13 +774,17 @@ export function ProductTable({
                       <RotateCcw className="h-4 w-4" />
                       {t("almacen.archive.restore_action")}
                     </button>
+                    </>
                   )
                 ) : (
                   <>
-                    {isAdmin && (
+                    {(isAdmin || canEditProducts) && (
                       <ProductMenu
                         product={p}
                         canDelete={canDelete(p)}
+                        canArchive={isAdmin}
+                        canEdit={canEditProducts}
+                        onEdit={onEdit}
                         onArchive={onArchive}
                         size="lg"
                       />
@@ -752,19 +826,26 @@ export function ProductTable({
 }
 
 /**
- * Menú "⋯" de administración por fila (solo owner/admin). Hoy una sola
- * acción: "Archivar", que se llama "Eliminar" cuando el kardex en memoria
- * permite afirmar que el producto está virgen (la decisión final es del
- * RPC de la mig 264).
+ * Menú "⋯" por fila. "Editar producto" para el editor de almacén (mig 271:
+ * nombre, categoría, presentación, mínimo, control de lotes) y "Archivar"
+ * solo para owner/admin — que se llama "Eliminar" cuando el kardex en
+ * memoria permite afirmar que el producto está virgen (la decisión final es
+ * del RPC de la mig 264).
  */
 function ProductMenu({
   product,
   canDelete,
+  canArchive,
+  canEdit,
+  onEdit,
   onArchive,
   size,
 }: {
   product: InventoryProduct;
   canDelete: boolean;
+  canArchive: boolean;
+  canEdit: boolean;
+  onEdit: (product: InventoryProduct) => void;
   onArchive: (product: InventoryProduct) => void;
   size: "sm" | "lg";
 }) {
@@ -786,17 +867,25 @@ function ProductMenu({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem
-          onSelect={() => onArchive(product)}
-          className={cn(canDelete && "text-destructive focus:text-destructive")}
-        >
-          {canDelete ? (
-            <Trash2 className="mr-2 h-4 w-4" />
-          ) : (
-            <Archive className="mr-2 h-4 w-4" />
-          )}
-          {label}
-        </DropdownMenuItem>
+        {canEdit && (
+          <DropdownMenuItem onSelect={() => onEdit(product)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Editar producto
+          </DropdownMenuItem>
+        )}
+        {canArchive && (
+          <DropdownMenuItem
+            onSelect={() => onArchive(product)}
+            className={cn(canDelete && "text-destructive focus:text-destructive")}
+          >
+            {canDelete ? (
+              <Trash2 className="mr-2 h-4 w-4" />
+            ) : (
+              <Archive className="mr-2 h-4 w-4" />
+            )}
+            {label}
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

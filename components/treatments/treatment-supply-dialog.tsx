@@ -5,7 +5,9 @@
  *
  * Tres toques en el caso frecuente: buscar el producto, la cantidad (1 ya
  * viene puesta) y "Aplicar". El lote solo aparece si el producto los lleva
- * y es opcional (el POS también lo permite sin lote).
+ * y viene PROPUESTO: el que vence primero entre los que tienen saldo (mismo
+ * criterio FEFO que el POS). Antes arrancaba en "Sin lote" y cada insumo
+ * dejaba el detalle por lote inflado. Se puede cambiar o dejar sin lote.
  *
  * AQUÍ NO HAY DINERO. Lo que sale de esta pantalla es una salida del kardex
  * con el costo promedio congelado EN EL SERVIDOR (RPC treatment_apply_product):
@@ -52,6 +54,20 @@ interface LotOption {
   id: string;
   lot_code: string;
   expiry_date: string | null;
+  received_at: string | null;
+  /** Saldo del lote = Σ movimientos con ese lot_id. */
+  balance: number;
+}
+
+/** FEFO estable: vence antes → recibido antes → código (igual que Almacén). */
+function fefo(a: LotOption, b: LotOption): number {
+  if (a.expiry_date !== b.expiry_date) {
+    if (!a.expiry_date) return 1;
+    if (!b.expiry_date) return -1;
+    return a.expiry_date.localeCompare(b.expiry_date);
+  }
+  const r = (a.received_at ?? "").localeCompare(b.received_at ?? "");
+  return r !== 0 ? r : a.lot_code.localeCompare(b.lot_code, "es", { numeric: true });
 }
 
 interface ApplyResult {
@@ -134,7 +150,8 @@ export function TreatmentSupplyDialog({
     };
   }, [open, query, product, organizationId]);
 
-  // Lotes del producto elegido (solo si los lleva), los que vencen antes primero.
+  // Lotes del producto elegido (solo si los lleva): primero los que tienen
+  // saldo, en orden FEFO, y el primero de ellos queda propuesto.
   useEffect(() => {
     if (!product?.track_lots) {
       setLots([]);
@@ -144,12 +161,32 @@ export function TreatmentSupplyDialog({
     let cancelled = false;
     (async () => {
       const supabase = createClient();
-      const { data } = await supabase
-        .from("inventory_lots")
-        .select("id, lot_code, expiry_date")
-        .eq("product_id", product.id)
-        .order("expiry_date", { ascending: true, nullsFirst: false });
-      if (!cancelled) setLots((data ?? []) as LotOption[]);
+      const [{ data: lotRows }, { data: movRows }] = await Promise.all([
+        supabase
+          .from("inventory_lots")
+          .select("id, lot_code, expiry_date, received_at")
+          .eq("product_id", product.id),
+        supabase
+          .from("inventory_movements")
+          .select("lot_id, quantity")
+          .eq("product_id", product.id)
+          .not("lot_id", "is", null),
+      ]);
+      if (cancelled) return;
+      const balance: Record<string, number> = {};
+      for (const m of (movRows ?? []) as { lot_id: string; quantity: number }[]) {
+        balance[m.lot_id] = (balance[m.lot_id] ?? 0) + Number(m.quantity);
+      }
+      const list = ((lotRows ?? []) as Omit<LotOption, "balance">[])
+        .map((l) => ({ ...l, balance: balance[l.id] ?? 0 }))
+        .sort((a, b) => {
+          const aEmpty = a.balance <= 0;
+          const bEmpty = b.balance <= 0;
+          if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+          return fefo(a, b);
+        });
+      setLots(list);
+      setLotId(list[0] && list[0].balance > 0 ? list[0].id : "");
     })();
     return () => {
       cancelled = true;
@@ -290,7 +327,7 @@ export function TreatmentSupplyDialog({
           {product?.track_lots && (
             <div className="space-y-1.5">
               <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Lote (opcional)
+                Lote
               </label>
               <select
                 value={lotId}
@@ -301,7 +338,12 @@ export function TreatmentSupplyDialog({
                 {lots.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.lot_code}
-                    {l.expiry_date ? ` · vence ${l.expiry_date}` : ""}
+                    {l.expiry_date
+                      ? ` · vence ${l.expiry_date.slice(5, 7)}/${l.expiry_date.slice(0, 4)}`
+                      : ""}
+                    {l.balance > 0
+                      ? ` · ${Number(l.balance.toFixed(3))} ${product.base_unit.toLowerCase()}`
+                      : " · agotado"}
                   </option>
                 ))}
               </select>

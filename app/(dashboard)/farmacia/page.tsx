@@ -124,7 +124,10 @@ export default function FarmaciaPage() {
   const totals = useMemo(() => cartTotals(lines), [lines]);
   const stockByProduct = useMemo(() => computeStock(movements), [movements]);
   const stockByLot = useMemo(() => computeStockByLot(movements), [movements]);
-  const lotByProduct = useMemo(() => nearestLotByProduct(lots), [lots]);
+  const lotByProduct = useMemo(
+    () => nearestLotByProduct(lots, stockByLot),
+    [lots, stockByLot]
+  );
 
   // ── Carga del catálogo ─────────────────────────────────────────────────
   const load = useCallback(async () => {

@@ -41,6 +41,7 @@ import { DiscountModal, type DiscountPayload } from "./discount-modal";
 import { EntryModal, type EntryPayload } from "./entry-modal";
 import { ProductModal, type ProductPayload } from "./product-modal";
 import { LotsModal } from "./lots-modal";
+import { EditProductModal, type EditProductPayload } from "./edit-product-modal";
 import { PriceModal, type PricePayload } from "./price-modal";
 import { ArchiveModal, type ArchivePayload, type ProductHistory } from "./archive-modal";
 import { useLanguage } from "@/components/language-provider";
@@ -52,12 +53,15 @@ import {
   avgCostByProduct,
   computeStock,
   computeStockByLot,
+  entryCostByLot,
   fillTemplate,
   fmtQty,
   formatPEN,
   lastCostByProduct,
   monthToLastDay,
   nearestLotByProduct,
+  unlottedByProduct,
+  unlottedEntries,
   type InventoryLot,
   type InventoryMovement,
   type InventoryProduct,
@@ -109,6 +113,7 @@ export default function AlmacenPage() {
   const [productOpen, setProductOpen] = useState(false);
   const [lotsFor, setLotsFor] = useState<InventoryProduct | null>(null);
   const [priceFor, setPriceFor] = useState<InventoryProduct | null>(null);
+  const [editFor, setEditFor] = useState<InventoryProduct | null>(null);
   const [archiveFor, setArchiveFor] = useState<InventoryProduct | null>(null);
 
   // Tabs por query param, sin useSearchParams: la página no necesita
@@ -127,10 +132,12 @@ export default function AlmacenPage() {
   }
 
   // ── Carga ──────────────────────────────────────────────────────────────
-  const load = useCallback(async () => {
+  // `silent`: recarga sin esqueleto (tras asignar lotes con la ventana
+  // abierta, la tabla de fondo no debe parpadear).
+  const load = useCallback(async (opts?: { silent?: boolean }) => {
     if (!organizationId) return;
     const supabase = createClient();
-    setLoading(true);
+    if (!opts?.silent) setLoading(true);
     setLoadError(null);
 
     const [prodRes, lotRes, movRes, setRes] = await Promise.all([
@@ -213,7 +220,12 @@ export default function AlmacenPage() {
   );
   const stockByProduct = useMemo(() => computeStock(movements), [movements]);
   const stockByLot = useMemo(() => computeStockByLot(movements), [movements]);
-  const lotByProduct = useMemo(() => nearestLotByProduct(lots), [lots]);
+  const lotByProduct = useMemo(
+    () => nearestLotByProduct(lots, stockByLot),
+    [lots, stockByLot]
+  );
+  const unlottedMap = useMemo(() => unlottedByProduct(movements), [movements]);
+  const lotEntryCosts = useMemo(() => entryCostByLot(movements), [movements]);
   const lastCosts = useMemo(() => lastCostByProduct(movements), [movements]);
   const avgCosts = useMemo(() => avgCostByProduct(movements), [movements]);
   // Historial por producto para decidir "Archivar" vs "Eliminar" (mig 264).
@@ -532,6 +544,60 @@ export default function AlmacenPage() {
       toast.success(`${product.name}: precio de venta ${formatPEN(salePrice)}`, {
         description: reason ?? undefined,
       });
+      return true;
+    },
+    []
+  );
+
+  // ── Editar producto (mig 271) ──────────────────────────────────────────
+  // Nombre, categoría, presentación, mínimo y control de lotes. El RPC valida
+  // (nombre único entre activos, permisos) y el trigger guarda el historial.
+  const updateProduct = useCallback(
+    async (payload: EditProductPayload): Promise<boolean> => {
+      const supabase = createClient();
+      const { product, ...fields } = payload;
+      const { data, error } = await supabase.rpc("inventory_update_product", {
+        p_product_id: product.id,
+        p_name: fields.name,
+        p_category: fields.category,
+        p_presentation: fields.presentation,
+        p_min_stock: fields.min_stock,
+        p_track_lots: fields.track_lots,
+        p_reason: fields.reason,
+      });
+      if (error || !data) {
+        const missing = error?.code === "42883" || error?.code === "PGRST202";
+        toast.error("No se pudo guardar el producto", {
+          description: missing
+            ? "Falta aplicar la actualización de base de datos (mig 271)."
+            : error?.message.includes("forbidden")
+              ? "No tienes permiso para editar este producto."
+              : (error?.message ?? "Intenta de nuevo."),
+        });
+        return false;
+      }
+      const saved = data as unknown as Partial<InventoryProduct>;
+      setProducts((prev) =>
+        prev
+          .map((p) =>
+            p.id === product.id
+              ? {
+                  ...p,
+                  name: saved.name ?? fields.name,
+                  category: saved.category ?? null,
+                  presentation: saved.presentation ?? fields.presentation,
+                  min_stock: Number(saved.min_stock ?? fields.min_stock),
+                  track_lots: saved.track_lots ?? fields.track_lots,
+                }
+              : p
+          )
+          .sort((a, b) => a.name.localeCompare(b.name, "es"))
+      );
+      toast.success(
+        saved.name && saved.name !== product.name
+          ? `${product.name} → ${saved.name}`
+          : `${saved.name ?? product.name}: cambios guardados`
+      );
       return true;
     },
     []
@@ -876,6 +942,7 @@ export default function AlmacenPage() {
               archivedProducts={archivedProducts}
               stockByProduct={stockByProduct}
               lotByProduct={lotByProduct}
+              unlottedByProduct={unlottedMap}
               movementCountByProduct={movementCountByProduct}
               lotCountByProduct={lotCountByProduct}
               historyComplete={historyComplete}
@@ -889,6 +956,7 @@ export default function AlmacenPage() {
                 setEntryOpen(true);
               }}
               onEditPrice={(p) => setPriceFor(p)}
+              onEdit={(p) => setEditFor(p)}
               onArchive={(p) => setArchiveFor(p)}
               onRestore={(p) => void restoreProduct(p)}
               onNewProduct={() => setProductOpen(true)}
@@ -949,11 +1017,25 @@ export default function AlmacenPage() {
         product={lotsFor}
         lots={lotsFor ? lots.filter((l) => l.product_id === lotsFor.id) : []}
         stockByLot={stockByLot}
+        stock={lotsFor ? (stockByProduct[lotsFor.id] ?? 0) : 0}
+        unlotted={lotsFor ? (unlottedMap[lotsFor.id] ?? 0) : 0}
+        unlottedEntries={lotsFor ? unlottedEntries(movements, lotsFor.id) : []}
+        entryCostByLot={lotEntryCosts}
+        authors={authors}
         expiryAlertDays={settings.expiry_alert_days}
         canEdit={canManageInventory}
         onLotUpdated={(lot) =>
           setLots((prev) => prev.map((l) => (l.id === lot.id ? { ...l, ...lot } : l)))
         }
+        onAssigned={() => load({ silent: true })}
+      />
+
+      <EditProductModal
+        open={editFor !== null}
+        onOpenChange={(o) => !o && setEditFor(null)}
+        product={editFor}
+        categories={categories}
+        onSubmit={updateProduct}
       />
 
       <PriceModal
@@ -987,6 +1069,7 @@ export default function AlmacenPage() {
         products={activeProducts}
         preselectedProductId={entryFor}
         lastCosts={lastCosts}
+        lotCountByProduct={lotCountByProduct}
         onSubmit={registerEntry}
       />
 
