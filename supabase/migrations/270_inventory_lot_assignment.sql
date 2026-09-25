@@ -1,4 +1,5 @@
--- Pendiente de aplicar en producción (la aplica el orquestador)
+-- Aplicada en producción el 25-sep-2026 (SQL Editor; verificada: RPC, tabla,
+-- columna, CHECKs, trigger y GRANT presentes).
 --
 -- ═══════════════════════════════════════════════════════════════════
 -- 270: Almacén — asignar a un lote las unidades que quedaron "sin lote"
