@@ -35,6 +35,7 @@ import { SummaryTab } from "./summary-tab";
 import { MovementsTab } from "./movements-tab";
 import { CloseResultCard, CloseTab, type ClosePayload } from "./close-tab";
 import { HistoryTab } from "./history-tab";
+import { OrphanTray } from "./orphan-tray";
 import { MovementModal, type MovementPayload } from "./movement-modal";
 import { SettingsModal, type SettingsPayload } from "./settings-modal";
 import {
@@ -67,8 +68,11 @@ type TabKey = "abrir" | "resumen" | "movimientos" | "cerrar" | "historial";
 export default function CajaPage() {
   const { organizationId, orgRole, isOrgAdmin } = useOrganization();
   const { user } = useUser();
-  const { hasAddon, loading: addonsLoading } = useOrgAddons();
+  const { addons, hasAddon, loading: addonsLoading } = useOrgAddons();
   const cajaEnabled = hasAddon("caja");
+  // Última activación del addon: reactivar Caja la actualiza. Los cobros de
+  // cuando el módulo estaba apagado no son "fuera de turno" (mig 226).
+  const cajaActivatedAt = addons.find((a) => a.key === "caja")?.activated_at ?? null;
 
   const [settings, setSettings] = useState<CashSettings | null>(null);
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -208,22 +212,32 @@ export default function CajaPage() {
     setMovements((movRes.data ?? []) as unknown as CashMovement[]);
   }, []);
 
-  /** Bandeja "fuera de turno" (solo admin). */
+  /**
+   * Bandeja "fuera de turno". Admin: todo cobro sin turno desde que el
+   * módulo está encendido (Historial). Recepción (mig 272): los de los
+   * últimos 7 días, para pasarlos a SU caja desde Resumen — el RPC vuelve a
+   * aplicar el mismo corte, esto solo evita ofrecer lo que rechazaría.
+   */
   const loadOrphans = useCallback(async () => {
-    if (!organizationId || !isOrgAdmin || !settings) return;
+    if (!organizationId || !canOpen || !settings) return;
+    // Antes de activar el módulo NINGÚN pago tenía turno: sin este corte
+    // la bandeja mostraría el histórico entero de la clínica.
+    const cuts = [settings.activated_at, cajaActivatedAt].filter(Boolean) as string[];
+    if (!isOrgAdmin) {
+      cuts.push(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+    }
+    const since = cuts.sort().at(-1) ?? settings.activated_at;
     const supabase = createClient();
     const { data } = await supabase
       .from("patient_payments")
       .select(PAYMENT_COLUMNS)
       .eq("organization_id", organizationId)
       .is("cash_shift_id", null)
-      // Antes de activar el módulo NINGÚN pago tenía turno: sin este corte
-      // la bandeja mostraría el histórico entero de la clínica.
-      .gte("created_at", settings.activated_at)
+      .gte("created_at", since)
       .order("created_at", { ascending: false })
       .limit(ORPHAN_FETCH_LIMIT);
     setOrphans((data ?? []) as unknown as ShiftPayment[]);
-  }, [organizationId, isOrgAdmin, settings]);
+  }, [organizationId, canOpen, isOrgAdmin, settings, cajaActivatedAt]);
 
   useEffect(() => {
     void loadCore();
@@ -354,11 +368,11 @@ export default function CajaPage() {
         toast.error("No se pudo atribuir el pago", { description: error.message });
         return;
       }
-      toast.success("Pago atribuido al turno abierto");
+      toast.success(isOrgAdmin ? "Pago atribuido al turno abierto" : "Cobro pasado a tu caja");
       setOrphans((prev) => prev.filter((p) => p.id !== paymentId));
       void loadShiftDetail(openShift.id);
     },
-    [openShift, loadShiftDetail]
+    [openShift, loadShiftDetail, isOrgAdmin]
   );
 
   const saveSettings = useCallback(
@@ -565,11 +579,25 @@ export default function CajaPage() {
         {openShift && (
           <>
             <TabsContent value="resumen" className="mt-4">
-              <SummaryTab
-                summary={summary}
-                openingFloat={Number(openShift.opening_float)}
-                paymentMethods={methods}
-              />
+              <div className="space-y-4">
+                <SummaryTab
+                  summary={summary}
+                  openingFloat={Number(openShift.opening_float)}
+                  paymentMethods={methods}
+                />
+                {/* Recepción no ve Historial: aquí pasa a su caja lo que
+                    cobró sin caja abierta (mig 272). Solo se muestra si hay
+                    algo que pasar, para no sumar ruido al resumen. */}
+                {canOpen && orphans.length > 0 && (
+                  <OrphanTray
+                    target="own"
+                    orphanPayments={orphans}
+                    openShiftId={openShift.id}
+                    attaching={attaching}
+                    onAttach={(id) => void doAttach(id)}
+                  />
+                )}
+              </div>
             </TabsContent>
 
             <TabsContent value="movimientos" className="mt-4">
