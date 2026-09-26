@@ -12,15 +12,14 @@
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Inbox, Printer } from "lucide-react";
+import { Printer } from "lucide-react";
+import { OrphanTray } from "./orphan-tray";
 import {
   DIFFERENCE_TONE_CLASS,
   differenceTone,
-  fmtDate,
   fmtDateTime,
   formatPEN,
   formatSignedPEN,
-  patientName,
   type CashShift,
   type ShiftPayment,
 } from "./types";
@@ -201,61 +200,12 @@ export function HistoryTab({
       </div>
 
       {/* ── Bandeja "Fuera de turno" ───────────────────────────────────── */}
-      <div className="rounded-2xl border border-border/60 bg-card">
-        <div className="border-b border-border/40 px-4 py-3">
-          <h3 className="flex items-center gap-2 text-sm font-bold">
-            <Inbox className="h-4 w-4 text-muted-foreground" /> Fuera de turno
-            {orphanPayments.length > 0 && (
-              <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">
-                {orphanPayments.length}
-              </span>
-            )}
-          </h3>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Cobros que entraron sin caja abierta. No están en ningún arqueo
-            hasta que se atribuyan a un turno.
-          </p>
-        </div>
-        {orphanPayments.length === 0 ? (
-          <p className="px-4 py-8 text-center text-xs text-muted-foreground">
-            Todos los cobros están dentro de un turno.
-          </p>
-        ) : (
-          <ul className="divide-y divide-border/40">
-            {orphanPayments.map((p) => (
-              <li key={p.id} className="flex items-center gap-3 px-4 py-3">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {patientName(p) ?? "Cobro"}
-                  </p>
-                  <p className="truncate text-[11px] text-muted-foreground">
-                    {fmtDate(p.created_at)} ·{" "}
-                    {p.payment_method?.trim() || "Sin método declarado"}
-                  </p>
-                </div>
-                <span className="shrink-0 text-sm font-bold">
-                  {formatPEN(Number(p.amount))}
-                </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="shrink-0 print:hidden"
-                  disabled={!openShiftId || attaching === p.id}
-                  onClick={() => onAttach(p.id)}
-                >
-                  {attaching === p.id ? "Atribuyendo…" : "Atribuir al turno abierto"}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {orphanPayments.length > 0 && !openShiftId && (
-          <p className="border-t border-border/40 px-4 py-2.5 text-[11px] text-muted-foreground">
-            Abre una caja para poder atribuirlos: un pago nunca se adjunta a un
-            turno ya cerrado.
-          </p>
-        )}
-      </div>
+      <OrphanTray
+        orphanPayments={orphanPayments}
+        openShiftId={openShiftId}
+        attaching={attaching}
+        onAttach={onAttach}
+      />
     </div>
   );
 }
