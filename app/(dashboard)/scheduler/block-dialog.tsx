@@ -22,6 +22,8 @@ interface BlockDialogProps {
   onSaved: () => void;
 }
 
+type ConflictAppt = { start_time: string; end_time: string; patient_name: string | null };
+
 function formatMinutes(mins: number): string {
   return `${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60).toString().padStart(2, "0")}`;
 }
@@ -60,12 +62,15 @@ export function BlockDialog({
   const [officeId, setOfficeId] = useState<string>("all");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  // Citas que impiden el bloqueo (409 del API). Se limpia al cambiar el rango.
+  const [conflicts, setConflicts] = useState<ConflictAppt[] | null>(null);
 
   const isValid = blockDate && (allDay || startTime < endTime);
 
   const handleSave = async () => {
     if (!isValid) return;
     setSaving(true);
+    setConflicts(null);
 
     // Mig 254: pasa por el API para estampar quién bloqueó y dejar la fila
     // en el registro de auditoría (antes insertaba directo y created_by
@@ -85,7 +90,17 @@ export function BlockDialog({
           reason: reason.trim() || null,
         }),
       });
-      if (!res.ok) {
+      if (res.status === 409) {
+        const j = (await res.json().catch(() => null)) as
+          | { error?: string; conflicts?: ConflictAppt[] }
+          | null;
+        if (j?.error === "appointments_conflict" && j.conflicts?.length) {
+          setConflicts(j.conflicts);
+          setSaving(false);
+          return;
+        }
+        errorMessage = j?.error ?? "Error 409";
+      } else if (!res.ok) {
         const j = (await res.json().catch(() => null)) as { error?: string } | null;
         errorMessage =
           res.status === 403
@@ -130,7 +145,7 @@ export function BlockDialog({
             <input
               type="date"
               value={blockDate}
-              onChange={(e) => setBlockDate(e.target.value)}
+              onChange={(e) => { setBlockDate(e.target.value); setConflicts(null); }}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
             />
           </div>
@@ -141,7 +156,7 @@ export function BlockDialog({
               <input
                 type="checkbox"
                 checked={allDay}
-                onChange={(e) => setAllDay(e.target.checked)}
+                onChange={(e) => { setAllDay(e.target.checked); setConflicts(null); }}
                 className="sr-only peer"
               />
               <div className="h-5 w-9 rounded-full bg-muted peer-checked:bg-primary transition-colors" />
@@ -157,7 +172,7 @@ export function BlockDialog({
                 <label className="text-sm font-medium">Hora inicio *</label>
                 <select
                   value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
+                  onChange={(e) => { setStartTime(e.target.value); setConflicts(null); }}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                 >
                   {timeOptions.map((t) => (
@@ -169,7 +184,7 @@ export function BlockDialog({
                 <label className="text-sm font-medium">Hora fin *</label>
                 <select
                   value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
+                  onChange={(e) => { setEndTime(e.target.value); setConflicts(null); }}
                   className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                 >
                   {timeOptions.map((t) => (
@@ -190,7 +205,7 @@ export function BlockDialog({
             <label className="text-sm font-medium">Consultorio</label>
             <select
               value={officeId}
-              onChange={(e) => setOfficeId(e.target.value)}
+              onChange={(e) => { setOfficeId(e.target.value); setConflicts(null); }}
               className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
             >
               <option value="all">Todos los consultorios</option>
@@ -210,6 +225,26 @@ export function BlockDialog({
               placeholder="Ej: Mantenimiento, Feriado, Capacitación..."
             />
           </div>
+
+          {/* Citas que impiden bloquear (409 del API) */}
+          {conflicts && conflicts.length > 0 && (
+            <div
+              role="alert"
+              className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive"
+            >
+              <p className="mb-1 font-medium">
+                No se puede bloquear: {conflicts.length === 1 ? "hay 1 cita" : `hay ${conflicts.length} citas`} en ese horario.
+              </p>
+              <ul className="mb-1 space-y-0.5">
+                {conflicts.map((c, i) => (
+                  <li key={`${c.start_time}-${i}`}>
+                    {c.start_time}–{c.end_time} · {c.patient_name?.trim() || "Paciente sin nombre"}
+                  </li>
+                ))}
+              </ul>
+              <p>Reprográmalas o cancélalas primero, o elige otro horario o consultorio.</p>
+            </div>
+          )}
 
           {/* Preview */}
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
