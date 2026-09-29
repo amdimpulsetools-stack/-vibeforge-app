@@ -83,6 +83,14 @@ interface AppointmentFormModalProps {
     date?: string;
     startTime?: string;
     officeId?: string;
+    /** "Agendar" desde un seguimiento (p. ej. "Por reprogramar", mig 273). */
+    doctorId?: string;
+    patient?: {
+      dni: string | null;
+      first_name: string;
+      last_name: string;
+      phone: string | null;
+    };
   } | null;
   offices: Office[];
   doctors: Doctor[];
@@ -287,7 +295,7 @@ export function AppointmentFormModal({
       patient_phone: "",
       patient_dni: "",
       patient_id: "",
-      doctor_id: currentDoctorId ?? "",
+      doctor_id: currentDoctorId ?? defaults?.doctorId ?? "",
       office_id: defaults?.officeId ?? "",
       service_id: "",
       // Fecha civil de la org (mig 240): toISOString() es UTC y tras las
@@ -817,6 +825,24 @@ export function AppointmentFormModal({
       setSelectedPlanSessionId(null);
     }
   }, [setValue, lookupOrigins]);
+
+  // Paciente precargado ("Agendar" desde Seguimientos): con DNI se usa la
+  // misma búsqueda del botón (vincula la ficha, origen, planes); sin DNI se
+  // dejan nombre y teléfono para que recepción la ubique.
+  const prefillDoneRef = useRef(false);
+  useEffect(() => {
+    const p = defaults?.patient;
+    if (!p || prefillDoneRef.current) return;
+    prefillDoneRef.current = true;
+    if (p.dni && p.dni.trim()) {
+      setValue("patient_dni", p.dni.trim());
+      void searchPatientByDni(p.dni.trim());
+    } else {
+      setValue("patient_name", p.first_name);
+      setValue("patient_last_name", p.last_name);
+      setValue("patient_phone", p.phone ?? "");
+    }
+  }, [defaults?.patient, searchPatientByDni, setValue]);
 
   // El <option> extra se renderiza en el mismo ciclo en que se fija el estado,
   // pero el <select> es no-controlado (register + ref): el navegador ya había

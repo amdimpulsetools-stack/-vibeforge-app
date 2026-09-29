@@ -24,8 +24,13 @@ import {
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useIsFertilityAdvisor } from "@/hooks/use-is-fertility-advisor";
 import { useOrgRole } from "@/hooks/use-org-role";
+import { useOrgToday } from "@/hooks/use-org-today";
 import { useSchedulerMasterData } from "@/hooks/use-scheduler-master-data";
 import { SchedulerHeader } from "./scheduler-header";
+import {
+  RESCHEDULE_OPEN_STATUSES,
+  RESCHEDULE_PENDING_RULE_KEY,
+} from "@/lib/followups/reschedule";
 import { DayView } from "./day-view";
 import { DropConfirmDialog, type PendingDrop } from "./drop-confirm-dialog";
 import { WeekView } from "./week-view";
@@ -94,6 +99,7 @@ export default function SchedulerPage() {
   // aunque su rol base sea `doctor`. Relaja los "solo mis citas".
   const { isAdvisor } = useIsFertilityAdvisor();
   const restrictedDoctor = isDoctor && !isAdvisor;
+  const { today: orgToday } = useOrgToday();
   // Config de agenda para los MODALES (ventana, campos requeridos): misma
   // query key que day/week-view — pinta al instante desde localStorage y
   // sincroniza con la BD. Antes era un useMemo([]) solo-localStorage: si la
@@ -168,7 +174,71 @@ export default function SchedulerPage() {
     date?: string;
     startTime?: string;
     officeId?: string;
+    doctorId?: string;
+    patient?: {
+      dni: string | null;
+      first_name: string;
+      last_name: string;
+      phone: string | null;
+    };
   } | null>(null);
+
+  // Mig 273 — burbuja "N por reprogramar": seguimientos abiertos de citas
+  // canceladas sin fecha nueva. Es un recordatorio de recepción: el doctor
+  // restringido no la ve (no agenda). Se refresca al volver a la pestaña
+  // y tras cualquier cambio de citas (handleSaved).
+  const showReschedulePill = !restrictedDoctor;
+  const { data: reschedulePendingCount } = useQuery({
+    queryKey: ["scheduler", "reschedule-pending", organizationId],
+    enabled: !!organizationId && showReschedulePill,
+    staleTime: 60_000,
+    refetchOnWindowFocus: true,
+    queryFn: async () => {
+      const { count } = await createClient()
+        .from("clinical_followups")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId!)
+        .eq("rule_key", RESCHEDULE_PENDING_RULE_KEY)
+        .in("status", [...RESCHEDULE_OPEN_STATUSES]);
+      return count ?? 0;
+    },
+  });
+
+  // "Agendar" desde Seguimientos: /scheduler?new=1&patient_id=…&doctor_id=…
+  // abre "Nueva cita" con la paciente ya cargada. Se lee una vez al montar
+  // (mismo criterio que `date`) y se limpia la URL para que recargar la
+  // página no vuelva a abrir el formulario.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("new") !== "1") return;
+    const patientId = params.get("patient_id");
+    const doctorId = params.get("doctor_id") ?? undefined;
+    params.delete("new");
+    params.delete("patient_id");
+    params.delete("doctor_id");
+    params.delete("patient_name");
+    const qs = params.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+
+    const open = (patient?: NonNullable<typeof formDefaults>["patient"]) => {
+      setFormDefaults({ date: orgToday(), doctorId, patient });
+      setShowForm(true);
+    };
+    if (!patientId) {
+      open();
+      return;
+    }
+    void createClient()
+      .from("patients")
+      .select("dni, first_name, last_name, phone")
+      .eq("id", patientId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const p = data as { dni: string | null; first_name: string; last_name: string; phone: string | null } | null;
+        open(p ?? undefined);
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // WhatsApp clipboard modal — controlado en el padre para evitar conflicto de
   // focus trap con el Radix Dialog del form (cuando el modal interno renderizaba
@@ -527,11 +597,12 @@ export default function SchedulerPage() {
 
   const handleSaved = useCallback(() => {
     fetchAppointments();
+    queryClient.invalidateQueries({ queryKey: ["scheduler", "reschedule-pending"] });
     setShowForm(false);
     setFormDefaults(null);
     setSelectedAppointment(null);
     setShowReschedule(false);
-  }, [fetchAppointments]);
+  }, [fetchAppointments, queryClient]);
 
   // Drag & drop: update appointment date/time/office
   const handleAppointmentDrop = async (
@@ -779,6 +850,7 @@ export default function SchedulerPage() {
           onOfficeFilterChange={handleOfficeFilterChange}
           blocks={allBlocks}
           schedulerConfig={schedulerConfig}
+          reschedulePendingCount={showReschedulePill ? reschedulePendingCount : undefined}
         />
 
         <div ref={gridScrollRef} className="flex-1 overflow-auto">

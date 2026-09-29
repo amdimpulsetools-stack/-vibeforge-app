@@ -42,6 +42,10 @@ import type {
   FollowupWithDetails,
   RecoveredKpis,
 } from "./types";
+import {
+  RESCHEDULE_INBOX_PARAM,
+  RESCHEDULE_PENDING_RULE_KEY,
+} from "@/lib/followups/reschedule";
 
 const PAGE_SIZE = 15;
 
@@ -95,6 +99,10 @@ export default function FollowUpsPage() {
   // filtro en la UI no tiene que pelearse con la URL.
   const searchParams = useSearchParams();
   const initialDoctorId = searchParams.get("doctor");
+  // Deep-link de la burbuja de la agenda (mig 273):
+  // `/scheduler/follow-ups?tipo=por-reprogramar` → bandeja filtrada.
+  const initialReschedule =
+    searchParams.get(RESCHEDULE_INBOX_PARAM.key) === RESCHEDULE_INBOX_PARAM.value;
   const [tab, setTab] = useState<"pending" | "recovered" | "no_response">(
     "pending"
   );
@@ -134,11 +142,11 @@ export default function FollowUpsPage() {
     },
   });
   const rules = hasStepTemplates ? (rulesData ?? []) : [];
-  const [filters, setFilters] = useState<FollowupFilters>(() =>
-    initialDoctorId
-      ? { ...DEFAULT_FILTERS, doctor_id: initialDoctorId }
-      : DEFAULT_FILTERS
-  );
+  const [filters, setFilters] = useState<FollowupFilters>(() => ({
+    ...DEFAULT_FILTERS,
+    ...(initialDoctorId ? { doctor_id: initialDoctorId } : {}),
+    ...(initialReschedule ? { rule_key: RESCHEDULE_PENDING_RULE_KEY } : {}),
+  }));
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<FollowupFilters>(filters);
 
@@ -681,6 +689,22 @@ export default function FollowUpsPage() {
             {/* Chip del filtro de doctor: sin él, quien llega por el
                 deep-link del dashboard ve una bandeja recortada sin
                 pista de por qué. Con "Todos" volvemos al estado base. */}
+            {/* Chip "Por reprogramar": llega por la burbuja de la agenda.
+                El selector de reglas es solo del addon, así que este chip
+                es la única forma de ver y quitar el filtro en una org core. */}
+            {filters.rule_key === RESCHEDULE_PENDING_RULE_KEY && (
+              <span className="flex items-center gap-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+                Por reprogramar
+                <button
+                  type="button"
+                  onClick={() => applyFilters({ ...filters, rule_key: "all" })}
+                  className="rounded p-0.5 hover:bg-amber-500/20"
+                  aria-label="Quitar filtro Por reprogramar"
+                >
+                  <X className="h-3 w-3 shrink-0" />
+                </button>
+              </span>
+            )}
             {filters.doctor_id !== "all" && (
               <span className="flex min-w-0 max-w-[45vw] items-center gap-1.5 rounded-lg border border-primary/40 bg-primary/10 px-2.5 py-1.5 text-xs font-medium text-primary md:max-w-none">
                 <span className="truncate">
@@ -1217,6 +1241,7 @@ function FiltersBody({
             className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
           >
             <option value="all">Todas las reglas</option>
+            <option value={RESCHEDULE_PENDING_RULE_KEY}>Por reprogramar</option>
             {rules.map((r) => (
               <option key={r.rule_key} value={r.rule_key}>
                 {r.display_name}

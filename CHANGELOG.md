@@ -5069,6 +5069,17 @@ PRs de la sesión: #373 (Sentry cableado, mergeado), #374 (fuentes `.woff2` repu
 - **Mig 272** redefine `caja_attach_payment` (misma firma): admin sin cambios; recepción (receptionist/assistant/member, los roles que abren caja) solo a **su** turno abierto (o la caja de la clínica con scope `organization`), cobros de los **últimos 7 días** y registrados con el módulo encendido (desde la última activación del addon: los cobros de cuando Caja estaba apagada no entran al arqueo de hoy). El médico sigue sin tocar la caja. `FOR UPDATE` sobre pago y turno (no se cruza con un cierre). Rastro nuevo: `patient_payments.cash_attached_by/at`. La bandeja usa el mismo corte (última activación del addon, no solo `cash_settings.activated_at`: evita mostrar ~200 cobros del periodo en que Caja estuvo apagada).
 - Pruebas: `supabase/tests/pharmacy/40_caja_attach_test.sql` (10 casos: propia caja, caja ajena, 7 días, módulo apagado, ya atribuido, doctor, otra org, admin sin cortes, caja cerrada). `tsc` y `next build` en verde. Rollback en `rollbacks/272_*`.
 
+### Agenda: no se bloquea encima de citas (PR #382)
+- `POST /api/scheduler/blocks` responde 409 `appointments_conflict` si una cita viva (no cancelada ni no-show) se cruza con el rango; "todos los consultorios" choca con cualquiera, uno puntual solo con el suyo. El diálogo lista hora + paciente para reprogramarlas primero. Agendar, Reprogramar y drag & drop ya respetaban los bloqueos.
+
+### Agenda: pacientes "por reprogramar" (mig 273)
+- **Caso (Vitra)**: recepción cancela y la paciente aún no tiene fecha nueva; la cita cancelada desaparece de la agenda y la paciente se perdía.
+- **Al cancelar** (ficha de la cita, recepción y doctor, con o sin pagos): casilla marcada por defecto "Al cancelar, dejar pendiente de reprogramar". La marca va en un UPDATE aparte tras cancelar (la cancelación nunca depende de ella).
+- **Mig 273**: `appointments.reschedule_pending` + trigger que crea UN seguimiento por paciente en la bandeja existente (`clinical_followups`, `rule_key='core.reschedule_pending'`, `source='system'`, vence a 7 días) y trigger que lo cierra solo cuando la paciente tiene una cita viva nueva o se reactiva la misma (`cerrado_manual` / `reprogramada`: no infla los KPIs de recuperación). INVOKER, nunca bloquea la cita. Genérico: toda org, no solo fertilidad.
+- **Burbuja en la agenda**: "N pacientes por reprogramar" (ámbar, bajo los contadores) → `/scheduler/follow-ups?tipo=por-reprogramar` con el filtro puesto y chip para quitarlo. No la ve el doctor restringido.
+- **Tarjeta**: badge "Por reprogramar" y mensaje de WhatsApp propio. **"Agendar"** desde cualquier seguimiento ahora abre "Nueva cita" con la paciente cargada (por DNI) y su doctor; antes la agenda ignoraba el parámetro.
+- Pruebas: `supabase/tests/agenda/` (13 casos, Postgres desechable: marca/sin marca, 1 por paciente, sin re-disparo, aislamiento por org, cierre al agendar o reactivar, otras reglas intactas, nunca bloquea). Rollback en `rollbacks/273_*`.
+
 ## Apéndice — Detalle de Features Implementadas (archivo ex-Sección 12 del PRD)
 
 > Detalle largo de cada feature implementada, movido verbatim desde la Sección 12 del PRD (que ahora es un checklist de una línea). Se conserva aquí para no perder contenido único.

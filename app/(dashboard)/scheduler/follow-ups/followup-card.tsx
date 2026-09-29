@@ -72,6 +72,7 @@ import {
   type ClipboardTemplateKind,
 } from "@/lib/whatsapp-clipboard-config";
 import type { FollowupVariant, FollowupWithDetails } from "./types";
+import { RESCHEDULE_PENDING_RULE_KEY } from "@/lib/followups/reschedule";
 
 const VIOLET = "#8B5CF6";
 
@@ -213,6 +214,7 @@ export function FollowupCard({
     : "—";
   const originBadge = resolveOriginBadge(followup.source, followup.rule_key);
   const isCoreFollowup = followup.rule_key === CORE_SERVICE_FOLLOWUP_RULE_KEY;
+  const isReschedule = followup.rule_key === RESCHEDULE_PENDING_RULE_KEY;
   const priorityConfig = FOLLOWUP_PRIORITY_CONFIG[followup.priority];
   // Badge principal = urgencia operativa (vencido / vence hoy), con la
   // prioridad clínica como fallback. La prioridad queda además como
@@ -256,6 +258,12 @@ export function FollowupCard({
     // ("tu segunda consulta"). Hasta que la Fase 2 añada una plantilla
     // genérica editable, construimos un mensaje neutro en código — así
     // el botón de WhatsApp sigue siendo útil sin fricción.
+    if (isReschedule) {
+      return buildRescheduleMessage({
+        patientName,
+        clinicName: organization?.name ?? "",
+      });
+    }
     if (isCoreFollowup) {
       return buildCoreFollowupMessage({
         patientName,
@@ -348,11 +356,12 @@ export function FollowupCard({
    * el clúster está oculto y el menú es la única vía).
    */
   const handleAgendarCita = () => {
-    const params = new URLSearchParams();
-    if (patient)
-      params.set("patient_name", `${patient.first_name} ${patient.last_name}`);
+    // La agenda abre "Nueva cita" con la paciente cargada (por DNI si lo
+    // tiene). Antes solo mandaba el nombre y la agenda lo ignoraba.
+    const params = new URLSearchParams({ new: "1" });
+    if (followup.patient_id) params.set("patient_id", followup.patient_id);
     if (followup.doctor_id) params.set("doctor_id", followup.doctor_id);
-    window.location.href = `/scheduler?new=1&${params}`;
+    window.location.href = `/scheduler?${params}`;
   };
 
   /**
@@ -440,6 +449,7 @@ export function FollowupCard({
     showAttemptChip ||
     showPriorityChip ||
     originBadge !== null ||
+    isReschedule ||
     linkedBudget !== null ||
     stepActiveIdx !== null;
 
@@ -625,6 +635,13 @@ export function FollowupCard({
                     >
                       <Sparkles className="h-3 w-3 shrink-0" />
                       Automatizado
+                    </span>
+                  )}
+
+                  {isReschedule && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-amber-700 dark:text-amber-400">
+                      <CalendarClock className="h-3 w-3 shrink-0" />
+                      Por reprogramar
                     </span>
                   )}
 
@@ -1215,6 +1232,18 @@ function resolveOriginBadge(
  * `org_whatsapp_clipboard_templates` — ver el comentario en
  * `buildFollowupMessage`.
  */
+function buildRescheduleMessage(vars: {
+  patientName: string;
+  clinicName: string;
+}): string {
+  const clinic = vars.clinicName ? ` de ${vars.clinicName}` : "";
+  return (
+    `Hola ${vars.patientName} 👋\n\n` +
+    `Te escribimos${clinic} para reprogramar la cita que quedó pendiente. ` +
+    `¿Qué día y horario te acomoda?\n\nQuedamos atentos.`
+  );
+}
+
 function buildCoreFollowupMessage(vars: {
   patientName: string;
   clinicName: string;

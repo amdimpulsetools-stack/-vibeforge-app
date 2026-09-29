@@ -19,8 +19,11 @@ import {
   Coffee,
   Building2,
   Check,
+  CalendarClock,
 } from "lucide-react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { RESCHEDULE_INBOX_HREF } from "@/lib/followups/reschedule";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import dynamic from "next/dynamic";
 
@@ -54,6 +57,11 @@ interface SchedulerHeaderProps {
   blocks?: ScheduleBlock[];
   /** Config de agenda de la org (ventana, días deshabilitados). */
   schedulerConfig: SchedulerConfig;
+  /**
+   * Pacientes con cita cancelada pendientes de reprogramar (mig 273).
+   * `undefined` = el rol no lo ve; 0 = no se muestra la burbuja.
+   */
+  reschedulePendingCount?: number;
 }
 
 export function SchedulerHeader({
@@ -72,6 +80,7 @@ export function SchedulerHeader({
   onOfficeFilterChange,
   blocks = [],
   schedulerConfig,
+  reschedulePendingCount,
 }: SchedulerHeaderProps) {
   const { t } = useLanguage();
   const [officeDropdownOpen, setOfficeDropdownOpen] = useState(false);
@@ -573,6 +582,29 @@ export function SchedulerHeader({
           <span className="hidden text-sm text-muted-foreground sm:inline">{t("scheduler.overview_occupation")}:</span>
           <span className="text-sm font-semibold">{occupationPercent}%</span>
         </div>
+        {/* Recordatorio siempre a la vista (mig 273): pacientes cuya cita se
+            canceló y que nadie ha vuelto a agendar. Lleva a Seguimientos con
+            el filtro puesto. En <md ocupa su propia fila para no apretar los
+            tres contadores. */}
+        {!!reschedulePendingCount && reschedulePendingCount > 0 && (
+          <Link
+            href={RESCHEDULE_INBOX_HREF}
+            className="col-span-3 flex items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-400 sm:justify-start"
+            title="Citas canceladas que aún no tienen fecha nueva"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-60 motion-reduce:animate-none" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+            </span>
+            <CalendarClock className="h-4 w-4" />
+            <span>
+              {reschedulePendingCount === 1
+                ? "1 paciente por reprogramar"
+                : `${reschedulePendingCount} pacientes por reprogramar`}
+            </span>
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+        )}
       </div>
 
       {/* Date picker de <md — modal centrado en pantalla.

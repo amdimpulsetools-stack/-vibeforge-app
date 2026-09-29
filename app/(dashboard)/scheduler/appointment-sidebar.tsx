@@ -519,6 +519,12 @@ export function AppointmentSidebar({
   const [cancelRefundBusy, setCancelRefundBusy] = useState(false);
   const pendingCancelReasonRef = useRef<string | undefined>(undefined);
   const [cancelReason, setCancelReason] = useState("");
+  // Mig 273: al cancelar, la paciente queda "por reprogramar" (seguimiento
+  // en la bandeja + burbuja de la agenda). Marcado por defecto: lo normal
+  // es que quien cancela quiera volver a agendarla; desmarcar es la
+  // excepción ("no quiere volver").
+  const [rescheduleAfterCancel, setRescheduleAfterCancel] = useState(true);
+  const pendingRescheduleRef = useRef(false);
 
   // ── Einvoices de la cita ────────────────────────────────────────────────
   // Una cita puede tener N comprobantes (modelo de pago parcial: anticipo
@@ -1030,7 +1036,11 @@ export function AppointmentSidebar({
     [services, editService]
   );
 
-  const updateStatus = async (newStatus: string, reason?: string) => {
+  const updateStatus = async (
+    newStatus: string,
+    reason?: string,
+    reschedulePending = false,
+  ) => {
     setUpdating(true);
     const supabase = createClient();
     const updatePayload: Record<string, unknown> = { status: newStatus };
@@ -1072,7 +1082,25 @@ export function AppointmentSidebar({
       toast.error(t("scheduler.save_error"));
       return;
     }
-    toast.success(t("scheduler.save_success"));
+    // Mig 273: la marca va en un UPDATE aparte, después de cancelar. Así
+    // la cancelación nunca depende de ella (si la columna aún no existe o
+    // falla, la cita queda cancelada igual) y el trigger crea el
+    // seguimiento "por reprogramar".
+    let rescheduleQueued = false;
+    if (newStatus === "cancelled" && reschedulePending && appointment.patient_id) {
+      const { error: flagError } = await supabase
+        .from("appointments")
+        .update({ reschedule_pending: true } as Record<string, unknown>)
+        .eq("id", appointment.id);
+      rescheduleQueued = !flagError;
+    }
+    if (rescheduleQueued) {
+      toast.success("Cita cancelada", {
+        description: "Quedó en Seguimientos → Por reprogramar.",
+      });
+    } else {
+      toast.success(t("scheduler.save_success"));
+    }
 
     // Fire-and-forget: si la cita pasó a completed, dispara la creación
     // de seguimientos (reglas del addon fertility + control core).
@@ -1128,11 +1156,13 @@ export function AppointmentSidebar({
   // Si la cita tiene pagos, la cancelación pasa primero por el diálogo
   // "¿qué pasó con el dinero?". Sin pagos, cancela directo como siempre.
   const requestCancel = (reason?: string) => {
+    const reschedule = rescheduleAfterCancel && !!appointment.patient_id;
     if (totalPaid > 0) {
       pendingCancelReasonRef.current = reason;
+      pendingRescheduleRef.current = reschedule;
       setCancelRefundOpen(true);
     } else {
-      scheduleCancelWithUndo(reason);
+      scheduleCancelWithUndo(reason, reschedule);
     }
   };
 
@@ -1141,13 +1171,13 @@ export function AppointmentSidebar({
   // fuera del árbol del sidebar (sonner), así que sobreviven a que el
   // usuario cierre el panel.
   const cancelCountdownActiveRef = useRef(false);
-  const scheduleCancelWithUndo = (reason?: string) => {
+  const scheduleCancelWithUndo = (reason?: string, reschedule = false) => {
     if (cancelCountdownActiveRef.current) return; // ya hay una en curso
     cancelCountdownActiveRef.current = true;
     let undone = false;
     const timer = setTimeout(() => {
       cancelCountdownActiveRef.current = false;
-      if (!undone) void updateStatus("cancelled", reason);
+      if (!undone) void updateStatus("cancelled", reason, reschedule);
     }, CANCEL_UNDO_MS);
     toast.warning("Cancelando cita…", {
       id: `cancel-undo-${appointment.id}`,
@@ -1200,8 +1230,13 @@ export function AppointmentSidebar({
       // 2. Cancelar la cita (mismo camino de siempre: sesiones de plan,
       //    Google Calendar, notificaciones).
       setCancelRefundOpen(false);
-      await updateStatus("cancelled", pendingCancelReasonRef.current);
+      await updateStatus(
+        "cancelled",
+        pendingCancelReasonRef.current,
+        pendingRescheduleRef.current,
+      );
       pendingCancelReasonRef.current = undefined;
+      pendingRescheduleRef.current = false;
     } finally {
       setCancelRefundBusy(false);
     }
@@ -2212,6 +2247,12 @@ export function AppointmentSidebar({
                           rows={2}
                           className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-destructive/50 resize-none"
                         />
+                        {appointment.patient_id && (
+                          <RescheduleAfterCancelToggle
+                            checked={rescheduleAfterCancel}
+                            onChange={setRescheduleAfterCancel}
+                          />
+                        )}
                         <div className="flex gap-2">
                           <button
                             onClick={() => { setShowCancelReason(false); setCancelReason(""); }}
@@ -2236,14 +2277,22 @@ export function AppointmentSidebar({
                     )}
                   </>
                 ) : !isDoctorRole ? (
-                  <button
-                    onClick={() => requestCancel()}
-                    disabled={updating}
-                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
-                  >
-                    {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
-                    {t("scheduler.cancel_appointment")}
-                  </button>
+                  <div className="space-y-1.5">
+                    {appointment.patient_id && (
+                      <RescheduleAfterCancelToggle
+                        checked={rescheduleAfterCancel}
+                        onChange={setRescheduleAfterCancel}
+                      />
+                    )}
+                    <button
+                      onClick={() => requestCancel()}
+                      disabled={updating}
+                      className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
+                    >
+                      {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
+                      {t("scheduler.cancel_appointment")}
+                    </button>
+                  </div>
                 ) : null}
               </>
             )}
@@ -3341,5 +3390,33 @@ function DiscountControls({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Mig 273: "La paciente queda pendiente de reprogramar". Vive junto al botón
+ * Cancelar (recepción cancela con un clic + Deshacer, así que tiene que
+ * verse ANTES del clic). Marcado → seguimiento en la bandeja y burbuja
+ * "N por reprogramar" en la agenda hasta que se le agende otra cita.
+ */
+function RescheduleAfterCancelToggle({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer select-none items-start gap-2 rounded-md px-1 py-0.5 text-xs text-muted-foreground">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-amber-500"
+      />
+      <span>
+        Al cancelar, dejar <span className="font-medium text-foreground">pendiente de reprogramar</span>
+      </span>
+    </label>
   );
 }
