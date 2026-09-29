@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
@@ -15,7 +16,12 @@ import {
   CheckCircle2,
   Circle,
   Calendar,
+  CalendarClock,
 } from "lucide-react";
+import {
+  RESCHEDULE_INBOX_HREF,
+  RESCHEDULE_PENDING_RULE_KEY,
+} from "@/lib/followups/reschedule";
 import {
   CLINICAL_PANEL_CTA,
   CLINICAL_PANEL_CTA_ICON,
@@ -119,6 +125,9 @@ export function ClinicalFollowupsPanel({
       if (res.ok) {
         toast.success("Seguimiento resuelto");
         fetchFollowups();
+      } else {
+        const json = await res.json().catch(() => null);
+        toast.error(json?.error || "Error al actualizar");
       }
     } catch {
       toast.error("Error al actualizar");
@@ -261,6 +270,11 @@ export function ClinicalFollowupsPanel({
 
       {followups.map((fu) => {
         const config = FOLLOWUP_PRIORITY_CONFIG[fu.priority];
+        // "Por reprogramar" (mig 273): cita cancelada que recepción gestiona
+        // desde Seguimientos (se cierra sola al agendar, o con motivo). Aquí
+        // no se marca resuelta: solo se señala y se enlaza a la bandeja.
+        const isReschedule =
+          (fu as { rule_key?: string | null }).rule_key === RESCHEDULE_PENDING_RULE_KEY;
         return (
           <div
             key={fu.id}
@@ -301,6 +315,15 @@ export function ClinicalFollowupsPanel({
               <div className="shrink-0">
                 {fu.is_resolved ? (
                   <CheckCircle2 className="h-4 w-4 text-success-500" />
+                ) : isReschedule ? (
+                  <Link
+                    href={RESCHEDULE_INBOX_HREF}
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium whitespace-nowrap text-amber-700 hover:bg-amber-500/20 dark:text-amber-400"
+                    title="Abrir Seguimientos › Por reprogramar"
+                  >
+                    <CalendarClock className="h-3 w-3 shrink-0" />
+                    Por reprogramar · lo gestiona recepción
+                  </Link>
                 ) : canEdit ? (
                   <button
                     onClick={() => resolveFollowup(fu.id)}

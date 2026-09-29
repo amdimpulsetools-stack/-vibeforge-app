@@ -20,6 +20,7 @@ import {
   Building2,
   Check,
   CalendarClock,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -59,9 +60,13 @@ interface SchedulerHeaderProps {
   schedulerConfig: SchedulerConfig;
   /**
    * Pacientes con cita cancelada pendientes de reprogramar (mig 273).
-   * `undefined` = el rol no lo ve; 0 = no se muestra la burbuja.
+   * `patients` = pacientes distintas con tarjeta abierta; `due` = a quienes
+   * toca llamar hoy (no pospuestas a futuro). `undefined` = el rol no lo ve;
+   * patients 0 = no se muestra la burbuja. El punto que late solo si due > 0.
    */
-  reschedulePendingCount?: number;
+  reschedulePending?: { patients: number; due: number };
+  /** Modo reprogramar activo: "Nueva cita" pasa a "Salir de reprogramar". */
+  rescheduling?: boolean;
 }
 
 export function SchedulerHeader({
@@ -80,7 +85,8 @@ export function SchedulerHeader({
   onOfficeFilterChange,
   blocks = [],
   schedulerConfig,
-  reschedulePendingCount,
+  reschedulePending,
+  rescheduling = false,
 }: SchedulerHeaderProps) {
   const { t } = useLanguage();
   const [officeDropdownOpen, setOfficeDropdownOpen] = useState(false);
@@ -551,6 +557,15 @@ export function SchedulerHeader({
           {/* Nueva cita — en <md se oculta: la reemplaza el FAB circular de
               la página (así la segunda fila del header no se desperdicia
               con un botón que ocupaba la línea entera). */}
+          {rescheduling ? (
+            <button
+              onClick={onNewAppointment}
+              className="hidden shrink-0 items-center gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-2.5 text-sm font-medium text-amber-800 hover:bg-amber-500/20 transition-colors dark:text-amber-300 md:flex md:py-2"
+            >
+              <X className="h-4 w-4" />
+              Salir de reprogramar
+            </button>
+          ) : (
           <button
             onClick={onNewAppointment}
             className="hidden shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity md:flex md:py-2"
@@ -558,6 +573,7 @@ export function SchedulerHeader({
             <Plus className="h-4 w-4" />
             {t("scheduler.new_appointment")}
           </button>
+          )}
           </div>
         </div>
       </div>
@@ -586,21 +602,32 @@ export function SchedulerHeader({
             canceló y que nadie ha vuelto a agendar. Lleva a Seguimientos con
             el filtro puesto. En <md ocupa su propia fila para no apretar los
             tres contadores. */}
-        {!!reschedulePendingCount && reschedulePendingCount > 0 && (
+        {!!reschedulePending && reschedulePending.patients > 0 && (
           <Link
             href={RESCHEDULE_INBOX_HREF}
             className="col-span-3 flex items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-400 sm:justify-start"
             title="Citas canceladas que aún no tienen fecha nueva"
           >
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-60 motion-reduce:animate-none" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
-            </span>
+            {/* Late solo si hay a quién llamar HOY: con todo pospuesto a
+                futuro la burbuja queda quieta (recordatorio, no alarma). */}
+            {reschedulePending.due > 0 && (
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-500 opacity-60 motion-reduce:animate-none" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-500" />
+              </span>
+            )}
             <CalendarClock className="h-4 w-4" />
             <span>
-              {reschedulePendingCount === 1
+              {reschedulePending.patients === 1
                 ? "1 paciente por reprogramar"
-                : `${reschedulePendingCount} pacientes por reprogramar`}
+                : `${reschedulePending.patients} pacientes por reprogramar`}
+              {reschedulePending.patients - reschedulePending.due > 0 && (
+                <span className="font-normal opacity-80">
+                  {` (${reschedulePending.patients - reschedulePending.due} ${
+                    reschedulePending.patients - reschedulePending.due === 1 ? "pospuesta" : "pospuestas"
+                  })`}
+                </span>
+              )}
             </span>
             <ChevronRight className="h-4 w-4" />
           </Link>

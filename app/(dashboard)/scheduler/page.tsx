@@ -28,9 +28,15 @@ import { useOrgToday } from "@/hooks/use-org-today";
 import { useSchedulerMasterData } from "@/hooks/use-scheduler-master-data";
 import { SchedulerHeader } from "./scheduler-header";
 import {
-  RESCHEDULE_OPEN_STATUSES,
-  RESCHEDULE_PENDING_RULE_KEY,
+  RESCHEDULE_MODE_PARAM,
+  fetchReschedulePendingSummary,
 } from "@/lib/followups/reschedule";
+import {
+  loadRescheduleContext,
+  type RescheduleContext,
+} from "@/lib/appointments/reschedule-context";
+import { zonedNow } from "@/lib/org-time";
+import { RescheduleBanner } from "./reschedule-banner";
 import { DayView } from "./day-view";
 import { DropConfirmDialog, type PendingDrop } from "./drop-confirm-dialog";
 import { WeekView } from "./week-view";
@@ -99,7 +105,7 @@ export default function SchedulerPage() {
   // aunque su rol base sea `doctor`. Relaja los "solo mis citas".
   const { isAdvisor } = useIsFertilityAdvisor();
   const restrictedDoctor = isDoctor && !isAdvisor;
-  const { today: orgToday } = useOrgToday();
+  const { today: orgToday, timezone: orgTimezone } = useOrgToday();
   // Config de agenda para los MODALES (ventana, campos requeridos): misma
   // query key que day/week-view — pinta al instante desde localStorage y
   // sincroniza con la BD. Antes era un useMemo([]) solo-localStorage: si la
@@ -181,28 +187,74 @@ export default function SchedulerPage() {
       last_name: string;
       phone: string | null;
     };
+    /** Modo reprogramar (mig 273): cita cancelada que se vuelve a agendar. */
+    reschedule?: RescheduleContext;
   } | null>(null);
 
-  // Mig 273 — burbuja "N por reprogramar": seguimientos abiertos de citas
-  // canceladas sin fecha nueva. Es un recordatorio de recepción: el doctor
-  // restringido no la ve (no agenda). Se refresca al volver a la pestaña
-  // y tras cualquier cambio de citas (handleSaved).
+  // Mig 273 — burbuja "N pacientes por reprogramar": pacientes distintas con
+  // tarjeta abierta (una tarjeta por cita cancelada). El punto late solo si
+  // hay a quién llamar hoy (no pospuestas a futuro). Es un recordatorio de
+  // recepción: el doctor restringido no la ve (no agenda). staleTime corto +
+  // refetchOnMount 'always': al volver de la bandeja (contactar, posponer,
+  // cerrar) la cifra no queda desfasada; además handleSaved la invalida.
   const showReschedulePill = !restrictedDoctor;
-  const { data: reschedulePendingCount } = useQuery({
+  const { data: reschedulePending } = useQuery({
     queryKey: ["scheduler", "reschedule-pending", organizationId],
     enabled: !!organizationId && showReschedulePill,
-    staleTime: 60_000,
+    staleTime: 10_000,
+    refetchOnMount: "always",
     refetchOnWindowFocus: true,
-    queryFn: async () => {
-      const { count } = await createClient()
-        .from("clinical_followups")
-        .select("id", { count: "exact", head: true })
-        .eq("organization_id", organizationId!)
-        .eq("rule_key", RESCHEDULE_PENDING_RULE_KEY)
-        .in("status", [...RESCHEDULE_OPEN_STATUSES]);
-      return count ?? 0;
-    },
+    queryFn: () => fetchReschedulePendingSummary(createClient(), organizationId!),
   });
+
+  // ── Modo reprogramar (mig 273) ─────────────────────────────────────
+  // `/scheduler?reprogramar=<id de la cita CANCELADA>`: la agenda queda en un
+  // modo donde tocar un horario libre abre "Nueva cita" con todo precargado
+  // desde la cita cancelada. El parámetro se mantiene en la URL mientras dure
+  // (recargar no lo pierde) y se quita al salir o al guardar. Se lee en un
+  // effect de montaje, mismo criterio que `date` / `new`.
+  const [rescheduleParamId, setRescheduleParamId] = useState<string | null>(null);
+  const [rescheduleCtx, setRescheduleCtx] = useState<RescheduleContext | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get(RESCHEDULE_MODE_PARAM);
+    if (id) setRescheduleParamId(id);
+  }, []);
+
+  const exitRescheduleMode = useCallback(() => {
+    setRescheduleCtx(null);
+    setRescheduleParamId(null);
+    const params = new URLSearchParams(window.location.search);
+    if (params.has(RESCHEDULE_MODE_PARAM)) {
+      params.delete(RESCHEDULE_MODE_PARAM);
+      const qs = params.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}`);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!rescheduleParamId || !organizationId) return;
+    let cancelled = false;
+    void loadRescheduleContext(createClient(), rescheduleParamId, organizationId).then((res) => {
+      if (cancelled) return;
+      if (!res.ok) {
+        toast.error(
+          res.reason === "not_cancelled"
+            ? "Esa cita ya no está cancelada: no hay nada que reprogramar."
+            : res.reason === "not_found"
+              ? "No encontramos la cita a reprogramar (puede ser de otra clínica o haber sido eliminada)."
+              : "No pudimos cargar la cita a reprogramar."
+        );
+        exitRescheduleMode();
+        return;
+      }
+      setRescheduleCtx(res.ctx);
+      // Móvil: la semana es una lista sin horas ni consultorios → vista día.
+      if (window.matchMedia("(max-width: 767px)").matches) setViewMode("day");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [rescheduleParamId, organizationId, exitRescheduleMode]);
 
   // "Agendar" desde Seguimientos: /scheduler?new=1&patient_id=…&doctor_id=…
   // abre "Nueva cita" con la paciente ya cargada. Se lee una vez al montar
@@ -547,10 +599,116 @@ export default function SchedulerPage() {
     }
   }, [offices.length]);
 
-  // Filtered offices for the grid
+  // Modo reprogramar: consultorios donde atiende el doctor de la cita
+  // original el día que se está mirando (doctor_schedules). Vacío = sin
+  // restricción de consultorio (o doctor inactivo).
+  const rescheduleDoctorActive =
+    !!rescheduleCtx?.doctorId && doctors.some((d) => d.id === rescheduleCtx.doctorId);
+  const rescheduleDoctorOfficeIdsFor = useCallback(
+    (day: Date): string[] => {
+      if (!rescheduleCtx?.doctorId || !rescheduleDoctorActive) return [];
+      const dow = day.getDay();
+      return Array.from(
+        new Set(
+          doctorSchedules
+            .filter((ds) => ds.doctor_id === rescheduleCtx.doctorId && ds.day_of_week === dow && ds.office_id)
+            .map((ds) => ds.office_id!)
+        )
+      );
+    },
+    [rescheduleCtx, rescheduleDoctorActive, doctorSchedules]
+  );
+
+  // Filtered offices for the grid. En modo reprogramar se muestran SIEMPRE
+  // el consultorio de la cita original y los del horario del doctor ese día,
+  // sin tocar el filtro guardado (al salir del modo vuelve solo).
+  const rescheduleForcedOfficeIds = useMemo(() => {
+    if (!rescheduleCtx) return [] as string[];
+    const ids = new Set(rescheduleDoctorOfficeIdsFor(currentDate));
+    if (rescheduleCtx.officeId) ids.add(rescheduleCtx.officeId);
+    return Array.from(ids).filter((id) => offices.some((o) => o.id === id));
+  }, [rescheduleCtx, rescheduleDoctorOfficeIdsFor, currentDate, offices]);
   const filteredOffices = useMemo(
-    () => offices.filter((o) => selectedOfficeIds.includes(o.id)),
-    [offices, selectedOfficeIds]
+    () =>
+      offices.filter(
+        (o) => selectedOfficeIds.includes(o.id) || rescheduleForcedOfficeIds.includes(o.id)
+      ),
+    [offices, selectedOfficeIds, rescheduleForcedOfficeIds]
+  );
+  const rescheduleOfficeNotice = useMemo(() => {
+    const extra = rescheduleForcedOfficeIds.filter((id) => !selectedOfficeIds.includes(id));
+    if (extra.length === 0) return null;
+    const names = extra.map((id) => offices.find((o) => o.id === id)?.name).filter(Boolean);
+    return `Mostrando ${names.join(", ")} por la reprogramación`;
+  }, [rescheduleForcedOfficeIds, selectedOfficeIds, offices]);
+
+  // Avisos de precarga parcial: doctor o servicio de la cita original que ya
+  // no se pueden elegir (inactivos, o el servicio ya no está asignado).
+  const rescheduleWarnings = useMemo(() => {
+    const ctx = rescheduleCtx;
+    if (!ctx) return [] as string[];
+    const out: string[] = [];
+    if (ctx.doctorId && !rescheduleDoctorActive) {
+      out.push(`${ctx.doctorName ?? "El doctor"} ya no está activo — elige otro doctor en el formulario.`);
+    }
+    if (ctx.serviceId) {
+      const serviceListed = services.some((sv) => sv.id === ctx.serviceId);
+      if (!serviceListed || !ctx.serviceActive) {
+        out.push(`El servicio ${ctx.serviceName ?? ""} ya no está disponible — elige otro servicio.`);
+      } else if (
+        rescheduleDoctorActive &&
+        !doctorServices.some((ds) => ds.doctor_id === ctx.doctorId && ds.service_id === ctx.serviceId)
+      ) {
+        out.push(
+          `El servicio ${ctx.serviceName ?? ""} ya no está disponible para ${ctx.doctorName ?? "ese doctor"} — elige otro servicio o doctor.`
+        );
+      }
+    }
+    return out;
+  }, [rescheduleCtx, rescheduleDoctorActive, services, doctorServices]);
+
+  // ¿Ese hueco ya pasó? Reloj de pared de la ORG (no del navegador ni UTC).
+  // La day-view lo pregunta por cada hueco vacío en cada render: el "ahora"
+  // se cachea unos segundos para no construir cientos de Intl.DateTimeFormat.
+  const orgNowKeyCacheRef = useRef<{ at: number; tz: string; key: string } | null>(null);
+  const isPastSlot = useCallback(
+    (dateStr: string, time: string) => {
+      const nowMs = Date.now();
+      let cache = orgNowKeyCacheRef.current;
+      if (!cache || cache.tz !== orgTimezone || nowMs - cache.at > 15_000) {
+        cache = { at: nowMs, tz: orgTimezone, key: format(zonedNow(orgTimezone), "yyyy-MM-dd HH:mm") };
+        orgNowKeyCacheRef.current = cache;
+      }
+      return `${dateStr} ${time.slice(0, 5)}` < cache.key;
+    },
+    [orgTimezone]
+  );
+
+  // Motivo por el que un hueco no sirve para reprogramar (null = sirve).
+  const rescheduleSlotReason = useCallback(
+    (date: Date, time: string, officeId: string | null): string | null => {
+      if (!rescheduleCtx) return null;
+      if (isPastSlot(format(date, "yyyy-MM-dd"), time)) return "Elige un horario futuro";
+      if (officeId) {
+        const docOffices = rescheduleDoctorOfficeIdsFor(date);
+        if (docOffices.length > 0 && !docOffices.includes(officeId)) {
+          const names = docOffices
+            .map((id) => offices.find((o) => o.id === id)?.name)
+            .filter(Boolean)
+            .join(" / ");
+          return `${rescheduleCtx.doctorName ?? "El doctor"} atiende en ${names || "otro consultorio"} este día`;
+        }
+      }
+      return null;
+    },
+    [rescheduleCtx, isPastSlot, rescheduleDoctorOfficeIdsFor, offices]
+  );
+  const daySlotDisabledReason = useMemo(
+    () =>
+      rescheduleCtx
+        ? (time: string, officeId: string) => rescheduleSlotReason(currentDate, time, officeId)
+        : undefined,
+    [rescheduleCtx, rescheduleSlotReason, currentDate]
   );
 
   // Handlers — wrapped in useCallback to prevent child re-renders
@@ -561,6 +719,22 @@ export default function SchedulerPage() {
   }, [currentDate]);
 
   const handleSlotClick = useCallback((date: Date, time: string, officeId: string) => {
+    if (rescheduleCtx) {
+      const reason = rescheduleSlotReason(date, time, officeId);
+      if (reason) {
+        toast.error(reason);
+        return;
+      }
+      setFormDefaults({
+        date: format(date, "yyyy-MM-dd"),
+        startTime: time,
+        officeId,
+        reschedule: rescheduleCtx,
+      });
+      setShowForm(true);
+      setSelectedAppointment(null);
+      return;
+    }
     setFormDefaults({
       date: format(date, "yyyy-MM-dd"),
       startTime: time,
@@ -568,7 +742,29 @@ export default function SchedulerPage() {
     });
     setShowForm(true);
     setSelectedAppointment(null);
-  }, []);
+  }, [rescheduleCtx, rescheduleSlotReason]);
+
+  // La semana no tiene columnas por consultorio: manda offices[0]. En modo
+  // reprogramar se usa el consultorio de la cita original (o, si ese día el
+  // doctor atiende en otro, el suyo). Fuera del modo, igual que siempre.
+  const handleWeekSlotClick = useCallback((date: Date, time: string, officeId: string) => {
+    if (!rescheduleCtx) {
+      handleSlotClick(date, time, officeId);
+      return;
+    }
+    const docOffices = rescheduleDoctorOfficeIdsFor(date);
+    const original =
+      rescheduleCtx.officeId && offices.some((o) => o.id === rescheduleCtx.officeId)
+        ? rescheduleCtx.officeId
+        : null;
+    const office =
+      docOffices.length > 0
+        ? original && docOffices.includes(original)
+          ? original
+          : docOffices[0]
+        : original ?? officeId;
+    handleSlotClick(date, time, office);
+  }, [rescheduleCtx, rescheduleDoctorOfficeIdsFor, offices, handleSlotClick]);
 
   const handleAppointmentClick = useCallback((appointment: AppointmentWithRelations) => {
     // Doctors cannot view sidebar details of other doctors' appointments
@@ -602,6 +798,21 @@ export default function SchedulerPage() {
     setFormDefaults(null);
     setSelectedAppointment(null);
     setShowReschedule(false);
+  }, [fetchAppointments, queryClient]);
+
+  // Guardar desde el formulario: además, si la cita nueva era la
+  // reprogramación, se sale del modo (quita ?reprogramar= de la URL).
+  const handleFormSaved = useCallback(() => {
+    handleSaved();
+    if (rescheduleCtx) exitRescheduleMode();
+  }, [handleSaved, rescheduleCtx, exitRescheduleMode]);
+
+  // Fin de una cancelación en el sidebar (el conteo de "Deshacer" termina con
+  // un timer que puede disparar cuando recepción ya abrió OTRA cita o el
+  // formulario): solo refresca la agenda y la burbuja, sin cerrar nada.
+  const handleAppointmentCancelled = useCallback(() => {
+    fetchAppointments();
+    queryClient.invalidateQueries({ queryKey: ["scheduler", "reschedule-pending"] });
   }, [fetchAppointments, queryClient]);
 
   // Drag & drop: update appointment date/time/office
@@ -821,6 +1032,29 @@ export default function SchedulerPage() {
     return () => ro.disconnect();
   }, []);
 
+  // Modo reprogramar: Esc sale, pero solo si no hay ningún panel / modal /
+  // popover encima (esos se cierran primero con su propio Esc).
+  const overlayOpenRef = useRef(schedulerOverlayOpen);
+  overlayOpenRef.current = schedulerOverlayOpen;
+  useEffect(() => {
+    if (!rescheduleCtx) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (overlayOpenRef.current) return;
+      if (document.querySelector('[role="dialog"], [data-radix-popper-content-wrapper]')) return;
+      exitRescheduleMode();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [rescheduleCtx, exitRescheduleMode]);
+
+  // Modo reprogramar en móvil: la semana es una lista sin franjas ni
+  // consultorios, así que se fuerza la vista día mientras dure el modo.
+  useEffect(() => {
+    if (!rescheduleCtx || viewMode !== "week") return;
+    if (window.matchMedia("(max-width: 767px)").matches) setViewMode("day");
+  }, [rescheduleCtx, viewMode]);
+
   if (showFirstTimeEmpty) {
     return <EmptyStateScheduler />;
   }
@@ -837,7 +1071,8 @@ export default function SchedulerPage() {
           viewMode={viewMode}
           onDateChange={setCurrentDate}
           onViewModeChange={setViewMode}
-          onNewAppointment={handleNewAppointment}
+          onNewAppointment={rescheduleCtx ? exitRescheduleMode : handleNewAppointment}
+          rescheduling={!!rescheduleCtx}
           onNewBlock={() => setShowBlockDialog(true)}
           onBreakTime={() => setShowBreakTimeDialog(true)}
           onShareAvailableSlots={
@@ -850,8 +1085,17 @@ export default function SchedulerPage() {
           onOfficeFilterChange={handleOfficeFilterChange}
           blocks={allBlocks}
           schedulerConfig={schedulerConfig}
-          reschedulePendingCount={showReschedulePill ? reschedulePendingCount : undefined}
+          reschedulePending={showReschedulePill ? reschedulePending : undefined}
         />
+
+        {rescheduleCtx && (
+          <RescheduleBanner
+            ctx={rescheduleCtx}
+            warnings={rescheduleWarnings}
+            officeNotice={rescheduleOfficeNotice}
+            onExit={exitRescheduleMode}
+          />
+        )}
 
         <div ref={gridScrollRef} className="flex-1 overflow-auto">
           {/* NowProvider: single per-minute ticker shared by the views.
@@ -883,6 +1127,7 @@ export default function SchedulerPage() {
                 }
                 canReopen={isOwner || isAdmin || isDoctor}
                 onLiveChanged={fetchAppointments}
+                slotDisabledReason={daySlotDisabledReason}
               />
             ) : (
               <WeekView
@@ -894,7 +1139,7 @@ export default function SchedulerPage() {
                 prescriptionCounts={prescriptionCounts}
                 selectedAppointmentId={selectedAppointment?.id}
                 currentDoctorId={restrictedDoctor ? currentDoctorId : null}
-                onSlotClick={handleSlotClick}
+                onSlotClick={handleWeekSlotClick}
                 onAppointmentClick={handleAppointmentClick}
                 containerHeight={gridContainerHeight}
               />
@@ -921,7 +1166,7 @@ export default function SchedulerPage() {
           z-40 igual que el del IA: los paneles/modales (z-50) lo tapan.
           Además se desmonta mientras hay un panel o modal del scheduler
           abierto, para no estorbar sobre sus acciones. */}
-      {!schedulerOverlayOpen && (
+      {!schedulerOverlayOpen && !rescheduleCtx && (
         <button
           type="button"
           onClick={handleNewAppointment}
@@ -935,9 +1180,13 @@ export default function SchedulerPage() {
       {/* Appointment detail sidebar — full page height */}
       {selectedAppointment && (
         <AppointmentSidebar
+          // key: al pasar de una cita a otra el sidebar se remonta (su estado
+          // interno —casillas, conteo de cancelación— no se arrastra).
+          key={selectedAppointment.id}
           appointment={selectedAppointment}
           onClose={handleCloseSidebar}
           onUpdate={handleSaved}
+          onCancelled={handleAppointmentCancelled}
           onReschedule={() => setShowReschedule(true)}
           doctors={doctors}
           services={services}
@@ -972,7 +1221,7 @@ export default function SchedulerPage() {
           currentDoctorId={(isDoctor || (isOwner && currentDoctorId)) ? currentDoctorId : null}
           restrictToDoctor={restrictedDoctor && !isOwner}
           onClose={handleFormClose}
-          onSaved={handleSaved}
+          onSaved={handleFormSaved}
           onShowWhatsAppFollowup={(variables, phone) =>
             setWaModal({ open: true, variables, phone: phone ?? null })
           }

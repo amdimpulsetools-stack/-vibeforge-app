@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NumberPopIn } from "@/components/ui/number-pop-in";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -33,7 +33,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
 import { useFollowupCapabilities } from "@/hooks/use-followup-capabilities";
 import type { Doctor } from "@/types/admin";
-import { FollowupCard } from "./followup-card";
+import {
+  FollowupCard,
+  type FollowupCloseOpts,
+  type FollowupContactOpts,
+  type FollowupSnoozeOpts,
+} from "./followup-card";
 import type {
   FollowupCounts,
   FollowupFilters,
@@ -87,6 +92,12 @@ export default function FollowUpsPage() {
   // la primera membresía, que para un usuario multi-org puede ser otra
   // clínica (bandeja vacía o con seguimientos que no son los suyos).
   const { organizationId, loading: orgLoading } = useOrganization();
+  // Burbuja "N por reprogramar" de la agenda (su dueña es scheduler/page.tsx):
+  // aquí solo se invalida su key tras cada acción de la bandeja.
+  const queryClient = useQueryClient();
+  const invalidateRescheduleBubble = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["scheduler", "reschedule-pending"] });
+  }, [queryClient]);
   const {
     hasJourney,
     hasRevenueKpis,
@@ -394,6 +405,19 @@ export default function FollowUpsPage() {
   // last_contacted_at ASC NULLS FIRST, expected_by ASC NULLS LAST,
   // created_at ASC, id ASC. Los ISO strings comparan bien lexicográficamente.
   const pendingOrder = (a: FollowupWithDetails, b: FollowupWithDetails) => {
+    // Bandeja filtrada a "Por reprogramar": las pospuestas a futuro van al
+    // final (mismo criterio que el endpoint en ese filtro).
+    if (filters.rule_key === RESCHEDULE_PENDING_RULE_KEY) {
+      const nowMs = Date.now();
+      const ahead = (f: FollowupWithDetails) =>
+        f.status === "pospuesto" &&
+        !!f.snooze_until &&
+        Date.parse(f.snooze_until) > nowMs
+          ? 1
+          : 0;
+      const d = ahead(a) - ahead(b);
+      if (d !== 0) return d;
+    }
     const ac = a.last_contacted_at ?? null;
     const bc = b.last_contacted_at ?? null;
     if (ac !== bc) {
@@ -507,7 +531,8 @@ export default function FollowUpsPage() {
     path: string,
     method: "PATCH" | "POST",
     body: Record<string, unknown> | null,
-    successMsg: string
+    /** null = el caller muestra su propio toast (p. ej. con "Deshacer"). */
+    successMsg: string | null
   ): Promise<{ ok: boolean; payload: unknown }> => {
     try {
       const res = await fetch(path, {
@@ -523,7 +548,8 @@ export default function FollowUpsPage() {
             : null) ?? `HTTP ${res.status}`;
         throw new Error(errMsg);
       }
-      toast.success(successMsg);
+      if (successMsg) toast.success(successMsg);
+      invalidateRescheduleBubble();
       const updated =
         payload && typeof payload === "object" && "data" in payload
           ? ((payload as { data: FollowupWithDetails | null }).data ?? null)
@@ -542,29 +568,29 @@ export default function FollowUpsPage() {
     id: string,
     path: string,
     body: Record<string, unknown> | null,
-    successMsg: string
+    successMsg: string | null
   ): Promise<boolean> => {
     const r = await requestAction(id, path, "PATCH", body, successMsg);
     return r.ok;
   };
 
-  const onContact = async (id: string) => {
+  const onContact = async (id: string, opts?: FollowupContactOpts) => {
     const ok = await patchAction(
       id,
       `/api/clinical-followups/${id}/contact`,
-      { type: "manual_contacted" },
-      "Contactada — la movimos al final de tu cola"
+      { type: opts?.type ?? "manual_contacted" },
+      opts?.successMsg ?? "Contactada — la movimos al final de tu cola"
     );
     if (ok) markMoved(id);
     return ok;
   };
 
-  const onSnooze = async (id: string, days: number) => {
+  const onSnooze = async (id: string, days: number, opts?: FollowupSnoozeOpts) => {
     const ok = await patchAction(
       id,
       `/api/clinical-followups/${id}/snooze`,
       { days },
-      `Pospuesto ${days} días — vence en la nueva fecha`
+      opts?.successMsg ?? `Pospuesto ${days} días — vence en la nueva fecha`
     );
     if (ok) markMoved(id);
     return ok;
@@ -578,13 +604,65 @@ export default function FollowUpsPage() {
       "Movido a sin respuesta"
     );
 
-  const onCloseManual = (id: string, reason: string) =>
-    patchAction(
+  // Refs a la versión más reciente de `refresh`: el "Deshacer" del toast
+  // corre segundos después, con el closure de otro render.
+  const refreshRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    refreshRef.current = refresh;
+  });
+
+  // "Por reprogramar" → "Deshacer" del cierre "No reprograma": reactiva la
+  // tarjeta (el endpoint renueva su fecha) y recarga la bandeja. No se usa
+  // applyActionLocally: la card ya salió de la lista y hay que traerla de
+  // vuelta en su posición.
+  const undoClose = async (id: string) => {
+    try {
+      const res = await fetch(`/api/clinical-followups/${id}/reactivate`, {
+        method: "PATCH",
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        throw new Error(
+          (payload && typeof payload === "object" && "error" in payload
+            ? String((payload as { error: unknown }).error)
+            : null) ?? `HTTP ${res.status}`
+        );
+      }
+      toast.success("Listo, volvió a Por reprogramar");
+      invalidateRescheduleBubble();
+      refreshRef.current();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo deshacer");
+    }
+  };
+
+  const onCloseManual = async (
+    id: string,
+    reason: string,
+    opts?: FollowupCloseOpts
+  ) => {
+    if (!opts?.reasonCode) {
+      return patchAction(
+        id,
+        `/api/clinical-followups/${id}/close-manual`,
+        { reason },
+        "Caso cerrado — archivado con su motivo"
+      );
+    }
+    const ok = await patchAction(
       id,
       `/api/clinical-followups/${id}/close-manual`,
-      { reason },
-      "Caso cerrado — archivado con su motivo"
+      { reason: reason || undefined, reason_code: opts.reasonCode },
+      null
     );
+    if (ok) {
+      toast.success("Cerrado: no reprograma", {
+        duration: 6000,
+        action: { label: "Deshacer", onClick: () => void undoClose(id) },
+      });
+    }
+    return ok;
+  };
 
   const onReactivate = (id: string) =>
     patchAction(
@@ -806,6 +884,7 @@ export default function FollowUpsPage() {
             <PendingTabContent
               state={pending}
               hasJourney={hasJourney}
+              rescheduleOnly={filters.rule_key === RESCHEDULE_PENDING_RULE_KEY}
               onContact={onContact}
               onSnooze={onSnooze}
               onMarkNoResponse={onMarkNoResponse}
@@ -873,6 +952,7 @@ function emptyTab(): TabState {
 function PendingTabContent({
   state,
   hasJourney,
+  rescheduleOnly,
   onContact,
   onSnooze,
   onMarkNoResponse,
@@ -884,10 +964,16 @@ function PendingTabContent({
 }: {
   state: TabState;
   hasJourney: boolean;
-  onContact: (id: string) => Promise<unknown>;
-  onSnooze: (id: string, days: number) => Promise<unknown>;
+  /** Bandeja filtrada a "Por reprogramar": vacío con texto propio. */
+  rescheduleOnly: boolean;
+  onContact: (id: string, opts?: FollowupContactOpts) => Promise<unknown>;
+  onSnooze: (id: string, days: number, opts?: FollowupSnoozeOpts) => Promise<unknown>;
   onMarkNoResponse: (id: string) => Promise<unknown>;
-  onCloseManual: (id: string, reason: string) => Promise<unknown>;
+  onCloseManual: (
+    id: string,
+    reason: string,
+    opts?: FollowupCloseOpts
+  ) => Promise<unknown>;
   onAdvance: (id: string, action: AdvanceAction) => Promise<unknown>;
   onBudgetAssigned: () => void;
   onLoadMore: () => void;
@@ -895,6 +981,14 @@ function PendingTabContent({
 }) {
   if (!state.loaded) return null;
   if (state.items.length === 0) {
+    if (rescheduleOnly) {
+      return (
+        <EmptyState
+          title="No hay pacientes por reprogramar"
+          description="Aparecen aquí cuando cancelas una cita eligiendo 'Reprogramará'."
+        />
+      );
+    }
     return hasJourney ? (
       <EmptyState
         title="Sin seguimientos pendientes ahora mismo"
@@ -922,10 +1016,10 @@ function PendingTabContent({
           key={f.id}
           followup={f}
           variant="pending"
-          onContact={() => onContact(f.id)}
-          onSnooze={(days) => onSnooze(f.id, days)}
+          onContact={(opts) => onContact(f.id, opts)}
+          onSnooze={(days, opts) => onSnooze(f.id, days, opts)}
           onMarkNoResponse={() => onMarkNoResponse(f.id)}
-          onCloseManual={(reason) => onCloseManual(f.id, reason)}
+          onCloseManual={(reason, opts) => onCloseManual(f.id, reason, opts)}
           onAdvance={(action) => onAdvance(f.id, action)}
           onBudgetAssigned={onBudgetAssigned}
           justMoved={f.id === justMovedId}

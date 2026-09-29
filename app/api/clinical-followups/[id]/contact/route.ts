@@ -4,6 +4,8 @@ import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import type { ContactEvent } from "@/types/fertility";
 import { assertActiveMembership } from "@/lib/followups/org-scope";
+import { RESCHEDULE_PENDING_RULE_KEY } from "@/lib/followups/reschedule";
+import { isOrgToday, loadOrgTimezone } from "../../_lib/org-dates";
 
 const schema = z.object({
   type: z.enum(["manual_contacted", "manual_whatsapp"]),
@@ -17,6 +19,10 @@ const schema = z.object({
  *  - append a contact_events
  *  - set first_contact_at = NOW() si era NULL (clave para atribución)
  *  - status pendiente → contactado, attempt_count + 1
+ *
+ * "Por reprogramar" (mig 273): varios toques el mismo día (llamar + abrir
+ * WhatsApp) cuentan como UN intento — no se suma attempt_count si el último
+ * contacto ya es de hoy en la zona de la org.
  */
 export async function PATCH(
   request: NextRequest,
@@ -47,7 +53,7 @@ export async function PATCH(
   const { data: current, error: curErr } = await supabase
     .from("clinical_followups")
     .select(
-      "id, organization_id, status, first_contact_at, attempt_count, contact_events"
+      "id, organization_id, status, first_contact_at, attempt_count, contact_events, rule_key, last_contacted_at"
     )
     .eq("id", id)
     .single();
@@ -75,9 +81,18 @@ export async function PATCH(
     channel: parsed.data.type === "manual_whatsapp" ? "whatsapp" : undefined,
   };
 
+  let sameDayRepeat = false;
+  if (
+    (current as { rule_key?: string | null }).rule_key === RESCHEDULE_PENDING_RULE_KEY &&
+    current.last_contacted_at
+  ) {
+    const tz = await loadOrgTimezone(supabase, organizationId);
+    sameDayRepeat = isOrgToday(current.last_contacted_at as string, tz);
+  }
+
   const updateData: Record<string, unknown> = {
     contact_events: [...events, newEvent],
-    attempt_count: (current.attempt_count ?? 0) + 1,
+    attempt_count: (current.attempt_count ?? 0) + (sameDayRepeat ? 0 : 1),
     last_contacted_at: new Date().toISOString(),
     contacted_by: user.id,
   };

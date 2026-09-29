@@ -41,6 +41,11 @@ import {
 import { NumberPopIn } from "@/components/ui/number-pop-in";
 import type { AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
 import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
+import { createClient } from "@/lib/supabase/client";
+import {
+  RESCHEDULE_INBOX_HREF,
+  fetchReschedulePendingSummary,
+} from "@/lib/followups/reschedule";
 
 // recharts solo entra cuando el chunk del chart baja — patrón exacto del
 // dashboard admin (placeholder con el alto reservado, cero layout shift).
@@ -215,6 +220,23 @@ export function ReceptionistDashboard({
     };
   }, [orgLoading, organizationId]);
 
+  // ── W4b: "N pacientes por reprogramar" (mig 273) ──
+  // Misma fuente que la burbuja de la agenda. Nunca lanza: sin la mig 273
+  // aplicada devuelve 0 y la línea no se pinta.
+  const [reschedulePatients, setReschedulePatients] = useState(0);
+  useEffect(() => {
+    if (orgLoading || !organizationId) return;
+    let cancelled = false;
+    fetchReschedulePendingSummary(createClient(), organizationId)
+      .then((r) => {
+        if (!cancelled) setReschedulePatients(r.patients);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [orgLoading, organizationId]);
+
   // ── W2: modal de WhatsApp por fila ──
   const [waModal, setWaModal] = useState<{
     open: boolean;
@@ -369,10 +391,13 @@ export function ReceptionistDashboard({
           </p>
         </Link>
 
-        {/* W4: Seguimientos por contactar → /scheduler/follow-ups */}
+        {/* W4: Seguimientos por contactar → /scheduler/follow-ups.
+            Envuelto para colgar debajo la línea "por reprogramar" sin
+            anidar enlaces. */}
+        <div className="flex flex-col gap-2 md:col-span-2 lg:col-span-1">
         <Link
           href="/scheduler/follow-ups"
-          className="block rounded-2xl border border-border/60 bg-card p-5 transition-all hover:border-border hover:bg-accent/30 md:col-span-2 lg:col-span-1"
+          className="block flex-1 rounded-2xl border border-border/60 bg-card p-5 transition-all hover:border-border hover:bg-accent/30"
         >
           <div className="mb-3 flex items-center justify-between">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-rose-500/10">
@@ -437,6 +462,25 @@ export function ReceptionistDashboard({
             </>
           )}
         </Link>
+        {reschedulePatients > 0 && (
+          <Link
+            href={RESCHEDULE_INBOX_HREF}
+            className="flex items-center justify-between gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-500/20 dark:text-amber-400"
+          >
+            <span>
+              {reschedulePatients}{" "}
+              {isEs
+                ? reschedulePatients === 1
+                  ? "paciente por reprogramar"
+                  : "pacientes por reprogramar"
+                : reschedulePatients === 1
+                  ? "patient to reschedule"
+                  : "patients to reschedule"}
+            </span>
+            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+          </Link>
+        )}
+        </div>
       </div>
 
       {/* ── ROW 2: [W1b Agenda de hoy span-2] [W2 Por confirmar mañana] ── */}

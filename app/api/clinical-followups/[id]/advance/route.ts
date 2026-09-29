@@ -4,6 +4,8 @@ import { generalLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import type { ContactEvent } from "@/types/fertility";
 import { assertActiveMembership } from "@/lib/followups/org-scope";
+import { RESCHEDULE_PENDING_RULE_KEY } from "@/lib/followups/reschedule";
+import { loadOrgTimezone, orgNoonIso } from "../../_lib/org-dates";
 
 export const runtime = "nodejs";
 
@@ -92,7 +94,7 @@ export async function POST(
   const { data: current, error: curErr } = await supabase
     .from("clinical_followups")
     .select(
-      "id, organization_id, status, first_contact_at, attempt_count, max_attempts, contact_events, closed_at"
+      "id, organization_id, status, first_contact_at, attempt_count, max_attempts, contact_events, closed_at, rule_key"
     )
     .eq("id", id)
     .single();
@@ -114,6 +116,19 @@ export async function POST(
   if (current.closed_at) {
     return NextResponse.json(
       { error: "El seguimiento ya está cerrado" },
+      { status: 409 }
+    );
+  }
+
+  // "Por reprogramar" (mig 273): la tarjeta se cierra sola cuando se crea
+  // la cita nueva (trigger en appointments). Marcar "Agendó" a mano la
+  // cerraría como recuperación atribuible sin cita real e inflaría los KPIs.
+  const isReschedule =
+    (current as { rule_key?: string | null }).rule_key ===
+    RESCHEDULE_PENDING_RULE_KEY;
+  if (isReschedule && parsed.data.kind === "agendado") {
+    return NextResponse.json(
+      { error: "Este pendiente se cierra solo cuando creas la cita nueva" },
       { status: 409 }
     );
   }
@@ -162,7 +177,9 @@ export async function POST(
     case "pospuesto": {
       const nextAttempt = (current.attempt_count ?? 0) + 1;
       const max = current.max_attempts ?? 3;
-      if (nextAttempt > max) {
+      // "Por reprogramar" no tiene tope de intentos ni auto-cierre: la
+      // paciente sigue pendiente hasta que agende o recepción la cierre.
+      if (nextAttempt > max && !isReschedule) {
         // Overflow: forzamos desistido_silencioso para no quedar en
         // limbo. La UI muestra "Cerrado automáticamente — alcanzó
         // intento máximo".
@@ -190,9 +207,20 @@ export async function POST(
         // por `last_contacted_at`.
         update.last_contacted_at = now;
         update.contacted_by = user.id;
-        update.follow_up_date = action.next_date;
-        update.expected_by = action.next_date;
-        update.snooze_until = action.next_date;
+        // "Por reprogramar" vive con follow_up_date NULL (así el inicio del
+        // doctor no la cuenta como control clínico vencido): nunca se escribe.
+        if (isReschedule) {
+          // Mediodía civil de la org: "YYYY-MM-DD" a secas es medianoche UTC
+          // = el día anterior en Lima.
+          const tz = await loadOrgTimezone(supabase, organizationId);
+          const at = orgNoonIso(action.next_date, tz);
+          update.expected_by = at;
+          update.snooze_until = at;
+        } else {
+          update.follow_up_date = action.next_date;
+          update.expected_by = action.next_date;
+          update.snooze_until = action.next_date;
+        }
         const event: ContactEvent = {
           type: "manual_contacted",
           at: now,

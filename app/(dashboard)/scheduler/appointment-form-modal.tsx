@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import { useOrgToday } from "@/hooks/use-org-today";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { createClient } from "@/lib/supabase/client";
@@ -48,6 +50,7 @@ import {
   Video,
   Clock,
   Building2,
+  CalendarClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DatePicker } from "@/components/ui/date-picker";
@@ -59,6 +62,13 @@ import { loadWaClipboardConfig, type AppointmentVariables } from "@/lib/whatsapp
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import { WhatsAppClipboardModal } from "./whatsapp-clipboard-modal";
 import { calculateCoverageQuotes } from "@/lib/insurance/calculate-coverage";
+import {
+  fetchPendingReschedulesForPatient,
+  formatRescheduleWhen,
+  formatSoles,
+  type RescheduleContext,
+} from "@/lib/appointments/reschedule-context";
+import { transferDeposits } from "@/lib/appointments/deposits";
 import type {
   AppointmentPaymentMode,
   InsuranceCoverageQuote,
@@ -78,6 +88,106 @@ interface DoctorServiceEntry {
 const MIN_APPOINTMENT_MINUTES = 5;
 const MAX_APPOINTMENT_MINUTES = 480;
 
+/**
+ * Precarga del "modo reprogramar" (y del botón "Usar datos de esa cita"):
+ * qué se copia de la cita cancelada al formulario. Solo se precarga lo que
+ * hoy existe y se puede elegir (doctor activo, servicio activo y asignado a
+ * ese doctor, origen / medio de pago del catálogo); lo demás queda vacío y el
+ * banner de la agenda avisa. El descuento se copia como MONTO fijo con su
+ * motivo, sin discount_code_id (no se vuelve a gastar un uso del código).
+ */
+interface ReschedulePrefill {
+  doctorId: string;
+  serviceId: string;
+  /** "" = que decida el efecto de modalidad del servicio. */
+  modality: "" | "in_person" | "virtual";
+  meetingUrl: string;
+  origin: string;
+  originUnknown: boolean;
+  paymentMethod: string;
+  notes: string;
+  /** Precio acordado distinto del catálogo → "Precio personalizado". */
+  customPrice: string | null;
+  discountAmount: number;
+  discountReason: string;
+  durationMinutes: number | null;
+}
+
+function buildReschedulePrefill(
+  ctx: RescheduleContext,
+  opts: {
+    doctors: Doctor[];
+    services: Service[];
+    doctorServices: DoctorServiceEntry[];
+    lookupOrigins: LookupValue[];
+    lookupPayments: LookupValue[];
+    currentDoctorId?: string | null;
+    restrictToDoctor: boolean;
+    allowCustomDuration: boolean;
+  },
+): ReschedulePrefill {
+  // El doctor restringido solo se agenda a sí mismo (mismo criterio que la
+  // lista de doctores del form).
+  const restricted = !!opts.currentDoctorId && opts.restrictToDoctor;
+  const doctorOk =
+    !!ctx.doctorId &&
+    opts.doctors.some((d) => d.id === ctx.doctorId) &&
+    (!restricted || ctx.doctorId === opts.currentDoctorId);
+  const doctorId = doctorOk ? ctx.doctorId! : restricted ? opts.currentDoctorId! : "";
+  const service = ctx.serviceId ? opts.services.find((s) => s.id === ctx.serviceId) : undefined;
+  const serviceOk =
+    !!service &&
+    !!doctorId &&
+    opts.doctorServices.some((ds) => ds.doctor_id === doctorId && ds.service_id === service.id);
+  const serviceModality = (service as { modality?: string } | undefined)?.modality;
+  // Citas anteriores a la mig 256 no guardan modalidad: se deduce del link.
+  const origModality = ctx.modality ?? (ctx.meetingUrl ? "virtual" : null);
+  const modality: ReschedulePrefill["modality"] =
+    serviceOk && serviceAsksModality(serviceModality) &&
+    (origModality === "in_person" || origModality === "virtual")
+      ? origModality
+      : "";
+  const basePrice = service ? Number(service.base_price) : null;
+  const priceDiffers =
+    ctx.priceSnapshot != null &&
+    (basePrice == null || Math.abs(ctx.priceSnapshot - basePrice) >= 0.005);
+  const customPrice =
+    serviceOk && priceDiffers && !ctx.treatmentSessionId ? ctx.priceSnapshot!.toFixed(2) : null;
+  const durationMinutes =
+    opts.allowCustomDuration &&
+    serviceOk &&
+    ctx.durationMinutes >= MIN_APPOINTMENT_MINUTES &&
+    ctx.durationMinutes <= MAX_APPOINTMENT_MINUTES &&
+    ctx.durationMinutes !== (service?.duration_minutes ?? 30)
+      ? ctx.durationMinutes
+      : null;
+  const origin = ctx.origin ?? "";
+  const paymentMethod =
+    ctx.paymentMethod && opts.lookupPayments.some((p) => p.label === ctx.paymentMethod)
+      ? ctx.paymentMethod
+      : "";
+  const prefix = `Reprogramada de la cita del ${formatRescheduleWhen(ctx.appointmentDate, ctx.startTime)}`;
+  return {
+    doctorId,
+    serviceId: serviceOk ? service!.id : "",
+    modality,
+    meetingUrl:
+      (modality === "virtual" ||
+        (serviceOk && modalityImposedByService(serviceModality) === "virtual")) &&
+      doctorId === ctx.doctorId
+        ? ctx.meetingUrl ?? ""
+        : "",
+    origin,
+    originUnknown: !!origin && !opts.lookupOrigins.some((o) => o.label === origin),
+    paymentMethod,
+    notes: ctx.notes ? `${prefix}\n${ctx.notes}` : prefix,
+    customPrice,
+    discountAmount: ctx.discountAmount > 0 ? ctx.discountAmount : 0,
+    discountReason: ctx.discountReason ?? "",
+    durationMinutes,
+  };
+}
+
 interface AppointmentFormModalProps {
   defaults: {
     date?: string;
@@ -85,6 +195,12 @@ interface AppointmentFormModalProps {
     officeId?: string;
     /** "Agendar" desde un seguimiento (p. ej. "Por reprogramar", mig 273). */
     doctorId?: string;
+    /**
+     * Modo reprogramar (mig 273): cita cancelada que se vuelve a agendar.
+     * Fecha, hora y consultorio salen del clic en la grilla (solo lectura);
+     * el resto se precarga desde la cita original.
+     */
+    reschedule?: RescheduleContext;
     patient?: {
       dni: string | null;
       first_name: string;
@@ -191,6 +307,49 @@ export function AppointmentFormModal({
   const availableDoctors = currentDoctorId && restrictToDoctor
     ? doctors.filter((d) => d.id === currentDoctorId)
     : doctors;
+
+  // ── Modo reprogramar (mig 273) ────────────────────────────────────────
+  // La precarga se calcula UNA vez al montar (el form se monta por apertura)
+  // y va a defaultValues / useState inicial: así ningún efecto de "al cambiar
+  // X" la pisa en el primer render. Si recepción cambia algo después, rigen
+  // los efectos de siempre.
+  const rs = defaults?.reschedule ?? null;
+  const [rsPrefill] = useState<ReschedulePrefill | null>(() =>
+    rs
+      ? buildReschedulePrefill(rs, {
+          doctors,
+          services,
+          doctorServices,
+          lookupOrigins,
+          lookupPayments,
+          currentDoctorId,
+          restrictToDoctor,
+          allowCustomDuration,
+        })
+      : null
+  );
+  const rsPatient = rs?.patient ?? null;
+  // Fecha / hora / consultorio en solo lectura (salen del clic en la grilla).
+  const slotLocked = !!rs && !!defaults?.date && !!defaults?.startTime;
+  // Cita cancelada a la que apunta la nueva (`rescheduled_from_id`): la del
+  // modo, o la elegida en la franja "Pendiente de reprogramar".
+  const [rescheduledFromId, setRescheduledFromId] = useState<string | null>(rs?.appointmentId ?? null);
+  // Guardas de precarga, "llaveadas" por valor (no por "primer render"): son
+  // idempotentes bajo StrictMode y dejan de aplicar en cuanto recepción cambia
+  // el servicio / doctor.
+  const modalityGuardRef = useRef<{ serviceId: string; modality: "in_person" | "virtual" } | null>(
+    rsPrefill && rsPrefill.serviceId && rsPrefill.modality
+      ? { serviceId: rsPrefill.serviceId, modality: rsPrefill.modality }
+      : null
+  );
+  const meetingUrlGuardRef = useRef<{ doctorId: string; url: string } | null>(
+    rsPrefill && rsPrefill.meetingUrl
+      ? { doctorId: rsPrefill.doctorId, url: rsPrefill.meetingUrl }
+      : null
+  );
+  const customPriceGuardRef = useRef<string | null>(null);
+  const customDurationGuardRef = useRef<string | null>(null);
+  const serviceAfterDoctorRef = useRef<string | null>(null);
   // ── Alto real del viewport en móvil ────────────────────────────────
   // iOS Safari no encoge `100dvh` cuando aparece el teclado: el dialog
   // sigue midiendo la pantalla completa y el footer con "Guardar" queda
@@ -201,15 +360,21 @@ export function AppointmentFormModal({
 
   const [saving, setSaving] = useState(false);
   const [searchingPatient, setSearchingPatient] = useState(false);
-  const [foundPatient, setFoundPatient] = useState<Patient | null>(null);
-  const [patientSearched, setPatientSearched] = useState(false);
+  // Modo reprogramar: la paciente llega por id (fila completa), sin volver a
+  // buscar por DNI — una ficha sin DNI también queda vinculada.
+  const [foundPatient, setFoundPatient] = useState<Patient | null>(
+    () => (rsPatient as unknown as Patient | null) ?? null
+  );
+  const [patientSearched, setPatientSearched] = useState(!!rsPatient);
 
   // Patient extra fields (used when auto-creating patient)
-  const [docType, setDocType] = useState<"DNI" | "CE" | "Pasaporte">("DNI");
-  const [patientEmail, setPatientEmail] = useState("");
-  const [patientBirthDate, setPatientBirthDate] = useState("");
-  const [patientDepartamento, setPatientDepartamento] = useState("");
-  const [patientDistrito, setPatientDistrito] = useState("");
+  const [docType, setDocType] = useState<"DNI" | "CE" | "Pasaporte">(
+    () => (rsPatient?.document_type as "DNI" | "CE" | "Pasaporte" | null) ?? "DNI"
+  );
+  const [patientEmail, setPatientEmail] = useState(rsPatient?.email ?? "");
+  const [patientBirthDate, setPatientBirthDate] = useState(rsPatient?.birth_date ?? "");
+  const [patientDepartamento, setPatientDepartamento] = useState(rsPatient?.departamento ?? "");
+  const [patientDistrito, setPatientDistrito] = useState(rsPatient?.distrito ?? "");
 
   // WhatsApp clipboard modal
   const [showWaModal, setShowWaModal] = useState(false);
@@ -228,18 +393,29 @@ export function AppointmentFormModal({
   // recibe un comprobante por un monto que ya cambió → te toca emitir
   // nota de crédito o pelearte con el saldo. El sidebar bloquea la
   // edición si hay payments y orienta hacia NC en su lugar.
-  const [discountEnabled, setDiscountEnabled] = useState(false);
-  const [discountMode, setDiscountMode] = useState<"percent" | "fixed">("percent");
-  const [discountValue, setDiscountValue] = useState("");
-  const [discountReason, setDiscountReason] = useState("");
+  // Modo reprogramar: el descuento de la cita original entra como MONTO fijo
+  // con su motivo (sin código: no se vuelve a llamar a /api/discount-codes).
+  const [discountEnabled, setDiscountEnabled] = useState(!!rsPrefill && rsPrefill.discountAmount > 0);
+  const [discountMode, setDiscountMode] = useState<"percent" | "fixed">(
+    rsPrefill && rsPrefill.discountAmount > 0 ? "fixed" : "percent"
+  );
+  const [discountValue, setDiscountValue] = useState(
+    rsPrefill && rsPrefill.discountAmount > 0 ? rsPrefill.discountAmount.toFixed(2) : ""
+  );
+  const [discountReason, setDiscountReason] = useState(
+    rsPrefill && rsPrefill.discountAmount > 0 ? rsPrefill.discountReason : ""
+  );
 
   // Precio personalizado por-cita: override del `price_snapshot` SOLO para
   // esta cita. No toca el catálogo (/admin/services). Cuando está activo, es
   // la base de todo el pricing downstream (descuento, anticipo, seguro y el
   // price_snapshot que se guarda). Cuando está inactivo, todo cae al precio
   // del servicio y el comportamiento es byte-idéntico al anterior.
-  const [customPriceEnabled, setCustomPriceEnabled] = useState(false);
-  const [customPriceValue, setCustomPriceValue] = useState("");
+  // Modo reprogramar: si el precio acordado difiere del catálogo de hoy, se
+  // precarga como precio personalizado (valor inicial: el efecto de re-precio
+  // solo corre al CAMBIAR de servicio).
+  const [customPriceEnabled, setCustomPriceEnabled] = useState(!!rsPrefill?.customPrice);
+  const [customPriceValue, setCustomPriceValue] = useState(rsPrefill?.customPrice ?? "");
 
   // Duración personalizada por-cita: override de `service.duration_minutes`
   // SOLO para esta cita (ej. segunda opinión de 25 min sobre un servicio de
@@ -248,7 +424,9 @@ export function AppointmentFormModal({
   // al mover el inicio, lo que recepción pactó son los minutos, así que el
   // bloque se desplaza entero. `null` = duración del servicio, y entonces el
   // comportamiento es byte-idéntico al anterior.
-  const [customDurationMinutes, setCustomDurationMinutes] = useState<number | null>(null);
+  const [customDurationMinutes, setCustomDurationMinutes] = useState<number | null>(
+    rsPrefill?.durationMinutes ?? null
+  );
 
   // Treatment plan linking — populated after a patient is found.
   // Each entry represents a session pending to be scheduled (no appointment yet).
@@ -269,7 +447,9 @@ export function AppointmentFormModal({
   // Origen ya registrado en la ficha que NO está en el catálogo activo de
   // lookups (import CSV, "Reserva en línea", lookup desactivado). Se publica
   // como <option> extra para que la precarga se vea y se conserve al guardar.
-  const [originFallbackOption, setOriginFallbackOption] = useState<string | null>(null);
+  const [originFallbackOption, setOriginFallbackOption] = useState<string | null>(
+    rsPrefill?.originUnknown ? rsPrefill.origin : null
+  );
 
   const [patientInsuranceQuotes, setPatientInsuranceQuotes] = useState<InsuranceCoverageQuote[]>([]);
   const [paymentMode, setPaymentMode] = useState<AppointmentPaymentMode>("particular");
@@ -290,27 +470,37 @@ export function AppointmentFormModal({
   } = useForm<AppointmentFormData>({
     resolver,
     defaultValues: {
-      patient_name: "",
-      patient_last_name: "",
-      patient_phone: "",
-      patient_dni: "",
-      patient_id: "",
-      doctor_id: currentDoctorId ?? defaults?.doctorId ?? "",
+      // Sin ficha (cita antigua sin patient_id): al menos el nombre del snapshot.
+      patient_name: rsPatient?.first_name ?? rs?.patientName ?? "",
+      patient_last_name: rsPatient?.last_name ?? "",
+      patient_phone: rsPatient ? rsPatient.phone ?? "" : rs?.patientPhone ?? "",
+      patient_dni: rsPatient?.dni ?? "",
+      patient_id: rsPatient?.id ?? "",
+      // El doctor que viene de afuera (bandeja / modo reprogramar) manda,
+      // salvo para el doctor restringido, que solo puede agendarse a sí mismo
+      // (mismo criterio que `availableDoctors`). Antes currentDoctorId pisaba
+      // siempre: owners con ficha de doctor y asesoras perdían el doctor de
+      // la cita a reprogramar.
+      doctor_id:
+        rsPrefill?.doctorId ||
+        ((currentDoctorId && restrictToDoctor
+          ? currentDoctorId
+          : defaults?.doctorId ?? currentDoctorId) ?? ""),
       office_id: defaults?.officeId ?? "",
-      service_id: "",
+      service_id: rsPrefill?.serviceId ?? "",
       // Fecha civil de la org (mig 240): toISOString() es UTC y tras las
       // 19:00 Lima proponía mañana.
       appointment_date: defaults?.date ?? orgToday(),
       start_time: defaults?.startTime ?? "",
       status: "scheduled",
-      origin: "",
-      payment_method: "",
+      origin: rsPrefill?.origin ?? "",
+      payment_method: rsPrefill?.paymentMethod ?? "",
       responsible: "",
-      notes: "",
-      meeting_url: "",
+      notes: rsPrefill?.notes ?? "",
+      meeting_url: rsPrefill?.meetingUrl ?? "",
       // Mig 256: "" = sin elegir. La fija el efecto de servicio (presencial /
       // virtual) o el selector inline (servicio "Ambos").
-      modality: "",
+      modality: rsPrefill?.modality ?? "",
     },
   });
 
@@ -388,6 +578,10 @@ export function AppointmentFormModal({
   useEffect(() => {
     if (prevServiceForCustomPriceRef.current !== selectedServiceId) {
       prevServiceForCustomPriceRef.current = selectedServiceId;
+      // "Usar datos de esa cita" fija servicio + precio acordado a la vez: ese
+      // cambio de servicio no debe re-llenar el precio con el del catálogo.
+      if (customPriceGuardRef.current === selectedServiceId) return;
+      customPriceGuardRef.current = null;
       if (customPriceEnabled) {
         setCustomPriceValue(servicePrice > 0 ? servicePrice.toFixed(2) : "");
       }
@@ -403,6 +597,8 @@ export function AppointmentFormModal({
   useEffect(() => {
     if (prevServiceForCustomDurationRef.current !== selectedServiceId) {
       prevServiceForCustomDurationRef.current = selectedServiceId;
+      if (customDurationGuardRef.current === selectedServiceId) return;
+      customDurationGuardRef.current = null;
       setCustomDurationMinutes(null);
     }
   }, [selectedServiceId]);
@@ -505,7 +701,16 @@ export function AppointmentFormModal({
   // Deps SOLO primitivas (id + modalidad del catálogo): si dependiera del
   // objeto `selectedService`, un re-render del padre con un array `services`
   // nuevo volvería a disparar y borraría la elección hecha en un "Ambos".
+  // Precarga (modo reprogramar / "Usar datos de esa cita"): en un "Ambos" se
+  // respeta la modalidad de la cita original mientras el servicio sea el mismo.
   useEffect(() => {
+    const guard = modalityGuardRef.current;
+    if (guard && guard.serviceId === selectedServiceId) {
+      setValue("modality", guard.modality);
+      clearErrors("modality");
+      return;
+    }
+    modalityGuardRef.current = null;
     const imposed = selectedServiceId ? modalityImposedByService(serviceModality) : null;
     setValue("modality", imposed ?? "");
     clearErrors("modality");
@@ -516,6 +721,14 @@ export function AppointmentFormModal({
   // pasar de virtual a presencial también lo limpia por la rama else.
   useEffect(() => {
     if (isVirtualModality && watchedDoctor) {
+      // Precarga: el link de la cita original manda mientras el doctor sea el
+      // mismo (no se reemplaza por el link por defecto del doctor).
+      const guard = meetingUrlGuardRef.current;
+      if (guard && guard.doctorId === watchedDoctor) {
+        setValue("meeting_url", guard.url);
+        return;
+      }
+      meetingUrlGuardRef.current = null;
       const doctor = doctors.find((d) => d.id === watchedDoctor);
       const doctorUrl = (doctor as any)?.default_meeting_url;
       if (doctorUrl) {
@@ -530,7 +743,9 @@ export function AppointmentFormModal({
   const prevDoctorRef = useRef(watchedDoctor);
   useEffect(() => {
     if (prevDoctorRef.current !== watchedDoctor) {
-      setValue("service_id", "");
+      // "Usar datos de esa cita" cambia doctor y servicio juntos.
+      setValue("service_id", serviceAfterDoctorRef.current ?? "");
+      serviceAfterDoctorRef.current = null;
       prevDoctorRef.current = watchedDoctor;
     }
   }, [watchedDoctor, setValue]);
@@ -725,6 +940,16 @@ export function AppointmentFormModal({
     return offices.filter((o) => scheduleOfficeIds.includes(o.id));
   }, [watchedDoctor, appointmentDow, doctorSchedules, offices]);
 
+  // Modo reprogramar: el consultorio del clic queda en solo lectura mientras
+  // sea válido para el doctor ese día; si el efecto de abajo lo vacía (p. ej.
+  // recepción cambió de doctor) vuelve a mostrarse el selector.
+  const officeLocked =
+    slotLocked && !!watchedOffice && filteredOffices.some((o) => o.id === watchedOffice);
+  const officeAutoChangedTo =
+    rs && defaults?.officeId && watchedOffice && watchedOffice !== defaults.officeId
+      ? offices.find((o) => o.id === watchedOffice)?.name ?? null
+      : null;
+
   // Auto-select office when only one is available, or reset if current selection is no longer valid
   useEffect(() => {
     if (filteredOffices.length === 1) {
@@ -733,6 +958,52 @@ export function AppointmentFormModal({
       setValue("office_id", "");
     }
   }, [filteredOffices, watchedOffice, setValue]);
+
+  // Planes de tratamiento activos con sesiones pendientes sin agendar
+  // (compartido por la búsqueda por DNI y la precarga del modo reprogramar).
+  const loadPlanSessions = useCallback(async (patientId: string) => {
+    const supabase = createClient();
+    const { data: planRows } = await supabase
+      .from("treatment_plans")
+      .select("id, title, total_sessions, treatment_sessions(id, session_number, status, appointment_id, service_id, session_price, treatment_plan_item_id, treatment_plan_items(services(id, name)))")
+      .eq("patient_id", patientId)
+      .eq("status", "active");
+    const availableSessions: typeof activePlanSessions = [];
+    for (const plan of (planRows as unknown as Array<{
+      id: string;
+      title: string;
+      total_sessions: number | null;
+      treatment_sessions: Array<{
+        id: string;
+        session_number: number;
+        status: string;
+        appointment_id: string | null;
+        service_id: string | null;
+        session_price: number | null;
+        treatment_plan_item_id: string | null;
+        treatment_plan_items?: { services?: { id: string; name: string } | null } | null;
+      }>;
+    }> | null) ?? []) {
+      const pending = (plan.treatment_sessions || [])
+        .filter((s) => s.status === "pending" && !s.appointment_id)
+        .sort((a, b) => a.session_number - b.session_number);
+      for (const s of pending) {
+        availableSessions.push({
+          session_id: s.id,
+          plan_id: plan.id,
+          plan_title: plan.title,
+          session_number: s.session_number,
+          total_sessions: plan.total_sessions ?? 0,
+          service_id: s.service_id,
+          session_price: s.session_price != null ? Number(s.session_price) : null,
+          service_name: s.treatment_plan_items?.services?.name ?? null,
+          treatment_plan_item_id: s.treatment_plan_item_id,
+        });
+      }
+    }
+    setActivePlanSessions(availableSessions);
+    setSelectedPlanSessionId(null);
+  }, []);
 
   // Search patient by DNI
   const searchPatientByDni = useCallback(async (dni: string) => {
@@ -777,54 +1048,14 @@ export function AppointmentFormModal({
       setPatientDepartamento(data.departamento ?? "");
       setPatientDistrito(data.distrito ?? "");
 
-      // Look up active treatment plans with pending unscheduled sessions
-      const { data: planRows } = await supabase
-        .from("treatment_plans")
-        .select("id, title, total_sessions, treatment_sessions(id, session_number, status, appointment_id, service_id, session_price, treatment_plan_item_id, treatment_plan_items(services(id, name)))")
-        .eq("patient_id", data.id)
-        .eq("status", "active");
-      const availableSessions: typeof activePlanSessions = [];
-      for (const plan of (planRows as unknown as Array<{
-        id: string;
-        title: string;
-        total_sessions: number | null;
-        treatment_sessions: Array<{
-          id: string;
-          session_number: number;
-          status: string;
-          appointment_id: string | null;
-          service_id: string | null;
-          session_price: number | null;
-          treatment_plan_item_id: string | null;
-          treatment_plan_items?: { services?: { id: string; name: string } | null } | null;
-        }>;
-      }> | null) ?? []) {
-        const pending = (plan.treatment_sessions || [])
-          .filter((s) => s.status === "pending" && !s.appointment_id)
-          .sort((a, b) => a.session_number - b.session_number);
-        for (const s of pending) {
-          availableSessions.push({
-            session_id: s.id,
-            plan_id: plan.id,
-            plan_title: plan.title,
-            session_number: s.session_number,
-            total_sessions: plan.total_sessions ?? 0,
-            service_id: s.service_id,
-            session_price: s.session_price != null ? Number(s.session_price) : null,
-            service_name: s.treatment_plan_items?.services?.name ?? null,
-            treatment_plan_item_id: s.treatment_plan_item_id,
-          });
-        }
-      }
-      setActivePlanSessions(availableSessions);
-      setSelectedPlanSessionId(null);
+      await loadPlanSessions(data.id);
     } else {
       setFoundPatient(null);
       setValue("patient_id", "");
       setActivePlanSessions([]);
       setSelectedPlanSessionId(null);
     }
-  }, [setValue, lookupOrigins]);
+  }, [setValue, lookupOrigins, loadPlanSessions]);
 
   // Paciente precargado ("Agendar" desde Seguimientos): con DNI se usa la
   // misma búsqueda del botón (vincula la ficha, origen, planes); sin DNI se
@@ -843,6 +1074,105 @@ export function AppointmentFormModal({
       setValue("patient_phone", p.phone ?? "");
     }
   }, [defaults?.patient, searchPatientByDni, setValue]);
+
+  // Modo reprogramar: la paciente ya viene vinculada por id; solo faltan sus
+  // sesiones de plan pendientes (mismo aviso que tras buscar por DNI). NO se
+  // re-aplica el origen de la ficha: manda el de la cita original.
+  const rsPatientId = rsPatient?.id ?? null;
+  useEffect(() => {
+    if (!rsPatientId) return;
+    void loadPlanSessions(rsPatientId);
+  }, [rsPatientId, loadPlanSessions]);
+
+  // Campos personalizados de la cita original: solo las claves con definición
+  // activa (hay orgs con claves huérfanas en custom_fields). Las definiciones
+  // cargan async, así que se aplica una vez cuando llegan.
+  const rsCustomFieldsAppliedRef = useRef(false);
+  useEffect(() => {
+    if (!rs || rsCustomFieldsAppliedRef.current || customFieldDefs.length === 0) return;
+    rsCustomFieldsAppliedRef.current = true;
+    const keys = new Set(customFieldDefs.map((d) => d.field_key));
+    const picked: CustomFieldValues = {};
+    for (const [k, v] of Object.entries(rs.customFields ?? {})) {
+      if (keys.has(k)) (picked as Record<string, unknown>)[k] = v;
+    }
+    if (Object.keys(picked).length > 0) setCustomFields((prev) => ({ ...picked, ...prev }));
+  }, [rs, customFieldDefs]);
+
+  // ── Franja "Pendiente de reprogramar" (fuera del modo) ────────────────
+  // Al vincular una paciente (DNI o precarga), si tiene tarjetas "Por
+  // reprogramar" abiertas se ofrece copiar los datos de esa cita y dejar la
+  // nueva enlazada (`rescheduled_from_id` → la base cierra la tarjeta). Sin
+  // la mig 273 la consulta devuelve [] y no se ve nada.
+  const [pendingReschedules, setPendingReschedules] = useState<RescheduleContext[]>([]);
+  const foundPatientId = foundPatient?.id ?? null;
+  useEffect(() => {
+    // Otra paciente → el enlace elegido en la franja ya no aplica.
+    if (!rs) setRescheduledFromId(null);
+    if (rs || !foundPatientId || !organizationId) {
+      setPendingReschedules([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchPendingReschedulesForPatient(createClient(), foundPatientId, organizationId).then(
+      (rows) => {
+        if (!cancelled) setPendingReschedules(rows);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [rs, foundPatientId, organizationId]);
+
+  const applyPendingReschedule = (ctx: RescheduleContext) => {
+    const pf = buildReschedulePrefill(ctx, {
+      doctors,
+      services,
+      doctorServices,
+      lookupOrigins,
+      lookupPayments,
+      currentDoctorId,
+      restrictToDoctor,
+      allowCustomDuration,
+    });
+    const currentDoctor = watch("doctor_id");
+    if (pf.serviceId) {
+      if (pf.modality) modalityGuardRef.current = { serviceId: pf.serviceId, modality: pf.modality };
+      if (pf.customPrice) customPriceGuardRef.current = pf.serviceId;
+      if (pf.durationMinutes != null) customDurationGuardRef.current = pf.serviceId;
+    }
+    if (pf.meetingUrl) meetingUrlGuardRef.current = { doctorId: pf.doctorId, url: pf.meetingUrl };
+    if (pf.doctorId && pf.doctorId !== currentDoctor) {
+      // El servicio se fija en el efecto de "cambió el doctor", ya con las
+      // opciones del doctor nuevo en el DOM.
+      serviceAfterDoctorRef.current = pf.serviceId || null;
+      setValue("doctor_id", pf.doctorId, { shouldValidate: true });
+    } else if (pf.serviceId) {
+      setValue("service_id", pf.serviceId, { shouldValidate: true });
+    }
+    if (pf.modality) setValue("modality", pf.modality);
+    if (pf.meetingUrl) setValue("meeting_url", pf.meetingUrl);
+    setCustomPriceEnabled(!!pf.customPrice);
+    setCustomPriceValue(pf.customPrice ?? "");
+    if (pf.durationMinutes != null) setCustomDurationMinutes(pf.durationMinutes);
+    if (pf.discountAmount > 0) {
+      setDiscountEnabled(true);
+      setDiscountMode("fixed");
+      setDiscountValue(pf.discountAmount.toFixed(2));
+      setDiscountReason(pf.discountReason);
+    }
+    if (pf.origin) {
+      setOriginFallbackOption(pf.originUnknown ? pf.origin : null);
+      setValue("origin", pf.origin);
+    }
+    if (pf.paymentMethod) setValue("payment_method", pf.paymentMethod);
+    const currentNotes = (watch("notes") ?? "").trim();
+    setValue("notes", currentNotes ? `${pf.notes}\n${currentNotes}` : pf.notes);
+    setRescheduledFromId(ctx.appointmentId);
+    toast.success(
+      `Datos de la cita del ${formatRescheduleWhen(ctx.appointmentDate, ctx.startTime)} aplicados`
+    );
+  };
 
   // El <option> extra se renderiza en el mismo ciclo en que se fija el estado,
   // pero el <select> es no-controlado (register + ref): el navegador ya había
@@ -1137,6 +1467,9 @@ export function AppointmentFormModal({
             ? discountReason.trim()
             : null,
         treatment_session_id: planSession?.session_id ?? null,
+        // Mig 273: enlace con la cita cancelada que se reprograma (la base
+        // cierra su tarjeta "Por reprogramar" aunque cambie el servicio).
+        ...(rescheduledFromId ? { rescheduled_from_id: rescheduledFromId } : {}),
         organization_id: organizationId,
         custom_fields: customFields,
         payment_mode: paymentMode,
@@ -1149,11 +1482,30 @@ export function AppointmentFormModal({
           : Math.max(0, (priceSnapshot ?? 0) - (discountEnabled ? discountAmountComputed : 0)),
     };
 
+    let insertRow: Record<string, unknown> = appointmentRow;
     let insertResult = await supabase
       .from("appointments")
-      .insert(appointmentRow)
+      .insert(insertRow)
       .select("id")
       .single();
+
+    // Mig 273 aún no aplicada: `rescheduled_from_id` no existe (PGRST204 /
+    // 42703 mencionando la columna). Se reintenta sin ella: la cita se crea
+    // igual, solo sin el enlace.
+    if (
+      insertResult.error &&
+      "rescheduled_from_id" in insertRow &&
+      (insertResult.error.code === "PGRST204" || insertResult.error.code === "42703") &&
+      /rescheduled_from_id/i.test(insertResult.error.message ?? "")
+    ) {
+      insertRow = { ...insertRow };
+      delete insertRow.rescheduled_from_id;
+      insertResult = await supabase
+        .from("appointments")
+        .insert(insertRow)
+        .select("id")
+        .single();
+    }
 
     // Mig 256 aún no aplicada en esta BD: PostgREST rechaza la columna con
     // PGRST204 ("Could not find the 'modality' column…"). Reintentamos sin
@@ -1164,7 +1516,7 @@ export function AppointmentFormModal({
       (insertResult.error.code === "PGRST204" ||
         /modality/i.test(insertResult.error.message ?? ""))
     ) {
-      const legacyRow = { ...appointmentRow };
+      const legacyRow = { ...insertRow };
       delete legacyRow.modality;
       insertResult = await supabase
         .from("appointments")
@@ -1208,6 +1560,33 @@ export function AppointmentFormModal({
       } else if (newPayment?.id) {
         // Notification: payment registered at appointment creation
         emitLiveNotification({ event: "payment_registered", payment_id: newPayment.id });
+      }
+    }
+
+    // Modo reprogramar: el adelanto "a cuenta" de la cita cancelada pasa a
+    // la nueva (RPC appointment_transfer_payments, cliente del usuario, filas
+    // enteras: Caja / Ingresos / "Mis cobros" no cambian). Solo desde el modo
+    // (decisión del fundador); por otras vías se ofrece aparte.
+    if (
+      !error &&
+      newAppt &&
+      rs?.deposit &&
+      rs.deposit.amount > 0 &&
+      rescheduledFromId === rs.appointmentId
+    ) {
+      const tr = await transferDeposits(supabase, rs.appointmentId, newAppt.id);
+      if (!tr.ok) {
+        toast.warning(
+          `La cita se creó, pero el adelanto no se pudo trasladar: ${tr.error ?? "error desconocido"}. Aplícalo desde el panel de la cita.`
+        );
+      } else if (tr.movedCount > 0) {
+        toast.success(`${formatSoles(tr.amount)} del adelanto se aplicaron a la cita nueva`);
+      } else {
+        // La base no movió nada (p. ej. la cita cancelada tiene una devolución
+        // en Caja): no se promete un traslado que no ocurrió.
+        toast.info(
+          "El adelanto de la cita cancelada no se trasladó (tiene una devolución registrada o ya no quedan pagos). Revisa los cobros de la cita nueva."
+        );
       }
     }
 
@@ -1312,7 +1691,9 @@ export function AppointmentFormModal({
         </DialogDescription>
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between border-b border-border px-4 md:px-6 py-3 md:py-4">
-          <DialogTitle className="text-lg font-semibold">{t("scheduler.new_appointment")}</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
+            {rs ? "Reprogramar cita" : t("scheduler.new_appointment")}
+          </DialogTitle>
           <button
             onClick={onClose}
             className="rounded-lg p-1 text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
@@ -1331,6 +1712,27 @@ export function AppointmentFormModal({
           onSubmit={handleSubmit(onSubmit)}
           className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-6 py-4 space-y-4 md:max-h-[70dvh] md:flex-none"
         >
+          {/* Modo reprogramar: de qué cita viene esta y qué pasa con el adelanto. */}
+          {rs && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-300">
+              <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                Reprogramando la cita del{" "}
+                <span className="font-semibold">
+                  {formatRescheduleWhen(rs.appointmentDate, rs.startTime)}
+                </span>
+                {rs.serviceName ? ` · ${rs.serviceName}` : ""}
+                {rs.deposit && rs.deposit.amount > 0 && rescheduledFromId === rs.appointmentId && (
+                  <>
+                    {" · "}
+                    <span className="font-semibold">{formatSoles(rs.deposit.amount)} a cuenta</span>
+                    {" se aplicarán a esta cita"}
+                  </>
+                )}
+              </p>
+            </div>
+          )}
+
           {/* Conflict warning */}
           {conflict && (
             <div className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-600 dark:text-amber-400">
@@ -1525,6 +1927,46 @@ export function AppointmentFormModal({
                 })()}
               </div>
             )}
+
+            {/* Pendiente de reprogramar (mig 273) — fuera del modo: la paciente
+                tiene una cita cancelada con tarjeta abierta. */}
+            {!rs && foundPatient && pendingReschedules.length > 0 && (
+              <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+                {pendingReschedules.map((p) => {
+                  const linked = rescheduledFromId === p.appointmentId;
+                  return (
+                    <div key={p.appointmentId} className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="min-w-0 flex-1 text-xs text-amber-800 dark:text-amber-300">
+                        <span className="font-semibold">Pendiente de reprogramar:</span>{" "}
+                        cita del {formatRescheduleWhen(p.appointmentDate, p.startTime)}
+                        {p.serviceName ? ` · ${p.serviceName}` : ""}
+                        {p.doctorName ? ` · ${p.doctorName}` : ""}
+                        {` · ${formatSoles(p.billedAmount)}`}
+                        {p.discountAmount > 0 ? ` (desc. ${formatSoles(p.discountAmount)})` : ""}
+                      </p>
+                      {linked ? (
+                        <button
+                          type="button"
+                          onClick={() => setRescheduledFromId(null)}
+                          className="shrink-0 rounded-md bg-amber-600 px-2 py-1 text-[11px] font-semibold text-white"
+                          title="Quitar el enlace con la cita cancelada"
+                        >
+                          ✓ Enlazada · Desvincular
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => applyPendingReschedule(p)}
+                          className="shrink-0 rounded-md bg-amber-500/20 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-500/30 dark:text-amber-300"
+                        >
+                          Usar datos de esa cita
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Patient Name & Last Name */}
@@ -1632,6 +2074,27 @@ export function AppointmentFormModal({
           <div className="grid gap-4 grid-cols-2 md:grid-cols-3">
             <div className="space-y-1.5 col-span-2 md:col-span-1">
               <label className="text-sm font-medium">{t("scheduler.date")} *</label>
+              {slotLocked ? (
+                /* Modo reprogramar: fecha, hora y consultorio salen del clic
+                   en la grilla (la agenda ve TODO el día ahí, el form solo el
+                   rango visible). Para cambiarlos se vuelve a la grilla. */
+                <div className="flex items-center justify-between gap-2 rounded-lg border border-input bg-muted px-3 py-2 text-sm">
+                  <span className="font-medium">
+                    {watchedDate
+                      ? format(new Date(`${watchedDate}T12:00:00`), "EEE dd/MM/yyyy", {
+                          locale: language === "es" ? es : undefined,
+                        })
+                      : "—"}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="shrink-0 text-xs font-medium text-primary hover:underline"
+                  >
+                    Cambiar horario
+                  </button>
+                </div>
+              ) : (
               <DatePicker
                 value={watchedDate ?? ""}
                 onChange={(v) =>
@@ -1641,14 +2104,23 @@ export function AppointmentFormModal({
                   })
                 }
               />
+              )}
               {errors.appointment_date && (
                 <p className="text-xs text-destructive">{errors.appointment_date.message}</p>
               )}
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t("scheduler.time")} *</label>
+              {slotLocked && (
+                <input
+                  type="time"
+                  value={watchedStartTime ?? ""}
+                  disabled
+                  className="w-full min-w-0 max-md:appearance-none rounded-lg border border-input bg-muted px-3 py-2 text-sm text-foreground"
+                />
+              )}
               <input
-                type="time"
+                type={slotLocked ? "hidden" : "time"}
                 step="900"
                 {...register("start_time")}
                 /* max-md:appearance-none: iOS Safari pinta los inputs time
@@ -1789,6 +2261,14 @@ export function AppointmentFormModal({
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium">{t("scheduler.office")} *</label>
+              {officeLocked ? (
+                <>
+                  <input type="hidden" {...register("office_id")} />
+                  <div className="w-full rounded-lg border border-input bg-muted px-3 py-2 text-sm">
+                    {offices.find((o) => o.id === watchedOffice)?.name ?? "—"}
+                  </div>
+                </>
+              ) : (
               <select
                 {...register("office_id")}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
@@ -1800,6 +2280,12 @@ export function AppointmentFormModal({
                   </option>
                 ))}
               </select>
+              )}
+              {officeAutoChangedTo && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  Cambiamos a {officeAutoChangedTo} porque es donde atiende ese día.
+                </p>
+              )}
               {errors.office_id && (
                 <p className="text-xs text-destructive">{errors.office_id.message}</p>
               )}
@@ -1906,8 +2392,11 @@ export function AppointmentFormModal({
             </div>
           )}
 
-          {/* Anticipo / Reserva anticipada */}
-          {servicePrice > 0 && (
+          {/* Anticipo / Reserva anticipada. `|| customPriceEnabled`: un precio
+              acordado precargado (modo reprogramar) sobre un servicio de
+              catálogo S/ 0 debe verse; fuera del modo no cambia nada (el
+              toggle solo se enciende desde este mismo bloque). */}
+          {(servicePrice > 0 || customPriceEnabled) && (
             <div className="rounded-xl border border-border/60 bg-muted/20 p-4 space-y-3">
               {/* Price + toggle row */}
               <div className="flex items-center justify-between">
@@ -1994,6 +2483,34 @@ export function AppointmentFormModal({
                   </p>
                 </div>
               )}
+
+              {/* Modo reprogramar: precio acordado en la cita original vs. el
+                  catálogo de hoy (referencia; si cambia el servicio rige el
+                  re-precio de siempre). */}
+              {rs &&
+                rs.priceSnapshot != null &&
+                Math.abs(rs.priceSnapshot - servicePrice) >= 0.005 && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-300">
+                    <span>
+                      Precio acordado en la cita original: {formatSoles(rs.priceSnapshot)}
+                      {selectedServiceId === rs.serviceId
+                        ? ` (catálogo ${formatSoles(servicePrice)})`
+                        : ""}
+                    </span>
+                    {customPriceEnabled && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomPriceEnabled(false);
+                          setCustomPriceValue("");
+                        }}
+                        className="font-semibold underline underline-offset-2 hover:opacity-80"
+                      >
+                        Usar precio de catálogo
+                      </button>
+                    )}
+                  </div>
+                )}
 
               {/* Discount toggle — deshabilitado en modo seguro: el copago lo
                   define la aseguradora sobre el precio bruto y el descuento no
