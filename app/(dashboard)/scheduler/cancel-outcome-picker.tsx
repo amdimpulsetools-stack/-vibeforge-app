@@ -32,14 +32,16 @@ export function minutesSinceCreated(createdAt: string | null | undefined): numbe
   return Math.max(0, Math.floor((Date.now() - ms) / 60_000));
 }
 
-/** Desenlace por defecto: error si es recién creada; si no, reprogramar (o "no vuelve" sin ficha). */
+/**
+ * Desenlace por defecto: reprogramar (o "no vuelve" sin ficha). "Fue un
+ * error de registro" NUNCA se preselecciona —silencia el aviso a la
+ * paciente—; en citas recién creadas solo se SUGIERE con un texto (una
+ * reserva en línea cancelada a los 15 min no debe quedar sin aviso).
+ */
 export function defaultCancelOutcome(
-  createdMinutesAgo: number | null,
+  _createdMinutesAgo: number | null,
   hasPatient: boolean,
 ): CancelOutcome {
-  if (createdMinutesAgo !== null && createdMinutesAgo < CANCEL_ERROR_SUGGEST_MIN) {
-    return "error_registro";
-  }
   return hasPatient ? "reprogramar" : "no_vuelve";
 }
 

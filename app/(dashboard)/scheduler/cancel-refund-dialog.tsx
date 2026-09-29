@@ -74,8 +74,11 @@ export function CancelRefundDialog({
   invoicedTotal = 0,
   onConfirm,
 }: Props) {
-  const defaultMode: Mode | null =
-    outcome === "reprogramar" || outcome === "error_registro" ? "a_cuenta" : null;
+  // Preseleccionado "a cuenta" siempre: equivale al "El pago se queda" de
+  // antes, así cancelar con pagos sigue siendo un solo clic en cualquier
+  // desenlace (y en orgs sin la mig 273). La penalidad es la excepción.
+  void outcome;
+  const defaultMode: Mode | null = "a_cuenta";
   const [mode, setMode] = useState<Mode | null>(defaultMode);
   const [amountStr, setAmountStr] = useState("");
   const [tender, setTender] = useState<"efectivo" | "electronico">("efectivo");

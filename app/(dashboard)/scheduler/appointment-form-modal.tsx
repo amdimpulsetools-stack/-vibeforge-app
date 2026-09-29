@@ -1084,6 +1084,18 @@ export function AppointmentFormModal({
     void loadPlanSessions(rsPatientId);
   }, [rsPatientId, loadPlanSessions]);
 
+  // Si la cita cancelada era una sesión de plan, esa sesión volvió a
+  // 'pending' al cancelar: se re-engancha sola a la cita nueva (precio del
+  // plan, no el de catálogo). Una sola vez; recepción puede desmarcarla.
+  const rsSessionAppliedRef = useRef(false);
+  useEffect(() => {
+    const sid = rs?.treatmentSessionId;
+    if (!sid || rsSessionAppliedRef.current) return;
+    if (!activePlanSessions.some((row) => row.session_id === sid)) return;
+    rsSessionAppliedRef.current = true;
+    setSelectedPlanSessionId(sid);
+  }, [rs, activePlanSessions]);
+
   // Campos personalizados de la cita original: solo las claves con definición
   // activa (hay orgs con claves huérfanas en custom_fields). Las definiciones
   // cargan async, así que se aplica una vez cuando llegan.
@@ -1518,6 +1530,9 @@ export function AppointmentFormModal({
     ) {
       const legacyRow = { ...insertRow };
       delete legacyRow.modality;
+      // Sin la 256 casi seguro tampoco está la 273: se quita también el
+      // enlace para que el reintento no vuelva a fallar por esa columna.
+      delete legacyRow.rescheduled_from_id;
       insertResult = await supabase
         .from("appointments")
         .insert(legacyRow)

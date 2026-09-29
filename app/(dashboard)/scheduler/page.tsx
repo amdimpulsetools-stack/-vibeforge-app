@@ -810,8 +810,12 @@ export default function SchedulerPage() {
   // Fin de una cancelación en el sidebar (el conteo de "Deshacer" termina con
   // un timer que puede disparar cuando recepción ya abrió OTRA cita o el
   // formulario): solo refresca la agenda y la burbuja, sin cerrar nada.
-  const handleAppointmentCancelled = useCallback(() => {
+  const handleAppointmentCancelled = useCallback((appointmentId: string) => {
     fetchAppointments();
+    // Si recepción cerró y reabrió la misma cita durante el conteo, el panel
+    // nuevo (otra instancia por key) seguiría mostrándola "agendada": se
+    // cierra solo ese; otra cita abierta o el formulario no se tocan.
+    setSelectedAppointment((prev) => (prev?.id === appointmentId ? null : prev));
     queryClient.invalidateQueries({ queryKey: ["scheduler", "reschedule-pending"] });
   }, [fetchAppointments, queryClient]);
 

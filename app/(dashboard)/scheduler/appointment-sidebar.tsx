@@ -275,7 +275,8 @@ interface AppointmentSidebarProps {
    * página cerraba ese formulario. Con esto la página solo refresca. Si no
    * viene, se usa `onUpdate` como siempre.
    */
-  onCancelled?: () => void;
+  /** Recibe el id de la cita cancelada: la página cierra el panel si aún la muestra. */
+  onCancelled?: (appointmentId: string) => void;
   onReschedule?: () => void;
   doctors?: Doctor[];
   services?: Service[];
@@ -587,10 +588,16 @@ export function AppointmentSidebar({
   // como siempre, sin desenlace. Se reinicia por cita (no basta con el key
   // de la página: si no viniera, el estado quedaría pegado de otra cita).
   const [cancelColumnsSupported, setCancelColumnsSupported] = useState(true);
+  // El banner de adelanto espera al sondeo: sin la mig, su consulta por
+  // cancel_money daría un 400 en cada cita abierta.
+  const [cancelColumnsProbed, setCancelColumnsProbed] = useState(false);
   useEffect(() => {
     let cancelled = false;
     void probeCancelColumns().then((ok) => {
-      if (!cancelled) setCancelColumnsSupported(ok);
+      if (!cancelled) {
+        setCancelColumnsSupported(ok);
+        setCancelColumnsProbed(true);
+      }
     });
     return () => {
       cancelled = true;
@@ -1159,7 +1166,9 @@ export function AppointmentSidebar({
     // "penalidad", que antes no dejaban NINGUNA marca.
     const stamps: string[] = [];
     if (reason) stamps.push(`[Motivo de cancelación]: ${reason}`);
-    if (money && money.kind !== "devuelto") {
+    // Solo con la mig 273 activa y un desenlace elegido: sin ella la
+    // cancelación con pagos queda exactamente como antes (sin nota nueva).
+    if (money && money.kind !== "devuelto" && cancelColumnsSupported && outcome) {
       const amt = `S/${money.amount.toFixed(2)}`;
       stamps.push(
         money.kind === "a_cuenta"
@@ -1199,11 +1208,12 @@ export function AppointmentSidebar({
       .update({ ...updatePayload, ...newCols })
       .eq("id", appointment.id);
     let newColumnsDropped = false;
-    if (error && Object.keys(newCols).length > 0) {
-      if (isMissingColumnError(error)) {
-        cancelColumnsProbe = Promise.resolve(false);
-        setCancelColumnsSupported(false);
-      }
+    // Reintento SOLO si faltan las columnas (mig 273 sin aplicar). Un error
+    // transitorio con la mig aplicada no debe degradar la cancelación a
+    // "sin desenlace" ni mostrar un aviso engañoso.
+    if (error && Object.keys(newCols).length > 0 && isMissingColumnError(error)) {
+      cancelColumnsProbe = Promise.resolve(false);
+      setCancelColumnsSupported(false);
       const retry = await supabase
         .from("appointments")
         .update(updatePayload)
@@ -1243,7 +1253,9 @@ export function AppointmentSidebar({
 
     // "Fue un error de registro": la paciente nunca debió enterarse — ni
     // email ni campanita. Google Calendar y la sesión de plan sí se limpian.
-    const silentCancel = isCancel && outcome === "error_registro";
+    // Si las columnas nuevas no se pudieron guardar (mig sin aplicar), se
+    // cancela como siempre: con aviso a la paciente.
+    const silentCancel = isCancel && outcome === "error_registro" && !newColumnsDropped;
 
     if (!isCancel) {
       toast.success(t("scheduler.save_success"));
@@ -1323,7 +1335,7 @@ export function AppointmentSidebar({
       onUpdate();
       return;
     }
-    onCancelled();
+    onCancelled(appointment.id);
     if (mountedRef.current && shownAppointmentIdRef.current === appointment.id) {
       onClose();
     }
@@ -2793,7 +2805,9 @@ export function AppointmentSidebar({
             {/* Adelanto "a cuenta" de una cita cancelada de la paciente
                 (mig 273): se avisa ANTES de volver a cobrarle. Silencioso si
                 no hay nada o si la migración aún no está. */}
-            {appointment.patient_id &&
+            {cancelColumnsProbed &&
+              cancelColumnsSupported &&
+              appointment.patient_id &&
               (appointment.status === "scheduled" ||
                 appointment.status === "confirmed" ||
                 appointment.status === "completed") && (
