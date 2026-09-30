@@ -3,6 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { generalLimiter } from "@/lib/rate-limit";
 import type { ContactEvent } from "@/types/fertility";
 import { assertActiveMembership } from "@/lib/followups/org-scope";
+import {
+  RESCHEDULE_DUE_DAYS,
+  RESCHEDULE_PENDING_RULE_KEY,
+} from "@/lib/followups/reschedule";
+import { loadOrgTimezone, orgDaysFromTodayNoonIso } from "../../_lib/org-dates";
 
 /**
  * PATCH /api/clinical-followups/[id]/reactivate
@@ -21,6 +26,12 @@ import { assertActiveMembership } from "@/lib/followups/org-scope";
  * `/[id]/contact` (y el cron) setean un `first_contact_at` fresco —
  * solo cuando es NULL — y una recuperación posterior sí cuenta como
  * Categoría A legítima.
+ *
+ * "Por reprogramar" (mig 273): además renueva `expected_by` (hoy civil de
+ * la org + RESCHEDULE_DUE_DAYS) para que no reaparezca vencida, NO toca
+ * follow_up_date (vive en NULL) y, si la cita ya tiene otro pendiente
+ * abierto (UNIQUE parcial por source_id), responde 409 en vez de 500.
+ * También lo usa el "Deshacer" del cierre "No reprograma".
  */
 export async function PATCH(
   _request: NextRequest,
@@ -41,7 +52,7 @@ export async function PATCH(
   // además las columnas que el reset de atribución necesita.
   const { data: current, error: curErr } = await supabase
     .from("clinical_followups")
-    .select("id, organization_id, first_contact_at, contact_events")
+    .select("id, organization_id, first_contact_at, contact_events, rule_key")
     .eq("id", id)
     .maybeSingle();
   if (curErr || !current) {
@@ -69,6 +80,14 @@ export async function PATCH(
     snooze_until: null,
   };
 
+  const isReschedule =
+    (current as { rule_key?: string | null }).rule_key ===
+    RESCHEDULE_PENDING_RULE_KEY;
+  if (isReschedule) {
+    const tz = await loadOrgTimezone(supabase, organizationId);
+    updateData.expected_by = orgDaysFromTodayNoonIso(tz, RESCHEDULE_DUE_DAYS);
+  }
+
   // Solo tocamos la atribución si había contacto previo que archivar.
   if (current.first_contact_at) {
     const events: ContactEvent[] = Array.isArray(current.contact_events)
@@ -89,6 +108,19 @@ export async function PATCH(
     updateData.first_contact_at = null;
   }
 
+  // Rastro del "Deshacer"/Reactivar en la tarjeta de reprogramar.
+  if (isReschedule) {
+    const base = Array.isArray(updateData.contact_events)
+      ? (updateData.contact_events as unknown[])
+      : Array.isArray(current.contact_events)
+        ? (current.contact_events as unknown[])
+        : [];
+    updateData.contact_events = [
+      ...base,
+      { type: "reactivated", at: now, by_user_id: user.id, delivery_status: "unknown" },
+    ];
+  }
+
   const { data, error } = await supabase
     .from("clinical_followups")
     .update(updateData)
@@ -97,7 +129,17 @@ export async function PATCH(
     .select("*, doctors(full_name), patients(first_name, last_name, phone)")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // 23505 = UNIQUE parcial de la mig 273 (un solo pendiente abierto por
+    // cita cancelada): ya se creó otro para la misma cita.
+    if (isReschedule && (error as { code?: string }).code === "23505") {
+      return NextResponse.json(
+        { error: "Ya tiene un pendiente abierto de esa cita" },
+        { status: 409 }
+      );
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   if (!data)
     return NextResponse.json({ error: "Seguimiento no encontrado" }, { status: 404 });
   return NextResponse.json({ data });

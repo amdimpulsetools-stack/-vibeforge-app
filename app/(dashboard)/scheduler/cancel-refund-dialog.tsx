@@ -13,10 +13,17 @@
  *     (sin turno abierto el RPC rechaza con "Abre caja…")
  *   · org sin Caja → anulación de pagos con rastro
  * Nunca pagos negativos (línea roja de F3).
+ *
+ * Mig 273: "el pago se queda" se parte en dos intenciones distintas que
+ * antes se confundían — "queda a cuenta de la próxima cita" (saldo de la
+ * paciente, trasladable a su cita nueva) y "la clínica lo retiene
+ * (penalidad)". La decisión viaja en `money` y el sidebar la guarda en
+ * `appointments.cancel_money` + nota "[Dinero]". Solo informa: no cambia
+ * ninguna fórmula de deuda ni de ingresos.
  */
 
 import { useEffect, useState } from "react";
-import { Banknote, CreditCard, Loader2, Undo2, Wallet } from "lucide-react";
+import { AlertTriangle, Banknote, CreditCard, Gavel, Loader2, Undo2, Wallet } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -26,11 +33,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import type { CancelMoney, CancelOutcome } from "@/lib/followups/reschedule";
 
 export interface CancelRefundDecision {
   /** null = el pago se queda (no se toca nada). */
   refund: { amount: number; tender: "efectivo" | "electronico" } | null;
+  /** Qué pasó con lo pagado (mig 273 → appointments.cancel_money). */
+  money: CancelMoney;
 }
+
+type Mode = "a_cuenta" | "penalidad" | "refund";
 
 interface Props {
   open: boolean;
@@ -39,6 +51,15 @@ interface Props {
   totalPaid: number;
   /** Deshabilita los controles mientras el sidebar procesa. */
   busy?: boolean;
+  /**
+   * Desenlace elegido al cancelar. Con 'reprogramar' (o un error de
+   * registro: la cita correcta se vuelve a crear) lo natural es que el
+   * dinero quede a cuenta; sin desenlace o "no vuelve" no se preselecciona
+   * nada: quien cancela tiene que decidir.
+   */
+  outcome?: CancelOutcome | null;
+  /** Total de comprobantes vivos emitidos para la cita (S/), 0 si ninguno. */
+  invoicedTotal?: number;
   onConfirm: (decision: CancelRefundDecision) => void;
 }
 
@@ -49,9 +70,16 @@ export function CancelRefundDialog({
   onOpenChange,
   totalPaid,
   busy = false,
+  outcome = null,
+  invoicedTotal = 0,
   onConfirm,
 }: Props) {
-  const [mode, setMode] = useState<"keep" | "refund">("keep");
+  // Preseleccionado "a cuenta" siempre: equivale al "El pago se queda" de
+  // antes, así cancelar con pagos sigue siendo un solo clic en cualquier
+  // desenlace (y en orgs sin la mig 273). La penalidad es la excepción.
+  void outcome;
+  const defaultMode: Mode | null = "a_cuenta";
+  const [mode, setMode] = useState<Mode | null>(defaultMode);
   const [amountStr, setAmountStr] = useState("");
   const [tender, setTender] = useState<"efectivo" | "electronico">("efectivo");
 
@@ -59,21 +87,24 @@ export function CancelRefundDialog({
   // devolución completa (el caso común).
   useEffect(() => {
     if (open) {
-      setMode("keep");
+      setMode(defaultMode);
       setAmountStr(totalPaid.toFixed(2));
       setTender("efectivo");
     }
-  }, [open, totalPaid]);
+  }, [open, totalPaid, defaultMode]);
 
   const amount = Number(amountStr);
   const amountValid =
     Number.isFinite(amount) && amount > 0 && amount <= totalPaid + 0.001;
 
   const confirm = () => {
-    if (mode === "keep") {
-      onConfirm({ refund: null });
-    } else if (amountValid) {
-      onConfirm({ refund: { amount: Math.round(amount * 100) / 100, tender } });
+    if (mode === "a_cuenta" || mode === "penalidad") {
+      onConfirm({ refund: null, money: mode });
+    } else if (mode === "refund" && amountValid) {
+      onConfirm({
+        refund: { amount: Math.round(amount * 100) / 100, tender },
+        money: "devuelto",
+      });
     }
   };
 
@@ -93,20 +124,45 @@ export function CancelRefundDialog({
           <button
             type="button"
             disabled={busy}
-            onClick={() => setMode("keep")}
+            onClick={() => setMode("a_cuenta")}
             className={cn(
               "flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors",
-              mode === "keep"
+              mode === "a_cuenta"
                 ? "border-primary bg-primary/5"
                 : "border-border hover:bg-accent"
             )}
           >
             <Wallet className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <span>
-              <span className="block text-sm font-medium">El pago se queda</span>
+              <span className="block text-sm font-medium">
+                Queda a cuenta de la próxima cita
+              </span>
               <span className="block text-xs text-muted-foreground">
-                La clínica retiene el cobro (penalidad, a cuenta de otra cita…).
-                El ingreso se mantiene tal cual.
+                Es saldo de la paciente: se podrá aplicar a su cita nueva. El
+                ingreso se mantiene tal cual.
+              </span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setMode("penalidad")}
+            className={cn(
+              "flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors",
+              mode === "penalidad"
+                ? "border-primary bg-primary/5"
+                : "border-border hover:bg-accent"
+            )}
+          >
+            <Gavel className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+            <span>
+              <span className="block text-sm font-medium">
+                La clínica lo retiene (penalidad)
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                No es saldo a favor de la paciente. El ingreso se mantiene tal
+                cual.
               </span>
             </span>
           </button>
@@ -136,6 +192,15 @@ export function CancelRefundDialog({
 
           {mode === "refund" && (
             <div className="space-y-3 rounded-xl border border-border bg-muted/40 p-3">
+              {invoicedTotal > 0 && (
+                <div className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-2 text-xs text-amber-800 dark:text-amber-300">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  <span>
+                    Esta cita tiene boleta por {fmt(invoicedTotal)}: emite la nota
+                    de crédito desde la tarjeta del comprobante.
+                  </span>
+                </div>
+              )}
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted-foreground">
                   Monto devuelto (máx. {fmt(totalPaid)})
@@ -207,14 +272,18 @@ export function CancelRefundDialog({
           </button>
           <button
             type="button"
-            disabled={busy || (mode === "refund" && !amountValid)}
+            disabled={busy || mode === null || (mode === "refund" && !amountValid)}
             onClick={confirm}
             className="flex items-center justify-center gap-2 rounded-lg bg-destructive px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === "keep"
-              ? "Cancelar cita (el pago se queda)"
-              : "Cancelar cita y registrar devolución"}
+            {mode === "refund"
+              ? "Cancelar cita y registrar devolución"
+              : mode === "penalidad"
+                ? "Cancelar cita (se retiene el pago)"
+                : mode === "a_cuenta"
+                  ? "Cancelar cita (queda a cuenta)"
+                  : "Elige qué pasó con el dinero"}
           </button>
         </DialogFooter>
       </DialogContent>

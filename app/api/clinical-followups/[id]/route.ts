@@ -6,6 +6,7 @@ import {
   assertActiveMembership,
   resolveFollowupOrg,
 } from "@/lib/followups/org-scope";
+import { RESCHEDULE_PENDING_RULE_KEY } from "@/lib/followups/reschedule";
 
 const updateSchema = z.object({
   priority: z.enum(["red", "yellow", "green"]).optional(),
@@ -37,8 +38,31 @@ export async function PATCH(
   const parsed = updateSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
 
+  // "Por reprogramar" (mig 273): no se resuelve desde la historia clínica
+  // (lo gestiona recepción en Seguimientos, con motivo) y nunca lleva
+  // follow_up_date. Solo se lee la regla cuando el body toca algo de eso.
+  let isReschedule = false;
+  if (parsed.data.is_resolved !== undefined || parsed.data.follow_up_date !== undefined) {
+    const { data: cur } = await supabase
+      .from("clinical_followups")
+      .select("rule_key")
+      .eq("id", id)
+      .eq("organization_id", organizationId)
+      .maybeSingle();
+    isReschedule =
+      (cur as { rule_key?: string | null } | null)?.rule_key ===
+      RESCHEDULE_PENDING_RULE_KEY;
+  }
+  if (isReschedule && parsed.data.is_resolved === true) {
+    return NextResponse.json(
+      { error: "Ciérralo desde Seguimientos con el motivo" },
+      { status: 409 }
+    );
+  }
+
   const { mark_contacted, ...rest } = parsed.data;
   const updateData: Record<string, unknown> = { ...rest };
+  if (isReschedule) delete updateData.follow_up_date;
   // Las dos generaciones de estado (is_resolved, mig 053 / status, mig
   // 128) deben moverse juntas: la bandeja /scheduler/follow-ups filtra
   // por status, así que un followup resuelto solo con is_resolved

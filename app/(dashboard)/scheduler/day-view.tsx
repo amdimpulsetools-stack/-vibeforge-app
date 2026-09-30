@@ -47,6 +47,13 @@ interface DayViewProps {
   canReopen?: boolean;
   /** Refetch hook fired after a live-status transition. */
   onLiveChanged?: () => void;
+  /**
+   * Modo reprogramar (mig 273): motivo por el que un hueco vacío no se puede
+   * usar (ya pasó / el doctor atiende en otro consultorio ese día). Se pinta
+   * atenuado con el motivo como tooltip; el clic sigue llegando a
+   * `onSlotClick`, que avisa. Sin la prop (fuera del modo) nada cambia.
+   */
+  slotDisabledReason?: (time: string, officeId: string) => string | null;
 }
 
 
@@ -207,6 +214,7 @@ export function DayView({
   canEnd = false,
   canReopen = false,
   onLiveChanged,
+  slotDisabledReason,
 }: DayViewProps) {
   const { t } = useLanguage();
   const dateStr = format(date, "yyyy-MM-dd");
@@ -668,15 +676,19 @@ export function DayView({
                 // ---- EMPTY slot (drop target + click to create) ----
                 const isDropTarget =
                   dragOverSlot?.time === time && dragOverSlot?.officeId === office.id;
+                const disabledReason = slotDisabledReason?.(time, office.id) ?? null;
 
                 return (
                   <div
                     key={office.id}
+                    title={disabledReason ?? undefined}
                     className={cn(
                       "group relative flex-1 cursor-pointer transition-colors",
                       isDropTarget
                         ? "bg-primary/20 ring-1 ring-inset ring-primary"
-                        : "hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
+                        : disabledReason
+                          ? "cursor-not-allowed bg-muted/50 opacity-50"
+                          : "hover:bg-emerald-50/50 dark:hover:bg-emerald-900/10"
                     )}
                     style={{ height: `${rowHeight}px` }}
                     onClick={() => onSlotClick(date, time, office.id)}

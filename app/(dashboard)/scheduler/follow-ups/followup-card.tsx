@@ -1,9 +1,13 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   AlertTriangle,
+  ChevronDown,
+  PhoneOff,
+  UserX,
   CalendarCheck,
   CalendarPlus,
   CheckCircle2,
@@ -72,6 +76,13 @@ import {
   type ClipboardTemplateKind,
 } from "@/lib/whatsapp-clipboard-config";
 import type { FollowupVariant, FollowupWithDetails } from "./types";
+import {
+  NO_RESCHEDULE_REASONS,
+  RESCHEDULE_PENDING_RULE_KEY,
+  buildRescheduleMessage,
+  rescheduleModeHref,
+  type NoRescheduleReasonCode,
+} from "@/lib/followups/reschedule";
 
 const VIOLET = "#8B5CF6";
 
@@ -147,13 +158,67 @@ function formatDueDate(iso: string | null | undefined): string | null {
   return `${Number(m[3])} ${month} ${m[1]}`;
 }
 
+/**
+ * Opciones extra de las acciones (solo las usa "Por reprogramar"; el resto
+ * de tarjetas las llama sin argumentos y conserva su comportamiento).
+ */
+export interface FollowupContactOpts {
+  type?: "manual_contacted" | "manual_whatsapp";
+  successMsg?: string;
+}
+export interface FollowupSnoozeOpts {
+  successMsg?: string;
+}
+export interface FollowupCloseOpts {
+  /** Motivo fijo de "No reprograma" (NO_RESCHEDULE_REASONS). */
+  reasonCode?: NoRescheduleReasonCode;
+}
+
+/** "Llamar otro día" de "Por reprogramar". */
+const RESCHEDULE_SNOOZE_OPTIONS = [
+  { days: 1, label: "Mañana", toast: "mañana" },
+  { days: 3, label: "En 3 días", toast: "en 3 días" },
+  { days: 7, label: "En 1 semana", toast: "en 1 semana" },
+] as const;
+
+/**
+ * Servicio y fecha de la cita cancelada para el mensaje de WhatsApp.
+ * Primero la cita de origen que resuelve el endpoint (source_id); si no
+ * llegó, se lee del `reason` que escribe la mig 273:
+ * "Cita del DD/MM HH:MM · <Servicio> · <Doctor> cancelada — …".
+ */
+function resolveRescheduleContext(f: FollowupWithDetails): {
+  serviceName: string | null;
+  dateLabel: string | null;
+} {
+  const src = f.source_appointment;
+  if (src && (src.appointment_date || src.service_name)) {
+    const d = src.appointment_date
+      ? /^(\d{4})-(\d{2})-(\d{2})/.exec(src.appointment_date)
+      : null;
+    const hm = src.start_time ? src.start_time.slice(0, 5) : null;
+    const dateLabel = d
+      ? `${d[3]}/${d[2]}${hm ? ` a las ${hm}` : ""}`
+      : null;
+    return { serviceName: src.service_name, dateLabel };
+  }
+  const m = /Cita del (\d{2}\/\d{2})(?: (\d{2}:\d{2}))?(?: · ([^·]+?))?(?: · |\s+cancelada)/.exec(
+    f.reason ?? ""
+  );
+  if (!m) return { serviceName: null, dateLabel: null };
+  return {
+    serviceName: m[3]?.trim() || null,
+    dateLabel: `${m[1]}${m[2] ? ` a las ${m[2]}` : ""}`,
+  };
+}
+
 interface FollowupCardProps {
   followup: FollowupWithDetails;
   variant: FollowupVariant;
-  onContact?: () => unknown | Promise<unknown>;
-  onSnooze?: (days: number) => unknown | Promise<unknown>;
+  onContact?: (opts?: FollowupContactOpts) => unknown | Promise<unknown>;
+  onSnooze?: (days: number, opts?: FollowupSnoozeOpts) => unknown | Promise<unknown>;
   onMarkNoResponse?: () => unknown | Promise<unknown>;
-  onCloseManual?: (reason: string) => unknown | Promise<unknown>;
+  onCloseManual?: (reason: string, opts?: FollowupCloseOpts) => unknown | Promise<unknown>;
   onReactivate?: () => unknown | Promise<unknown>;
   /**
    * Cascade actions (Sprint 1, Pack Fertilidad). Si se proveen, sustituyen
@@ -204,6 +269,12 @@ export function FollowupCard({
   const [agendoOpen, setAgendoOpen] = useState(false);
   const [sinRespuestaOpen, setSinRespuestaOpen] = useState(false);
   const [assignBudgetOpen, setAssignBudgetOpen] = useState(false);
+  // "Por reprogramar": diálogo "No reprograma" con motivo fijo.
+  const [noRescheduleOpen, setNoRescheduleOpen] = useState(false);
+  const [noRescheduleCode, setNoRescheduleCode] =
+    useState<NoRescheduleReasonCode | null>(null);
+  const [noRescheduleText, setNoRescheduleText] = useState("");
+  const router = useRouter();
   const { organization } = useOrganization();
   const { isReceptionist } = useOrgRole();
 
@@ -213,6 +284,7 @@ export function FollowupCard({
     : "—";
   const originBadge = resolveOriginBadge(followup.source, followup.rule_key);
   const isCoreFollowup = followup.rule_key === CORE_SERVICE_FOLLOWUP_RULE_KEY;
+  const isReschedule = followup.rule_key === RESCHEDULE_PENDING_RULE_KEY;
   const priorityConfig = FOLLOWUP_PRIORITY_CONFIG[followup.priority];
   // Badge principal = urgencia operativa (vencido / vence hoy), con la
   // prioridad clínica como fallback. La prioridad queda además como
@@ -256,6 +328,16 @@ export function FollowupCard({
     // ("tu segunda consulta"). Hasta que la Fase 2 añada una plantilla
     // genérica editable, construimos un mensaje neutro en código — así
     // el botón de WhatsApp sigue siendo útil sin fricción.
+    if (isReschedule) {
+      const ctx = resolveRescheduleContext(followup);
+      return buildRescheduleMessage({
+        patientName,
+        clinicName: organization?.name ?? "",
+        serviceName: ctx.serviceName,
+        dateLabel: ctx.dateLabel,
+        kind: "coordinar",
+      });
+    }
     if (isCoreFollowup) {
       return buildCoreFollowupMessage({
         patientName,
@@ -292,6 +374,14 @@ export function FollowupCard({
       }
       const url = `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
       window.open(url, "_blank", "noopener,noreferrer");
+      // "Por reprogramar": abrir WhatsApp ya es un contacto — queda en el
+      // historial (manual_whatsapp) y la tarjeta cede su puesto en la cola.
+      if (isReschedule && variant === "pending" && onContact) {
+        void onContact({
+          type: "manual_whatsapp",
+          successMsg: "WhatsApp registrado como contacto",
+        });
+      }
     } finally {
       buildingRef.current = false;
     }
@@ -348,11 +438,47 @@ export function FollowupCard({
    * el clúster está oculto y el menú es la única vía).
    */
   const handleAgendarCita = () => {
-    const params = new URLSearchParams();
-    if (patient)
-      params.set("patient_name", `${patient.first_name} ${patient.last_name}`);
+    // La agenda abre "Nueva cita" con la paciente cargada (por DNI si lo
+    // tiene). Antes solo mandaba el nombre y la agenda lo ignoraba.
+    const params = new URLSearchParams({ new: "1" });
+    if (followup.patient_id) params.set("patient_id", followup.patient_id);
     if (followup.doctor_id) params.set("doctor_id", followup.doctor_id);
-    window.location.href = `/scheduler?new=1&${params}`;
+    window.location.href = `/scheduler?${params}`;
+  };
+
+  /**
+   * "Por reprogramar": abre la agenda en modo reprogramar con la cita
+   * cancelada (source_id) — la tarjeta se cierra sola al guardar la cita
+   * nueva. Sin source_id (fila vieja o cita borrada) cae al flujo de
+   * siempre con paciente + doctor precargados.
+   */
+  const handleAgendarReprogramar = () => {
+    if (followup.source_id) {
+      router.push(rescheduleModeHref(followup.source_id));
+      return;
+    }
+    handleAgendarCita();
+  };
+
+  const handleNoRescheduleSubmit = async () => {
+    if (!onCloseManual || !noRescheduleCode) {
+      toast.error("Elige un motivo");
+      return;
+    }
+    const text = noRescheduleText.trim();
+    if (noRescheduleCode === "otro" && text.length < 3) {
+      toast.error("Describe brevemente el motivo");
+      return;
+    }
+    setBusy(true);
+    try {
+      await onCloseManual(text, { reasonCode: noRescheduleCode });
+      setNoRescheduleOpen(false);
+      setNoRescheduleCode(null);
+      setNoRescheduleText("");
+    } finally {
+      setBusy(false);
+    }
   };
 
   /**
@@ -363,7 +489,36 @@ export function FollowupCard({
    * clúster de desktop; aquí van sin gate porque en desktop no estorban
    * y en móvil son la única vía.
    */
-  const renderMoreMenu = (triggerClassName: string) => (
+  const renderMoreMenu = (triggerClassName: string) =>
+    isReschedule ? (
+      // "Por reprogramar": menú corto. Sin "Posponer N días" (lo cubre
+      // "Llamar otro día") y "Sin respuesta" siempre con confirmación.
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button className={triggerClassName} aria-label="Más acciones">
+            <MoreHorizontal className="h-4 w-4 md:h-3.5 md:w-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[200px]">
+          <DropdownMenuItem
+            disabled={!waPhone}
+            onSelect={() => void handleCopyMessage()}
+          >
+            Copiar mensaje
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            disabled={!waPhone}
+            onSelect={() => void handleSendWhatsApp()}
+          >
+            Enviar WhatsApp
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => setSinRespuestaOpen(true)}>
+            Pasar a Sin respuesta
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ) : (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button className={triggerClassName} aria-label="Más acciones">
@@ -402,7 +557,7 @@ export function FollowupCard({
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
+    );
 
   const stepActiveIdx = ruleStepperActiveIdx(followup.rule_key);
 
@@ -424,7 +579,11 @@ export function FollowupCard({
   // porque es otra categoría de acción (navega a crear presupuesto, no
   // registra resultado). Cada uno conserva su condición de render
   // original; la fila se pinta si al menos uno de los dos aplica.
-  const showResultActions = variant === "pending" && isOpen && !!onAdvance;
+  // "Por reprogramar" no usa la cascada (Agendó / Contactada / Reagendar /
+  // Sin respuesta): tiene su propia fila más simple (showRescheduleActions).
+  const showResultActions =
+    variant === "pending" && isOpen && !!onAdvance && !isReschedule;
+  const showRescheduleActions = variant === "pending" && isOpen && isReschedule;
   const showAssignBudget =
     (variant === "pending" || variant === "no_response") &&
     !linkedBudget &&
@@ -434,20 +593,45 @@ export function FollowupCard({
 
   // ¿Hay algo que pintar en la fila de chips? En móvil esa fila es un
   // bloque propio bajo el nombre: si va vacía dejaría un hueco muerto.
-  const showAttemptChip = variant === "pending" && isOpen;
+  const showAttemptChip = variant === "pending" && isOpen && !isReschedule;
   const showPriorityChip = variant === "pending" && showPriorityDot;
   const hasChips =
     showAttemptChip ||
     showPriorityChip ||
     originBadge !== null ||
+    isReschedule ||
     linkedBudget !== null ||
     stepActiveIdx !== null;
 
   // Fecha civil de la org (mig 240): con toISOString() (UTC) el mínimo del
   // date picker era "mañana" tras las 19:00 Lima y no dejaba reagendar a hoy.
-  const todayStr = todayInTz(
-    resolveOrgTimezone((organization as { timezone?: string | null } | null)?.timezone),
+  const orgTz = resolveOrgTimezone(
+    (organization as { timezone?: string | null } | null)?.timezone,
   );
+  const todayStr = todayInTz(orgTz);
+  // "Cancelada hace N días": la tarjeta nace al cancelar (created_at).
+  const cancelledDaysAgo = isReschedule
+    ? Math.max(
+        0,
+        Math.round(
+          (Date.parse(`${todayStr}T00:00:00Z`) -
+            Date.parse(`${todayInTz(orgTz, new Date(followup.created_at))}T00:00:00Z`)) /
+            86_400_000,
+        ),
+      )
+    : null;
+  const cancelledLabel =
+    cancelledDaysAgo === null || Number.isNaN(cancelledDaysAgo)
+      ? null
+      : cancelledDaysAgo === 0
+        ? "Cancelada hoy"
+        : cancelledDaysAgo === 1
+          ? "Cancelada ayer"
+          : `Cancelada hace ${cancelledDaysAgo} días`;
+  const isSnoozedAhead =
+    followup.status === "pospuesto" &&
+    !!followup.snooze_until &&
+    Date.parse(followup.snooze_until) > Date.now();
   const ninetyDaysStr = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000)
     .toISOString()
     .slice(0, 10);
@@ -628,6 +812,19 @@ export function FollowupCard({
                     </span>
                   )}
 
+                  {isReschedule && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-amber-700 dark:text-amber-400">
+                      <CalendarClock className="h-3 w-3 shrink-0" />
+                      Por reprogramar
+                    </span>
+                  )}
+
+                  {isReschedule && cancelledLabel && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-muted-foreground">
+                      {cancelledLabel}
+                    </span>
+                  )}
+
                   {originBadge?.kind === "control" && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/40 bg-blue-500/10 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-blue-600 dark:text-blue-400">
                       <CalendarClock className="h-3 w-3 shrink-0" />
@@ -708,7 +905,12 @@ export function FollowupCard({
               {dueDateLabel && (
                 <span className="flex items-center gap-1 whitespace-nowrap">
                   <CalendarCheck className="h-3 w-3 shrink-0" />
-                  {variant === "pending" ? "Vence" : "Fecha"} {dueDateLabel}
+                  {variant === "pending"
+                    ? isReschedule && isSnoozedAhead
+                      ? "Llamar el"
+                      : "Vence"
+                    : "Fecha"}{" "}
+                  {dueDateLabel}
                 </span>
               )}
               {/* Solo el futuro: "vencido"/"vence hoy" ya los dice el badge. */}
@@ -761,7 +963,7 @@ export function FollowupCard({
           {/* Acciones primarias de móvil. En <md el clúster de la derecha
               está oculto: "Enviar WhatsApp" es la acción de la asesora, así
               que se cobra una fila entera con target de 44px. */}
-          {variant === "pending" && (
+          {variant === "pending" && !isReschedule && (
             <button
               onClick={handleSendWhatsApp}
               disabled={!waPhone}
@@ -809,7 +1011,12 @@ export function FollowupCard({
               ocultan y sus acciones se redistribuyen entre el botón de
               WhatsApp de arriba, la cascada 2×2 y el menú "···". */}
           <div className="hidden shrink-0 items-center gap-1.5 md:flex">
-            {variant === "pending" && (
+            {variant === "pending" &&
+              isReschedule &&
+              renderMoreMenu(
+                "flex items-center justify-center rounded-lg border border-border px-2 py-1.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+              )}
+            {variant === "pending" && !isReschedule && (
               <>
                 {/*
                   Copy (primaria) + WA. En desktop el flujo real es copiar
@@ -915,6 +1122,92 @@ export function FollowupCard({
           categorías distintas de acción y la separación izquierda /
           derecha lo comunica sin necesidad de un divisor extra.
         */}
+        {/*
+          "Por reprogramar" (mig 273): fila propia, en español simple.
+          Agendar cita → modo reprogramar (la tarjeta se cierra sola al
+          guardar). No contesta → registra un intento y baja en la cola.
+          Llamar otro día → pospone sin tope de intentos. No reprograma →
+          cierra con motivo fijo (con "Deshacer" en el toast).
+        */}
+        {showRescheduleActions && (
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-3 md:flex md:flex-wrap md:items-center">
+            <button
+              onClick={handleAgendarReprogramar}
+              disabled={busy}
+              className="flex h-11 items-center justify-center gap-1.5 rounded-lg bg-primary px-2.5 text-[13px] font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
+              title="Agendar la cita nueva"
+            >
+              <CalendarPlus className="h-3.5 w-3.5" />
+              Agendar cita
+            </button>
+
+            <button
+              onClick={() =>
+                wrap(() =>
+                  onContact?.({
+                    type: "manual_contacted",
+                    successMsg: "Anotado: no contesta — la pasamos al final de tu cola",
+                  })
+                )
+              }
+              disabled={busy}
+              className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 text-[13px] text-foreground hover:bg-accent disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
+              title="Llamaste y no contestó"
+            >
+              <PhoneOff className="h-3.5 w-3.5" />
+              No contesta
+            </button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  disabled={busy}
+                  className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-border px-2.5 text-[13px] text-foreground hover:bg-accent disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
+                  title="Volver a llamar otro día"
+                >
+                  <CalendarClock className="h-3.5 w-3.5" />
+                  Llamar otro día
+                  <ChevronDown className="h-3 w-3 opacity-70" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-[160px]">
+                {RESCHEDULE_SNOOZE_OPTIONS.map((opt) => (
+                  <DropdownMenuItem
+                    key={opt.days}
+                    onSelect={() =>
+                      wrap(() =>
+                        onSnooze?.(opt.days, {
+                          successMsg: `Listo — te la recordamos ${opt.toast}`,
+                        })
+                      )
+                    }
+                  >
+                    {opt.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <button
+              onClick={() => {
+                setNoRescheduleCode(null);
+                setNoRescheduleText("");
+                setNoRescheduleOpen(true);
+              }}
+              disabled={busy}
+              className="flex h-11 items-center justify-center gap-1.5 rounded-lg border border-red-500/40 px-2.5 text-[13px] text-red-600 hover:bg-red-500/10 disabled:opacity-50 md:h-auto md:justify-start md:gap-1 md:py-1.5 md:text-xs"
+              title="La paciente no va a reprogramar"
+            >
+              <UserX className="h-3.5 w-3.5" />
+              No reprograma
+            </button>
+
+            {busy && (
+              <Loader2 className="col-span-2 h-3.5 w-3.5 animate-spin justify-self-center text-muted-foreground md:col-span-1" />
+            )}
+          </div>
+        )}
+
         {(showResultActions || showAssignBudget) && (
           <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/50 pt-3 md:flex md:flex-wrap md:items-center">
             {showResultActions && (
@@ -1160,8 +1453,9 @@ export function FollowupCard({
           <DialogHeader>
             <DialogTitle>Cerrar sin respuesta</DialogTitle>
             <DialogDescription>
-              El caso pasa a "Sin respuesta". No suma a recuperaciones
-              atribuibles. ¿Confirmas?
+              {isReschedule
+                ? "La paciente sale de Por reprogramar y pasa a \"Sin respuesta\". Podrás reactivarla desde esa pestaña. ¿Confirmas?"
+                : "El caso pasa a \"Sin respuesta\". No suma a recuperaciones atribuibles. ¿Confirmas?"}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -1187,6 +1481,71 @@ export function FollowupCard({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* "Por reprogramar" → No reprograma (motivo fijo + texto si "Otro") */}
+      {isReschedule && (
+        <Dialog open={noRescheduleOpen} onOpenChange={setNoRescheduleOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>La paciente no reprograma</DialogTitle>
+              <DialogDescription>
+                Elige el motivo. La tarjeta sale de Por reprogramar y el motivo
+                queda guardado.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-2" role="radiogroup" aria-label="Motivo">
+              {NO_RESCHEDULE_REASONS.map((r) => {
+                const selected = noRescheduleCode === r.code;
+                return (
+                  <button
+                    key={r.code}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setNoRescheduleCode(r.code)}
+                    className={cn(
+                      "flex min-h-11 items-center rounded-lg border px-3 py-2 text-left text-sm transition-colors md:min-h-0",
+                      selected
+                        ? "border-primary bg-primary/10 font-medium text-primary"
+                        : "border-border hover:bg-accent"
+                    )}
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
+            </div>
+            {noRescheduleCode === "otro" && (
+              <Textarea
+                value={noRescheduleText}
+                onChange={(e) => setNoRescheduleText(e.target.value)}
+                rows={3}
+                placeholder="Cuéntanos brevemente el motivo"
+                autoFocus
+              />
+            )}
+            <DialogFooter>
+              <button
+                type="button"
+                onClick={() => setNoRescheduleOpen(false)}
+                className="rounded-lg border border-border bg-card px-3 py-1.5 text-sm hover:bg-accent"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleNoRescheduleSubmit}
+                disabled={busy || !noRescheduleCode}
+                // text-white a propósito (ver "Cerrar caso").
+                className="inline-flex items-center gap-2 rounded-lg bg-destructive px-3 py-1.5 text-sm font-medium text-white hover:bg-destructive/90 disabled:opacity-50"
+              >
+                {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Cerrar pendiente
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }
@@ -1213,7 +1572,8 @@ function resolveOriginBadge(
 /**
  * Mensaje neutro para seguimientos core. No pasa por
  * `org_whatsapp_clipboard_templates` — ver el comentario en
- * `buildFollowupMessage`.
+ * `buildFollowupMessage`. ("Por reprogramar" usa buildRescheduleMessage de
+ * lib/followups/reschedule.ts, con servicio y fecha de la cita cancelada.)
  */
 function buildCoreFollowupMessage(vars: {
   patientName: string;

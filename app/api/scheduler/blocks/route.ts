@@ -63,6 +63,39 @@ export async function POST(request: Request) {
     .maybeSingle();
   if (!membership) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
+  // No se bloquea encima de pacientes: si una cita viva (no cancelada ni
+  // no-show) se cruza con el rango, se rechaza y se nombra a quién hay que
+  // reprogramar primero. Bloqueo de "todos los consultorios" choca con
+  // cualquier consultorio; uno puntual, solo con las citas de ese.
+  let apptQuery = supabase
+    .from("appointments")
+    .select("start_time, end_time, patient_name")
+    .eq("organization_id", b.org_id)
+    .eq("appointment_date", b.block_date)
+    .not("status", "in", "(cancelled,no_show)")
+    .order("start_time", { ascending: true });
+  if (b.office_id) apptQuery = apptQuery.eq("office_id", b.office_id);
+  if (!b.all_day) {
+    apptQuery = apptQuery.lt("start_time", b.end_time!).gt("end_time", b.start_time!);
+  }
+  const { data: clashes, error: clashError } = await apptQuery;
+  if (clashError) {
+    return NextResponse.json({ error: clashError.message }, { status: 500 });
+  }
+  if (clashes && clashes.length > 0) {
+    return NextResponse.json(
+      {
+        error: "appointments_conflict",
+        conflicts: clashes.map((a) => ({
+          start_time: String(a.start_time).slice(0, 5),
+          end_time: String(a.end_time).slice(0, 5),
+          patient_name: a.patient_name ?? null,
+        })),
+      },
+      { status: 409 }
+    );
+  }
+
   const createdByName = await resolveDisplayName(supabase, user);
 
   const { data: row, error } = await supabase

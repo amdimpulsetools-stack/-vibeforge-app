@@ -9,6 +9,8 @@ import {
   assertActiveMembership,
   resolveActiveOrg,
 } from "@/lib/followups/org-scope";
+import { RESCHEDULE_PENDING_RULE_KEY } from "@/lib/followups/reschedule";
+import { civilDaysFromToday, loadOrgTimezone } from "../_lib/org-dates";
 
 /**
  * GET /api/clinical-followups/dashboard
@@ -128,7 +130,7 @@ export async function GET(request: NextRequest) {
   };
 
   if (bucket === "recovered" && counts) {
-    responseBody.kpis = await loadRecoveredKpis(supabase, orgId, counts);
+    responseBody.kpis = await loadRecoveredKpis(supabase, orgId, counts, filters);
   }
 
   const res = NextResponse.json(responseBody);
@@ -264,7 +266,22 @@ const FOLLOWUP_COLUMNS =
   "id, organization_id, patient_id, doctor_id, status, source, rule_key, " +
   "follow_up_date, expected_by, closed_at, attempt_count, max_attempts, " +
   "priority, reason, snooze_until, first_contact_at, last_contacted_at, " +
-  "target_category_canonical, closure_reason, created_at, updated_at";
+  "target_category_canonical, closure_reason, created_at, updated_at, " +
+  // Origen polimórfico (mig 184): "Por reprogramar" (mig 273) guarda la
+  // cita cancelada en source_id — la tarjeta lo necesita para el modo
+  // reprogramar y el mensaje de WhatsApp.
+  "appointment_id, source_type, source_id";
+
+// Filtro PostgREST que deja fuera las tarjetas "Por reprogramar" (mig 273)
+// de los KPIs de recuperación: no son seguimientos clínicos y su cierre
+// ('reprogramada' / 'no_reprograma_*') deflactaba la tasa. Un `.neq` solo
+// descartaría también las filas con rule_key NULL (manuales), de ahí el OR.
+// El valor va entre comillas porque lleva un punto (carácter reservado).
+const EXCLUDE_RESCHEDULE_OR = `rule_key.is.null,rule_key.neq."${RESCHEDULE_PENDING_RULE_KEY}"`;
+
+// Tope de filas que se ordenan en memoria cuando la bandeja está filtrada
+// a "Por reprogramar" (volumen bajo: ~decenas por org).
+const RESCHEDULE_SORT_CAP = 500;
 
 const SELECT_WITH_DETAILS =
   `${FOLLOWUP_COLUMNS}, doctors(id, full_name), patients(first_name, last_name, phone), budget_records!budget_records_followup_id_fkey(id, treatment_type, amount, sent_by_user_id, sent_at)`;
@@ -386,7 +403,20 @@ async function loadBucketItems(
   const fetchSize = limit + 1;
   let q: AnyQuery;
 
-  if (bucket === "pending") {
+  const rescheduleOnly = filters.rule_key === RESCHEDULE_PENDING_RULE_KEY;
+
+  if (bucket === "pending" && rescheduleOnly) {
+    // Bandeja "Por reprogramar": mismo orden de cola de trabajo, pero las
+    // pospuestas a una fecha futura ("Llamar otro día") bajan al final
+    // hasta que les toque. PostgREST no ordena por expresión, así que se
+    // trae el lote completo (volumen bajo) y se pagina en memoria.
+    q = buildPendingQuery(supabase, orgId, filters, SELECT_WITH_DETAILS, false)
+      .order("last_contacted_at", { ascending: true, nullsFirst: true })
+      .order("expected_by", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .limit(RESCHEDULE_SORT_CAP);
+  } else if (bucket === "pending") {
     // Orden "cola de trabajo": lo que manda no es la fecha comprometida
     // sino cuánto hace que nadie habló con la paciente.
     //   1. `last_contacted_at` NULLS FIRST → las que NUNCA se llamaron
@@ -419,14 +449,54 @@ async function loadBucketItems(
   };
   if (error) return [];
 
+  let rows = data ?? [];
+  if (bucket === "pending" && rescheduleOnly) {
+    const nowMs = Date.now();
+    const snoozedAhead = (r: Record<string, unknown>) =>
+      r.status === "pospuesto" &&
+      typeof r.snooze_until === "string" &&
+      Date.parse(r.snooze_until) > nowMs
+        ? 1
+        : 0;
+    // Sort estable: dentro de cada grupo se conserva el ORDER BY de la query.
+    rows = rows
+      .map((r, i) => ({ r, i }))
+      .sort((a, b) => snoozedAhead(a.r) - snoozedAhead(b.r) || a.i - b.i)
+      .map((x) => x.r)
+      .slice(offset, offset + fetchSize);
+  }
+
+  // "Por reprogramar": días hasta la fecha comprometida en el día civil de
+  // la org (el servidor corre en UTC). Solo se consulta la zona si hay
+  // alguna de esas tarjetas en la página.
+  const hasReschedule = rows.some(
+    (r) => (r as { rule_key?: unknown }).rule_key === RESCHEDULE_PENDING_RULE_KEY
+  );
+  const orgTz = hasReschedule ? await loadOrgTimezone(supabase, orgId) : null;
+  const sourceAppointments = hasReschedule
+    ? await loadRescheduleSourceAppointments(supabase, orgId, rows)
+    : new Map<string, RescheduleSourceAppointment>();
+
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  return (data ?? []).map((row) => {
+  return rows.map((row) => {
     const r = row as Record<string, unknown> & {
       follow_up_date?: string | null;
       expected_by?: string | null;
     };
+    if (orgTz && r.rule_key === RESCHEDULE_PENDING_RULE_KEY) {
+      const sourceId = typeof r.source_id === "string" ? r.source_id : null;
+      return {
+        ...r,
+        days_diff: r.expected_by
+          ? civilDaysFromToday(r.expected_by, orgTz)
+          : undefined,
+        source_appointment: sourceId
+          ? sourceAppointments.get(sourceId) ?? null
+          : null,
+      };
+    }
     let daysDiff: number | undefined;
     // `expected_by` manda sobre `follow_up_date`: es la columna con la que
     // ordenamos el bucket y con la que filtran date_from/date_to, así que
@@ -448,23 +518,27 @@ async function loadBucketItems(
 async function loadRecoveredKpis(
   supabase: SupaClient,
   orgId: string,
-  counts: BucketCounts
+  counts: BucketCounts,
+  filters: BucketFilters
 ): Promise<RecoveredKpis> {
   const since = lookbackIso(RECOVERED_LOOKBACK_DAYS);
 
-  const [withContactRes, organicRes, totalClosedRes, ltvValue] =
+  // Todas las cuentas excluyen "Por reprogramar" (EXCLUDE_RESCHEDULE_OR).
+  const [withContactRes, organicRes, totalClosedRes, rescheduleRecoveredRes, ltvValue] =
     await Promise.all([
       supabase
         .from("clinical_followups")
         .select("id", { count: "exact", head: true })
         .eq("organization_id", orgId)
         .eq("status", "agendado_via_contacto")
+        .or(EXCLUDE_RESCHEDULE_OR)
         .gte("closed_at", since),
       supabase
         .from("clinical_followups")
         .select("id", { count: "exact", head: true })
         .eq("organization_id", orgId)
         .eq("status", "agendado_organico_dentro_ventana")
+        .or(EXCLUDE_RESCHEDULE_OR)
         .gte("closed_at", since),
       supabase
         .from("clinical_followups")
@@ -478,14 +552,25 @@ async function loadRecoveredKpis(
           ...NO_RESPONSE_STATUSES,
           "cerrado_manual",
         ])
+        .or(EXCLUDE_RESCHEDULE_OR)
         .gte("closed_at", since),
+      // Numerador: el conteo del tab (mismos filtros) menos las tarjetas
+      // "Por reprogramar" que hubieran caído en un estado de recuperado.
+      (
+        buildRecoveredQuery(supabase, orgId, filters, "id", true) as AnyQuery
+      ).eq("rule_key", RESCHEDULE_PENDING_RULE_KEY) as Promise<{
+        count: number | null;
+      }>,
       loadLtv(supabase, orgId),
     ]);
 
   const withContact = withContactRes.count ?? 0;
   const organic = organicRes.count ?? 0;
   const totalClosed = totalClosedRes.count ?? 0;
-  const recoveredCount = counts.recovered;
+  const recoveredCount = Math.max(
+    0,
+    counts.recovered - (rescheduleRecoveredRes.count ?? 0)
+  );
 
   const recoveryRatePct =
     totalClosed > 0 ? (recoveredCount / totalClosed) * 100 : 0;
@@ -501,6 +586,55 @@ async function loadRecoveredKpis(
     recovery_rate_pct: Number(recoveryRatePct.toFixed(2)),
     revenue_attributed: Math.round(revenueAttributed * 100) / 100,
   };
+}
+
+interface RescheduleSourceAppointment {
+  appointment_date: string | null;
+  start_time: string | null;
+  service_name: string | null;
+}
+
+/**
+ * Cita cancelada de origen de las tarjetas "Por reprogramar" (source_id →
+ * appointments, sin FK: una sola query liviana por página). Alimenta el
+ * mensaje de WhatsApp ("tu cita de X del DD/MM"). Si falla, la tarjeta cae
+ * al texto del `reason`.
+ */
+async function loadRescheduleSourceAppointments(
+  supabase: SupaClient,
+  orgId: string,
+  rows: Record<string, unknown>[]
+): Promise<Map<string, RescheduleSourceAppointment>> {
+  const ids = Array.from(
+    new Set(
+      rows
+        .filter((r) => r.rule_key === RESCHEDULE_PENDING_RULE_KEY)
+        .map((r) => r.source_id)
+        .filter((v): v is string => typeof v === "string" && v.length > 0)
+    )
+  );
+  const out = new Map<string, RescheduleSourceAppointment>();
+  if (ids.length === 0) return out;
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("id, appointment_date, start_time, services(name)")
+    .eq("organization_id", orgId)
+    .in("id", ids);
+  if (error || !data) return out;
+  for (const a of data as unknown as Array<{
+    id: string;
+    appointment_date: string | null;
+    start_time: string | null;
+    services: { name: string | null } | { name: string | null }[] | null;
+  }>) {
+    const svc = Array.isArray(a.services) ? a.services[0] : a.services;
+    out.set(a.id, {
+      appointment_date: a.appointment_date,
+      start_time: a.start_time,
+      service_name: svc?.name ?? null,
+    });
+  }
+  return out;
 }
 
 async function loadLtv(

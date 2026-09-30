@@ -23,6 +23,16 @@ export interface FollowupWithDetails extends ClinicalFollowupWithRelations {
    *  en null. */
   source_type?: FollowupSourceType | null;
   source_id?: string | null;
+  /** Cita de origen (mig 184). "Por reprogramar" (mig 273) la deja en NULL
+   *  a propósito: la cita cancelada va en `source_id`. */
+  appointment_id: string | null;
+  /** Solo "Por reprogramar": datos de la cita cancelada (source_id) que
+   *  resuelve dashboard/route.ts para el mensaje de WhatsApp. */
+  source_appointment?: {
+    appointment_date: string | null;
+    start_time: string | null;
+    service_name: string | null;
+  } | null;
   days_diff?: number;
   /** Budget record vinculado vía budget_records.followup_id, si el followup
    *  fue creado por la regla `fertility.budget_pending_acceptance`. Permite
