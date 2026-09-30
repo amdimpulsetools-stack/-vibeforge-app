@@ -1,4 +1,6 @@
--- Pendiente de aplicar en producción
+-- Aplicada en producción el 30-sep-2026 (apply_migration; verificada: 5 columnas
+-- en appointments, 3 en patient_payments, 5 triggers, 6 funciones, 3 índices,
+-- RPC con EXECUTE para authenticated y sin anon).
 --
 -- ═══════════════════════════════════════════════════════════════════
 -- 273: Cita cancelada "Por reprogramar" → una tarjeta por cita en la
