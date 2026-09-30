@@ -172,8 +172,15 @@ function AppointmentCardInner({
         : hexToPastel(hold.color, 0.07)
       : null;
   // Espera en recepción: desde "Llegó" hasta que empieza la consulta.
+  // Solo mientras la cita sigue viva: una cita ya "Completada" (o no asistió
+  // / cancelada) no está esperando aunque nunca se marcó "En consulta".
   const waitingSince =
-    liveStatusEnabled && !isDone && liveState === "arrived" ? appointment.arrived_at ?? null : null;
+    liveStatusEnabled &&
+    !isDone &&
+    liveState === "arrived" &&
+    (appointment.status === "scheduled" || appointment.status === "confirmed")
+      ? appointment.arrived_at ?? null
+      : null;
 
   return (
     // NOTA MÓVIL — el drag & drop es HTML5 nativo y NO dispara en touch.
