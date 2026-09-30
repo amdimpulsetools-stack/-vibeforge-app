@@ -2026,39 +2026,45 @@ export function AppointmentSidebar({
 
         {/* Details */}
         <div className="space-y-3">
-          {/* Patient info — always read-only */}
-          <div className="flex items-center gap-3">
-            <User className="h-4 w-4 text-muted-foreground" />
+          {/* Patient info — always read-only. Los badges (seguimientos,
+              deuda) van en su propia línea: en el panel angosto, junto al
+              nombre lo aplastaban y se montaban encima. */}
+          <div className="flex items-start gap-3">
+            <User className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">{appointment.patient_name}</p>
+              <p className="text-sm font-semibold break-words">{appointment.patient_name}</p>
               {appointment.patient_phone && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                   <Phone className="h-3 w-3" />
                   {appointment.patient_phone}
                 </p>
               )}
-            </div>
-            {/* Seguimientos abiertos del paciente */}
-            {openFollowupsCount > 0 && (
-              <Link
-                href="/scheduler/follow-ups"
-                className="flex items-center gap-1 shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
-                title="Ver seguimientos en la bandeja"
-              >
-                <Bell className="h-3 w-3" />
-                {openFollowupsCount} seguimiento
-                {openFollowupsCount !== 1 ? "s" : ""} abierto
-                {openFollowupsCount !== 1 ? "s" : ""}
-              </Link>
-            )}
+              {(openFollowupsCount > 0 || patientDebt > 0) && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  {/* Seguimientos abiertos del paciente */}
+                  {openFollowupsCount > 0 && (
+                    <Link
+                      href="/scheduler/follow-ups"
+                      className="flex items-center gap-1 shrink-0 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] font-semibold text-amber-600 hover:bg-amber-500/20 dark:text-amber-400"
+                      title="Ver seguimientos en la bandeja"
+                    >
+                      <Bell className="h-3 w-3" />
+                      {openFollowupsCount} seguimiento
+                      {openFollowupsCount !== 1 ? "s" : ""} abierto
+                      {openFollowupsCount !== 1 ? "s" : ""}
+                    </Link>
+                  )}
 
-            {/* Patient total debt badge */}
-            {patientDebt > 0 && (
-              <span className="flex items-center gap-1 shrink-0 rounded-lg bg-red-500/10 border border-red-500/30 px-2 py-1 text-[11px] font-bold text-red-600 dark:text-red-400" title="Deuda total del paciente">
-                <AlertTriangle className="h-3 w-3" />
-                S/. {patientDebt.toFixed(2)}
-              </span>
-            )}
+                  {/* Patient total debt badge */}
+                  {patientDebt > 0 && (
+                    <span className="flex items-center gap-1 shrink-0 rounded-lg bg-red-500/10 border border-red-500/30 px-2 py-1 text-[11px] font-bold text-red-600 dark:text-red-400" title="Deuda total del paciente">
+                      <AlertTriangle className="h-3 w-3" />
+                      S/. {patientDebt.toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Date & Time — read-only (use Reprogramar for these) */}
