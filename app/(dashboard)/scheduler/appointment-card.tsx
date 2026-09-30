@@ -19,7 +19,7 @@
  */
 
 import { memo } from "react";
-import { CheckCircle2, CircleDollarSign, Video, AlertTriangle, Pill, Clock } from "lucide-react";
+import { CheckCircle2, CircleDollarSign, Video, AlertTriangle, Pill } from "lucide-react";
 import type { AppointmentWithRelations } from "@/types/admin";
 import { RecurringDot } from "@/components/patients/recurring-badge";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ import { useOrgToday } from "@/hooks/use-org-today";
 import { isVirtualAppointment, serviceDisplayName } from "@/lib/appointment-modality";
 import { getHoldExpiresAt } from "@/lib/appointments/prereserva";
 import { useHoldView } from "./prereserva-context";
+import { HoldCountdownBadge, HoldDrainFill, WaitingBadge } from "./card-timers";
 
 /**
  * Color helpers — verbatim copies of the ones that lived in
@@ -96,6 +97,7 @@ interface HoldView {
   state: "active" | "expired";
   color: string;
   label: string;
+  expiresAt: string;
 }
 
 function AppointmentCardInner({
@@ -160,7 +162,18 @@ function AppointmentCardInner({
   // Pre-reserva (mig 274): fondo y contorno punteado con el color de Ajustes
   // (rojo si venció). El borde izquierdo sigue siendo del doctor. Una
   // consulta terminada/stale manda (gris), igual que con el tinte en vivo.
-  const holdBg = hold && !isDone ? hexToPastel(hold.color, hold.state === "expired" ? 0.2 : 0.24) : null;
+  // Vigente: fondo casi blanco + el color "que se agota" (HoldDrainFill) de
+  // derecha a izquierda. Vencida: rojo pleno, sin barra.
+  const holdDraining = !!hold && hold.state === "active" && !isDone && !liveTint;
+  const holdBg =
+    hold && !isDone
+      ? hold.state === "expired"
+        ? hexToPastel(hold.color, 0.2)
+        : hexToPastel(hold.color, 0.07)
+      : null;
+  // Espera en recepción: desde "Llegó" hasta que empieza la consulta.
+  const waitingSince =
+    liveStatusEnabled && !isDone && liveState === "arrived" ? appointment.arrived_at ?? null : null;
 
   return (
     // NOTA MÓVIL — el drag & drop es HTML5 nativo y NO dispara en touch.
@@ -203,14 +216,14 @@ function AppointmentCardInner({
         ...(isDone && !isOtherDoctor ? { opacity: 0.75 } : {}),
       }}
     >
+      {holdDraining && hold && (
+        <HoldDrainFill
+          startedAt={appointment.created_at}
+          holdExpiresAt={hold.expiresAt}
+          color={hexToPastel(hold.color, 0.3)}
+        />
+      )}
       <div className="flex items-center gap-1">
-        {hold && (
-          hold.state === "expired" ? (
-            <AlertTriangle className="h-3 w-3 shrink-0" style={{ color: hold.color }} aria-label={hold.label} />
-          ) : (
-            <Clock className="h-3 w-3 shrink-0" style={{ color: hold.color }} aria-label={hold.label} />
-          )
-        )}
         {appointment.patients?.is_recurring && (
           <RecurringDot className="shrink-0" />
         )}
@@ -223,6 +236,8 @@ function AppointmentCardInner({
         >
           {appointment.patient_name}
         </p>
+        {/* Pre-reserva: cuánto le queda (badge rojo, letras blancas). */}
+        {hold && <HoldCountdownBadge holdExpiresAt={hold.expiresAt} compact={isCompact} />}
         {/* Live status pill — visible to everyone, interactive only
             for the org's own flows (other-doctor cards are read-only
             for doctor users). Short cards (15-min slots ≈ 36 px) get
@@ -249,6 +264,7 @@ function AppointmentCardInner({
             timezone={orgTimezone}
           />
         )}
+        {waitingSince && <WaitingBadge arrivedAt={waitingSince} compact={isCompact} />}
         {/* Virtual indicator — por modalidad (mig 256), NO por meeting_url:
             un servicio "Ambos" rellena el link por defecto del doctor
             aunque la cita sea presencial. */}
@@ -349,8 +365,8 @@ function AppointmentCardInner({
  */
 function HoldAppointmentCard(props: AppointmentCardProps & { holdExpiresAt: string }) {
   const { holdExpiresAt, ...rest } = props;
-  const hold = useHoldView(holdExpiresAt);
-  return <AppointmentCardInner {...rest} hold={hold} />;
+  const view = useHoldView(holdExpiresAt);
+  return <AppointmentCardInner {...rest} hold={{ ...view, expiresAt: holdExpiresAt }} />;
 }
 
 function AppointmentCardSwitch(props: AppointmentCardProps) {

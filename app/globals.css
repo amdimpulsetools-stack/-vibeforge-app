@@ -1079,3 +1079,16 @@
   .grain::before { display: none; }
   * { box-shadow: none !important; text-shadow: none !important; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PRE-RESERVA — el color de la tarjeta se "agota" de derecha a izquierda
+   (app/(dashboard)/scheduler/card-timers.tsx). Solo `transform`: lo anima
+   el compositor del navegador, sin re-renders de React ni layout. La
+   duración y el desfase (delay negativo) salen del plazo real de la
+   pre-reserva, así que la barra está siempre en su punto aunque la
+   tarjeta se monte a mitad de camino.
+   ═══════════════════════════════════════════════════════════════════ */
+@keyframes hold-drain {
+  from { transform: scaleX(1); }
+  to   { transform: scaleX(0); }
+}
