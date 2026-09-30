@@ -1,0 +1,54 @@
+# ═══════════════════════════════════════════════════════════════════
+# Check Embeds — chequeo estático de embeds de PostgREST ambiguos.
+#
+# Incidente 30-sep-2026: la mig 273 agregó una segunda FK
+# patient_payments → appointments; el embed `patient_payments(amount)`
+# de la agenda quedó ambiguo (PGRST201) y la agenda se vio en blanco.
+# Este job cruza las FKs de supabase/migrations con los `.select()` del
+# código y falla si un embed queda ambiguo o con un hint inexistente.
+# No usa base de datos ni secretos. Detalle: scripts/check-embeds.ts.
+#
+# Node 22: el mismo que declara package.json ("engines": "22.x").
+# ═══════════════════════════════════════════════════════════════════
+name: Check Embeds
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "supabase/migrations/**"
+      - "app/**"
+      - "lib/**"
+      - "components/**"
+      - "hooks/**"
+      - "scripts/check-embeds.ts"
+      - "scripts/check-embeds/**"
+      - "scripts/check-embeds.allowlist.json"
+      - ".github/workflows/check-embeds.yml"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+
+permissions:
+  contents: read
+
+jobs:
+  check-embeds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        # Solo hace falta `typescript` (parser): sin scripts de instalación
+        # (p. ej. @sentry/cli no baja su binario).
+        run: npm ci --ignore-scripts
+
+      - name: Check PostgREST embeds
+        run: npm run check:embeds
