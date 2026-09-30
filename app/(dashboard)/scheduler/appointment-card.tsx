@@ -19,13 +19,15 @@
  */
 
 import { memo } from "react";
-import { CheckCircle2, CircleDollarSign, Video, AlertTriangle, Pill } from "lucide-react";
+import { CheckCircle2, CircleDollarSign, Video, AlertTriangle, Pill, Clock } from "lucide-react";
 import type { AppointmentWithRelations } from "@/types/admin";
 import { RecurringDot } from "@/components/patients/recurring-badge";
 import { cn } from "@/lib/utils";
 import { LiveStatusPill, deriveLiveState } from "./live-status-pill";
 import { useOrgToday } from "@/hooks/use-org-today";
 import { isVirtualAppointment, serviceDisplayName } from "@/lib/appointment-modality";
+import { getHoldExpiresAt } from "@/lib/appointments/prereserva";
+import { useHoldView } from "./prereserva-context";
 
 /**
  * Color helpers — verbatim copies of the ones that lived in
@@ -89,6 +91,13 @@ export interface AppointmentCardProps {
   onLiveChanged?: () => void;
 }
 
+/** Vista de pre-reserva (mig 274) ya resuelta con el reloj compartido. */
+interface HoldView {
+  state: "active" | "expired";
+  color: string;
+  label: string;
+}
+
 function AppointmentCardInner({
   appointment,
   topPx,
@@ -105,7 +114,8 @@ function AppointmentCardInner({
   canReopen = false,
   isStale = false,
   onLiveChanged,
-}: AppointmentCardProps) {
+  hold = null,
+}: AppointmentCardProps & { hold?: HoldView | null }) {
   // Zona horaria de la org para "Liberar hueco" (mig 253).
   const { timezone: orgTimezone } = useOrgToday();
   const doctorColor = appointment.doctors?.color ?? "#9ca3af";
@@ -147,6 +157,11 @@ function AppointmentCardInner({
         ? hexToPastel("#10b981", 0.22)
         : null;
 
+  // Pre-reserva (mig 274): fondo y contorno punteado con el color de Ajustes
+  // (rojo si venció). El borde izquierdo sigue siendo del doctor. Una
+  // consulta terminada/stale manda (gris), igual que con el tinte en vivo.
+  const holdBg = hold && !isDone ? hexToPastel(hold.color, hold.state === "expired" ? 0.2 : 0.24) : null;
+
   return (
     // NOTA MÓVIL — el drag & drop es HTML5 nativo y NO dispara en touch.
     // No se porta a touch a propósito (un DnD táctil sobre un grid con
@@ -167,6 +182,7 @@ function AppointmentCardInner({
       }}
       onDragEnd={() => onDragEndCard?.()}
       onClick={onClick}
+      title={hold ? `${appointment.patient_name} — ${hold.label}` : undefined}
       className={cn(
         "absolute inset-x-1.5 z-[5] rounded-lg px-2 text-left transition-all overflow-hidden flex flex-col justify-center",
         isCompact ? "py-0" : "py-0.5",
@@ -180,13 +196,21 @@ function AppointmentCardInner({
         height: `${heightPx}px`,
         backgroundColor: isDone
           ? "hsl(var(--muted))"
-          : liveTint ?? hexToPastel(bodyColor, 0.18),
+          : liveTint ?? holdBg ?? hexToPastel(bodyColor, 0.18),
         borderLeft: `4px solid ${doctorColor}`,
+        ...(hold ? { outline: `1.5px dashed ${hold.color}`, outlineOffset: -1.5 } : {}),
         ...(isOtherDoctor ? { filter: "saturate(0.5)", opacity: 0.6 } : {}),
         ...(isDone && !isOtherDoctor ? { opacity: 0.75 } : {}),
       }}
     >
       <div className="flex items-center gap-1">
+        {hold && (
+          hold.state === "expired" ? (
+            <AlertTriangle className="h-3 w-3 shrink-0" style={{ color: hold.color }} aria-label={hold.label} />
+          ) : (
+            <Clock className="h-3 w-3 shrink-0" style={{ color: hold.color }} aria-label={hold.label} />
+          )
+        )}
         {appointment.patients?.is_recurring && (
           <RecurringDot className="shrink-0" />
         )}
@@ -306,8 +330,33 @@ function AppointmentCardInner({
             de arriba sigue diciendo que es virtual. */}
         {serviceDisplayName(appointment.services?.name, appointment)}
       </p>
+      {hold && !isCompact && (
+        <p
+          className="truncate text-[10px] font-semibold leading-tight"
+          style={{ color: hold.state === "expired" ? hold.color : hexToDark(hold.color, 0.7) }}
+        >
+          {hold.label}
+        </p>
+      )}
     </button>
   );
+}
+
+/**
+ * Pre-reserva (mig 274): SOLO estas tarjetas se suscriben al reloj
+ * compartido (useNow vía useHoldView) para pasar solas de "vence 15:30" a
+ * "vencida". Las citas normales siguen sin re-renderizar con el tick.
+ */
+function HoldAppointmentCard(props: AppointmentCardProps & { holdExpiresAt: string }) {
+  const { holdExpiresAt, ...rest } = props;
+  const hold = useHoldView(holdExpiresAt);
+  return <AppointmentCardInner {...rest} hold={hold} />;
+}
+
+function AppointmentCardSwitch(props: AppointmentCardProps) {
+  const holdExpiresAt = getHoldExpiresAt(props.appointment);
+  if (holdExpiresAt) return <HoldAppointmentCard {...props} holdExpiresAt={holdExpiresAt} />;
+  return <AppointmentCardInner {...props} />;
 }
 
 /**
@@ -317,7 +366,7 @@ function AppointmentCardInner({
  * refresh that returns identical rows doesn't repaint the grid.
  */
 export const AppointmentCard = memo(
-  AppointmentCardInner,
+  AppointmentCardSwitch,
   (prev, next) =>
     prev.appointment.id === next.appointment.id &&
     // updated_at covers the live-status timestamps too: appointments
@@ -344,5 +393,9 @@ export const AppointmentCard = memo(
     prev.liveStatusEnabled === next.liveStatusEnabled &&
     prev.canEnd === next.canEnd &&
     prev.canReopen === next.canReopen &&
-    prev.isStale === next.isStale,
+    prev.isStale === next.isStale &&
+    // Pre-reserva (mig 274): el trigger de pago y "Extender" tocan la fila
+    // (updated_at cubre), pero se compara igual por si llega por un merge
+    // parcial de la caché.
+    getHoldExpiresAt(prev.appointment) === getHoldExpiresAt(next.appointment),
 );

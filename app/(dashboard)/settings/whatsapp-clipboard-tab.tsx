@@ -6,6 +6,7 @@ import { useOrganization } from "@/components/organization-provider";
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   Bold,
   Italic,
   Loader2,
@@ -28,10 +29,12 @@ import {
 } from "@/components/ui/popover";
 import {
   CLIPBOARD_TEMPLATE_KINDS,
+  ClipboardTemplateSaveError,
   DEFAULT_TEMPLATES,
+  MIG_274_CLIPBOARD_KINDS,
   TEMPLATE_VARIABLES,
   buildMessage,
-  loadTemplateFromDb,
+  loadAllTemplatesFromDb,
   loadWaClipboardConfig,
   saveTemplateToDb,
   saveWaClipboardConfig,
@@ -106,7 +109,42 @@ const TAB_LABELS: Record<
     es: "Seguimiento presupuesto",
     en: "Budget follow-up",
   },
+  reschedule_notice: {
+    es: "Aviso al cancelar para reprogramar",
+    en: "Cancellation notice (reschedule)",
+  },
+  reschedule_coordinate: {
+    es: "Coordinar reprogramación (bandeja)",
+    en: "Coordinate reschedule (inbox)",
+  },
+  prereserva: {
+    es: "Pre-reserva de horario",
+    en: "Slot pre-booking",
+  },
 };
+
+/**
+ * Ayuda de las plantillas de la mig 274 (dónde se usa cada una). Las
+ * existentes no llevan texto de ayuda — se quedan como estaban.
+ */
+const KIND_HELP: Partial<
+  Record<ClipboardTemplateKind, { es: string; en: string }>
+> = {
+  reschedule_notice: {
+    es: "Se usa en el botón «Avisar por WhatsApp» al cancelar una cita como «Reprogramará». Si falta el servicio o la hora, esa parte se omite sola.",
+    en: "Used by the “Notify via WhatsApp” button when an appointment is cancelled as “Will reschedule”. Missing service or time is left out automatically.",
+  },
+  reschedule_coordinate: {
+    es: "Se usa en el WhatsApp de las tarjetas «Por reprogramar» de la bandeja de seguimientos, para coordinar la nueva fecha.",
+    en: "Used by the WhatsApp button on “To reschedule” cards in the follow-up inbox, to agree on a new date.",
+  },
+  prereserva: {
+    es: "Se usa al pre-reservar un horario mientras la paciente paga. {{VENCE}} es la hora límite de la pre-reserva y {{MONTO}} el total a pagar; si el monto o el servicio vienen vacíos, esa parte se omite sola.",
+    en: "Used when a slot is pre-booked while the patient pays. {{VENCE}} is the hold deadline and {{MONTO}} the amount due; empty amount or service is left out automatically.",
+  },
+};
+
+const MIG_274_KIND_SET = new Set<ClipboardTemplateKind>(MIG_274_CLIPBOARD_KINDS);
 
 export default function WhatsAppClipboardTab() {
   const { language } = useLanguage();
@@ -141,6 +179,8 @@ export default function WhatsAppClipboardTab() {
   const visibleKinds = useMemo<ClipboardTemplateKind[]>(() => {
     return CLIPBOARD_TEMPLATE_KINDS.filter((k) => {
       if (k === "post_appointment") return true;
+      // Plantillas de agenda (mig 274): para todas las orgs.
+      if (MIG_274_KIND_SET.has(k)) return true;
       return fertilityEnabled;
     });
   }, [fertilityEnabled]);
@@ -148,14 +188,13 @@ export default function WhatsAppClipboardTab() {
   // ── templates state (per-kind) ─────────────────────────────────────
   const [templates, setTemplates] = useState<
     Record<ClipboardTemplateKind, string>
-  >({
-    post_appointment: DEFAULT_TEMPLATES.post_appointment,
-    second_consultation_followup:
-      DEFAULT_TEMPLATES.second_consultation_followup,
-    budget_followup: DEFAULT_TEMPLATES.budget_followup,
-  });
+  >({ ...DEFAULT_TEMPLATES });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<ClipboardTemplateKind | null>(null);
+  // Kinds cuyo guardado devolvió 409 (la base aún no tiene la mig 274).
+  const [needsMigration, setNeedsMigration] = useState<
+    Set<ClipboardTemplateKind>
+  >(() => new Set());
   const [activeTab, setActiveTab] = useState<ClipboardTemplateKind>(
     "post_appointment"
   );
@@ -165,18 +204,11 @@ export default function WhatsAppClipboardTab() {
     async function load() {
       setLoading(true);
       try {
-        const entries = await Promise.all(
-          CLIPBOARD_TEMPLATE_KINDS.map(async (k) => {
-            const t = await loadTemplateFromDb(k);
-            return [k, t] as const;
-          })
-        );
+        // Una sola petición: la API devuelve todos los kinds (antes eran
+        // N GET idénticos, uno por kind). Mismo fallback: default si falla.
+        const all = await loadAllTemplatesFromDb();
         if (cancelled) return;
-        setTemplates((prev) => {
-          const next = { ...prev };
-          for (const [k, t] of entries) next[k] = t;
-          return next;
-        });
+        setTemplates((prev) => ({ ...prev, ...all }));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -201,6 +233,9 @@ export default function WhatsAppClipboardTab() {
     post_appointment: null,
     second_consultation_followup: null,
     budget_followup: null,
+    reschedule_notice: null,
+    reschedule_coordinate: null,
+    prereserva: null,
   });
 
   const setTemplateForKind = useCallback(
@@ -281,12 +316,21 @@ export default function WhatsAppClipboardTab() {
     setSaving(kind);
     try {
       await saveTemplateToDb(kind, templates[kind]);
+      setNeedsMigration((prev) => {
+        if (!prev.has(kind)) return prev;
+        const next = new Set(prev);
+        next.delete(kind);
+        return next;
+      });
       toast.success(
         language === "es"
           ? "Plantilla guardada"
           : "Template saved"
       );
     } catch (err) {
+      if (err instanceof ClipboardTemplateSaveError && err.status === 409) {
+        setNeedsMigration((prev) => new Set(prev).add(kind));
+      }
       toast.error(
         err instanceof Error
           ? err.message
@@ -338,6 +382,28 @@ export default function WhatsAppClipboardTab() {
           treatmentType: "FIV",
         });
         break;
+      case "reschedule_notice":
+      case "reschedule_coordinate":
+        raw = buildMessage(kind, tpl, {
+          NOMBRE: "María García",
+          CLINICA: clinicName,
+          SERVICIO: "Consulta general",
+          FECHA: "20/03",
+          HORA: "10:30",
+        });
+        break;
+      case "prereserva":
+        raw = buildMessage("prereserva", tpl, {
+          NOMBRE: "María García",
+          CLINICA: clinicName,
+          SERVICIO: "Consulta general",
+          DOCTOR: "Dr. López",
+          FECHA: "jueves 20/03",
+          HORA: "10:30",
+          VENCE: "15:30",
+          MONTO: "S/ 150.00",
+        });
+        break;
     }
     return whatsappToHtml(raw);
   };
@@ -348,9 +414,27 @@ export default function WhatsAppClipboardTab() {
   const renderEditor = (kind: ClipboardTemplateKind) => {
     const vars = TEMPLATE_VARIABLES[kind];
     const isSaving = saving === kind;
+    const help = KIND_HELP[kind];
 
     return (
       <div className="space-y-6">
+        {help && (
+          <div className="rounded-2xl border border-border/60 bg-card p-4">
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {language === "es" ? help.es : help.en}
+            </p>
+          </div>
+        )}
+        {needsMigration.has(kind) && (
+          <div className="flex items-start gap-2 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 text-xs text-amber-800 dark:text-amber-300">
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+            <p>
+              {language === "es"
+                ? "Actualiza la base (mig 274) para editar esta plantilla. Mientras tanto se usa el texto de fábrica."
+                : "Update the database (migration 274) to edit this template. The default text is used meanwhile."}
+            </p>
+          </div>
+        )}
         {/* Variables chips */}
         <div className="rounded-2xl border border-border/60 bg-card p-6 space-y-4">
           <div>

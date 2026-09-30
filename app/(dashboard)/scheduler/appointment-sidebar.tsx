@@ -69,13 +69,20 @@ import {
 import { CancelOutcomePicker, defaultCancelOutcome, minutesSinceCreated } from "./cancel-outcome-picker";
 import { DepositBanner } from "./deposit-banner";
 import {
-  buildRescheduleMessage,
   RESCHEDULE_OPEN_STATUSES,
   RESCHEDULE_PENDING_RULE_KEY,
   type CancelMoney,
   type CancelOutcome,
 } from "@/lib/followups/reschedule";
 import { normalizePhoneForWa } from "@/lib/whatsapp-clipboard-config";
+import {
+  confirmHold,
+  fetchHoldExpiresAt,
+  getHoldExpiresAt,
+  renderRescheduleNoticeMessage,
+} from "@/lib/appointments/prereserva";
+import { formatSoles } from "@/lib/appointments/reschedule-context";
+import { PrereservaStrip } from "./prereserva-strip";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
@@ -277,6 +284,11 @@ interface AppointmentSidebarProps {
    */
   /** Recibe el id de la cita cancelada: la página cierra el panel si aún la muestra. */
   onCancelled?: (appointmentId: string) => void;
+  /**
+   * Refresca la agenda SIN cerrar este panel (pre-reserva, mig 274:
+   * Extender / Confirmar sin pago). Si no viene, no se refresca la grilla.
+   */
+  onRefresh?: () => void;
   onReschedule?: () => void;
   doctors?: Doctor[];
   services?: Service[];
@@ -350,6 +362,7 @@ export function AppointmentSidebar({
   onClose,
   onUpdate,
   onCancelled,
+  onRefresh,
   onReschedule,
   doctors = [],
   services = [],
@@ -366,13 +379,18 @@ export function AppointmentSidebar({
   // Live status master toggle + "recepción puede finalizar" (mig 227) —
   // instant from the localStorage cache; the scheduler page keeps it
   // fresh via fetchSchedulerConfig().
-  const { liveStatusEnabled, receptionCanEnd } = useMemo(() => {
+  const { liveStatusEnabled, receptionCanEnd, prereservaColor } = useMemo(() => {
     const cfg = loadSchedulerConfig();
     return {
       liveStatusEnabled: cfg.liveStatus,
       receptionCanEnd: cfg.liveStatusReceptionCanEnd,
+      prereservaColor: cfg.prereservaColor,
     };
   }, []);
+  // Pre-reserva (mig 274): estado LOCAL del hold — Extender / Confirmar
+  // cambian la franja al instante sin cerrar el panel (la cita que pasa la
+  // página es una foto del momento en que se abrió).
+  const [holdExpiresAt, setHoldExpiresAt] = useState<string | null>(() => getHoldExpiresAt(appointment));
   // Phase 3 (Budget Tiers): only show the "Asignar presupuesto" CTA on
   // completed appointments and only for orgs with the fertility addon
   // active. Receptionists are excluded (advisors with non-receptionist
@@ -1062,6 +1080,20 @@ export function AppointmentSidebar({
       });
     }
 
+    // Pre-reserva (mig 274): el trigger de pago clínico limpia el hold. Si
+    // esta cita ERA pre-reserva y la base la confirmó, recién ahora sale el
+    // correo de confirmación (y el alta en Google Calendar) que se omitió al
+    // pre-reservar.
+    if (holdExpiresAt) {
+      const apptId = appointment.id;
+      void fetchHoldExpiresAt(createClient(), apptId).then((stillHeld) => {
+        if (stillHeld) return;
+        sendNotification({ type: "appointment_confirmation", appointment_id: apptId });
+        syncAppointmentToGoogle(apptId, "upsert");
+        toast.success("Pre-reserva confirmada con el pago");
+      });
+    }
+
     setShowAddPayment(false);
     setPayAmount("");
     setPayMethod("");
@@ -1298,10 +1330,16 @@ export function AppointmentSidebar({
     // Cancel → mark event as cancelled. Other status changes don't change
     // the event title/time but we re-upsert so the description / status
     // reflects the new state (e.g. "completed" comment in description).
-    syncAppointmentToGoogle(
-      appointment.id,
-      newStatus === "cancelled" ? "cancel" : "upsert"
-    );
+    // Pre-reserva (mig 274) cancelada: nunca se le confirmó a la paciente ni
+    // se subió a Google Calendar (eso pasa al confirmarla), así que tampoco
+    // sale el correo de "cita cancelada" ni la baja en Google.
+    const cancelledHold = newStatus === "cancelled" && !!holdExpiresAt;
+    if (!cancelledHold) {
+      syncAppointmentToGoogle(
+        appointment.id,
+        newStatus === "cancelled" ? "cancel" : "upsert"
+      );
+    }
 
     // Fire email notifications for relevant status changes
     const notificationMap: Record<string, string> = {
@@ -1309,7 +1347,7 @@ export function AppointmentSidebar({
       cancelled: "appointment_cancelled",
     };
     const templateSlug = notificationMap[newStatus];
-    if (templateSlug && !silentCancel) {
+    if (templateSlug && !silentCancel && !cancelledHold) {
       sendNotification({
         type: templateSlug,
         appointment_id: appointment.id,
@@ -1325,6 +1363,13 @@ export function AppointmentSidebar({
       }
     } else if (newStatus === "no_show") {
       emitLiveNotification({ event: "appointment_no_show", appointment_id: appointment.id });
+    }
+
+    // Pre-reserva (mig 274): pasar a "Confirmada" desde aquí es confirmarla
+    // (el correo ya salió arriba) — se quita el hold para que la tarjeta no
+    // siga como pre-reserva ni termine "vencida". Solo toca citas con hold.
+    if (newStatus === "confirmed" && holdExpiresAt) {
+      await confirmHold(supabase, appointment.id);
     }
 
     if (isCancel) finishCancellation();
@@ -1353,17 +1398,22 @@ export function AppointmentSidebar({
   const announceReschedulePending = async () => {
     const supabase = createClient();
     const waPhone = normalizePhoneForWa(appointment.patient_phone);
+    // Plantilla editable 'reschedule_notice' (Ajustes → Plantillas WhatsApp);
+    // cae al texto fijo de siempre si no carga. Se arma ANTES del toast: el
+    // clic abre wa.me de forma síncrona (bloqueador de pop-ups).
+    const message = waPhone
+      ? await renderRescheduleNoticeMessage({
+          patientName: appointment.patient_name ?? "",
+          clinicName: organization?.name ?? "",
+          serviceName: appointment.services?.name ?? null,
+          appointmentDate: appointment.appointment_date,
+          startTime: appointment.start_time,
+        })
+      : "";
     const waAction = waPhone
       ? {
           label: "Avisar por WhatsApp",
           onClick: () => {
-            const message = buildRescheduleMessage({
-              kind: "aviso_cancelacion",
-              patientName: appointment.patient_name ?? "",
-              clinicName: organization?.name ?? "",
-              serviceName: appointment.services?.name ?? null,
-              dateLabel: `${ddmm(appointment.appointment_date)} a las ${appointment.start_time.slice(0, 5)}`,
-            });
             window.open(
               `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`,
               "_blank",
@@ -1937,6 +1987,35 @@ export function AppointmentSidebar({
             </span>
           )}
         </div>
+
+        {/* Pre-reserva (mig 274): tiempo restante + Confirmar sin pago /
+            Extender / Liberar horario / WhatsApp. */}
+        {holdExpiresAt && (appointment.status === "scheduled" || appointment.status === "confirmed") && (
+          <PrereservaStrip
+            appointmentId={appointment.id}
+            holdExpiresAt={holdExpiresAt}
+            color={prereservaColor}
+            timezone={orgTimezone}
+            patientName={appointment.patient_name ?? ""}
+            patientPhone={appointment.patient_phone ?? null}
+            readOnly={readOnly}
+            message={{
+              patientName: appointment.patient_name ?? "",
+              clinicName: organization?.name ?? "",
+              serviceName: appointment.services?.name ?? null,
+              doctorName: appointment.doctors?.full_name ?? null,
+              appointmentDate: appointment.appointment_date,
+              startTime: appointment.start_time,
+              // Lo que falta pagar de la cita, tal como lo calcula este panel.
+              amountLabel: pending > 0 ? formatSoles(pending) : "",
+            }}
+            onHoldChanged={(next) => {
+              setHoldExpiresAt(next);
+              onRefresh?.();
+            }}
+            onReleased={onUpdate}
+          />
+        )}
 
         {/* Details */}
         <div className="space-y-3">

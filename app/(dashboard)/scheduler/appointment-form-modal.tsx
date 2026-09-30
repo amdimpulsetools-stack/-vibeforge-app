@@ -58,7 +58,7 @@ import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST } from "@/lib/peru-locations
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { RecurringBadge } from "@/components/patients/recurring-badge";
-import { loadWaClipboardConfig, type AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
+import { loadWaClipboardConfig, normalizePhoneForWa, type AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import { WhatsAppClipboardModal } from "./whatsapp-clipboard-modal";
 import { calculateCoverageQuotes } from "@/lib/insurance/calculate-coverage";
@@ -69,6 +69,18 @@ import {
   type RescheduleContext,
 } from "@/lib/appointments/reschedule-context";
 import { transferDeposits } from "@/lib/appointments/deposits";
+import {
+  PRERESERVA_DEFAULT_MINUTES,
+  computeHoldExpiry,
+  describeHoldDeadline,
+  isMissingColumnError,
+  markHoldColumnSupport,
+  openWhatsApp,
+  prereservaAmountLabel,
+  probeHoldColumn,
+  renderPrereservaMessage,
+} from "@/lib/appointments/prereserva";
+import { PrereservaButton } from "./prereserva-button";
 import type {
   AppointmentPaymentMode,
   InsuranceCoverageQuote,
@@ -230,6 +242,8 @@ interface AppointmentFormModalProps {
    *  agende. Default false = comportamiento anterior (fin derivado del
    *  servicio y deshabilitado). */
   allowCustomDuration?: boolean;
+  /** Plazo por defecto (min) del botón "Pre-reservar" — Ajustes → Agenda (mig 274). */
+  prereservaDefaultMinutes?: number;
   organizationId: string;
   organizationName: string;
   organizationAddress: string;
@@ -262,6 +276,7 @@ export function AppointmentFormModal({
   scheduleEndMinutes = 20 * 60,
   requiredFields = {},
   allowCustomDuration = false,
+  prereservaDefaultMinutes = PRERESERVA_DEFAULT_MINUTES,
   organizationId,
   organizationName,
   organizationAddress,
@@ -273,7 +288,7 @@ export function AppointmentFormModal({
 }: AppointmentFormModalProps) {
   const { t, language } = useLanguage();
   // "Hoy" civil de la org (mig 240) para fecha de cita y de cobro.
-  const { today: orgToday } = useOrgToday();
+  const { today: orgToday, timezone: orgTimezone } = useOrgToday();
   const { enabled: insuranceEnabled, carriers: orgInsuranceCarriers } = useOrgInsurance();
   // Current auth user — used to preselect the "Responsable" field with the
   // logged-in member when creating a new appointment.
@@ -1284,7 +1299,18 @@ export function AppointmentFormModal({
 
   const conflict = checkConflicts();
 
-  const onSubmit = async (values: AppointmentFormData) => {
+  // Pre-reserva (mig 274): un anticipo al crear confirmaría la cita en el
+  // acto (el trigger de pago limpia el hold), así que con anticipo no se
+  // ofrece — es una cita normal pagada.
+  const prereservaBlockedReason =
+    depositEnabled && Number(depositAmount) > 0
+      ? "Con anticipo la cita queda confirmada: usa Guardar."
+      : null;
+
+  const onSubmit = async (values: AppointmentFormData, opts?: { holdMinutes?: number }) => {
+    // Pre-reserva (mig 274): mismos pasos que Guardar + hold_expires_at. Solo
+    // al crear y fuera del modo reprogramar (el botón no existe allí).
+    const holdMinutes = !rs && opts?.holdMinutes ? opts.holdMinutes : null;
     if (conflict) {
       toast.error(conflict);
       return;
@@ -1364,6 +1390,22 @@ export function AppointmentFormModal({
           : `El anticipo (S/. ${Number(depositAmount).toFixed(2)}) no puede superar el total a pagar (S/. ${totalAfterDiscount.toFixed(2)})`
       );
       return;
+    }
+
+    if (holdMinutes != null) {
+      if (prereservaBlockedReason) {
+        toast.error(prereservaBlockedReason);
+        return;
+      }
+      // Sin la mig 274 no se crea NADA (ni paciente ni cita): se avisa y
+      // recepción decide si la agenda como cita normal con Guardar.
+      setSaving(true);
+      const holdSupported = await probeHoldColumn(createClient());
+      if (!holdSupported) {
+        setSaving(false);
+        toast.warning("La pre-reserva aún no está disponible (falta actualizar la base). No se creó la cita: usa Guardar para agendarla como cita normal.");
+        return;
+      }
     }
 
     setSaving(true);
@@ -1503,6 +1545,8 @@ export function AppointmentFormModal({
         // Mig 273: enlace con la cita cancelada que se reprograma (la base
         // cierra su tarjeta "Por reprogramar" aunque cambie el servicio).
         ...(rescheduledFromId ? { rescheduled_from_id: rescheduledFromId } : {}),
+        // Mig 274: pre-reserva. Instante absoluto = ahora + plazo elegido.
+        ...(holdMinutes != null ? { hold_expires_at: computeHoldExpiry(holdMinutes) } : {}),
         organization_id: organizationId,
         custom_fields: customFields,
         payment_mode: paymentMode,
@@ -1521,6 +1565,19 @@ export function AppointmentFormModal({
       .insert(insertRow)
       .select("id")
       .single();
+
+    // Mig 274 sin aplicar (la sonda de arriba pudo quedar desfasada): NO se
+    // reintenta como cita normal — recepción pidió una pre-reserva.
+    if (
+      insertResult.error &&
+      "hold_expires_at" in insertRow &&
+      isMissingColumnError(insertResult.error, "hold_expires_at")
+    ) {
+      markHoldColumnSupport(false);
+      setSaving(false);
+      toast.warning("La pre-reserva aún no está disponible (falta actualizar la base). No se creó la cita: usa Guardar para agendarla como cita normal.");
+      return;
+    }
 
     // Mig 273 aún no aplicada: `rescheduled_from_id` no existe (PGRST204 /
     // 42703 mencionando la columna). Se reintenta sin ella: la cita se crea
@@ -1640,7 +1697,67 @@ export function AppointmentFormModal({
       emitLiveNotification({ event: "appointment_created", appointment_id: newAppt.id });
 
       // Best-effort push to Google Calendar (no-op if integration not connected).
-      syncAppointmentToGoogle(newAppt.id, "upsert");
+      // Pre-reserva (mig 274): no se sube hasta confirmarse — "Liberar
+      // horario" borra la fila y el evento quedaría huérfano en Google.
+      if (holdMinutes == null) syncAppointmentToGoogle(newAppt.id, "upsert");
+    }
+
+    // ── Pre-reserva: ni correo de confirmación ni modal post-cita ─────────
+    // En su lugar, toast con la hora límite y acción "Enviar WhatsApp" con la
+    // plantilla editable 'prereserva'. El mensaje se arma ANTES del toast
+    // para que el clic abra wa.me de forma síncrona (bloqueador de pop-ups).
+    if (newAppt && holdMinutes != null) {
+      const holdExpiresAt = String(appointmentRow.hold_expires_at);
+      const deadline = describeHoldDeadline(holdExpiresAt, orgTimezone);
+      const doctor = doctors.find((d) => d.id === values.doctor_id);
+      const service = services.find((s) => s.id === values.service_id);
+      let waMessage: string | null = null;
+      try {
+        waMessage = await renderPrereservaMessage({
+          patientName: fullName,
+          clinicName: organizationName,
+          serviceName: service
+            ? serviceDisplayName(service.name, {
+                modality: values.modality || null,
+                meeting_url: values.meeting_url || null,
+              })
+            : null,
+          doctorName: doctor?.full_name ?? null,
+          appointmentDate: values.appointment_date,
+          startTime: values.start_time,
+          holdExpiresAt,
+          timezone: orgTimezone,
+          // Total a pagar con la fórmula canónica (lib/patient-debt.ts).
+          amountLabel: prereservaAmountLabel({
+            status: values.status,
+            price_snapshot: priceSnapshot,
+            discount_amount: Number(appointmentRow.discount_amount ?? 0),
+          }),
+        });
+      } catch {
+        waMessage = null;
+      }
+      const waPhone = normalizePhoneForWa(values.patient_phone);
+      const message = waMessage;
+      toast.success(`Horario pre-reservado hasta las ${deadline.long}`, {
+        description: "Se confirmará solo al registrar el pago.",
+        duration: 20_000,
+        action: message
+          ? waPhone
+            ? { label: "Enviar WhatsApp", onClick: () => openWhatsApp(waPhone, message) }
+            : {
+                label: "Copiar WhatsApp",
+                onClick: () => {
+                  void navigator.clipboard
+                    ?.writeText(message)
+                    .then(() => toast.success("Mensaje copiado"))
+                    .catch(() => toast.error("No se pudo copiar el mensaje"));
+                },
+              }
+          : undefined,
+      });
+      onSaved();
+      return;
     }
 
     // Send appointment confirmation email to patient
@@ -1745,7 +1862,7 @@ export function AppointmentFormModal({
             Clampearlo elimina esa clase de bug de raíz; las filas ya son
             fluidas así que no recorta nada. */}
         <form
-          onSubmit={handleSubmit(onSubmit)}
+          onSubmit={handleSubmit((v) => onSubmit(v))}
           className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-4 md:px-6 py-4 space-y-4 md:max-h-[70dvh] md:flex-none"
         >
           {/* Modo reprogramar: de qué cita viene esta y qué pasa con el adelanto. */}
@@ -3108,8 +3225,18 @@ export function AppointmentFormModal({
           >
             {t("common.cancel")}
           </button>
+          {/* Pre-reserva (mig 274) — solo al crear y fuera del modo reprogramar. */}
+          {!rs && (
+            <PrereservaButton
+              defaultMinutes={prereservaDefaultMinutes}
+              saving={saving}
+              disabled={!!conflict || !!durationError || doctorDayError || !!prereservaBlockedReason}
+              disabledReason={prereservaBlockedReason}
+              onPrereserve={(minutes) => void handleSubmit((v) => onSubmit(v, { holdMinutes: minutes }))()}
+            />
+          )}
           <button
-            onClick={handleSubmit(onSubmit)}
+            onClick={handleSubmit((v) => onSubmit(v))}
             disabled={saving || !!conflict || !!durationError || doctorDayError}
             className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-opacity md:py-2"
           >

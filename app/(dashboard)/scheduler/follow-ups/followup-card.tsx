@@ -73,13 +73,13 @@ import {
   buildMessage,
   loadTemplateFromDb,
   normalizePhoneForWa,
+  renderClipboardTemplate,
   type ClipboardTemplateKind,
 } from "@/lib/whatsapp-clipboard-config";
 import type { FollowupVariant, FollowupWithDetails } from "./types";
 import {
   NO_RESCHEDULE_REASONS,
   RESCHEDULE_PENDING_RULE_KEY,
-  buildRescheduleMessage,
   rescheduleModeHref,
   type NoRescheduleReasonCode,
 } from "@/lib/followups/reschedule";
@@ -189,7 +189,10 @@ const RESCHEDULE_SNOOZE_OPTIONS = [
  */
 function resolveRescheduleContext(f: FollowupWithDetails): {
   serviceName: string | null;
-  dateLabel: string | null;
+  /** "12/10" — {{FECHA}} de la plantilla `reschedule_coordinate`. */
+  date: string | null;
+  /** "10:30" — {{HORA}}; solo si hay fecha (como antes "12/10 a las 10:30"). */
+  time: string | null;
 } {
   const src = f.source_appointment;
   if (src && (src.appointment_date || src.service_name)) {
@@ -197,18 +200,18 @@ function resolveRescheduleContext(f: FollowupWithDetails): {
       ? /^(\d{4})-(\d{2})-(\d{2})/.exec(src.appointment_date)
       : null;
     const hm = src.start_time ? src.start_time.slice(0, 5) : null;
-    const dateLabel = d
-      ? `${d[3]}/${d[2]}${hm ? ` a las ${hm}` : ""}`
-      : null;
-    return { serviceName: src.service_name, dateLabel };
+    const date = d ? `${d[3]}/${d[2]}` : null;
+    const time = date && hm ? hm : null;
+    return { serviceName: src.service_name, date, time };
   }
   const m = /Cita del (\d{2}\/\d{2})(?: (\d{2}:\d{2}))?(?: · ([^·]+?))?(?: · |\s+cancelada)/.exec(
     f.reason ?? ""
   );
-  if (!m) return { serviceName: null, dateLabel: null };
+  if (!m) return { serviceName: null, date: null, time: null };
   return {
     serviceName: m[3]?.trim() || null,
-    dateLabel: `${m[1]}${m[2] ? ` a las ${m[2]}` : ""}`,
+    date: m[1],
+    time: m[2] ?? null,
   };
 }
 
@@ -329,13 +332,15 @@ export function FollowupCard({
     // genérica editable, construimos un mensaje neutro en código — así
     // el botón de WhatsApp sigue siendo útil sin fricción.
     if (isReschedule) {
+      // Plantilla editable en Ajustes → Plantillas WhatsApp (mig 274); sin
+      // personalizar (o si falla la carga) es el mismo texto de siempre.
       const ctx = resolveRescheduleContext(followup);
-      return buildRescheduleMessage({
-        patientName,
-        clinicName: organization?.name ?? "",
-        serviceName: ctx.serviceName,
-        dateLabel: ctx.dateLabel,
-        kind: "coordinar",
+      return renderClipboardTemplate("reschedule_coordinate", {
+        NOMBRE: patientName,
+        CLINICA: organization?.name ?? "",
+        SERVICIO: ctx.serviceName,
+        FECHA: ctx.date,
+        HORA: ctx.time,
       });
     }
     if (isCoreFollowup) {
@@ -1572,8 +1577,8 @@ function resolveOriginBadge(
 /**
  * Mensaje neutro para seguimientos core. No pasa por
  * `org_whatsapp_clipboard_templates` — ver el comentario en
- * `buildFollowupMessage`. ("Por reprogramar" usa buildRescheduleMessage de
- * lib/followups/reschedule.ts, con servicio y fecha de la cita cancelada.)
+ * `buildFollowupMessage`. ("Por reprogramar" usa la plantilla editable reschedule_coordinate
+ * vía renderClipboardTemplate, con servicio y fecha de la cita cancelada.)
  */
 function buildCoreFollowupMessage(vars: {
   patientName: string;

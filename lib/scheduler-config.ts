@@ -17,9 +17,35 @@ export const SCHEDULER_CONFIG_KEYS = {
   // en localStorage (pre-254): la caché vieja sirve de placeholder hasta que
   // llega la fila de la org.
   breakTime: "vibeforge_break_time_config",
+  // Pre-reserva (mig 274)
+  prereservaColor: "vibeforge_scheduler_prereserva_color",
+  prereservaDefaultMinutes: "vibeforge_scheduler_prereserva_minutes",
 };
 
 export type IntervalOption = 15 | 20 | 30 | 45 | 60;
+
+// ─── Pre-reserva (mig 274) ────────────────────────────────────────────────
+// Viven aquí (y no en lib/appointments/prereserva.ts, que los re-exporta)
+// para que el servidor lea scheduler_settings sin arrastrar el módulo de
+// plantillas de WhatsApp.
+
+export const PRERESERVA_DEFAULT_COLOR = "#8b5cf6";
+export const PRERESERVA_DEFAULT_MINUTES = 120;
+/** Rango del CHECK de scheduler_settings.prereserva_default_minutes. */
+export const PRERESERVA_MIN_MINUTES = 15;
+export const PRERESERVA_MAX_MINUTES = 10080; // 7 días
+
+export function sanitizePrereservaColor(raw: unknown): string {
+  return typeof raw === "string" && /^#[0-9a-fA-F]{6}$/.test(raw) ? raw.toLowerCase() : PRERESERVA_DEFAULT_COLOR;
+}
+
+export function sanitizePrereservaMinutes(raw: unknown): number {
+  const n = typeof raw === "number" ? raw : Number(raw);
+  if (!Number.isInteger(n) || n < PRERESERVA_MIN_MINUTES || n > PRERESERVA_MAX_MINUTES) {
+    return PRERESERVA_DEFAULT_MINUTES;
+  }
+  return n;
+}
 
 // ─── Break Time por org (mig 254) ────────────────────────────────────────
 
@@ -244,6 +270,13 @@ export interface SchedulerConfig {
    * localStorage por navegador y el servidor no podía aplicarlo.
    */
   breakTime: BreakTimeConfig;
+  /**
+   * Pre-reserva (mig 274): color de las citas pre-reservadas en la grilla y
+   * plazo por defecto (minutos) del botón "Pre-reservar". Sin la migración
+   * la columna no llega y caen a '#8b5cf6' / 120.
+   */
+  prereservaColor: string;
+  prereservaDefaultMinutes: number;
 }
 
 export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
@@ -260,6 +293,8 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   requiredFields: {}, // mig 176 — empty = code defaults (back-compat)
   allowCustomDuration: false, // mig 221 — off = duración impuesta por el servicio
   breakTime: DEFAULT_BREAK_TIME_CONFIG, // mig 254 — off hasta que la org lo active
+  prereservaColor: PRERESERVA_DEFAULT_COLOR, // mig 274
+  prereservaDefaultMinutes: PRERESERVA_DEFAULT_MINUTES, // mig 274
 };
 
 /** Returns the smallest selected interval (used for the grid resolution). */
@@ -346,7 +381,12 @@ export function loadSchedulerConfig(): SchedulerConfig {
       const rawBreak = localStorage.getItem(SCHEDULER_CONFIG_KEYS.breakTime);
       if (rawBreak) breakTime = sanitizeBreakTime(JSON.parse(rawBreak));
     } catch { /* keep default */ }
-    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose, liveStatusReceptionCanEnd, requiredFields, allowCustomDuration, breakTime };
+    // Pre-reserva (mig 274): caché ausente/corrupta → defaults.
+    const prereservaColor = sanitizePrereservaColor(localStorage.getItem(SCHEDULER_CONFIG_KEYS.prereservaColor));
+    const prereservaDefaultMinutes = sanitizePrereservaMinutes(
+      localStorage.getItem(SCHEDULER_CONFIG_KEYS.prereservaDefaultMinutes) ?? PRERESERVA_DEFAULT_MINUTES
+    );
+    return { startHour, endHour, startMinute, endMinute, intervals, timeIndicator, disabledWeekdays, liveStatus, liveStatusAutoClose, liveStatusReceptionCanEnd, requiredFields, allowCustomDuration, breakTime, prereservaColor, prereservaDefaultMinutes };
   } catch {
     return DEFAULT_SCHEDULER_CONFIG;
   }
@@ -368,6 +408,8 @@ export function saveSchedulerConfig(config: Partial<SchedulerConfig>) {
   if (config.requiredFields !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.requiredFields, JSON.stringify(config.requiredFields));
   if (config.allowCustomDuration !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.allowCustomDuration, String(config.allowCustomDuration));
   if (config.breakTime !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.breakTime, JSON.stringify(config.breakTime));
+  if (config.prereservaColor !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.prereservaColor, config.prereservaColor);
+  if (config.prereservaDefaultMinutes !== undefined) localStorage.setItem(SCHEDULER_CONFIG_KEYS.prereservaDefaultMinutes, String(config.prereservaDefaultMinutes));
 }
 
 // ─── Database-backed functions ───────────────────────────────────
@@ -391,6 +433,8 @@ export function schedulerRowToConfig(row: {
   required_fields?: unknown;
   allow_custom_duration?: boolean | null;
   break_time?: unknown;
+  prereserva_color?: string | null;
+  prereserva_default_minutes?: number | null;
 }): SchedulerConfig {
   const intervals = (Array.isArray(row.intervals) ? row.intervals : [15]).filter(
     (v: number) => [15, 20, 30, 45, 60].includes(v)
@@ -418,6 +462,9 @@ export function schedulerRowToConfig(row: {
     allowCustomDuration: row.allow_custom_duration ?? false,
     // mig 254 — columna ausente (fila anterior a la migración) → apagado.
     breakTime: sanitizeBreakTime(row.break_time),
+    // mig 274 — columnas ausentes (fila anterior a la migración) → defaults.
+    prereservaColor: sanitizePrereservaColor(row.prereserva_color),
+    prereservaDefaultMinutes: sanitizePrereservaMinutes(row.prereserva_default_minutes ?? PRERESERVA_DEFAULT_MINUTES),
   };
 }
 
@@ -467,6 +514,8 @@ export async function saveSchedulerConfigToDb(
     if (config.requiredFields !== undefined) body.required_fields = config.requiredFields;
     if (config.allowCustomDuration !== undefined) body.allow_custom_duration = config.allowCustomDuration;
     if (config.breakTime !== undefined) body.break_time = config.breakTime;
+    if (config.prereservaColor !== undefined) body.prereserva_color = config.prereservaColor;
+    if (config.prereservaDefaultMinutes !== undefined) body.prereserva_default_minutes = config.prereservaDefaultMinutes;
     if (orgId) body.org_id = orgId;
 
     const res = await fetch("/api/scheduler-settings", {
@@ -477,6 +526,37 @@ export async function saveSchedulerConfigToDb(
     return res.ok;
   } catch {
     return false;
+  }
+}
+
+/**
+ * Guarda la config de pre-reserva (mig 274) distinguiendo "falta la
+ * migración" (409 prereserva_unavailable) de un error cualquiera, para que
+ * Ajustes pueda decir "actualiza la base" en vez de fallar mudo.
+ */
+export async function savePrereservaSettingsToDb(
+  patch: Pick<Partial<SchedulerConfig>, "prereservaColor" | "prereservaDefaultMinutes">,
+  orgId?: string | null
+): Promise<"ok" | "unavailable" | "forbidden" | "error"> {
+  try {
+    const body: Record<string, unknown> = {};
+    if (patch.prereservaColor !== undefined) body.prereserva_color = patch.prereservaColor;
+    if (patch.prereservaDefaultMinutes !== undefined) body.prereserva_default_minutes = patch.prereservaDefaultMinutes;
+    if (orgId) body.org_id = orgId;
+    const res = await fetch("/api/scheduler-settings", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      saveSchedulerConfig(patch);
+      return "ok";
+    }
+    if (res.status === 409) return "unavailable";
+    if (res.status === 403) return "forbidden";
+    return "error";
+  } catch {
+    return "error";
   }
 }
 

@@ -93,6 +93,11 @@ const ClinicalTemplatesTab = dynamic(() => import("./clinical-templates-tab"), {
 const OrgSpecialtySection = dynamic(() => import("./org-specialty-section"), { loading: TabLoader });
 const AgendaRequiredFieldsSection = dynamic(() => import("./agenda-required-fields-section"), { loading: TabLoader });
 const FollowupSettingsSection = dynamic(() => import("./followup-settings-section"), { loading: TabLoader });
+// Pre-reserva de horario (mig 274) — vive junto a la agenda.
+const PrereservaSettingsSection = dynamic(
+  () => import("../scheduler/prereserva-settings-section").then((m) => ({ default: m.PrereservaSettingsSection })),
+  { loading: TabLoader }
+);
 // Header preview modal lazy-loaded — only mounted when the user clicks
 // "Vista previa del membrete". Keeps the first paint of /settings small.
 const ClinicHeaderPreviewModal = dynamic(
@@ -1812,6 +1817,19 @@ export default function SettingsPage() {
             value={schedulerConfig.requiredFields}
             onChange={(next) => updateSchedulerConfig({ requiredFields: next })}
             language={language === "es" ? "es" : "en"}
+          />
+
+          {/* Pre-reserva de horario (mig 274): color en la grilla y plazo
+              por defecto. Guarda por su cuenta para distinguir "falta la
+              migración" (409) de un error. */}
+          <PrereservaSettingsSection
+            color={schedulerConfig.prereservaColor}
+            defaultMinutes={schedulerConfig.prereservaDefaultMinutes}
+            organizationId={organizationId}
+            onSaved={(patch) => {
+              setSchedulerConfig((prev) => ({ ...prev, ...patch }));
+              queryClient.invalidateQueries({ queryKey: ["scheduler-config"] });
+            }}
           />
 
           {/* Seguimientos automáticos (mig 185/187). Vive en Agenda porque la

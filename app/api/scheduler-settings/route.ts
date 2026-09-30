@@ -1,7 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { REQUIRED_FIELD_KEYS } from "@/lib/scheduler-config";
+import {
+  REQUIRED_FIELD_KEYS,
+  PRERESERVA_MIN_MINUTES,
+  PRERESERVA_MAX_MINUTES,
+} from "@/lib/scheduler-config";
 
 const minuteOffset = z.union([z.literal(0), z.literal(15), z.literal(30), z.literal(45)]);
 
@@ -47,6 +51,10 @@ const schedulerSettingsSchema = z.object({
       },
       { message: "break time must last at least 30 minutes and have at least one day" }
     ),
+  // Pre-reserva (mig 274): color de la tarjeta y plazo por defecto. Mismos
+  // límites que los CHECK de la migración.
+  prereserva_color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  prereserva_default_minutes: z.number().int().min(PRERESERVA_MIN_MINUTES).max(PRERESERVA_MAX_MINUTES),
 }).partial().refine(
   (d) => {
     // Cross-field: closing must be strictly after opening, at minute level.
@@ -193,6 +201,9 @@ export async function PUT(request: Request) {
       .single();
 
     if (error) {
+      if (isMissingPrereservaColumn(error, update)) {
+        return NextResponse.json(PRERESERVA_UNAVAILABLE, { status: 409 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     return NextResponse.json(data);
@@ -204,8 +215,31 @@ export async function PUT(request: Request) {
       .single();
 
     if (error) {
+      if (isMissingPrereservaColumn(error, update)) {
+        return NextResponse.json(PRERESERVA_UNAVAILABLE, { status: 409 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     return NextResponse.json(data);
   }
+}
+
+// Mig 274 sin aplicar: guardar prereserva_* falla con PGRST204 / 42703. Se
+// responde 409 con un código estable para que Ajustes muestre "actualiza la
+// base" en vez de un 500 opaco; el resto de la agenda no se ve afectado.
+const PRERESERVA_UNAVAILABLE = {
+  error: "prereserva_unavailable",
+  message: "Actualiza la base (mig 274) para configurar la pre-reserva.",
+};
+
+function isMissingPrereservaColumn(
+  error: { code?: string | null; message?: string | null },
+  update: Record<string, unknown>
+): boolean {
+  if (!("prereserva_color" in update) && !("prereserva_default_minutes" in update)) return false;
+  const msg = error.message ?? "";
+  return (
+    (error.code === "PGRST204" || error.code === "42703" || /does not exist|schema cache/i.test(msg)) &&
+    /prereserva_/i.test(msg)
+  );
 }
