@@ -17,7 +17,8 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { NumberPopIn } from "@/components/ui/number-pop-in";
 import { Input } from "@/components/ui/input";
-import { Loader2, LockKeyhole } from "lucide-react";
+import Link from "next/link";
+import { Loader2, LockKeyhole, Printer } from "lucide-react";
 import {
   DIFFERENCE_TONE_CLASS,
   differenceTone,
@@ -290,9 +291,15 @@ export function CloseResultCard({
       )}
 
       <div className="mt-5 flex justify-center gap-2 print:hidden">
-        <Button variant="outline" onClick={() => window.print()}>
-          Imprimir
-        </Button>
+        {/* El reporte completo del turno (ingresos, egresos y cuadre), listo
+            para imprimir o guardar como PDF. Antes se imprimía solo esta
+            tarjeta, sin el detalle. */}
+        <Link
+          href={`/caja/reporte?turnos=${result.shift_id}`}
+          className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-input bg-background px-4 text-sm font-medium hover:bg-accent"
+        >
+          <Printer className="h-4 w-4" /> Imprimir reporte del turno
+        </Link>
         <Button onClick={onDone}>Listo</Button>
       </div>
     </div>
