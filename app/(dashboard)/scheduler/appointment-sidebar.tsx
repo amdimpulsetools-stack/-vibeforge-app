@@ -77,10 +77,14 @@ import {
 import { normalizePhoneForWa } from "@/lib/whatsapp-clipboard-config";
 import {
   confirmHold,
-  fetchHoldExpiresAt,
   getHoldExpiresAt,
   renderRescheduleNoticeMessage,
 } from "@/lib/appointments/prereserva";
+import {
+  notifyIfHoldConfirmedByPayment,
+  readHoldState,
+  type HoldReadState,
+} from "@/lib/appointments/prereserva-confirm";
 import { formatSoles } from "@/lib/appointments/reschedule-context";
 import { PrereservaStrip } from "./prereserva-strip";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -1024,6 +1028,11 @@ export function AppointmentSidebar({
     if (!payAmount || Number(payAmount) <= 0) return;
     setSavingPayment(true);
     const supabase = createClient();
+    // Pre-reserva (mig 274): estado REAL antes del cobro, para enviar la
+    // confirmación solo si ESTE cobro la confirmó (ver prereserva-confirm).
+    const holdBefore: HoldReadState = holdExpiresAt
+      ? await readHoldState(supabase, appointment.id)
+      : "normal";
 
     // Se pide el id de vuelta: la notificación en vivo se emite por id y el
     // servidor reconstruye el texto desde la fila real (mig 192).
@@ -1084,12 +1093,10 @@ export function AppointmentSidebar({
     // esta cita ERA pre-reserva y la base la confirmó, recién ahora sale el
     // correo de confirmación (y el alta en Google Calendar) que se omitió al
     // pre-reservar.
-    if (holdExpiresAt) {
-      const apptId = appointment.id;
-      void fetchHoldExpiresAt(createClient(), apptId).then((stillHeld) => {
-        if (stillHeld) return;
-        sendNotification({ type: "appointment_confirmation", appointment_id: apptId });
-        syncAppointmentToGoogle(apptId, "upsert");
+    if (holdBefore === "held") {
+      void notifyIfHoldConfirmedByPayment(supabase, appointment.id, holdBefore).then((confirmed) => {
+        if (!confirmed) return;
+        setHoldExpiresAt(null);
         toast.success("Pre-reserva confirmada con el pago");
       });
     }

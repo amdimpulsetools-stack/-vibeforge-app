@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
+import { notifyIfHoldConfirmedByPayment, readHoldState } from "@/lib/appointments/prereserva-confirm";
 import { useLanguage } from "@/components/language-provider";
 import { toast } from "sonner";
 import type {
@@ -707,6 +708,9 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
     }
     setSavingPayment(true);
     const supabase = createClient();
+    // Pre-reserva (mig 274): si este cobro la confirma, sale el correo de
+    // confirmación que se omitió al pre-reservar (solo en esa transición).
+    const holdBefore = await readHoldState(supabase, paymentAppointmentId || null);
     const { error } = await supabase.from("patient_payments").insert({
       organization_id: organizationId,
       patient_id: patient.id,
@@ -723,6 +727,11 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
       return;
     }
     toast.success(t("patients.payment_save_success"));
+    void notifyIfHoldConfirmedByPayment(supabase, paymentAppointmentId || null, holdBefore).then(
+      (confirmed) => {
+        if (confirmed) toast.success("Pre-reserva confirmada con el pago");
+      },
+    );
     setShowPaymentForm(false);
     setPaymentAmount("");
     setPaymentMethod("");

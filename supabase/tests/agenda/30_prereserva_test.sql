@@ -201,9 +201,13 @@ BEGIN
   INSERT INTO t_ids(k, id) VALUES ('b_done', t_hold(120, 'completed'));
   INSERT INTO t_ids(k, id) VALUES ('b_expired_ok', t_hold(-30));        -- vencida: se puede liberar
 
-  h := t_hold();   -- pago clínico y luego "Extender": vuelve a ser pre-reserva con pago
+  -- Pre-reserva con pago clínico cuya confirmación automática falló (P6):
+  -- sigue siendo pre-reserva, pero tiene plata encima.
+  h := t_hold();
+  ALTER TABLE patient_payments DISABLE TRIGGER trg_patient_payments_confirm_prereserva_insert;
   INSERT INTO patient_payments(organization_id, patient_id, appointment_id, amount) VALUES (t_id('h_org'), t_id('hp1'), h, 10);
-  UPDATE appointments SET hold_expires_at = now() + interval '1 hour' WHERE id = h;
+  ALTER TABLE patient_payments ENABLE TRIGGER trg_patient_payments_confirm_prereserva_insert;
+  ASSERT t_is_hold(h), 'fixture b_pay';
   INSERT INTO t_ids(k, id) VALUES ('b_pay', h);
   h := t_hold();
   INSERT INTO patient_payments(organization_id, patient_id, appointment_id, amount, source) VALUES (t_id('h_org'), t_id('hp1'), h, 10, 'pos');

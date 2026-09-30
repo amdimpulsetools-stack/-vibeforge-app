@@ -1,5 +1,6 @@
--- Rollback 274: quita la pre-reserva (trigger de confirmación, RPC de
--- liberar, helper, política de DELETE) y devuelve el CHECK de kinds de
+-- Rollback 274: quita la pre-reserva (trigger de confirmación, guardia,
+-- RPC de liberar, helper, política de DELETE), devuelve los triggers de
+-- cierre de la 273 a su forma original y devuelve el CHECK de kinds de
 -- org_whatsapp_clipboard_templates a los 3 de la mig 139.
 --
 -- 1. Plantillas: las filas de los kinds nuevos (reschedule_notice,
@@ -31,6 +32,37 @@ DROP TRIGGER IF EXISTS trg_patient_payments_confirm_prereserva_insert ON patient
 DROP TRIGGER IF EXISTS trg_patient_payments_confirm_prereserva_move ON patient_payments;
 
 DROP POLICY IF EXISTS org_delete_appointments_prereserva_release ON appointments;
+
+DROP TRIGGER IF EXISTS trg_appointments_hold_guard ON appointments;
+DROP FUNCTION IF EXISTS appointments_hold_guard();
+
+-- "Por reprogramar" (273): vuelven los WHEN originales (sin la condición
+-- de pre-reserva) y se quita el cierre al confirmar una pre-reserva.
+DROP TRIGGER IF EXISTS trg_appointments_hold_confirmed_close ON appointments;
+DO $$
+BEGIN
+  IF to_regprocedure('public.close_reschedule_pending_followups()') IS NULL THEN
+    RETURN;
+  END IF;
+  DROP TRIGGER IF EXISTS trg_appointments_reschedule_close_insert ON appointments;
+  CREATE TRIGGER trg_appointments_reschedule_close_insert
+    AFTER INSERT ON appointments
+    FOR EACH ROW
+    WHEN (NEW.patient_id IS NOT NULL AND NEW.status IN ('scheduled', 'confirmed', 'completed'))
+    EXECUTE FUNCTION close_reschedule_pending_followups('new');
+
+  DROP TRIGGER IF EXISTS trg_appointments_reschedule_close_link ON appointments;
+  CREATE TRIGGER trg_appointments_reschedule_close_link
+    AFTER UPDATE OF rescheduled_from_id ON appointments
+    FOR EACH ROW
+    WHEN (
+      NEW.patient_id IS NOT NULL
+      AND NEW.rescheduled_from_id IS NOT NULL
+      AND NEW.rescheduled_from_id IS DISTINCT FROM OLD.rescheduled_from_id
+      AND NEW.status IN ('scheduled', 'confirmed', 'completed')
+    )
+    EXECUTE FUNCTION close_reschedule_pending_followups('new');
+END $$;
 
 DROP FUNCTION IF EXISTS appointment_release_hold(uuid);
 DROP FUNCTION IF EXISTS appointment_hold_release_blocker(uuid);

@@ -354,7 +354,13 @@ function HoldAppointmentCard(props: AppointmentCardProps & { holdExpiresAt: stri
 }
 
 function AppointmentCardSwitch(props: AppointmentCardProps) {
-  const holdExpiresAt = getHoldExpiresAt(props.appointment);
+  // Una cita atendida / no asistió ya no es "pre-reserva" (la base limpia la
+  // marca al cambiar el estado; esto cubre la fila aún en caché).
+  const liveStatus = props.appointment.status;
+  const holdExpiresAt =
+    liveStatus === "scheduled" || liveStatus === "confirmed"
+      ? getHoldExpiresAt(props.appointment)
+      : null;
   if (holdExpiresAt) return <HoldAppointmentCard {...props} holdExpiresAt={holdExpiresAt} />;
   return <AppointmentCardInner {...props} />;
 }

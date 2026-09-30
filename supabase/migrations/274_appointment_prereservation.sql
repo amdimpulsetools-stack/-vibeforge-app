@@ -97,6 +97,10 @@
 -- Pruebas: runuser -u postgres -- bash supabase/tests/agenda/run.sh
 -- ═══════════════════════════════════════════════════════════════════
 
+-- Si una lectura larga de la agenda tiene tomada la tabla, fallar rápido
+-- (y reintentar) en vez de dejar la agenda esperando detrás del ALTER.
+SET lock_timeout = '5s';
+
 -- ── 0. Columnas ────────────────────────────────────────────────────
 ALTER TABLE appointments
   ADD COLUMN IF NOT EXISTS hold_expires_at timestamptz;
@@ -213,6 +217,43 @@ CREATE TRIGGER trg_patient_payments_confirm_prereserva_move
     AND COALESCE(NEW.source, 'clinical') = 'clinical'
   )
   EXECUTE FUNCTION patient_payments_confirm_prereserva();
+
+-- ── 2b. Guardia: una pre-reserva solo NACE al crear la cita ────────
+-- Sin esto, cualquier miembro con UPDATE sobre appointments (política
+-- org_update_appointments) podría marcar una cita NORMAL como
+-- pre-reserva y luego "liberarla" con la RPC: un DELETE que hoy solo
+-- pueden hacer owner/admin. Además, una cita que sale de
+-- scheduled/confirmed (atendida, no asistió, cancelada) deja de ser
+-- pre-reserva: no queda "vencida" en rojo sobre una cita atendida.
+-- Extender (NOT NULL → NOT NULL) y confirmar (→ NULL) siguen igual.
+CREATE OR REPLACE FUNCTION appointments_hold_guard()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY INVOKER
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF OLD.hold_expires_at IS NULL AND NEW.hold_expires_at IS NOT NULL THEN
+    RAISE EXCEPTION 'Una cita ya creada no puede volverse pre-reserva.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+  IF NEW.hold_expires_at IS NOT NULL
+     AND NEW.status NOT IN ('scheduled', 'confirmed') THEN
+    NEW.hold_expires_at := NULL;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+COMMENT ON FUNCTION appointments_hold_guard() IS
+  'Mig 274: hold_expires_at solo se fija al INSERT (nunca NULL → valor por UPDATE) y se limpia si la cita sale de scheduled/confirmed.';
+
+DROP TRIGGER IF EXISTS trg_appointments_hold_guard ON appointments;
+CREATE TRIGGER trg_appointments_hold_guard
+  BEFORE UPDATE ON appointments
+  FOR EACH ROW
+  WHEN (OLD.hold_expires_at IS NOT NULL OR NEW.hold_expires_at IS NOT NULL)
+  EXECUTE FUNCTION appointments_hold_guard();
 
 -- ── 3. ¿Qué impide liberar la cita? (solo lectura, DEFINER) ────────
 -- Devuelve el primer motivo (texto para mostrar tal cual) o NULL.
@@ -375,6 +416,13 @@ BEGIN
       USING ERRCODE = 'check_violation';
   END IF;
 
+  -- La paciente ya llegó o está en consulta: no es "solo un horario".
+  IF NULLIF(to_jsonb(v_appt) ->> 'arrived_at', '') IS NOT NULL
+     OR NULLIF(to_jsonb(v_appt) ->> 'consultation_started_at', '') IS NOT NULL THEN
+    RAISE EXCEPTION 'La paciente ya llegó o está en consulta: no se puede liberar el horario.'
+      USING ERRCODE = 'check_violation';
+  END IF;
+
   v_block := appointment_hold_release_blocker(p_appointment_id);
   IF v_block IS NOT NULL THEN
     RAISE EXCEPTION '%', v_block USING ERRCODE = 'check_violation';
@@ -418,3 +466,52 @@ GRANT EXECUTE ON FUNCTION appointment_release_hold(uuid) TO authenticated;
 
 COMMENT ON FUNCTION appointment_release_hold(uuid) IS
   'Mig 274: libera el horario de una pre-reserva (la BORRA: no cuenta como cancelación ni avisa). Solo si hold_expires_at NOT NULL, status scheduled/confirmed y sin pagos, nota clínica, comprobantes ni otros datos vinculados; libera la sesión de plan. INVOKER.';
+
+-- ── 6. "Por reprogramar" (mig 273) no se cierra con una pre-reserva ─
+-- Una pre-reserva todavía no es "la nueva cita": si se cerrara la
+-- tarjeta al crearla y luego se libera el horario (DELETE), la paciente
+-- desaparecería de la bandeja. La tarjeta se cierra cuando la
+-- pre-reserva se CONFIRMA (pago o "Confirmar sin pago"). Se redefinen
+-- solo los WHEN de los triggers de la 273; la función es la misma.
+DO $$
+BEGIN
+  IF to_regprocedure('public.close_reschedule_pending_followups()') IS NULL THEN
+    RETURN;  -- entorno sin la 273
+  END IF;
+
+  DROP TRIGGER IF EXISTS trg_appointments_reschedule_close_insert ON appointments;
+  CREATE TRIGGER trg_appointments_reschedule_close_insert
+    AFTER INSERT ON appointments
+    FOR EACH ROW
+    WHEN (NEW.patient_id IS NOT NULL
+          AND NEW.status IN ('scheduled', 'confirmed', 'completed')
+          AND NEW.hold_expires_at IS NULL)
+    EXECUTE FUNCTION close_reschedule_pending_followups('new');
+
+  DROP TRIGGER IF EXISTS trg_appointments_reschedule_close_link ON appointments;
+  CREATE TRIGGER trg_appointments_reschedule_close_link
+    AFTER UPDATE OF rescheduled_from_id ON appointments
+    FOR EACH ROW
+    WHEN (
+      NEW.patient_id IS NOT NULL
+      AND NEW.rescheduled_from_id IS NOT NULL
+      AND NEW.rescheduled_from_id IS DISTINCT FROM OLD.rescheduled_from_id
+      AND NEW.status IN ('scheduled', 'confirmed', 'completed')
+      AND NEW.hold_expires_at IS NULL
+    )
+    EXECUTE FUNCTION close_reschedule_pending_followups('new');
+
+  DROP TRIGGER IF EXISTS trg_appointments_hold_confirmed_close ON appointments;
+  CREATE TRIGGER trg_appointments_hold_confirmed_close
+    AFTER UPDATE OF hold_expires_at ON appointments
+    FOR EACH ROW
+    WHEN (
+      NEW.patient_id IS NOT NULL
+      AND OLD.hold_expires_at IS NOT NULL
+      AND NEW.hold_expires_at IS NULL
+      AND NEW.status IN ('scheduled', 'confirmed', 'completed')
+    )
+    EXECUTE FUNCTION close_reschedule_pending_followups('new');
+END $$;
+
+RESET lock_timeout;

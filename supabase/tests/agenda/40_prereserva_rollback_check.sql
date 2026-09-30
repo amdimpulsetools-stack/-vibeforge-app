@@ -11,6 +11,11 @@ BEGIN
   SELECT count(*) INTO n FROM pg_proc WHERE proname IN ('appointment_release_hold',
      'appointment_hold_release_blocker', 'patient_payments_confirm_prereserva');
   ASSERT n = 0, 'R1: quedan funciones';
+  ASSERT NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname IN ('trg_appointments_hold_guard',
+     'trg_appointments_hold_confirmed_close')), 'R1: quedan triggers de appointments';
+  ASSERT NOT EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'appointments_hold_guard'), 'R1: queda la guardia';
+  ASSERT pg_get_triggerdef((SELECT oid FROM pg_trigger WHERE tgname = 'trg_appointments_reschedule_close_insert'))
+         NOT LIKE '%hold_expires_at%', 'R1: el trigger de la 273 vuelve a su forma original';
   SELECT count(*) INTO n FROM pg_policies WHERE policyname = 'org_delete_appointments_prereserva_release';
   ASSERT n = 0, 'R1: queda la política';
   ASSERT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'org_delete_appointments'), 'R1: la política de siempre sigue';

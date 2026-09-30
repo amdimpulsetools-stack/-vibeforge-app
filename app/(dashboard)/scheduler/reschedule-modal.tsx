@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { sendNotification } from "@/lib/send-notification";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
+import { getHoldExpiresAt } from "@/lib/appointments/prereserva";
 import type { AppointmentWithRelations, Office, Doctor, ScheduleBlock } from "@/types/admin";
 import { X, Loader2, CalendarDays, Clock, RefreshCw } from "lucide-react";
 import { loadSchedulerConfig, getScheduleStartMinutes, getScheduleEndMinutes, overlapsBreakTime } from "@/lib/scheduler-config";
@@ -159,14 +160,18 @@ export function RescheduleModal({
     }
     toast.success("Cita reprogramada correctamente");
 
-    // Mirror reschedule to Google Calendar (best-effort).
-    syncAppointmentToGoogle(appointment.id, "upsert");
+    // Pre-reserva (mig 274): aún no se le confirmó a la paciente ni está en
+    // Google Calendar (eso pasa al confirmarla): moverla no avisa ni sube.
+    if (!getHoldExpiresAt(appointment)) {
+      // Mirror reschedule to Google Calendar (best-effort).
+      syncAppointmentToGoogle(appointment.id, "upsert");
 
-    // Send reschedule notification email
-    sendNotification({
-      type: "appointment_rescheduled",
-      appointment_id: appointment.id,
-    });
+      // Send reschedule notification email
+      sendNotification({
+        type: "appointment_rescheduled",
+        appointment_id: appointment.id,
+      });
+    }
 
     onSaved();
   };

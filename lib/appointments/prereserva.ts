@@ -188,26 +188,37 @@ export function isMissingFunctionError(err: PgErrorLike): boolean {
 }
 
 // Soporte de la columna en ESTA sesión del navegador (null = sin probar).
+// "No existe" caduca a los 5 min: una pestaña abierta antes de aplicar la
+// mig 274 la descubre sola, sin recargar.
 let holdColumnSupported: boolean | null = null;
+let holdColumnMissingAt = 0;
+const HOLD_MISSING_TTL_MS = 5 * 60_000;
 
 export function markHoldColumnSupport(supported: boolean) {
   holdColumnSupported = supported;
+  if (!supported) holdColumnMissingAt = Date.now();
 }
 
 export function holdColumnKnownMissing(): boolean {
-  return holdColumnSupported === false;
+  if (holdColumnSupported !== false) return false;
+  if (Date.now() - holdColumnMissingAt > HOLD_MISSING_TTL_MS) {
+    holdColumnSupported = null;
+    return false;
+  }
+  return true;
 }
 
 /** ¿Existe appointments.hold_expires_at? Query de cero filas; cacheado por sesión. */
 export async function probeHoldColumn(supabase: SupabaseClient): Promise<boolean> {
-  if (holdColumnSupported !== null) return holdColumnSupported;
+  if (holdColumnSupported === true) return true;
+  if (holdColumnKnownMissing()) return false;
   const { error } = await supabase.from("appointments").select("id, hold_expires_at").limit(0);
   if (!error) {
-    holdColumnSupported = true;
+    markHoldColumnSupport(true);
     return true;
   }
   if (isMissingColumnError(error, "hold_expires_at")) {
-    holdColumnSupported = false;
+    markHoldColumnSupport(false);
     return false;
   }
   // Error de red / otro: no se cachea; se asume que no (no crear nada raro).

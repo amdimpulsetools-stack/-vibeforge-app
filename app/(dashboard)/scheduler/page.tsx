@@ -49,6 +49,7 @@ import {
 import { PrereservaColorProvider } from "./prereserva-context";
 import {
   fetchExpiredHolds,
+  getHoldExpiresAt,
   holdColumnKnownMissing,
   isMissingColumnError,
   markHoldColumnSupport,
@@ -1063,11 +1064,16 @@ export default function SchedulerPage() {
       return;
     }
 
+    // Pre-reserva (mig 274): aún no se le confirmó a la paciente ni está en
+    // Google Calendar (eso pasa al confirmarla): moverla no avisa ni sube.
+    const movedAppt = appointments.find((a) => a.id === pendingDrop.appointmentId);
+    const movedIsHold = !!movedAppt && !!getHoldExpiresAt(movedAppt);
+
     // Mirror move to Google Calendar (best-effort).
-    syncAppointmentToGoogle(pendingDrop.appointmentId, "upsert");
+    if (!movedIsHold) syncAppointmentToGoogle(pendingDrop.appointmentId, "upsert");
 
     // Mismo evento que usa el modal Reprogramar — ahora opt-in explícito.
-    if (notifyPatient) {
+    if (notifyPatient && !movedIsHold) {
       sendNotification({
         type: "appointment_rescheduled",
         appointment_id: pendingDrop.appointmentId,
