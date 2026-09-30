@@ -609,10 +609,15 @@ export function AppointmentSidebar({
   const [cancelOutcome, setCancelOutcome] = useState<CancelOutcome>(() =>
     defaultCancelOutcome(minutesSinceCreated(appointment.created_at), !!appointment.patient_id),
   );
+  // Recepción: el desenlace se pregunta DESPUÉS del clic en "Cancelar cita"
+  // (paso 2, con Volver / Confirmar). Antes estaba siempre a la vista y
+  // ocupaba espacio en cada cita abierta.
+  const [cancelStepOpen, setCancelStepOpen] = useState(false);
   useEffect(() => {
     const mins = minutesSinceCreated(appointment.created_at);
     setCreatedMinutesAgo(mins);
     setCancelOutcome(defaultCancelOutcome(mins, !!appointment.patient_id));
+    setCancelStepOpen(false);
   }, [appointment.id, appointment.created_at, appointment.patient_id]);
   const cancelOutcomeApplies =
     cancelColumnsSupported &&
@@ -2556,10 +2561,11 @@ export function AppointmentSidebar({
                     )}
                   </>
                 ) : !isDoctorRole ? (
-                  <div className="space-y-1.5">
-                    {/* Desenlace visible ANTES del clic: recepción cancela
-                        con un clic + Deshacer (mig 273). */}
-                    {cancelOutcomeApplies && (
+                  cancelOutcomeApplies && cancelStepOpen ? (
+                    // Paso 2 (mig 273): qué pasa con la paciente. Después
+                    // sigue igual que siempre: diálogo de dinero si hay
+                    // pagos, o cancelación con Deshacer.
+                    <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
                       <CancelOutcomePicker
                         value={cancelOutcome}
                         onChange={setCancelOutcome}
@@ -2567,16 +2573,36 @@ export function AppointmentSidebar({
                         createdMinutesAgo={createdMinutesAgo}
                         disabled={updating}
                       />
-                    )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setCancelStepOpen(false)}
+                          className="flex-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors"
+                        >
+                          Volver
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCancelStepOpen(false);
+                            requestCancel();
+                          }}
+                          disabled={updating}
+                          className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-destructive px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                        >
+                          {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                          Confirmar cancelación
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                     <button
-                      onClick={() => requestCancel()}
+                      onClick={() => (cancelOutcomeApplies ? setCancelStepOpen(true) : requestCancel())}
                       disabled={updating}
                       className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
                     >
                       {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                       {t("scheduler.cancel_appointment")}
                     </button>
-                  </div>
+                  )
                 ) : null}
               </>
             )}

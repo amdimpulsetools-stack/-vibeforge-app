@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Desenlace de una cancelación (mig 273) — un toque, visible JUNTO al botón
- * Cancelar, antes del clic (recepción cancela con un clic + Deshacer, así
- * que la decisión tiene que estar a la vista antes).
+ * Desenlace de una cancelación (mig 273) — segundo paso: aparece DESPUÉS
+ * del clic en "Cancelar cita" (recepción: Volver / Confirmar cancelación;
+ * doctor: junto al motivo obligatorio).
  *
  *  · "Reprogramará"            → la base crea la tarjeta "Por reprogramar".
  *  · "No vuelve"               → se avisa a la paciente como siempre; sin tarjeta.
@@ -70,7 +70,7 @@ export function CancelOutcomePicker({
 
   return (
     <div className="space-y-1">
-      <p className="px-0.5 text-[11px] font-medium text-muted-foreground">Al cancelar:</p>
+      <p className="px-0.5 text-xs font-medium text-foreground">¿Qué pasa con la paciente?</p>
       <div role="radiogroup" aria-label="Desenlace de la cancelación" className="grid grid-cols-3 gap-1">
         {OPTIONS.map(({ value: v, icon: Icon }) => {
           const blocked = v === "reprogramar" && !hasPatient;

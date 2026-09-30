@@ -557,18 +557,36 @@ export function AppointmentFormModal({
     : 0;
   const totalAfterDiscount = Math.max(0, effectivePrice - discountAmountComputed);
 
+  // Modo reprogramar: el adelanto "a cuenta" de la cita cancelada se traslada
+  // a esta al guardar (filas enteras, RPC appointment_transfer_payments). Ya
+  // es un pago de esta cita, así que el resumen lo descuenta del total igual
+  // que get_patient_summary / lib/patient-debt.ts lo harán después del
+  // traslado (total − pagado, nunca negativo). Lo que exceda el total queda
+  // como saldo a favor de la paciente, no se "pierde".
+  const carriedDeposit =
+    rs?.deposit && rs.deposit.amount > 0 && rescheduledFromId === rs.appointmentId
+      ? rs.deposit.amount
+      : 0;
+  const balanceAfterCarried = Math.max(0, totalAfterDiscount - carriedDeposit);
+  const carriedCredit = Math.max(0, carriedDeposit - totalAfterDiscount);
+  const pendingAtAppointment = Math.max(
+    0,
+    balanceAfterCarried - (depositEnabled ? Number(depositAmount) || 0 : 0),
+  );
+
   // Auto-set deposit to 50% when service changes (or when discount changes,
   // so the suggested amount stays coherent with the post-discount total).
+  // Base = lo que falta pagar (descontado el adelanto trasladado, si lo hay).
   useEffect(() => {
-    if (totalAfterDiscount > 0) {
-      setDepositAmount((totalAfterDiscount * 0.5).toFixed(2));
+    if (balanceAfterCarried > 0) {
+      setDepositAmount((balanceAfterCarried * 0.5).toFixed(2));
     } else {
       // Total S/ 0 (descuento 100%, precio personalizado 0): sin esto quedaría
       // la sugerencia del total anterior y se registraría un anticipo mayor
       // que el total real.
       setDepositAmount("");
     }
-  }, [selectedServiceId, totalAfterDiscount]);
+  }, [selectedServiceId, balanceAfterCarried]);
 
   // Re-prefill the custom-price input with the NEW service's price whenever the
   // service changes while the toggle is active — mirrors the anticipo auto-50%
@@ -1338,9 +1356,12 @@ export function AppointmentFormModal({
     // El anticipo es un pago a cuenta del total FINAL (post-descuento): nunca
     // puede superarlo. El input tiene max=, pero max no bloquea la escritura
     // manual ni el caso en que el descuento se activa después de tipear.
-    if (depositEnabled && Number(depositAmount) > totalAfterDiscount) {
+    // Con adelanto trasladado (modo reprogramar), el tope es lo que falta.
+    if (depositEnabled && Number(depositAmount) > balanceAfterCarried) {
       toast.error(
-        `El anticipo (S/. ${Number(depositAmount).toFixed(2)}) no puede superar el total a pagar (S/. ${totalAfterDiscount.toFixed(2)})`
+        carriedDeposit > 0
+          ? `El anticipo (S/. ${Number(depositAmount).toFixed(2)}) no puede superar el saldo por pagar (S/. ${balanceAfterCarried.toFixed(2)}, ya descontado el adelanto a cuenta)`
+          : `El anticipo (S/. ${Number(depositAmount).toFixed(2)}) no puede superar el total a pagar (S/. ${totalAfterDiscount.toFixed(2)})`
       );
       return;
     }
@@ -2433,6 +2454,29 @@ export function AppointmentFormModal({
                 </span>
               </div>
 
+              {/* Modo reprogramar: el adelanto de la cita cancelada ya cuenta
+                  como pagado en esta cita (se traslada al guardar). */}
+              {carriedDeposit > 0 && rs && (
+                <div className="space-y-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+                  <div className="flex items-center justify-between text-amber-800 dark:text-amber-300">
+                    <span>
+                      A cuenta · cita cancelada del{" "}
+                      {formatRescheduleWhen(rs.appointmentDate, rs.startTime)}
+                    </span>
+                    <span className="font-semibold">− S/. {carriedDeposit.toFixed(2)}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-semibold text-amber-900 dark:text-amber-200">
+                    <span>Saldo por pagar</span>
+                    <span className="text-sm">S/. {balanceAfterCarried.toFixed(2)}</span>
+                  </div>
+                  {carriedCredit > 0 && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                      El adelanto supera el total: S/. {carriedCredit.toFixed(2)} quedan a favor de la paciente.
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Precio personalizado toggle — override del price_snapshot SOLO
                   para esta cita. Va primero en la cadena: personalizado →
                   descuento → total. Requiere servicio seleccionado (este bloque
@@ -2688,20 +2732,20 @@ export function AppointmentFormModal({
                         value={depositAmount}
                         onChange={(e) => setDepositAmount(e.target.value)}
                         min="0"
-                        max={totalAfterDiscount}
+                        max={balanceAfterCarried}
                         step="0.50"
                         className="min-w-0 flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-colors"
                       />
                       <button
                         type="button"
-                        onClick={() => setDepositAmount((totalAfterDiscount * 0.5).toFixed(2))}
+                        onClick={() => setDepositAmount((balanceAfterCarried * 0.5).toFixed(2))}
                         className="shrink-0 rounded-lg bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/20 transition-colors"
                       >
                         50%
                       </button>
                       <button
                         type="button"
-                        onClick={() => setDepositAmount(totalAfterDiscount.toFixed(2))}
+                        onClick={() => setDepositAmount(balanceAfterCarried.toFixed(2))}
                         className="shrink-0 rounded-lg bg-muted px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-accent transition-colors"
                       >
                         100%
@@ -2757,7 +2801,7 @@ export function AppointmentFormModal({
                         Pendiente al día de la cita
                       </span>
                       <span className="font-bold text-amber-700 dark:text-amber-400">
-                        S/. {Math.max(0, totalAfterDiscount - Number(depositAmount)).toFixed(2)}
+                        S/. {pendingAtAppointment.toFixed(2)}
                       </span>
                     </div>
                   )}
@@ -2849,9 +2893,9 @@ export function AppointmentFormModal({
                       className="accent-primary"
                     />
                     <span className="font-medium">Particular</span>
-                    {depositEnabled && Number(depositAmount) > 0 && (
+                    {((depositEnabled && Number(depositAmount) > 0) || carriedDeposit > 0) && (
                       <span className="text-[11px] text-muted-foreground">
-                        · pendiente S/. {Math.max(0, totalAfterDiscount - Number(depositAmount)).toFixed(2)}
+                        · pendiente S/. {pendingAtAppointment.toFixed(2)}
                       </span>
                     )}
                   </span>
