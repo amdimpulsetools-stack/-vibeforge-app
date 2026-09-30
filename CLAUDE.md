@@ -59,3 +59,26 @@
 - `npm run dev` — Start dev server
 - `npm run build` — Build for production
 - `npm run types` — Regenerate Supabase types
+
+## Migraciones (reglas duras)
+- FK nueva entre tablas que ya tienen FK entre sí (cualquier dirección) o
+  que se leen juntas en un embed → evitarla. Si es imprescindible, TODOS
+  los embeds de ese par llevan hint explícito `tabla!nombre_constraint(...)`
+  en el MISMO PR, desplegado antes de aplicar la FK. Dos FKs entre las
+  mismas tablas = PGRST201 en todo embed sin hint (incidente 30-sep-2026,
+  mig 273: la agenda se vio en blanco).
+- Nunca FK de "rastro" (de dónde vino, a qué se trasladó): columna uuid SIN
+  FK y la integridad la garantiza el RPC (`transferred_from_appointment_id`).
+- Antes de aplicar: `npm run check:embeds` y `supabase/checks/multi_fk_pairs.sql`
+  (Consulta 2 por cada FK nueva; Consulta 1 antes y después, comparar).
+  El preview NO aísla la base: aplicar "para probar" ya es producción.
+- Después de aplicar: `/api/health/schema` como owner/admin → `ok: true`,
+  y abrir la agenda. Checklist completo: `docs/migraciones-checklist.md`.
+  Si cambias un select de las pantallas que ese endpoint vigila, actualiza
+  su copia en `app/api/health/schema/route.ts`.
+- Toda lectura NUEVA o que se modifique y alimente una pantalla crítica
+  NUNCA traga errores en silencio: el `error` de Supabase se lanza y la
+  pantalla muestra el aviso (patrón `app/(dashboard)/scheduler/data-load-error.tsx`);
+  jamás se convierte en lista vacía. Ya cumplen: agenda e historial.
+  Pendientes (hoy tragan errores, migrar al tocarlas): ficha de cita
+  (pagos/deuda), Caja y ficha del paciente.

@@ -35,6 +35,11 @@ import {
   Video,
 } from "lucide-react";
 import { isVirtualAppointment, serviceDisplayName } from "@/lib/appointment-modality";
+import {
+  DataLoadError,
+  PostgrestLoadError,
+  useReportLoadError,
+} from "../data-load-error";
 
 const PAGE_SIZE = 50;
 // Hard cap for a single CSV export (rango filtrado completo).
@@ -110,7 +115,18 @@ export default function AppointmentHistoryPage() {
   // filtrado y su resultado no cambia al paginar, así que repetirlo en cada
   // "siguiente" era trabajo tirado. Al cambiar filtros siempre se vuelve a
   // page 0, o sea que el total mostrado en el pie sigue siendo correcto.
-  const { data: listData, isPending: listPending } = useQuery({
+  //
+  // Si la consulta falla (también sin `modality`), el queryFn LANZA: antes
+  // devolvía [] y el historial decía "sin resultados" aunque las citas
+  // existieran. `retry: 1` para no martillar; con datos OK nada cambia.
+  const {
+    data: listData,
+    isPending: listPending,
+    error: listError,
+    isError: listIsError,
+    isFetching: listFetching,
+    refetch: refetchList,
+  } = useQuery({
     queryKey: [
       "history",
       "list",
@@ -118,6 +134,7 @@ export default function AppointmentHistoryPage() {
       { dateFrom, dateTo, filterStatus, filterDoctor, filterService, dateSortAsc, page },
     ],
     enabled: !!organizationId,
+    retry: 1,
     queryFn: async () => {
       const supabase = createClient();
       const from = page * PAGE_SIZE;
@@ -154,6 +171,7 @@ export default function AppointmentHistoryPage() {
 
       let res = await buildQuery(true);
       if (res.error) res = await buildQuery(false);
+      if (res.error) throw new PostgrestLoadError("Historial de citas", res.error);
       const { data, count } = res;
       return {
         rows: (data as unknown as AppointmentWithRelations[]) ?? [],
@@ -164,6 +182,37 @@ export default function AppointmentHistoryPage() {
 
   const appointments = listData?.rows ?? [];
   const loading = !organizationId || listPending;
+
+  // Sentry: una vez por error distinto; filtros y página como contexto.
+  useReportLoadError(listError, {
+    area: "historial",
+    query: "appointments",
+    extra: {
+      rangeStart: dateFrom,
+      rangeEnd: dateTo,
+      page,
+      filterStatus,
+      filterDoctor,
+      filterService,
+    },
+  });
+  // Error sin ninguna fila en caché: los totales de la cabecera saldrían en
+  // 0 (engañoso) → se muestran como "—" hasta que la carga funcione.
+  const statsUnavailable = listIsError && !listData;
+  const listErrorBanner = listIsError ? (
+    <DataLoadError
+      title={language === "en" ? "Appointment history could not be loaded." : "No se pudo cargar el historial de citas."}
+      description={
+        language === "en"
+          ? "Your appointments are not lost. There was a problem fetching them: try again in a few seconds."
+          : "Tus citas no se han perdido. Es un problema al consultarlas: intenta de nuevo en unos segundos."
+      }
+      labels={language === "en" ? { retry: "Retry", retrying: "Retrying…", details: "Technical details" } : undefined}
+      error={listError}
+      onRetry={() => void refetchList()}
+      retrying={listFetching}
+    />
+  ) : null;
 
   // El total llega solo con la página 0; se conserva mientras se pagina.
   useEffect(() => {
@@ -421,10 +470,10 @@ export default function AppointmentHistoryPage() {
             />
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-            <span>{totalCount} {t("history.records")}</span>
-            <span className="text-success-500">{completedCount} {t("scheduler.status_completed").toLowerCase()}</span>
-            <span className="text-red-500">{cancelledCount} {t("scheduler.status_cancelled").toLowerCase()}</span>
-            <span className="font-medium text-foreground">S/. {totalRevenue.toFixed(2)}</span>
+            <span>{statsUnavailable ? "—" : totalCount} {t("history.records")}</span>
+            <span className="text-success-500">{statsUnavailable ? "—" : completedCount} {t("scheduler.status_completed").toLowerCase()}</span>
+            <span className="text-red-500">{statsUnavailable ? "—" : cancelledCount} {t("scheduler.status_cancelled").toLowerCase()}</span>
+            <span className="font-medium text-foreground">S/. {statsUnavailable ? "—" : totalRevenue.toFixed(2)}</span>
           </div>
         </div>
       </div>
@@ -439,6 +488,10 @@ export default function AppointmentHistoryPage() {
           <div className="flex items-center justify-center h-40">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        ) : listIsError && sorted.length === 0 ? (
+          // Error y nada que mostrar: el aviso reemplaza al "Sin resultados",
+          // que aquí mentiría (las citas existen, falló la consulta).
+          listErrorBanner
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-40 text-muted-foreground">
             <CalendarDays className="h-8 w-8 mb-2 opacity-50" />
@@ -446,6 +499,9 @@ export default function AppointmentHistoryPage() {
           </div>
         ) : (
           <>
+          {/* Error al refrescar con filas ya en caché: se ven las filas
+              anteriores con el aviso encima. */}
+          {listErrorBanner}
           <div className="min-h-0 flex-1 overflow-auto">
           <table className="w-full text-sm min-w-[780px] md:min-w-[900px]">
             <thead className="sticky top-0 z-10 bg-card border-b border-border">

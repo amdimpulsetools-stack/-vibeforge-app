@@ -41,6 +41,11 @@ import { DayView } from "./day-view";
 import { DropConfirmDialog, type PendingDrop } from "./drop-confirm-dialog";
 import { WeekView } from "./week-view";
 import { NowProvider } from "./now-provider";
+import {
+  DataLoadError,
+  PostgrestLoadError,
+  useReportLoadError,
+} from "./data-load-error";
 // Solo se renderiza al copiar un mensaje de WhatsApp — fuera del First Load.
 const WhatsAppClipboardModal = dynamic(
   () =>
@@ -96,7 +101,8 @@ const AvailableSlotsModal = dynamic(
 export type ViewMode = "day" | "week";
 
 export default function SchedulerPage() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const loadErrorEn = language === "en";
   const { organizationId, organization } = useOrganization();
   const { doctorId: currentDoctorId, isDoctor } = useCurrentDoctor();
   const { isOwner, isAdmin, isReceptionist } = useOrgRole();
@@ -359,10 +365,24 @@ export default function SchedulerPage() {
   // directamente en la caché vía setQueryData.
   const { startDate: rangeStartKey, endDate: rangeEndKey } = getDateRange();
 
-  const { data: apptsData, isPending: apptsPending } = useQuery({
+  // Si la cascada entera falla, el queryFn LANZA (antes devolvía [] y la
+  // agenda se veía vacía sin ningún aviso — incidente PGRST201 de la mig
+  // 273). Con el error en `error` (no como datos vacíos) la página muestra
+  // el aviso con Reintentar y lo reporta a Sentry. `retry: 1`: un segundo
+  // intento cubre un fallo de red puntual sin martillar (cada intento ya es
+  // una cascada de hasta 8 selects). Con datos OK nada cambia.
+  const {
+    data: apptsData,
+    isPending: apptsPending,
+    error: apptsError,
+    isError: apptsIsError,
+    isFetching: apptsFetching,
+    refetch: refetchAppts,
+  } = useQuery({
     queryKey: ["scheduler", "appts", organizationId, rangeStartKey, rangeEndKey],
     enabled: !!organizationId,
     placeholderData: (prev) => prev,
+    retry: 1,
     queryFn: async () => {
       const supabase = createClient();
       // PERF: explicit column list instead of `select("*", ...)` — the
@@ -424,6 +444,11 @@ export default function SchedulerPage() {
       // icono. La agenda es la pantalla más caliente del producto.
       if (apptRes.error && prescriptionSignalEnabled) apptRes = await runCascade(false);
 
+      // Ni el select mínimo funcionó: esto NO es "no hay citas". Se lanza con
+      // el code / message / hint / details de PostgREST (el del último
+      // intento, el más básico) para que la pantalla avise y Sentry lo vea.
+      if (apptRes.error) throw new PostgrestLoadError("Agenda (citas)", apptRes.error);
+
       // Supabase types the joined relations as arrays when an explicit column
       // list is used; at runtime they are single objects for to-one FKs. Cast
       // through unknown is the standard escape hatch for this mismatch.
@@ -462,10 +487,20 @@ export default function SchedulerPage() {
     return counts;
   }, [appointments]);
 
-  const { data: blocksData } = useQuery({
+  // Igual que las citas: si también falla el select legacy, se lanza en vez
+  // de devolver [] (sin bloqueos visibles la recepción podría agendar encima
+  // de un horario bloqueado sin enterarse).
+  const {
+    data: blocksData,
+    error: blocksError,
+    isError: blocksIsError,
+    isFetching: blocksFetching,
+    refetch: refetchBlocks,
+  } = useQuery({
     queryKey: ["scheduler", "blocks", organizationId, rangeStartKey, rangeEndKey],
     enabled: !!organizationId,
     placeholderData: (prev) => prev,
+    retry: 1,
     queryFn: async () => {
       // Mig 254: solo bloqueos vigentes (desbloquear = marca removed_at) y
       // con el nombre de quien bloqueó para el tooltip / menú. Si la mig
@@ -483,10 +518,24 @@ export default function SchedulerPage() {
         .select("id, block_date, start_time, end_time, office_id, all_day, reason, organization_id, created_at")
         .gte("block_date", rangeStartKey)
         .lte("block_date", rangeEndKey);
+      if (legacy.error) throw new PostgrestLoadError("Agenda (bloqueos)", legacy.error);
       return (legacy.data as ScheduleBlock[]) ?? [];
     },
   });
   const blocks = blocksData ?? [];
+
+  // Sentry: una vez por error distinto (no por render ni por reintento que
+  // falla igual). El rango visible va como contexto del reporte.
+  useReportLoadError(apptsError, {
+    area: "agenda",
+    query: "appointments",
+    extra: { rangeStart: rangeStartKey, rangeEnd: rangeEndKey },
+  });
+  useReportLoadError(blocksError, {
+    area: "agenda",
+    query: "schedule_blocks",
+    extra: { rangeStart: rangeStartKey, rangeEnd: rangeEndKey },
+  });
 
   // Mismos nombres que las antiguas funciones de fetch: ahora invalidan la
   // caché (el rango visible refetchea al instante; los demás, al volver).
@@ -526,13 +575,19 @@ export default function SchedulerPage() {
         .neq("status", "cancelled");
       if (cancelled || !data) return;
 
+      const apptsKey = ["scheduler", "appts", organizationId, startDate, endDate];
+      // Si la carga completa de este rango está en error, no se toca la
+      // caché: setQueryData la marcaría como 'success' y escondería el aviso
+      // de error sin haber recargado de verdad. Sin error, esto no cambia nada.
+      if (queryClient.getQueryState(apptsKey)?.status === "error") return;
+
       const byId = new Map(
         data.map((r) => [r.id as string, r] as const),
       );
       // Merge directo en la caché de React Query del rango visible — los
       // consumidores re-renderizan solo si alguna fila cambió de verdad.
       queryClient.setQueryData<AppointmentWithRelations[]>(
-        ["scheduler", "appts", organizationId, startDate, endDate],
+        apptsKey,
         (prev) => {
           if (!prev) return prev;
           let changed = false;
@@ -1098,6 +1153,43 @@ export default function SchedulerPage() {
             warnings={rescheduleWarnings}
             officeNotice={rescheduleOfficeNotice}
             onExit={exitRescheduleMode}
+          />
+        )}
+
+        {/* Error de carga: franja entre el header y la grilla, sin ocultar
+            ninguno de los dos. Los contadores del header se calculan de las
+            citas cargadas: si el rango ya estaba en caché conservan los
+            últimos valores buenos; si nunca cargó quedarían en 0, y por eso
+            el aviso lo dice explícitamente (poner "—" allí exige tocar
+            scheduler-header.tsx). También avisa de que el formulario no
+            puede detectar cruces: su chequeo es contra estas mismas citas. */}
+        {apptsIsError && (
+          <DataLoadError
+            title={loadErrorEn ? "Appointments could not be loaded." : "No se pudieron cargar las citas."}
+            description={
+              loadErrorEn
+                ? "Your appointments are not lost. Until they load, the calendar and the counters above may look empty or outdated, and new bookings are not checked for overlaps."
+                : "Tus citas no se han perdido. Hasta que carguen, la agenda y los contadores de arriba pueden verse vacíos o desactualizados, y al agendar no se detectan cruces de horario."
+            }
+            labels={loadErrorEn ? { retry: "Retry", retrying: "Retrying…", details: "Technical details" } : undefined}
+            error={apptsError}
+            onRetry={() => void refetchAppts()}
+            retrying={apptsFetching}
+          />
+        )}
+        {blocksIsError && (
+          <DataLoadError
+            tone="warning"
+            title={loadErrorEn ? "Time blocks could not be loaded." : "No se pudieron cargar los bloqueos de horario."}
+            description={
+              loadErrorEn
+                ? "Your time blocks are not lost, but they may not show on the calendar: double-check before booking a slot that should be blocked."
+                : "Tus bloqueos no se han perdido, pero podrían no verse en la agenda: revisa antes de agendar en un horario que debería estar bloqueado."
+            }
+            labels={loadErrorEn ? { retry: "Retry", retrying: "Retrying…", details: "Technical details" } : undefined}
+            error={blocksError}
+            onRetry={() => void refetchBlocks()}
+            retrying={blocksFetching}
           />
         )}
 
