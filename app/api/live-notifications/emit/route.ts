@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
     const { data: payment } = await supabase
       .from("patient_payments")
       .select(
-        "id, amount, appointment_id, patients(first_name, last_name), appointments(appointment_date, patient_name)"
+        "id, amount, appointment_id, patients(first_name, last_name), appointments!patient_payments_appointment_id_fkey(appointment_date, patient_name)"
       )
       .eq("id", input.payment_id)
       .eq("organization_id", organizationId)

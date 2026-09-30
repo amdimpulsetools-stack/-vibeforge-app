@@ -125,10 +125,18 @@ ALTER TABLE appointments
   ADD COLUMN IF NOT EXISTS cancelled_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS rescheduled_from_id uuid REFERENCES appointments(id) ON DELETE SET NULL;
 
+-- transferred_from_appointment_id va SIN foreign key (incidente 30-sep-2026):
+-- una segunda FK patient_payments → appointments vuelve AMBIGUOS para
+-- PostgREST todos los embeds `patient_payments(...)` desde appointments (y
+-- `appointments(...)` desde patient_payments). La agenda pide
+-- `patient_payments(amount)` → error PGRST201 → la grilla quedaba vacía.
+-- Es solo rastro del traslado; la integridad la garantiza el RPC.
 ALTER TABLE patient_payments
-  ADD COLUMN IF NOT EXISTS transferred_from_appointment_id uuid REFERENCES appointments(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS transferred_from_appointment_id uuid,
   ADD COLUMN IF NOT EXISTS transferred_at timestamptz,
   ADD COLUMN IF NOT EXISTS transferred_by uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE patient_payments
+  DROP CONSTRAINT IF EXISTS patient_payments_transferred_from_appointment_id_fkey;
 
 DO $$
 BEGIN
