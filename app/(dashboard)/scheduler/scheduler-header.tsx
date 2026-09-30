@@ -21,6 +21,7 @@ import {
   Check,
   CalendarClock,
   X,
+  AlertTriangle,
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,10 @@ interface SchedulerHeaderProps {
   reschedulePending?: { patients: number; due: number };
   /** Modo reprogramar activo: "Nueva cita" pasa a "Salir de reprogramar". */
   rescheduling?: boolean;
+  /** Pre-reservas vencidas de la org (mig 274). 0 = no se muestra el chip. */
+  expiredHoldsCount?: number;
+  /** Clic en el chip: ir al día de la más antigua y abrirla. */
+  onExpiredHoldsClick?: () => void;
 }
 
 export function SchedulerHeader({
@@ -87,6 +92,8 @@ export function SchedulerHeader({
   schedulerConfig,
   reschedulePending,
   rescheduling = false,
+  expiredHoldsCount = 0,
+  onExpiredHoldsClick,
 }: SchedulerHeaderProps) {
   const { t } = useLanguage();
   const [officeDropdownOpen, setOfficeDropdownOpen] = useState(false);
@@ -631,6 +638,25 @@ export function SchedulerHeader({
             </span>
             <ChevronRight className="h-4 w-4" />
           </Link>
+        )}
+        {/* Pre-reservas vencidas (mig 274): no se liberan solas (v1), así
+            que el aviso queda a la vista hasta que recepción decida. Lleva al
+            día de la más antigua y la abre. */}
+        {expiredHoldsCount > 0 && (
+          <button
+            type="button"
+            onClick={onExpiredHoldsClick}
+            className="col-span-3 flex items-center justify-center gap-2 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-1.5 text-sm font-medium text-red-700 transition-colors hover:bg-red-500/20 dark:text-red-400 sm:justify-start"
+            title="Pre-reservas cuyo plazo de pago ya venció: extiéndelas o libera el horario"
+          >
+            <AlertTriangle className="h-4 w-4" />
+            <span>
+              {expiredHoldsCount === 1
+                ? "1 pre-reserva vencida"
+                : `${expiredHoldsCount} pre-reservas vencidas`}
+            </span>
+            <ChevronRight className="h-4 w-4" />
+          </button>
         )}
       </div>
 

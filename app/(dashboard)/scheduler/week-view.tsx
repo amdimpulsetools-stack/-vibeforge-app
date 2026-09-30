@@ -14,6 +14,8 @@ import { loadSchedulerConfig, fetchSchedulerConfig, generateTimeSlots, getActive
 // Color helpers shared with the day view — single source of truth in
 // appointment-card.tsx so the palettes can't drift apart.
 import { hexToPastel, hexToDark } from "./appointment-card";
+import { getHoldExpiresAt } from "@/lib/appointments/prereserva";
+import { PrereservaBadge } from "./prereserva-context";
 import { isVirtualAppointment, serviceDisplayName } from "@/lib/appointment-modality";
 
 /** Minimum px per slot in the week view (denser than day view). */
@@ -324,6 +326,10 @@ export function WeekView({
                             {appt.patient_name}
                           </p>
                         </div>
+                        {/* Pre-reserva (mig 274): "vence 15:30" / "vencida". */}
+                        {getHoldExpiresAt(appt) && (
+                          <PrereservaBadge holdExpiresAt={getHoldExpiresAt(appt)!} withLabel className="text-[11px]" />
+                        )}
                         <p
                           className="truncate text-xs"
                           style={{ color: hexToDark(bodyColor, 0.55) }}
@@ -598,6 +604,10 @@ export function WeekView({
                         <div className="flex items-center gap-0.5">
                           {startAppt.patients?.is_recurring && (
                             <RecurringDot className="shrink-0" />
+                          )}
+                          {/* Pre-reserva (mig 274): icono en su color (rojo si venció). */}
+                          {getHoldExpiresAt(startAppt) && (
+                            <PrereservaBadge holdExpiresAt={getHoldExpiresAt(startAppt)!} />
                           )}
                           <p className="text-[10px] font-semibold truncate flex-1" style={{ color: hexToDark(bodyColor) }}>
                             {startAppt.start_time.slice(0, 5)} {startAppt.patient_name}

@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════════════════
-# Pruebas de la agenda (mig 273 "Por reprogramar") contra un Postgres
+# Pruebas de la agenda (mig 273 "Por reprogramar" y mig 274
+# "Pre-reserva") contra un Postgres
 # DESECHABLE. initdb no corre como root:
 #
 #   runuser -u postgres -- bash supabase/tests/agenda/run.sh
 #
-# Aplica el stub (00_), la 273 DOS veces (idempotencia), las pruebas
-# (10_: superusuario + `authenticated` con RLS real), el rollback y su
-# verificación (20_). Si termina sin error, todo pasó.
+# Aplica los stubs (00_, 01_), la 273 y la 274 DOS veces cada una
+# (idempotencia), las pruebas (10_ = 273, 30_ = 274: superusuario +
+# `authenticated` con RLS real), el rollback de la 274 y su verificación
+# (40_), y el de la 273 y la suya (20_). Si termina sin error, todo pasó.
 # ═══════════════════════════════════════════════════════════════════
 set -euo pipefail
 PGBIN=${PGBIN:-/usr/lib/postgresql/16/bin}
@@ -36,10 +38,20 @@ run_test() {
 }
 
 apply_quiet "$HERE/00_prelude_stub.sql"
+apply_quiet "$HERE/01_prelude_274_stub.sql"
 apply_quiet "$ROOT/supabase/migrations/273_appointment_reschedule_pending.sql"
 apply_quiet "$ROOT/supabase/migrations/273_appointment_reschedule_pending.sql"
 echo "  aplicada  273 (x2, idempotente)"
+apply_quiet "$ROOT/supabase/migrations/274_appointment_prereservation.sql"
+apply_quiet "$ROOT/supabase/migrations/274_appointment_prereservation.sql"
+echo "  aplicada  274 (x2, idempotente)"
 run_test "$HERE/10_reschedule_pending_test.sql"
+run_test "$HERE/30_prereserva_test.sql"
+run_test "$HERE/35_prereserva_hardening_test.sql"
+apply_quiet "$ROOT/supabase/migrations/rollbacks/274_appointment_prereservation_rollback.sql"
+apply_quiet "$ROOT/supabase/migrations/rollbacks/274_appointment_prereservation_rollback.sql"
+echo "  rollback  274 (x2, idempotente)"
+run_test "$HERE/40_prereserva_rollback_check.sql"
 apply_quiet "$ROOT/supabase/migrations/rollbacks/273_appointment_reschedule_pending_rollback.sql"
 apply_quiet "$ROOT/supabase/migrations/rollbacks/273_appointment_reschedule_pending_rollback.sql"
 echo "  rollback  273 (x2, idempotente)"

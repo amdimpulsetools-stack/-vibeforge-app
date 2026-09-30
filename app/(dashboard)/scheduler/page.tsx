@@ -46,6 +46,14 @@ import {
   PostgrestLoadError,
   useReportLoadError,
 } from "./data-load-error";
+import { PrereservaColorProvider } from "./prereserva-context";
+import {
+  fetchExpiredHolds,
+  getHoldExpiresAt,
+  holdColumnKnownMissing,
+  isMissingColumnError,
+  markHoldColumnSupport,
+} from "@/lib/appointments/prereserva";
 // Solo se renderiza al copiar un mensaje de WhatsApp — fuera del First Load.
 const WhatsAppClipboardModal = dynamic(
   () =>
@@ -378,6 +386,7 @@ export default function SchedulerPage() {
     isError: apptsIsError,
     isFetching: apptsFetching,
     refetch: refetchAppts,
+    isPlaceholderData: apptsIsPlaceholder,
   } = useQuery({
     queryKey: ["scheduler", "appts", organizationId, rangeStartKey, rangeEndKey],
     enabled: !!organizationId,
@@ -410,9 +419,13 @@ export default function SchedulerPage() {
       // `medication` de 200 citas al navegador de cualquiera que abra la
       // agenda sería una divulgación clínica gratuita y además invisible para
       // la auditoría (§3.6) — los nombres se piden al abrir el sidebar.
-      const apptColumns = ({ serviceColor, modality, prescriptions }: { serviceColor: boolean; modality: boolean; prescriptions: boolean }): string =>
-        `id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url${modality ? ", modality" : ""}, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price${serviceColor ? ", color" : ""}), patients(is_recurring, dni, birth_date), patient_payments!patient_payments_appointment_id_fkey(amount)${prescriptions ? ", prescriptions(id)" : ""}`;
-      const selectAppts = (opts: { serviceColor: boolean; modality: boolean; prescriptions: boolean }) => {
+      // `hold_expires_at` (mig 274, pre-reserva) va como cuarta bandera: se
+      // pide primero y, si la columna no existe, se repite sin ella (y se
+      // recuerda en la sesión para no pagar el 400 en cada navegación).
+      type ApptSelectOpts = { serviceColor: boolean; modality: boolean; prescriptions: boolean; hold?: boolean };
+      const apptColumns = ({ serviceColor, modality, prescriptions, hold }: ApptSelectOpts): string =>
+        `id, patient_id, patient_name, patient_phone, doctor_id, office_id, service_id, appointment_date, start_time, end_time, status, origin, payment_method, responsible, responsible_user_id, notes, meeting_url${modality ? ", modality" : ""}, price_snapshot, discount_amount, discount_reason, discount_code_id, treatment_session_id, einvoice_id, organization_id, created_at, updated_at, edited_at, edited_by_name, arrived_at, consultation_started_at, consultation_ended_at${hold ? ", hold_expires_at" : ""}, doctors(id, full_name, color, default_meeting_url), offices(id, name), services(id, name, duration_minutes, base_price${serviceColor ? ", color" : ""}), patients(is_recurring, dni, birth_date), patient_payments!patient_payments_appointment_id_fkey(amount)${prescriptions ? ", prescriptions(id)" : ""}`;
+      const selectAppts = (opts: ApptSelectOpts) => {
         const q = supabase
           .from("appointments")
           .select(apptColumns(opts))
@@ -431,7 +444,15 @@ export default function SchedulerPage() {
       };
       // Cascada de fallbacks por columnas que pueden no existir (255/256).
       const runCascade = async (prescriptions: boolean) => {
-        let res = await selectAppts({ serviceColor: true, modality: true, prescriptions });
+        const hold = !holdColumnKnownMissing();
+        let res = await selectAppts({ serviceColor: true, modality: true, prescriptions, hold });
+        if (hold) {
+          if (!res.error) markHoldColumnSupport(true);
+          else {
+            if (isMissingColumnError(res.error, "hold_expires_at")) markHoldColumnSupport(false);
+            res = await selectAppts({ serviceColor: true, modality: true, prescriptions });
+          }
+        }
         if (res.error) res = await selectAppts({ serviceColor: true, modality: false, prescriptions });
         if (res.error) res = await selectAppts({ serviceColor: false, modality: true, prescriptions });
         if (res.error) res = await selectAppts({ serviceColor: false, modality: false, prescriptions });
@@ -457,6 +478,21 @@ export default function SchedulerPage() {
   });
   const appointments = apptsData ?? [];
 
+  // ── Pre-reservas vencidas (mig 274) ─────────────────────────────────
+  // Chip rojo "N pre-reservas vencidas": query liviana por org (conteo + la
+  // más antigua), al enfocar y cada minuto. Sin la mig devuelve null y el
+  // chip no aparece. El doctor restringido no la ve (no gestiona la agenda
+  // de otros).
+  const { data: expiredHolds } = useQuery({
+    queryKey: ["scheduler", "expired-holds", organizationId],
+    enabled: !!organizationId && !restrictedDoctor,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    queryFn: () => fetchExpiredHolds(createClient(), organizationId!),
+  });
+  // Clic en el chip: ir al día de la más antigua y abrirla cuando cargue.
+  const [pendingOpenApptId, setPendingOpenApptId] = useState<{ id: string; date: string } | null>(null);
   // Payment totals per appointment (for visual indicators) — derivado del
   // embed patient_payments(amount) del mismo select.
   const paymentTotals = useMemo(() => {
@@ -549,6 +585,30 @@ export default function SchedulerPage() {
 
   const loading = loadingMaster || apptsPending;
 
+  useEffect(() => {
+    if (!pendingOpenApptId || apptsPending || apptsIsPlaceholder) return;
+    if (pendingOpenApptId.date < rangeStartKey || pendingOpenApptId.date > rangeEndKey) return;
+    const target = appointments.find((a) => a.id === pendingOpenApptId.id);
+    setPendingOpenApptId(null);
+    if (target) {
+      setShowForm(false);
+      setSelectedAppointment(target);
+    } else {
+      toast.info("Esa pre-reserva ya no está en la agenda (quizá se confirmó o liberó).");
+      queryClient.invalidateQueries({ queryKey: ["scheduler", "expired-holds"] });
+    }
+  }, [pendingOpenApptId, apptsPending, apptsIsPlaceholder, appointments, rangeStartKey, rangeEndKey, queryClient]);
+
+  const handleExpiredHoldsClick = useCallback(() => {
+    const oldest = expiredHolds?.oldest;
+    if (!oldest) return;
+    const parsed = new Date(`${oldest.appointment_date}T12:00:00`);
+    if (Number.isNaN(parsed.getTime())) return;
+    setViewMode("day");
+    setCurrentDate(parsed);
+    setPendingOpenApptId({ id: oldest.id, date: oldest.appointment_date });
+  }, [expiredHolds]);
+
   // ── Live status lean poll (Part E) ────────────────────────────────
   // Every 30 s, fetch ONLY the live-status columns for the visible
   // date range (~5 KB vs the 100+ KB full join) and merge them into
@@ -565,14 +625,35 @@ export default function SchedulerPage() {
       if (document.hidden || cancelled) return;
       const supabase = createClient();
       const { startDate, endDate } = getDateRange();
-      const { data } = await supabase
+      // Pre-reserva (mig 274): si la columna existe viaja también — el merge
+      // avanza updated_at, así que un hold confirmado/extendido por otra
+      // persona quedaría enmascarado para siempre si no se trae aquí.
+      const withHold = !holdColumnKnownMissing();
+      const pollColumns = `id, status, arrived_at, consultation_started_at, consultation_ended_at, updated_at${withHold ? ", hold_expires_at" : ""}`;
+      let pollRes: { data: unknown; error: { code?: string; message?: string } | null } = await supabase
         .from("appointments")
-        .select(
-          "id, status, arrived_at, consultation_started_at, consultation_ended_at, updated_at",
-        )
+        .select(pollColumns)
         .gte("appointment_date", startDate)
         .lte("appointment_date", endDate)
         .neq("status", "cancelled");
+      if (pollRes.error && withHold && isMissingColumnError(pollRes.error, "hold_expires_at")) {
+        markHoldColumnSupport(false);
+        pollRes = await supabase
+          .from("appointments")
+          .select("id, status, arrived_at, consultation_started_at, consultation_ended_at, updated_at")
+          .gte("appointment_date", startDate)
+          .lte("appointment_date", endDate)
+          .neq("status", "cancelled");
+      }
+      const data = pollRes.data as unknown as Array<{
+        id: string;
+        status: AppointmentWithRelations["status"];
+        arrived_at: string | null;
+        consultation_started_at: string | null;
+        consultation_ended_at: string | null;
+        updated_at: string;
+        hold_expires_at?: string | null;
+      }> | null;
       if (cancelled || !data) return;
 
       const apptsKey = ["scheduler", "appts", organizationId, startDate, endDate];
@@ -608,6 +689,7 @@ export default function SchedulerPage() {
               consultation_started_at: fresh.consultation_started_at,
               consultation_ended_at: fresh.consultation_ended_at,
               updated_at: fresh.updated_at,
+              ...("hold_expires_at" in fresh ? { hold_expires_at: fresh.hold_expires_at ?? null } : {}),
             };
           });
           return changed ? next : prev;
@@ -846,9 +928,17 @@ export default function SchedulerPage() {
     (PendingDrop & { newEndTime: string; targetOfficeId: string }) | null
   >(null);
 
+  // Refresca la grilla y el chip de pre-reservas vencidas SIN cerrar nada
+  // (Extender / Confirmar sin pago desde el panel de la cita).
+  const handleRefreshKeepOpen = useCallback(() => {
+    fetchAppointments();
+    queryClient.invalidateQueries({ queryKey: ["scheduler", "expired-holds"] });
+  }, [fetchAppointments, queryClient]);
+
   const handleSaved = useCallback(() => {
     fetchAppointments();
     queryClient.invalidateQueries({ queryKey: ["scheduler", "reschedule-pending"] });
+    queryClient.invalidateQueries({ queryKey: ["scheduler", "expired-holds"] });
     setShowForm(false);
     setFormDefaults(null);
     setSelectedAppointment(null);
@@ -974,11 +1064,16 @@ export default function SchedulerPage() {
       return;
     }
 
+    // Pre-reserva (mig 274): aún no se le confirmó a la paciente ni está en
+    // Google Calendar (eso pasa al confirmarla): moverla no avisa ni sube.
+    const movedAppt = appointments.find((a) => a.id === pendingDrop.appointmentId);
+    const movedIsHold = !!movedAppt && !!getHoldExpiresAt(movedAppt);
+
     // Mirror move to Google Calendar (best-effort).
-    syncAppointmentToGoogle(pendingDrop.appointmentId, "upsert");
+    if (!movedIsHold) syncAppointmentToGoogle(pendingDrop.appointmentId, "upsert");
 
     // Mismo evento que usa el modal Reprogramar — ahora opt-in explícito.
-    if (notifyPatient) {
+    if (notifyPatient && !movedIsHold) {
       sendNotification({
         type: "appointment_rescheduled",
         appointment_id: pendingDrop.appointmentId,
@@ -1145,6 +1240,8 @@ export default function SchedulerPage() {
           blocks={allBlocks}
           schedulerConfig={schedulerConfig}
           reschedulePending={showReschedulePill ? reschedulePending : undefined}
+          expiredHoldsCount={expiredHolds?.count ?? 0}
+          onExpiredHoldsClick={handleExpiredHoldsClick}
         />
 
         {rescheduleCtx && (
@@ -1198,6 +1295,7 @@ export default function SchedulerPage() {
               Memoized AppointmentCards don't re-render on the tick —
               only components calling useNow() do. */}
           <NowProvider>
+            <PrereservaColorProvider color={schedulerConfig.prereservaColor}>
             {viewMode === "day" ? (
               <DayView
                 date={currentDate}
@@ -1240,6 +1338,7 @@ export default function SchedulerPage() {
                 containerHeight={gridContainerHeight}
               />
             )}
+            </PrereservaColorProvider>
           </NowProvider>
         </div>
       </div>
@@ -1283,6 +1382,7 @@ export default function SchedulerPage() {
           onClose={handleCloseSidebar}
           onUpdate={handleSaved}
           onCancelled={handleAppointmentCancelled}
+          onRefresh={handleRefreshKeepOpen}
           onReschedule={() => setShowReschedule(true)}
           doctors={doctors}
           services={services}
@@ -1311,6 +1411,7 @@ export default function SchedulerPage() {
           scheduleEndMinutes={getScheduleEndMinutes(schedulerConfig)}
           requiredFields={schedulerConfig.requiredFields ?? {}}
           allowCustomDuration={schedulerConfig.allowCustomDuration ?? false}
+          prereservaDefaultMinutes={schedulerConfig.prereservaDefaultMinutes}
           organizationId={organizationId ?? ""}
           organizationName={organization?.name ?? ""}
           organizationAddress={organization?.address || ""}

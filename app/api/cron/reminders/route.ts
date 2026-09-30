@@ -85,6 +85,11 @@ export async function GET(req: NextRequest) {
     failed: number;
   }> = [];
 
+  // Pre-reserva (mig 274): una cita con hold_expires_at NOT NULL todavía no
+  // está confirmada (la paciente no pagó) → no se le recuerda. Si la columna
+  // no existe (mig sin aplicar), se detecta una vez y se sigue sin el filtro.
+  let holdFilterSupported = true;
+
   for (const window of windows) {
     const windowStart = new Date(
       now.getTime() + window.minHours * 60 * 60 * 1000
@@ -104,28 +109,44 @@ export async function GET(req: NextRequest) {
     // PostgREST devuelve 400 por la columna → se repite sin `modality`
     // (las citas se deducen por meeting_url, como antes).
     const dateRange = getDateRange(startDate, endDate);
-    const fetchBase = () =>
-      supabase
+    const fetchBase = (excludeHolds: boolean) => {
+      const q = supabase
         .from("appointments")
         .select(REMINDER_SELECT)
         .in("appointment_date", dateRange)
-        .in("status", ["scheduled", "confirmed"])
+        .in("status", ["scheduled", "confirmed"]);
+      return (excludeHolds ? q.is("hold_expires_at", null) : q)
         .order("appointment_date")
         .order("start_time");
-    const fetchWithModality = () =>
-      supabase
+    };
+    const fetchWithModality = (excludeHolds: boolean) => {
+      const q = supabase
         .from("appointments")
         .select(REMINDER_SELECT_WITH_MODALITY)
         .in("appointment_date", dateRange)
-        .in("status", ["scheduled", "confirmed"])
+        .in("status", ["scheduled", "confirmed"]);
+      return (excludeHolds ? q.is("hold_expires_at", null) : q)
         .order("appointment_date")
         .order("start_time");
+    };
+    const isMissingHoldColumn = (err: { code?: string; message?: string } | null) =>
+      !!err &&
+      /hold_expires_at/i.test(err.message ?? "") &&
+      (err.code === "42703" || err.code === "PGRST204" || /does not exist|schema cache/i.test(err.message ?? ""));
 
     // Mismo shape que la consulta base (+ `modality`, leída con cast local).
     type ReminderApptRes = Awaited<ReturnType<typeof fetchBase>>;
-    let apptRes = (await fetchWithModality()) as unknown as ReminderApptRes;
+    let apptRes = (await fetchWithModality(holdFilterSupported)) as unknown as ReminderApptRes;
+    if (holdFilterSupported && isMissingHoldColumn(apptRes.error)) {
+      holdFilterSupported = false;
+      apptRes = (await fetchWithModality(false)) as unknown as ReminderApptRes;
+    }
     if (apptRes.error && /modality/i.test(apptRes.error.message ?? "")) {
-      apptRes = await fetchBase();
+      apptRes = await fetchBase(holdFilterSupported);
+      if (holdFilterSupported && isMissingHoldColumn(apptRes.error)) {
+        holdFilterSupported = false;
+        apptRes = await fetchBase(false);
+      }
     }
     const { data: appointments, error: apptError } = apptRes;
 

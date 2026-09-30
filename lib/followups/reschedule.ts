@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DEFAULT_TEMPLATES, buildMessage } from "@/lib/whatsapp-clipboard-config";
 
 /**
  * "Por reprogramar" (mig 273): cita cancelada con la paciente pendiente de
@@ -60,6 +61,12 @@ export type NoRescheduleReasonCode = (typeof NO_RESCHEDULE_REASONS)[number]["cod
  * Mensaje de WhatsApp para avisar a la paciente que su cita quedó pendiente
  * de reprogramar (al cancelar) o para coordinar la nueva fecha (bandeja).
  * Tono neutro, sin género.
+ *
+ * Compat/fallback: el texto sale del DEFAULT de las plantillas editables
+ * (`reschedule_notice` / `reschedule_coordinate` en
+ * lib/whatsapp-clipboard-config.ts), así que ambos coinciden siempre. Para
+ * respetar lo que la clínica editó en Ajustes → Plantillas WhatsApp usa
+ * `renderClipboardTemplate(kind, { NOMBRE, CLINICA, SERVICIO, FECHA, HORA })`.
  */
 export function buildRescheduleMessage(vars: {
   patientName: string;
@@ -68,21 +75,16 @@ export function buildRescheduleMessage(vars: {
   dateLabel?: string | null; // "12/10 a las 10:30"
   kind: "aviso_cancelacion" | "coordinar";
 }): string {
-  const clinic = vars.clinicName ? ` de ${vars.clinicName}` : "";
-  const what = vars.serviceName ? `tu cita de ${vars.serviceName}` : "tu cita";
-  const when = vars.dateLabel ? ` del ${vars.dateLabel}` : "";
-  if (vars.kind === "aviso_cancelacion") {
-    return (
-      `Hola ${vars.patientName} 👋\n\n` +
-      `Te escribimos${clinic}: tuvimos que cancelar ${what}${when}. ` +
-      `Queremos darte una nueva fecha. ¿Qué día y horario te acomoda?\n\nQuedamos atentos.`
-    );
-  }
-  return (
-    `Hola ${vars.patientName} 👋\n\n` +
-    `Te escribimos${clinic} para reprogramar ${what}${when}. ` +
-    `¿Qué día y horario te acomoda?\n\nQuedamos atentos.`
-  );
+  const kind = vars.kind === "aviso_cancelacion" ? "reschedule_notice" : "reschedule_coordinate";
+  // dateLabel ya trae la hora ("12/10 a las 10:30"): va entero en FECHA y
+  // HORA vacía se limpia junto con su " a las".
+  return buildMessage(kind, DEFAULT_TEMPLATES[kind], {
+    NOMBRE: vars.patientName,
+    CLINICA: vars.clinicName,
+    SERVICIO: vars.serviceName ?? null,
+    FECHA: vars.dateLabel ?? null,
+    HORA: null,
+  });
 }
 
 /**

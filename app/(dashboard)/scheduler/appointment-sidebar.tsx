@@ -69,13 +69,24 @@ import {
 import { CancelOutcomePicker, defaultCancelOutcome, minutesSinceCreated } from "./cancel-outcome-picker";
 import { DepositBanner } from "./deposit-banner";
 import {
-  buildRescheduleMessage,
   RESCHEDULE_OPEN_STATUSES,
   RESCHEDULE_PENDING_RULE_KEY,
   type CancelMoney,
   type CancelOutcome,
 } from "@/lib/followups/reschedule";
 import { normalizePhoneForWa } from "@/lib/whatsapp-clipboard-config";
+import {
+  confirmHold,
+  getHoldExpiresAt,
+  renderRescheduleNoticeMessage,
+} from "@/lib/appointments/prereserva";
+import {
+  notifyIfHoldConfirmedByPayment,
+  readHoldState,
+  type HoldReadState,
+} from "@/lib/appointments/prereserva-confirm";
+import { formatSoles } from "@/lib/appointments/reschedule-context";
+import { PrereservaStrip } from "./prereserva-strip";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
@@ -277,6 +288,11 @@ interface AppointmentSidebarProps {
    */
   /** Recibe el id de la cita cancelada: la página cierra el panel si aún la muestra. */
   onCancelled?: (appointmentId: string) => void;
+  /**
+   * Refresca la agenda SIN cerrar este panel (pre-reserva, mig 274:
+   * Extender / Confirmar sin pago). Si no viene, no se refresca la grilla.
+   */
+  onRefresh?: () => void;
   onReschedule?: () => void;
   doctors?: Doctor[];
   services?: Service[];
@@ -350,6 +366,7 @@ export function AppointmentSidebar({
   onClose,
   onUpdate,
   onCancelled,
+  onRefresh,
   onReschedule,
   doctors = [],
   services = [],
@@ -366,13 +383,18 @@ export function AppointmentSidebar({
   // Live status master toggle + "recepción puede finalizar" (mig 227) —
   // instant from the localStorage cache; the scheduler page keeps it
   // fresh via fetchSchedulerConfig().
-  const { liveStatusEnabled, receptionCanEnd } = useMemo(() => {
+  const { liveStatusEnabled, receptionCanEnd, prereservaColor } = useMemo(() => {
     const cfg = loadSchedulerConfig();
     return {
       liveStatusEnabled: cfg.liveStatus,
       receptionCanEnd: cfg.liveStatusReceptionCanEnd,
+      prereservaColor: cfg.prereservaColor,
     };
   }, []);
+  // Pre-reserva (mig 274): estado LOCAL del hold — Extender / Confirmar
+  // cambian la franja al instante sin cerrar el panel (la cita que pasa la
+  // página es una foto del momento en que se abrió).
+  const [holdExpiresAt, setHoldExpiresAt] = useState<string | null>(() => getHoldExpiresAt(appointment));
   // Phase 3 (Budget Tiers): only show the "Asignar presupuesto" CTA on
   // completed appointments and only for orgs with the fertility addon
   // active. Receptionists are excluded (advisors with non-receptionist
@@ -609,10 +631,15 @@ export function AppointmentSidebar({
   const [cancelOutcome, setCancelOutcome] = useState<CancelOutcome>(() =>
     defaultCancelOutcome(minutesSinceCreated(appointment.created_at), !!appointment.patient_id),
   );
+  // Recepción: el desenlace se pregunta DESPUÉS del clic en "Cancelar cita"
+  // (paso 2, con Volver / Confirmar). Antes estaba siempre a la vista y
+  // ocupaba espacio en cada cita abierta.
+  const [cancelStepOpen, setCancelStepOpen] = useState(false);
   useEffect(() => {
     const mins = minutesSinceCreated(appointment.created_at);
     setCreatedMinutesAgo(mins);
     setCancelOutcome(defaultCancelOutcome(mins, !!appointment.patient_id));
+    setCancelStepOpen(false);
   }, [appointment.id, appointment.created_at, appointment.patient_id]);
   const cancelOutcomeApplies =
     cancelColumnsSupported &&
@@ -1001,6 +1028,11 @@ export function AppointmentSidebar({
     if (!payAmount || Number(payAmount) <= 0) return;
     setSavingPayment(true);
     const supabase = createClient();
+    // Pre-reserva (mig 274): estado REAL antes del cobro, para enviar la
+    // confirmación solo si ESTE cobro la confirmó (ver prereserva-confirm).
+    const holdBefore: HoldReadState = holdExpiresAt
+      ? await readHoldState(supabase, appointment.id)
+      : "normal";
 
     // Se pide el id de vuelta: la notificación en vivo se emite por id y el
     // servidor reconstruye el texto desde la fila real (mig 192).
@@ -1054,6 +1086,18 @@ export function AppointmentSidebar({
         extra_variables: {
           monto_pagado: `S/. ${Number(payAmount).toFixed(2)}`,
         },
+      });
+    }
+
+    // Pre-reserva (mig 274): el trigger de pago clínico limpia el hold. Si
+    // esta cita ERA pre-reserva y la base la confirmó, recién ahora sale el
+    // correo de confirmación (y el alta en Google Calendar) que se omitió al
+    // pre-reservar.
+    if (holdBefore === "held") {
+      void notifyIfHoldConfirmedByPayment(supabase, appointment.id, holdBefore).then((confirmed) => {
+        if (!confirmed) return;
+        setHoldExpiresAt(null);
+        toast.success("Pre-reserva confirmada con el pago");
       });
     }
 
@@ -1293,10 +1337,16 @@ export function AppointmentSidebar({
     // Cancel → mark event as cancelled. Other status changes don't change
     // the event title/time but we re-upsert so the description / status
     // reflects the new state (e.g. "completed" comment in description).
-    syncAppointmentToGoogle(
-      appointment.id,
-      newStatus === "cancelled" ? "cancel" : "upsert"
-    );
+    // Pre-reserva (mig 274) cancelada: nunca se le confirmó a la paciente ni
+    // se subió a Google Calendar (eso pasa al confirmarla), así que tampoco
+    // sale el correo de "cita cancelada" ni la baja en Google.
+    const cancelledHold = newStatus === "cancelled" && !!holdExpiresAt;
+    if (!cancelledHold) {
+      syncAppointmentToGoogle(
+        appointment.id,
+        newStatus === "cancelled" ? "cancel" : "upsert"
+      );
+    }
 
     // Fire email notifications for relevant status changes
     const notificationMap: Record<string, string> = {
@@ -1304,7 +1354,7 @@ export function AppointmentSidebar({
       cancelled: "appointment_cancelled",
     };
     const templateSlug = notificationMap[newStatus];
-    if (templateSlug && !silentCancel) {
+    if (templateSlug && !silentCancel && !cancelledHold) {
       sendNotification({
         type: templateSlug,
         appointment_id: appointment.id,
@@ -1320,6 +1370,13 @@ export function AppointmentSidebar({
       }
     } else if (newStatus === "no_show") {
       emitLiveNotification({ event: "appointment_no_show", appointment_id: appointment.id });
+    }
+
+    // Pre-reserva (mig 274): pasar a "Confirmada" desde aquí es confirmarla
+    // (el correo ya salió arriba) — se quita el hold para que la tarjeta no
+    // siga como pre-reserva ni termine "vencida". Solo toca citas con hold.
+    if (newStatus === "confirmed" && holdExpiresAt) {
+      await confirmHold(supabase, appointment.id);
     }
 
     if (isCancel) finishCancellation();
@@ -1348,17 +1405,22 @@ export function AppointmentSidebar({
   const announceReschedulePending = async () => {
     const supabase = createClient();
     const waPhone = normalizePhoneForWa(appointment.patient_phone);
+    // Plantilla editable 'reschedule_notice' (Ajustes → Plantillas WhatsApp);
+    // cae al texto fijo de siempre si no carga. Se arma ANTES del toast: el
+    // clic abre wa.me de forma síncrona (bloqueador de pop-ups).
+    const message = waPhone
+      ? await renderRescheduleNoticeMessage({
+          patientName: appointment.patient_name ?? "",
+          clinicName: organization?.name ?? "",
+          serviceName: appointment.services?.name ?? null,
+          appointmentDate: appointment.appointment_date,
+          startTime: appointment.start_time,
+        })
+      : "";
     const waAction = waPhone
       ? {
           label: "Avisar por WhatsApp",
           onClick: () => {
-            const message = buildRescheduleMessage({
-              kind: "aviso_cancelacion",
-              patientName: appointment.patient_name ?? "",
-              clinicName: organization?.name ?? "",
-              serviceName: appointment.services?.name ?? null,
-              dateLabel: `${ddmm(appointment.appointment_date)} a las ${appointment.start_time.slice(0, 5)}`,
-            });
             window.open(
               `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`,
               "_blank",
@@ -1932,6 +1994,35 @@ export function AppointmentSidebar({
             </span>
           )}
         </div>
+
+        {/* Pre-reserva (mig 274): tiempo restante + Confirmar sin pago /
+            Extender / Liberar horario / WhatsApp. */}
+        {holdExpiresAt && (appointment.status === "scheduled" || appointment.status === "confirmed") && (
+          <PrereservaStrip
+            appointmentId={appointment.id}
+            holdExpiresAt={holdExpiresAt}
+            color={prereservaColor}
+            timezone={orgTimezone}
+            patientName={appointment.patient_name ?? ""}
+            patientPhone={appointment.patient_phone ?? null}
+            readOnly={readOnly}
+            message={{
+              patientName: appointment.patient_name ?? "",
+              clinicName: organization?.name ?? "",
+              serviceName: appointment.services?.name ?? null,
+              doctorName: appointment.doctors?.full_name ?? null,
+              appointmentDate: appointment.appointment_date,
+              startTime: appointment.start_time,
+              // Lo que falta pagar de la cita, tal como lo calcula este panel.
+              amountLabel: pending > 0 ? formatSoles(pending) : "",
+            }}
+            onHoldChanged={(next) => {
+              setHoldExpiresAt(next);
+              onRefresh?.();
+            }}
+            onReleased={onUpdate}
+          />
+        )}
 
         {/* Details */}
         <div className="space-y-3">
@@ -2556,10 +2647,11 @@ export function AppointmentSidebar({
                     )}
                   </>
                 ) : !isDoctorRole ? (
-                  <div className="space-y-1.5">
-                    {/* Desenlace visible ANTES del clic: recepción cancela
-                        con un clic + Deshacer (mig 273). */}
-                    {cancelOutcomeApplies && (
+                  cancelOutcomeApplies && cancelStepOpen ? (
+                    // Paso 2 (mig 273): qué pasa con la paciente. Después
+                    // sigue igual que siempre: diálogo de dinero si hay
+                    // pagos, o cancelación con Deshacer.
+                    <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
                       <CancelOutcomePicker
                         value={cancelOutcome}
                         onChange={setCancelOutcome}
@@ -2567,16 +2659,36 @@ export function AppointmentSidebar({
                         createdMinutesAgo={createdMinutesAgo}
                         disabled={updating}
                       />
-                    )}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setCancelStepOpen(false)}
+                          className="flex-1 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-accent transition-colors"
+                        >
+                          Volver
+                        </button>
+                        <button
+                          onClick={() => {
+                            setCancelStepOpen(false);
+                            requestCancel();
+                          }}
+                          disabled={updating}
+                          className="flex-1 flex items-center justify-center gap-1 rounded-lg bg-destructive px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                        >
+                          {updating ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                          Confirmar cancelación
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                     <button
-                      onClick={() => requestCancel()}
+                      onClick={() => (cancelOutcomeApplies ? setCancelStepOpen(true) : requestCancel())}
                       disabled={updating}
                       className="flex w-full items-center justify-center gap-2 rounded-lg border border-destructive/30 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50 transition-colors"
                     >
                       {updating ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />}
                       {t("scheduler.cancel_appointment")}
                     </button>
-                  </div>
+                  )
                 ) : null}
               </>
             )}

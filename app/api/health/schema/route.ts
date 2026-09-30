@@ -56,6 +56,12 @@ interface SchemaCheck {
   /** Archivo (e identificador) de donde sale el select. */
   source: string;
   run: (supabase: SupaClient, orgId: string) => PromiseLike<{ error: PgErrorLike | null }>;
+  /**
+   * Columna de una migración que puede no estar aplicada todavía: si el
+   * error es "esta columna no existe", el chequeo sale ok con una nota (la
+   * pantalla tiene respaldo sin ella); cualquier OTRO error sí falla.
+   */
+  optionalColumn?: { column: string; migration: string };
 }
 
 interface CheckResult {
@@ -141,6 +147,23 @@ const CHECKS: SchemaCheck[] = [
       s
         .from("appointments")
         .select(AGENDA_SELECT)
+        .gte("appointment_date", ANY_DATE)
+        .lte("appointment_date", ANY_DATE)
+        .neq("status", "cancelled")
+        .eq("prescriptions.is_active", true)
+        .order("start_time")
+        .limit(0),
+  },
+  {
+    // Primera variante de la cascada de la agenda desde la mig 274: la
+    // misma de arriba + `hold_expires_at` (pre-reserva).
+    name: "agenda_citas_pre_reserva",
+    source: "app/(dashboard)/scheduler/page.tsx (apptColumns, hold = true)",
+    optionalColumn: { column: "hold_expires_at", migration: "mig 274" },
+    run: (s) =>
+      s
+        .from("appointments")
+        .select(AGENDA_SELECT + ", hold_expires_at")
         .gte("appointment_date", ANY_DATE)
         .lte("appointment_date", ANY_DATE)
         .neq("status", "cancelled")
@@ -307,6 +330,19 @@ async function runCheck(
       timeout,
     ]);
     if (!error) return { name: check.name, source: check.source, ok: true };
+    const opt = check.optionalColumn;
+    if (
+      opt &&
+      (error.code === "42703" || error.code === "PGRST204") &&
+      new RegExp(opt.column, "i").test(error.message ?? "")
+    ) {
+      return {
+        name: check.name,
+        source: check.source,
+        ok: true,
+        message: `${opt.column} aún no existe (${opt.migration} sin aplicar): la pantalla usa su respaldo.`,
+      };
+    }
     // Solo metadatos del error de PostgREST (código, mensaje, hint): con
     // `.limit(0)` no hay filas, y `details` se omite a propósito.
     return {
