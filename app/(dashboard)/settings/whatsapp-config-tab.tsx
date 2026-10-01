@@ -94,6 +94,13 @@ export default function WhatsAppConfigTab() {
       toast.success(
         es ? "Conexión verificada correctamente" : "Connection verified successfully"
       );
+      if (result.webhook_subscribed === false) {
+        toast.warning(
+          es
+            ? "No se pudo suscribir la cuenta a los mensajes entrantes. Revisa que el token tenga el permiso whatsapp_business_management."
+            : "Could not subscribe the account to incoming messages. Check the token has whatsapp_business_management."
+        );
+      }
       fetchConfig();
     } else {
       toast.error(
