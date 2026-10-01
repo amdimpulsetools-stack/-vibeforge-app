@@ -24,6 +24,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MetaWebhookPayload, MetaInboundMessage } from "./types";
+import { mirrorInboundToInbox } from "@/lib/inbox/ingest";
 
 export interface CapturedInbound {
   phoneNumberId: string; // número de la clínica (resuelve la org)
@@ -34,6 +35,14 @@ export interface CapturedInbound {
   body: string | null;
   referral: MetaInboundMessage["referral"] | null;
   receivedAt: string; // ISO
+  // Bandeja (mig 275): media e hilo. Opcionales, no cambian F1.
+  mediaId?: string | null;
+  mediaMime?: string | null;
+  mediaCaption?: string | null;
+  replyToWamid?: string | null;
+  /** Texto para la bandeja: incluye respuestas de botón/lista y reacciones.
+   *  `body` (F1) queda exactamente como antes. */
+  inboxBody?: string | null;
 }
 
 /** Extrae los mensajes entrantes del payload (los statuses siguen su vía). */
@@ -61,6 +70,13 @@ export function parseInboundMessages(
         // multimedia guarda solo el tipo (el binario es asunto de Fase 3).
         const body =
           msg.text?.body ?? msg.button?.text ?? null;
+        const inboxBody =
+          body ??
+          msg.interactive?.button_reply?.title ??
+          msg.interactive?.list_reply?.title ??
+          msg.reaction?.emoji ??
+          null;
+        const media = msg.image ?? msg.audio ?? msg.video ?? msg.document ?? msg.sticker ?? null;
 
         out.push({
           phoneNumberId: value.metadata?.phone_number_id ?? "",
@@ -71,6 +87,11 @@ export function parseInboundMessages(
           body,
           referral: msg.referral ?? null,
           receivedAt: new Date(parseInt(msg.timestamp, 10) * 1000).toISOString(),
+          mediaId: media?.id ?? null,
+          mediaMime: media?.mime_type ?? null,
+          mediaCaption: media?.caption ?? null,
+          replyToWamid: msg.context?.id ?? null,
+          inboxBody,
         });
       }
     }
@@ -185,6 +206,11 @@ export async function persistInboundMessages(
         );
 
       if (!msgErr && (count ?? 0) > 0) saved++;
+
+      // Bandeja (mig 275): la misma línea de tiempo que usa la recepción.
+      // Best-effort y aparte: si falla (o la 275 aún no está), F1 sigue
+      // exactamente igual.
+      await mirrorInboundToInbox(admin, orgId, conversationId, msg);
     } catch (err) {
       console.error("[Captación] Error capturando mensaje entrante:", err);
       // best-effort: seguir con el resto del lote

@@ -165,6 +165,20 @@ export interface MetaInboundMessage {
   type: string; // text | image | audio | video | document | button | ...
   text?: { body: string };
   button?: { text: string; payload?: string };
+  // Bandeja (mig 275): media e interactivos. El binario NO viene aquí:
+  // solo el id de media, válido ~7 días para descargarlo de Meta.
+  image?: MetaInboundMedia;
+  audio?: MetaInboundMedia;
+  video?: MetaInboundMedia;
+  document?: MetaInboundMedia & { filename?: string };
+  sticker?: MetaInboundMedia;
+  interactive?: {
+    type?: string;
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string };
+  };
+  reaction?: { message_id?: string; emoji?: string };
+  context?: { id?: string; from?: string };
   referral?: {
     source_url?: string;
     source_id?: string; // ad_id de Meta
@@ -175,6 +189,12 @@ export interface MetaInboundMessage {
   };
 }
 
+export interface MetaInboundMedia {
+  id: string;
+  mime_type?: string;
+  caption?: string;
+}
+
 export interface MetaWebhookEntry {
   id: string;
   changes: Array<{
@@ -183,12 +203,17 @@ export interface MetaWebhookEntry {
       metadata: { display_phone_number: string; phone_number_id: string };
       contacts?: Array<{ profile?: { name?: string }; wa_id: string }>;
       messages?: MetaInboundMessage[];
+      /** Coexistence (field smb_message_echoes): lo que la clínica envió
+       *  desde la app WhatsApp Business del celular. `to` = paciente. */
+      message_echoes?: Array<MetaInboundMessage & { to: string }>;
       statuses?: Array<{
         id: string;
         status: "sent" | "delivered" | "read" | "failed";
         timestamp: string;
         recipient_id: string;
         errors?: Array<{ code: number; title: string }>;
+        /** Eco de lo que enviamos (mig 275: client_msg_id de la bandeja). */
+        biz_opaque_callback_data?: string;
       }>;
     };
     field: string;

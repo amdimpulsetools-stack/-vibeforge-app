@@ -42,6 +42,7 @@ import {
   ShieldPlus,
   type LucideIcon,
   Megaphone,
+  MessagesSquare,
   Warehouse,
   ShoppingCart,
   Baby,
@@ -61,6 +62,8 @@ interface NavItem {
    *  el caso — recepción no puede registrarlos ni enviarlos (403 en ambos
    *  endpoints), así que verlos en el menú solo llevaba a un callejón. */
   hideForReceptionist?: boolean;
+  /** Doctores solo si la clínica activó el acceso (Conversaciones, mig 275). */
+  doctorsNeedInboxAccess?: boolean;
   /** Only visible if the org has at least one of the listed addons enabled. */
   requiresAnyAddon?: string[];
 }
@@ -143,6 +146,16 @@ const navSections: NavSection[] = [
         href: "/captacion",
         icon: Megaphone,
         requiresAnyAddon: ["captacion"],
+      },
+      {
+        // Conversaciones (CRM WhatsApp + Captación, mig 275): bandeja de
+        // WhatsApp. Mismo addon que Captación. Doctores solo si la clínica
+        // lo activa en Ajustes de Conversaciones.
+        titleKey: "nav.conversaciones",
+        href: "/conversaciones",
+        icon: MessagesSquare,
+        requiresAnyAddon: ["captacion"],
+        doctorsNeedInboxAccess: true,
       },
       {
         // Módulo Almacén (beta oculta): solo orgs con grant del addon.
@@ -228,6 +241,7 @@ const navSections: NavSection[] = [
 import { useMobileNav } from "./mobile-nav-context";
 import { useEInvoiceConfig } from "@/hooks/use-einvoice-config";
 import { useOrgAddons } from "@/hooks/use-org-addons";
+import { useInboxDoctorAccess } from "@/hooks/use-inbox-doctor-access";
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -238,6 +252,7 @@ export function Sidebar() {
   const { isOpen: mobileOpen, setOpen: setMobileOpen } = useMobileNav();
   const einvoice = useEInvoiceConfig();
   const { hasAnyAddon } = useOrgAddons();
+  const doctorInboxAccess = useInboxDoctorAccess(isDoctor && hasAnyAddon(["captacion"]));
   const [collapsed, setCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [isFounder, setIsFounder] = useState(false);
@@ -310,6 +325,7 @@ export function Sidebar() {
     if (item.adminOnly && !isAdmin) return null;
     if (item.hideForDoctor && isDoctor) return null;
     if (item.hideForReceptionist && isReceptionist) return null;
+    if (item.doctorsNeedInboxAccess && isDoctor && !doctorInboxAccess) return null;
     if (item.requiresAnyAddon && !hasAnyAddon(item.requiresAnyAddon)) return null;
     // Gate the /facturacion entry behind an active e-invoice config —
     // shows up only after the org has finished the Nubefact wizard.
@@ -521,9 +537,11 @@ export function Sidebar() {
               adminOnly?: boolean;
               hideForDoctor?: boolean;
               hideForReceptionist?: boolean;
+              doctorsNeedInboxAccess?: boolean;
               requiresAnyAddon?: string[];
             };
             if (meta.adminOnly && !isAdmin) return false;
+            if (meta.doctorsNeedInboxAccess && isDoctor && !doctorInboxAccess) return false;
             if (meta.hideForDoctor && isDoctor) return false;
             if (meta.hideForReceptionist && isReceptionist) return false;
             // Grupos con gate de addon también cuentan aquí: si no, una
