@@ -89,10 +89,10 @@ function InboxApp({ orgId, timezone, canManage }: { orgId: string | null; timezo
   const unread = active?.unread_count ?? 0;
   useEffect(() => {
     if (!active || unread === 0) return;
-    void inboxFetch(`/api/inbox/conversations/${active.id}`, { method: "PATCH", body: { read: true } }).then(() =>
-      qc.invalidateQueries({ queryKey: inboxKeys.conversations(orgId) }),
-    );
-  }, [active, unread, orgId, qc]);
+    // Cambio local inmediato; el PATCH estampa updated_at y el delta lo confirma.
+    conversations.patchLocal(active.id, { unread_count: 0 });
+    void inboxFetch(`/api/inbox/conversations/${active.id}`, { method: "PATCH", body: { read: true } });
+  }, [active, unread, conversations.patchLocal]);
 
   // Respaldo del envío de programados mientras la pantalla está abierta
   // (el disparador principal es pg_cron → /api/cron/inbox-dispatch).
@@ -130,6 +130,9 @@ function InboxApp({ orgId, timezone, canManage }: { orgId: string | null; timezo
             onSelect={setActiveId}
             timezone={timezone}
             canManage={canManage}
+            onLoadMore={() => void conversations.loadMore()}
+            hasMore={conversations.hasMore}
+            loadingMore={conversations.loadingMore}
           />
         )}
       </div>
@@ -146,6 +149,9 @@ function InboxApp({ orgId, timezone, canManage }: { orgId: string | null; timezo
             onBack={() => setActiveId(null)}
             onToggleDetails={() => setDetailsOpen((v) => !v)}
             onSent={() => undefined}
+            onLoadOlder={() => void messages.loadOlder()}
+            hasOlder={messages.hasOlder}
+            loadingOlder={messages.loadingOlder}
           />
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-2 bg-muted/30 text-center text-muted-foreground">

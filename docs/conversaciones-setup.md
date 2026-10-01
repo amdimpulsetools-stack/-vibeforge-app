@@ -161,6 +161,17 @@ antes y después (no agrega FKs: el resultado debe ser idéntico), pegar
 funcionando; los Ajustes avisan "Falta aplicar la migración 276" al guardar
 un caso o una ficha de tipo nuevo. Rollback: `rollbacks/276_wa_kb_playbook_rollback.sql`.
 
+### Migración 277 (rendimiento: un índice)
+
+`supabase/migrations/277_wa_inbox_perf.sql` crea solo el índice
+`idx_wa_conv_org_updated (organization_id, updated_at DESC)` en
+`wa_conversations`: ni tablas, ni columnas, ni FKs, ni políticas (Consulta 1
+de `multi_fk_pairs.sql` idéntica antes y después). Lo usa el sondeo por
+diferencias de la lista ("¿qué cambió desde la última vez?"). Sin él la
+bandeja funciona igual, pero esa consulta recorre toda la tabla, que es
+compartida por todas las clínicas. Rollback: `rollbacks/277_wa_inbox_perf_rollback.sql`.
+Presupuesto y banco de pruebas: `docs/rendimiento-conversaciones.md`.
+
 ### La fórmula: Guía de conversación
 
 Ajustes ⚙ → **Guía de conversación**. Es cómo Yendy encauza cada chat, y

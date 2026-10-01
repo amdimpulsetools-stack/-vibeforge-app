@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Search, Settings2, Clock3 } from "lucide-react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { Search, Settings2, Clock3, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatWaPhone, initialsOf, isWindowOpen } from "@/lib/inbox/shared";
 import type { ConversationRow, OrgTag } from "./use-inbox";
@@ -36,6 +37,9 @@ export function ConversationList({
   onSelect,
   timezone,
   canManage,
+  onLoadMore,
+  hasMore,
+  loadingMore,
 }: {
   conversations: ConversationRow[];
   tags: OrgTag[];
@@ -43,6 +47,9 @@ export function ConversationList({
   onSelect: (id: string) => void;
   timezone: string;
   canManage: boolean;
+  onLoadMore: () => void;
+  hasMore: boolean;
+  loadingMore: boolean;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -67,6 +74,18 @@ export function ConversationList({
   }, [conversations, query, filter, tagFilter]);
 
   const unreadTotal = conversations.filter((c) => c.unread_count > 0).length;
+
+  // Lista virtualizada: con 1 000 conversaciones solo se dibujan las ~15
+  // visibles (+ margen). Las filas miden ~78 px; el virtualizador mide
+  // la real al montarla.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: visible.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 78,
+    overscan: 8,
+    getItemKey: (i) => visible[i].id,
+  });
   const fmt = useMemo(() => {
     const time = new Intl.DateTimeFormat("es-PE", { timeZone: timezone, hour: "2-digit", minute: "2-digit" });
     const day = new Intl.DateTimeFormat("es-PE", { timeZone: timezone, day: "2-digit", month: "2-digit" });
@@ -162,7 +181,7 @@ export function ConversationList({
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-2">
         {visible.length === 0 ? (
           <p className="px-4 py-10 text-center text-xs text-muted-foreground">
             {conversations.length === 0
@@ -170,63 +189,79 @@ export function ConversationList({
               : "Sin resultados con esos filtros."}
           </p>
         ) : (
-          visible.map((c) => {
-            const name = conversationName(c);
-            const firstTag = c.wa_conversation_tags.map((t) => tagById.get(t.tag_id)).find(Boolean);
-            const windowOpen = isWindowOpen(c.last_inbound_at);
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => onSelect(c.id)}
-                className={cn(
-                  "flex w-full gap-3 rounded-xl px-3 py-3 text-left transition-colors",
-                  c.id === activeId ? "bg-primary/10" : "hover:bg-muted/50",
-                )}
-              >
-                <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full text-xs font-bold", avatarTone(c.id))}>
-                  {initialsOf(name, "#")}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex items-baseline justify-between gap-2">
-                    <strong className={cn("truncate text-[13px]", c.unread_count > 0 ? "font-bold" : "font-semibold")}>{name}</strong>
-                    <small className="shrink-0 text-[10px] text-muted-foreground">{fmt(c.last_message_at)}</small>
+          <div className="relative w-full" style={{ height: rowVirtualizer.getTotalSize() }}>
+            {rowVirtualizer.getVirtualItems().map((row) => {
+              const c = visible[row.index];
+              const name = conversationName(c);
+              const firstTag = c.wa_conversation_tags.map((t) => tagById.get(t.tag_id)).find(Boolean);
+              const windowOpen = isWindowOpen(c.last_inbound_at);
+              return (
+                <button
+                  key={row.key}
+                  ref={rowVirtualizer.measureElement}
+                  data-index={row.index}
+                  type="button"
+                  onClick={() => onSelect(c.id)}
+                  className={cn(
+                    "absolute left-0 top-0 flex w-full gap-3 rounded-xl px-3 py-3 text-left transition-colors",
+                    c.id === activeId ? "bg-primary/10" : "hover:bg-muted/50",
+                  )}
+                  style={{ transform: `translateY(${row.start}px)` }}
+                >
+                  <span className={cn("grid h-11 w-11 shrink-0 place-items-center rounded-full text-xs font-bold", avatarTone(c.id))}>
+                    {initialsOf(name, "#")}
                   </span>
-                  <span className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] text-muted-foreground">
-                    <span className="truncate">
-                      {c.last_message_dir === "out" ? "Tú: " : ""}
-                      {c.last_message_preview ?? "—"}
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline justify-between gap-2">
+                      <strong className={cn("truncate text-[13px]", c.unread_count > 0 ? "font-bold" : "font-semibold")}>{name}</strong>
+                      <small className="shrink-0 text-[10px] text-muted-foreground">{fmt(c.last_message_at)}</small>
                     </span>
-                    {c.unread_count > 0 && (
-                      <b className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
-                        {c.unread_count}
-                      </b>
-                    )}
-                  </span>
-                  <span className="mt-1.5 flex items-center gap-1.5">
-                    {firstTag && (
-                      <em
-                        className="rounded px-1.5 py-0.5 text-[9.5px] font-semibold not-italic"
-                        style={{ backgroundColor: `${firstTag.color}22`, color: firstTag.color }}
-                      >
-                        {firstTag.name}
-                      </em>
-                    )}
-                    {!c.patient_id && (
-                      <em className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9.5px] font-semibold not-italic text-amber-700 dark:text-amber-400">
-                        Sin ficha
-                      </em>
-                    )}
-                    {!windowOpen && (
-                      <span className="inline-flex items-center gap-0.5 text-[9.5px] text-muted-foreground" title="Pasaron 24 h: solo plantillas">
-                        <Clock3 className="h-3 w-3" /> 24 h
+                    <span className="mt-0.5 flex items-center justify-between gap-2 text-[11.5px] text-muted-foreground">
+                      <span className="truncate">
+                        {c.last_message_dir === "out" ? "Tú: " : ""}
+                        {c.last_message_preview ?? "—"}
                       </span>
-                    )}
+                      {c.unread_count > 0 && (
+                        <b className="grid h-[18px] min-w-[18px] shrink-0 place-items-center rounded-full bg-primary px-1 text-[10px] text-primary-foreground">
+                          {c.unread_count}
+                        </b>
+                      )}
+                    </span>
+                    <span className="mt-1.5 flex items-center gap-1.5">
+                      {firstTag && (
+                        <em
+                          className="rounded px-1.5 py-0.5 text-[9.5px] font-semibold not-italic"
+                          style={{ backgroundColor: `${firstTag.color}22`, color: firstTag.color }}
+                        >
+                          {firstTag.name}
+                        </em>
+                      )}
+                      {!c.patient_id && (
+                        <em className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[9.5px] font-semibold not-italic text-amber-700 dark:text-amber-400">
+                          Sin ficha
+                        </em>
+                      )}
+                      {!windowOpen && (
+                        <span className="inline-flex items-center gap-0.5 text-[9.5px] text-muted-foreground" title="Pasaron 24 h: solo plantillas">
+                          <Clock3 className="h-3 w-3" /> 24 h
+                        </span>
+                      )}
+                    </span>
                   </span>
-                </span>
-              </button>
-            );
-          })
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {hasMore && !query && filter === "all" && !tagFilter && conversations.length > 0 && (
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+            className="mx-auto my-3 flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60"
+          >
+            {loadingMore && <Loader2 className="h-3 w-3 animate-spin" />} Cargar más conversaciones
+          </button>
         )}
       </div>
     </section>
