@@ -198,6 +198,34 @@ Aplicar, luego `/api/health/schema` → `ok: true` y abrir la agenda y
 `/conversaciones`. Rollback: `rollbacks/278_wa_feedback_outcome_rollback.sql`
 (las etiquetas Agendó/Asistió quedan como etiquetas normales).
 
+### Migración 279 (casos candidatos minados de los chats que cerraron)
+
+`supabase/migrations/279_wa_case_candidates.sql`. Una sola FK nueva
+(candidatos → conversación; el par no tenía ninguna y no se leen juntos):
+la Consulta 1 de `multi_fk_pairs.sql` debe dar el mismo resultado antes y
+después, y la Consulta 2 de la FK nueva, una sola fila. Añade:
+
+- **Ajustes → Casos candidatos**: Yendy revisa los chats que terminaron en
+  cita (etiqueta Agendó / Asistió de la 278), busca el tramo donde la
+  paciente pasó de dudar a aceptar y lo propone: lo que escribió → la
+  respuesta real que funcionó → hacia dónde encauzar → por qué funcionó.
+  Administración **aprueba** (corrigiendo lo que quiera; entra a Casos
+  reales y Yendy lo usa desde la siguiente sugerencia) o **descarta**.
+  Nada entra solo.
+- **Cuándo revisa**: al abrir la sección, como mucho una vez por semana
+  (`wa_inbox_settings.ai_mined_at`), o con "Buscar ahora". De 8 chats por
+  corrida, los últimos 40 mensajes de cada uno, con el modelo elegido en
+  General (Haiku o Sonnet). Cada chat se revisa UNA vez
+  (`wa_conversations.mined_at`); los muy cortos se marcan sin gastar IA.
+- **Privacidad**: la IA copia el texto tal cual pero quita teléfonos, DNI,
+  correos y apellidos, y descarta tramos con información clínica. Revisa
+  igual antes de aprobar: el caso queda en la base de conocimientos.
+
+Sin aplicar la 279, la sección avisa "Falta aplicar la migración 279"; el
+resto de Conversaciones no cambia. Rollback:
+`rollbacks/279_wa_case_candidates_rollback.sql` (los casos ya aprobados se
+conservan).
+
 ### La fórmula: Guía de conversación
 
 Ajustes ⚙ → **Guía de conversación**. Es cómo Yendy encauza cada chat, y

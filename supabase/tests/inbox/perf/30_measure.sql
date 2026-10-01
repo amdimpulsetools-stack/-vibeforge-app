@@ -72,6 +72,9 @@ BEGIN
   -- 5b. Lo único que lee el trigger de la agenda (mig 278) por cada cita.
   PERFORM perf_check('agenda: trigger busca chat de la paciente',
     format($q$SELECT id FROM wa_conversations WHERE organization_id = %L AND patient_id = %L AND last_message_at >= now() - interval '60 days' ORDER BY last_message_at DESC LIMIT 1$q$, org, '00000000-0000-0000-00a0-000000000007'), 5);
+  -- 5c. Selección de chats cerrados por minar (mig 279).
+  PERFORM perf_check('minería: chats cerrados sin revisar',
+    format($q$SELECT id FROM wa_conversations WHERE organization_id = %L AND outcome IS NOT NULL AND mined_at IS NULL ORDER BY outcome_at DESC LIMIT 10$q$, org), 5);
   -- 6. Programados vencidos (tick por minuto, todas las orgs).
   PERFORM perf_check('tick: programados vencidos',
     $q$SELECT id FROM wa_scheduled_messages WHERE send_at <= now() AND (status = 'pending' OR (status = 'sending' AND updated_at < now() - interval '10 minutes')) ORDER BY send_at LIMIT 50$q$, 10);

@@ -103,6 +103,7 @@ export const inboxKeys = {
   services: (org: string | null) => ["inbox", "services", org] as const,
   gaps: (org: string | null) => ["inbox", "gaps", org] as const,
   outcome: (conv: string | null, stamp: string | null) => ["inbox", "outcome", conv, stamp] as const,
+  candidates: (org: string | null) => ["inbox", "kb-candidates", org] as const,
 };
 
 const LIST_PAGE = 100;

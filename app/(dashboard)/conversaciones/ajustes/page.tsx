@@ -19,6 +19,7 @@ import {
   BookOpen,
   Compass,
   HelpCircle,
+  Lightbulb,
   Loader2,
   MessageSquareQuote,
   Settings2,
@@ -34,7 +35,7 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { setInboxOrg } from "../use-inbox";
 
-type SectionKey = "general" | "quick" | "tags" | "playbook" | "kb" | "cases" | "gaps" | "rules" | "test" | "flows";
+type SectionKey = "general" | "quick" | "tags" | "playbook" | "kb" | "cases" | "candidates" | "gaps" | "rules" | "test" | "flows";
 
 const SectionLoader = () => (
   <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
@@ -49,6 +50,7 @@ const SECTION_COMPONENTS: Record<Exclude<SectionKey, "flows">, React.ComponentTy
   playbook: load(() => import("./sections/playbook")),
   kb: load(() => import("./sections/kb")),
   cases: load(() => import("./sections/cases")),
+  candidates: load(() => import("./sections/candidates")),
   gaps: load(() => import("./sections/gaps")),
   rules: load(() => import("./sections/rules")),
   test: load(() => import("./sections/test")),
@@ -69,6 +71,7 @@ const NAV: Array<{ group: string; items: Array<{ key: SectionKey; label: string;
       { key: "playbook", label: "Guía de conversación", hint: "La fórmula: cálida y que cierra", icon: Compass },
       { key: "kb", label: "Base de conocimientos", hint: "Por servicio y general", icon: BookOpen },
       { key: "cases", label: "Casos reales", hint: "Mensajes y respuestas ejemplo", icon: MessageSquareQuote },
+      { key: "candidates", label: "Casos candidatos", hint: "Propuestos de chats que cerraron", icon: Lightbulb },
       { key: "gaps", label: "Brechas", hint: "Lo que no supo responder", icon: HelpCircle },
       { key: "rules", label: "Reglas", hint: "Límites y servicios ocultos", icon: ShieldCheck },
       { key: "test", label: "Probar Yendy", hint: "Simula una paciente", icon: Sparkles },

@@ -285,6 +285,58 @@ BEGIN
   RAISE NOTICE 'PASS  F1 pulgar: valoración -1/1, nota acotada, texto final guardado';
 END $$;
 
+-- ── 279: casos candidatos ───────────────────────────────────────────
+DO $$
+DECLARE cand uuid;
+BEGIN
+  -- convA cerró (O1): está pendiente de minar; convB también, old_conv no (sin outcome).
+  ASSERT (SELECT count(*) FROM wa_conversations WHERE organization_id = t_id('orgA') AND outcome IS NOT NULL AND mined_at IS NULL) = 1, 'M1: convA pendiente de minar';
+  INSERT INTO wa_kb_case_candidates(organization_id, conversation_id, outcome, intent, title, patient_message, ideal_reply, guidance, rationale, model)
+    VALUES (t_id('orgA'), t_id('convA'), 'attended', 'precio', 'Está caro', 'Está caro, lo voy a pensar', 'Te entiendo…', 'Ofrecer evaluación', 'Validó y ofreció un primer paso', 'test')
+    RETURNING id INTO cand;
+  UPDATE wa_conversations SET mined_at = now() WHERE id = t_id('convA');
+  ASSERT (SELECT count(*) FROM wa_conversations WHERE organization_id = t_id('orgA') AND outcome IS NOT NULL AND mined_at IS NULL) = 0, 'M1: ya no está pendiente';
+  BEGIN
+    INSERT INTO wa_kb_case_candidates(organization_id, conversation_id, outcome, title, patient_message, ideal_reply)
+      VALUES (t_id('orgA'), t_id('convA'), 'attended', 'dup', 'x', 'y');
+    RAISE EXCEPTION 'M1: aceptó dos candidatos del mismo chat';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  BEGIN
+    UPDATE wa_kb_case_candidates SET status = 'inventado' WHERE id = cand;
+    RAISE EXCEPTION 'M1: aceptó un estado inválido';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  RAISE NOTICE 'PASS  M1 candidatos: uno por chat, marca de minado, estados acotados';
+END $$;
+
+-- Admin ve y borra candidatos; no inserta ni edita (eso es de la API); recepción no los ve.
+SET ROLE authenticated;
+SELECT set_config('test.uid', t_id('recep')::text, false);
+DO $$
+BEGIN
+  ASSERT (SELECT count(*) FROM wa_kb_case_candidates) = 0, 'M2: recepción no ve candidatos';
+END $$;
+SELECT set_config('test.uid', t_id('admin')::text, false);
+DO $$
+DECLARE n int;
+BEGIN
+  ASSERT (SELECT count(*) FROM wa_kb_case_candidates) = 1, 'M2: admin ve candidatos de su org';
+  UPDATE wa_kb_case_candidates SET status = 'approved';
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 0, 'M2: admin no edita candidatos directamente';
+  BEGIN
+    INSERT INTO wa_kb_case_candidates(organization_id, conversation_id, outcome, title, patient_message, ideal_reply)
+      VALUES (t_id('orgA'), t_id('convB'), 'scheduled', 't', 'x', 'y');
+    RAISE EXCEPTION 'M2: admin insertó un candidato a mano';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  DELETE FROM wa_kb_case_candidates;
+  ASSERT (SELECT count(*) FROM wa_kb_case_candidates) = 0, 'M2: admin borra candidatos';
+  RAISE NOTICE 'PASS  M2 candidatos: solo admin los ve y borra; inserta y decide la API';
+END $$;
+RESET ROLE;
+
 -- Anti-PGRST201: ningún par de tablas con más de una FK entre sí.
 DO $$
 DECLARE n int;

@@ -41,6 +41,7 @@ mensajes en la org (y 30 000 conversaciones de otras clínicas de ruido):
 | Yendy: fichas (≤ 400) + casos (≤ 60) + últimos 20 del chat | 20 / 20 / 10 ms | 0.30 / 0.17 / 0.17 ms |
 | Tick de programados vencidos (todas las orgs) | 10 ms | 0.01 ms |
 | Agenda: lectura del trigger Agendó/Asistió por cita (mig 278) | 5 ms, sin Seq Scan | 0.01 ms |
+| Minería: chats cerrados sin revisar (mig 279, índice parcial) | 5 ms, sin Seq Scan | 0.01 ms |
 
 Tráfico por sondeo con la pantalla abierta y nada nuevo: lista **≈ 0 filas**
 cada 5 s (antes ≈ 120 KB cada 8 s); chat ≈ 0 filas cada 3 s. En Supabase las
@@ -87,5 +88,9 @@ valida RLS, contadores y rollbacks; los dos se corren antes de cada PR.
    creada o con cambio de estado, envuelta en `EXCEPTION WHEN OTHERS` para
    que jamás bloquee la cita. Cualquier otra señal agenda → bandeja debe
    seguir ese mismo patrón, nunca una consulta sin índice ni una que lance.
-6. Los Flows (fase 5) se ejecutan en el servidor (webhook + tick del cron);
+6. La minería de casos candidatos (mig 279) solo corre cuando un admin
+   abre Ajustes → Casos candidatos (una vez por semana) o pulsa "Buscar
+   ahora": 8 chats por corrida, cada chat una sola vez. Nunca en el
+   webhook, el cron ni la bandeja.
+7. Los Flows (fase 5) se ejecutan en el servidor (webhook + tick del cron);
    el editor React Flow solo carga la definición del flow que se edita.
