@@ -107,6 +107,45 @@ export class WhatsAppClient {
     );
   }
 
+  /**
+   * Envío genérico (texto libre dentro de la ventana de 24 h, plantilla,
+   * reacción…). La bandeja (mig 275) arma el payload; aquí solo viaja.
+   */
+  async sendMessage(
+    payload: Record<string, unknown>
+  ): Promise<MetaSendMessageResponse> {
+    return this.request<MetaSendMessageResponse>(
+      `${META_BASE_URL}/${this.phoneNumberId}/messages`,
+      {
+        method: "POST",
+        body: JSON.stringify({ messaging_product: "whatsapp", ...payload }),
+      }
+    );
+  }
+
+  /** Marca un entrante como leído (doble check azul para la paciente). */
+  async markAsRead(wamid: string): Promise<void> {
+    await this.request<{ success: boolean }>(
+      `${META_BASE_URL}/${this.phoneNumberId}/messages`,
+      {
+        method: "POST",
+        body: JSON.stringify({ messaging_product: "whatsapp", status: "read", message_id: wamid }),
+      }
+    );
+  }
+
+  /** URL temporal (~5 min) de un media recibido (id válido ~7 días). */
+  async getMediaInfo(mediaId: string): Promise<{ url: string; mime_type?: string; file_size?: number }> {
+    return this.request<{ url: string; mime_type?: string; file_size?: number }>(
+      `${META_BASE_URL}/${encodeURIComponent(mediaId)}`
+    );
+  }
+
+  /** Descarga el binario de la URL temporal (requiere el mismo token). */
+  async downloadMedia(url: string): Promise<Response> {
+    return fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
+  }
+
   // ── Utility ───────────────────────────────────────────────────────────
 
   async verifyConnection(): Promise<{

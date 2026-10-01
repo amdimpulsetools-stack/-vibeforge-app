@@ -7,6 +7,8 @@ export interface StatusUpdate {
   recipientPhone: string;
   errorCode?: string;
   errorTitle?: string;
+  /** biz_opaque_callback_data devuelto por Meta (bandeja, mig 275). */
+  callbackData?: string;
 }
 
 /**
@@ -35,6 +37,10 @@ export function parseWebhookStatusUpdates(
           timestamp: status.timestamp,
           recipientPhone: status.recipient_id,
         };
+
+        if (status.biz_opaque_callback_data) {
+          update.callbackData = status.biz_opaque_callback_data;
+        }
 
         if (status.errors && status.errors.length > 0) {
           update.errorCode = String(status.errors[0].code);

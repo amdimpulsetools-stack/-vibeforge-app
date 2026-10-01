@@ -9,6 +9,7 @@ import {
   parseInboundMessages,
   persistInboundMessages,
 } from "@/lib/whatsapp/capture";
+import { applyInboxStatuses } from "@/lib/inbox/ingest";
 import type { MetaWebhookPayload } from "@/lib/whatsapp/types";
 
 export const runtime = "nodejs";
@@ -102,6 +103,12 @@ async function handleWebhookPayload(payload: MetaWebhookPayload) {
       .from("whatsapp_message_logs")
       .update(updatePayload)
       .eq("wamid", update.wamid);
+  }
+
+  // Bandeja (mig 275): los mismos estados sobre los salientes de
+  // Conversaciones. Aparte y best-effort: lo de arriba no cambia.
+  if (updates.length > 0) {
+    await applyInboxStatuses(supabase, updates);
   }
 
   for (const t of templateUpdates) {

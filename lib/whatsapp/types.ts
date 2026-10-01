@@ -165,6 +165,20 @@ export interface MetaInboundMessage {
   type: string; // text | image | audio | video | document | button | ...
   text?: { body: string };
   button?: { text: string; payload?: string };
+  // Bandeja (mig 275): media e interactivos. El binario NO viene aquí:
+  // solo el id de media, válido ~7 días para descargarlo de Meta.
+  image?: MetaInboundMedia;
+  audio?: MetaInboundMedia;
+  video?: MetaInboundMedia;
+  document?: MetaInboundMedia & { filename?: string };
+  sticker?: MetaInboundMedia;
+  interactive?: {
+    type?: string;
+    button_reply?: { id?: string; title?: string };
+    list_reply?: { id?: string; title?: string };
+  };
+  reaction?: { message_id?: string; emoji?: string };
+  context?: { id?: string; from?: string };
   referral?: {
     source_url?: string;
     source_id?: string; // ad_id de Meta
@@ -173,6 +187,12 @@ export interface MetaInboundMessage {
     body?: string;
     media_type?: string;
   };
+}
+
+export interface MetaInboundMedia {
+  id: string;
+  mime_type?: string;
+  caption?: string;
 }
 
 export interface MetaWebhookEntry {
@@ -189,6 +209,8 @@ export interface MetaWebhookEntry {
         timestamp: string;
         recipient_id: string;
         errors?: Array<{ code: number; title: string }>;
+        /** Eco de lo que enviamos (mig 275: client_msg_id de la bandeja). */
+        biz_opaque_callback_data?: string;
       }>;
     };
     field: string;
