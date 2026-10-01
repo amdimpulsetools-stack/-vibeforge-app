@@ -5133,6 +5133,7 @@ PRs de la sesión: #383 (incidente), #384 (blindaje), #385 (cancelar en 2 pasos,
 ### WhatsApp: la conexión manual no recibía mensajes — PR #389 (abierto)
 - Al probar el sandbox, el número de prueba enviaba pero los entrantes no llegaban: el formulario **"Configuración manual avanzada"** guardaba las credenciales y verificaba el envío, pero nunca suscribía la WABA a los webhooks de la app (`POST /{waba_id}/subscribed_apps`), cosa que el Embedded Signup sí hace. Afectaba también a Captación en conexiones manuales.
 - El botón **Verificar** ahora la suscribe (idempotente, best-effort) y avisa si Meta lo rechaza. Sin migraciones.
+- Segundo hallazgo de la misma prueba: **"Conexión exitosa" que no se guardaba**. Verificar activaba `is_active` sin revisar el error; si el número ya estaba activo en otra org (índice único de la mig 262), fallaba en silencio y al recargar la integración aparecía desconectada. Ahora responde 409 "ya está conectado en otra organización" y solo suscribe los webhooks si la activación pasó.
 
 ### Pendiente
 - Merge del #389, **Verificar** de nuevo en la org sandbox y primera conversación de punta a punta.
