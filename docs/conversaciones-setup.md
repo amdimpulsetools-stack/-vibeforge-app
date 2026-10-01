@@ -172,6 +172,32 @@ bandeja funciona igual, pero esa consulta recorre toda la tabla, que es
 compartida por todas las clínicas. Rollback: `rollbacks/277_wa_inbox_perf_rollback.sql`.
 Presupuesto y banco de pruebas: `docs/rendimiento-conversaciones.md`.
 
+### Migración 278 (pulgar arriba/abajo y etiqueta automática Agendó / Asistió)
+
+`supabase/migrations/278_wa_feedback_outcome.sql`. Sin FKs nuevas (Consulta 1
+de `multi_fk_pairs.sql` idéntica antes y después). Añade:
+
+- **Pulgar arriba / abajo** en cada sugerencia de Yendy (en el chat y en
+  "Probar Yendy") y el **texto que de verdad se envió** (`wa_ai_suggestions`).
+  Es la señal más limpia para saber qué sugirió la IA, qué corrigió recepción
+  y si gustó. Sin la 278 el pulgar avisa "Falta aplicar la migración 278" y
+  el envío sigue funcionando.
+- **Resultado automático**: cuando la paciente vinculada a un chat agenda una
+  cita, la agenda estampa "Agendó" en ese chat (y "Asistió" cuando llega o se
+  completa la cita). Se ve en el panel derecho (Atributos) y como etiquetas
+  automáticas ✦ "Agendó" / "Asistió", filtrables en la lista. Reglas: solo
+  chats con actividad en los últimos 60 días (120 para "asistió"); nunca
+  retrocede de Asistió a Agendó; una cita cancelada no cuenta; las etiquetas
+  automáticas no se borran ni renombran (el color sí) y sí se pueden quitar
+  de un chat a mano.
+- **Agenda intacta**: el trigger hace UNA lectura por índice y nunca bloquea
+  la cita (si algo falla, deja un WARNING y la cita se guarda igual). Un
+  doctor que agenda no necesita acceso a la bandeja.
+
+Aplicar, luego `/api/health/schema` → `ok: true` y abrir la agenda y
+`/conversaciones`. Rollback: `rollbacks/278_wa_feedback_outcome_rollback.sql`
+(las etiquetas Agendó/Asistió quedan como etiquetas normales).
+
 ### La fórmula: Guía de conversación
 
 Ajustes ⚙ → **Guía de conversación**. Es cómo Yendy encauza cada chat, y

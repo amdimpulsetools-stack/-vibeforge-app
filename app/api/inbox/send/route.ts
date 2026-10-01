@@ -71,7 +71,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: res.error, code: res.code, message_id: res.messageId }, { status: res.status });
   }
   if (b.ai_suggestion_id) {
-    await ctx.admin.from("wa_ai_suggestions").update({ used: true }).eq("id", b.ai_suggestion_id).eq("organization_id", ctx.orgId);
+    // Mig 278: además del "se usó", el texto que de verdad salió (recepción
+    // pudo editarlo). Si la 278 no está aplicada, se guarda solo el uso.
+    const sugg = ctx.admin.from("wa_ai_suggestions");
+    const finalText = b.kind === "text" ? (b.body ?? null) : null;
+    const { error } = await sugg.update({ used: true, final_text: finalText }).eq("id", b.ai_suggestion_id).eq("organization_id", ctx.orgId);
+    if (error) await sugg.update({ used: true }).eq("id", b.ai_suggestion_id).eq("organization_id", ctx.orgId);
   }
   return NextResponse.json({ ok: true, message_id: res.messageId, duplicate: res.duplicate ?? false });
 }
