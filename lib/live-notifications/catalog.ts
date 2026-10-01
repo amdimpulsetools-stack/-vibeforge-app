@@ -81,6 +81,18 @@ export interface LiveNotificationEvent {
 
 export const LIVE_NOTIFICATION_EVENTS: readonly LiveNotificationEvent[] = [
   {
+    key: "wa_flow_attention",
+    type: "info",
+    label: { es: "WhatsApp: el bot pide una persona", en: "WhatsApp: bot asks for a human" },
+    description: {
+      es: "Un flow de Conversaciones avisó que una paciente necesita que alguien del equipo siga el chat.",
+      en: "A Conversations flow flagged that a patient needs a team member to take over the chat.",
+    },
+    eligibleAudiences: ["owner_admin", "advisor", "reception"],
+    defaultAudiences: ["owner_admin", "reception"],
+    doctorScope: "all",
+  },
+  {
     key: "booking_created",
     type: "appointment_created",
     label: { es: "Reserva online creada", en: "Online booking created" },

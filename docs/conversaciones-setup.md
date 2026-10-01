@@ -240,6 +240,57 @@ respuesta) y la serie semanal. Solo administración; devuelve cuentas y
 tiempos, nunca texto. Una llamada ≈ 9 ms con 1 000 chats (banco de
 rendimiento). Rollback: `rollbacks/280_wa_inbox_metrics_rollback.sql`.
 
+### Migración 281 (Flows: base y motor, fase 1)
+
+`supabase/migrations/281_wa_flows.sql`. Diseño completo en
+`docs/research/conversaciones-flows-2026-10.md`. **Dos FKs nuevas**, cada una
+en un par que no tenía ninguna y que no se lee junto en un embed
+(`wa_flow_runs → wa_conversations`, `wa_flow_run_events → wa_flow_runs`;
+`wa_flow_versions → wa_flows` es tabla nueva con tabla nueva): Consulta 1 de
+`multi_fk_pairs.sql` idéntica antes y después, Consulta 2 por cada FK nueva
+con una sola fila, `npm run check:embeds` en verde. Añade:
+
+- **Tablas**: `wa_flows` (borrador + estado draft/active/paused/archived,
+  un disparador, prioridad), `wa_flow_versions` (lo publicado, inmutable),
+  `wa_flow_runs` (una ejecución por conversación como máximo, índice único
+  parcial), `wa_flow_run_events` (rastro por nodo). RLS: quien ve la bandeja
+  lee; admin escribe flows y publica versiones; runs y eventos solo el motor.
+- **Conversación**: `bot_paused_until` (cualquier mensaje del equipo, desde
+  Yenda o desde el celular, pausa el bot N horas) y `bot_opted_out`
+  (STOP / BAJA: el bot nunca más escribe ahí; etiqueta "No contactar").
+- **Mensajes**: `source = 'flow'` y columna `interactive` (botones / lista
+  enviados y la respuesta con su id).
+- **Ajustes**: `flows_enabled`, `flows_pause_hours` (12), horario silencioso
+  (`flows_quiet_start/end`) y `flows_disclosure` (aviso de asistente
+  virtual del primer mensaje; política de Meta).
+- **RPCs** `wa_flow_claim_due` y `wa_flow_claim_for_inbound` (toma atómica,
+  solo service role).
+
+**Cómo corre el motor (sin pantalla todavía):** al llegar un mensaje nuevo
+(`mirrorInboundToInbox`, solo filas realmente insertadas, después de
+responder a Meta) y en el mismo tick por minuto de los programados
+(`/api/cron/inbox-dispatch` y `/api/inbox/dispatch`). Reglas duras que no se
+configuran: un bot por chat; una persona manda; fuera de la ventana de 24 h
+solo plantilla (nunca se descarta en silencio: termina con motivo
+"ventana_cerrada"); STOP/BAJA; alarma → persona; la palabra *persona* corta
+el bot; tope de 200 pasos y 12 nodos por invocación; aviso de asistente
+virtual en el primer mensaje.
+
+**API (fase 1):** `GET/POST /api/inbox/flows`, `GET/PATCH/DELETE
+/api/inbox/flows/:id`, `POST …/publish` (valida contra etiquetas, plantillas
+aprobadas y miembros de la org; crea versión), `POST …/test` (simula con el
+motor puro: no envía ni escribe), `GET …/runs` (ejecuciones y contador por
+nodo), `POST /api/inbox/conversations/:id/flow` (iniciar a mano) y `PATCH
+/api/inbox/conversations/:id { bot_paused }`. Tres flows de fábrica como
+plantillas (bienvenida con menú, nadie respondió en 30 min, confirmación por
+botones). El editor de nodos (fase 2) y el modo Probar + insignia "Bot
+activo" (fase 3) vienen en los siguientes PRs; hasta entonces un flow se
+crea y publica por API o SQL.
+
+Pruebas: `npm run test:flows` (motor puro, 11 grupos), harness SQL (FL1,
+FL2, rollback 281 ×2), banco de rendimiento (runs vencidos y chats sin
+respuesta por índice). Rollback: `rollbacks/281_wa_flows_rollback.sql`.
+
 ### La fórmula: Guía de conversación
 
 Ajustes ⚙ → **Guía de conversación**. Es cómo Yendy encauza cada chat, y

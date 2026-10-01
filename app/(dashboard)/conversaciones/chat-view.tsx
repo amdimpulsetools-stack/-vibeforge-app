@@ -235,6 +235,11 @@ function Bubble({ m, time, onSaveCase }: { m: InboxMessage; time: string; onSave
           <Clock className="h-3 w-3" /> Programado
         </p>
       )}
+      {m.source === "flow" && (
+        <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold opacity-70">
+          <Bot className="h-3 w-3" /> Bot {m.type === "interactive" ? "· con opciones" : ""}
+        </p>
+      )}
       {m.type === "template" && (
         <p className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold opacity-70">
           <FileText className="h-3 w-3" /> Plantilla {m.template_name ? `· ${m.template_name}` : ""}

@@ -370,6 +370,97 @@ BEGIN
 END $$;
 RESET ROLE;
 
+-- ── 281: Flows ──────────────────────────────────────────────────────
+DO $$
+DECLARE f uuid; r1 uuid; r2 uuid; n int; claimed int;
+BEGIN
+  INSERT INTO wa_flows(organization_id, name, status, trigger, definition)
+    VALUES (t_id('orgA'), 'Bienvenida', 'active', '{"kind":"new_conversation"}', '{"nodes":[],"edges":[]}') RETURNING id INTO f;
+  -- Un bot activo por conversación.
+  INSERT INTO wa_flow_runs(organization_id, conversation_id, flow_id, status) VALUES (t_id('orgA'), t_id('convA'), f, 'waiting_reply') RETURNING id INTO r1;
+  BEGIN
+    INSERT INTO wa_flow_runs(organization_id, conversation_id, flow_id, status) VALUES (t_id('orgA'), t_id('convA'), f, 'running');
+    RAISE EXCEPTION 'FL1: dos bots activos en la misma conversación';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  -- Terminado: ya se puede abrir otro.
+  UPDATE wa_flow_runs SET status = 'done', ended_at = now() WHERE id = r1;
+  INSERT INTO wa_flow_runs(organization_id, conversation_id, flow_id, status, wake_at) VALUES (t_id('orgA'), t_id('convA'), f, 'waiting_reply', now() - interval '1 minute') RETURNING id INTO r2;
+  -- Toma por entrante: una sola vez por wamid.
+  SELECT count(*) INTO claimed FROM wa_flow_claim_for_inbound(t_id('convA'), 'wamid.x1');
+  ASSERT claimed = 1, 'FL1: toma por entrante';
+  ASSERT (SELECT status FROM wa_flow_runs WHERE id = r2) = 'running', 'FL1: pasa a running';
+  ASSERT (SELECT context->>'resume_from' FROM wa_flow_runs WHERE id = r2) = 'waiting_reply', 'FL1: recuerda de dónde venía';
+  SELECT count(*) INTO claimed FROM wa_flow_claim_for_inbound(t_id('convA'), 'wamid.x1');
+  ASSERT claimed = 0, 'FL1: un segundo entrante no vuelve a tomar';
+  -- Toma por tick: solo vencidos o colgados.
+  UPDATE wa_flow_runs SET status = 'waiting_delay', wake_at = now() + interval '10 minutes' WHERE id = r2;
+  SELECT count(*) INTO claimed FROM wa_flow_claim_due(25, t_id('orgA'));
+  ASSERT claimed = 0, 'FL1: una espera futura no se toma';
+  UPDATE wa_flow_runs SET wake_at = now() - interval '1 second' WHERE id = r2;
+  SELECT count(*) INTO claimed FROM wa_flow_claim_due(25, t_id('orgA'));
+  ASSERT claimed = 1, 'FL1: una espera vencida se toma';
+  UPDATE wa_flow_runs SET status = 'running', claimed_at = now() - interval '5 minutes' WHERE id = r2;
+  SELECT count(*) INTO claimed FROM wa_flow_claim_due(25, NULL);
+  ASSERT claimed = 1, 'FL1: un run colgado > 2 min se retoma';
+  -- Mensajes: source flow e interactive.
+  INSERT INTO wa_messages(organization_id, conversation_id, direction, source, type, body, status, ts, interactive, client_msg_id)
+    VALUES (t_id('orgA'), t_id('convA'), 'out', 'flow', 'interactive', 'menú', 'sent', now(), '{"type":"list"}', gen_random_uuid());
+  SELECT count(*) INTO n FROM wa_messages WHERE source = 'flow';
+  ASSERT n = 1, 'FL1: saliente del bot';
+  -- Ajustes y conversación.
+  ASSERT (SELECT flows_enabled FROM wa_inbox_settings WHERE organization_id = t_id('orgA')) IS NOT NULL, 'FL1: ajustes de flows';
+  UPDATE wa_conversations SET bot_paused_until = now() + interval '12 hours', bot_opted_out = false WHERE id = t_id('convA');
+  RAISE NOTICE 'PASS  FL1 flows: un bot por chat, toma atómica por entrante y por tick, source flow';
+END $$;
+
+-- RLS: recepción lee flows y runs, no escribe; admin escribe flows y versiones, no runs.
+SET ROLE authenticated;
+SELECT set_config('test.uid', t_id('recep')::text, false);
+DO $$
+DECLARE n int;
+BEGIN
+  ASSERT (SELECT count(*) FROM wa_flows) = 1, 'FL2: recepción ve los flows de su org';
+  ASSERT (SELECT count(*) FROM wa_flow_runs) >= 1, 'FL2: recepción ve las ejecuciones (insignia Bot activo)';
+  BEGIN
+    INSERT INTO wa_flows(organization_id, name) VALUES (t_id('orgA'), 'x');
+    RAISE EXCEPTION 'FL2: recepción creó un flow';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  UPDATE wa_flows SET name = 'hack';
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 0, 'FL2: recepción no edita flows';
+END $$;
+SELECT set_config('test.uid', t_id('admin')::text, false);
+DO $$
+DECLARE f uuid; n int;
+BEGIN
+  SELECT id INTO f FROM wa_flows LIMIT 1;
+  UPDATE wa_flows SET name = 'Bienvenida v2' WHERE id = f;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 1, 'FL2: admin edita flows';
+  INSERT INTO wa_flow_versions(organization_id, flow_id, version, trigger, definition) VALUES (t_id('orgA'), f, 1, '{}', '{"nodes":[],"edges":[]}');
+  BEGIN
+    INSERT INTO wa_flow_versions(organization_id, flow_id, version, trigger, definition) VALUES (t_id('orgB'), f, 2, '{}', '{}');
+    RAISE EXCEPTION 'FL2: versión con org ajena';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  UPDATE wa_flow_versions SET version = 9;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 0, 'FL2: las versiones son inmutables';
+  UPDATE wa_flow_runs SET status = 'done';
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 0, 'FL2: admin no toca los runs (solo el motor)';
+  BEGIN
+    PERFORM wa_flow_claim_due(1, NULL);
+    RAISE EXCEPTION 'FL2: admin llamó a la toma del motor';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  ASSERT (SELECT count(*) FROM wa_flows WHERE organization_id = t_id('orgB')) = 0, 'FL2: no cruza orgs';
+  RAISE NOTICE 'PASS  FL2 flows RLS: recepción lee, admin edita flows y publica versiones inmutables, runs solo del motor';
+END $$;
+RESET ROLE;
+
 -- Anti-PGRST201: ningún par de tablas con más de una FK entre sí.
 DO $$
 DECLARE n int;
