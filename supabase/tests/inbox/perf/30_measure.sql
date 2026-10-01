@@ -69,6 +69,9 @@ BEGIN
     format($q$SELECT id, intent, title, patient_message, ideal_reply, guidance, service_id FROM wa_kb_cases WHERE organization_id = %L AND is_active ORDER BY updated_at DESC LIMIT 60$q$, org), 20);
   PERFORM perf_check('yendy: últimos 20 del chat',
     format($q$SELECT direction, type, body, media_caption, ts FROM wa_messages WHERE conversation_id = %L AND direction <> 'internal' ORDER BY ts DESC LIMIT 20$q$, conv), 10);
+  -- 5b. Lo único que lee el trigger de la agenda (mig 278) por cada cita.
+  PERFORM perf_check('agenda: trigger busca chat de la paciente',
+    format($q$SELECT id FROM wa_conversations WHERE organization_id = %L AND patient_id = %L AND last_message_at >= now() - interval '60 days' ORDER BY last_message_at DESC LIMIT 1$q$, org, '00000000-0000-0000-00a0-000000000007'), 5);
   -- 6. Programados vencidos (tick por minuto, todas las orgs).
   PERFORM perf_check('tick: programados vencidos',
     $q$SELECT id FROM wa_scheduled_messages WHERE send_at <= now() AND (status = 'pending' OR (status = 'sending' AND updated_at < now() - interval '10 minutes')) ORDER BY send_at LIMIT 50$q$, 10);

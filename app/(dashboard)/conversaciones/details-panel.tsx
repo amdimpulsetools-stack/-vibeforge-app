@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronRight, X, Plus, Loader2, UserPlus, Link2, CalendarDays, Megaphone, Sparkles, Archive, RotateCcw, Search } from "lucide-react";
+import { ChevronRight, X, Plus, Loader2, UserPlus, Link2, CalendarDays, CalendarCheck, Megaphone, Sparkles, Archive, RotateCcw, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
 import { formatWaPhone, type InboxMessage } from "@/lib/inbox/shared";
-import { inboxFetch, inboxKeys, useInboxSettings, useOrgTags, useScheduled, type ConversationRow } from "./use-inbox";
+import { inboxFetch, inboxKeys, useConversationOutcome, useInboxSettings, useOrgTags, useScheduled, type ConversationRow } from "./use-inbox";
 
 type Section = "attributes" | "tags" | "notes" | "ai" | "scheduled";
 
@@ -56,7 +56,12 @@ export function DetailsPanel({
       )}
       <div className="min-h-0 flex-1 overflow-y-auto">
         <Toggle label="Atributos" expanded={open === "attributes"} onClick={() => toggle("attributes")} />
-        {open === "attributes" && <Attributes conversation={conversation} />}
+        {open === "attributes" && (
+          <>
+            <Attributes conversation={conversation} />
+            <Outcome conversation={conversation} timezone={timezone} />
+          </>
+        )}
 
         <Toggle label="Etiquetas" expanded={open === "tags"} onClick={() => toggle("tags")} count={conversation.wa_conversation_tags.length} />
         {open === "tags" && <Tags conversation={conversation} />}
@@ -390,6 +395,45 @@ function QuickPatientForm({
   );
 }
 
+// ── Resultado (mig 278): Agendó / Asistió, lo estampa la agenda ───
+function Outcome({ conversation, timezone }: { conversation: ConversationRow; timezone: string }) {
+  const q = useConversationOutcome(conversation.id, conversation.updated_at);
+  if (q.error) {
+    return (
+      <p className="border-b border-border/60 px-4 py-2 text-[11px] text-red-600 dark:text-red-400">
+        No se pudo cargar el resultado.{" "}
+        <button type="button" className="underline" onClick={() => void q.refetch()}>
+          Reintentar
+        </button>
+      </p>
+    );
+  }
+  const o = q.data;
+  if (!o?.outcome) {
+    if (!conversation.patient_id) return null;
+    return (
+      <p className="flex items-center gap-1.5 border-b border-border/60 px-4 py-2 text-[11px] text-muted-foreground">
+        <CalendarCheck className="h-3.5 w-3.5" /> Aún sin cita. Cuando se agende, aquí aparecerá “Agendó” solo.
+      </p>
+    );
+  }
+  const when = o.outcome_at
+    ? new Intl.DateTimeFormat("es-PE", { timeZone: timezone, day: "2-digit", month: "short" }).format(new Date(o.outcome_at))
+    : null;
+  const attended = o.outcome === "attended";
+  return (
+    <p
+      className={cn(
+        "flex items-center gap-1.5 border-b border-border/60 px-4 py-2 text-[11px] font-medium",
+        attended ? "text-blue-700 dark:text-blue-300" : "text-emerald-700 dark:text-emerald-300",
+      )}
+    >
+      <CalendarCheck className="h-3.5 w-3.5" /> {attended ? "Asistió a su cita" : "Agendó una cita"}
+      {when && <span className="font-normal text-muted-foreground">· {when}</span>}
+    </p>
+  );
+}
+
 // ── Etiquetas ─────────────────────────────────────────────────────
 function Tags({ conversation }: { conversation: ConversationRow }) {
   const { organizationId } = useOrganization();
@@ -433,7 +477,13 @@ function Tags({ conversation }: { conversation: ConversationRow }) {
         {tags
           .filter((t) => applied.has(t.id))
           .map((t) => (
-            <span key={t.id} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium" style={{ backgroundColor: `${t.color}22`, color: t.color }}>
+            <span
+              key={t.id}
+              title={t.system_key ? "Etiqueta automática: la pone la agenda" : undefined}
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium"
+              style={{ backgroundColor: `${t.color}22`, color: t.color }}
+            >
+              {t.system_key && <Sparkles className="h-3 w-3" aria-label="automática" />}
               {t.name}
               <button type="button" onClick={() => void remove(t.id)} aria-label={`Quitar ${t.name}`}>
                 <X className="h-3 w-3" />

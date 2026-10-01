@@ -41,6 +41,14 @@ export interface OrgTag {
   id: string;
   name: string;
   color: string;
+  /** Mig 278: etiqueta automática (Agendó / Asistió). null = etiqueta normal. */
+  system_key: "scheduled" | "attended" | null;
+}
+
+/** Mig 278: resultado de la conversación, estampado desde la agenda. */
+export interface ConversationOutcome {
+  outcome: "scheduled" | "attended" | null;
+  outcome_at: string | null;
 }
 
 export interface QuickReply {
@@ -94,6 +102,7 @@ export const inboxKeys = {
   cases: (org: string | null) => ["inbox", "kb-cases", org] as const,
   services: (org: string | null) => ["inbox", "services", org] as const,
   gaps: (org: string | null) => ["inbox", "gaps", org] as const,
+  outcome: (conv: string | null, stamp: string | null) => ["inbox", "outcome", conv, stamp] as const,
 };
 
 const LIST_PAGE = 100;
@@ -367,13 +376,40 @@ export function useOrgTags(orgId: string | null) {
     enabled: !!orgId,
     staleTime: 60_000,
     queryFn: async () => {
-      const { data, error } = await createClient()
-        .from("org_tags")
-        .select("id, name, color")
-        .eq("organization_id", orgId as string)
-        .order("name");
+      type Raw = Omit<OrgTag, "system_key"> & { system_key?: OrgTag["system_key"] };
+      const sb = createClient();
+      const first = await sb.from("org_tags").select("id, name, color, system_key").eq("organization_id", orgId as string).order("name");
+      let rows = first.data as Raw[] | null;
+      let error = first.error;
+      if (error?.code === "42703") {
+        // Mig 278 aún no aplicada: sin columna system_key, todo es etiqueta normal.
+        const second = await sb.from("org_tags").select("id, name, color").eq("organization_id", orgId as string).order("name");
+        rows = second.data as Raw[] | null;
+        error = second.error;
+      }
       if (error) throw new PostgrestLoadError("Etiquetas", error);
-      return (data ?? []) as OrgTag[];
+      return (rows ?? []).map((t) => ({ ...t, system_key: t.system_key ?? null }));
+    },
+  });
+}
+
+/** Resultado (Agendó / Asistió) de UNA conversación; se vuelve a pedir
+ *  cuando cambia su updated_at (el trigger lo toca al estampar). Sin la
+ *  mig 278 devuelve null; otro error se lanza y el panel avisa. */
+export function useConversationOutcome(conversationId: string | null, stamp: string | null) {
+  return useQuery({
+    queryKey: inboxKeys.outcome(conversationId, stamp),
+    enabled: !!conversationId,
+    staleTime: 30_000,
+    queryFn: async (): Promise<ConversationOutcome | null> => {
+      const { data, error } = await createClient()
+        .from("wa_conversations")
+        .select("outcome, outcome_at")
+        .eq("id", conversationId as string)
+        .maybeSingle();
+      if (error?.code === "42703") return null;
+      if (error) throw new PostgrestLoadError("Resultado", error);
+      return (data as ConversationOutcome | null) ?? null;
     },
   });
 }

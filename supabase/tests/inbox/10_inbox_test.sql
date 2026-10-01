@@ -180,6 +180,111 @@ BEGIN
 END $$;
 RESET ROLE;
 
+-- ── 278: resultado automático (Agendó / Asistió) desde la agenda ────
+DO $$
+DECLARE p uuid := gen_random_uuid(); p2 uuid := gen_random_uuid(); p3 uuid := gen_random_uuid();
+        appt uuid := gen_random_uuid(); appt2 uuid := gen_random_uuid(); old_conv uuid := gen_random_uuid();
+        tag_s uuid; tag_a uuid;
+BEGIN
+  INSERT INTO patients(id, organization_id) VALUES (p, t_id('orgA')), (p2, t_id('orgA')), (p3, t_id('orgA'));
+  UPDATE wa_conversations SET patient_id = p WHERE id = t_id('convA');
+  -- Cancelada: no cuenta. Paciente sin chat: no pasa nada (ni falla la cita).
+  INSERT INTO appointments(organization_id, patient_id, status) VALUES (t_id('orgA'), p, 'cancelled');
+  INSERT INTO appointments(organization_id, patient_id, status) VALUES (t_id('orgA'), p2, 'scheduled');
+  INSERT INTO appointments(organization_id, patient_id) VALUES (t_id('orgA'), NULL);
+  ASSERT (SELECT outcome FROM wa_conversations WHERE id = t_id('convA')) IS NULL, 'O1: cancelada no etiqueta';
+  ASSERT (SELECT count(*) FROM org_tags WHERE system_key IS NOT NULL) = 0, 'O1: sin chat no crea etiquetas';
+  -- Agendó.
+  INSERT INTO appointments(id, organization_id, patient_id, status) VALUES (appt, t_id('orgA'), p, 'scheduled');
+  ASSERT (SELECT outcome FROM wa_conversations WHERE id = t_id('convA')) = 'scheduled', 'O1: agendó';
+  ASSERT (SELECT outcome_appointment_id FROM wa_conversations WHERE id = t_id('convA')) = appt, 'O1: rastro de la cita';
+  SELECT id INTO tag_s FROM org_tags WHERE organization_id = t_id('orgA') AND system_key = 'scheduled';
+  ASSERT tag_s IS NOT NULL AND (SELECT name FROM org_tags WHERE id = tag_s) = 'Agendó', 'O1: etiqueta Agendó creada sola';
+  ASSERT EXISTS (SELECT 1 FROM wa_conversation_tags WHERE conversation_id = t_id('convA') AND tag_id = tag_s), 'O1: etiqueta aplicada';
+  ASSERT (SELECT count(*) FROM org_tags WHERE organization_id = t_id('orgB')) = 0, 'O1: no cruza orgs';
+  -- Asistió (botón "Llegó" de la agenda).
+  UPDATE appointments SET arrived_at = now() WHERE id = appt;
+  ASSERT (SELECT outcome FROM wa_conversations WHERE id = t_id('convA')) = 'attended', 'O1: asistió por llegada';
+  SELECT id INTO tag_a FROM org_tags WHERE organization_id = t_id('orgA') AND system_key = 'attended';
+  ASSERT EXISTS (SELECT 1 FROM wa_conversation_tags WHERE conversation_id = t_id('convA') AND tag_id = tag_a), 'O1: etiqueta Asistió';
+  ASSERT EXISTS (SELECT 1 FROM wa_conversation_tags WHERE conversation_id = t_id('convA') AND tag_id = tag_s), 'O1: conserva Agendó';
+  -- Otra cita después no retrocede; completar la misma no duplica.
+  INSERT INTO appointments(id, organization_id, patient_id, status) VALUES (appt2, t_id('orgA'), p, 'confirmed');
+  UPDATE appointments SET status = 'completed' WHERE id = appt;
+  ASSERT (SELECT outcome FROM wa_conversations WHERE id = t_id('convA')) = 'attended', 'O1: no retrocede a agendó';
+  ASSERT (SELECT count(*) FROM wa_conversation_tags ct JOIN org_tags t ON t.id = ct.tag_id
+            WHERE ct.conversation_id = t_id('convA') AND t.system_key IS NOT NULL) = 2, 'O1: sin etiquetas duplicadas';
+  ASSERT (SELECT count(*) FROM org_tags WHERE organization_id = t_id('orgA') AND system_key IS NOT NULL) = 2, 'O1: una etiqueta por tipo';
+  -- Chat viejo (sin actividad en 60 días): no se etiqueta.
+  INSERT INTO wa_conversations(id, organization_id, phone_normalized, patient_id, last_message_at)
+    VALUES (old_conv, t_id('orgA'), '51987000009', p3, now() - interval '90 days');
+  INSERT INTO appointments(organization_id, patient_id, status) VALUES (t_id('orgA'), p3, 'scheduled');
+  ASSERT (SELECT outcome FROM wa_conversations WHERE id = old_conv) IS NULL, 'O1: chat viejo no se etiqueta';
+  -- Etiqueta manual con el mismo nombre en otra org: el sistema la adopta.
+  INSERT INTO org_tags(organization_id, name, color) VALUES (t_id('orgB'), 'agendó', '#64748b');
+  INSERT INTO patients(id, organization_id) VALUES ('00000000-0000-0000-0000-0000000000fb', t_id('orgB'));
+  UPDATE wa_conversations SET patient_id = '00000000-0000-0000-0000-0000000000fb' WHERE id = t_id('convB');
+  INSERT INTO appointments(organization_id, patient_id, status) VALUES (t_id('orgB'), '00000000-0000-0000-0000-0000000000fb', 'scheduled');
+  ASSERT (SELECT system_key FROM org_tags WHERE organization_id = t_id('orgB') AND name = 'agendó') = 'scheduled', 'O1: adopta la etiqueta manual';
+  ASSERT (SELECT count(*) FROM org_tags WHERE organization_id = t_id('orgB')) = 1, 'O1: no duplica la etiqueta adoptada';
+  RAISE NOTICE 'PASS  O1 resultado automático: Agendó / Asistió desde la agenda, sin cruzar orgs ni retroceder';
+END $$;
+
+-- Etiquetas del sistema: ni admin las borra ni renombra; color sí; quitarla de un chat sí.
+SET ROLE authenticated;
+SELECT set_config('test.uid', t_id('admin')::text, false);
+DO $$
+DECLARE tag_s uuid;
+BEGIN
+  SELECT id INTO tag_s FROM org_tags WHERE organization_id = t_id('orgA') AND system_key = 'scheduled';
+  BEGIN
+    DELETE FROM org_tags WHERE id = tag_s;
+    RAISE EXCEPTION 'O2: borró una etiqueta del sistema';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    UPDATE org_tags SET name = 'Otra' WHERE id = tag_s;
+    RAISE EXCEPTION 'O2: renombró una etiqueta del sistema';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO org_tags(organization_id, name, color, system_key) VALUES (t_id('orgA'), 'Falsa', '#000000', 'attended');
+    RAISE EXCEPTION 'O2: creó una etiqueta del sistema a mano';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    UPDATE org_tags SET system_key = 'attended' WHERE organization_id = t_id('orgA') AND system_key IS NULL;
+    RAISE EXCEPTION 'O2: convirtió una etiqueta normal en del sistema';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  UPDATE org_tags SET color = '#ef4444' WHERE id = tag_s;
+  ASSERT (SELECT color FROM org_tags WHERE id = tag_s) = '#ef4444', 'O2: el color sí se cambia';
+  DELETE FROM wa_conversation_tags WHERE conversation_id = t_id('convA') AND tag_id = tag_s;
+  ASSERT NOT EXISTS (SELECT 1 FROM wa_conversation_tags WHERE conversation_id = t_id('convA') AND tag_id = tag_s), 'O2: se puede quitar de un chat';
+  RAISE NOTICE 'PASS  O2 etiquetas del sistema: no se borran ni renombran; color y quitar del chat sí';
+END $$;
+RESET ROLE;
+
+-- Pulgar: solo -1 / 1, nota ≤ 500; recepción no lee el registro de IA.
+DO $$
+DECLARE s uuid;
+BEGIN
+  INSERT INTO wa_ai_suggestions(organization_id, conversation_id, model, draft) VALUES (t_id('orgA'), t_id('convA'), 'test', 'borrador')
+    RETURNING id INTO s;
+  UPDATE wa_ai_suggestions SET rating = 1, rated_at = now(), final_text = 'texto enviado' WHERE id = s;
+  BEGIN
+    UPDATE wa_ai_suggestions SET rating = 2 WHERE id = s;
+    RAISE EXCEPTION 'F1: aceptó una valoración fuera de -1/1';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    UPDATE wa_ai_suggestions SET rating_note = repeat('x', 501) WHERE id = s;
+    RAISE EXCEPTION 'F1: aceptó una nota de más de 500';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  RAISE NOTICE 'PASS  F1 pulgar: valoración -1/1, nota acotada, texto final guardado';
+END $$;
+
 -- Anti-PGRST201: ningún par de tablas con más de una FK entre sí.
 DO $$
 DECLARE n int;

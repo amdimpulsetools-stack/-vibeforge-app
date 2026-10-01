@@ -28,8 +28,15 @@ echo "  aplicada  276 (x2, idempotente)"
 apply "$ROOT/supabase/migrations/277_wa_inbox_perf.sql"
 apply "$ROOT/supabase/migrations/277_wa_inbox_perf.sql"
 echo "  aplicada  277 (x2, idempotente)"
+apply "$ROOT/supabase/migrations/278_wa_feedback_outcome.sql"
+apply "$ROOT/supabase/migrations/278_wa_feedback_outcome.sql"
+echo "  aplicada  278 (x2, idempotente)"
 out=$(psql -h /tmp -p $PORT -U postgres -d inbox_test -v ON_ERROR_STOP=1 -q -f "$HERE/10_inbox_test.sql" 2>&1) || { echo "$out"; exit 1; }
 grep -E "PASS|ERROR" <<<"$out"
+apply "$ROOT/supabase/migrations/rollbacks/278_wa_feedback_outcome_rollback.sql"
+apply "$ROOT/supabase/migrations/rollbacks/278_wa_feedback_outcome_rollback.sql"
+psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \
+  "DO \$\$ BEGIN ASSERT NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'wa_conversations' AND column_name = 'outcome'); ASSERT NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'org_tags' AND column_name = 'system_key'); ASSERT NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname LIKE 'trg_appointments_wa_outcome%'); ASSERT (SELECT count(*) FROM org_tags WHERE name IN ('Agendó', 'Asistió') AND organization_id = '00000000-0000-0000-0000-00000000000a') = 2; INSERT INTO appointments(organization_id, patient_id, status) VALUES ('00000000-0000-0000-0000-00000000000a', gen_random_uuid(), 'scheduled'); RAISE NOTICE 'PASS  RB rollback 278 x2: quita trigger, resultado y pulgar; Agendó/Asistió quedan como etiquetas normales'; END \$\$;" 2>&1 | grep PASS
 apply "$ROOT/supabase/migrations/rollbacks/277_wa_inbox_perf_rollback.sql"
 apply "$ROOT/supabase/migrations/rollbacks/277_wa_inbox_perf_rollback.sql"
 apply "$ROOT/supabase/migrations/rollbacks/276_wa_kb_playbook_rollback.sql"

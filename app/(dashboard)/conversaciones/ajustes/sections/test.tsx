@@ -4,9 +4,11 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { inboxFetch } from "../../use-inbox";
+import { AiRating } from "../../ai-rating";
 import { Chip, input, SectionHeader } from "./shared";
 
 interface TestDraft {
+  suggestion_id: string | null;
   reply: string;
   alarm: boolean;
   needs_human: boolean;
@@ -70,7 +72,10 @@ export default function TestSection() {
       </button>
       {draft && (
         <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-4">
-          <p className="whitespace-pre-wrap text-sm">{draft.reply}</p>
+          <div className="flex items-start justify-between gap-3">
+            <p className="whitespace-pre-wrap text-sm">{draft.reply}</p>
+            <AiRating suggestionId={draft.suggestion_id} className="shrink-0" />
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {draft.alarm && <Chip tone="red">Alarma: borrador fijo, sin IA</Chip>}
             {draft.needs_human && <Chip tone="amber">Pide revisión humana</Chip>}

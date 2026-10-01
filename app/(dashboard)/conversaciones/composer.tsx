@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { useOrganization } from "@/components/organization-provider";
 import { orgLocalToIso } from "@/lib/inbox/shared";
 import { todayInTz } from "@/lib/org-time";
+import { AiRating } from "./ai-rating";
 import {
   inboxFetch,
   inboxKeys,
@@ -207,9 +208,12 @@ export function Composer({
             <p className="flex items-center gap-1.5 text-[11px] font-semibold text-violet-700 dark:text-violet-300">
               <Sparkles className="h-3.5 w-3.5" /> Yendy IA · sugerencia (tú decides si la envías)
             </p>
-            <button type="button" onClick={() => setAiDraft(null)} className="text-muted-foreground hover:text-foreground" aria-label="Descartar sugerencia">
-              <X className="h-4 w-4" />
-            </button>
+            <div className="flex items-start gap-1">
+              {aiDraft && !aiLoading && <AiRating suggestionId={aiDraft.suggestion_id} />}
+              <button type="button" onClick={() => setAiDraft(null)} className="mt-0.5 text-muted-foreground hover:text-foreground" aria-label="Descartar sugerencia">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
           {aiLoading ? (
             <p className="flex items-center gap-2 text-xs text-muted-foreground">
