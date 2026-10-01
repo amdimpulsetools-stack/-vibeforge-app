@@ -69,7 +69,12 @@ export function ChatView({
           <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span className={cn("inline-block h-1.5 w-1.5 rounded-full", windowOpen ? "bg-emerald-500" : "bg-muted-foreground/50")} />
             {formatWaPhone(conversation.phone_normalized)}
-            {expires && windowOpen && <> · ventana abierta hasta las {fmt.time(new Date(expires).toISOString())}</>}
+            {expires && windowOpen && (
+              <>
+                {" "}· ventana abierta hasta {fmt.ymd(new Date(expires).toISOString()) === fmt.ymd(new Date().toISOString()) ? "hoy" : "mañana"} a las{" "}
+                {fmt.time(new Date(expires).toISOString())}
+              </>
+            )}
           </p>
         </div>
         <button
