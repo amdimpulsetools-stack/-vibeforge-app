@@ -5085,7 +5085,7 @@ PRs de la sesión: #373 (Sentry cableado, mergeado), #374 (fuentes `.woff2` repu
 
 ## Changelog — Sesiones 2026-09-30 → 10-01 (v0.15.45) — Incidente de la agenda en blanco + blindaje de embeds + pre-reserva (mig 274) + reporte de turno de Caja + Conversaciones: bandeja de WhatsApp con Yendy IA (migs 275-278)
 
-PRs de la sesión: #383 (incidente), #384 (blindaje), #385 (cancelar en 2 pasos, saldo del adelanto, pre-reserva), #386 (badges, contadores, reporte de Caja), #387 (contador de espera), #388 (Conversaciones), #389/#390 (conexión manual de WhatsApp), #391 (investigación de Flows, base de conocimientos robusta + Ajustes a pantalla completa, mig 276), #392 (rendimiento de la bandeja, mig 277; pulgar arriba/abajo + Agendó/Asistió automático, mig 278).
+PRs de la sesión: #383 (incidente), #384 (blindaje), #385 (cancelar en 2 pasos, saldo del adelanto, pre-reserva), #386 (badges, contadores, reporte de Caja), #387 (contador de espera), #388 (Conversaciones), #389/#390 (conexión manual de WhatsApp), #391 (investigación de Flows, base de conocimientos robusta + Ajustes a pantalla completa, mig 276), #392 (rendimiento de la bandeja, mig 277), #393 (pulgar arriba/abajo + Agendó/Asistió automático, mig 278).
 
 ### Incidente 30-sep: la agenda se veía vacía — PR #383
 - La mig 273 agregó `patient_payments.transferred_from_appointment_id` **con FK a `appointments`**. Con dos FKs entre ambas tablas, PostgREST no sabe cuál usar en un embed sin hint como `patient_payments(amount)` y responde **PGRST201**: la consulta de la agenda fallaba entera y la grilla salía en blanco. Las citas nunca se perdieron (el historial las mostraba).
@@ -5153,7 +5153,7 @@ Objetivo: que la bandeja no se vuelva lenta cuando una clínica acumule mil o m�
 - **Banco de pruebas de rendimiento** `supabase/tests/inbox/perf/run.sh`: Postgres desechable, 1 000 conversaciones / 50 000 mensajes + 30 000 conversaciones de ruido de otras orgs, cada consulta de la bandeja y de Yendy con `EXPLAIN (ANALYZE)`; falla si alguna hace Seq Scan de `wa_conversations`/`wa_messages` o supera su tope. Fue el que detectó que el delta necesitaba la 277. Presupuesto por pantalla y reglas: `docs/rendimiento-conversaciones.md`.
 - Verificación: `tsc`, `check:embeds`, harness funcional (ahora aplica 275 → 276 → 277 y revierte 277 → 276 → 275), banco de rendimiento (todas las consultas < 1 ms e indexadas) y `next build` en verde.
 
-### Conversaciones: pulgar arriba/abajo y resultado automático Agendó / Asistió (mig 278) — PR #392
+### Conversaciones: pulgar arriba/abajo y resultado automático Agendó / Asistió (mig 278) — PR #393
 Fase 2 de la hoja de ruta: las señales con las que después se minarán casos candidatos y se medirá si la fórmula de Yendy funciona.
 - **Mig 278 (pendiente de aplicar; sin FKs nuevas)**: `wa_ai_suggestions.rating (-1|1), rating_note, rated_by, rated_at, final_text`; `org_tags.system_key` (etiquetas automáticas `scheduled` = Agendó, `attended` = Asistió, únicas por org, protegidas por trigger: no se borran ni renombran, color sí); `wa_conversations.outcome / outcome_at / outcome_appointment_id` (rastro sin FK) + índice `(organization_id, patient_id, last_message_at)`; trigger `wa_inbox_outcome_from_appointment` en `appointments` (AFTER INSERT / UPDATE OF status, arrived_at). Rollback deja Agendó/Asistió como etiquetas normales.
 - **El trigger no toca la agenda**: una lectura por índice por cita; si la paciente no escribió por WhatsApp en 60 días (120 para asistió) termina ahí; `SECURITY DEFINER` acotado a la misma org; `EXCEPTION WHEN OTHERS → WARNING` (la cita se guarda siempre). Un chat con Asistió nunca retrocede a Agendó; una cita cancelada no cuenta; si la clínica ya tenía una etiqueta manual "Agendó", el sistema la adopta en vez de duplicarla.
@@ -5163,7 +5163,7 @@ Fase 2 de la hoja de ruta: las señales con las que después se minarán casos c
 
 ### Pendiente
 - Aplicar las migs 277 (solo índice) y 278 (pulgar + Agendó/Asistió) en el SQL Editor y `/api/health/schema` → `ok: true`.
-- Hoja de ruta aprobada (1-oct): ✅ rendimiento (#392) → ✅ pulgar + Agendó/Asistió (#392) → casos candidatos con aprobación (mig 279) → panel de medición → Flows (React Flow, 60 fps; el motor corre en el servidor).
+- Hoja de ruta aprobada (1-oct): ✅ rendimiento (#392) → ✅ pulgar + Agendó/Asistió (#393) → casos candidatos con aprobación (mig 279) → panel de medición → Flows (React Flow, 60 fps; el motor corre en el servidor).
 - `ANTHROPIC_API_KEY` en Vercel como Sensitive (Production + Preview) con clave de cuenta de servicio; BAA con Anthropic antes de pacientes reales.
 - Opcional: job de pg_cron para programados sin pantalla abierta (o cron por minuto con Vercel Pro).
 - Siguientes fases de Conversaciones: agente de IA autónomo, importar 90 días de historial (coexistencia), media en Storage, asignación de chats y métricas de respuesta.
