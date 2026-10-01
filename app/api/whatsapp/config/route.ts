@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { WhatsAppClient } from "@/lib/whatsapp/client";
+import { META_BASE_URL, WhatsAppClient } from "@/lib/whatsapp/client";
 import { decrypt } from "@/lib/encryption";
 import { maskWhatsAppConfig, upsertWhatsAppConfig } from "@/lib/whatsapp/config-store";
 import { z } from "zod";
@@ -202,13 +202,32 @@ export async function POST() {
 
   const result = await client.verifyConnection();
 
+  let webhookSubscribed: boolean | null = null;
   if (result.verified) {
     // Update verification status
     await supabase
       .from("whatsapp_config")
       .update({ business_verified: true, is_active: true })
       .eq("id", config.id);
+
+    // Suscribe la WABA a los webhooks de la app (lo mismo que hace el
+    // Embedded Signup). Sin esto, una conexión MANUAL (p. ej. el número
+    // de prueba de Meta) envía bien pero los mensajes entrantes nunca
+    // llegan a /api/whatsapp/webhook. Idempotente y best-effort.
+    try {
+      const res = await fetch(`${META_BASE_URL}/${config.waba_id}/subscribed_apps`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${decrypt(config.access_token)}` },
+      });
+      webhookSubscribed = res.ok;
+      if (!res.ok) {
+        console.error("[whatsapp/config] subscribed_apps falló:", res.status, await res.text().catch(() => ""));
+      }
+    } catch (err) {
+      webhookSubscribed = false;
+      console.error("[whatsapp/config] subscribed_apps (excepción):", err);
+    }
   }
 
-  return NextResponse.json(result);
+  return NextResponse.json({ ...result, webhook_subscribed: webhookSubscribed });
 }
