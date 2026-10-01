@@ -56,6 +56,8 @@ export interface InboxSettingsRow {
   ai_tone: "calido" | "formal";
   ai_use_emojis: boolean;
   ai_signature: string | null;
+  ai_rules: string | null;
+  ai_hidden_service_ids: string[];
 }
 
 export interface ApprovedTemplate {
@@ -180,6 +182,8 @@ export const DEFAULT_SETTINGS: InboxSettingsRow = {
   ai_tone: "calido",
   ai_use_emojis: true,
   ai_signature: null,
+  ai_rules: null,
+  ai_hidden_service_ids: [],
 };
 
 export function useInboxSettings(orgId: string | null) {
@@ -190,7 +194,7 @@ export function useInboxSettings(orgId: string | null) {
     queryFn: async () => {
       const { data, error } = await createClient()
         .from("wa_inbox_settings")
-        .select("doctors_enabled, ai_enabled, ai_model, ai_tone, ai_use_emojis, ai_signature")
+        .select("doctors_enabled, ai_enabled, ai_model, ai_tone, ai_use_emojis, ai_signature, ai_rules, ai_hidden_service_ids")
         .eq("organization_id", orgId as string)
         .maybeSingle();
       if (error) throw new PostgrestLoadError("Ajustes de Conversaciones", error);

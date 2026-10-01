@@ -33,7 +33,12 @@ export function formatSoles(n: number): string {
   return `S/ ${Number(n).toFixed(2)}`;
 }
 
-export async function buildKbSnapshot(admin: SupabaseClient, orgId: string): Promise<KbSnapshot> {
+export async function buildKbSnapshot(
+  admin: SupabaseClient,
+  orgId: string,
+  opts: { hiddenServiceIds?: string[] } = {},
+): Promise<KbSnapshot> {
+  const hidden = new Set(opts.hiddenServiceIds ?? []);
   const [orgRes, svcRes, docRes, offRes, schedRes, kbRes] = await Promise.all([
     admin.from("organizations").select("*").eq("id", orgId).maybeSingle(),
     admin
@@ -91,9 +96,13 @@ export async function buildKbSnapshot(admin: SupabaseClient, orgId: string): Pro
     igv_affectation: number | null;
     pre_appointment_instructions: string | null;
   }>;
+  // Servicios que la clínica no quiere ofrecer por chat: sin precio ni
+  // detalle; si los piden, la IA deriva a una persona (needs_human).
+  const offHidden = services.filter((s) => hidden.has(s.id));
+  const offered = services.filter((s) => !hidden.has(s.id));
   lines.push("", "## Servicios y precios (catálogo oficial; citar el precio EXACTAMENTE así)");
-  if (services.length === 0) lines.push("- (sin servicios cargados)");
-  for (const s of services) {
+  if (offered.length === 0) lines.push("- (sin servicios cargados)");
+  for (const s of offered) {
     const price = Number(s.base_price ?? 0);
     const priceText = price > 0 ? `${formatSoles(price)} (${IGV_LABEL[s.igv_affectation ?? 1] ?? "incluye IGV"})` : "precio a consultar";
     if (price > 0) priceStrings.push(formatSoles(price), `S/ ${Number(price).toFixed(2)}`);
@@ -101,6 +110,14 @@ export async function buildKbSnapshot(admin: SupabaseClient, orgId: string): Pro
     if (s.pre_appointment_instructions?.trim()) {
       lines.push(`  · Indicaciones previas: ${s.pre_appointment_instructions.trim().slice(0, 600)}`);
     }
+  }
+  if (offHidden.length) {
+    lines.push(
+      "",
+      "## Servicios que NO se cotizan ni ofrecen por WhatsApp",
+      "No los ofrezcas por iniciativa propia ni des precio o detalle. Si la paciente pregunta por uno: dile con calidez que una persona del equipo le escribe para orientarla; needs_human=true; gap_question=null.",
+    );
+    for (const s of offHidden) lines.push(`- ${s.name}`);
   }
 
   const doctors = ((docRes.data ?? []) as Array<{ full_name: string; is_active?: boolean | null }>).filter(

@@ -118,6 +118,22 @@ BEGIN
   RAISE NOTICE 'PASS  S1 programados: toma atómica + grants';
 END $$;
 
+-- Reglas de Yendy + prueba sin conversación.
+DO $$
+BEGIN
+  UPDATE wa_inbox_settings SET ai_rules = 'No ofrecer descuentos', ai_hidden_service_ids = ARRAY[gen_random_uuid()]
+   WHERE organization_id = t_id('orgA');
+  ASSERT (SELECT cardinality(ai_hidden_service_ids) FROM wa_inbox_settings WHERE organization_id = t_id('orgA')) = 1, 'Y1: servicios ocultos';
+  BEGIN
+    UPDATE wa_inbox_settings SET ai_rules = repeat('x', 2001) WHERE organization_id = t_id('orgA');
+    RAISE EXCEPTION 'Y1: aceptó reglas de más de 2000 caracteres';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  INSERT INTO wa_ai_suggestions(organization_id, conversation_id, model, draft, flags)
+    VALUES (t_id('orgA'), NULL, 'claude-haiku-4-5', 'hola', '{"test": true}');
+  RAISE NOTICE 'PASS  Y1 reglas, servicios ocultos y pruebas sin conversación';
+END $$;
+
 -- Anti-PGRST201: ningún par de tablas con más de una FK entre sí.
 DO $$
 DECLARE n int;

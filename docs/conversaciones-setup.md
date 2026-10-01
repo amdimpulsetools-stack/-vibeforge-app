@@ -58,11 +58,16 @@ La org "Clínica de Oscar Duran" ya tiene el addon `captacion` (mig 207).
    (el número de prueba solo puede escribir a hasta 5 números verificados).
 3. Genera un token (para sandbox basta el temporal de 24 h; para algo estable,
    un *System User token* con `whatsapp_business_messaging` y `whatsapp_business_management`).
-4. En Yenda, logueado como la org de prueba: **Ajustes → WhatsApp** → pega
-   Phone Number ID, WABA ID y token. (Se guarda cifrado, igual que hoy.)
+4. En Yenda, logueado como la org de prueba: **Ajustes → WhatsApp** → formulario
+   manual (no "Conectar con Facebook"): pega Phone Number ID, WABA ID y token.
+   El número de prueba vive en la WABA de prueba de tu propia app, por eso no se
+   elige desde el Embedded Signup. (Se guarda cifrado, igual que hoy.)
 5. **Webhook**: en la app de Meta → WhatsApp → Configuration, URL
    `https://<tu-dominio>/api/whatsapp/webhook` con el verify token que ya usas,
-   y suscribe el campo **messages** (trae mensajes y estados).
+   y suscribe los campos **messages** (mensajes y estados) y
+   **smb_message_echoes** (lo que la clínica escribe desde la app WhatsApp
+   Business del celular cuando el número está en coexistencia; con el número de
+   prueba no llegan, pero deja el campo suscrito para producción).
 6. Desde tu celular escribe "Hola" al número de prueba → debe aparecer en
    `/conversaciones` en ≤ 8 s. Responde desde Yenda → llega a tu celular y
    ves ✓ / ✓✓ / ✓✓ azul.
@@ -91,7 +96,11 @@ Qué probar (checklist corto):
 
 Mientras alguien tenga `/conversaciones` abierta, la propia pantalla envía los
 programados cada minuto. Para que salgan aunque nadie la tenga abierta (Vercel
-Hobby no permite cron por minuto) se usa pg_cron + pg_net de Supabase:
+Hobby solo corre crons una vez al día) se usa pg_cron + pg_net de Supabase.
+Con Vercel Pro basta agregar a `vercel.json`
+`{ "path": "/api/cron/inbox-dispatch", "schedule": "* * * * *" }` y no hace
+falta este paso (no actives los dos a la vez sin necesidad; si coinciden no
+duplican envíos, solo gastan llamadas).
 
 1. Supabase → Database → Extensions: habilitar `pg_cron` y `pg_net`.
 2. Guardar el secreto en Vault (**no** lo pegues en el repo):
@@ -132,10 +141,23 @@ Variables de entorno en Vercel: `ANTHROPIC_API_KEY`. Nada más.
 
 - Ajustes ⚙ → General: activar IA, elegir **Rápido (Haiku)** o **Preciso (Sonnet)**,
   tono (cálido/formal), emojis y firma.
+- Ajustes ⚙ → **Reglas de Yendy**: reglas propias de la clínica (una por línea) y
+  servicios que Yendy **no ofrece ni cotiza** por chat. Las reglas fijas de
+  seguridad (no diagnosticar, no inventar precios, derivar urgencias) no se
+  pueden desactivar.
+- Ajustes ⚙ → **Probar Yendy**: escribes una pregunta como paciente y ves el
+  borrador, las fichas usadas y si falta algo en la base. No envía nada.
 - Límite: 400 sugerencias por org cada 24 h.
 - La IA **nunca envía sola**: arma un borrador que recepción revisa y envía.
-- Datos de salud: antes de usarlo con pacientes reales, activar el BAA con
-  Anthropic (Console → Settings → Privacy) o contactar a ventas de Anthropic.
+- Datos de salud: antes de usarlo con pacientes reales, activar HIPAA/BAA en la
+  **consola de la API** (platform.claude.com → Settings → Privacy → tarjeta
+  "HIPAA compliance"; la ve un admin de la organización con permiso de HIPAA).
+  No es la app claude.ai: los planes Free/Pro/Max no están cubiertos. Si la
+  tarjeta no aparece, se pide a ventas de Anthropic. Una vez activo es
+  permanente. Lo que usa Yendy (Messages API, caché de prompt, salida
+  estructurada) es elegible; la beta de respaldo de Sonnet, si la API la
+  rechaza, se reintenta sola sin ella.
+  Fuente: https://platform.claude.com/docs/en/manage-claude/api-and-data-retention
 
 ### Cómo "entrenar" la base de conocimientos (buenas prácticas)
 

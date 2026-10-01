@@ -203,6 +203,9 @@ export interface MetaWebhookEntry {
       metadata: { display_phone_number: string; phone_number_id: string };
       contacts?: Array<{ profile?: { name?: string }; wa_id: string }>;
       messages?: MetaInboundMessage[];
+      /** Coexistence (field smb_message_echoes): lo que la clínica envió
+       *  desde la app WhatsApp Business del celular. `to` = paciente. */
+      message_echoes?: Array<MetaInboundMessage & { to: string }>;
       statuses?: Array<{
         id: string;
         status: "sent" | "delivered" | "read" | "failed";

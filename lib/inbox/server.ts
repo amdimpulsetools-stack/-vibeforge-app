@@ -32,6 +32,8 @@ export interface InboxSettings {
   ai_tone: "calido" | "formal";
   ai_use_emojis: boolean;
   ai_signature: string | null;
+  ai_rules: string | null;
+  ai_hidden_service_ids: string[];
 }
 
 export const DEFAULT_INBOX_SETTINGS: InboxSettings = {
@@ -41,6 +43,8 @@ export const DEFAULT_INBOX_SETTINGS: InboxSettings = {
   ai_tone: "calido",
   ai_use_emojis: true,
   ai_signature: null,
+  ai_rules: null,
+  ai_hidden_service_ids: [],
 };
 
 export async function requireInbox(req: Request): Promise<InboxContext | NextResponse> {

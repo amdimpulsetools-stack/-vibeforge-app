@@ -9,7 +9,7 @@ import {
   parseInboundMessages,
   persistInboundMessages,
 } from "@/lib/whatsapp/capture";
-import { applyInboxStatuses } from "@/lib/inbox/ingest";
+import { applyInboxStatuses, mirrorEchoesToInbox } from "@/lib/inbox/ingest";
 import type { MetaWebhookPayload } from "@/lib/whatsapp/types";
 
 export const runtime = "nodejs";
@@ -66,11 +66,18 @@ async function handleWebhookPayload(payload: MetaWebhookPayload) {
   // best-effort, sin afectar jamás la vía de los acuses.
   const inbound = parseInboundMessages(payload);
 
-  if (updates.length === 0 && inbound.length === 0 && templateUpdates.length === 0) {
+  // Bandeja (mig 275), Coexistence: lo enviado desde la app del celular.
+  const hasEchoes = payload.entry?.some((e) => e.changes?.some((c) => c.field === "smb_message_echoes")) ?? false;
+
+  if (updates.length === 0 && inbound.length === 0 && templateUpdates.length === 0 && !hasEchoes) {
     return NextResponse.json({ received: true });
   }
 
   const supabase = createAdminClient();
+
+  if (hasEchoes) {
+    await mirrorEchoesToInbox(supabase, payload);
+  }
 
   let captured = 0;
   if (inbound.length > 0) {

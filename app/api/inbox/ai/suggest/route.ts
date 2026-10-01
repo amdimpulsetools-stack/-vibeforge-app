@@ -11,11 +11,15 @@ export const maxDuration = 60;
 /** Tope diario por org (protege costo; ajustable cuando haya plan/cuota). */
 const DAILY_LIMIT = 400;
 
-const schema = z.object({
-  conversation_id: z.string().uuid(),
-  /** Opcional: indicación libre de la recepcionista ("más corto", "ofrece martes"). */
-  instruction: z.string().max(300).nullable().optional(),
-});
+const schema = z
+  .object({
+    conversation_id: z.string().uuid().optional(),
+    /** Ajustes → "Probar Yendy" (solo admin): un mensaje inventado, sin conversación. */
+    test_message: z.string().trim().min(2).max(1000).optional(),
+    /** Opcional: indicación libre de la recepcionista ("más corto", "ofrece martes"). */
+    instruction: z.string().max(300).nullable().optional(),
+  })
+  .refine((d) => !!d.conversation_id !== !!d.test_message, { message: "conversation_id o test_message" });
 
 /**
  * POST /api/inbox/ai/suggest — Yendy IA "Generar respuesta".
@@ -33,8 +37,14 @@ export async function POST(req: NextRequest) {
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
 
-  const conv = await loadConversation(ctx.admin, ctx.orgId, parsed.data.conversation_id);
-  if (!conv) return NextResponse.json({ error: "Conversación no encontrada" }, { status: 404 });
+  const isTest = !!parsed.data.test_message;
+  if (isTest && !ctx.isAdmin) {
+    return NextResponse.json({ error: "Solo administración puede probar a Yendy" }, { status: 403 });
+  }
+  const conv = parsed.data.conversation_id
+    ? await loadConversation(ctx.admin, ctx.orgId, parsed.data.conversation_id)
+    : null;
+  if (!isTest && !conv) return NextResponse.json({ error: "Conversación no encontrada" }, { status: 404 });
 
   const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
   const { count } = await ctx.admin
@@ -47,14 +57,20 @@ export async function POST(req: NextRequest) {
   }
 
   // Últimos 20 mensajes (sin notas internas: son del equipo, no de la charla).
-  const { data: rows } = await ctx.admin
-    .from("wa_messages")
-    .select("direction, type, body, media_caption, ts")
-    .eq("conversation_id", conv.id)
-    .neq("direction", "internal")
-    .order("ts", { ascending: false })
-    .limit(20);
-  const msgs = ((rows ?? []) as Array<{ direction: "in" | "out"; type: string; body: string | null; media_caption: string | null; ts: string }>).reverse();
+  // En prueba: un único mensaje inventado por la administración.
+  let msgs: Array<{ direction: "in" | "out"; type: string; body: string | null; media_caption: string | null; ts: string }>;
+  if (conv) {
+    const { data: rows } = await ctx.admin
+      .from("wa_messages")
+      .select("direction, type, body, media_caption, ts")
+      .eq("conversation_id", conv.id)
+      .neq("direction", "internal")
+      .order("ts", { ascending: false })
+      .limit(20);
+    msgs = ((rows ?? []) as typeof msgs).reverse();
+  } else {
+    msgs = [{ direction: "in", type: "text", body: parsed.data.test_message ?? "", media_caption: null, ts: new Date().toISOString() }];
+  }
   const lastIn = [...msgs].reverse().find((m) => m.direction === "in");
   if (!lastIn) {
     return NextResponse.json({ error: "No hay mensajes de la paciente para responder" }, { status: 422 });
@@ -67,7 +83,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const firstName = (conv.display_name ?? "").trim().split(/\s+/)[0] || null;
+  const firstName = conv ? (conv.display_name ?? "").trim().split(/\s+/)[0] || null : null;
   const transcript: TranscriptMessage[] = msgs.map((m) => ({
     direction: m.direction,
     text: messagePreview(m).slice(0, 1500),
@@ -82,10 +98,10 @@ export async function POST(req: NextRequest) {
       .from("wa_ai_suggestions")
       .insert({
         organization_id: ctx.orgId,
-        conversation_id: conv.id,
+        conversation_id: conv?.id ?? null,
         model: "alarm-rule",
         draft,
-        flags: { alarm: true, needs_human: true },
+        flags: { alarm: true, needs_human: true, test: isTest },
         requested_by: ctx.userId,
       })
       .select("id")
@@ -102,7 +118,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { data: org } = await ctx.admin.from("organizations").select("name").eq("id", ctx.orgId).maybeSingle();
-  const kb = await buildKbSnapshot(ctx.admin, ctx.orgId);
+  const kb = await buildKbSnapshot(ctx.admin, ctx.orgId, { hiddenServiceIds: ctx.settings.ai_hidden_service_ids });
 
   try {
     const result = await generateSuggestion({
@@ -120,10 +136,11 @@ export async function POST(req: NextRequest) {
       .from("wa_ai_suggestions")
       .insert({
         organization_id: ctx.orgId,
-        conversation_id: conv.id,
+        conversation_id: conv?.id ?? null,
         model: ctx.settings.ai_model,
         draft: s.reply,
         flags: {
+          test: isTest,
           needs_human: s.needs_human,
           intent: s.intent,
           sources: s.sources,
@@ -139,7 +156,7 @@ export async function POST(req: NextRequest) {
       .select("id")
       .single();
 
-    if (s.gap_question?.trim()) {
+    if (conv && s.gap_question?.trim()) {
       await ctx.admin.from("wa_kb_gaps").insert({
         organization_id: ctx.orgId,
         conversation_id: conv.id,

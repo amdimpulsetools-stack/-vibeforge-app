@@ -3,13 +3,13 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Trash2, Plus, Check, X } from "lucide-react";
+import { Loader2, Trash2, Plus, Check, X, Sparkles, AlertTriangle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
-import { inboxKeys, useInboxSettings, useOrgTags, useQuickReplies, type InboxSettingsRow } from "./use-inbox";
+import { inboxFetch, inboxKeys, useInboxSettings, useOrgTags, useQuickReplies, type InboxSettingsRow } from "./use-inbox";
 
 /**
  * Ajustes de Conversaciones (solo owner/admin; la RLS de la 275 lo
@@ -25,6 +25,8 @@ export function InboxSettingsDialog({ open, onOpenChange }: { open: boolean; onO
         <Tabs defaultValue="general" className="mt-2">
           <TabsList className="flex flex-wrap">
             <TabsTrigger value="general">General</TabsTrigger>
+            <TabsTrigger value="rules">Reglas de Yendy</TabsTrigger>
+            <TabsTrigger value="test">Probar Yendy</TabsTrigger>
             <TabsTrigger value="kb">Base de conocimientos</TabsTrigger>
             <TabsTrigger value="gaps">Brechas</TabsTrigger>
             <TabsTrigger value="quick">Respuestas rápidas</TabsTrigger>
@@ -32,6 +34,12 @@ export function InboxSettingsDialog({ open, onOpenChange }: { open: boolean; onO
           </TabsList>
           <TabsContent value="general">
             <GeneralTab />
+          </TabsContent>
+          <TabsContent value="rules">
+            <RulesTab />
+          </TabsContent>
+          <TabsContent value="test">
+            <TestTab />
           </TabsContent>
           <TabsContent value="kb">
             <KbTab />
@@ -124,6 +132,217 @@ function GeneralTab() {
       </button>
     </div>
   );
+}
+
+// ── Reglas de Yendy ───────────────────────────────────────────────
+const RULE_EXAMPLES = [
+  "No ofrecer descuentos ni promociones.",
+  "Para FIV, ofrecer primero una consulta de evaluación.",
+  "No confirmar horarios: siempre decir que recepción confirma.",
+  "Si preguntan por resultados, pedir que llamen al consultorio.",
+];
+
+function useOrgServices(orgId: string | null) {
+  return useQuery({
+    queryKey: ["inbox-services", orgId],
+    enabled: !!orgId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await createClient()
+        .from("services")
+        .select("id, name")
+        .eq("organization_id", orgId as string)
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string }>;
+    },
+  });
+}
+
+function RulesTab() {
+  const { organizationId } = useOrganization();
+  const qc = useQueryClient();
+  const { data } = useInboxSettings(organizationId);
+  const { data: services = [], isPending: servicesPending } = useOrgServices(organizationId);
+  const [rules, setRules] = useState("");
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [filter, setFilter] = useState("");
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (data) {
+      setRules(data.ai_rules ?? "");
+      setHidden(data.ai_hidden_service_ids ?? []);
+    }
+  }, [data]);
+  if (!data) return <p className="py-6 text-sm text-muted-foreground">Cargando…</p>;
+
+  async function save() {
+    if (!data) return;
+    setSaving(true);
+    const { error } = await createClient()
+      .from("wa_inbox_settings")
+      .upsert(
+        {
+          ...data,
+          organization_id: organizationId,
+          ai_rules: rules.trim() || null,
+          ai_hidden_service_ids: hidden,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "organization_id" },
+      );
+    setSaving(false);
+    if (error) return void toast.error("No se pudo guardar");
+    toast.success("Reglas guardadas");
+    qc.invalidateQueries({ queryKey: inboxKeys.settings(organizationId) });
+  }
+
+  const q = filter.trim().toLowerCase();
+  const visible = q ? services.filter((sv) => sv.name.toLowerCase().includes(q)) : services;
+
+  return (
+    <div className="space-y-5 py-3">
+      <section className="space-y-2">
+        <div>
+          <p className="text-sm font-medium">Reglas que Yendy no puede romper</p>
+          <p className="text-xs text-muted-foreground">
+            Una por línea, en lenguaje simple. Se suman a las reglas fijas de seguridad (no diagnosticar, no
+            inventar precios, derivar urgencias), que no se pueden desactivar.
+          </p>
+        </div>
+        <textarea
+          className={`${input} min-h-[140px]`}
+          maxLength={2000}
+          value={rules}
+          onChange={(e) => setRules(e.target.value)}
+          placeholder={RULE_EXAMPLES.join("\n")}
+        />
+        <p className="text-right text-[11px] text-muted-foreground">{rules.length}/2000</p>
+      </section>
+
+      <section className="space-y-2">
+        <div>
+          <p className="text-sm font-medium">Servicios que Yendy no ofrece por chat</p>
+          <p className="text-xs text-muted-foreground">
+            Marcados = Yendy no los menciona ni da su precio. Si la paciente pregunta, responde que una persona del
+            equipo le escribe y marca el borrador para revisión.
+          </p>
+        </div>
+        <input className={input} placeholder="Buscar servicio" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg border border-border p-2">
+          {servicesPending ? (
+            <p className="p-2 text-xs text-muted-foreground">Cargando servicios…</p>
+          ) : visible.length === 0 ? (
+            <p className="p-2 text-xs text-muted-foreground">Sin servicios.</p>
+          ) : (
+            visible.map((sv) => {
+              const on = hidden.includes(sv.id);
+              return (
+                <label key={sv.id} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/50">
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => setHidden(on ? hidden.filter((h) => h !== sv.id) : [...hidden, sv.id])}
+                  />
+                  <span className={on ? "text-muted-foreground line-through" : ""}>{sv.name}</span>
+                </label>
+              );
+            })
+          )}
+        </div>
+        <p className="text-[11px] text-muted-foreground">{hidden.length} servicio(s) oculto(s) para Yendy.</p>
+      </section>
+
+      <button
+        type="button"
+        onClick={() => void save()}
+        disabled={saving}
+        className="inline-flex items-center gap-1 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+      >
+        {saving && <Loader2 className="h-4 w-4 animate-spin" />} Guardar reglas
+      </button>
+    </div>
+  );
+}
+
+// ── Probar Yendy ──────────────────────────────────────────────────
+interface TestDraft {
+  reply: string;
+  alarm: boolean;
+  needs_human: boolean;
+  sources: string[];
+  gap_question: string | null;
+  price_issues: string[];
+}
+
+function TestTab() {
+  const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [draft, setDraft] = useState<TestDraft | null>(null);
+
+  async function run() {
+    if (message.trim().length < 2) return;
+    setLoading(true);
+    setDraft(null);
+    const res = await inboxFetch<TestDraft>("/api/inbox/ai/suggest", { method: "POST", body: { test_message: message.trim() } });
+    setLoading(false);
+    if (!res.ok) return void toast.error(res.error);
+    setDraft(res.data);
+  }
+
+  return (
+    <div className="space-y-3 py-3">
+      <p className="text-xs text-muted-foreground">
+        Escribe una pregunta como la haría una paciente y mira qué respondería Yendy con tu base de conocimientos y tus
+        reglas actuales. No se envía nada. Úsalo cada vez que cambies fichas, reglas o modelo.
+      </p>
+      <textarea
+        className={`${input} min-h-[80px]`}
+        maxLength={1000}
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        placeholder="Ej. Hola, ¿cuánto cuesta la consulta y atienden los sábados?"
+      />
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={loading || message.trim().length < 2}
+        className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+      >
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Probar
+      </button>
+      {draft && (
+        <div className="space-y-2 rounded-xl border border-border bg-muted/30 p-3">
+          <p className="whitespace-pre-wrap text-sm">{draft.reply}</p>
+          <div className="flex flex-wrap gap-1.5 text-[11px]">
+            {draft.alarm && <Chip tone="red">Alarma: borrador fijo, sin IA</Chip>}
+            {draft.needs_human && <Chip tone="amber">Pide revisión humana</Chip>}
+            {draft.price_issues.length > 0 && <Chip tone="red">Precio fuera del catálogo: {draft.price_issues.join(", ")}</Chip>}
+            {draft.sources.map((src) => (
+              <Chip key={src} tone="muted">{src}</Chip>
+            ))}
+          </div>
+          {draft.gap_question && (
+            <p className="flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              Falta en la base: “{draft.gap_question}”. Créala en “Base de conocimientos”.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Chip({ tone, children }: { tone: "red" | "amber" | "muted"; children: React.ReactNode }) {
+  const cls =
+    tone === "red"
+      ? "bg-red-500/10 text-red-700 dark:text-red-400"
+      : tone === "amber"
+        ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+        : "bg-muted text-muted-foreground";
+  return <span className={`rounded px-1.5 py-0.5 font-medium ${cls}`}>{children}</span>;
 }
 
 function SettingRow({ title, hint, control }: { title: string; hint: string; control: React.ReactNode }) {

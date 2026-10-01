@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CapturedInbound } from "@/lib/whatsapp/capture";
 import type { StatusUpdate } from "@/lib/whatsapp/webhook";
+import type { MetaWebhookPayload } from "@/lib/whatsapp/types";
 import { STATUS_RANK, messagePreview, type InboxMessageStatus } from "./shared";
 
 /**
@@ -118,4 +119,101 @@ export async function applyInboxStatuses(admin: SupabaseClient, updates: StatusU
 
 function isMissingRelation(error: { code?: string; message?: string }): boolean {
   return error.code === "42P01" || error.code === "PGRST205" || /does not exist|schema cache/i.test(error.message ?? "");
+}
+
+/**
+ * Coexistence: lo que recepción escribe desde la app WhatsApp Business del
+ * celular llega como `smb_message_echoes`. Se refleja en el hilo como
+ * saliente (source 'business_app_echo') para que la bandeja muestre la
+ * conversación completa y el aviso de "hilo cambió" lo tenga en cuenta.
+ *
+ * Solo en conversaciones que YA existen: no crea conversaciones de origen
+ * saliente (los cohortes de Captación se mantienen). Idempotente por wamid.
+ * Best-effort: nunca rompe el webhook.
+ */
+export async function mirrorEchoesToInbox(admin: SupabaseClient, payload: MetaWebhookPayload): Promise<number> {
+  if (payload.object !== "whatsapp_business_account") return 0;
+  const echoes: Array<{ phoneNumberId: string; to: string; wamid: string; ts: string; type: string; body: string | null; mediaId: string | null; mediaMime: string | null; caption: string | null }> = [];
+  for (const entry of payload.entry ?? []) {
+    for (const change of entry.changes ?? []) {
+      if (change.field !== "smb_message_echoes") continue;
+      for (const e of change.value.message_echoes ?? []) {
+        if (!e?.id || !e.to) continue;
+        const media = e.image ?? e.audio ?? e.video ?? e.document ?? e.sticker ?? null;
+        echoes.push({
+          phoneNumberId: change.value.metadata?.phone_number_id ?? "",
+          to: e.to.replace(/\D/g, ""),
+          wamid: e.id,
+          ts: new Date(parseInt(e.timestamp, 10) * 1000).toISOString(),
+          type: e.type,
+          body: e.text?.body ?? e.interactive?.button_reply?.title ?? e.reaction?.emoji ?? null,
+          mediaId: media?.id ?? null,
+          mediaMime: media?.mime_type ?? null,
+          caption: media?.caption ?? null,
+        });
+      }
+    }
+  }
+  if (echoes.length === 0) return 0;
+
+  let mirrored = 0;
+  try {
+    const phoneIds = [...new Set(echoes.map((e) => e.phoneNumberId).filter(Boolean))];
+    const { data: configs } = await admin
+      .from("whatsapp_config")
+      .select("organization_id, phone_number_id")
+      .in("phone_number_id", phoneIds)
+      .eq("is_active", true);
+    const orgByPhoneId = new Map((configs ?? []).map((c) => [c.phone_number_id as string, c.organization_id as string]));
+
+    for (const e of echoes) {
+      const orgId = orgByPhoneId.get(e.phoneNumberId);
+      if (!orgId) continue;
+      const { data: conv } = await admin
+        .from("wa_conversations")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("phone_normalized", e.to)
+        .maybeSingle();
+      if (!conv) continue;
+      const { data, error } = await admin
+        .from("wa_messages")
+        .upsert(
+          {
+            organization_id: orgId,
+            conversation_id: conv.id,
+            direction: "out",
+            source: "business_app_echo",
+            type: e.type,
+            wamid: e.wamid,
+            body: e.body,
+            meta_media_id: e.mediaId,
+            media_mime: e.mediaMime,
+            media_caption: e.caption,
+            status: "sent",
+            ts: e.ts,
+          },
+          { onConflict: "wamid", ignoreDuplicates: true },
+        )
+        .select("id");
+      if (error) {
+        if (isMissingRelation(error)) return mirrored;
+        console.error("[Bandeja] eco de la app del celular falló:", error.message);
+        continue;
+      }
+      const inserted = (data ?? [])[0] as { id: string } | undefined;
+      if (!inserted) continue;
+      mirrored++;
+      await admin.rpc("wa_inbox_touch", {
+        p_conversation: conv.id,
+        p_message: inserted.id,
+        p_dir: "out",
+        p_ts: e.ts,
+        p_preview: messagePreview({ type: e.type, body: e.body, media_caption: e.caption }),
+      });
+    }
+  } catch (err) {
+    console.error("[Bandeja] ecos (excepción):", err);
+  }
+  return mirrored;
 }

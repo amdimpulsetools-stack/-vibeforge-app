@@ -80,6 +80,25 @@ export interface TranscriptMessage {
   at: string;
 }
 
+/**
+ * Reglas propias de la clínica (Ajustes → Yendy IA). Van DESPUÉS de las
+ * fijas y no pueden anularlas: seguridad clínica y "solo la base" mandan.
+ */
+function clinicRules(raw: string | null | undefined): string[] {
+  const rules = (raw ?? "")
+    .split(/\r?\n/)
+    .map((l) => l.replace(/[<>]/g, "").replace(/^\s*[-*•\d.)]+\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, 25)
+    .map((l) => l.slice(0, 200));
+  if (rules.length === 0) return [];
+  return [
+    "",
+    "REGLAS DE LA CLÍNICA (obligatorias; si alguna contradice las reglas 1 a 5, mandan las reglas 1 a 5):",
+    ...rules.map((r, i) => `C${i + 1}. ${r}`),
+  ];
+}
+
 function systemPrompt(settings: InboxSettings, clinicName: string): string {
   const voice =
     settings.ai_tone === "formal"
@@ -101,6 +120,7 @@ function systemPrompt(settings: InboxSettings, clinicName: string): string {
     "6. Si quiere agendar: pide/confirma servicio, día y franja horaria preferida, y avisa que le confirmarán el horario disponible. No confirmes horarios específicos como reservados.",
     "7. Estilo WhatsApp: en español, breve (2 a 5 líneas), claro, sin markdown, sin listas largas, una sola burbuja.",
     `8. ${voice} ${emojis} ${signature}`.trim(),
+    ...clinicRules(settings.ai_rules),
     "",
     "En sources pon los ids [svc:…]/[kb:…] de las fichas que usaste (vacío si ninguna).",
   ].join("\n");
@@ -163,15 +183,21 @@ export async function generateSuggestion(opts: {
   // Sonnet 5.5: effort "low" (chat corto) + respaldo server-side si un
   // clasificador de seguridad rechaza (fallbacks "default", Claude API).
   // Haiku 4.5: no acepta `effort`.
+  // Si la org de Anthropic tiene HIPAA activo y la beta de respaldo no es
+  // elegible, la API responde 400: se reintenta una vez sin la beta.
+  const sonnetCall = async (withFallback: boolean) =>
+    client.beta.messages.parse({
+      model,
+      max_tokens: 4000,
+      system,
+      messages: [{ role: "user", content: userContent }],
+      output_config: { effort: "low", format },
+      ...(withFallback ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const } : {}),
+    });
   const response = isSonnet
-    ? await client.beta.messages.parse({
-        model,
-        max_tokens: 4000,
-        system,
-        messages: [{ role: "user", content: userContent }],
-        output_config: { effort: "low", format },
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
+    ? await sonnetCall(true).catch((err: unknown) => {
+        if (err instanceof Anthropic.BadRequestError) return sonnetCall(false);
+        throw err;
       })
     : await client.beta.messages.parse({
         model,

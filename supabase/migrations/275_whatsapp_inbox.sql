@@ -89,9 +89,17 @@ CREATE TABLE IF NOT EXISTS wa_inbox_settings (
                    CHECK (ai_tone IN ('calido', 'formal')),
   ai_use_emojis    boolean NOT NULL DEFAULT true,
   ai_signature     text,
+  -- Reglas propias de la clínica que la IA no puede romper (una por línea).
+  ai_rules         text CHECK (ai_rules IS NULL OR length(ai_rules) <= 2000),
+  -- Servicios que la IA NO ofrece ni cotiza por chat (uuid SIN FK: si el
+  -- servicio se borra, simplemente deja de aplicar).
+  ai_hidden_service_ids uuid[] NOT NULL DEFAULT '{}',
   updated_at       timestamptz NOT NULL DEFAULT now(),
   updated_by       uuid                                   -- SIN FK
 );
+ALTER TABLE wa_inbox_settings
+  ADD COLUMN IF NOT EXISTS ai_rules text CHECK (ai_rules IS NULL OR length(ai_rules) <= 2000),
+  ADD COLUMN IF NOT EXISTS ai_hidden_service_ids uuid[] NOT NULL DEFAULT '{}';
 
 -- ── 2. Acceso a la bandeja ─────────────────────────────────────────
 -- DEFINER solo para leer organization_members / settings sin depender
@@ -432,7 +440,8 @@ CREATE POLICY wa_kb_gaps_update ON wa_kb_gaps FOR UPDATE TO authenticated
 CREATE TABLE IF NOT EXISTS wa_ai_suggestions (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id  uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  conversation_id  uuid NOT NULL REFERENCES wa_conversations(id) ON DELETE CASCADE,
+  -- NULL = prueba desde Ajustes → "Probar Yendy" (cuenta para el tope diario).
+  conversation_id  uuid REFERENCES wa_conversations(id) ON DELETE CASCADE,
   model            text NOT NULL,
   draft            text,
   flags            jsonb NOT NULL DEFAULT '{}'::jsonb,   -- alarma, brecha, fuentes
