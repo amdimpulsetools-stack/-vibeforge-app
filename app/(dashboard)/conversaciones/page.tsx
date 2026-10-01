@@ -78,11 +78,16 @@ function InboxApp({ orgId, timezone, canManage }: { orgId: string | null; timezo
   const rows = conversations.data;
   const active = useMemo(() => rows?.find((c) => c.id === activeId) ?? null, [rows, activeId]);
 
-  // Escritorio: abre la primera conversación al cargar.
+  // ?c=<id> (enlace "Ver chat" desde Ajustes → Casos candidatos) abre esa
+  // conversación; si no, en escritorio abre la primera al cargar.
   useEffect(() => {
-    if (!activeId && rows && rows.length > 0 && typeof window !== "undefined" && window.innerWidth >= 768) {
-      setActiveId(rows[0].id);
+    if (activeId || !rows || rows.length === 0 || typeof window === "undefined") return;
+    const wanted = new URLSearchParams(window.location.search).get("c");
+    if (wanted && rows.some((r) => r.id === wanted)) {
+      setActiveId(wanted);
+      return;
     }
+    if (window.innerWidth >= 768) setActiveId(rows[0].id);
   }, [rows, activeId]);
 
   // Al abrir un chat con no leídos: marcar leído (y doble check a la paciente).

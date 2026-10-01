@@ -36,6 +36,8 @@ export interface InboxSettings {
   ai_hidden_service_ids: string[];
   /** Guía de conversación (mig 276). {} = fórmula sugerida. */
   ai_playbook: Record<string, unknown>;
+  /** Última minería de casos candidatos (mig 279); null si nunca. */
+  ai_mined_at: string | null;
 }
 
 export const DEFAULT_INBOX_SETTINGS: InboxSettings = {
@@ -48,6 +50,7 @@ export const DEFAULT_INBOX_SETTINGS: InboxSettings = {
   ai_rules: null,
   ai_hidden_service_ids: [],
   ai_playbook: {},
+  ai_mined_at: null,
 };
 
 export async function requireInbox(req: Request): Promise<InboxContext | NextResponse> {

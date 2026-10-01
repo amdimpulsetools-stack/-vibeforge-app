@@ -31,8 +31,15 @@ echo "  aplicada  277 (x2, idempotente)"
 apply "$ROOT/supabase/migrations/278_wa_feedback_outcome.sql"
 apply "$ROOT/supabase/migrations/278_wa_feedback_outcome.sql"
 echo "  aplicada  278 (x2, idempotente)"
+apply "$ROOT/supabase/migrations/279_wa_case_candidates.sql"
+apply "$ROOT/supabase/migrations/279_wa_case_candidates.sql"
+echo "  aplicada  279 (x2, idempotente)"
 out=$(psql -h /tmp -p $PORT -U postgres -d inbox_test -v ON_ERROR_STOP=1 -q -f "$HERE/10_inbox_test.sql" 2>&1) || { echo "$out"; exit 1; }
 grep -E "PASS|ERROR" <<<"$out"
+apply "$ROOT/supabase/migrations/rollbacks/279_wa_case_candidates_rollback.sql"
+apply "$ROOT/supabase/migrations/rollbacks/279_wa_case_candidates_rollback.sql"
+psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \
+  "DO \$\$ BEGIN ASSERT to_regclass('public.wa_kb_case_candidates') IS NULL; ASSERT NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'wa_conversations' AND column_name = 'mined_at'); ASSERT (SELECT count(*) FROM wa_kb_cases) > 0; RAISE NOTICE 'PASS  RB rollback 279 x2: quita candidatos y la marca; conserva los casos aprobados'; END \$\$;" 2>&1 | grep PASS
 apply "$ROOT/supabase/migrations/rollbacks/278_wa_feedback_outcome_rollback.sql"
 apply "$ROOT/supabase/migrations/rollbacks/278_wa_feedback_outcome_rollback.sql"
 psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \

@@ -99,7 +99,7 @@ export default function PlaybookSection() {
 
       <section className="space-y-2">
         <p className="text-sm font-medium">Cómo cerrar (el “closer” cálido)</p>
-        {area(p.closing, (v) => setP({ ...p, closing: v }), "Proponer el siguiente paso concreto y fácil; pedir día o franja; dejar la puerta abierta si no está lista…", 500)}
+        {area(p.closing, (v) => setP({ ...p, closing: v }), "Proponer el siguiente paso con seguridad: ¿Estarías buscando una cita para algún día de esta semana o la siguiente?; dejar la puerta abierta si no está lista…", 500)}
       </section>
 
       <section className="space-y-2">
