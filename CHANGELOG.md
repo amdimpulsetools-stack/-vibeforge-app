@@ -84,7 +84,7 @@
 - [Changelog — Sesiones 2026-09-09 → 11 (v0.15.42) — Recetas a recepción (migs 257/258) + Presupuestos sin paso intermedio (mig 259) + "Resumen de cobros" imprimible (mig 260)](#changelog--sesiones-2026-09-09--11-v01542--recetas-a-recepción-migs-257258--presupuestos-sin-paso-intermedio-mig-259--resumen-de-cobros-imprimible-mig-260)
 - [Changelog — Sesiones 2026-09-18 → 22 (v0.15.43) — Landing paralela /2 + permiso de almacén por miembro (migs 266/267) + auditoría de Sentry](#changelog--sesiones-2026-09-18--22-v01543--landing-paralela-2--permiso-de-almacén-por-miembro-migs-266267--auditoría-de-sentry)
 - [Changelog — Sesión 2026-09-22 (v0.15.44) — Tratamientos: insumos de la propia farmacia + cierre "Completado" + fuentes repuestas (mig 268)](#changelog--sesión-2026-09-22-v01544--tratamientos-insumos-de-la-propia-farmacia--cierre-completado--fuentes-repuestas-mig-268)
-- [Changelog — Sesiones 2026-09-30 → 10-01 (v0.15.45) — Incidente de la agenda en blanco + blindaje de embeds + pre-reserva (mig 274) + reporte de turno de Caja + Conversaciones: bandeja de WhatsApp con Yendy IA (migs 275-276)](#changelog--sesiones-2026-09-30--10-01-v01545--incidente-de-la-agenda-en-blanco--blindaje-de-embeds--pre-reserva-mig-274--reporte-de-turno-de-caja--conversaciones-bandeja-de-whatsapp-con-yendy-ia-migs-275-276)
+- [Changelog — Sesiones 2026-09-30 → 10-01 (v0.15.45) — Incidente de la agenda en blanco + blindaje de embeds + pre-reserva (mig 274) + reporte de turno de Caja + Conversaciones: bandeja de WhatsApp con Yendy IA (migs 275-277)](#changelog--sesiones-2026-09-30--10-01-v01545--incidente-de-la-agenda-en-blanco--blindaje-de-embeds--pre-reserva-mig-274--reporte-de-turno-de-caja--conversaciones-bandeja-de-whatsapp-con-yendy-ia-migs-275-277)
 
 ---
 
@@ -5083,9 +5083,9 @@ PRs de la sesión: #373 (Sentry cableado, mergeado), #374 (fuentes `.woff2` repu
 - **Estado en producción (30-sep)**: mig **273 aplicada** y verificada (columnas, triggers, funciones, índices; RPC solo para `authenticated`). Mensaje de WhatsApp fijo en código (`buildRescheduleMessage`); hacerlo editable en Plantillas requiere ampliar el CHECK de `org_whatsapp_clipboard_templates` (PR aparte).
 - **Pendiente (PRs aparte)**: recordatorios automáticos que nunca se enviaron (cron 1×/día + ventana UTC), no-show y portal dentro del ciclo, devolución tardía de adelantos.
 
-## Changelog — Sesiones 2026-09-30 → 10-01 (v0.15.45) — Incidente de la agenda en blanco + blindaje de embeds + pre-reserva (mig 274) + reporte de turno de Caja + Conversaciones: bandeja de WhatsApp con Yendy IA (migs 275-276)
+## Changelog — Sesiones 2026-09-30 → 10-01 (v0.15.45) — Incidente de la agenda en blanco + blindaje de embeds + pre-reserva (mig 274) + reporte de turno de Caja + Conversaciones: bandeja de WhatsApp con Yendy IA (migs 275-277)
 
-PRs de la sesión: #383 (incidente), #384 (blindaje), #385 (cancelar en 2 pasos, saldo del adelanto, pre-reserva), #386 (badges, contadores, reporte de Caja), #387 (contador de espera), #388 (Conversaciones), #389/#390 (conexión manual de WhatsApp), #391 (investigación de Flows, base de conocimientos robusta + Ajustes a pantalla completa, mig 276).
+PRs de la sesión: #383 (incidente), #384 (blindaje), #385 (cancelar en 2 pasos, saldo del adelanto, pre-reserva), #386 (badges, contadores, reporte de Caja), #387 (contador de espera), #388 (Conversaciones), #389/#390 (conexión manual de WhatsApp), #391 (investigación de Flows, base de conocimientos robusta + Ajustes a pantalla completa, mig 276), #392 (rendimiento de la bandeja, mig 277).
 
 ### Incidente 30-sep: la agenda se veía vacía — PR #383
 - La mig 273 agregó `patient_payments.transferred_from_appointment_id` **con FK a `appointments`**. Con dos FKs entre ambas tablas, PostgREST no sabe cuál usar en un embed sin hint como `patient_payments(amount)` y responde **PGRST201**: la consulta de la agenda fallaba entera y la grilla salía en blanco. Las citas nunca se perdieron (el historial las mostraba).
@@ -5144,8 +5144,18 @@ PRs de la sesión: #383 (incidente), #384 (blindaje), #385 (cancelar en 2 pasos,
 - **"Guardar como caso" desde el chat**: al pasar el mouse por un mensaje de la paciente aparece un marcador; precarga su mensaje y la respuesta real que dio el equipo (primer saliente posterior), con situación, servicio y "hacia dónde encauzar". Brechas también se resuelven como **ficha** (un dato) o como **caso** (cómo responder).
 - Verificación: `tsc`, `check:embeds`, harness SQL (B1…Y3, P1, RB 276, RB 275) y `next build` en verde. Sin cambios en agenda ni en otros módulos.
 
+### Conversaciones: rendimiento para miles de chats (mig 277) — PR #392
+Objetivo: que la bandeja no se vuelva lenta cuando una clínica acumule mil o más conversaciones, y que nada de esto toque la agenda ni otros módulos (sus hooks, consultas e intervalos solo viven en `/conversaciones`).
+- **Mig 277 (pendiente de aplicar; solo un índice)**: `idx_wa_conv_org_updated (organization_id, updated_at DESC)` en `wa_conversations`. Sin tablas, columnas, FKs ni políticas. Rollback: `rollbacks/277_wa_inbox_perf_rollback.sql`.
+- **Sondeo por diferencias** (`use-inbox.ts`): la lista deja de bajar 300 conversaciones (≈ 120 KB) cada 8 s y pide cada 5 s solo las que cambiaron (`updated_at` posterior a la última vista), mezclándolas en caché; refresco completo cada 60 s como red de seguridad. El chat deja de bajar 150 mensajes cada 4 s y pide cada 3 s solo los nuevos (`ts` posterior al último) y el estado ✓/✓✓ de los últimos 20 salientes no leídos. Un fallo del delta se registra y lo cubre el refresco completo; un fallo de la carga se lanza y la pantalla avisa (regla de CLAUDE.md).
+- **Paginación por cursor**: lista en páginas de 100 con "Cargar más conversaciones"; chat con "Cargar mensajes anteriores" (50) conservando la posición de lectura. El refresco completo respeta lo ya cargado.
+- **Lista virtualizada** con `@tanstack/react-virtual` (solo se pintan las filas visibles + 8). Marcar como leído parchea la caché en lugar de invalidar la lista.
+- **Banco de pruebas de rendimiento** `supabase/tests/inbox/perf/run.sh`: Postgres desechable, 1 000 conversaciones / 50 000 mensajes + 30 000 conversaciones de ruido de otras orgs, cada consulta de la bandeja y de Yendy con `EXPLAIN (ANALYZE)`; falla si alguna hace Seq Scan de `wa_conversations`/`wa_messages` o supera su tope. Fue el que detectó que el delta necesitaba la 277. Presupuesto por pantalla y reglas: `docs/rendimiento-conversaciones.md`.
+- Verificación: `tsc`, `check:embeds`, harness funcional (ahora aplica 275 → 276 → 277 y revierte 277 → 276 → 275), banco de rendimiento (todas las consultas < 1 ms e indexadas) y `next build` en verde.
+
 ### Pendiente
-- Merge del #389, **Verificar** de nuevo en la org sandbox y primera conversación de punta a punta.
+- Aplicar la mig 277 (solo índice) en el SQL Editor y `/api/health/schema` → `ok: true`.
+- Hoja de ruta aprobada (1-oct): pulgar arriba/abajo + texto final + etiqueta "Agendó/Asistió" (mig 278) → casos candidatos con aprobación → panel de medición → Flows (React Flow, 60 fps; el motor corre en el servidor).
 - `ANTHROPIC_API_KEY` en Vercel como Sensitive (Production + Preview) con clave de cuenta de servicio; BAA con Anthropic antes de pacientes reales.
 - Opcional: job de pg_cron para programados sin pantalla abierta (o cron por minuto con Vercel Pro).
 - Siguientes fases de Conversaciones: agente de IA autónomo, importar 90 días de historial (coexistencia), media en Storage, asignación de chats y métricas de respuesta.

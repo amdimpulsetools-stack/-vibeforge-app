@@ -25,8 +25,13 @@ echo "  aplicada  275 (x2, idempotente)"
 apply "$ROOT/supabase/migrations/276_wa_kb_playbook.sql"
 apply "$ROOT/supabase/migrations/276_wa_kb_playbook.sql"
 echo "  aplicada  276 (x2, idempotente)"
+apply "$ROOT/supabase/migrations/277_wa_inbox_perf.sql"
+apply "$ROOT/supabase/migrations/277_wa_inbox_perf.sql"
+echo "  aplicada  277 (x2, idempotente)"
 out=$(psql -h /tmp -p $PORT -U postgres -d inbox_test -v ON_ERROR_STOP=1 -q -f "$HERE/10_inbox_test.sql" 2>&1) || { echo "$out"; exit 1; }
 grep -E "PASS|ERROR" <<<"$out"
+apply "$ROOT/supabase/migrations/rollbacks/277_wa_inbox_perf_rollback.sql"
+apply "$ROOT/supabase/migrations/rollbacks/277_wa_inbox_perf_rollback.sql"
 apply "$ROOT/supabase/migrations/rollbacks/276_wa_kb_playbook_rollback.sql"
 apply "$ROOT/supabase/migrations/rollbacks/276_wa_kb_playbook_rollback.sql"
 psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \

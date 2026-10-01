@@ -61,10 +61,12 @@ export interface InboxConversation {
   last_message_dir: InboxDirection | null;
   unread_count: number;
   first_referral_headline: string | null;
+  /** Cambia con cada escritura (mig 275/277): llave del sondeo por diferencias. */
+  updated_at: string;
 }
 
 export const INBOX_CONVERSATION_COLUMNS =
-  "id, phone_normalized, display_name, patient_id, inbox_status, last_message_at, last_inbound_at, last_message_preview, last_message_dir, unread_count, first_referral_headline";
+  "id, phone_normalized, display_name, patient_id, inbox_status, last_message_at, last_inbound_at, last_message_preview, last_message_dir, unread_count, first_referral_headline, updated_at";
 
 /** Orden de los estados de un saliente: un estado nunca retrocede
  *  (Meta no garantiza el orden de los webhooks). */

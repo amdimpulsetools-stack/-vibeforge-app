@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, PanelRightOpen, CheckCheck, Check, Clock, AlertTriangle, FileText, StickyNote, Bot, BookmarkPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatWaPhone, initialsOf, isWindowOpen, windowExpiresAt, type InboxMessage } from "@/lib/inbox/shared";
@@ -20,6 +20,9 @@ export function ChatView({
   onBack,
   onToggleDetails,
   onSent,
+  onLoadOlder,
+  hasOlder,
+  loadingOlder,
 }: {
   conversation: ConversationRow;
   messages: InboxMessage[] | undefined;
@@ -30,16 +33,37 @@ export function ChatView({
   onBack: () => void;
   onToggleDetails: () => void;
   onSent: () => void;
+  onLoadOlder: () => void;
+  hasOlder: boolean;
+  loadingOlder: boolean;
 }) {
   const name = conversationName(conversation);
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastId = messages?.[messages.length - 1]?.id;
 
-  // Baja al final al abrir y cuando llega algo nuevo.
+  // Baja al final al abrir y cuando llega algo nuevo (el último id cambia).
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
   }, [conversation.id, lastId]);
+
+  // "Cargar anteriores" antepone mensajes: se conserva lo que la persona
+  // estaba viendo compensando el alto nuevo (sin salto).
+  const firstId = messages?.[0]?.id;
+  const prependRef = useRef<{ height: number; top: number } | null>(null);
+  function loadOlderKeepingScroll() {
+    const el = scrollRef.current;
+    if (el) prependRef.current = { height: el.scrollHeight, top: el.scrollTop };
+    onLoadOlder();
+  }
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    const saved = prependRef.current;
+    if (el && saved) {
+      el.scrollTop = saved.top + (el.scrollHeight - saved.height);
+      prependRef.current = null;
+    }
+  }, [firstId]);
 
   const fmt = useMemo(() => {
     const time = new Intl.DateTimeFormat("es-PE", { timeZone: timezone, hour: "2-digit", minute: "2-digit" });
@@ -118,7 +142,20 @@ export function ChatView({
         ) : messages.length === 0 ? (
           <p className="py-10 text-center text-xs text-muted-foreground">Sin mensajes todavía.</p>
         ) : (
-          messages.map((m) => {
+          <>
+          {hasOlder && (
+            <div className="mb-2 flex justify-center">
+              <button
+                type="button"
+                onClick={loadOlderKeepingScroll}
+                disabled={loadingOlder}
+                className="rounded-full border border-border bg-card px-3 py-1 text-[11px] font-medium text-muted-foreground hover:text-foreground disabled:opacity-60"
+              >
+                {loadingOlder ? "Cargando…" : "Cargar mensajes anteriores"}
+              </button>
+            </div>
+          )}
+          {messages.map((m) => {
             const d = fmt.ymd(m.ts);
             const showDay = d !== lastDay;
             lastDay = d;
@@ -134,7 +171,8 @@ export function ChatView({
                 <Bubble m={m} time={fmt.time(m.ts)} onSaveCase={m.direction === "in" && (m.body ?? "").trim() ? () => setCaseFor(m) : undefined} />
               </div>
             );
-          })
+          })}
+          </>
         )}
       </div>
 

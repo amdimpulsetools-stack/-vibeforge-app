@@ -160,7 +160,7 @@ Disparador *Botón de plantilla* `confirmar` → Etiqueta `confirmada` → Envia
 
 ## 4. Arquitectura
 
-### 4.1 Datos (mig 277 — la 276 la tomó la base de conocimientos robusta; aditiva; rollback y pruebas como la 275)
+### 4.1 Datos (mig 278 — la 276 la tomó la base de conocimientos robusta y la 277 el índice de rendimiento; aditiva; rollback y pruebas como la 275)
 
 | Tabla / objeto | Columnas clave | RLS |
 |---|---|---|
@@ -231,7 +231,7 @@ Cada fase es un PR aditivo; las migraciones siguen el checklist de `docs/migraci
 | Fase | Entrega | Días *(estimación)* |
 |---|---|---|
 | **0 · Ajustes a pantalla completa** | ✅ hecho el 1-oct (PR #391): ruta `/conversaciones/ajustes` con nav lateral agrupada, secciones movidas, "Flows (próximamente)", botón ⚙ → enlace. | — |
-| **1 · Base + motor (sin pantalla)** | mig 277 + rollback + pruebas SQL; `CapturedInbound` con id de botón; envío de botones/listas y `source='flow'`; esquema zod + validador + motor puro + pruebas unitarias; runtime (hook en entrante, tick en el cron, toma humana, ventana, horario, opt-out, alarma); API de flows; los 3 flows de fábrica sembrados como borrador. Verificable desde el modo Probar vía API. | 8 |
+| **1 · Base + motor (sin pantalla)** | mig 278 + rollback + pruebas SQL; `CapturedInbound` con id de botón; envío de botones/listas y `source='flow'`; esquema zod + validador + motor puro + pruebas unitarias; runtime (hook en entrante, tick en el cron, toma humana, ventana, horario, opt-out, alarma); API de flows; los 3 flows de fábrica sembrados como borrador. Verificable desde el modo Probar vía API. | 8 |
 | **2 · Editor** | lista, editor React Flow (11 nodos), panel de propiedades, paleta, deshacer, Guardar / Publicar / Pausar, validación en vivo. | 6 |
 | **3 · Probar, estadísticas y chat** | cajón "Probar", vista de ejecuciones por flow, insignia "Bot activo" y "Pausar / Reanudar bot" en el panel de la conversación, contadores por nodo, guía en `docs/conversaciones-setup.md`, QA con el número de prueba. | 4 |
 | **Total** | | **≈ 19 (±30 %)** |
