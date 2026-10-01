@@ -204,11 +204,27 @@ export async function POST() {
 
   let webhookSubscribed: boolean | null = null;
   if (result.verified) {
-    // Update verification status
-    await supabase
+    // Update verification status. Antes el error se ignoraba: si el número
+    // ya estaba ACTIVO en otra org (índice único parcial de la mig 262), la
+    // activación fallaba en silencio, la UI decía "Conexión exitosa" y al
+    // recargar la integración volvía a aparecer desconectada.
+    const { error: activateErr } = await supabase
       .from("whatsapp_config")
       .update({ business_verified: true, is_active: true })
       .eq("id", config.id);
+    if (activateErr) {
+      const inUse = activateErr.code === "23505";
+      return NextResponse.json(
+        {
+          verified: false,
+          error: inUse
+            ? "Este número de WhatsApp ya está conectado en otra organización de Yenda. Desconéctalo allí y vuelve a verificar."
+            : "Meta respondió bien, pero no se pudo activar la conexión. Intenta de nuevo.",
+          code: inUse ? "phone_in_use" : "activate_failed",
+        },
+        { status: 409 },
+      );
+    }
 
     // Suscribe la WABA a los webhooks de la app (lo mismo que hace el
     // Embedded Signup). Sin esto, una conexión MANUAL (p. ej. el número
