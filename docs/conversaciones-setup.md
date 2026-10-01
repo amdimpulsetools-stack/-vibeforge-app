@@ -147,6 +147,51 @@ Variables de entorno en Vercel: `ANTHROPIC_API_KEY`. Nada más.
   pueden desactivar.
 - Ajustes ⚙ → **Probar Yendy**: escribes una pregunta como paciente y ves el
   borrador, las fichas usadas y si falta algo en la base. No envía nada.
+- Los Ajustes abren a **pantalla completa** (`/conversaciones/ajustes`, botón ⚙
+  de la lista) con navegación lateral: Bandeja (General, Respuestas rápidas,
+  Etiquetas) · Yendy IA (Guía de conversación, Base de conocimientos, Casos
+  reales, Brechas, Reglas, Probar) · Automatización (Flows, próximamente).
+
+### Migración 276 (guía, fichas por servicio y casos)
+
+Misma receta que la 275: Consulta 1 de `supabase/checks/multi_fk_pairs.sql`
+antes y después (no agrega FKs: el resultado debe ser idéntico), pegar
+`supabase/migrations/276_wa_kb_playbook.sql` en el SQL Editor, luego
+`/api/health/schema` → `ok: true`. Sin la 276 la bandeja y Yendy siguen
+funcionando; los Ajustes avisan "Falta aplicar la migración 276" al guardar
+un caso o una ficha de tipo nuevo. Rollback: `rollbacks/276_wa_kb_playbook_rollback.sql`.
+
+### La fórmula: Guía de conversación
+
+Ajustes ⚙ → **Guía de conversación**. Es cómo Yendy encauza cada chat, y
+viene precargada con una fórmula cálida y "closer" sin ser fría:
+
+1. **Acoger**: saludar por su nombre y agradecer que escriba.
+2. **Responder primero** lo que preguntó, con el dato exacto del catálogo.
+3. **Entender con UNA sola pregunta** si falta un dato para orientarla.
+4. **Orientar**: qué incluye, para quién es, qué esperar (sin prometer).
+5. **Cerrar con el siguiente paso** concreto y fácil: "¿te acomoda esta
+   semana o la próxima? Dime tu horario y te lo reservo".
+6. **Dejar la puerta abierta** si no está lista, sin presionar.
+
+Se edita todo: objetivo, apertura, cierre, respuestas a objeciones ("está
+caro", "lo voy a pensar", "queda lejos", "¿duele?"), lo que siempre debe
+hacer y lo que nunca. Las reglas fijas de seguridad quedan por encima.
+
+### Qué va en cada sitio
+
+| Sitio | Qué es | Ejemplo |
+|---|---|---|
+| **Catálogo** (Administración → Servicios) | Fuente de verdad automática: precio, IGV, duración, indicaciones previas | S/ 150.00 incluye IGV, 30 min |
+| **Base de conocimientos → Por servicio** | Fichas colgadas de cada servicio: qué incluye, para quién, beneficio esperado, preparación, después, pregunta frecuente, objeción | "Incluye evaluación con la especialista, ecografía y plan por escrito" |
+| **Base de conocimientos → Generales** | Lo que no es de un servicio | formas de pago, cancelaciones, cómo llegar |
+| **Casos reales** | Mensaje real de una paciente → la mejor respuesta del equipo → hacia dónde encauzar. Son los ejemplos de tono | "me dijeron que es carísimo" → validar, qué incluye, ofrecer evaluación → dos horarios |
+| **Brechas** | Lo que Yendy no supo; se resuelve como ficha o como caso | — |
+| **Reglas** | Límites y servicios que no se ofrecen por chat | "No confirmar horarios" |
+
+El camino más corto para cargar casos: en el chat, pasar el mouse por un
+mensaje de la paciente → **"Guardar como caso"**. Se precargan su mensaje y la
+respuesta real que dio el equipo; quitar datos personales antes de guardar.
 - Límite: 400 sugerencias por org cada 24 h.
 - La IA **nunca envía sola**: arma un borrador que recepción revisa y envía.
 - Datos de salud: antes de usarlo con pacientes reales, activar HIPAA/BAA en la
@@ -176,7 +221,9 @@ responde con ella. La calidad depende de la base, no del modelo.
 3. **Escribe la respuesta, no el reglamento.** Incluye el *qué hacer*: "Sí, se
    puede reprogramar hasta 24 h antes sin costo; después se pierde el adelanto".
 4. **Empieza por las 20 preguntas reales más frecuentes.** Revisa los chats
-   de las últimas semanas y conviértelas en fichas. Eso cubre ~80 %.
+   de las últimas semanas y conviértelas en **casos** (mensaje real + mejor
+   respuesta) y en fichas. Eso cubre ~80 %. Los casos enseñan el tono; las
+   fichas enseñan los datos.
 5. **El ciclo de brechas es el entrenamiento.** Cada vez que la IA no sabe,
    la pregunta cae en **Brechas**. Responderla ahí crea la ficha. Revisar
    Brechas 10 min a la semana es todo el "entrenamiento" que necesita.

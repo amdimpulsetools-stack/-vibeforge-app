@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Search, Settings2, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatWaPhone, initialsOf, isWindowOpen } from "@/lib/inbox/shared";
@@ -35,7 +36,6 @@ export function ConversationList({
   onSelect,
   timezone,
   canManage,
-  onOpenSettings,
 }: {
   conversations: ConversationRow[];
   tags: OrgTag[];
@@ -43,7 +43,6 @@ export function ConversationList({
   onSelect: (id: string) => void;
   timezone: string;
   canManage: boolean;
-  onOpenSettings: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
@@ -86,15 +85,14 @@ export function ConversationList({
           <h1 className="text-xl font-bold tracking-tight">Conversaciones</h1>
         </div>
         {canManage && (
-          <button
-            type="button"
-            onClick={onOpenSettings}
+          <Link
+            href="/conversaciones/ajustes"
             className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground hover:opacity-90"
             aria-label="Ajustes de Conversaciones"
-            title="Ajustes: etiquetas, respuestas rápidas, Yendy IA"
+            title="Ajustes: Yendy IA, base de conocimientos, casos, respuestas rápidas, etiquetas"
           >
             <Settings2 className="h-4 w-4" />
-          </button>
+          </Link>
         )}
       </header>
 

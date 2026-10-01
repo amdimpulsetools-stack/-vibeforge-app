@@ -10,7 +10,6 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Loader2, MessagesSquare } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -24,8 +23,6 @@ import { ConversationList } from "./conversation-list";
 import { ChatView } from "./chat-view";
 import { DetailsPanel } from "./details-panel";
 import { inboxFetch, inboxKeys, inboxUrl, setInboxOrg, useConversations, useInboxSettings, useMessages, useOrgTags } from "./use-inbox";
-
-const InboxSettingsDialog = dynamic(() => import("./inbox-settings").then((m) => m.InboxSettingsDialog), { ssr: false });
 
 export default function ConversacionesPage() {
   const { organizationId } = useOrganization();
@@ -75,7 +72,6 @@ function InboxApp({ orgId, timezone, canManage }: { orgId: string | null; timezo
   const [detailsOpen, setDetailsOpen] = useState(
     () => typeof window !== "undefined" && window.innerWidth >= 1024,
   );
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const messages = useMessages(activeId);
   useReportLoadError(messages.error, { area: "conversaciones", query: "wa_messages" });
 
@@ -134,7 +130,6 @@ function InboxApp({ orgId, timezone, canManage }: { orgId: string | null; timezo
             onSelect={setActiveId}
             timezone={timezone}
             canManage={canManage}
-            onOpenSettings={() => setSettingsOpen(true)}
           />
         )}
       </div>
@@ -173,8 +168,6 @@ function InboxApp({ orgId, timezone, canManage }: { orgId: string | null; timezo
           </div>
         </>
       )}
-
-      {canManage && settingsOpen && <InboxSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />}
     </div>
   );
 }

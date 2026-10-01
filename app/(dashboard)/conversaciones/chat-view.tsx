@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
-import { ArrowLeft, PanelRightOpen, CheckCheck, Check, Clock, AlertTriangle, FileText, StickyNote, Bot } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, PanelRightOpen, CheckCheck, Check, Clock, AlertTriangle, FileText, StickyNote, Bot, BookmarkPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatWaPhone, initialsOf, isWindowOpen, windowExpiresAt, type InboxMessage } from "@/lib/inbox/shared";
 import { DataLoadError } from "../scheduler/data-load-error";
 import { avatarTone, conversationName } from "./conversation-list";
 import { Composer } from "./composer";
+import { SaveCaseDialog } from "./save-case-dialog";
 import { inboxUrl, type ConversationRow } from "./use-inbox";
 
 export function ChatView({
@@ -53,6 +54,17 @@ export function ChatView({
     () => [...(messages ?? [])].reverse().find((m) => m.direction !== "internal")?.id ?? null,
     [messages],
   );
+
+  // "Guardar como caso": el mensaje de la paciente + la respuesta real que
+  // le dio el equipo (el primer saliente después de ese mensaje), a la
+  // base de casos de Yendy (mig 276).
+  const [caseFor, setCaseFor] = useState<InboxMessage | null>(null);
+  const caseReply = useMemo(() => {
+    if (!caseFor || !messages) return null;
+    const idx = messages.findIndex((m) => m.id === caseFor.id);
+    const next = idx >= 0 ? messages.slice(idx + 1).find((m) => m.direction === "out" && (m.body ?? "").trim()) : undefined;
+    return next?.body ?? null;
+  }, [caseFor, messages]);
 
   let lastDay = "";
   return (
@@ -119,7 +131,7 @@ export function ChatView({
                     <span className="h-px flex-1 bg-border" />
                   </div>
                 )}
-                <Bubble m={m} time={fmt.time(m.ts)} />
+                <Bubble m={m} time={fmt.time(m.ts)} onSaveCase={m.direction === "in" && (m.body ?? "").trim() ? () => setCaseFor(m) : undefined} />
               </div>
             );
           })
@@ -133,6 +145,16 @@ export function ChatView({
         timezone={timezone}
         onSent={onSent}
       />
+      {caseFor && (
+        <SaveCaseDialog
+          open={!!caseFor}
+          onOpenChange={(v) => !v && setCaseFor(null)}
+          conversationId={conversation.id}
+          messageId={caseFor.id}
+          patientMessage={caseFor.body ?? ""}
+          suggestedReply={caseReply}
+        />
+      )}
     </section>
   );
 }
@@ -146,7 +168,7 @@ function StatusTicks({ status }: { status: InboxMessage["status"] }) {
   return <Check className="h-3.5 w-3.5" aria-label="Enviado" />;
 }
 
-function Bubble({ m, time }: { m: InboxMessage; time: string }) {
+function Bubble({ m, time, onSaveCase }: { m: InboxMessage; time: string; onSaveCase?: () => void }) {
   if (m.direction === "internal") {
     return (
       <div className="mx-auto my-2 max-w-[80%] rounded-xl border border-amber-300/60 bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
@@ -163,7 +185,7 @@ function Bubble({ m, time }: { m: InboxMessage; time: string }) {
   return (
     <article
       className={cn(
-        "mb-2 w-fit max-w-[78%] rounded-xl px-3 pb-1.5 pt-2 text-[13px] leading-relaxed shadow-sm",
+        "group relative mb-2 w-fit max-w-[78%] rounded-xl px-3 pb-1.5 pt-2 text-[13px] leading-relaxed shadow-sm",
         out
           ? "ml-auto rounded-tr-sm bg-emerald-100 text-emerald-950 dark:bg-emerald-500/20 dark:text-emerald-50"
           : "rounded-tl-sm bg-card text-foreground",
@@ -204,6 +226,17 @@ function Bubble({ m, time }: { m: InboxMessage; time: string }) {
       </time>
       {m.status === "failed" && m.error_title && (
         <p className="mt-1 text-[10.5px] text-red-600 dark:text-red-400">No se envió: {m.error_title}</p>
+      )}
+      {onSaveCase && (
+        <button
+          type="button"
+          onClick={onSaveCase}
+          className="absolute -right-8 top-1 hidden h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground opacity-0 transition-opacity hover:text-primary focus:opacity-100 group-hover:opacity-100 md:grid"
+          aria-label="Guardar como caso para Yendy"
+          title="Guardar como caso para Yendy"
+        >
+          <BookmarkPlus className="h-3.5 w-3.5" />
+        </button>
       )}
     </article>
   );
