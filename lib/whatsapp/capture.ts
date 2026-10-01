@@ -40,6 +40,9 @@ export interface CapturedInbound {
   mediaMime?: string | null;
   mediaCaption?: string | null;
   replyToWamid?: string | null;
+  /** Texto para la bandeja: incluye respuestas de botón/lista y reacciones.
+   *  `body` (F1) queda exactamente como antes. */
+  inboxBody?: string | null;
 }
 
 /** Extrae los mensajes entrantes del payload (los statuses siguen su vía). */
@@ -66,11 +69,12 @@ export function parseInboundMessages(
         // Texto plano cuando lo hay; para botones, el texto del botón;
         // multimedia guarda solo el tipo (el binario es asunto de Fase 3).
         const body =
-          msg.text?.body ??
-          msg.button?.text ??
+          msg.text?.body ?? msg.button?.text ?? null;
+        const inboxBody =
+          body ??
           msg.interactive?.button_reply?.title ??
           msg.interactive?.list_reply?.title ??
-          (msg.reaction?.emoji ? msg.reaction.emoji : null) ??
+          msg.reaction?.emoji ??
           null;
         const media = msg.image ?? msg.audio ?? msg.video ?? msg.document ?? msg.sticker ?? null;
 
@@ -87,6 +91,7 @@ export function parseInboundMessages(
           mediaMime: media?.mime_type ?? null,
           mediaCaption: media?.caption ?? null,
           replyToWamid: msg.context?.id ?? null,
+          inboxBody,
         });
       }
     }
@@ -200,13 +205,12 @@ export async function persistInboundMessages(
           { onConflict: "wamid", ignoreDuplicates: true, count: "exact" },
         );
 
-      const isNew = !msgErr && (count ?? 0) > 0;
-      if (isNew) saved++;
+      if (!msgErr && (count ?? 0) > 0) saved++;
 
       // Bandeja (mig 275): la misma línea de tiempo que usa la recepción.
       // Best-effort y aparte: si falla (o la 275 aún no está), F1 sigue
       // exactamente igual.
-      await mirrorInboundToInbox(admin, orgId, conversationId, msg, isNew);
+      await mirrorInboundToInbox(admin, orgId, conversationId, msg);
     } catch (err) {
       console.error("[Captación] Error capturando mensaje entrante:", err);
       // best-effort: seguir con el resto del lote

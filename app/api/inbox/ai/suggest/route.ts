@@ -22,7 +22,7 @@ const schema = z.object({
  * Devuelve un BORRADOR; nunca envía. Ver lib/inbox/ai.ts (capas de seguridad).
  */
 export async function POST(req: NextRequest) {
-  const ctx = await requireInbox();
+  const ctx = await requireInbox(req);
   if (isInboxError(ctx)) return ctx;
   if (!ctx.settings.ai_enabled) {
     return NextResponse.json({ error: "Yendy IA está desactivada en Ajustes de Conversaciones" }, { status: 403 });

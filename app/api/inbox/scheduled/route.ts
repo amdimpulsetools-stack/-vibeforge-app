@@ -18,7 +18,7 @@ const createSchema = z
 
 /** POST /api/inbox/scheduled — programa un mensaje o una plantilla. */
 export async function POST(req: NextRequest) {
-  const ctx = await requireInbox();
+  const ctx = await requireInbox(req);
   if (isInboxError(ctx)) return ctx;
   const parsed = createSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
@@ -64,7 +64,7 @@ export async function POST(req: NextRequest) {
 
 /** DELETE /api/inbox/scheduled?id=... — cancela un pendiente. */
 export async function DELETE(req: NextRequest) {
-  const ctx = await requireInbox();
+  const ctx = await requireInbox(req);
   if (isInboxError(ctx)) return ctx;
   const id = req.nextUrl.searchParams.get("id") ?? "";
   if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: "id inválido" }, { status: 400 });

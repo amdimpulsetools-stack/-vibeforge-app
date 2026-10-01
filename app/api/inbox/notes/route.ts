@@ -12,7 +12,7 @@ const schema = z.object({
 
 /** POST /api/inbox/notes — nota interna (amarilla). Nunca sale a WhatsApp. */
 export async function POST(req: NextRequest) {
-  const ctx = await requireInbox();
+  const ctx = await requireInbox(req);
   if (isInboxError(ctx)) return ctx;
   const parsed = schema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "Nota inválida" }, { status: 400 });

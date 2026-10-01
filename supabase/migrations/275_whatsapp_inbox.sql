@@ -120,6 +120,21 @@ $$;
 REVOKE ALL ON FUNCTION wa_inbox_can_access(uuid) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION wa_inbox_can_access(uuid) TO authenticated, service_role;
 
+-- Lectura de las tablas de captura (206) con la misma regla que la
+-- bandeja: la 275 pone texto de mensajes (también salientes) en
+-- wa_conversations.last_message_preview, así que un doctor sin permiso o
+-- un miembro inactivo no debe poder leerlas por PostgREST. Ninguna
+-- pantalla las lee desde el navegador (Captación usa captacion_summary,
+-- SECURITY DEFINER vía service role), así que no cambia nada visible.
+DROP POLICY IF EXISTS "Members read own org wa_conversations" ON wa_conversations;
+DROP POLICY IF EXISTS wa_conversations_select ON wa_conversations;
+CREATE POLICY wa_conversations_select ON wa_conversations FOR SELECT TO authenticated
+  USING (wa_inbox_can_access(organization_id));
+DROP POLICY IF EXISTS "Members read own org wa_inbound_messages" ON wa_inbound_messages;
+DROP POLICY IF EXISTS wa_inbound_messages_select ON wa_inbound_messages;
+CREATE POLICY wa_inbound_messages_select ON wa_inbound_messages FOR SELECT TO authenticated
+  USING (wa_inbox_can_access(organization_id));
+
 ALTER TABLE wa_inbox_settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS wa_inbox_settings_select ON wa_inbox_settings;
 CREATE POLICY wa_inbox_settings_select ON wa_inbox_settings FOR SELECT TO authenticated
@@ -184,11 +199,12 @@ ON CONFLICT (wamid) DO NOTHING;
 
 UPDATE wa_conversations c
    SET last_inbound_at = x.last_in,
+       last_message_id = x.id,
        last_message_preview = left(COALESCE(x.body, '[' || x.type || ']'), 120),
        last_message_dir = 'in'
   FROM (
     SELECT DISTINCT ON (conversation_id)
-           conversation_id, ts AS last_in, body, type
+           conversation_id, id, ts AS last_in, body, type
       FROM wa_messages
      WHERE direction = 'in'
      ORDER BY conversation_id, ts DESC
@@ -293,7 +309,7 @@ CREATE TABLE IF NOT EXISTS wa_scheduled_messages (
   CHECK ((kind = 'text' AND body IS NOT NULL AND length(body) BETWEEN 1 AND 4096)
       OR (kind = 'template' AND template_id IS NOT NULL))
 );
-CREATE INDEX IF NOT EXISTS idx_wa_sched_due ON wa_scheduled_messages (send_at) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_wa_sched_due ON wa_scheduled_messages (send_at) WHERE status IN ('pending', 'sending');
 CREATE INDEX IF NOT EXISTS idx_wa_sched_conv ON wa_scheduled_messages (conversation_id, send_at);
 
 ALTER TABLE wa_scheduled_messages ENABLE ROW LEVEL SECURITY;
@@ -313,8 +329,13 @@ AS $$
      SET status = 'sending', attempts = s.attempts + 1, updated_at = now()
    WHERE s.id IN (
      SELECT id FROM wa_scheduled_messages
-      WHERE status = 'pending' AND send_at <= now()
+      WHERE send_at <= now()
         AND (p_org IS NULL OR organization_id = p_org)
+        -- 'sending' de más de 10 min = el envío murió a medias (timeout).
+        -- Retomarlo es seguro: client_msg_id = id del programado, así que
+        -- si ya salió, el UNIQUE de wa_messages lo detecta y no se duplica.
+        AND (status = 'pending'
+             OR (status = 'sending' AND updated_at < now() - interval '10 minutes'))
       ORDER BY send_at
       LIMIT GREATEST(1, LEAST(p_limit, 100))
       FOR UPDATE SKIP LOCKED

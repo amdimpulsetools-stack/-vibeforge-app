@@ -21,7 +21,7 @@ const schema = z.object({
 
 /** POST /api/inbox/send — responde desde Conversaciones (texto o plantilla). */
 export async function POST(req: NextRequest) {
-  const ctx = await requireInbox();
+  const ctx = await requireInbox(req);
   if (isInboxError(ctx)) return ctx;
 
   const parsed = schema.safeParse(await req.json().catch(() => null));

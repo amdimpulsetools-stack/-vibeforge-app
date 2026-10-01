@@ -18,6 +18,22 @@ DROP TABLE IF EXISTS wa_conversation_tags;
 DROP TABLE IF EXISTS org_tags;
 DROP TABLE IF EXISTS wa_messages;
 
+-- Devuelve la lectura de captura a la política original de la 206.
+DROP POLICY IF EXISTS wa_conversations_select ON wa_conversations;
+DROP POLICY IF EXISTS "Members read own org wa_conversations" ON wa_conversations;
+CREATE POLICY "Members read own org wa_conversations"
+  ON wa_conversations FOR SELECT TO authenticated
+  USING (organization_id IN (
+    SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
+  ));
+DROP POLICY IF EXISTS wa_inbound_messages_select ON wa_inbound_messages;
+DROP POLICY IF EXISTS "Members read own org wa_inbound_messages" ON wa_inbound_messages;
+CREATE POLICY "Members read own org wa_inbound_messages"
+  ON wa_inbound_messages FOR SELECT TO authenticated
+  USING (organization_id IN (
+    SELECT organization_id FROM organization_members WHERE user_id = auth.uid()
+  ));
+
 DROP FUNCTION IF EXISTS wa_inbox_can_access(uuid);
 DROP TABLE IF EXISTS wa_inbox_settings;
 

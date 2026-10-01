@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { isInboxError, requireInbox } from "@/lib/inbox/server";
 
 export const runtime = "nodejs";
 
 /** GET /api/inbox/templates — plantillas APROBADAS de la org para el composer. */
-export async function GET() {
-  const ctx = await requireInbox();
+export async function GET(req: NextRequest) {
+  const ctx = await requireInbox(req);
   if (isInboxError(ctx)) return ctx;
   const { data } = await ctx.admin
     .from("whatsapp_templates")

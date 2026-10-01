@@ -27,5 +27,5 @@ grep -E "PASS|ERROR" <<<"$out"
 apply "$ROOT/supabase/migrations/rollbacks/275_whatsapp_inbox_rollback.sql"
 apply "$ROOT/supabase/migrations/rollbacks/275_whatsapp_inbox_rollback.sql"
 psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \
-  "DO \$\$ BEGIN ASSERT to_regclass('public.wa_messages') IS NULL; ASSERT (SELECT count(*) FROM wa_inbound_messages) = 2; RAISE NOTICE 'PASS  RB rollback x2: quita la 275 y conserva los entrantes'; END \$\$;" 2>&1 | grep PASS
+  "DO \$\$ BEGIN ASSERT to_regclass('public.wa_messages') IS NULL; ASSERT (SELECT count(*) FROM wa_inbound_messages) = 2; ASSERT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'wa_conversations' AND policyname = 'Members read own org wa_conversations'); ASSERT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'wa_inbound_messages' AND policyname = 'Members read own org wa_inbound_messages'); RAISE NOTICE 'PASS  RB rollback x2: quita la 275 y conserva los entrantes y repone las políticas de la 206'; END \$\$;" 2>&1 | grep PASS
 echo "OK"

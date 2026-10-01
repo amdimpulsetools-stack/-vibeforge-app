@@ -15,7 +15,7 @@ const schema = z.object({
 
 /** PATCH /api/inbox/conversations/:id — leer, cerrar/reabrir, vincular paciente. */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await requireInbox();
+  const ctx = await requireInbox(req);
   if (isInboxError(ctx)) return ctx;
   const { id } = await params;
   const parsed = schema.safeParse(await req.json().catch(() => null));

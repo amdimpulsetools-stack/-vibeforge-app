@@ -12,7 +12,8 @@ import { isWindowOpen, messagePreview } from "./shared";
  *   1. Reserva: INSERT de la fila con status 'sending' y client_msg_id
  *      UNIQUE por org. Un doble clic / reintento del navegador choca con
  *      el UNIQUE y devuelve la fila ya existente: jamás dos envíos.
- *   2. Meta: el client_msg_id viaja como biz_opaque_callback_data, así un
+ *   2. Meta: el id de la fila (uuid del servidor, único global) viaja como
+ *      biz_opaque_callback_data, así un
  *      timeout de Graph se concilia solo cuando llegan los estados.
  *   3. Resultado: wamid + 'sent', o 'failed' con el motivo de Meta.
  *
@@ -100,8 +101,6 @@ export async function sendFromInbox(p: SendParams): Promise<SendResult> {
     templateName = tpl.meta_template_name;
     templateLang = tpl.language;
   }
-  payload.biz_opaque_callback_data = p.clientMsgId;
-
   // 1. Reserva (anti doble envío).
   const now = new Date().toISOString();
   const { data: claimed, error: claimErr } = await admin
@@ -139,6 +138,7 @@ export async function sendFromInbox(p: SendParams): Promise<SendResult> {
     return { ok: false, status: 500, error: "No se pudo registrar el mensaje" };
   }
   const messageId = claimed.id as string;
+  payload.biz_opaque_callback_data = messageId;
 
   // 2. Meta.
   try {

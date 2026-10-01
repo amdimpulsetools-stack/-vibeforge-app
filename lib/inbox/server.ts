@@ -43,21 +43,31 @@ export const DEFAULT_INBOX_SETTINGS: InboxSettings = {
   ai_signature: null,
 };
 
-export async function requireInbox(): Promise<InboxContext | NextResponse> {
+export async function requireInbox(req: Request): Promise<InboxContext | NextResponse> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const { data: member } = await supabase
+  // La org la manda el cliente (?org=, la que el usuario tiene abierta) y
+  // aquí se exige membresía ACTIVA en ella. Nunca `.limit(1)` sin orden:
+  // con dos clínicas elegiría una arbitraria (ver lib/followups/org-scope.ts).
+  const requestedOrg = new URL(req.url).searchParams.get("org");
+  let membersQuery = supabase
     .from("organization_members")
     .select("organization_id, role")
     .eq("user_id", user.id)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-  if (!member) return NextResponse.json({ error: "Sin organización" }, { status: 403 });
+    .eq("is_active", true);
+  if (requestedOrg) membersQuery = membersQuery.eq("organization_id", requestedOrg);
+  const { data: members } = await membersQuery.limit(2);
+  if (!members || members.length === 0) {
+    return NextResponse.json({ error: "No perteneces a esta organización" }, { status: 403 });
+  }
+  if (members.length > 1) {
+    return NextResponse.json({ error: "Falta indicar la organización" }, { status: 400 });
+  }
+  const member = members[0];
 
   const orgId = member.organization_id as string;
   const role = (member.role as string) ?? "member";

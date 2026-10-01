@@ -35,6 +35,7 @@ Qué hace la 275 (todo nuevo, nada se borra ni se renombra):
 | `wa_scheduled_messages` | mensajes programados |
 | `wa_inbox_settings` | toggle de doctores + configuración de Yendy IA |
 | `wa_kb_entries`, `wa_kb_gaps`, `wa_ai_suggestions` | base de conocimientos, brechas y bitácora de IA |
+| Lectura de `wa_conversations` / `wa_inbound_messages` | pasa a la misma regla de la bandeja (miembro activo; doctor solo con el toggle). Ninguna pantalla las lee desde el navegador: Captación usa su RPC con service role, así que no cambia nada visible. El rollback repone la política original |
 
 Si algo sale mal: ejecutar el rollback. Los mensajes entrantes no se pierden
 (siguen en `wa_inbound_messages`, que la 275 no modifica).

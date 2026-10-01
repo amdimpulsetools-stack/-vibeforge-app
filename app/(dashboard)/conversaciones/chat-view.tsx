@@ -7,7 +7,7 @@ import { formatWaPhone, initialsOf, isWindowOpen, windowExpiresAt, type InboxMes
 import { DataLoadError } from "../scheduler/data-load-error";
 import { avatarTone, conversationName } from "./conversation-list";
 import { Composer } from "./composer";
-import type { ConversationRow } from "./use-inbox";
+import { inboxUrl, type ConversationRow } from "./use-inbox";
 
 export function ChatView({
   conversation,
@@ -154,7 +154,7 @@ function Bubble({ m, time }: { m: InboxMessage; time: string }) {
     );
   }
   const out = m.direction === "out";
-  const mediaUrl = m.meta_media_id ? `/api/inbox/media/${m.id}` : null;
+  const mediaUrl = m.meta_media_id ? inboxUrl(`/api/inbox/media/${m.id}`) : null;
   return (
     <article
       className={cn(

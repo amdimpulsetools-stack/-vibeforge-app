@@ -23,12 +23,14 @@ import { DataLoadError, useReportLoadError } from "../scheduler/data-load-error"
 import { ConversationList } from "./conversation-list";
 import { ChatView } from "./chat-view";
 import { DetailsPanel } from "./details-panel";
-import { inboxFetch, inboxKeys, useConversations, useInboxSettings, useMessages, useOrgTags } from "./use-inbox";
+import { inboxFetch, inboxKeys, inboxUrl, setInboxOrg, useConversations, useInboxSettings, useMessages, useOrgTags } from "./use-inbox";
 
 const InboxSettingsDialog = dynamic(() => import("./inbox-settings").then((m) => m.InboxSettingsDialog), { ssr: false });
 
 export default function ConversacionesPage() {
   const { organizationId } = useOrganization();
+  // Antes de cualquier llamada a /api/inbox/* (hijos y queries de este render).
+  setInboxOrg(organizationId ?? null);
   const { isAdmin, isDoctor, loading: roleLoading } = useOrgRole();
   const { hasAnyAddon, loading: addonsLoading } = useOrgAddons();
   const { timezone } = useOrgToday();
@@ -100,7 +102,7 @@ function InboxApp({ orgId, timezone, canManage }: { orgId: string | null; timezo
   // (el disparador principal es pg_cron → /api/cron/inbox-dispatch).
   useEffect(() => {
     const tick = () => {
-      if (document.visibilityState === "visible") void fetch("/api/inbox/dispatch", { method: "POST" }).catch(() => undefined);
+      if (document.visibilityState === "visible") void fetch(inboxUrl("/api/inbox/dispatch"), { method: "POST" }).catch(() => undefined);
     };
     tick();
     const id = setInterval(tick, 60_000);

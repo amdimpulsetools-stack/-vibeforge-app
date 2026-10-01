@@ -96,7 +96,7 @@ export async function buildKbSnapshot(admin: SupabaseClient, orgId: string): Pro
   for (const s of services) {
     const price = Number(s.base_price ?? 0);
     const priceText = price > 0 ? `${formatSoles(price)} (${IGV_LABEL[s.igv_affectation ?? 1] ?? "incluye IGV"})` : "precio a consultar";
-    if (price > 0) priceStrings.push(formatSoles(price));
+    if (price > 0) priceStrings.push(formatSoles(price), `S/ ${Number(price).toFixed(2)}`);
     lines.push(`- [svc:${s.id.slice(0, 8)}] ${s.name} — ${priceText}${s.duration_minutes ? ` — duración ${s.duration_minutes} min` : ""}`);
     if (s.pre_appointment_instructions?.trim()) {
       lines.push(`  · Indicaciones previas: ${s.pre_appointment_instructions.trim().slice(0, 600)}`);

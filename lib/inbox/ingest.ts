@@ -14,7 +14,6 @@ export async function mirrorInboundToInbox(
   orgId: string,
   conversationId: string,
   msg: CapturedInbound,
-  isNew: boolean,
 ): Promise<void> {
   try {
     const { data, error } = await admin
@@ -27,7 +26,7 @@ export async function mirrorInboundToInbox(
           source: "patient",
           wamid: msg.wamid,
           type: msg.type || "text",
-          body: msg.body,
+          body: msg.inboxBody ?? msg.body,
           reply_to_wamid: msg.replyToWamid ?? null,
           meta_media_id: msg.mediaId ?? null,
           media_mime: msg.mediaMime ?? null,
@@ -43,15 +42,15 @@ export async function mirrorInboundToInbox(
       return;
     }
     const inserted = (data ?? [])[0] as { id: string } | undefined;
-    // Contador de no leídos solo para filas realmente nuevas (un
-    // reintento de Meta no suma dos veces).
-    if (inserted && isNew !== false) {
+    // Contador de no leídos solo para filas realmente nuevas: el upsert
+    // ignora duplicados, así un reintento de Meta no suma dos veces.
+    if (inserted) {
       await admin.rpc("wa_inbox_touch", {
         p_conversation: conversationId,
         p_message: inserted.id,
         p_dir: "in",
         p_ts: msg.receivedAt,
-        p_preview: messagePreview({ type: msg.type, body: msg.body, media_caption: msg.mediaCaption }),
+        p_preview: messagePreview({ type: msg.type, body: msg.inboxBody ?? msg.body, media_caption: msg.mediaCaption }),
       });
     }
   } catch (err) {
@@ -78,12 +77,14 @@ export async function applyInboxStatuses(admin: SupabaseClient, updates: StatusU
         continue;
       }
       // Timeout al enviar: la fila quedó sin wamid ('unknown'). Meta nos
-      // devuelve nuestro client_msg_id en biz_opaque_callback_data.
+      // devuelve el id de la fila (generado por el servidor, no por el
+      // navegador) en biz_opaque_callback_data.
       if (!row && u.callbackData && /^[0-9a-f-]{36}$/i.test(u.callbackData)) {
         const { data: byCallback } = await admin
           .from("wa_messages")
           .select("id, status, wamid")
-          .eq("client_msg_id", u.callbackData)
+          .eq("id", u.callbackData)
+          .eq("direction", "out")
           .is("wamid", null)
           .maybeSingle();
         row = byCallback;

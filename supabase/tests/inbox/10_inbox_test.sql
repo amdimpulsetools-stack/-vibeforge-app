@@ -20,6 +20,8 @@ BEGIN
   ASSERT (SELECT last_inbound_at IS NOT NULL AND last_message_dir = 'in'
             FROM wa_conversations WHERE id = t_id('convA')), 'B1: contadores rellenados';
   ASSERT (SELECT unread_count FROM wa_conversations WHERE id = t_id('convA')) = 0, 'B1: no leídos arrancan en 0';
+  ASSERT (SELECT c.last_message_id = m.id FROM wa_conversations c JOIN wa_messages m ON m.wamid = 'wamid.pre'
+           WHERE c.id = t_id('convA')), 'B1: last_message_id apunta al último (evita falso "hilo cambió")';
   RAISE NOTICE 'PASS  B1 backfill de entrantes y contadores';
 END $$;
 
@@ -82,6 +84,8 @@ DO $$
 BEGIN
   ASSERT (SELECT count(*) FROM wa_messages) = 0, 'D1: doctor sin toggle no ve mensajes';
   ASSERT NOT wa_inbox_can_access(t_id('orgA')), 'D1: helper false';
+  ASSERT (SELECT count(*) FROM wa_conversations) = 0, 'D1: doctor sin toggle no lee wa_conversations (previews)';
+  ASSERT (SELECT count(*) FROM wa_inbound_messages) = 0, 'D1: doctor sin toggle no lee wa_inbound_messages';
   RAISE NOTICE 'PASS  D1 doctor sin acceso por defecto';
 END $$;
 SELECT set_config('test.uid', t_id('admin')::text, false);
@@ -105,6 +109,10 @@ BEGIN
   SELECT count(*) INTO n1 FROM wa_claim_due_scheduled(25, NULL);
   SELECT count(*) INTO n2 FROM wa_claim_due_scheduled(25, NULL);
   ASSERT n1 = 1 AND n2 = 0, 'S1: toma solo vencidos y una sola vez';
+  -- Un envío que murió a medias ('sending' > 10 min) se retoma.
+  UPDATE wa_scheduled_messages SET updated_at = now() - interval '11 minutes' WHERE status = 'sending';
+  SELECT count(*) INTO n1 FROM wa_claim_due_scheduled(25, NULL);
+  ASSERT n1 = 1, 'S1: retoma un sending colgado';
   ASSERT NOT has_function_privilege('authenticated', 'wa_claim_due_scheduled(integer, uuid)', 'EXECUTE'), 'S1: grants';
   ASSERT NOT has_function_privilege('anon', 'wa_inbox_can_access(uuid)', 'EXECUTE'), 'S1: anon';
   RAISE NOTICE 'PASS  S1 programados: toma atómica + grants';

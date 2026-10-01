@@ -205,12 +205,26 @@ export function useApprovedTemplates(orgId: string | null) {
     enabled: !!orgId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const res = await fetch("/api/inbox/templates");
+      const res = await fetch(inboxUrl("/api/inbox/templates"));
       if (!res.ok) return [] as ApprovedTemplate[];
       const json = (await res.json()) as { templates: ApprovedTemplate[] };
       return json.templates ?? [];
     },
   });
+}
+
+/**
+ * Org que el usuario tiene abierta. Toda llamada a /api/inbox/* la manda
+ * (?org=) y el servidor exige membresía activa en ella: con dos clínicas
+ * la API no debe adivinar cuál.
+ */
+let inboxOrgId: string | null = null;
+export function setInboxOrg(orgId: string | null) {
+  inboxOrgId = orgId;
+}
+export function inboxUrl(url: string): string {
+  if (!inboxOrgId) return url;
+  return `${url}${url.includes("?") ? "&" : "?"}org=${encodeURIComponent(inboxOrgId)}`;
 }
 
 /** POST/PATCH/DELETE a /api/inbox/* con el error legible de la API. */
@@ -219,7 +233,7 @@ export async function inboxFetch<T = unknown>(
   init: { method: string; body?: unknown },
 ): Promise<{ ok: true; data: T } | { ok: false; status: number; error: string; code?: string }> {
   try {
-    const res = await fetch(url, {
+    const res = await fetch(inboxUrl(url), {
       method: init.method,
       headers: init.body ? { "Content-Type": "application/json" } : undefined,
       body: init.body ? JSON.stringify(init.body) : undefined,
