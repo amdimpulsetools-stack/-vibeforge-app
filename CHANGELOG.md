@@ -5085,7 +5085,7 @@ PRs de la sesión: #373 (Sentry cableado, mergeado), #374 (fuentes `.woff2` repu
 
 ## Changelog — Sesiones 2026-09-30 → 10-01 (v0.15.45) — Incidente de la agenda en blanco + blindaje de embeds + pre-reserva (mig 274) + reporte de turno de Caja + Conversaciones: bandeja de WhatsApp con Yendy IA (migs 275-279)
 
-PRs de la sesión: #383 (incidente), #384 (blindaje), #385 (cancelar en 2 pasos, saldo del adelanto, pre-reserva), #386 (badges, contadores, reporte de Caja), #387 (contador de espera), #388 (Conversaciones), #389/#390 (conexión manual de WhatsApp), #391 (investigación de Flows, base de conocimientos robusta + Ajustes a pantalla completa, mig 276), #392 (rendimiento de la bandeja, mig 277), #393 (pulgar arriba/abajo + Agendó/Asistió automático, mig 278), #394 (cierre de Yendy sin "franja" ni "sin compromiso"), #395 (casos candidatos minados de los chats que cerraron, mig 279).
+PRs de la sesión: #383 (incidente), #384 (blindaje), #385 (cancelar en 2 pasos, saldo del adelanto, pre-reserva), #386 (badges, contadores, reporte de Caja), #387 (contador de espera), #388 (Conversaciones), #389/#390 (conexión manual de WhatsApp), #391 (investigación de Flows, base de conocimientos robusta + Ajustes a pantalla completa, mig 276), #392 (rendimiento de la bandeja, mig 277), #393 (pulgar arriba/abajo + Agendó/Asistió automático, mig 278), #394 (cierre de Yendy sin "franja" ni "sin compromiso" + casos candidatos minados de los chats que cerraron, mig 279).
 
 ### Incidente 30-sep: la agenda se veía vacía — PR #383
 - La mig 273 agregó `patient_payments.transferred_from_appointment_id` **con FK a `appointments`**. Con dos FKs entre ambas tablas, PostgREST no sabe cuál usar en un embed sin hint como `patient_payments(amount)` y responde **PGRST201**: la consulta de la agenda fallaba entera y la grilla salía en blanco. Las citas nunca se perdieron (el historial las mostraba).
@@ -5164,7 +5164,7 @@ Fase 2 de la hoja de ruta: las señales con las que después se minarán casos c
 ### Yendy: cierre seguro — PR #394
 - La regla fija 6 pedía "día y franja horaria"; la fórmula sugerida cerraba con "horario tentativo sin compromiso". Ahora la regla delega el cierre en la Guía de conversación y, si no dice nada, pregunta "¿Estarías buscando una cita para algún día de esta semana o la siguiente?"; la fórmula sugerida cierra igual y lista en "Nunca" los cierres tibios y la palabra "franja". Las clínicas con guía propia no cambian.
 
-### Conversaciones: casos candidatos minados de los chats que cerraron (mig 279) — PR #395
+### Conversaciones: casos candidatos minados de los chats que cerraron (mig 279) — PR #394
 Fase 3 de la hoja de ruta: el "módulo de entrenamiento" con aprobación humana.
 - **Mig 279**: tabla `wa_kb_case_candidates` (status pending/approved/rejected, outcome, score 1-5, intent, service_id y rastros sin FK, patient_message, ideal_reply, guidance, rationale; UNA FK nueva → `wa_conversations`, par sin FK previa; RLS: SELECT/DELETE admin, INSERT/UPDATE solo API), `wa_conversations.mined_at` + índice parcial `(organization_id, outcome_at) WHERE outcome IS NOT NULL AND mined_at IS NULL`, `wa_inbox_settings.ai_mined_at`. Rollback conserva los casos aprobados.
 - **Minería** (`lib/inbox/mining.ts`, `POST /api/inbox/ai/mine`, solo admin): revisa 8 chats cerrados por corrida (40 mensajes cada uno, modelo de la org), salida estructurada: ¿vale como ejemplo?, puntaje, intención, servicio del catálogo, mensaje de la paciente y respuesta real copiados tal cual sin teléfonos/DNI/apellidos, encauce y por qué funcionó. Chats muy cortos se marcan sin IA; un error no marca el chat (se reintenta). Automático al abrir la sección como mucho una vez por semana; "Buscar ahora" fuerza.
@@ -5173,7 +5173,7 @@ Fase 3 de la hoja de ruta: el "módulo de entrenamiento" con aprobación humana.
 
 ### Pendiente
 - Aplicar la mig 279 (casos candidatos) en el SQL Editor y `/api/health/schema` → `ok: true`.
-- Hoja de ruta aprobada (1-oct): ✅ rendimiento (#392) → ✅ pulgar + Agendó/Asistió (#393) → ✅ casos candidatos con aprobación (#395, mig 279) → panel de medición → Flows (React Flow, 60 fps; el motor corre en el servidor).
+- Hoja de ruta aprobada (1-oct): ✅ rendimiento (#392) → ✅ pulgar + Agendó/Asistió (#393) → ✅ casos candidatos con aprobación (#394, mig 279) → panel de medición → Flows (React Flow, 60 fps; el motor corre en el servidor).
 - `ANTHROPIC_API_KEY` en Vercel como Sensitive (Production + Preview) con clave de cuenta de servicio; BAA con Anthropic antes de pacientes reales.
 - Opcional: job de pg_cron para programados sin pantalla abierta (o cron por minuto con Vercel Pro).
 - Siguientes fases de Conversaciones: agente de IA autónomo, importar 90 días de historial (coexistencia), media en Storage, asignación de chats y métricas de respuesta.
