@@ -158,9 +158,18 @@ export async function sendFromInbox(p: SendParams): Promise<SendResult> {
     });
     return { ok: true, messageId };
   } catch (err) {
-    const title =
-      err instanceof WhatsAppApiError ? err.message : err instanceof Error ? err.message : "Error de Meta";
     const code = err instanceof WhatsAppApiError ? String(err.code) : null;
+    // Token vencido o sin permiso (190 = token inválido/expirado; 131005 =
+    // acceso denegado; 10/200 = permiso faltante): la causa está en la
+    // conexión, no en el mensaje. Se dice qué hacer en vez del texto crudo.
+    const tokenProblem = code !== null && ["190", "131005", "10", "200"].includes(code);
+    const title = tokenProblem
+      ? `El token de WhatsApp venció o perdió permisos (#${code}). Reconecta en Ajustes → WhatsApp con un token permanente.`
+      : err instanceof WhatsAppApiError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : "Error de Meta";
     // Un timeout de red no prueba que Meta no lo envió: queda 'unknown' y
     // el webhook de estados (biz_opaque_callback_data) lo concilia.
     const isNetwork = !(err instanceof WhatsAppApiError);
