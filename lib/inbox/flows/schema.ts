@@ -224,3 +224,6 @@ export function fillVars(text: string, vars: { nombre?: string | null; clinica?:
     .replace(/\s{2,}/g, " ")
     .trim();
 }
+
+/** Aviso de asistente virtual por defecto (política de Meta). {{clinica}} se reemplaza. */
+export const DEFAULT_DISCLOSURE_TEXT = "Soy el asistente virtual de {{clinica}}. Escribe *persona* si quieres hablar con alguien del equipo.";

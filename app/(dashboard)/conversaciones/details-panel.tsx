@@ -4,14 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronRight, X, Plus, Loader2, UserPlus, Link2, CalendarDays, CalendarCheck, Megaphone, Sparkles, Archive, RotateCcw, Search } from "lucide-react";
+import { ChevronRight, X, Plus, Loader2, UserPlus, Link2, CalendarDays, CalendarCheck, Megaphone, Sparkles, Archive, RotateCcw, Search, Bot, Pause, Play } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useFlows } from "./flows/use-flows";
 import { cn } from "@/lib/utils";
 import { createClient } from "@/lib/supabase/client";
 import { useOrganization } from "@/components/organization-provider";
 import { formatWaPhone, type InboxMessage } from "@/lib/inbox/shared";
 import { inboxFetch, inboxKeys, useConversationOutcome, useInboxSettings, useOrgTags, useScheduled, type ConversationRow } from "./use-inbox";
 
-type Section = "attributes" | "tags" | "notes" | "ai" | "scheduled";
+type Section = "attributes" | "tags" | "notes" | "ai" | "bot" | "scheduled";
 
 const TAG_COLORS = ["#10b981", "#3b82f6", "#8b5cf6", "#f59e0b", "#ef4444", "#ec4899", "#14b8a6", "#64748b"];
 
@@ -87,6 +89,9 @@ export function DetailsPanel({
 
         <Toggle label="Yendy IA" expanded={open === "ai"} onClick={() => toggle("ai")} />
         {open === "ai" && <AiInfo />}
+
+        <Toggle label="Bot (Flows)" expanded={open === "bot"} onClick={() => toggle("bot")} />
+        {open === "bot" && <BotPanel conversation={conversation} />}
 
         <Toggle label="Mensajes programados" expanded={open === "scheduled"} onClick={() => toggle("scheduled")} />
         {open === "scheduled" && <Scheduled conversation={conversation} fmt={fmtDateTime} />}
@@ -554,6 +559,98 @@ function AiInfo() {
         clínica (servicios, precios, horarios y las fichas que escriba el equipo). Nunca envía sola.
       </p>
       <p>Lo que no sabe queda en “Brechas” (Ajustes ⚙) para completarlo.</p>
+    </div>
+  );
+}
+
+// ── Bot (Flows, mig 281): estado, pausar / reanudar, iniciar a mano ─
+function BotPanel({ conversation }: { conversation: ConversationRow }) {
+  const { organizationId } = useOrganization();
+  const qc = useQueryClient();
+  const flows = useFlows(organizationId);
+  const [busy, setBusy] = useState(false);
+  const state = useQuery({
+    queryKey: ["inbox", "bot-state", conversation.id, conversation.updated_at],
+    staleTime: 15_000,
+    queryFn: async () => {
+      const sb = createClient();
+      const [{ data: conv, error: e1 }, { data: run }] = await Promise.all([
+        sb.from("wa_conversations").select("bot_paused_until, bot_opted_out").eq("id", conversation.id).maybeSingle(),
+        sb.from("wa_flow_runs").select("id, flow_id, status, started_at").eq("conversation_id", conversation.id).in("status", ["running", "waiting_reply", "waiting_delay"]).maybeSingle(),
+      ]);
+      if (e1?.code === "42703") return null; // 281 sin aplicar
+      return {
+        pausedUntil: (conv?.bot_paused_until as string | null) ?? null,
+        optedOut: (conv?.bot_opted_out as boolean | null) ?? false,
+        run: (run as { id: string; flow_id: string; status: string; started_at: string } | null) ?? null,
+      };
+    },
+  });
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ["inbox", "bot-state", conversation.id] });
+    qc.invalidateQueries({ queryKey: inboxKeys.conversations(organizationId) });
+  };
+  async function setPaused(paused: boolean) {
+    setBusy(true);
+    const res = await inboxFetch(`/api/inbox/conversations/${conversation.id}`, { method: "PATCH", body: { bot_paused: paused } });
+    setBusy(false);
+    if (!res.ok) return void toast.error(res.error);
+    toast.success(paused ? "Bot pausado en este chat" : "Bot reanudado");
+    refresh();
+  }
+  async function start(flowId: string) {
+    setBusy(true);
+    const res = await inboxFetch(`/api/inbox/conversations/${conversation.id}/flow`, { method: "POST", body: { flow_id: flowId } });
+    setBusy(false);
+    if (!res.ok) return void toast.error(res.error);
+    toast.success("Flow iniciado");
+    refresh();
+  }
+  const st = state.data;
+  const paused = !!st?.pausedUntil && new Date(st.pausedUntil).getTime() > Date.now();
+  const activeFlows = (flows.data?.flows ?? []).filter((f) => f.status === "active");
+  const flowName = (id: string) => flows.data?.flows.find((f) => f.id === id)?.name ?? "flow";
+  return (
+    <div className="space-y-2 border-b border-border/60 bg-muted/20 px-4 py-3 text-xs text-muted-foreground">
+      {state.isPending || st === undefined ? (
+        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+      ) : st === null ? (
+        <p>Flows no está disponible todavía (falta la migración 281).</p>
+      ) : st.optedOut ? (
+        <p className="flex items-center gap-1.5 font-medium text-red-700 dark:text-red-400"><Bot className="h-3.5 w-3.5" /> La paciente pidió no recibir mensajes automáticos. El bot nunca escribe aquí.</p>
+      ) : (
+        <>
+          <p className="flex items-center gap-1.5 font-medium text-foreground">
+            <Bot className="h-3.5 w-3.5 text-violet-500" />
+            {st.run ? `Bot activo · ${flowName(st.run.flow_id)}` : paused ? "Bot pausado: una persona atiende este chat" : "Sin bot en curso"}
+          </p>
+          {st.run && <p>Estado: {st.run.status === "waiting_reply" ? "esperando respuesta de la paciente" : st.run.status === "waiting_delay" ? "esperando un tiempo" : "ejecutando"}. Si alguien del equipo escribe, el bot se pausa solo.</p>}
+          {paused && st.pausedUntil && <p>Se reanuda solo el {new Date(st.pausedUntil).toLocaleString("es-PE", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}, o antes si lo reanudas.</p>}
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {paused || st.run ? (
+              <button type="button" disabled={busy} onClick={() => void setPaused(!paused || !!st.run)} className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 hover:bg-muted disabled:opacity-60">
+                {paused && !st.run ? <><Play className="h-3 w-3" /> Reanudar bot</> : <><Pause className="h-3 w-3" /> Pausar bot</>}
+              </button>
+            ) : null}
+            {!st.run && activeFlows.length > 0 && (
+              <select
+                disabled={busy}
+                className="rounded-md border border-input bg-background px-2 py-1 text-xs"
+                value=""
+                onChange={(e) => e.target.value && void start(e.target.value)}
+                aria-label="Iniciar flow"
+              >
+                <option value="">Iniciar flow…</option>
+                {activeFlows.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

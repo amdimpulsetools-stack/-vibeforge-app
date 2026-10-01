@@ -232,8 +232,8 @@ Cada fase es un PR aditivo; las migraciones siguen el checklist de `docs/migraci
 |---|---|---|
 | **0 · Ajustes a pantalla completa** | ✅ hecho el 1-oct (PR #391): ruta `/conversaciones/ajustes` con nav lateral agrupada, secciones movidas, "Flows (próximamente)", botón ⚙ → enlace. | — |
 | **1 · Base + motor (sin pantalla)** | ✅ hecho el 1-oct (PR #395): mig 281 + rollback + pruebas SQL; `CapturedInbound` con id de botón; envío de botones/listas y `source='flow'`; esquema zod + validador + motor puro + pruebas unitarias; runtime (hook en entrante, tick en el cron, toma humana, ventana, horario, opt-out, alarma); API de flows; los 3 flows de fábrica sembrados como borrador. Verificable desde el modo Probar vía API. | 8 |
-| **2 · Editor** | lista, editor React Flow (11 nodos), panel de propiedades, paleta, deshacer, Guardar / Publicar / Pausar, validación en vivo. | 6 |
-| **3 · Probar, estadísticas y chat** | cajón "Probar", vista de ejecuciones por flow, insignia "Bot activo" y "Pausar / Reanudar bot" en el panel de la conversación, contadores por nodo, guía en `docs/conversaciones-setup.md`, QA con el número de prueba. | 4 |
+| **2 · Editor** | ✅ hecho el 1-oct (PR #395): lista, editor React Flow (11 nodos), panel de propiedades, paleta (clic o arrastrar), deshacer / rehacer propios, Guardar / Publicar / Pausar, validación en vivo con errores por nodo. | 6 |
+| **3 · Probar, estadísticas y chat** | ✅ hecho el 1-oct (PR #395), salvo el QA con el número de prueba: cajón "Probar" (burbujas sobre el motor puro), contadores por nodo en las tarjetas, "Bot (Flows)" en el panel del chat con Pausar / Reanudar / Iniciar flow, sección Flows en Ajustes, guía en `docs/conversaciones-setup.md`. | 4 |
 | **Total** | | **≈ 19 (±30 %)** |
 
 **Opción B (si se quiere algo antes):** constructor **lineal** tipo Trengo/Leadsales (lista de pasos con ramas solo en Pregunta y Condición, sin canvas). Reutiliza las fases 1 y 3 íntegras y reemplaza la fase 2 por ≈ 2 días. Se puede migrar a canvas después porque el modelo de datos es el mismo grafo. No lo recomendamos como destino final: el fundador pidió nodos y la librería ya está.

@@ -283,9 +283,19 @@ motor puro: no envía ni escribe), `GET …/runs` (ejecuciones y contador por
 nodo), `POST /api/inbox/conversations/:id/flow` (iniciar a mano) y `PATCH
 /api/inbox/conversations/:id { bot_paused }`. Tres flows de fábrica como
 plantillas (bienvenida con menú, nadie respondió en 30 min, confirmación por
-botones). El editor de nodos (fase 2) y el modo Probar + insignia "Bot
-activo" (fase 3) vienen en los siguientes PRs; hasta entonces un flow se
-crea y publica por API o SQL.
+botones). **Pantallas (fases 2 y 3, mismo PR):** `/conversaciones/flows` (lista:
+nombre, disparador, estado, ejecuciones; Nuevo flow desde plantilla o en
+blanco; pausar / activar / archivar) y `/conversaciones/flows/[id]` (editor
+a pantalla completa con React Flow: paleta a la izquierda, lienzo con
+tarjetas y una salida por rama, panel de propiedades a la derecha,
+validación en vivo con errores por nodo, deshacer / rehacer, Guardar
+borrador, Publicar, Pausar / Reanudar y cajón **Probar** con burbujas
+estilo WhatsApp sobre el motor puro: no envía nada). Los contadores de cada
+tarjeta son cuántas veces pasó por ese nodo. Recepción abre el editor en
+solo lectura. En el chat, panel derecho → **Bot (Flows)**: bot activo o
+pausado, Pausar / Reanudar e Iniciar flow a mano. Ajustes → **Flows**:
+interruptor general, horas de pausa, horario silencioso y aviso de
+asistente virtual.
 
 Pruebas: `npm run test:flows` (motor puro, 11 grupos), harness SQL (FL1,
 FL2, rollback 281 ×2), banco de rendimiento (runs vencidos y chats sin

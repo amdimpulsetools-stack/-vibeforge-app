@@ -7,7 +7,7 @@ import { isWindowOpen } from "../shared";
 import { detectAlarm } from "../ai";
 import { notifyOrgMembers } from "@/lib/live-notifications/notify";
 import { resolveOrgTimezone, zonedNow } from "@/lib/org-time";
-import { DefinitionSchema, TriggerSchema, keywordMatches, type FlowDefinition, type Trigger, type TriggerKind } from "./schema";
+import { DEFAULT_DISCLOSURE_TEXT, DefinitionSchema, TriggerSchema, keywordMatches, type FlowDefinition, type Trigger, type TriggerKind } from "./schema";
 import { initialState, step, wantsHuman, wantsOptOut, type Effect, type Env, type RunState, type RunStatus } from "./engine";
 import { buttonsPayload, interactiveDisplayBody, listPayload } from "./wa-payloads";
 import { pauseBotForHuman } from "./pause";
@@ -69,7 +69,7 @@ interface OrgFlowSettings {
   sched: { start_hour?: number; end_hour?: number; start_minute?: number; end_minute?: number; disabled_weekdays?: number[] } | null;
 }
 
-export const DEFAULT_DISCLOSURE = "Soy el asistente virtual de {{clinica}}. Escribe *persona* si quieres hablar con alguien del equipo.";
+export const DEFAULT_DISCLOSURE = DEFAULT_DISCLOSURE_TEXT;
 const ACTIVE: RunStatus[] = ["running", "waiting_reply", "waiting_delay"];
 const CONV_COLS = "id, organization_id, phone_normalized, display_name, patient_id, last_inbound_at, last_message_dir, inbox_status, bot_paused_until, bot_opted_out, created_at";
 
