@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod/v4";
 import type { InboxSettings } from "./server";
+import { parsePlaybook, playbookPrompt } from "./playbook";
 
 /**
  * Yendy IA — "Generar respuesta" (copiloto V1). La recepcionista SIEMPRE
@@ -120,9 +121,11 @@ function systemPrompt(settings: InboxSettings, clinicName: string): string {
     "6. Si quiere agendar: pide/confirma servicio, día y franja horaria preferida, y avisa que le confirmarán el horario disponible. No confirmes horarios específicos como reservados.",
     "7. Estilo WhatsApp: en español, breve (2 a 5 líneas), claro, sin markdown, sin listas largas, una sola burbuja.",
     `8. ${voice} ${emojis} ${signature}`.trim(),
+    "9. Si la pregunta es sobre un servicio, usa primero sus fichas (qué incluye, para quién, preparación, después, objeciones). Los CASOS REALES de la base son ejemplos de tono y de hacia dónde encauzar: imítalos cuando calcen, adáptalos cuando no.",
+    ...playbookPrompt(parsePlaybook(settings.ai_playbook)),
     ...clinicRules(settings.ai_rules),
     "",
-    "En sources pon los ids [svc:…]/[kb:…] de las fichas que usaste (vacío si ninguna).",
+    "En sources pon los ids [svc:…]/[kb:…]/[caso:…] de las fichas o casos que usaste (vacío si ninguno).",
   ].join("\n");
 }
 

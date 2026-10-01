@@ -425,6 +425,7 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 | `org_tags`, `wa_conversation_tags`, `wa_quick_replies`, `wa_scheduled_messages` (mig 275) | Etiquetas por org, respuestas rápidas `/atajo`, mensajes programados (texto o plantilla; `needs_template` si la ventana de 24 h se cerró) |
 | `wa_inbox_settings` (mig 275) | Por org: `doctors_enabled` (doctores ven Conversaciones), IA (`ai_enabled`, `ai_model` Haiku/Sonnet, `ai_tone`, `ai_use_emojis`, `ai_signature`, `ai_rules`, `ai_hidden_service_ids`). Escribe solo admin |
 | `wa_kb_entries`, `wa_kb_gaps`, `wa_ai_suggestions` (mig 275) | Base de conocimientos editable (el catálogo de servicios se lee en vivo, no se copia), brechas (preguntas que la IA no supo) y bitácora de sugerencias (modelo, tokens, latencia, flags; `conversation_id` NULL = prueba desde Ajustes) |
+| `wa_kb_entries.kind` + tipos por servicio, `wa_kb_cases`, `wa_inbox_settings.ai_playbook` (mig 276) | Fichas colgadas de cada servicio (qué incluye, para quién, beneficio, preparación, después, FAQ, objeción) que Yendy lee debajo del servicio; **casos reales** (mensaje → respuesta ideal → encauce; inserta cualquier miembro con acceso, edita admin) como ejemplos de tono; **guía de conversación** jsonb (objetivo, apertura, cierre, objeciones, siempre/nunca; `lib/inbox/playbook.ts` con fórmula sugerida) |
 | `wa_inbox_can_access(org)`, `wa_claim_due_scheduled`, `wa_inbox_touch` (mig 275) | Acceso: miembro activo y doctor solo con el toggle; también rige la lectura de `wa_conversations` / `wa_inbound_messages`. Toma atómica de programados (`SKIP LOCKED`, retoma colgados > 10 min) y contadores atómicos; las dos últimas solo `service_role` |
 
 ---
@@ -651,6 +652,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ├── /caja .................... Módulo Caja: turnos, arqueo, movimientos y bandeja "Fuera de turno" (beta oculta — addon `caja` con grant)
 │   └── /reporte ............. Reporte de turno(s) imprimible: ingresos, egresos, métodos y cuadre (`?turnos=<id>[,…]`)
 ├── /conversaciones .......... Bandeja de WhatsApp + Yendy IA (addon `captacion`; doctores solo con toggle)
+│   └── /ajustes ............. Ajustes a pantalla completa (owner/admin): Guía de conversación, Base de conocimientos, Casos, Brechas, Reglas, Probar, Respuestas rápidas, Etiquetas (`?tab=`)
 │   ├── /budgets ............. Embudo de presupuestos (gateado por el addon Fertilidad)
 │   └── /history ............. Historial de citas pasadas
 ├── /patients ................ Gestión de pacientes
@@ -979,6 +981,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Cancelar en 2 pasos, saldo del adelanto al reprogramar y tiempo de espera desde "Llegó"** — v0.15.45 · detalle: [CHANGELOG.md](CHANGELOG.md)
 - [x] **Caja: reporte de turno imprimible con ingresos y egresos + columnas en Historial** — v0.15.45 (sin migración) · detalle: [CHANGELOG.md](CHANGELOG.md)
 - [x] **Conversaciones: bandeja de WhatsApp (etiquetas, notas, respuestas rápidas, programados, vínculo con paciente) + Yendy IA (base de conocimientos, reglas, servicios ocultos, probador, brechas)** — v0.15.45 (mig 275, aplicada el 1-oct) · detalle: [CHANGELOG.md](CHANGELOG.md), guía `docs/conversaciones-setup.md`
+- [x] **Conversaciones: Ajustes a pantalla completa + Guía de conversación (fórmula) + base de conocimientos por servicio + Casos reales + "Guardar como caso" desde el chat** — v0.15.45 (mig 276, pendiente de aplicar) · detalle: [CHANGELOG.md](CHANGELOG.md)
 
 ### Pendiente / Por Mejorar
 - [ ] **Conversaciones — siguientes pasos**: merge del PR #389 (la conexión manual suscribe la WABA a los webhooks) y primera conversación de punta a punta en la org sandbox; `ANTHROPIC_API_KEY` como Sensitive en Vercel; BAA/HIPAA con Anthropic antes de usar la IA con pacientes reales; job pg_cron de programados (o cron por minuto con Vercel Pro); después: agente de IA autónomo, importar 90 días de historial (coexistencia), media en Storage, asignación de chats y métricas de respuesta

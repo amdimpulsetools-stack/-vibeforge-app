@@ -22,8 +22,15 @@ apply "$HERE/05_pre_data.sql"
 apply "$ROOT/supabase/migrations/275_whatsapp_inbox.sql"
 apply "$ROOT/supabase/migrations/275_whatsapp_inbox.sql"
 echo "  aplicada  275 (x2, idempotente)"
+apply "$ROOT/supabase/migrations/276_wa_kb_playbook.sql"
+apply "$ROOT/supabase/migrations/276_wa_kb_playbook.sql"
+echo "  aplicada  276 (x2, idempotente)"
 out=$(psql -h /tmp -p $PORT -U postgres -d inbox_test -v ON_ERROR_STOP=1 -q -f "$HERE/10_inbox_test.sql" 2>&1) || { echo "$out"; exit 1; }
 grep -E "PASS|ERROR" <<<"$out"
+apply "$ROOT/supabase/migrations/rollbacks/276_wa_kb_playbook_rollback.sql"
+apply "$ROOT/supabase/migrations/rollbacks/276_wa_kb_playbook_rollback.sql"
+psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \
+  "DO \$\$ BEGIN ASSERT to_regclass('public.wa_kb_cases') IS NULL; ASSERT NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'wa_inbox_settings' AND column_name = 'ai_playbook'); ASSERT (SELECT count(*) FROM wa_kb_entries WHERE kind = 'objection') = 0; BEGIN INSERT INTO wa_kb_entries(organization_id, kind, title, content) VALUES ('00000000-0000-0000-0000-00000000000a', 'objection', 't', 'c'); RAISE EXCEPTION 'RB276: el CHECK original no volvió'; EXCEPTION WHEN check_violation THEN NULL; END; RAISE NOTICE 'PASS  RB rollback 276 x2: quita casos y guía, repone el CHECK de tipos'; END \$\$;" 2>&1 | grep PASS
 apply "$ROOT/supabase/migrations/rollbacks/275_whatsapp_inbox_rollback.sql"
 apply "$ROOT/supabase/migrations/rollbacks/275_whatsapp_inbox_rollback.sql"
 psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \

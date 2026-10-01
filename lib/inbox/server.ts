@@ -34,6 +34,8 @@ export interface InboxSettings {
   ai_signature: string | null;
   ai_rules: string | null;
   ai_hidden_service_ids: string[];
+  /** Guía de conversación (mig 276). {} = fórmula sugerida. */
+  ai_playbook: Record<string, unknown>;
 }
 
 export const DEFAULT_INBOX_SETTINGS: InboxSettings = {
@@ -45,6 +47,7 @@ export const DEFAULT_INBOX_SETTINGS: InboxSettings = {
   ai_signature: null,
   ai_rules: null,
   ai_hidden_service_ids: [],
+  ai_playbook: {},
 };
 
 export async function requireInbox(req: Request): Promise<InboxContext | NextResponse> {

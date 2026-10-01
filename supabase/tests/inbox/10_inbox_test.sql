@@ -134,6 +134,52 @@ BEGIN
   RAISE NOTICE 'PASS  Y1 reglas, servicios ocultos y pruebas sin conversación';
 END $$;
 
+-- 276: fichas por servicio, casos reales y guía de conversación.
+SET ROLE authenticated;
+SELECT set_config('test.uid', t_id('recep')::text, false);
+DO $$
+DECLARE e text;
+BEGIN
+  -- Recepción crea un caso (desde el chat) …
+  INSERT INTO wa_kb_cases(organization_id, intent, title, patient_message, ideal_reply, guidance, created_by)
+    VALUES (t_id('orgA'), 'precio', 'Precio consulta', '¿Cuánto cuesta la consulta?', 'Hola, la consulta cuesta S/ 150.00. ¿Te reservo un horario esta semana?', 'Ofrecer dos franjas', t_id('recep'));
+  -- … pero no lo edita ni lo borra (RLS filtra en silencio: 0 filas).
+  UPDATE wa_kb_cases SET ideal_reply = 'cambiado' WHERE organization_id = t_id('orgA');
+  ASSERT (SELECT ideal_reply FROM wa_kb_cases WHERE title = 'Precio consulta') <> 'cambiado', 'Y2: recepción editó un caso';
+  DELETE FROM wa_kb_cases WHERE organization_id = t_id('orgA');
+  ASSERT (SELECT count(*) FROM wa_kb_cases WHERE organization_id = t_id('orgA')) = 1, 'Y2: recepción borró un caso';
+  -- Ni crea casos en otra org.
+  BEGIN
+    INSERT INTO wa_kb_cases(organization_id, title, patient_message, ideal_reply) VALUES (t_id('orgB'), 't', 'p', 'r');
+    RAISE EXCEPTION 'Y2: recepción creó un caso en otra org';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  RAISE NOTICE 'PASS  Y2 casos: recepción propone, no edita ni cruza orgs';
+END $$;
+SELECT set_config('test.uid', t_id('admin')::text, false);
+DO $$
+BEGIN
+  UPDATE wa_kb_cases SET ideal_reply = 'editado por admin' WHERE title = 'Precio consulta';
+  ASSERT (SELECT ideal_reply FROM wa_kb_cases WHERE title = 'Precio consulta') = 'editado por admin', 'Y3: admin edita casos';
+  -- Ficha por servicio con tipo nuevo.
+  INSERT INTO wa_kb_entries(organization_id, kind, title, content, service_id)
+    VALUES (t_id('orgA'), 'objection', 'Está caro', 'Explicar qué incluye y ofrecer la evaluación.', gen_random_uuid());
+  BEGIN
+    INSERT INTO wa_kb_entries(organization_id, kind, title, content) VALUES (t_id('orgA'), 'inventado', 't', 'c');
+    RAISE EXCEPTION 'Y3: aceptó un tipo de ficha inválido';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  -- Guía: solo objetos.
+  UPDATE wa_inbox_settings SET ai_playbook = '{"goal":"agendar"}'::jsonb WHERE organization_id = t_id('orgA');
+  BEGIN
+    UPDATE wa_inbox_settings SET ai_playbook = '[]'::jsonb WHERE organization_id = t_id('orgA');
+    RAISE EXCEPTION 'Y3: aceptó una guía que no es objeto';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  RAISE NOTICE 'PASS  Y3 admin edita casos, fichas por servicio con tipo nuevo y guía validada';
+END $$;
+RESET ROLE;
+
 -- Anti-PGRST201: ningún par de tablas con más de una FK entre sí.
 DO $$
 DECLARE n int;

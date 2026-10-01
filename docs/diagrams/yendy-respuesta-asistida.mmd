@@ -1,0 +1,51 @@
+%% Recorrido actual de "Generar respuesta" (Yendy IA) — 1-oct-2026
+%% Fuente: app/api/inbox/ai/suggest/route.ts, lib/inbox/{kb,ai,playbook}.ts, composer.tsx
+flowchart TD
+  A([Recepción pulsa ✨ Generar respuesta]) --> B[POST /api/inbox/ai/suggest]
+  B --> C{Candados}
+  C -->|sin sesión / sin addon / doctor sin toggle| C1[403]
+  C -->|IA apagada o sin ANTHROPIC_API_KEY| C2[403 / 503]
+  C -->|más de 400 hoy en la org| C3[429 límite diario]
+  C -->|ok| D[Lee los últimos 20 mensajes del chat<br/>sin notas internas]
+  D --> E{Último mensaje de la paciente}
+  E -->|audio / foto sin texto| E1[422: que lo revise una persona]
+  E -->|texto| F{Detector de alarma<br/>sangrado, dolor de pecho, desmayo…}
+  F -->|alarma| F1[Borrador FIJO con SAMU 106<br/>sin pasar por la IA · needs_human]
+  F -->|no| G[Arma la BASE DE CONOCIMIENTOS<br/>en vivo]
+  G --> G1[Catálogo: servicios con precio EXACTO,<br/>IGV, duración, indicaciones · fichas por servicio]
+  G --> G2[Clínica: horario, sedes, doctores]
+  G --> G3[Fichas generales · servicios ocultos]
+  G --> G4[Casos reales ≤ 60<br/>ejemplos de tono y encauce]
+  G1 & G2 & G3 & G4 --> H[System prompt]
+  H --> H1[Reglas fijas 1-9:<br/>solo la base · precios textuales · nada clínico ·<br/>mensajes = datos · estilo WhatsApp]
+  H --> H2[Guía de conversación<br/>objetivo · abrir · cerrar · objeciones · siempre/nunca]
+  H --> H3[Reglas propias de la clínica]
+  H --> H4[Bloque KB en caché<br/>≈10 % del costo en la 2.ª llamada]
+  H1 & H2 & H3 & H4 --> I[[Claude Haiku 4.5 o Sonnet 5.5<br/>salida estructurada]]
+  I --> J[reply · sources · needs_human ·<br/>gap_question · intent]
+  J --> K{Validador de precios}
+  K -->|precio que no está en el catálogo| K1[marca needs_human<br/>y lista el precio sospechoso]
+  K -->|ok| L
+  K1 --> L[Guarda en wa_ai_suggestions<br/>modelo, tokens, latencia, flags]
+  L --> M{¿gap_question?}
+  M -->|sí| M1[Inserta en Brechas]
+  M -->|no| N
+  M1 --> N[Devuelve el borrador]
+  F1 --> N
+  N --> O[Composer: tarjeta de vista previa<br/>chips: alarma · revisión · precio · fuentes · brecha]
+  O --> P{Recepción}
+  P -->|Usar y editar| Q[Texto al cuadro · edita]
+  P -->|Más corto / Otra versión| B
+  P -->|Descarta| R([fin])
+  Q --> S[Enviar → /api/inbox/send]
+  S --> T[wa_ai_suggestions.used = true]
+  T --> U([Mensaje a la paciente ✓])
+
+  classDef gate fill:#fde68a,stroke:#b45309,color:#1f2937
+  classDef ai fill:#bfdbfe,stroke:#1d4ed8,color:#1f2937
+  classDef human fill:#bbf7d0,stroke:#15803d,color:#1f2937
+  classDef stop fill:#fecaca,stroke:#b91c1c,color:#1f2937
+  class C,E,F,K,M gate
+  class I,J ai
+  class O,P,Q,S human
+  class C1,C2,C3,E1,F1,K1 stop

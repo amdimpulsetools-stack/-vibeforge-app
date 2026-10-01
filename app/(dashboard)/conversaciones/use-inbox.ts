@@ -58,6 +58,8 @@ export interface InboxSettingsRow {
   ai_signature: string | null;
   ai_rules: string | null;
   ai_hidden_service_ids: string[];
+  /** Guía de conversación (mig 276). {} = fórmula sugerida. */
+  ai_playbook: Record<string, unknown>;
 }
 
 export interface ApprovedTemplate {
@@ -78,6 +80,8 @@ export const inboxKeys = {
   settings: (org: string | null) => ["inbox", "settings", org] as const,
   templates: (org: string | null) => ["inbox", "templates", org] as const,
   kb: (org: string | null) => ["inbox", "kb", org] as const,
+  cases: (org: string | null) => ["inbox", "kb-cases", org] as const,
+  services: (org: string | null) => ["inbox", "services", org] as const,
   gaps: (org: string | null) => ["inbox", "gaps", org] as const,
 };
 
@@ -119,6 +123,25 @@ export function useMessages(conversationId: string | null) {
         .limit(150);
       if (error) throw new PostgrestLoadError("Mensajes", error);
       return ((data ?? []) as unknown as InboxMessage[]).reverse();
+    },
+  });
+}
+
+/** Servicios activos de la org (catálogo), para fichas y casos por servicio. */
+export function useOrgServices(orgId: string | null) {
+  return useQuery({
+    queryKey: inboxKeys.services(orgId),
+    enabled: !!orgId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await createClient()
+        .from("services")
+        .select("id, name")
+        .eq("organization_id", orgId as string)
+        .eq("is_active", true)
+        .order("name");
+      if (error) throw new PostgrestLoadError("Servicios", error);
+      return (data ?? []) as Array<{ id: string; name: string }>;
     },
   });
 }
@@ -184,6 +207,7 @@ export const DEFAULT_SETTINGS: InboxSettingsRow = {
   ai_signature: null,
   ai_rules: null,
   ai_hidden_service_ids: [],
+  ai_playbook: {},
 };
 
 export function useInboxSettings(orgId: string | null) {
@@ -194,7 +218,7 @@ export function useInboxSettings(orgId: string | null) {
     queryFn: async () => {
       const { data, error } = await createClient()
         .from("wa_inbox_settings")
-        .select("doctors_enabled, ai_enabled, ai_model, ai_tone, ai_use_emojis, ai_signature, ai_rules, ai_hidden_service_ids")
+        .select("doctors_enabled, ai_enabled, ai_model, ai_tone, ai_use_emojis, ai_signature, ai_rules, ai_hidden_service_ids, ai_playbook")
         .eq("organization_id", orgId as string)
         .maybeSingle();
       if (error) throw new PostgrestLoadError("Ajustes de Conversaciones", error);
