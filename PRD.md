@@ -1,8 +1,11 @@
 # VibeForge — Product Requirements Document (PRD)
 
-> **Última actualización:** 2026-09-22
-> **Versión:** 0.15.44
+> **Última actualización:** 2026-10-01
+> **Versión:** 0.15.45
 > **Estado (resumen ejecutivo):**
+> - **Conversaciones: bandeja de WhatsApp + copiloto Yendy IA (v0.15.45, mig 275, PR #388 — 2026-10-01, en producción)**: bandeja tipo Leadsales/Kommo dentro del addon **CRM WhatsApp + Captación** (`captacion`), aditiva (no toca agenda, Caja, pacientes ni facturación). Lista con filtros y etiquetas, chat con notas internas y media vía proxy de Meta (sin Storage), composer con ventana de 24 h, plantillas, `/atajos` y mensajes programados, panel de contacto que vincula o crea la ficha del paciente. Visible para owner/admin/recepción; **doctores solo si un admin lo activa**. **Yendy IA** redacta borradores (Haiku 4.5 o Sonnet 5.5) con el catálogo vivo + fichas editables, reglas propias de la clínica, servicios que no ofrece por chat, probador, ciclo de brechas, filtro de alarma (SAMU 106 sin IA) y validador de precios; nunca envía sola. Coexistencia: lo enviado desde la app del celular aparece en el hilo. Primero en la org sandbox con el número de prueba de Meta; PR #389 (abierto) hace que la conexión manual suscriba la cuenta a los webhooks. Guía: `docs/conversaciones-setup.md`. Detalle: Changelog v0.15.45.
+> - **Agenda en blanco del 30-sep y blindaje (v0.15.45, PRs #383/#384)**: dos FKs entre `patient_payments` y `appointments` (mig 273) → PGRST201 → la agenda no mostraba citas. Arreglado con hint explícito y columna de rastro sin FK. Blindaje: `npm run check:embeds` en CI, errores visibles con Reintentar + Sentry en agenda e historial, `/api/health/schema` y checklist de migraciones (`docs/migraciones-checklist.md`, reglas en `CLAUDE.md`).
+> - **Pre-reserva de horario (mig 274) + reporte de turno de Caja (v0.15.45, PRs #385-#387)**: pre-reservar un hueco con plazo, contador en rojo y color que se agota, se confirma sola al registrar un pago; plantillas WhatsApp editables para reprogramar y pre-reserva; cancelar en 2 pasos y saldo del adelanto al reprogramar; tiempo de espera desde "Llegó". Caja: `/caja/reporte` imprimible por turno con ingresos, egresos, métodos y cuadre, e Historial con columnas de ingresos/egresos. Detalle: Changelog v0.15.45.
 > - **Tratamientos: donantes, insumos de la propia farmacia y cierre "Completado" (v0.15.44, mig 268 — 2026-09-22)**: caso real de una **donante de óvulos** que no paga y recibe medicación del propio almacén (se recupera con la receptora). Antes, la "Aplicación" de Almacén no sabía de qué tratamiento era y Rentabilidad la contaba solo como unidades: **el costo desaparecía de todas las vistas**. Ahora `inventory_movements.treatment_id` + RPC `treatment_apply_product` (salida `uso_en_cita`, COGS = CPP vigente en servidor, sin precio; **nunca toca `patient_payments`**) desde un bloque **"Insumos de farmacia"** en la ficha, con deshacer por contra-asiento. Costo de insumos = `treatmentSuppliesCost()` (`lib/treatments/money.ts`), aparte de acordado/pagado/pendiente; KPI "Aplicado a tratamientos" en Rentabilidad (no se resta de la ganancia de farmacia). Cualquier miembro activo aplica (recepción incluida). Donante = servicio "— donante" a S/ 0 (insignia "Sin cobro") y cierre **"Completado"** sin desenlace clínico (`outcome='completed'`). Misma sesión: Sentry verificado en producción (PR #373) y las 11 fuentes `.woff2` que eran HTML 404 desde el PR #319, repuestas (PR #374). Detalle: Changelog v0.15.44.
 > - **Landing paralela `/2`, permiso de almacén por miembro y auditoría de Sentry (v0.15.43, migs 266-267, PRs #370/#371 — 2026-09-18 a 09-22)**: `/2` es una **variante de la home para iterar estructura sin mover la URL original** (misma información, marca y precios; hero con mockup de la app, motor de seguimientos como pieza central, precios con toggle), aislada con `noindex` + fuera de sitemap/robots y con analítica marcada `variante: "2"`; de paso, planes y fórmula de recuperación salen a **una sola fuente** (`pricing-plans.ts` / `roi-model.ts`) que la home también importa. **Almacén**: crear productos y editar el precio de venta deja de ser owner/admin y pasa a ser **permiso por miembro que solo concede el owner** (mig 267: `organization_members.can_manage_inventory` + trigger anti-escalada de la 235 ampliado; interruptor en Admin → Equipo). **Sentry**: el SDK llevaba tiempo integrado pero **inactivo y con la CSP bloqueando cada evento del navegador en silencio**; queda cableado (ingest en `connect-src`, `instrumentation-client.ts`, `org`/`project` para source maps, PII y Replay enmascarado explícitos) a falta solo de pegar el DSN en Vercel. Reparto: credenciales por la integración de Vercel, configuración de código en el repo, nunca el asistente de Sentry. **Tratamientos**: el monto acordado se edita desde la ficha (lápiz junto a "Acordado", solo owner/admin — la API ya lo soportaba y la UI nunca lo llamaba), y `/admin/services` deja de confundir el precio de la cita con el del tratamiento; ambos nacen de un duplicado real corregido en prod. Detalle: Changelog v0.15.43.
 > - **App Review de Meta APROBADO + Tech Provider registrado (15-sep-2026)**: los tres permisos con acceso avanzado el mismo día del envío. El popup seguía en bucle porque faltaba el **registro como Independent Tech Provider** (trámite aparte; sin código); completado, el Embedded Signup llega a la selección de portafolio en v4. Código: v4 por env, Coexistence sin `phone_number_id`, CSP del SDK (PR #365). Siguiente: sandbox de Meta, primera conexión desde Ajustes, luego el primer número real (lo conecta la doctora desde su Facebook). Landing: sellos "App verificada por Google" y "Proveedor de tecnología de WhatsApp verificado por Meta" bajo el hero; la demo sale del hero. Detalle: `docs/meta-app-review.md` §5 y §5b.
@@ -408,6 +411,22 @@ Backend: `lib/validations/api.ts:mpCheckoutSchema.billing_cycle` acepta `"monthl
 | `inventory_product_deletions` (auditoría, RLS lee owner/admin, escribe solo el RPC) + RPC `inventory_archive_or_delete_product(p_product_id, p_reason)` + RPC `inventory_restore_product(p_product_id)` (mig 264) | Almacén: un producto CON historial (movimientos, lotes, ventas POS, comprobantes) se **archiva** con la baja lógica de la mig 209 (`is_discontinued` + motivo obligatorio; stock ≠ 0 → 23514 legible por el trigger 212) y se **restaura** (nombre activo duplicado → 23505 legible, índice parcial); SIN historial se **elimina** con snapshot en la auditoría. Owner/admin (`is_org_admin`, 42501). El vínculo del catálogo de medicamentos se conserva; el chip "Farmacia" se oculta mientras esté archivado. `POST /api/almacen/products/[id]/archive` · `/restore` |
 | RPC `get_custom_report` — `sections.advances.detail[]` + `detail_truncated` (mig 265) | Detalle por cobro de "Adelantos y pagos a cuenta" (fecha, paciente, monto, medio, motivo; cita/servicio o plan) desde la MISMA CTE que los totales (`range_payments`): Σ detalle == `by_bucket`. Misma firma, `CREATE OR REPLACE` sin DROP; LIMIT 300. Pantalla con subfilas desplegables (Abono directo abierto), PDF con subtabla solo de abonos directos y **impresión auditada** (`logClinicalAccess`). Motivo obligatorio en el cobro de la ficha SOLO sin cita (UI) |
 
+
+### Almacén lotes, Caja, agenda "por reprogramar", pre-reserva y Conversaciones — migs 270-275
+
+| Tabla / Objeto | Propósito |
+|-------|----------|
+| RPC `inventory_assign_unlotted` + `inventory_lot_assignments` (mig 270) | Asignar a un lote unidades que entraron sin lote (o descontar de un lote las que salieron sin lote) con un par de ajustes `asignacion_lote` que netea a cero: no cambia stock, CPP ni rentabilidad. Auditado |
+| RPC `inventory_update_product` + `inventory_product_changes` (mig 271) | Editar nombre, categoría, presentación, stock mínimo y control de lotes con historial. Editor de almacén; archivados solo owner/admin. Fuera: afectación IGV y unidad base |
+| `caja_attach_payment` redefinida + `patient_payments.cash_attached_by/at` (mig 272) | Recepción pasa a **su** turno abierto los cobros "fuera de turno" de los últimos 7 días (registrados con el módulo encendido); admin sin cambios; el médico no toca la caja |
+| `appointments.cancel_outcome` / `cancel_money` / `cancelled_at/by` / `rescheduled_from_id`, tarjeta `core.reschedule_pending`, RPC `appointment_transfer_payments` (mig 273) | Ciclo "por reprogramar": una tarjeta por cita cancelada que se cierra sola al agendar; el adelanto "a cuenta" pasa a la cita nueva. `patient_payments.transferred_from_appointment_id` es **rastro sin FK** (incidente PGRST201 del 30-sep) |
+| `appointments.hold_expires_at`, `scheduler_settings.prereserva_color` / `prereserva_default_minutes`, RPC `appointment_release_hold`, kinds de plantilla `reschedule_notice` / `reschedule_coordinate` / `prereserva` (mig 274) | **Pre-reserva**: cita provisional con vencimiento; un pago clínico (o traslado de adelanto) la confirma por trigger; liberar borra solo pre-reservas sin nada encima. Una cita normal no puede volverse pre-reserva. Recordatorios, correo y Google Calendar la ignoran hasta confirmar |
+| Columnas de bandeja en `wa_conversations` (`inbox_status`, `unread_count`, `last_inbound_at`, `last_message_*`) + `wa_messages` (mig 275) | Hilo completo de WhatsApp: entrantes (espejo de `wa_inbound_messages`, con backfill), salientes (agente, programados, IA, ecos del celular) y notas internas. `wamid` único; `UNIQUE(organization_id, client_msg_id)` = envío idempotente. Estados monótonos. Escritura solo por API (service role) |
+| `org_tags`, `wa_conversation_tags`, `wa_quick_replies`, `wa_scheduled_messages` (mig 275) | Etiquetas por org, respuestas rápidas `/atajo`, mensajes programados (texto o plantilla; `needs_template` si la ventana de 24 h se cerró) |
+| `wa_inbox_settings` (mig 275) | Por org: `doctors_enabled` (doctores ven Conversaciones), IA (`ai_enabled`, `ai_model` Haiku/Sonnet, `ai_tone`, `ai_use_emojis`, `ai_signature`, `ai_rules`, `ai_hidden_service_ids`). Escribe solo admin |
+| `wa_kb_entries`, `wa_kb_gaps`, `wa_ai_suggestions` (mig 275) | Base de conocimientos editable (el catálogo de servicios se lee en vivo, no se copia), brechas (preguntas que la IA no supo) y bitácora de sugerencias (modelo, tokens, latencia, flags; `conversation_id` NULL = prueba desde Ajustes) |
+| `wa_inbox_can_access(org)`, `wa_claim_due_scheduled`, `wa_inbox_touch` (mig 275) | Acceso: miembro activo y doctor solo con el toggle; también rige la lectura de `wa_conversations` / `wa_inbound_messages`. Toma atómica de programados (`SKIP LOCKED`, retoma colgados > 10 min) y contadores atómicos; las dos últimas solo `service_role` |
+
 ---
 
 ## 7. Flujos Principales
@@ -589,6 +608,15 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - Endpoint `app/api/whatsapp/send/route.ts` + selector "Usar para (automático)" que vincula plantillas a eventos
 - **Primer envío automático real: 2026-07-22.** Detalle del pipeline endurecido: [CHANGELOG.md](CHANGELOG.md) (v0.15.22)
 
+#### Fase 3: Conversaciones — bandeja + Yendy IA (Implementado — v0.15.45, mig 275)
+- **Dónde**: `/conversaciones`, addon **CRM WhatsApp + Captación** (`captacion`). Owner/admin/recepción; doctores solo con "Doctores pueden ver Conversaciones" (Ajustes ⚙). La regla se exige en el sidebar, la API (`requireInbox`: sesión, membresía activa en la org enviada, addon, rol) y la RLS.
+- **Entrada**: el webhook guarda en `wa_inbound_messages` (Captación F1, sin cambios) y copia a `wa_messages`; estados ✓/✓✓/leído; ecos de la app del celular (`smb_message_echoes`) en conversaciones existentes. La conexión necesita la WABA suscrita a los webhooks de la app (Embedded Signup lo hace; el formulario manual, con el PR #389).
+- **Salida**: texto solo dentro de la ventana de 24 h (después, plantilla aprobada); envío idempotente; programados por `/api/cron/inbox-dispatch` (pg_cron + pg_net) y por la pantalla abierta; aviso si el hilo cambió antes de enviar.
+- **Paciente**: vincular por teléfono o búsqueda, o crear ficha rápida (origen "WhatsApp"); "Agendar" abre la agenda con la paciente.
+- **Yendy IA**: borradores con fuentes (catálogo vivo + fichas), reglas de la clínica, servicios ocultos, alarma sin IA, validador de precios, brechas y probador. Nunca envía sola. Tope 400/día por org. `ANTHROPIC_API_KEY`.
+- **Costos Meta (Perú, desde 1-oct-2026)**: servicio dentro de 24 h gratis hasta 1 000/mes y luego US$0.03; marketing US$0.0703.
+- **Guía**: `docs/conversaciones-setup.md` (migración, sandbox, cron, IA, BAA, buenas prácticas de base de conocimientos). Investigación: `docs/research/whatsapp-inbox-crm-2026-09.md`.
+
 ### 7.7 Dashboard por Rol
 - **Admin/Owner:** KPIs globales (pacientes, doctores, citas, ingresos), top servicios, heatmap de citas, stats operacionales
 - **Doctor:** Dashboard personal con sus citas del día/mes, ingresos propios, próximas citas
@@ -621,6 +649,8 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ├── /almacen ................. Módulo Almacén: kardex de inventario clínico (beta oculta — addon `almacen` con grant)
 ├── /farmacia ................ Farmacia POS: venta mostrador con correlativo NV- y ticket 80mm (viaja con el addon `almacen`)
 ├── /caja .................... Módulo Caja: turnos, arqueo, movimientos y bandeja "Fuera de turno" (beta oculta — addon `caja` con grant)
+│   └── /reporte ............. Reporte de turno(s) imprimible: ingresos, egresos, métodos y cuadre (`?turnos=<id>[,…]`)
+├── /conversaciones .......... Bandeja de WhatsApp + Yendy IA (addon `captacion`; doctores solo con toggle)
 │   ├── /budgets ............. Embudo de presupuestos (gateado por el addon Fertilidad)
 │   └── /history ............. Historial de citas pasadas
 ├── /patients ................ Gestión de pacientes
@@ -678,6 +708,16 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 ├── /founder/notes ........... GET/POST/DELETE notas privadas por organización
 ├── /scheduler-settings ...... GET/PUT config de agenda por org (DB-backed)
 ├── /ai-assistant ............ POST chat con AI
+├── /inbox/send .............. POST enviar texto/plantilla desde Conversaciones (idempotente, guarda de hilo)
+├── /inbox/notes ............. POST nota interna
+├── /inbox/conversations/[id]  PATCH leído, archivar/reabrir, vincular paciente, nombre
+├── /inbox/scheduled ......... POST/DELETE mensajes programados
+├── /inbox/dispatch .......... POST envía programados vencidos de la propia org (la pantalla abierta)
+├── /inbox/media/[messageId] . GET proxy de media de Meta (tipos permitidos, ≤16 MB, CSP sandbox)
+├── /inbox/templates ......... GET plantillas aprobadas
+├── /inbox/ai/suggest ........ POST Yendy IA: borrador (o prueba con `test_message`, solo admin)
+├── /cron/inbox-dispatch ..... GET/POST programados de todas las orgs (Bearer CRON_SECRET)
+├── /health/schema ........... GET owner/admin: prueba las lecturas de pantallas críticas contra la base real
 ├── /book/[slug] ............. GET datos públicos de reserva (doctores, servicios, horarios)
 └── /book/[slug]/create ...... POST crear cita desde página pública
 ```
@@ -694,6 +734,7 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 | Agenda | Almacén (beta) | Orgs con grant del addon `almacen` (hoy: founder + Dra. Patricia) |
 | Agenda | Farmacia (beta) | Orgs con grant del addon `almacen` (viaja con Almacén, sin addon propio) |
 | Agenda | Caja (beta) | Orgs con grant del addon `caja` (hoy: founder + Dra. Patricia) |
+| Agenda | Conversaciones | Orgs con el addon `captacion`: owner/admin/recepción; doctores solo si un admin activa el toggle |
 | Pacientes | Pacientes | Todos |
 | Reportes | Reportes | Admin/Owner |
 | Reportes | Facturación | Admin/Owner + recepción (oculto para doctores) |
@@ -933,8 +974,14 @@ Sistema de copia rápida de mensajes para WhatsApp al crear una cita:
 - [x] **Barrido responsive: full-bleed móvil en las 5 páginas tipo app, fix estructural del overflow del layout, tabs de ficha de paciente en pills scrolleables, ~25 fixes de touch targets y wraps** — v0.15.25-26 · detalle: [CHANGELOG.md](CHANGELOG.md)
 - [x] **Escritorio sin margen exterior en las 5 páginas tipo app (borde-a-borde en ≥md, como Presupuestos)** — v0.15.26 · detalle: [CHANGELOG.md](CHANGELOG.md)
 - [x] **Seguridad BD: cierre de la superficie RPC — 47 funciones fuera del alcance de `anon`, `search_path` fijado, default privileges revocados** — v0.15.26 (mig 193, aplicada en producción) · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Blindaje de embeds tras la agenda en blanco del 30-sep: `npm run check:embeds` en CI, errores visibles + Sentry en agenda e historial, `/api/health/schema`, checklist de migraciones** — v0.15.45 (PRs #383/#384) · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Pre-reserva de horario con contador y color que se agota + plantillas WhatsApp editables (reprogramar / pre-reserva)** — v0.15.45 (mig 274, aplicada) · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Cancelar en 2 pasos, saldo del adelanto al reprogramar y tiempo de espera desde "Llegó"** — v0.15.45 · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Caja: reporte de turno imprimible con ingresos y egresos + columnas en Historial** — v0.15.45 (sin migración) · detalle: [CHANGELOG.md](CHANGELOG.md)
+- [x] **Conversaciones: bandeja de WhatsApp (etiquetas, notas, respuestas rápidas, programados, vínculo con paciente) + Yendy IA (base de conocimientos, reglas, servicios ocultos, probador, brechas)** — v0.15.45 (mig 275, aplicada el 1-oct) · detalle: [CHANGELOG.md](CHANGELOG.md), guía `docs/conversaciones-setup.md`
 
 ### Pendiente / Por Mejorar
+- [ ] **Conversaciones — siguientes pasos**: merge del PR #389 (la conexión manual suscribe la WABA a los webhooks) y primera conversación de punta a punta en la org sandbox; `ANTHROPIC_API_KEY` como Sensitive en Vercel; BAA/HIPAA con Anthropic antes de usar la IA con pacientes reales; job pg_cron de programados (o cron por minuto con Vercel Pro); después: agente de IA autónomo, importar 90 días de historial (coexistencia), media en Storage, asignación de chats y métricas de respuesta
 - [x] **Facturación electrónica SUNAT vía Nubefact (MVP completo)** — v0.13.0 → v0.13.1. Cierre del módulo de facturación electrónica multi-tenant para clínicas peruanas. Componentes:
   - **Wizard de conexión** (Settings → Integraciones): RUC, razón social, dirección, ubigeo, route + token Nubefact, series autorizadas. Soporta sandbox + producción con prueba live. Credenciales encriptadas AES-256-GCM en `lib/encryption.ts`.
   - **Emisión desde el sidebar de cita** (Boletas / Facturas / NC): datos cliente y servicio pre-llenados desde `patients` + `services`. IGV calculado a partir del precio del catálogo (convención clínica peruana: precio = con IGV incluido). Envío automático del PDF al email del paciente vía Nubefact. Card de comprobante emitido en sidebar con estado SUNAT, números, links a PDF / XML / CDR / Nubefact.
@@ -1146,7 +1193,7 @@ SMTP_PORT=
 SMTP_USER=
 SMTP_PASS=
 SMTP_FROM=
-ANTHROPIC_API_KEY=
+ANTHROPIC_API_KEY=        # Asistente IA y Yendy IA de Conversaciones (guardar como Sensitive en Vercel)
 MP_WEBHOOK_SECRET=
 ENCRYPTION_KEY=           # Opcional: AES-256 para encriptar TOTP secrets (32+ chars)
 CRON_SECRET=              # Bearer token para cron jobs (32+ chars)
@@ -1169,6 +1216,8 @@ MP_TEST_PAYER_EMAIL=      # Email del comprador de prueba MP (solo test mode)
 - **Planes con soft limits** — Los límites se verifican en frontend/API, no con constraints de DB
 - **Mercado Pago como gateway único** — Sin soporte para Stripe por ahora
 - **Español como idioma principal** — Interfaz y seeds en español, con soporte i18n para inglés
+- **Migraciones sin embeds ambiguos (incidente 30-sep-2026)** — nunca una FK de "rastro" (columna uuid sin FK, integridad por RPC); dos FKs entre las mismas tablas solo si todos los embeds del par llevan hint `tabla!constraint(...)` en el mismo PR. `npm run check:embeds` en CI, Consulta 1 de `supabase/checks/multi_fk_pairs.sql` antes y después, y `/api/health/schema` tras aplicar. Checklist: `docs/migraciones-checklist.md`.
+- **Conversaciones es aditivo** — la bandeja solo lee de agenda, pacientes y catálogo; escribe en sus propias tablas (mig 275) y nunca crea conversaciones de origen saliente (los cohortes de Captación no cambian). Los mensajes se escriben solo por API con service role tras validar sesión, membresía activa, addon y rol.
 - **Plugins per-org (mig 169)** — Capa 2 de features ultra-específicos (templates de PDF custom, etc.) se activa por org desde el Founder Panel. No expuesto al admin de la clínica. Cada plugin declara sus `requires_addons` y se valida en runtime contra `organization_addons`.
 - **El gutter de página vive en un div interno del `main`, no en el scroller** — un scroll container suma su padding del lado final al área desplazable, así que con el padding en el propio `main` las páginas full-bleed (que lo cancelan con `-mx-4`) generaban scroll horizontal de toda la página. `overflow-x-hidden` en el `main` queda solo como red de seguridad: los scrolls laterales legítimos (tab-lists, tablas anchas, matrices de settings) viven en sus propios contenedores internos.
 - **Responsive: desktop ≥md idéntico, con una excepción acotada** — los fixes móviles se hacen con clases base + variantes `sm:`/`md:` que restauran exactamente el layout de escritorio. La única excepción autorizada (founder, 2026-08-07) es el **marco exterior** de las 5 páginas tipo app (Seguimientos, Histórico, Pacientes, Reportes, Facturación), que en ≥md cancelan el gutter del layout y quedan borde-a-borde. El gutter visible pasa a ser el `px-4 md:px-6` de sus headers internos.
