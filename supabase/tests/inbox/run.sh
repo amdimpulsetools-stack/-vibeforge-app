@@ -34,8 +34,15 @@ echo "  aplicada  278 (x2, idempotente)"
 apply "$ROOT/supabase/migrations/279_wa_case_candidates.sql"
 apply "$ROOT/supabase/migrations/279_wa_case_candidates.sql"
 echo "  aplicada  279 (x2, idempotente)"
+apply "$ROOT/supabase/migrations/280_wa_inbox_metrics.sql"
+apply "$ROOT/supabase/migrations/280_wa_inbox_metrics.sql"
+echo "  aplicada  280 (x2, idempotente)"
 out=$(psql -h /tmp -p $PORT -U postgres -d inbox_test -v ON_ERROR_STOP=1 -q -f "$HERE/10_inbox_test.sql" 2>&1) || { echo "$out"; exit 1; }
 grep -E "PASS|ERROR" <<<"$out"
+apply "$ROOT/supabase/migrations/rollbacks/280_wa_inbox_metrics_rollback.sql"
+apply "$ROOT/supabase/migrations/rollbacks/280_wa_inbox_metrics_rollback.sql"
+psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \
+  "DO \$\$ BEGIN ASSERT to_regprocedure('wa_inbox_metrics(uuid, integer)') IS NULL; RAISE NOTICE 'PASS  RB rollback 280 x2: quita la función de medición'; END \$\$;" 2>&1 | grep PASS
 apply "$ROOT/supabase/migrations/rollbacks/279_wa_case_candidates_rollback.sql"
 apply "$ROOT/supabase/migrations/rollbacks/279_wa_case_candidates_rollback.sql"
 psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \

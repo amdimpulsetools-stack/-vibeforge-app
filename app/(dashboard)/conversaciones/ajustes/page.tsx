@@ -16,6 +16,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   ArrowLeft,
+  BarChart3,
   BookOpen,
   Compass,
   HelpCircle,
@@ -35,7 +36,7 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { setInboxOrg } from "../use-inbox";
 
-type SectionKey = "general" | "quick" | "tags" | "playbook" | "kb" | "cases" | "candidates" | "gaps" | "rules" | "test" | "flows";
+type SectionKey = "general" | "quick" | "tags" | "playbook" | "kb" | "cases" | "candidates" | "gaps" | "rules" | "test" | "metrics" | "flows";
 
 const SectionLoader = () => (
   <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
@@ -54,6 +55,7 @@ const SECTION_COMPONENTS: Record<Exclude<SectionKey, "flows">, React.ComponentTy
   gaps: load(() => import("./sections/gaps")),
   rules: load(() => import("./sections/rules")),
   test: load(() => import("./sections/test")),
+  metrics: load(() => import("./sections/metrics")),
 };
 
 const NAV: Array<{ group: string; items: Array<{ key: SectionKey; label: string; hint: string; icon: React.ComponentType<{ className?: string }>; soon?: boolean }> }> = [
@@ -75,6 +77,7 @@ const NAV: Array<{ group: string; items: Array<{ key: SectionKey; label: string;
       { key: "gaps", label: "Brechas", hint: "Lo que no supo responder", icon: HelpCircle },
       { key: "rules", label: "Reglas", hint: "Límites y servicios ocultos", icon: ShieldCheck },
       { key: "test", label: "Probar Yendy", hint: "Simula una paciente", icon: Sparkles },
+      { key: "metrics", label: "Medición", hint: "¿Funciona la fórmula?", icon: BarChart3 },
     ],
   },
   {

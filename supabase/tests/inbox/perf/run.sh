@@ -22,7 +22,7 @@ apply "$ROOT/supabase/migrations/206_wa_capture.sql"
 apply "$HERE/05_pre_data.sql"
 apply "$ROOT/supabase/migrations/275_whatsapp_inbox.sql"
 apply "$ROOT/supabase/migrations/276_wa_kb_playbook.sql"
-for f in "$ROOT"/supabase/migrations/27[7-9]_wa_*.sql; do [ -e "$f" ] && apply "$f" && echo "  aplicada  $(basename "$f")"; done
+for f in "$ROOT"/supabase/migrations/27[7-9]_wa_*.sql "$ROOT"/supabase/migrations/28[0-9]_wa_*.sql; do [ -e "$f" ] && apply "$f" && echo "  aplicada  $(basename "$f")"; done
 # t_ids y helper t_id() del test funcional (mismos ids de org).
 psql -h /tmp -p $PORT -U postgres -d inbox_perf -v ON_ERROR_STOP=1 -q -c "
   CREATE TABLE t_ids (k text PRIMARY KEY, id uuid NOT NULL DEFAULT gen_random_uuid());

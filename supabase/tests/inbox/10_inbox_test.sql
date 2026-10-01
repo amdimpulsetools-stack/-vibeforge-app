@@ -271,7 +271,7 @@ DECLARE s uuid;
 BEGIN
   INSERT INTO wa_ai_suggestions(organization_id, conversation_id, model, draft) VALUES (t_id('orgA'), t_id('convA'), 'test', 'borrador')
     RETURNING id INTO s;
-  UPDATE wa_ai_suggestions SET rating = 1, rated_at = now(), final_text = 'texto enviado' WHERE id = s;
+  UPDATE wa_ai_suggestions SET rating = 1, rated_at = now(), used = true, final_text = 'texto enviado' WHERE id = s;
   BEGIN
     UPDATE wa_ai_suggestions SET rating = 2 WHERE id = s;
     RAISE EXCEPTION 'F1: aceptó una valoración fuera de -1/1';
@@ -334,6 +334,39 @@ BEGIN
   DELETE FROM wa_kb_case_candidates;
   ASSERT (SELECT count(*) FROM wa_kb_case_candidates) = 0, 'M2: admin borra candidatos';
   RAISE NOTICE 'PASS  M2 candidatos: solo admin los ve y borra; inserta y decide la API';
+END $$;
+RESET ROLE;
+
+-- ── 280: panel de medición ──────────────────────────────────────────
+SET ROLE authenticated;
+SELECT set_config('test.uid', t_id('recep')::text, false);
+DO $$
+BEGIN
+  BEGIN
+    PERFORM wa_inbox_metrics(t_id('orgA'), 30);
+    RAISE EXCEPTION 'X1: recepción vio la medición';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END $$;
+SELECT set_config('test.uid', t_id('admin')::text, false);
+DO $$
+DECLARE j jsonb;
+BEGIN
+  j := wa_inbox_metrics(t_id('orgA'), 30);
+  ASSERT (j->'conversations'->>'new')::int >= 1, 'X1: chats nuevos';
+  ASSERT (j->'conversations'->>'attended')::int >= 1, 'X1: convA asistió (O1)';
+  ASSERT (j->'suggestions'->>'generated')::int >= 1 AND (j->'suggestions'->>'thumbs_up')::int >= 1, 'X1: sugerencia con pulgar (F1)';
+  ASSERT (j->'suggestions'->>'edited')::int >= 1, 'X1: texto final distinto del borrador cuenta como editado';
+  ASSERT (j->'response'->>'measured')::int >= 1, 'X1: tiempo de respuesta medido';
+  ASSERT jsonb_typeof(j->'weekly') = 'array' AND jsonb_array_length(j->'weekly') BETWEEN 1 AND 14, 'X1: serie semanal acotada';
+  ASSERT (j->'kb'->>'cases')::int >= 1, 'X1: casos activos';
+  ASSERT (wa_inbox_metrics(t_id('orgA'), 9999)->>'period_days')::int = 365, 'X1: período acotado a 365';
+  BEGIN
+    PERFORM wa_inbox_metrics(t_id('orgB'), 30);
+    RAISE EXCEPTION 'X1: admin de A vio la org B';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  RAISE NOTICE 'PASS  X1 medición: solo admin de su org; cuentas, pulgares, edición, respuesta y serie semanal';
 END $$;
 RESET ROLE;
 

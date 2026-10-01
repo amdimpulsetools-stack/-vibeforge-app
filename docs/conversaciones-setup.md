@@ -226,6 +226,20 @@ resto de Conversaciones no cambia. Rollback:
 `rollbacks/279_wa_case_candidates_rollback.sql` (los casos ya aprobados se
 conservan).
 
+### Migración 280 (panel de medición)
+
+`supabase/migrations/280_wa_inbox_metrics.sql`: una sola función,
+`wa_inbox_metrics(org, días)`, solo lectura; sin tablas, columnas, índices ni
+FKs (Consulta 1 de `multi_fk_pairs.sql` idéntica). Alimenta Ajustes →
+**Medición**: chats nuevos y cuántos agendaron / asistieron, chats con
+sugerencia de Yendy usada vs. sin IA (es comparación, no causa), qué pasó
+con las sugerencias (usadas, editadas antes de enviar, pulgares, revisión
+humana, brechas, tokens y costo estimado), por qué escriben (intenciones),
+tiempo de primera respuesta (mediana, percentil 90, respondidos en 1 h, sin
+respuesta) y la serie semanal. Solo administración; devuelve cuentas y
+tiempos, nunca texto. Una llamada ≈ 9 ms con 1 000 chats (banco de
+rendimiento). Rollback: `rollbacks/280_wa_inbox_metrics_rollback.sql`.
+
 ### La fórmula: Guía de conversación
 
 Ajustes ⚙ → **Guía de conversación**. Es cómo Yendy encauza cada chat, y
