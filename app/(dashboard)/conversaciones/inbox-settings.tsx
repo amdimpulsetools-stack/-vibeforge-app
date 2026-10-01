@@ -19,11 +19,11 @@ import { inboxFetch, inboxKeys, useInboxSettings, useOrgTags, useQuickReplies, t
 export function InboxSettingsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] max-w-3xl overflow-y-auto">
+      <DialogContent className="max-h-[90dvh] max-w-5xl overflow-y-auto">
         <DialogTitle>Ajustes de Conversaciones</DialogTitle>
         <DialogDescription>Permisos, Yendy IA y todo lo que usa la recepción en la bandeja.</DialogDescription>
         <Tabs defaultValue="general" className="mt-2">
-          <TabsList className="flex flex-wrap">
+          <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="rules">Reglas de Yendy</TabsTrigger>
             <TabsTrigger value="test">Probar Yendy</TabsTrigger>
