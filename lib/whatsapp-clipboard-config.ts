@@ -400,6 +400,19 @@ export function invalidateClipboardTemplateCache(): void {
 }
 
 /**
+ * Calienta la caché de plantillas al abrir el formulario de cita, para que
+ * `renderClipboardTemplate` sea instantáneo en el momento de guardar.
+ * Incidente 02-oct-2026: el mensaje de la pre-reserva se armaba DESPUÉS de
+ * crear la cita y esa petición de red dejaba el formulario abierto unos
+ * segundos con "Guardar" activo; un segundo clic duplicaba la cita.
+ * Nunca lanza: si la carga falla, el render usa el texto por defecto.
+ */
+export function prefetchClipboardTemplates(): void {
+  if (typeof window === "undefined") return;
+  void getCachedTemplatesMap().catch(() => null);
+}
+
+/**
  * Loads the org's template for `kind` (cached, one request for all kinds)
  * and fills it with `vars`. Never throws: if the load fails, or the org
  * never customised the kind, it uses the in-code default.

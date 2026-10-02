@@ -27,7 +27,8 @@ export interface RunState {
 }
 
 export type FlowEvent =
-  | { type: "start" }
+  /** Al arrancar por un mensaje: lo que escribió (alimenta Condición y {{respuesta}}). */
+  | { type: "start"; text?: string | null; interactiveId?: string | null }
   | { type: "inbound"; text: string | null; interactiveId: string | null }
   | { type: "timer" };
 
@@ -52,7 +53,11 @@ export type Effect =
   | { kind: "send_template"; nodeId: string; templateId: string; vars: Record<string, string> }
   | { kind: "tag"; nodeId: string; action: "add" | "remove"; tagId: string }
   | { kind: "notify"; nodeId: string; target: "reception" | "user"; userId: string | null; note: string }
-  | { kind: "pause"; nodeId: string; reason: string };
+  | { kind: "pause"; nodeId: string; reason: string }
+  /** Indicador "escribiendo…" de WhatsApp durante N segundos (≤ 25). */
+  | { kind: "typing"; nodeId: string; seconds: number }
+  /** Pausa corta (< 60 s) dentro de la misma invocación; las largas van por wake_at. */
+  | { kind: "sleep"; nodeId: string; seconds: number };
 
 export interface StepResult {
   state: RunState;
@@ -91,6 +96,8 @@ export function step(def: FlowDefinition, prev: RunState, event: FlowEvent, env:
   // ── 1. ¿Desde qué nodo seguimos? ──
   let nextId: string | null = null;
   if (event.type === "start") {
+    if (event.text !== undefined) state.context.last_reply_text = event.text;
+    if (event.interactiveId !== undefined) state.context.last_reply_id = event.interactiveId;
     const trigger = def.nodes.find((n) => n.type === "trigger");
     if (!trigger) return finish("failed", "sin_disparador");
     trace.push({ nodeId: trigger.id, type: "trigger", out: "next" });
@@ -143,11 +150,16 @@ export function step(def: FlowDefinition, prev: RunState, event: FlowEvent, env:
 
   // ── 2. Ejecutar nodos hasta una espera o el fin ──
   let budget = MAX_NODES_PER_INVOCATION;
-  const vars = { nombre: env.patientFirstName, clinica: env.clinicName };
-  const withDisclosure = (text: string): string => {
+  const vars = { nombre: env.patientFirstName, clinica: env.clinicName, respuesta: (state.context.last_reply_text as string | null) ?? null };
+  // Aviso de asistente virtual: pegado al primer mensaje; si no cabe en el
+  // límite de Meta del nodo, va como texto aparte justo antes.
+  const withDisclosure = (nodeId: string, text: string, limit: number): string => {
     if (!env.disclosure || state.context.disclosed) return text;
     state.context.disclosed = true;
-    return `${env.disclosure.trim()}\n\n${text}`;
+    const d = env.disclosure.trim();
+    if (d.length + 2 + text.length <= limit) return `${d}\n\n${text}`;
+    effects.push({ kind: "send_text", nodeId, text: d });
+    return text;
   };
   const sendsNeedWindow = (node: FlowNode): boolean => node.type === "send_text" || node.type === "ask_buttons" || node.type === "ask_list";
 
@@ -169,7 +181,7 @@ export function step(def: FlowDefinition, prev: RunState, event: FlowEvent, env:
       trace.push({ nodeId: node.id, type: node.type, note: "ventana cerrada" });
       return finish("done", "ventana_cerrada");
     }
-    if ((sendsNeedWindow(node) || node.type === "send_template") && env.quietUntil && env.quietUntil > env.now) {
+    if ((sendsNeedWindow(node) || node.type === "send_template" || node.type === "typing") && env.quietUntil && env.quietUntil > env.now) {
       state.status = "waiting_delay";
       state.wakeAt = env.quietUntil.toISOString();
       state.steps -= 1; // no cuenta: se reintenta el mismo nodo
@@ -184,28 +196,48 @@ export function step(def: FlowDefinition, prev: RunState, event: FlowEvent, env:
         if (!nextId) return finish("done", "fin");
         break;
       case "send_text":
-        effects.push({ kind: "send_text", nodeId: node.id, text: withDisclosure(fillVars(node.data.text, vars)) });
+        effects.push({ kind: "send_text", nodeId: node.id, text: withDisclosure(node.id, fillVars(node.data.text, vars), 4096) });
         trace.push({ nodeId: node.id, type: node.type, out: "next" });
         nextId = edgeOut(node.id, "next");
         if (!nextId) return finish("done", "fin");
         break;
       case "ask_buttons":
-        effects.push({ kind: "send_buttons", nodeId: node.id, text: withDisclosure(fillVars(node.data.text, vars)), buttons: node.data.buttons });
+        effects.push({ kind: "send_buttons", nodeId: node.id, text: withDisclosure(node.id, fillVars(node.data.text, vars), 1024), buttons: node.data.buttons });
         trace.push({ nodeId: node.id, type: node.type, note: "espera respuesta" });
         state.status = "waiting_reply";
         state.wakeAt = isoPlusMinutes(env.now, node.data.timeout_minutes);
         return { state, effects, trace };
       case "ask_list":
-        effects.push({ kind: "send_list", nodeId: node.id, text: withDisclosure(fillVars(node.data.text, vars)), buttonLabel: node.data.button_label, rows: node.data.rows });
+        effects.push({ kind: "send_list", nodeId: node.id, text: withDisclosure(node.id, fillVars(node.data.text, vars), 4096), buttonLabel: node.data.button_label, rows: node.data.rows });
         trace.push({ nodeId: node.id, type: node.type, note: "espera respuesta" });
         state.status = "waiting_reply";
         state.wakeAt = isoPlusMinutes(env.now, node.data.timeout_minutes);
         return { state, effects, trace };
-      case "wait":
-        trace.push({ nodeId: node.id, type: "wait", note: node.data.mode === "delay" ? `espera ${node.data.minutes} min` : `espera respuesta ≤ ${node.data.minutes} min` });
+      case "wait": {
+        const totalSeconds = node.data.minutes * 60 + node.data.seconds;
+        if (node.data.mode === "delay" && totalSeconds < 60) {
+          // Corta: se duerme dentro de la misma invocación y sigue (el tick es por minuto).
+          effects.push({ kind: "sleep", nodeId: node.id, seconds: totalSeconds });
+          trace.push({ nodeId: node.id, type: "wait", out: "next", note: `espera ${totalSeconds} s` });
+          nextId = edgeOut(node.id, "next");
+          if (!nextId) return finish("done", "fin");
+          break;
+        }
+        trace.push({ nodeId: node.id, type: "wait", note: node.data.mode === "delay" ? `espera ${Math.round(totalSeconds / 60)} min` : `espera respuesta ≤ ${Math.round(totalSeconds / 60)} min` });
         state.status = node.data.mode === "delay" ? "waiting_delay" : "waiting_reply";
-        state.wakeAt = isoPlusMinutes(env.now, node.data.minutes);
+        state.wakeAt = new Date(env.now.getTime() + totalSeconds * 1000).toISOString();
         return { state, effects, trace };
+      }
+      case "typing":
+        if (!env.windowOpen) {
+          trace.push({ nodeId: node.id, type: "typing", note: "ventana cerrada" });
+          return finish("done", "ventana_cerrada");
+        }
+        effects.push({ kind: "typing", nodeId: node.id, seconds: node.data.seconds });
+        trace.push({ nodeId: node.id, type: "typing", out: "next" });
+        nextId = edgeOut(node.id, "next");
+        if (!nextId) return finish("done", "fin");
+        break;
       case "condition": {
         const yes = evalCondition(node, state, env);
         trace.push({ nodeId: node.id, type: "condition", out: yes ? "yes" : "no" });
@@ -300,7 +332,8 @@ export function wantsHuman(text: string | null | undefined): boolean {
 }
 
 /** STOP / BAJA / "no me escribas": la paciente no quiere automáticos. */
-const OPT_OUT_PATTERNS = [/^(stop|baja|cancelar|salir)$/, /no (me )?(escrib|mand|envi)/, /dej(a|en) de (escribir|mandar|enviar)/, /(quitar|borrar|sacar)me? de (la )?lista/];
+// "cancelar" y "salir" NO: en una clínica son mensajes cotidianos ("cancelar mi cita").
+const OPT_OUT_PATTERNS = [/^(stop|baja|no mas mensajes|no quiero mensajes)$/, /no (me )?(escrib|mand|envi)/, /dej(a|en) de (escribir|mandar|enviar)/, /(quitar|borrar|sacar)me? de (la )?lista/, /darme de baja/];
 export function wantsOptOut(text: string | null | undefined): boolean {
   const t = normalizeText(text);
   if (!t) return false;

@@ -123,6 +123,18 @@ export class WhatsAppClient {
     );
   }
 
+  /**
+   * "Escribiendo…" en el chat de la paciente (Cloud API: status read +
+   * typing_indicator sobre el último entrante). Meta lo muestra hasta 25 s
+   * o hasta que llega el siguiente mensaje. Best-effort.
+   */
+  async sendTypingIndicator(wamid: string): Promise<void> {
+    await this.request<{ success: boolean }>(`${META_BASE_URL}/${this.phoneNumberId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ messaging_product: "whatsapp", status: "read", message_id: wamid, typing_indicator: { type: "text" } }),
+    });
+  }
+
   /** Marca un entrante como leído (doble check azul para la paciente). */
   async markAsRead(wamid: string): Promise<void> {
     await this.request<{ success: boolean }>(

@@ -43,10 +43,9 @@ const def = welcome.definition as FlowDefinition;
   const r = step(def, initialState(), { type: "start" }, env());
   assert.equal(r.state.status, "waiting_reply");
   assert.equal(r.state.currentNodeId, "menu");
-  assert.equal(r.effects.length, 1);
-  assert.equal(r.effects[0].kind, "send_list");
-  assert.ok((r.effects[0] as { text: string }).text.startsWith("Soy el asistente virtual"), "primer mensaje lleva el aviso");
-  assert.ok((r.effects[0] as { text: string }).text.includes("Hola Ana, gracias por escribir a Clínica Demo"), "variables rellenadas");
+  assert.deepEqual(r.effects.map((e) => e.kind), ["typing", "send_list"], "escribiendo… y luego la lista");
+  assert.ok((r.effects[1] as { text: string }).text.startsWith("Soy el asistente virtual"), "primer mensaje lleva el aviso");
+  assert.ok((r.effects[1] as { text: string }).text.includes("Hola Ana, gracias por escribir a Clínica Demo"), "variables rellenadas");
   assert.equal(r.state.wakeAt, new Date(now.getTime() + 120 * 60_000).toISOString(), "timeout 120 min");
   // 3. Toca "Agendar una cita" → mensaje + aviso que pausa → handed_off.
   const r2 = step(def, r.state, { type: "inbound", text: "Agendar una cita", interactiveId: "menu:cita" }, env());
@@ -108,7 +107,7 @@ const def = welcome.definition as FlowDefinition;
   // Al despertar, se ejecuta el nodo pendiente.
   const r2 = step(def, r.state, { type: "timer" }, env({ now: quiet }));
   assert.equal(r2.state.status, "waiting_reply");
-  assert.equal(r2.effects[0].kind, "send_list");
+  assert.deepEqual(r2.effects.map((e) => e.kind), ["typing", "send_list"]);
   ok("F6 horario silencioso: espera y reanuda el mismo nodo");
 }
 
@@ -190,5 +189,69 @@ assert.ok(wantsOptOut("por favor no me escriban más"));
 assert.ok(!wantsOptOut("no sé si ir"));
 assert.equal(fillVars("Hola {{nombre}}, soy de {{clinica}}.", { nombre: null, clinica: "Demo" }), "Hola, soy de Demo.");
 ok("F10 palabras clave, 'persona', opt-out y variables");
+
+// 13. Esperas en segundos (inline) vs. minutos (wake_at) y "escribiendo…".
+{
+  const d: FlowDefinition = {
+    nodes: [
+      { id: "t", type: "trigger", position: { x: 0, y: 0 }, data: {} },
+      { id: "w1", type: "wait", position: { x: 0, y: 0 }, data: { mode: "delay", minutes: 0, seconds: 5 } },
+      { id: "ty", type: "typing", position: { x: 0, y: 0 }, data: { seconds: 3 } },
+      { id: "m", type: "send_text", position: { x: 0, y: 0 }, data: { text: "hola" } },
+      { id: "w2", type: "wait", position: { x: 0, y: 0 }, data: { mode: "delay", minutes: 2, seconds: 30 } },
+      { id: "h", type: "handoff", position: { x: 0, y: 0 }, data: { note: "" } },
+    ],
+    edges: [
+      { id: "1", source: "t", sourceHandle: "next", target: "w1" },
+      { id: "2", source: "w1", sourceHandle: "next", target: "ty" },
+      { id: "3", source: "ty", sourceHandle: "next", target: "m" },
+      { id: "4", source: "m", sourceHandle: "next", target: "w2" },
+      { id: "5", source: "w2", sourceHandle: "next", target: "h" },
+    ],
+  };
+  assert.ok(validateFlow(welcome.trigger, d).ok);
+  const r = step(d, initialState(), { type: "start" }, env());
+  assert.deepEqual(r.effects.map((e) => e.kind), ["sleep", "typing", "send_text"], "5 s inline, escribiendo, mensaje");
+  assert.equal((r.effects[0] as { seconds: number }).seconds, 5);
+  assert.equal(r.state.status, "waiting_delay", "2 min 30 s va por wake_at");
+  assert.equal(r.state.wakeAt, new Date(now.getTime() + 150_000).toISOString());
+  const r2 = step(d, r.state, { type: "timer" }, env({ now: new Date(now.getTime() + 150_000) }));
+  assert.equal(r2.state.status, "handed_off");
+  const bad = validateFlow(welcome.trigger, { ...d, nodes: d.nodes.map((n) => (n.id === "w1" ? { ...n, data: { mode: "delay", minutes: 0, seconds: 0 } } : n)) });
+  assert.ok(!bad.ok && bad.issues.some((i) => i.nodeId === "w1"), "espera de 0 s se rechaza con el nodo señalado");
+  const tpl = validateFlow(welcome.trigger, { ...d, nodes: [...d.nodes, { id: "tp", type: "send_template", position: { x: 0, y: 0 }, data: { template_id: "", vars: {} } }] });
+  assert.ok(tpl.issues.some((i) => i.nodeId === "tp" && i.message.includes("Elige la plantilla")), "error humano por nodo");
+  ok("F11 esperas en segundos, escribiendo… y errores por nodo");
+}
+
+// 14. Plantilla C: el texto que dispara alimenta la condición; opt-out y palabra completa.
+{
+  const confirm = FLOW_TEMPLATES.find((t) => t.key === "confirm")!;
+  const yes = step(confirm.definition, initialState(), { type: "start", text: "Confirmar", interactiveId: "confirmar" }, env());
+  assert.equal(yes.state.status, "done");
+  assert.ok((yes.effects[0] as { text: string }).text.includes("queda confirmada"), "confirmar → rama sí");
+  const no = step(confirm.definition, initialState(), { type: "start", text: "Reagendar", interactiveId: "reagendar" }, env());
+  assert.equal(no.state.status, "handed_off", "reagendar → rama no → persona");
+  assert.ok(!wantsOptOut("cancelar"), "'cancelar' ya no da de baja");
+  assert.ok(!wantsOptOut("quiero cancelar mi cita"));
+  assert.ok(wantsOptOut("baja"));
+  assert.equal(keywordMatches("felicitaciones por el local", ["cita"], "contains"), null, "palabra completa");
+  assert.equal(keywordMatches("quiero una cita, gracias", ["cita"], "contains"), "cita");
+  assert.equal(keywordMatches("¿cuánto cuesta la consulta de evaluación?", ["consulta de evaluacion"], "contains"), "consulta de evaluacion");
+  assert.equal(fillVars("Dijiste: {{respuesta}}", { respuesta: "hola" }), "Dijiste: hola");
+  // Aviso que no cabe en 1024 con botones → va como texto aparte.
+  const long: FlowDefinition = {
+    nodes: [
+      { id: "t", type: "trigger", position: { x: 0, y: 0 }, data: {} },
+      { id: "q", type: "ask_buttons", position: { x: 0, y: 0 }, data: { text: "x".repeat(1000), buttons: [{ id: "a", title: "A" }], timeout_minutes: 5 } },
+      { id: "h", type: "handoff", position: { x: 0, y: 0 }, data: { note: "" } },
+    ],
+    edges: [{ id: "1", source: "t", sourceHandle: "next", target: "q" }, { id: "2", source: "q", sourceHandle: "btn:a", target: "h" }],
+  };
+  const r = step(long, initialState(), { type: "start" }, env());
+  assert.deepEqual(r.effects.map((e) => e.kind), ["send_text", "send_buttons"]);
+  assert.equal((r.effects[1] as { text: string }).text.length, 1000, "la pregunta no se recorta");
+  ok("F12 plantilla C con texto de arranque, opt-out sin 'cancelar', palabra completa, aviso aparte");
+}
 
 console.log(`OK  ${passed} grupos de pruebas del motor`);
