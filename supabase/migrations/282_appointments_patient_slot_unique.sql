@@ -1,4 +1,4 @@
--- Pendiente de aplicar en producción (la aplica el founder en el SQL Editor)
+-- Aplicada en producción el 02-oct-2026 (índice verificado en pg_indexes; health/schema ok: true)
 --
 -- ═══════════════════════════════════════════════════════════════════
 -- 282: una paciente nunca tiene DOS citas vivas el mismo día a la misma hora
