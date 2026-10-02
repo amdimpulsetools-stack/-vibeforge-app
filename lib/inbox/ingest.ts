@@ -1,8 +1,11 @@
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CapturedInbound } from "@/lib/whatsapp/capture";
 import type { StatusUpdate } from "@/lib/whatsapp/webhook";
 import type { MetaWebhookPayload } from "@/lib/whatsapp/types";
 import { STATUS_RANK, messagePreview, type InboxMessageStatus } from "./shared";
+import { onInboundForFlows } from "./flows/runtime";
+import { pauseBotForHuman } from "./flows/pause";
 
 /**
  * Ingesta de la bandeja (mig 275), llamada desde el webhook existente.
@@ -17,27 +20,33 @@ export async function mirrorInboundToInbox(
   msg: CapturedInbound,
 ): Promise<void> {
   try {
-    const { data, error } = await admin
-      .from("wa_messages")
-      .upsert(
-        {
-          organization_id: orgId,
-          conversation_id: conversationId,
-          direction: "in",
-          source: "patient",
-          wamid: msg.wamid,
-          type: msg.type || "text",
-          body: msg.inboxBody ?? msg.body,
-          reply_to_wamid: msg.replyToWamid ?? null,
-          meta_media_id: msg.mediaId ?? null,
-          media_mime: msg.mediaMime ?? null,
-          media_caption: msg.mediaCaption ?? null,
-          status: "received",
-          ts: msg.receivedAt,
-        },
-        { onConflict: "wamid", ignoreDuplicates: true },
-      )
-      .select("id");
+    const row: Record<string, unknown> = {
+      organization_id: orgId,
+      conversation_id: conversationId,
+      direction: "in",
+      source: "patient",
+      wamid: msg.wamid,
+      type: msg.type || "text",
+      body: msg.inboxBody ?? msg.body,
+      reply_to_wamid: msg.replyToWamid ?? null,
+      meta_media_id: msg.mediaId ?? null,
+      media_mime: msg.mediaMime ?? null,
+      media_caption: msg.mediaCaption ?? null,
+      status: "received",
+      ts: msg.receivedAt,
+    };
+    // Flows (mig 281): la respuesta a un botón / lista con su id. Solo
+    // cuando hay uno; si la 281 no está aplicada se reintenta sin la columna.
+    const interactive = msg.interactiveId || msg.buttonPayload
+      ? { reply_id: msg.interactiveId ?? null, type: msg.interactiveType ?? "button", payload: msg.buttonPayload ?? null, title: msg.inboxBody ?? null }
+      : null;
+    const upsert = (withInteractive: boolean) =>
+      admin
+        .from("wa_messages")
+        .upsert(withInteractive ? { ...row, interactive } : row, { onConflict: "wamid", ignoreDuplicates: true })
+        .select("id");
+    let { data, error } = await upsert(!!interactive);
+    if (error && interactive && error.code === "42703") ({ data, error } = await upsert(false));
     if (error) {
       if (!isMissingRelation(error)) console.error("[Bandeja] espejo de entrante falló:", error.message);
       return;
@@ -53,6 +62,21 @@ export async function mirrorInboundToInbox(
         p_ts: msg.receivedAt,
         p_preview: messagePreview({ type: msg.type, body: msg.inboxBody ?? msg.body, media_caption: msg.mediaCaption }),
       });
+      // Flows (mig 281): solo filas realmente nuevas (un reintento de Meta
+      // no dispara dos veces). Corre DESPUÉS de responder a Meta (after();
+      // fuera de un request, se espera). Best-effort: nunca rompe la captura.
+      const inbound = {
+        wamid: msg.wamid,
+        text: msg.inboxBody ?? msg.body,
+        interactiveId: msg.interactiveId ?? null,
+        buttonPayload: msg.buttonPayload ?? null,
+        receivedAt: msg.receivedAt,
+      };
+      try {
+        after(() => onInboundForFlows(admin, orgId, conversationId, inbound));
+      } catch {
+        await onInboundForFlows(admin, orgId, conversationId, inbound);
+      }
     }
   } catch (err) {
     console.error("[Bandeja] espejo de entrante (excepción):", err);
@@ -211,6 +235,8 @@ export async function mirrorEchoesToInbox(admin: SupabaseClient, payload: MetaWe
         p_ts: e.ts,
         p_preview: messagePreview({ type: e.type, body: e.body, media_caption: e.caption }),
       });
+      // Flows (mig 281): una persona escribió desde el celular → el bot se pausa.
+      await pauseBotForHuman(admin, orgId, conv.id as string, "persona");
     }
   } catch (err) {
     console.error("[Bandeja] ecos (excepción):", err);

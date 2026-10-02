@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getOrgWhatsApp, isInboxError, loadConversation, requireInbox } from "@/lib/inbox/server";
+import { pauseBotForHuman, resumeBot } from "@/lib/inbox/flows/pause";
 
 export const runtime = "nodejs";
 
@@ -11,6 +12,8 @@ const schema = z.object({
   /** Vincula (uuid) o desvincula (null) la ficha del paciente. */
   patient_id: z.string().uuid().nullable().optional(),
   display_name: z.string().trim().min(1).max(80).optional(),
+  /** Flows (mig 281): pausar / reanudar el bot en este chat. */
+  bot_paused: z.boolean().optional(),
 });
 
 /** PATCH /api/inbox/conversations/:id — leer, cerrar/reabrir, vincular paciente. */
@@ -44,6 +47,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { error } = await ctx.admin.from("wa_conversations").update(patch).eq("id", conv.id);
   if (error) return NextResponse.json({ error: "No se pudo actualizar" }, { status: 500 });
+
+  if (b.bot_paused !== undefined) {
+    if (b.bot_paused) await pauseBotForHuman(ctx.admin, ctx.orgId, conv.id, "manual");
+    else await resumeBot(ctx.admin, ctx.orgId, conv.id);
+  }
 
   // Doble check azul: solo el último entrante, best-effort.
   if (b.read) {

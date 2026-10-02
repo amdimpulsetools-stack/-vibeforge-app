@@ -75,6 +75,16 @@ BEGIN
   -- 5c. Selección de chats cerrados por minar (mig 279).
   PERFORM perf_check('minería: chats cerrados sin revisar',
     format($q$SELECT id FROM wa_conversations WHERE organization_id = %L AND outcome IS NOT NULL AND mined_at IS NULL ORDER BY outcome_at DESC LIMIT 10$q$, org), 5);
+  -- 5d. Panel de medición (mig 280): una llamada, como admin de la org A.
+  INSERT INTO organization_members(user_id, organization_id, role) VALUES ('00000000-0000-0000-0000-0000000000ad', org, 'admin') ON CONFLICT DO NOTHING;
+  PERFORM set_config('test.uid', '00000000-0000-0000-0000-0000000000ad', false);
+  PERFORM perf_check('medición: wa_inbox_metrics 30 días', format($q$SELECT wa_inbox_metrics(%L, 30)$q$, org), 150);
+  PERFORM perf_check('medición: wa_inbox_metrics 90 días', format($q$SELECT wa_inbox_metrics(%L, 90)$q$, org), 250);
+  -- 5e. Flows (mig 281): runs vencidos y chats "sin respuesta".
+  PERFORM perf_check('flows: runs vencidos (tick)',
+    $q$SELECT id FROM wa_flow_runs WHERE status IN ('waiting_delay', 'waiting_reply') AND wake_at IS NOT NULL AND wake_at <= now() ORDER BY wake_at LIMIT 25$q$, 5);
+  PERFORM perf_check('flows: chats sin respuesta del equipo',
+    format($q$SELECT id FROM wa_conversations WHERE organization_id = %L AND inbox_status = 'open' AND last_message_dir = 'in' AND bot_opted_out = false AND last_inbound_at <= now() - interval '30 minutes' AND last_inbound_at >= now() - interval '1470 minutes' ORDER BY last_inbound_at DESC LIMIT 20$q$, org), 10);
   -- 6. Programados vencidos (tick por minuto, todas las orgs).
   PERFORM perf_check('tick: programados vencidos',
     $q$SELECT id FROM wa_scheduled_messages WHERE send_at <= now() AND (status = 'pending' OR (status = 'sending' AND updated_at < now() - interval '10 minutes')) ORDER BY send_at LIMIT 50$q$, 10);

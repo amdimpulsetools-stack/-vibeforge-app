@@ -271,7 +271,7 @@ DECLARE s uuid;
 BEGIN
   INSERT INTO wa_ai_suggestions(organization_id, conversation_id, model, draft) VALUES (t_id('orgA'), t_id('convA'), 'test', 'borrador')
     RETURNING id INTO s;
-  UPDATE wa_ai_suggestions SET rating = 1, rated_at = now(), final_text = 'texto enviado' WHERE id = s;
+  UPDATE wa_ai_suggestions SET rating = 1, rated_at = now(), used = true, final_text = 'texto enviado' WHERE id = s;
   BEGIN
     UPDATE wa_ai_suggestions SET rating = 2 WHERE id = s;
     RAISE EXCEPTION 'F1: aceptó una valoración fuera de -1/1';
@@ -334,6 +334,130 @@ BEGIN
   DELETE FROM wa_kb_case_candidates;
   ASSERT (SELECT count(*) FROM wa_kb_case_candidates) = 0, 'M2: admin borra candidatos';
   RAISE NOTICE 'PASS  M2 candidatos: solo admin los ve y borra; inserta y decide la API';
+END $$;
+RESET ROLE;
+
+-- ── 280: panel de medición ──────────────────────────────────────────
+SET ROLE authenticated;
+SELECT set_config('test.uid', t_id('recep')::text, false);
+DO $$
+BEGIN
+  BEGIN
+    PERFORM wa_inbox_metrics(t_id('orgA'), 30);
+    RAISE EXCEPTION 'X1: recepción vio la medición';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+END $$;
+SELECT set_config('test.uid', t_id('admin')::text, false);
+DO $$
+DECLARE j jsonb;
+BEGIN
+  j := wa_inbox_metrics(t_id('orgA'), 30);
+  ASSERT (j->'conversations'->>'new')::int >= 1, 'X1: chats nuevos';
+  ASSERT (j->'conversations'->>'attended')::int >= 1, 'X1: convA asistió (O1)';
+  ASSERT (j->'suggestions'->>'generated')::int >= 1 AND (j->'suggestions'->>'thumbs_up')::int >= 1, 'X1: sugerencia con pulgar (F1)';
+  ASSERT (j->'suggestions'->>'edited')::int >= 1, 'X1: texto final distinto del borrador cuenta como editado';
+  ASSERT (j->'response'->>'measured')::int >= 1, 'X1: tiempo de respuesta medido';
+  ASSERT jsonb_typeof(j->'weekly') = 'array' AND jsonb_array_length(j->'weekly') BETWEEN 1 AND 14, 'X1: serie semanal acotada';
+  ASSERT (j->'kb'->>'cases')::int >= 1, 'X1: casos activos';
+  ASSERT (wa_inbox_metrics(t_id('orgA'), 9999)->>'period_days')::int = 365, 'X1: período acotado a 365';
+  BEGIN
+    PERFORM wa_inbox_metrics(t_id('orgB'), 30);
+    RAISE EXCEPTION 'X1: admin de A vio la org B';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  RAISE NOTICE 'PASS  X1 medición: solo admin de su org; cuentas, pulgares, edición, respuesta y serie semanal';
+END $$;
+RESET ROLE;
+
+-- ── 281: Flows ──────────────────────────────────────────────────────
+DO $$
+DECLARE f uuid; r1 uuid; r2 uuid; n int; claimed int;
+BEGIN
+  INSERT INTO wa_flows(organization_id, name, status, trigger, definition)
+    VALUES (t_id('orgA'), 'Bienvenida', 'active', '{"kind":"new_conversation"}', '{"nodes":[],"edges":[]}') RETURNING id INTO f;
+  -- Un bot activo por conversación.
+  INSERT INTO wa_flow_runs(organization_id, conversation_id, flow_id, status) VALUES (t_id('orgA'), t_id('convA'), f, 'waiting_reply') RETURNING id INTO r1;
+  BEGIN
+    INSERT INTO wa_flow_runs(organization_id, conversation_id, flow_id, status) VALUES (t_id('orgA'), t_id('convA'), f, 'running');
+    RAISE EXCEPTION 'FL1: dos bots activos en la misma conversación';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  -- Terminado: ya se puede abrir otro.
+  UPDATE wa_flow_runs SET status = 'done', ended_at = now() WHERE id = r1;
+  INSERT INTO wa_flow_runs(organization_id, conversation_id, flow_id, status, wake_at) VALUES (t_id('orgA'), t_id('convA'), f, 'waiting_reply', now() - interval '1 minute') RETURNING id INTO r2;
+  -- Toma por entrante: una sola vez por wamid.
+  SELECT count(*) INTO claimed FROM wa_flow_claim_for_inbound(t_id('convA'), 'wamid.x1');
+  ASSERT claimed = 1, 'FL1: toma por entrante';
+  ASSERT (SELECT status FROM wa_flow_runs WHERE id = r2) = 'running', 'FL1: pasa a running';
+  ASSERT (SELECT context->>'resume_from' FROM wa_flow_runs WHERE id = r2) = 'waiting_reply', 'FL1: recuerda de dónde venía';
+  SELECT count(*) INTO claimed FROM wa_flow_claim_for_inbound(t_id('convA'), 'wamid.x1');
+  ASSERT claimed = 0, 'FL1: un segundo entrante no vuelve a tomar';
+  -- Toma por tick: solo vencidos o colgados.
+  UPDATE wa_flow_runs SET status = 'waiting_delay', wake_at = now() + interval '10 minutes' WHERE id = r2;
+  SELECT count(*) INTO claimed FROM wa_flow_claim_due(25, t_id('orgA'));
+  ASSERT claimed = 0, 'FL1: una espera futura no se toma';
+  UPDATE wa_flow_runs SET wake_at = now() - interval '1 second' WHERE id = r2;
+  SELECT count(*) INTO claimed FROM wa_flow_claim_due(25, t_id('orgA'));
+  ASSERT claimed = 1, 'FL1: una espera vencida se toma';
+  UPDATE wa_flow_runs SET status = 'running', claimed_at = now() - interval '5 minutes' WHERE id = r2;
+  SELECT count(*) INTO claimed FROM wa_flow_claim_due(25, NULL);
+  ASSERT claimed = 1, 'FL1: un run colgado > 2 min se retoma';
+  -- Mensajes: source flow e interactive.
+  INSERT INTO wa_messages(organization_id, conversation_id, direction, source, type, body, status, ts, interactive, client_msg_id)
+    VALUES (t_id('orgA'), t_id('convA'), 'out', 'flow', 'interactive', 'menú', 'sent', now(), '{"type":"list"}', gen_random_uuid());
+  SELECT count(*) INTO n FROM wa_messages WHERE source = 'flow';
+  ASSERT n = 1, 'FL1: saliente del bot';
+  -- Ajustes y conversación.
+  ASSERT (SELECT flows_enabled FROM wa_inbox_settings WHERE organization_id = t_id('orgA')) IS NOT NULL, 'FL1: ajustes de flows';
+  UPDATE wa_conversations SET bot_paused_until = now() + interval '12 hours', bot_opted_out = false WHERE id = t_id('convA');
+  RAISE NOTICE 'PASS  FL1 flows: un bot por chat, toma atómica por entrante y por tick, source flow';
+END $$;
+
+-- RLS: recepción lee flows y runs, no escribe; admin escribe flows y versiones, no runs.
+SET ROLE authenticated;
+SELECT set_config('test.uid', t_id('recep')::text, false);
+DO $$
+DECLARE n int;
+BEGIN
+  ASSERT (SELECT count(*) FROM wa_flows) = 1, 'FL2: recepción ve los flows de su org';
+  ASSERT (SELECT count(*) FROM wa_flow_runs) >= 1, 'FL2: recepción ve las ejecuciones (insignia Bot activo)';
+  BEGIN
+    INSERT INTO wa_flows(organization_id, name) VALUES (t_id('orgA'), 'x');
+    RAISE EXCEPTION 'FL2: recepción creó un flow';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  UPDATE wa_flows SET name = 'hack';
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 0, 'FL2: recepción no edita flows';
+END $$;
+SELECT set_config('test.uid', t_id('admin')::text, false);
+DO $$
+DECLARE f uuid; n int;
+BEGIN
+  SELECT id INTO f FROM wa_flows LIMIT 1;
+  UPDATE wa_flows SET name = 'Bienvenida v2' WHERE id = f;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 1, 'FL2: admin edita flows';
+  INSERT INTO wa_flow_versions(organization_id, flow_id, version, trigger, definition) VALUES (t_id('orgA'), f, 1, '{}', '{"nodes":[],"edges":[]}');
+  BEGIN
+    INSERT INTO wa_flow_versions(organization_id, flow_id, version, trigger, definition) VALUES (t_id('orgB'), f, 2, '{}', '{}');
+    RAISE EXCEPTION 'FL2: versión con org ajena';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  UPDATE wa_flow_versions SET version = 9;
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 0, 'FL2: las versiones son inmutables';
+  UPDATE wa_flow_runs SET status = 'done';
+  GET DIAGNOSTICS n = ROW_COUNT;
+  ASSERT n = 0, 'FL2: admin no toca los runs (solo el motor)';
+  BEGIN
+    PERFORM wa_flow_claim_due(1, NULL);
+    RAISE EXCEPTION 'FL2: admin llamó a la toma del motor';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  ASSERT (SELECT count(*) FROM wa_flows WHERE organization_id = t_id('orgB')) = 0, 'FL2: no cruza orgs';
+  RAISE NOTICE 'PASS  FL2 flows RLS: recepción lee, admin edita flows y publica versiones inmutables, runs solo del motor';
 END $$;
 RESET ROLE;
 

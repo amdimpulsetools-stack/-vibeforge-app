@@ -34,8 +34,22 @@ echo "  aplicada  278 (x2, idempotente)"
 apply "$ROOT/supabase/migrations/279_wa_case_candidates.sql"
 apply "$ROOT/supabase/migrations/279_wa_case_candidates.sql"
 echo "  aplicada  279 (x2, idempotente)"
+apply "$ROOT/supabase/migrations/280_wa_inbox_metrics.sql"
+apply "$ROOT/supabase/migrations/280_wa_inbox_metrics.sql"
+echo "  aplicada  280 (x2, idempotente)"
+apply "$ROOT/supabase/migrations/281_wa_flows.sql"
+apply "$ROOT/supabase/migrations/281_wa_flows.sql"
+echo "  aplicada  281 (x2, idempotente)"
 out=$(psql -h /tmp -p $PORT -U postgres -d inbox_test -v ON_ERROR_STOP=1 -q -f "$HERE/10_inbox_test.sql" 2>&1) || { echo "$out"; exit 1; }
 grep -E "PASS|ERROR" <<<"$out"
+apply "$ROOT/supabase/migrations/rollbacks/281_wa_flows_rollback.sql"
+apply "$ROOT/supabase/migrations/rollbacks/281_wa_flows_rollback.sql"
+psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \
+  "DO \$\$ BEGIN ASSERT to_regclass('public.wa_flows') IS NULL; ASSERT to_regclass('public.wa_flow_runs') IS NULL; ASSERT NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'wa_conversations' AND column_name = 'bot_paused_until'); ASSERT (SELECT count(*) FROM wa_messages WHERE source = 'flow') = 0; ASSERT (SELECT count(*) FROM wa_messages WHERE type = 'interactive') = 1; RAISE NOTICE 'PASS  RB rollback 281 x2: quita flows, runs y pausa; conserva los mensajes del bot'; END \$\$;" 2>&1 | grep PASS
+apply "$ROOT/supabase/migrations/rollbacks/280_wa_inbox_metrics_rollback.sql"
+apply "$ROOT/supabase/migrations/rollbacks/280_wa_inbox_metrics_rollback.sql"
+psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \
+  "DO \$\$ BEGIN ASSERT to_regprocedure('wa_inbox_metrics(uuid, integer)') IS NULL; RAISE NOTICE 'PASS  RB rollback 280 x2: quita la función de medición'; END \$\$;" 2>&1 | grep PASS
 apply "$ROOT/supabase/migrations/rollbacks/279_wa_case_candidates_rollback.sql"
 apply "$ROOT/supabase/migrations/rollbacks/279_wa_case_candidates_rollback.sql"
 psql -h /tmp -p $PORT -U postgres -d inbox_test -q -v ON_ERROR_STOP=1 -c \

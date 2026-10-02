@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Search, Settings2, Clock3, Loader2 } from "lucide-react";
+import { Search, Settings2, Clock3, Loader2, Workflow } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatWaPhone, initialsOf, isWindowOpen } from "@/lib/inbox/shared";
 import type { ConversationRow, OrgTag } from "./use-inbox";
@@ -104,14 +104,24 @@ export function ConversationList({
           <h1 className="text-xl font-bold tracking-tight">Conversaciones</h1>
         </div>
         {canManage && (
-          <Link
-            href="/conversaciones/ajustes"
-            className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground hover:opacity-90"
-            aria-label="Ajustes de Conversaciones"
-            title="Ajustes: Yendy IA, base de conocimientos, casos, respuestas rápidas, etiquetas"
-          >
-            <Settings2 className="h-4 w-4" />
-          </Link>
+          <div className="flex items-center gap-1.5">
+            <Link
+              href="/conversaciones/flows"
+              className="grid h-9 w-9 place-items-center rounded-xl border border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+              aria-label="Flows"
+              title="Flows: automatizaciones con nodos"
+            >
+              <Workflow className="h-4 w-4" />
+            </Link>
+            <Link
+              href="/conversaciones/ajustes"
+              className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground hover:opacity-90"
+              aria-label="Ajustes de Conversaciones"
+              title="Ajustes: Yendy IA, base de conocimientos, casos, respuestas rápidas, etiquetas"
+            >
+              <Settings2 className="h-4 w-4" />
+            </Link>
+          </div>
         )}
       </header>
 

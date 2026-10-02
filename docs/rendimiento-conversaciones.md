@@ -42,6 +42,8 @@ mensajes en la org (y 30 000 conversaciones de otras clínicas de ruido):
 | Tick de programados vencidos (todas las orgs) | 10 ms | 0.01 ms |
 | Agenda: lectura del trigger Agendó/Asistió por cita (mig 278) | 5 ms, sin Seq Scan | 0.01 ms |
 | Minería: chats cerrados sin revisar (mig 279, índice parcial) | 5 ms, sin Seq Scan | 0.01 ms |
+| Medición: `wa_inbox_metrics` 30 / 90 días (mig 280, una llamada) | 150 / 250 ms | 9 / 8 ms |
+| Flows: runs vencidos (tick) / chats sin respuesta (mig 281) | 5 / 10 ms, sin Seq Scan | 0.01 / 0.23 ms |
 
 Tráfico por sondeo con la pantalla abierta y nada nuevo: lista **≈ 0 filas**
 cada 5 s (antes ≈ 120 KB cada 8 s); chat ≈ 0 filas cada 3 s. En Supabase las
@@ -92,5 +94,17 @@ valida RLS, contadores y rollbacks; los dos se corren antes de cada PR.
    abre Ajustes → Casos candidatos (una vez por semana) o pulsa "Buscar
    ahora": 8 chats por corrida, cada chat una sola vez. Nunca en el
    webhook, el cron ni la bandeja.
-7. Los Flows (fase 5) se ejecutan en el servidor (webhook + tick del cron);
+7. Lección de la mig 280: una subconsulta por fila de `generate_series`
+   hacía que el planificador estimara mil filas y compilara el plan con JIT
+   (300 ms solo en compilar, 4 s en total). Una pasada por tabla agrupando
+   por semana + `SET jit = off` en la función: 9 ms. El banco lo detectó;
+   correrlo antes de cada RPC nuevo.
+8. Los Flows (mig 281) corren en el servidor: el paso de un mensaje
+   entrante se ejecuta DESPUÉS de responder a Meta (`after()`), con tope
+   de 12 nodos por invocación, y las esperas viajan en el tick por minuto
+   que ya existía (cero funciones nuevas en Vercel). Las tomas son
+   atómicas (`FOR UPDATE SKIP LOCKED`) y los envíos idempotentes
+   (`client_msg_id` determinista por run + nodo + paso). El editor
+   React Flow (fase 2) solo carga la definición del flow que se edita.
+9. Los Flows se ejecutan en el servidor (webhook + tick del cron);
    el editor React Flow solo carga la definición del flow que se edita.

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "test:einvoice": "npx tsx scripts/einvoice-math-test.ts",
+    "test:flows": "npx tsx scripts/flows-engine-test.ts",
     "check:embeds": "npx -y tsx@4 scripts/check-embeds.ts",
     "db:push": "npx supabase db push",
     "db:reset": "npx supabase db reset",

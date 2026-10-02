@@ -16,6 +16,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   ArrowLeft,
+  BarChart3,
   BookOpen,
   Compass,
   HelpCircle,
@@ -35,7 +36,7 @@ import { useOrgRole } from "@/hooks/use-org-role";
 import { useOrgAddons } from "@/hooks/use-org-addons";
 import { setInboxOrg } from "../use-inbox";
 
-type SectionKey = "general" | "quick" | "tags" | "playbook" | "kb" | "cases" | "candidates" | "gaps" | "rules" | "test" | "flows";
+type SectionKey = "general" | "quick" | "tags" | "playbook" | "kb" | "cases" | "candidates" | "gaps" | "rules" | "test" | "metrics" | "flows";
 
 const SectionLoader = () => (
   <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
@@ -43,7 +44,7 @@ const SectionLoader = () => (
   </div>
 );
 const load = (p: () => Promise<{ default: React.ComponentType }>) => dynamic(p, { loading: SectionLoader });
-const SECTION_COMPONENTS: Record<Exclude<SectionKey, "flows">, React.ComponentType> = {
+const SECTION_COMPONENTS: Record<SectionKey, React.ComponentType> = {
   general: load(() => import("./sections/general")),
   quick: load(() => import("./sections/quick-replies")),
   tags: load(() => import("./sections/tags")),
@@ -54,6 +55,8 @@ const SECTION_COMPONENTS: Record<Exclude<SectionKey, "flows">, React.ComponentTy
   gaps: load(() => import("./sections/gaps")),
   rules: load(() => import("./sections/rules")),
   test: load(() => import("./sections/test")),
+  metrics: load(() => import("./sections/metrics")),
+  flows: load(() => import("./sections/flows")),
 };
 
 const NAV: Array<{ group: string; items: Array<{ key: SectionKey; label: string; hint: string; icon: React.ComponentType<{ className?: string }>; soon?: boolean }> }> = [
@@ -75,11 +78,12 @@ const NAV: Array<{ group: string; items: Array<{ key: SectionKey; label: string;
       { key: "gaps", label: "Brechas", hint: "Lo que no supo responder", icon: HelpCircle },
       { key: "rules", label: "Reglas", hint: "Límites y servicios ocultos", icon: ShieldCheck },
       { key: "test", label: "Probar Yendy", hint: "Simula una paciente", icon: Sparkles },
+      { key: "metrics", label: "Medición", hint: "¿Funciona la fórmula?", icon: BarChart3 },
     ],
   },
   {
     group: "Automatización",
-    items: [{ key: "flows", label: "Flows", hint: "Próximamente", icon: Workflow, soon: true }],
+    items: [{ key: "flows", label: "Flows", hint: "Automatizaciones con nodos", icon: Workflow }],
   },
 ];
 const KEYS = NAV.flatMap((g) => g.items.map((i) => i.key));
@@ -125,7 +129,7 @@ export default function ConversacionesAjustesPage() {
     );
   }
 
-  const Section = tab === "flows" ? null : SECTION_COMPONENTS[tab];
+  const Section = SECTION_COMPONENTS[tab];
   const current = NAV.flatMap((g) => g.items).find((i) => i.key === tab);
 
   return (
@@ -201,10 +205,12 @@ export default function ConversacionesAjustesPage() {
               <div className="rounded-xl border border-dashed border-border p-8 text-center">
                 <Workflow className="mx-auto h-8 w-8 text-muted-foreground" />
                 <h2 className="mt-2 text-lg font-bold">{current?.label}</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Automatizaciones con nodos (bienvenida con menú, respuestas por palabra clave, aviso si nadie responde). En diseño: ver{" "}
-                  <code className="text-xs">docs/research/conversaciones-flows-2026-10.md</code>.
+                <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
+                  Lo que Yenda hace sola cuando una paciente escribe: bienvenida con menú, respuestas por palabra clave, aviso si nadie responde. Se dibujan con nodos y siempre terminan en una persona.
                 </p>
+                <Link href="/conversaciones/flows" className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90">
+                  <Workflow className="h-4 w-4" /> Abrir Flows
+                </Link>
               </div>
             )}
           </div>

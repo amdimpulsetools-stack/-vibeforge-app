@@ -43,6 +43,11 @@ export interface CapturedInbound {
   /** Texto para la bandeja: incluye respuestas de botón/lista y reacciones.
    *  `body` (F1) queda exactamente como antes. */
   inboxBody?: string | null;
+  /** Flows (mig 281): id del botón / fila que tocó la paciente (hasta
+   *  ahora solo se guardaba el título) y payload de un botón de plantilla. */
+  interactiveId?: string | null;
+  interactiveType?: "button_reply" | "list_reply" | null;
+  buttonPayload?: string | null;
 }
 
 /** Extrae los mensajes entrantes del payload (los statuses siguen su vía). */
@@ -92,6 +97,9 @@ export function parseInboundMessages(
           mediaCaption: media?.caption ?? null,
           replyToWamid: msg.context?.id ?? null,
           inboxBody,
+          interactiveId: msg.interactive?.button_reply?.id ?? msg.interactive?.list_reply?.id ?? null,
+          interactiveType: msg.interactive?.button_reply ? "button_reply" : msg.interactive?.list_reply ? "list_reply" : null,
+          buttonPayload: msg.button?.payload ?? null,
         });
       }
     }

@@ -2,6 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { dispatchDueScheduled } from "@/lib/inbox/dispatch";
+import { tickFlowRuns } from "@/lib/inbox/flows/runtime";
 
 export const runtime = "nodejs";
 
@@ -20,8 +21,11 @@ export async function GET(req: NextRequest) {
   if (!cronSecret || cronSecret.length < 32 || got.length !== want.length || !timingSafeEqual(got, want)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const result = await dispatchDueScheduled(createAdminClient(), { limit: 50 });
-  return NextResponse.json(result);
+  const admin = createAdminClient();
+  const result = await dispatchDueScheduled(admin, { limit: 50 });
+  // Flows (mig 281): esperas, tiempos y "sin respuesta", en el mismo tick.
+  const flows = await tickFlowRuns(admin, { limit: 25 });
+  return NextResponse.json({ ...result, flows });
 }
 
 export const POST = GET;

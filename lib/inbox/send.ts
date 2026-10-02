@@ -4,6 +4,7 @@ import { WhatsAppApiError, type WhatsAppClient } from "@/lib/whatsapp/client";
 import { buildSendPayload, resolveVariableValues } from "@/lib/whatsapp/send";
 import type { WhatsAppTemplate } from "@/lib/whatsapp/types";
 import { isWindowOpen, messagePreview } from "./shared";
+import { pauseBotForHuman } from "./flows/pause";
 
 /**
  * Envío desde la bandeja (mig 275). Un solo camino para el composer, los
@@ -21,7 +22,7 @@ import { isWindowOpen, messagePreview } from "./shared";
  * solo plantilla aprobada.
  */
 
-export type SendKind = "text" | "template";
+export type SendKind = "text" | "template" | "interactive";
 
 export interface SendParams {
   admin: SupabaseClient;
@@ -38,9 +39,12 @@ export interface SendParams {
   templateVars?: Record<string, string>;
   clientMsgId: string;
   actorId: string | null;
-  source: "agent" | "scheduler";
+  source: "agent" | "scheduler" | "flow";
   scheduledId?: string | null;
   aiSuggestionId?: string | null;
+  /** Flows (mig 281): botones o lista ya armados (wa-payloads.ts) y lo que se guarda en wa_messages.interactive. */
+  interactive?: { payload: Record<string, unknown>; meta: Record<string, unknown> };
+  flowRunId?: string | null;
 }
 
 export type SendResult =
@@ -78,6 +82,13 @@ export async function sendFromInbox(p: SendParams): Promise<SendResult> {
       text: { body, preview_url: false },
     };
     displayBody = body;
+  } else if (p.kind === "interactive") {
+    if (!p.interactive) return { ok: false, status: 400, error: "Faltan los botones" };
+    if (!isWindowOpen(conversation.last_inbound_at)) {
+      return { ok: false, status: 409, code: "window_closed", error: "Fuera de la ventana de 24 h solo se puede enviar una plantilla aprobada." };
+    }
+    payload = { ...p.interactive.payload, to };
+    displayBody = (p.body ?? "").trim() || "Mensaje con opciones";
   } else {
     if (!p.templateId) return { ok: false, status: 400, error: "Elige una plantilla" };
     const { data: template } = await admin
@@ -111,8 +122,9 @@ export async function sendFromInbox(p: SendParams): Promise<SendResult> {
       direction: "out",
       source: p.source,
       client_msg_id: p.clientMsgId,
-      type: p.kind === "template" ? "template" : "text",
+      type: p.kind === "template" ? "template" : p.kind === "interactive" ? "interactive" : "text",
       body: displayBody,
+      ...(p.kind === "interactive" ? { interactive: p.interactive?.meta ?? null } : {}),
       template_name: templateName,
       template_lang: templateLang,
       template_vars: p.kind === "template" ? (p.templateVars ?? {}) : null,
@@ -156,6 +168,8 @@ export async function sendFromInbox(p: SendParams): Promise<SendResult> {
       p_ts: now,
       p_preview: messagePreview({ type: p.kind, body: displayBody }),
     });
+    // Flows (mig 281), regla "una persona manda": lo que escribe el equipo pausa el bot.
+    if (p.source === "agent") await pauseBotForHuman(admin, orgId, conversation.id, "persona");
     return { ok: true, messageId };
   } catch (err) {
     const code = err instanceof WhatsAppApiError ? String(err.code) : null;
