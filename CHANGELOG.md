@@ -5198,6 +5198,15 @@ Tras la primera prueba del fundador en el editor y una auditoría contra ManyCha
 - Pendiente de la auditoría (próximo PR): nodo de imagen / documento (lista de precios en PDF), reintento con espera ante 130429 (ritmo), ignorar respuestas a un menú viejo por `context.id`, prioridad editable y panel de versiones con restaurar.
 - Pruebas: `npm run test:flows` 13 grupos (nuevos F11 esperas en segundos / escribiendo… / errores por nodo y F12 plantilla C / opt-out / palabra completa / aviso aparte). `tsc`, `check:embeds`, `next build` en verde.
 
+
+### Agenda: citas duplicadas por doble envío del formulario (mig 282) — PR #396
+
+- **Incidente 02-oct (Dra. Patricia):** tres pares de citas duplicadas en una mañana (Edimelis Chávez, Yusbely Hernández, María Angélica Curi), cada par con 3-5 s de diferencia. La paciente aparecía con "deuda" por la cita sobrante (S/700 en la ficha de una paciente al día). El diagnóstico completo de los saldos de la org (11 pacientes, S/24 350) no encontró ningún pago perdido ni efecto de la mig 273: tres saldos reales de tratamientos en cuotas, citas futuras por cobrar, dos fichas de la org de prueba de junio y los duplicados.
+- **Causa:** al confirmar "Pre-reservar", el formulario creaba la cita, soltaba `saving` y salía a la red a buscar la plantilla del WhatsApp; mientras tanto seguía abierto con "Guardar" activo y el chequeo de choques miraba la lista de la agenda, que aún no tenía la cita recién creada. Un segundo clic creaba una cita idéntica.
+- **Corrección en el formulario:** candado síncrono de doble envío (`submitLockRef`), `saving` se mantiene hasta que el formulario se cierra, las plantillas se precargan al abrir (`prefetchClipboardTemplates`) y, justo antes de insertar, se pregunta a la base si la paciente ya tiene una cita viva ese día a esa hora (`lib/appointments/slot-guard.ts`) con mensaje humano.
+- **Mig 282:** índice único parcial `uq_appointments_patient_slot_live` sobre (patient_id, appointment_date, start_time) para citas con ficha y no canceladas. Verificado en producción: fuera de los tres pares no existía ningún caso. Aplicar DESPUÉS de cancelar la cita sobrante de cada par ("Error de registro", sin pagos). La UI atrapa el 23505 con mensaje humano.
+- **Pendiente de producto (detectado en el diagnóstico):** con Caja activa, "Se devolvió" deja el pago contando como "pagado" en la ficha de la paciente; acción "Anular pago erróneo" para admin con rastro; que el badge de saldo distinga "por cobrar en la cita del 06/10" de deuda de citas pasadas.
+
 ### Pendiente
 - Migs 280 y 281 aplicadas y verificadas el 2-oct (Consulta 1 igual, Consulta 2 con una FK por par, health `ok: true`). Merge del #396 (sin migración) y QA con el número de prueba.
 - Hoja de ruta aprobada (1-oct): ✅ rendimiento (#392) → ✅ pulgar + Agendó/Asistió (#393) → ✅ casos candidatos con aprobación (#394, mig 279) → ✅ panel de medición (#395, mig 280) → ✅ Flows (#395, mig 281): motor, editor React Flow y Probar. Pendiente: QA con el número de prueba, V1.5 (nodo de Yendy, proponer huecos) y V2 (disparadores por cita) (React Flow, 60 fps; el motor corre en el servidor).

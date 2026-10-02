@@ -58,7 +58,7 @@ import { PERU_DEPARTAMENTOS, PERU_DEPARTAMENTO_LIST } from "@/lib/peru-locations
 import { ZoomIcon } from "@/components/icons/zoom-icon";
 import { getPaymentIcon } from "@/lib/payment-icons";
 import { RecurringBadge } from "@/components/patients/recurring-badge";
-import { loadWaClipboardConfig, normalizePhoneForWa, type AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
+import { loadWaClipboardConfig, normalizePhoneForWa, prefetchClipboardTemplates, type AppointmentVariables } from "@/lib/whatsapp-clipboard-config";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar-client";
 import { WhatsAppClipboardModal } from "./whatsapp-clipboard-modal";
 import { calculateCoverageQuotes } from "@/lib/insurance/calculate-coverage";
@@ -69,6 +69,7 @@ import {
   type RescheduleContext,
 } from "@/lib/appointments/reschedule-context";
 import { transferDeposits } from "@/lib/appointments/deposits";
+import { findLivePatientAppointmentAtSlot } from "@/lib/appointments/slot-guard";
 import {
   PRERESERVA_DEFAULT_MINUTES,
   computeHoldExpiry,
@@ -390,6 +391,20 @@ export function AppointmentFormModal({
   const [patientBirthDate, setPatientBirthDate] = useState(rsPatient?.birth_date ?? "");
   const [patientDepartamento, setPatientDepartamento] = useState(rsPatient?.departamento ?? "");
   const [patientDistrito, setPatientDistrito] = useState(rsPatient?.distrito ?? "");
+
+  // Candado síncrono contra el doble envío (incidente 02-oct-2026: tres
+  // citas duplicadas en una mañana). `saving` es estado de React y se
+  // actualiza en el siguiente render; un segundo clic en la misma vuelta
+  // —o en la ventana en que el formulario sigue abierto esperando una
+  // petición de red— lo pasaba por alto. El ref se evalúa al instante.
+  const submitLockRef = useRef(false);
+
+  // Las plantillas del WhatsApp se cargan al ABRIR el formulario, no al
+  // guardar: así `renderPrereservaMessage` no sale a la red con la cita ya
+  // creada y el formulario todavía en pantalla.
+  useEffect(() => {
+    prefetchClipboardTemplates();
+  }, []);
 
   // WhatsApp clipboard modal
   const [showWaModal, setShowWaModal] = useState(false);
@@ -1307,7 +1322,19 @@ export function AppointmentFormModal({
       ? "Con anticipo la cita queda confirmada: usa Guardar."
       : null;
 
+  // Envoltorio con candado: mientras un envío está en curso, cualquier otro
+  // (Guardar, Pre-reservar, Enter) se ignora. Se libera siempre al terminar.
   const onSubmit = async (values: AppointmentFormData, opts?: { holdMinutes?: number }) => {
+    if (submitLockRef.current) return;
+    submitLockRef.current = true;
+    try {
+      await onSubmitInner(values, opts);
+    } finally {
+      submitLockRef.current = false;
+    }
+  };
+
+  const onSubmitInner = async (values: AppointmentFormData, opts?: { holdMinutes?: number }) => {
     // Pre-reserva (mig 274): mismos pasos que Guardar + hold_expires_at. Solo
     // al crear y fuera del modo reprogramar (el botón no existe allí).
     const holdMinutes = !rs && opts?.holdMinutes ? opts.holdMinutes : null;
@@ -1559,6 +1586,35 @@ export function AppointmentFormModal({
           : Math.max(0, (priceSnapshot ?? 0) - (discountEnabled ? discountAmountComputed : 0)),
     };
 
+    // ── Misma paciente, mismo día y misma hora: nunca dos citas vivas ─────
+    // El chequeo de choques de arriba mira la lista de la agenda, que aún no
+    // tiene lo que se creó hace un segundo (una pre-reserva recién
+    // confirmada, otra pestaña, la reserva online). Se pregunta a la base.
+    if (patientId) {
+      const dup = await findLivePatientAppointmentAtSlot(supabase, {
+        organizationId,
+        patientId,
+        appointmentDate: values.appointment_date,
+        startTime: values.start_time,
+      });
+      if (dup.error) {
+        setSaving(false);
+        toast.error("No se pudo verificar la agenda de la paciente. Intenta de nuevo.");
+        return;
+      }
+      if (dup.found) {
+        setSaving(false);
+        toast.error(
+          dup.found.isHold
+            ? "Esta paciente ya tiene este horario pre-reservado. No se creó otra cita: si llegó o pagó, confírmala desde la agenda."
+            : "Esta paciente ya tiene una cita ese día a esa hora. No se creó otra.",
+          { duration: 8000 },
+        );
+        onSaved(); // refresca la agenda para que la cita existente se vea
+        return;
+      }
+    }
+
     let insertRow: Record<string, unknown> = appointmentRow;
     let insertResult = await supabase
       .from("appointments")
@@ -1683,12 +1739,21 @@ export function AppointmentFormModal({
       }
     }
 
-    setSaving(false);
-
     if (error) {
+      setSaving(false);
+      // Candado de la base (mig 282): la misma paciente ya tiene una cita
+      // viva en ese horario. Mensaje humano en vez del error de Postgres.
+      if (error.code === "23505" && /uq_appointments_patient_slot_live/.test(error.message ?? "")) {
+        toast.error("Esta paciente ya tiene una cita ese día a esa hora. No se creó otra.", { duration: 8000 });
+        onSaved();
+        return;
+      }
       toast.error(t("scheduler.save_error") + ": " + error.message);
       return;
     }
+    // `saving` sigue en true hasta que el formulario se cierre (onSaved):
+    // soltarlo aquí dejaba "Guardar" activo mientras se armaba el mensaje
+    // de WhatsApp de la pre-reserva, y un segundo clic duplicaba la cita.
 
     // Notification: new appointment created — fan-out por rol (mig 192).
     // El doctor asignado sólo la recibe si es SU cita: eso lo resuelve el RPC
@@ -1756,6 +1821,7 @@ export function AppointmentFormModal({
               }
           : undefined,
       });
+      setSaving(false);
       onSaved();
       return;
     }
@@ -1809,14 +1875,17 @@ export function AppointmentFormModal({
         // "Enviar por WhatsApp" button. We pass the form value (the phone
         // that was registered with the appointment), normalization
         // happens in the modal.
+        setSaving(false);
         onShowWhatsAppFollowup(variables, values.patient_phone || null);
         onSaved();
       } else {
         // Fallback legacy: render interno (puede tener freeze por focus trap).
+        setSaving(false);
         setWaVariables(variables);
         setShowWaModal(true);
       }
     } else {
+      setSaving(false);
       onSaved();
     }
   };
