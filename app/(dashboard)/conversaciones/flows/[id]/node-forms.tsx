@@ -75,6 +75,9 @@ export function TriggerForm({ trigger, onChange, readOnly }: { trigger: Trigger;
         </Field>
       )}
       {trigger.kind === "manual" && <p className="text-xs text-muted-foreground">Recepción lo inicia desde la conversación (“Iniciar flow”).</p>}
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" disabled={readOnly} checked={trigger.skip_in_quiet} onChange={(e) => set({ skip_in_quiet: e.target.checked })} /> En horario silencioso no arrancar (en vez de esperar a la apertura)
+      </label>
       <Field title="No repetir en el mismo chat antes de (horas)" hint="0 = sin límite.">
         <input type="number" min={0} max={720} className={input} disabled={readOnly} value={trigger.cooldown_hours} onChange={(e) => set({ cooldown_hours: Math.max(0, Number(e.target.value) || 0) })} />
       </Field>
@@ -94,7 +97,7 @@ export interface FormProps {
 
 export function NodeForm(p: FormProps) {
   const { type, data, onChange, readOnly } = p;
-  const varsHint = "Variables: {{nombre}} (de la paciente) y {{clinica}}.";
+  const varsHint = "Variables: {{nombre}} (de la paciente), {{clinica}} y {{respuesta}} (lo último que escribió).";
   switch (type) {
     case "send_text":
       return (
@@ -149,10 +152,29 @@ export function NodeForm(p: FormProps) {
               <option value="reply">A que la paciente escriba</option>
             </select>
           </Field>
-          <Field title={data.mode === "reply" ? "Tiempo máximo (minutos)" : "Minutos"}>
-            <input type="number" min={1} max={10080} className={input} disabled={readOnly} value={(data.minutes as number) ?? 30} onChange={(e) => onChange({ minutes: Number(e.target.value) || 30 })} />
-          </Field>
+          <div>
+            <span className={label}>{data.mode === "reply" ? "Tiempo máximo" : "Cuánto"}</span>
+            <div className="grid grid-cols-2 gap-2">
+              <label className="text-xs">
+                <input type="number" min={0} max={10080} className={input} disabled={readOnly} value={(data.minutes as number) ?? 0} onChange={(e) => onChange({ minutes: Math.max(0, Number(e.target.value) || 0) })} />
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">minutos</span>
+              </label>
+              <label className="text-xs">
+                <input type="number" min={0} max={59} className={input} disabled={readOnly} value={(data.seconds as number) ?? 0} onChange={(e) => onChange({ seconds: Math.min(59, Math.max(0, Number(e.target.value) || 0)) })} />
+                <span className="mt-0.5 block text-[11px] text-muted-foreground">segundos</span>
+              </label>
+            </div>
+            <span className="mt-1 block text-[11px] text-muted-foreground">
+              {data.mode === "reply" ? "Si no escribe en ese tiempo, sale por “tiempo”." : "Menos de un minuto se espera al instante; más, con precisión de un minuto."}
+            </span>
+          </div>
         </div>
+      );
+    case "typing":
+      return (
+        <Field title="Segundos escribiendo…" hint="La paciente ve “escribiendo…” en WhatsApp y luego llega el siguiente mensaje. Máximo 25 s (límite de Meta). Entre 2 y 4 s se siente natural.">
+          <input type="number" min={1} max={25} className={input} disabled={readOnly} value={(data.seconds as number) ?? 3} onChange={(e) => onChange({ seconds: Math.min(25, Math.max(1, Number(e.target.value) || 3)) })} />
+        </Field>
       );
     case "condition":
       return (

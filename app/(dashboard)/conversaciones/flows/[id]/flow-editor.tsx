@@ -31,7 +31,7 @@ import {
   type OnBeforeDelete,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { AlertTriangle, ArrowLeft, Check, FlaskConical, Loader2, Pause, Play, Redo2, Save, Undo2, X, Send, Clock, Bot, User } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Check, Copy, FlaskConical, Loader2, Pause, Play, Redo2, Save, Trash2, Undo2, X, Send, Clock, Bot, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/components/theme-provider";
 import { useOrganization } from "@/components/organization-provider";
@@ -42,14 +42,15 @@ import { flowKeys, useFlowRuns, useOrgMembers, type FlowDetail } from "../use-fl
 import { EditorCtx, NODE_STYLE, NODE_TYPES, type EditorNode } from "./flow-nodes";
 import { NodeForm, TriggerForm } from "./node-forms";
 
-const PALETTE: NodeType[] = ["send_text", "ask_buttons", "ask_list", "condition", "wait", "send_template", "tag", "notify", "handoff", "end"];
+const PALETTE: NodeType[] = ["send_text", "typing", "ask_buttons", "ask_list", "condition", "wait", "send_template", "tag", "notify", "handoff", "end"];
 
 const DEFAULT_DATA: Record<NodeType, Record<string, unknown>> = {
   trigger: {},
   send_text: { text: "" },
   ask_buttons: { text: "", buttons: [{ id: "si", title: "Sí" }, { id: "no", title: "No" }], timeout_minutes: 60 },
   ask_list: { text: "", button_label: "Ver opciones", rows: [{ id: "op1", title: "" }], timeout_minutes: 60 },
-  wait: { mode: "delay", minutes: 30 },
+  wait: { mode: "delay", minutes: 0, seconds: 5 },
+  typing: { seconds: 3 },
   condition: { check: "business_hours", keywords: [], tag_id: null },
   send_template: { template_id: "", vars: {} },
   tag: { action: "add", tag_id: "" },
@@ -181,6 +182,28 @@ function Editor({ flow, readOnly }: { flow: FlowDetail; readOnly: boolean }) {
       setEdges((es) => addEdge({ ...c, sourceHandle: handle, id: `e_${c.source}_${handle}_${c.target}`, type: "smoothstep" }, es.filter((e) => !(e.source === c.source && (e.sourceHandle ?? "next") === handle))));
     },
     [readOnly, setEdges],
+  );
+  const deleteNode = useCallback(
+    (id: string) => {
+      if (readOnly) return;
+      const n = nodes.find((x) => x.id === id);
+      if (!n || n.type === "trigger") return;
+      setNodes((ns) => ns.filter((x) => x.id !== id));
+      setEdges((es) => es.filter((e) => e.source !== id && e.target !== id));
+      setSelectedId(null);
+    },
+    [nodes, readOnly, setEdges, setNodes],
+  );
+  const duplicateNode = useCallback(
+    (id: string) => {
+      if (readOnly) return;
+      const n = nodes.find((x) => x.id === id);
+      if (!n || n.type === "trigger") return;
+      const copyId = `${n.type}_${Math.random().toString(36).slice(2, 7)}`;
+      setNodes((ns) => [...ns.map((x) => ({ ...x, selected: false })), { ...n, id: copyId, position: { x: n.position.x + 40, y: n.position.y + 40 }, data: structuredClone(n.data), selected: true }]);
+      setSelectedId(copyId);
+    },
+    [nodes, readOnly, setNodes],
   );
   const onBeforeDelete: OnBeforeDelete<EditorNode, Edge> = useCallback(async ({ nodes: ns, edges: es }) => {
     if (readOnly) return false;
@@ -387,7 +410,7 @@ function Editor({ flow, readOnly }: { flow: FlowDetail; readOnly: boolean }) {
                 );
               })}
             </ul>
-            <p className="mt-3 px-2 text-[10.5px] leading-snug text-muted-foreground">Conecta cada salida arrastrando desde su punto. Supr borra el nodo seleccionado.</p>
+            <p className="mt-3 px-2 text-[10.5px] leading-snug text-muted-foreground">Conecta cada salida arrastrando desde su punto. Para borrar un nodo: selecciónalo y usa el tacho del panel derecho o la tecla Supr. Una conexión se borra igual: clic y Supr.</p>
           </aside>
         )}
 
@@ -428,11 +451,23 @@ function Editor({ flow, readOnly }: { flow: FlowDetail; readOnly: boolean }) {
         <aside className="absolute inset-x-0 bottom-0 max-h-[55%] overflow-y-auto border-t border-border bg-card p-3 md:static md:max-h-none md:border-l md:border-t-0">
           {selected ? (
             <>
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-3 flex items-center justify-between gap-2">
                 <h2 className="text-sm font-bold">{NODE_LABEL[selected.type as NodeType]}</h2>
-                <button type="button" onClick={() => { setSelectedId(null); setNodes((ns) => ns.map((n) => ({ ...n, selected: false }))); }} className="text-muted-foreground hover:text-foreground" aria-label="Cerrar">
-                  <X className="h-4 w-4" />
-                </button>
+                <div className="flex items-center gap-0.5">
+                  {!readOnly && selected.type !== "trigger" && (
+                    <>
+                      <button type="button" onClick={() => duplicateNode(selected.id)} className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="Duplicar nodo" title="Duplicar nodo">
+                        <Copy className="h-4 w-4" />
+                      </button>
+                      <button type="button" onClick={() => deleteNode(selected.id)} className="rounded-md p-1.5 text-muted-foreground hover:bg-red-500/10 hover:text-red-600" aria-label="Eliminar nodo" title="Eliminar nodo (Supr)">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+                  <button type="button" onClick={() => { setSelectedId(null); setNodes((ns) => ns.map((n) => ({ ...n, selected: false }))); }} className="rounded-md p-1.5 text-muted-foreground hover:text-foreground" aria-label="Cerrar">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
               {selected.type === "trigger" ? (
                 <TriggerForm trigger={trigger} onChange={setTrigger} readOnly={readOnly} />
@@ -550,6 +585,8 @@ function TestDrawer({ flowId, trigger, definition, onClose }: { flowId: string; 
                     ))}
                   </div>
                 )}
+                {ef.kind === "typing" && <p className="text-[11px] italic text-muted-foreground">⌨️ escribiendo… {ef.seconds as number} s</p>}
+                {ef.kind === "sleep" && <p className="text-[11px] italic text-muted-foreground">⏱ espera {ef.seconds as number} s</p>}
                 {ef.kind === "send_template" && <p className="text-[11px] italic text-muted-foreground">📄 Enviaría la plantilla</p>}
                 {ef.kind === "tag" && <p className="text-[11px] italic text-muted-foreground">🏷 {ef.action === "remove" ? "Quita" : "Pone"} etiqueta</p>}
                 {ef.kind === "notify" && <p className="text-[11px] italic text-muted-foreground">🔔 Avisa: {(ef.note as string) || "(sin nota)"}</p>}

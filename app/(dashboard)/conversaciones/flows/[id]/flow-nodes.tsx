@@ -2,7 +2,7 @@
 
 import { createContext, memo, useContext } from "react";
 import { Handle, Position, type NodeProps, type Node } from "@xyflow/react";
-import { AlertTriangle, Bot, Clock, FileText, GitBranch, Hand, ListChecks, MessageSquare, MousePointerClick, Square, Tag, UserRound, Zap } from "lucide-react";
+import { AlertTriangle, Bot, Clock, FileText, GitBranch, Hand, Keyboard, ListChecks, MessageSquare, MousePointerClick, Square, Tag, UserRound, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { NODE_LABEL, TRIGGER_LABEL, type NodeType, type Trigger } from "@/lib/inbox/flows/schema";
 
@@ -23,6 +23,7 @@ export const NODE_STYLE: Record<NodeType, { icon: React.ComponentType<{ classNam
   ask_buttons: { icon: MousePointerClick, ring: "border-sky-400/60", chip: "bg-sky-500/15 text-sky-700 dark:text-sky-300" },
   ask_list: { icon: ListChecks, ring: "border-sky-400/60", chip: "bg-sky-500/15 text-sky-700 dark:text-sky-300" },
   wait: { icon: Clock, ring: "border-amber-400/60", chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
+  typing: { icon: Keyboard, ring: "border-emerald-400/60", chip: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
   condition: { icon: GitBranch, ring: "border-amber-400/60", chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300" },
   send_template: { icon: FileText, ring: "border-emerald-400/60", chip: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300" },
   tag: { icon: Tag, ring: "border-teal-400/60", chip: "bg-teal-500/15 text-teal-700 dark:text-teal-300" },
@@ -39,6 +40,7 @@ export function outputsLoose(type: NodeType, data: Record<string, unknown>): Arr
     case "send_template":
     case "tag":
     case "notify":
+    case "typing":
       return [{ handle: "next", label: "siguiente" }];
     case "ask_buttons": {
       const buttons = (data.buttons as Array<{ id: string; title: string }> | undefined) ?? [];
@@ -73,8 +75,14 @@ function summary(type: NodeType, data: Record<string, unknown>, trigger: Trigger
     case "ask_buttons":
     case "ask_list":
       return (data.text as string) || "Escribe la pregunta…";
-    case "wait":
-      return data.mode === "reply" ? `Hasta que escriba (máx. ${data.minutes ?? 30} min)` : `${data.minutes ?? 30} min`;
+    case "wait": {
+      const m = Number(data.minutes ?? 0);
+      const sec = Number(data.seconds ?? 0);
+      const human = m > 0 && sec > 0 ? `${m} min ${sec} s` : m > 0 ? `${m} min` : `${sec} s`;
+      return data.mode === "reply" ? `Hasta que escriba (máx. ${human})` : human;
+    }
+    case "typing":
+      return `Escribiendo… ${data.seconds ?? 3} s`;
     case "condition": {
       const c = data.check as string;
       return { keyword: `Dijo: ${((data.keywords as string[]) ?? []).join(", ") || "…"}`, has_tag: "Tiene la etiqueta", has_patient: "Tiene ficha de paciente", window_open: "Ventana de 24 h abierta", business_hours: "Dentro del horario" }[c] ?? "Elige una condición";

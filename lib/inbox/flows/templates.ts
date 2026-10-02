@@ -21,14 +21,15 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     key: "welcome",
     name: "Bienvenida con menú",
     description: "Cuando alguien escribe por primera vez: saluda, pregunta qué necesita y avisa a recepción.",
-    trigger: { kind: "new_conversation", keywords: [], match: "contains", silence_days: 30, minutes: 30, only_business_hours: false, payloads: [], cooldown_hours: 24 },
+    trigger: { kind: "new_conversation", keywords: [], match: "contains", silence_days: 30, minutes: 30, only_business_hours: false, payloads: [], cooldown_hours: 24, skip_in_quiet: false },
     definition: {
       nodes: [
         { id: "t", type: "trigger", position: P(0, 0), data: {} },
         { id: "hours", type: "condition", position: P(0, 140), data: { check: "business_hours", keywords: [], tag_id: null } },
         { id: "closed", type: "send_text", position: P(-260, 300), data: { text: "Hola {{nombre}}, gracias por escribir a {{clinica}}. En este momento estamos fuera de horario; apenas abramos te respondemos con gusto." } },
         { id: "closed_end", type: "handoff", position: P(-260, 440), data: { note: "Escribió fuera de horario: responder al abrir." } },
-        { id: "menu", type: "ask_list", position: P(220, 300), data: {
+        { id: "typing", type: "typing", position: P(220, 260), data: { seconds: 2 } },
+        { id: "menu", type: "ask_list", position: P(220, 400), data: {
           text: "Hola {{nombre}}, gracias por escribir a {{clinica}}. ¿En qué te ayudo?",
           button_label: "Ver opciones",
           rows: [
@@ -52,7 +53,8 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
         { id: "e1", source: "t", sourceHandle: "next", target: "hours" },
         { id: "e2", source: "hours", sourceHandle: "no", target: "closed" },
         { id: "e3", source: "closed", sourceHandle: "next", target: "closed_end" },
-        { id: "e4", source: "hours", sourceHandle: "yes", target: "menu" },
+        { id: "e4", source: "hours", sourceHandle: "yes", target: "typing" },
+        { id: "e4b", source: "typing", sourceHandle: "next", target: "menu" },
         { id: "e5", source: "menu", sourceHandle: "row:cita", target: "cita" },
         { id: "e6", source: "cita", sourceHandle: "next", target: "cita_h" },
         { id: "e7", source: "menu", sourceHandle: "row:precios", target: "precios" },
@@ -69,7 +71,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     key: "no_reply",
     name: "Nadie respondió en 30 min",
     description: "Si la paciente escribió y en 30 minutos nadie contestó (en horario): avisa a recepción y le dice que ya la vieron.",
-    trigger: { kind: "no_reply", keywords: [], match: "contains", silence_days: 30, minutes: 30, only_business_hours: true, payloads: [], cooldown_hours: 4 },
+    trigger: { kind: "no_reply", keywords: [], match: "contains", silence_days: 30, minutes: 30, only_business_hours: true, payloads: [], cooldown_hours: 4, skip_in_quiet: true },
     definition: {
       nodes: [
         { id: "t", type: "trigger", position: P(0, 0), data: {} },
@@ -88,7 +90,7 @@ export const FLOW_TEMPLATES: FlowTemplate[] = [
     key: "confirm",
     name: "Confirmación por botones",
     description: "Cuando la paciente toca Confirmar o Reagendar en una plantilla con botones.",
-    trigger: { kind: "template_button", keywords: [], match: "contains", silence_days: 30, minutes: 30, only_business_hours: false, payloads: ["confirmar", "reagendar"], cooldown_hours: 1 },
+    trigger: { kind: "template_button", keywords: [], match: "contains", silence_days: 30, minutes: 30, only_business_hours: false, payloads: ["confirmar", "reagendar"], cooldown_hours: 1, skip_in_quiet: false },
     definition: {
       nodes: [
         { id: "t", type: "trigger", position: P(0, 0), data: {} },

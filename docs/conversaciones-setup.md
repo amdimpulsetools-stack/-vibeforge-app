@@ -297,7 +297,23 @@ pausado, Pausar / Reanudar e Iniciar flow a mano. Ajustes → **Flows**:
 interruptor general, horas de pausa, horario silencioso y aviso de
 asistente virtual.
 
-Pruebas: `npm run test:flows` (motor puro, 11 grupos), harness SQL (FL1,
+**Ajustes tras la primera prueba y la auditoría (2-oct):** nodo
+**Escribiendo…** (indicador de WhatsApp, 1-25 s; se siente humano antes de
+una respuesta), **Esperar** en minutos y segundos (menos de un minuto se
+espera al instante; más, por el tick), botones **Duplicar** y **Eliminar**
+en el panel del nodo (además de Supr), errores de validación con texto
+humano por nodo, variable `{{respuesta}}`, palabras clave por palabra
+completa ("cita" ya no dispara con "felicitaciones"), "cancelar" y "salir"
+ya no dan de baja (solo STOP, BAJA, "no me escribas" y similares, y nunca
+desde un botón), el aviso de asistente virtual va una vez por chat cada
+24 h y, si no cabe en el límite de Meta de una pregunta, sale como texto
+aparte; el texto que dispara un flow alimenta la Condición y
+`{{respuesta}}` (la plantilla "Confirmación por botones" ya distingue
+confirmar de reagendar); "sin respuesta" no escribe a una paciente cuyo
+último mensaje tenga señal de alarma; opción por disparador "en horario
+silencioso no arrancar".
+
+Pruebas: `npm run test:flows` (motor puro, 13 grupos), harness SQL (FL1,
 FL2, rollback 281 ×2), banco de rendimiento (runs vencidos y chats sin
 respuesta por índice). Rollback: `rollbacks/281_wa_flows_rollback.sql`.
 

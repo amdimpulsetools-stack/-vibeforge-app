@@ -1,4 +1,4 @@
-import { DefinitionSchema, TriggerSchema, outputsOf, requiredOutputsOf, type FlowDefinition, type Trigger } from "./schema";
+import { DefinitionSchema, NodeSchema, TriggerSchema, outputsOf, requiredOutputsOf, type FlowDefinition, type Trigger } from "./schema";
 
 /**
  * Validación de un flow antes de publicar (y en vivo en el editor). Misma
@@ -32,9 +32,17 @@ export function validateFlow(rawTrigger: unknown, rawDefinition: unknown, ctx: V
   }
   const d = DefinitionSchema.safeParse(rawDefinition);
   if (!d.success) {
-    const first = d.error.issues[0];
-    const path = first?.path?.join(".") ?? "";
-    issues.push({ level: "error", message: `Nodo inválido (${path}): ${first?.message ?? "revisa los campos"}` });
+    // Un mensaje humano por nodo (no "nodes.4.data.template_id: Invalid uuid").
+    const rawNodes = ((rawDefinition as { nodes?: unknown[] } | null)?.nodes ?? []) as Array<{ id?: string; type?: string }>;
+    let attributed = false;
+    for (const rn of rawNodes) {
+      const r = NodeSchema.safeParse(rn);
+      if (r.success) continue;
+      attributed = true;
+      const field = r.error.issues[0]?.path?.filter((x) => typeof x === "string").slice(-1)[0] as string | undefined;
+      issues.push({ level: "error", nodeId: rn.id, message: friendlyFieldError(rn.type, field, r.error.issues[0]?.message) });
+    }
+    if (!attributed) issues.push({ level: "error", message: `Flow inválido: ${d.error.issues[0]?.message ?? "revisa los nodos"}` });
     return { ok: false, issues, trigger: t.success ? t.data : null, definition: null };
   }
   const def = d.data;
@@ -167,4 +175,22 @@ function labelOut(out: string): string {
   if (out.startsWith("btn:")) return `botón ${out.slice(4)}`;
   if (out.startsWith("row:")) return `fila ${out.slice(4)}`;
   return { next: "siguiente", yes: "sí", no: "no", reply: "respondió", timeout: "tiempo", fallback: "otra respuesta" }[out] ?? out;
+}
+
+function friendlyFieldError(type: string | undefined, field: string | undefined, zodMessage: string | undefined): string {
+  const byField: Record<string, string> = {
+    text: type === "send_text" ? "Escribe el mensaje." : "Escribe la pregunta.",
+    template_id: "Elige la plantilla aprobada.",
+    tag_id: "Elige la etiqueta.",
+    buttons: "Añade entre 1 y 3 botones, con título (máx. 20 letras).",
+    rows: "Añade entre 1 y 10 opciones, con título (máx. 24 letras).",
+    title: "Cada opción necesita un título (botones: 20 letras; filas: 24).",
+    button_label: "El botón de la lista necesita un texto (máx. 20 letras).",
+    user_id: "Elige a quién avisar.",
+    seconds: "Revisa los segundos (escribiendo…: 1 a 25).",
+    minutes: "Revisa los minutos.",
+    keywords: "Revisa las palabras clave.",
+    data: zodMessage ?? "Revisa los campos del nodo.",
+  };
+  return byField[field ?? ""] ?? `Revisa el campo “${field ?? "?"}”: ${zodMessage ?? "valor inválido"}.`;
 }

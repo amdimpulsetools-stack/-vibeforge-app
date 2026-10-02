@@ -44,6 +44,7 @@ interface RunRow {
   wake_at: string | null;
   steps: number;
   trigger_kind: string | null;
+  last_inbound_wamid?: string | null;
 }
 interface ConvRow {
   id: string;
@@ -140,6 +141,15 @@ async function buildEnv(admin: SupabaseClient, settings: OrgFlowSettings, conv: 
   }
   if (!firstName) firstName = (conv.display_name ?? "").trim().split(/\s+/)[0] || null;
   const disclosureRaw = settings.flows_disclosure ?? DEFAULT_DISCLOSURE;
+  // El aviso de asistente virtual va una vez por conversación cada 24 h, no en cada flow.
+  const { count: recentBot } = await admin
+    .from("wa_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", conv.id)
+    .eq("source", "flow")
+    .eq("direction", "out")
+    .gte("ts", new Date(now.getTime() - 24 * 3600_000).toISOString());
+  const disclosed = (recentBot ?? 0) > 0;
   return {
     now,
     windowOpen: isWindowOpen(conv.last_inbound_at, now.getTime()),
@@ -148,7 +158,7 @@ async function buildEnv(admin: SupabaseClient, settings: OrgFlowSettings, conv: 
     tagIds: ((tags ?? []) as Array<{ tag_id: string }>).map((t) => t.tag_id),
     patientFirstName: firstName,
     clinicName: settings.clinicName,
-    disclosure: disclosureRaw.trim() ? disclosureRaw.replace(/\{\{\s*clinica\s*\}\}/gi, settings.clinicName) : null,
+    disclosure: !disclosed && disclosureRaw.trim() ? disclosureRaw.replace(/\{\{\s*clinica\s*\}\}/gi, settings.clinicName) : null,
     quietUntil: quietUntil(settings, now),
   };
 }
@@ -225,9 +235,31 @@ async function applyEffects(admin: SupabaseClient, settings: OrgFlowSettings, co
     if (ef.kind === "pause") {
       await pauseBotForHuman(admin, conv.organization_id, conv.id, ef.reason === "persona" ? "persona" : "aviso", settings.flows_pause_hours);
       await logEvent(admin, run, ef.nodeId, "pause", { reason: ef.reason });
+      continue;
+    }
+    if (ef.kind === "typing") {
+      // "Escribiendo…": necesita el wamid del último entrante. Best-effort: si
+      // Meta lo rechaza (coexistencia, número de prueba), solo se espera.
+      if (wa === undefined) wa = await getOrgWhatsApp(admin, conv.organization_id);
+      const wamid = run.last_inbound_wamid ?? (await lastInboundWamid(admin, conv.id));
+      if (wa && wamid) await wa.sendTypingIndicator(wamid).catch(() => undefined);
+      await sleep(Math.min(25, ef.seconds) * 1000);
+      await logEvent(admin, run, ef.nodeId, "typing", { seconds: ef.seconds });
+      continue;
+    }
+    if (ef.kind === "sleep") {
+      await sleep(Math.min(55, ef.seconds) * 1000);
+      continue;
     }
   }
   return { failed: null, lastMessageId };
+}
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+async function lastInboundWamid(admin: SupabaseClient, conversationId: string): Promise<string | null> {
+  const { data } = await admin.from("wa_messages").select("wamid").eq("conversation_id", conversationId).eq("direction", "in").not("wamid", "is", null).order("ts", { ascending: false }).limit(1).maybeSingle();
+  return (data?.wamid as string | null) ?? null;
 }
 
 async function logEvent(admin: SupabaseClient, run: RunRow, nodeId: string | null, kind: string, payload: Record<string, unknown> = {}): Promise<void> {
@@ -292,8 +324,8 @@ export async function onInboundForFlows(admin: SupabaseClient, orgId: string, co
     const conv = convRaw as unknown as ConvRow;
     const text = msg.text ?? "";
 
-    // Regla 4: opt-out antes de todo.
-    if (wantsOptOut(text)) {
+    // Regla 4: opt-out antes de todo (solo texto escrito; un botón nunca da de baja).
+    if (!msg.interactiveId && !msg.buttonPayload && wantsOptOut(text)) {
       await admin.from("wa_conversations").update({ bot_opted_out: true, updated_at: new Date().toISOString() }).eq("id", conv.id);
       await ensureSystemTagAndApply(admin, orgId, conv.id, "No contactar", "#ef4444");
       await pauseBotForHuman(admin, orgId, conv.id, "persona", 24 * 365);
@@ -303,7 +335,7 @@ export async function onInboundForFlows(admin: SupabaseClient, orgId: string, co
 
     // Regla 5: alarma → nunca contesta un menú; pasa a persona y avisa.
     if (detectAlarm(text)) {
-      const { data: active } = await admin.from("wa_flow_runs").select("id, organization_id, conversation_id, flow_id, flow_version_id, status, current_node_id, context, wake_at, steps, trigger_kind").eq("conversation_id", conv.id).in("status", ACTIVE).maybeSingle();
+      const { data: active } = await admin.from("wa_flow_runs").select("id, organization_id, conversation_id, flow_id, flow_version_id, status, current_node_id, context, wake_at, steps, trigger_kind, last_inbound_wamid").eq("conversation_id", conv.id).in("status", ACTIVE).maybeSingle();
       if (active) {
         await applyEffects(admin, settings, conv, active as RunRow, [
           { kind: "notify", nodeId: "alarma", target: "reception", userId: null, note: "Posible señal de alarma en el mensaje: revisar YA." },
@@ -359,8 +391,10 @@ export async function onInboundForFlows(admin: SupabaseClient, orgId: string, co
       }
     }
     matches.sort((a, b) => rank[a.trigger.kind] - rank[b.trigger.kind] || a.f.priority - b.f.priority);
+    const inQuiet = quietUntil(settings, new Date()) !== null;
     for (const m of matches) {
-      const started = await startRun(admin, settings, conv, m.f, m.trigger, { type: "start" });
+      if (inQuiet && m.trigger.skip_in_quiet) continue;
+      const started = await startRun(admin, settings, conv, m.f, m.trigger, { type: "start", text: msg.text, interactiveId: msg.interactiveId ?? msg.buttonPayload }, msg.wamid);
       if (started) break;
     }
   } catch (err) {
@@ -393,6 +427,7 @@ export async function startRun(
   flow: FlowRow,
   trigger: Trigger,
   event: Parameters<typeof step>[2],
+  inboundWamid: string | null = null,
 ): Promise<boolean> {
   if (trigger.cooldown_hours > 0) {
     const { data: last } = await admin.from("wa_flow_runs").select("started_at").eq("conversation_id", conv.id).eq("flow_id", flow.id).order("started_at", { ascending: false }).limit(1).maybeSingle();
@@ -402,8 +437,8 @@ export async function startRun(
   if (!def.success) return false;
   const { data: created, error } = await admin
     .from("wa_flow_runs")
-    .insert({ organization_id: conv.organization_id, conversation_id: conv.id, flow_id: flow.id, flow_version_id: flow.published_version_id, status: "running", claimed_at: new Date().toISOString(), trigger_kind: trigger.kind, context: {} })
-    .select("id, organization_id, conversation_id, flow_id, flow_version_id, status, current_node_id, context, wake_at, steps, trigger_kind")
+    .insert({ organization_id: conv.organization_id, conversation_id: conv.id, flow_id: flow.id, flow_version_id: flow.published_version_id, status: "running", claimed_at: new Date().toISOString(), trigger_kind: trigger.kind, context: {}, last_inbound_wamid: inboundWamid })
+    .select("id, organization_id, conversation_id, flow_id, flow_version_id, status, current_node_id, context, wake_at, steps, trigger_kind, last_inbound_wamid")
     .single();
   if (error || !created) return false; // 23505 = ya hay un bot activo
   const run = created as RunRow;
@@ -488,9 +523,13 @@ export async function tickFlowRuns(admin: SupabaseClient, opts: { orgId?: string
         .gte("last_inbound_at", lower)
         .order("last_inbound_at", { ascending: false })
         .limit(20);
+      if (t.skip_in_quiet && quietUntil(settings, now) !== null) continue;
       for (const c of (convs ?? []) as unknown as ConvRow[]) {
         if (c.bot_paused_until && new Date(c.bot_paused_until).getTime() > Date.now()) continue;
-        if (await startRun(admin, settings, c, f, t, { type: "start" })) started++;
+        // Nunca "ya vimos tu mensaje" a una emergencia: el último entrante se revisa.
+        const { data: lastIn } = await admin.from("wa_messages").select("body, wamid").eq("conversation_id", c.id).eq("direction", "in").order("ts", { ascending: false }).limit(1).maybeSingle();
+        if (lastIn?.body && detectAlarm(lastIn.body as string)) continue;
+        if (await startRun(admin, settings, c, f, t, { type: "start", text: (lastIn?.body as string | null) ?? null }, (lastIn?.wamid as string | null) ?? null)) started++;
       }
     }
   } catch (err) {

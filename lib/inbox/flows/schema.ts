@@ -28,6 +28,8 @@ export const TriggerSchema = z.object({
   payloads: z.array(z.string().trim().min(1).max(256)).max(20).default([]),
   /** No volver a disparar este flow en la misma conversación antes de N horas. */
   cooldown_hours: z.number().int().min(0).max(720).default(4),
+  /** En horario silencioso: false = arranca y espera a la apertura; true = no arranca. */
+  skip_in_quiet: z.boolean().default(false),
 });
 export type Trigger = z.infer<typeof TriggerSchema>;
 
@@ -70,11 +72,21 @@ export const NodeSchema = z.discriminatedUnion("type", [
     id: nodeId,
     type: z.literal("wait"),
     position,
-    data: z.object({
-      mode: z.enum(["delay", "reply"]).default("delay"),
-      /** delay: cuánto esperar. reply: tiempo máximo antes de `timeout`. */
-      minutes: z.number().int().min(1).max(10080).default(30),
-    }),
+    data: z
+      .object({
+        mode: z.enum(["delay", "reply"]).default("delay"),
+        /** delay: cuánto esperar (minutos + segundos). reply: tiempo máximo antes de `timeout`. */
+        minutes: z.number().int().min(0).max(10080).default(0),
+        seconds: z.number().int().min(0).max(59).default(0),
+      })
+      .refine((d) => d.minutes * 60 + d.seconds >= 1, { message: "La espera debe ser de al menos 1 segundo" }),
+  }),
+  z.object({
+    id: nodeId,
+    type: z.literal("typing"),
+    position,
+    /** "Escribiendo…": muestra el indicador de WhatsApp (máx. 25 s, límite de Meta) y espera. */
+    data: z.object({ seconds: z.number().int().min(1).max(25).default(3) }),
   }),
   z.object({
     id: nodeId,
@@ -139,6 +151,7 @@ export const NODE_LABEL: Record<NodeType, string> = {
   ask_buttons: "Pregunta con botones",
   ask_list: "Pregunta con lista",
   wait: "Esperar",
+  typing: "Escribiendo…",
   condition: "Condición",
   send_template: "Enviar plantilla",
   tag: "Etiqueta",
@@ -163,6 +176,7 @@ export function outputsOf(node: FlowNode): string[] {
     case "send_template":
     case "tag":
     case "notify":
+    case "typing":
       return ["next"];
     case "ask_buttons":
       return [...node.data.buttons.map((b) => `btn:${b.id}`), "fallback", "timeout"];
@@ -204,22 +218,26 @@ export function normalizeText(s: string | null | undefined): string {
     .trim();
 }
 
+/** "contains" = la palabra (o frase) completa aparece en el mensaje: "cita"
+ *  no dispara con "felicitaciones" ni "si" con "asistir". */
 export function keywordMatches(text: string | null | undefined, keywords: string[], match: "contains" | "exact"): string | null {
   const t = normalizeText(text);
   if (!t) return null;
+  const padded = ` ${t.replace(/[^a-z0-9ñ\s]/g, " ")} `;
   for (const k of keywords) {
     const nk = normalizeText(k);
     if (!nk) continue;
-    if (match === "exact" ? t === nk : t.includes(nk)) return k;
+    if (match === "exact" ? t === nk : padded.includes(` ${nk.replace(/[^a-z0-9ñ\s]/g, " ")} `)) return k;
   }
   return null;
 }
 
-/** Variables de los textos del bot (mismas que las respuestas rápidas). */
-export function fillVars(text: string, vars: { nombre?: string | null; clinica?: string | null }): string {
+/** Variables de los textos del bot: {{nombre}}, {{clinica}} y {{respuesta}} (lo último que escribió la paciente). */
+export function fillVars(text: string, vars: { nombre?: string | null; clinica?: string | null; respuesta?: string | null }): string {
   return text
     .replace(/\{\{\s*nombre\s*\}\}/gi, (vars.nombre ?? "").trim())
     .replace(/\{\{\s*clinica\s*\}\}/gi, (vars.clinica ?? "").trim())
+    .replace(/\{\{\s*respuesta\s*\}\}/gi, (vars.respuesta ?? "").trim().slice(0, 500))
     .replace(/[ \t]+([,.!?])/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim();

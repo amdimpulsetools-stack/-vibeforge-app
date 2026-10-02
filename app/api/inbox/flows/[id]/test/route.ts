@@ -14,7 +14,7 @@ const schema = z.object({
   events: z
     .array(
       z.discriminatedUnion("type", [
-        z.object({ type: z.literal("start") }),
+        z.object({ type: z.literal("start"), text: z.string().max(4096).nullable().optional(), interactiveId: z.string().max(256).nullable().optional() }),
         z.object({ type: z.literal("inbound"), text: z.string().max(4096).nullable(), interactiveId: z.string().max(256).nullable().optional() }),
         z.object({ type: z.literal("timer") }),
       ]),
