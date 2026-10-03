@@ -2,7 +2,7 @@
  * Deuda clínica del paciente — fórmula única para cliente y servidor.
  *
  * Espejo EXACTO del RPC `get_patient_summary` (supabase/migrations/219,
- * filtro de tratamientos en la 243).
+ * filtro de tratamientos en la 243, devoluciones netas en la 283).
  * Existe para que las tres vistas que muestran deuda no vuelvan a divergir:
  *   · PatientDrawer  → usa el RPC (badge "Saldo pendiente")
  *   · Lista de pacientes → filtro "con deuda" + export CSV (calcula aquí)
@@ -74,10 +74,27 @@ export function totalClinicalPaid(payments: ClinicalPayment[] | null | undefined
     .reduce((sum, p) => sum + Number(p.amount), 0);
 }
 
+/**
+ * Pagado NETO de devoluciones (mig 283). Con Caja activa, una devolución al
+ * cancelar (migs 230/233) se registra como movimiento de caja y el pago
+ * original NO se toca: si no se resta, la paciente sigue con ese dinero
+ * "pagado" en su ficha. `refunded` sale de las RPC `patient_refunds_total`
+ * / `patient_refunds_totals` (solo lectura, DEFINER: recepción no ve los
+ * turnos ajenos por RLS). Nunca negativo.
+ */
+export function netClinicalPaid(
+  payments: ClinicalPayment[] | null | undefined,
+  refunded: number | null | undefined = 0
+): number {
+  const r = Number(refunded ?? 0);
+  return Math.max(0, totalClinicalPaid(payments) - (Number.isFinite(r) ? r : 0));
+}
+
 /** Saldo pendiente del paciente. Nunca negativo: un saldo a favor no es deuda. */
 export function patientPendingBalance(
   appointments: BillableAppointment[] | null | undefined,
-  payments: ClinicalPayment[] | null | undefined
+  payments: ClinicalPayment[] | null | undefined,
+  refunded: number | null | undefined = 0
 ): number {
-  return Math.max(0, totalBilled(appointments) - totalClinicalPaid(payments));
+  return Math.max(0, totalBilled(appointments) - netClinicalPaid(payments, refunded));
 }

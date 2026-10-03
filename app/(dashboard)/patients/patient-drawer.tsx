@@ -99,6 +99,7 @@ import { ClinicalShortcuts } from "@/components/clinical/clinical-shortcuts";
 import { RecurringBadge } from "@/components/patients/recurring-badge";
 import type { Sex } from "@/lib/growth-curves";
 import { TrendingUp, Maximize2 } from "lucide-react";
+import { VoidPaymentButton } from "@/components/payments/void-payment-button";
 
 // Lazy: keeps browser-image-compression out of the drawer's initial bundle.
 const BeforeAfterPhotosPanel = dynamic(
@@ -1926,7 +1927,17 @@ export function PatientDrawer({ patient, onClose, onUpdate }: PatientDrawerProps
                             <p className="text-[10px] text-muted-foreground">{p.notes}</p>
                           )}
                         </div>
-                        <Coins className="h-4 w-4 shrink-0 text-emerald-500" />
+                        <span className="flex shrink-0 items-center">
+                          <Coins className="h-4 w-4 shrink-0 text-emerald-500" />
+                          {/* Mig 284: anular un pago erróneo. Solo dirección;
+                              Farmacia y tratamiento se anulan desde su módulo. */}
+                          <VoidPaymentButton
+                            paymentId={p.id}
+                            amount={Number(p.amount)}
+                            canVoid={isAdmin && !p.treatment_id && !p.sale_id}
+                            onVoided={invalidatePatientData}
+                          />
+                        </span>
                       </div>
                       );
                     })}
