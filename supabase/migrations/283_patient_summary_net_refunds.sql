@@ -1,4 +1,4 @@
--- Pendiente de aplicar en producción (la aplica el founder en el SQL Editor)
+-- Aplicada en producción el 03-oct-2026 (funciones verificadas en pg_proc; health/schema ok: true)
 --
 -- ═══════════════════════════════════════════════════════════════════
 -- 283: el dinero DEVUELTO a la paciente deja de contar como "pagado"
