@@ -18,7 +18,14 @@
 
 export interface BudgetPdfProps {
   org: {
+    /** Razón social (o nombre comercial si la org no cargó razón social). */
     name: string;
+    /**
+     * Nombre comercial de la org (Ajustes → nombre). Las plantillas de la
+     * Dra. Patricia lo imprimen en la cabecera en lugar de la razón social
+     * ("REPROFERTILIDAD E.I.R.L." no es el título que quiere ver la paciente).
+     */
+    commercialName?: string | null;
     ruc?: string | null;
     logoDataUrl?: string | null;
     // Contacto real de la organización (mig 115, editable en Ajustes).

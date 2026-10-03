@@ -458,6 +458,16 @@ table.grid tfoot td { font-weight: 600; background: var(--brand-tint); color: va
 /* page break helper — solo afecta impresión, evita artefactos en pantalla */
 @media print { .page-break { break-before: page; } }
 
+/* ---------- Hoja densa (DUOSTIM: 3 fases + total en la página 1) ---------- */
+/* El original desbordaba 17 mm sobre el pie. Mismo diseño, menos aire. */
+.sheet.dense .meta { margin-top: 12px; }
+.sheet.dense .phases { margin-top: 14px; }
+.sheet.dense .tx-group { margin: 10px 0 7px; padding: 6px 13px; }
+.sheet.dense .phase { margin-bottom: 7px; }
+.sheet.dense .phase-head { padding: 6px 14px; }
+.sheet.dense table.items td { padding-top: 5px; padding-bottom: 5px; }
+.sheet.dense .total { margin-top: 10px; }
+
 /* =====================================================
    PRINT — cada .sheet = una página A4
    ===================================================== */

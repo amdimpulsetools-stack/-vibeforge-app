@@ -250,6 +250,9 @@ function buildData(
     doc: { title: route.title },
     org: {
       legal_name: props.org.name,
+      // Cabecera y <title>: nombre comercial, no la razón social (pedido
+      // del founder, 03-oct-2026). Cae a la razón social si no hay otro.
+      display_name: props.org.commercialName?.trim() || props.org.name,
       tax_id: props.org.ruc ?? "",
       logo_url: props.org.logoDataUrl ?? "",
       brand_color: overrides.brand_color,
@@ -275,6 +278,9 @@ function buildData(
       code: synthBudgetCode(props.budgetId, issuedAt),
       issued_at_short: format(issuedAt, "dd/MM/yyyy", { locale: es }),
       valid_until_short: format(validUntil, "dd/MM/yyyy", { locale: es }),
+      // La misma cifra que calculó valid_until: el texto de "Términos y
+      // condiciones" la imprime para que nunca choque con la rejilla.
+      vigencia_days: props.vigenciaDays,
       // Siempre el total del desglose: las líneas impresas y el total
       // tienen que cuadrar exactamente, aunque `budget_records.amount`
       // se haya quedado atrás respecto a esta revisión de tarifario.

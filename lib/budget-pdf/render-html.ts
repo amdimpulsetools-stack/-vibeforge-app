@@ -91,7 +91,7 @@ function buildCommonData(
   patient: Record<string, unknown>;
   doctor: Record<string, unknown>;
   advisor: Record<string, unknown>;
-  budget: { code: string; issued_at_short: string; valid_until_short: string };
+  budget: { code: string; issued_at_short: string; valid_until_short: string; vigencia_days: number };
 } {
   const issuedAt = props.fecha;
   const validUntil = new Date(issuedAt);
@@ -137,6 +137,7 @@ function buildCommonData(
       code: synthBudgetCode(props.budgetId, issuedAt),
       issued_at_short: format(issuedAt, "dd/MM/yyyy", { locale: es }),
       valid_until_short: format(validUntil, "dd/MM/yyyy", { locale: es }),
+      vigencia_days: props.vigenciaDays,
     },
   };
 }

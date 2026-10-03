@@ -146,6 +146,7 @@ export async function buildPreviewProps(
     props: {
       org: {
         name: org.legal_name ?? org.name,
+        commercialName: org.name,
         ruc: org.ruc,
         logoDataUrl: org.logo_url,
         address: org.address,
