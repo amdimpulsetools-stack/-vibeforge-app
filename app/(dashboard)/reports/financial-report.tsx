@@ -45,6 +45,8 @@ interface DoctorProductivity {
   totalAppointments: number;
   attended: number;
   cancelled: number;
+  /** Mig 285: "No asistió" como columna propia (0 hasta aplicar la mig). */
+  noShow: number;
   confirmed: number;
   scheduled: number;
   revenue: number;
@@ -139,6 +141,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
           totalAppointments: d.total,
           attended: d.attended,
           cancelled: d.cancelled,
+          noShow: Number(d.no_show ?? 0),
           confirmed: d.confirmed,
           scheduled: d.scheduled,
           revenue,
@@ -150,6 +153,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
     const totalRevenue = doctorData.reduce((sum, d) => sum + d.revenue, 0);
     const totalAttended = doctorData.reduce((sum, d) => sum + d.attended, 0);
     const totalCancelled = doctorData.reduce((sum, d) => sum + d.cancelled, 0);
+    const totalNoShowMarked = doctorData.reduce((sum, d) => sum + d.noShow, 0);
     // `payments_amount` = citas + farmacia + planes (como siempre). Los
     // cobros de TRATAMIENTOS (mig 244) vienen aparte.
     const totalPaid = Number(overview?.totals.payments_amount ?? 0);
@@ -206,17 +210,17 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
         ],
         tables: [{
           title: "Productividad por Doctor",
-          headers: ["Doctor", "Total", "Atendidos", "Confirmados", "Programados", "Cancelados", "Facturado (S/.)", "Prom/Cita (S/.)"],
+          headers: ["Doctor", "Total", "Atendidos", "Confirmados", "Programados", "Cancelados", "No asistió", "Facturado (S/.)", "Prom/Cita (S/.)"],
           rows: [
-            ...doctorData.map((d) => [d.name, d.totalAppointments, d.attended, d.confirmed, d.scheduled, d.cancelled, d.revenue.toFixed(2), d.avgPerAppointment.toFixed(2)]),
-            ["TOTAL", totalAppointments, totalAttended, doctorData.reduce((s, d) => s + d.confirmed, 0), doctorData.reduce((s, d) => s + d.scheduled, 0), totalCancelled, totalRevenue.toFixed(2), ""],
+            ...doctorData.map((d) => [d.name, d.totalAppointments, d.attended, d.confirmed, d.scheduled, d.cancelled, d.noShow, d.revenue.toFixed(2), d.avgPerAppointment.toFixed(2)]),
+            ["TOTAL", totalAppointments, totalAttended, doctorData.reduce((s, d) => s + d.confirmed, 0), doctorData.reduce((s, d) => s + d.scheduled, 0), totalCancelled, totalNoShowMarked, totalRevenue.toFixed(2), ""],
           ],
         }],
         filename: `reporte_financiero_${dateFrom}_${dateTo}`,
       }),
-    }), [doctorData, totalAppointments, totalRevenue, totalPaid, totalPending, breakdownRows, totalAttended, totalCancelled, totalNoShows, treatmentPaid, showTreatments, dateFrom, dateTo]);
+    }), [doctorData, totalAppointments, totalRevenue, totalPaid, totalPending, breakdownRows, totalAttended, totalCancelled, totalNoShowMarked, totalNoShows, treatmentPaid, showTreatments, dateFrom, dateTo]);
 
-    const chartData = doctorData.map((d) => ({ name: d.name, Atendidos: d.attended, Confirmados: d.confirmed, Cancelados: d.cancelled }));
+    const chartData = doctorData.map((d) => ({ name: d.name, Atendidos: d.attended, Confirmados: d.confirmed, Cancelados: d.cancelled, "No asistió": d.noShow }));
     const revenueChartData = doctorData.map((d) => ({ name: d.name, Facturado: Number(d.revenue.toFixed(2)) }));
 
     return (
@@ -306,6 +310,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
                   <Bar dataKey="Atendidos" fill="#22c55e" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" />
                   <Bar dataKey="Confirmados" fill="#3b82f6" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" animationBegin={200} />
                   <Bar dataKey="Cancelados" fill="#ef4444" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" animationBegin={400} />
+                  <Bar dataKey="No asistió" fill="#f59e0b" radius={999} maxBarSize={48} animationDuration={800} animationEasing="ease-out" animationBegin={600} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -342,6 +347,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.attended")}</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.confirmed")}</th>
                   <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.cancelled")}</th>
+                  <th className="px-4 py-2.5 text-center text-xs font-semibold text-muted-foreground">{t("reports.no_show")}</th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">{t("reports.billed")}</th>
                   <th className="px-4 py-2.5 text-right text-xs font-semibold text-muted-foreground">{t("reports.avg_per_appointment")}</th>
                 </tr>
@@ -354,6 +360,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
                     <td className="px-4 py-2.5 text-center text-success-600 font-medium">{doc.attended}</td>
                     <td className="px-4 py-2.5 text-center text-blue-600">{doc.confirmed}</td>
                     <td className="px-4 py-2.5 text-center text-red-600">{doc.cancelled}</td>
+                    <td className="px-4 py-2.5 text-center text-amber-600">{doc.noShow}</td>
                     <td className="px-4 py-2.5 text-right font-semibold">S/. {doc.revenue.toFixed(2)}</td>
                     <td className="px-4 py-2.5 text-right text-muted-foreground">S/. {doc.avgPerAppointment.toFixed(2)}</td>
                   </tr>
@@ -365,6 +372,7 @@ export const FinancialReport = forwardRef<ReportExportHandle, FinancialReportPro
                     <td className="px-4 py-2.5 text-center text-success-600">{totalAttended}</td>
                     <td className="px-4 py-2.5 text-center text-blue-600">{doctorData.reduce((s, d) => s + d.confirmed, 0)}</td>
                     <td className="px-4 py-2.5 text-center text-red-600">{totalCancelled}</td>
+                    <td className="px-4 py-2.5 text-center text-amber-600">{totalNoShowMarked}</td>
                     <td className="px-4 py-2.5 text-right">S/. {totalRevenue.toFixed(2)}</td>
                     <td className="px-4 py-2.5 text-right" />
                   </tr>

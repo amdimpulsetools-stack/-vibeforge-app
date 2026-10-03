@@ -5224,6 +5224,20 @@ Tras la primera prueba del fundador en el editor y una auditoría contra ManyCha
 - **DUO STIM.** La página 1 desbordaba 17 mm sobre el pie (tres fases + total). Hoja `dense` solo para esa plantilla (menos aire en meta, grupos, cabeceras de fase y filas): todo cabe con margen. Verificado renderizando las 12 plantillas de Patricia con Chromium local; ninguna otra desbordaba.
 - **Recetas y órdenes de exámenes.** La línea de firma pasa de 62 % a 44 % del ancho.
 
+
+### Reportes: columna "No asistió" por doctor (mig 285) — PR #398
+
+- `get_reports_overview` devuelve `doctors[].no_show` (citas con status `no_show`) y `scheduled` deja de incluirlas. Cuerpo verbatim de la 251 salvo esas dos líneas; `totals.no_shows` (la tarjeta, estimación histórica) no cambia.
+- /reports → Productividad por doctor: columna "No asistió" (ámbar) entre Cancelados y Facturado, fila TOTAL, barra en el gráfico y columna en la exportación. Opcional hasta aplicar la mig (0).
+
+### Almacén: pestaña "Insumos" v1 (sin migración) — PR #398
+
+- Pedido de la Dra. Patricia ("cada paciente usa una bata y nadie las cuenta"). Primera versión a propósito simple: contar bien antes de automatizar.
+- Un insumo es un producto con `is_sellable = false` (columna de la mig 213, hasta hoy sin UI). El formulario "Nuevo producto" gana el selector **Producto de venta / Insumo (uso interno)**; el insumo nace a S/ 0, sin IGV ni precio, y fuera del POS. "Productos" muestra solo lo vendible; "Insumos" solo lo interno. Botón "Traer de Productos" para pasar batas ya cargadas como producto (conserva stock, lotes e historial) y "Pasar a producto de venta" para el camino inverso.
+- Por fila: **Ingreso** (la misma Entrada de siempre), **Retiro** (uso interno, rotura, vencido, pérdida, otro; salida o merma con costo = CPP, sin paciente ni cita) y **Conteo físico** (escribes lo que hay y el sistema registra el ajuste por la diferencia con motivo `conteo_fisico`). Todo con "Deshacer" por contra-asiento, en el mismo kardex append-only.
+- Lectura: stock, mínimo con semáforo, consumo de los últimos 30 días (sin pares deshechos) y "alcanzan ~N días" al ritmo actual; resumen de insumos bajo mínimo y sin stock. Nuevo archivo `almacen/supplies-tab.tsx`.
+- Siguiente versión (pendiente de las respuestas de la doctora): kits por servicio con descuento automático al completar la cita, aviso proactivo de mínimo y lista de compra.
+
 ### Pendiente
 - Migs 280 y 281 aplicadas y verificadas el 2-oct (Consulta 1 igual, Consulta 2 con una FK por par, health `ok: true`). Merge del #396 (sin migración) y QA con el número de prueba.
 - Hoja de ruta aprobada (1-oct): ✅ rendimiento (#392) → ✅ pulgar + Agendó/Asistió (#393) → ✅ casos candidatos con aprobación (#394, mig 279) → ✅ panel de medición (#395, mig 280) → ✅ Flows (#395, mig 281): motor, editor React Flow y Probar. Pendiente: QA con el número de prueba, V1.5 (nodo de Yendy, proponer huecos) y V2 (disparadores por cita) (React Flow, 60 fps; el motor corre en el servidor).

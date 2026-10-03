@@ -11,6 +11,11 @@ export interface ReportsDoctorRow {
   attended: number;
   confirmed: number;
   cancelled: number;
+  /**
+   * Mig 285: citas marcadas "No asistió" (status no_show). Opcional hasta
+   * aplicar la mig; antes iban dentro de `scheduled`.
+   */
+  no_show?: number;
   scheduled: number;
   /** Precio de las citas atendidas + confirmadas del doctor (producción). */
   revenue: number;

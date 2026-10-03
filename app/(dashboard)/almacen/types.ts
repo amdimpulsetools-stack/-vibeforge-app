@@ -32,6 +32,13 @@ export interface InventoryProduct {
   igv_affectation?: number | null;
   min_stock: number;
   track_lots: boolean;
+  /**
+   * Mig 213: false = INSUMO de uso interno (batas, espéculos, papel camilla…)
+   * que jamás se vende al mostrador. El POS ya lo filtra; la pestaña
+   * "Insumos" de Almacén lista solo estos y "Productos" solo los de venta.
+   * Opcional porque hay selects (POS) que no piden la columna: ausente ⇒ venta.
+   */
+  is_sellable?: boolean;
   is_discontinued: boolean;
   /**
    * Baja lógica (mig 209; la escribe el RPC de la mig 264). Opcionales
@@ -118,7 +125,7 @@ export const DEFAULT_SETTINGS: InventorySettings = {
 
 /** Columnas que la UI selecciona, en el orden en que se leen. */
 export const PRODUCT_COLUMNS =
-  "id,organization_id,name,sku,category,presentation,base_unit,units_per_presentation,sale_price,igv_affectation,min_stock,track_lots,is_discontinued,discontinued_at,discontinued_reason,notes,created_at";
+  "id,organization_id,name,sku,category,presentation,base_unit,units_per_presentation,sale_price,igv_affectation,min_stock,track_lots,is_sellable,is_discontinued,discontinued_at,discontinued_reason,notes,created_at";
 export const LOT_COLUMNS =
   "id,organization_id,product_id,lot_code,expiry_date,unit_cost,supplier,received_at";
 export const MOVEMENT_COLUMNS =

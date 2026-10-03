@@ -46,6 +46,8 @@ export interface ProductPayload {
   igv_affectation: number;
   min_stock: number;
   track_lots: boolean;
+  /** false = insumo de uso interno (no se vende; mig 213 `is_sellable`). */
+  is_sellable: boolean;
   /** Si > 0, la página crea la entrada `saldo_inicial` con este costo. */
   initial_stock: number;
   initial_cost: number | null;
@@ -59,11 +61,15 @@ export interface ProductPayload {
   initial_expiry_month: string | null;
 }
 
+export type ProductKind = "venta" | "insumo";
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   categories: string[];
   onSubmit: (payload: ProductPayload) => Promise<boolean>;
+  /** Con qué tipo abre el formulario (la pestaña Insumos abre en "insumo"). */
+  defaultKind?: ProductKind;
 }
 
 const NEW_CATEGORY = "__nueva__";
@@ -73,7 +79,8 @@ const labelCls =
 const selectCls =
   "h-9 w-full rounded-md border border-input bg-card px-3 text-base shadow-sm outline-none focus:ring-1 focus:ring-ring md:text-sm";
 
-export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props) {
+export function ProductModal({ open, onOpenChange, categories, onSubmit, defaultKind = "venta" }: Props) {
+  const [kind, setKind] = useState<ProductKind>(defaultKind);
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
   const [newCategory, setNewCategory] = useState(false);
@@ -94,6 +101,7 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
 
   useEffect(() => {
     if (!open) return;
+    setKind(defaultKind);
     setName("");
     setCategory("");
     setNewCategory(categories.length === 0);
@@ -108,7 +116,7 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
     setTrackLots(true);
     setAdvanced(false);
     setError(null);
-  }, [open, categories.length]);
+  }, [open, categories.length, defaultKind]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -133,10 +141,12 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
       presentation: presentation.trim() || "UND",
       base_unit: baseUnit.trim() || "UND",
       units_per_presentation: f,
-      sale_price: Number(salePrice || "0"),
+      // Un insumo no tiene precio de venta: nace en 0 y fuera del POS.
+      sale_price: kind === "insumo" ? 0 : Number(salePrice || "0"),
       igv_affectation: Number(igvAffectation),
       min_stock: Number(minStock || "0"),
       track_lots: trackLots,
+      is_sellable: kind === "venta",
       initial_stock: Math.max(0, stock0),
       initial_cost: cost0,
       // Solo tienen sentido si el producto nace con unidades.
@@ -151,13 +161,34 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-lg sm:rounded-2xl">
         <DialogHeader>
-          <DialogTitle>Nuevo producto</DialogTitle>
+          <DialogTitle>{kind === "insumo" ? "Nuevo insumo" : "Nuevo producto"}</DialogTitle>
           <DialogDescription>
-            Empieza por los que más rotan. Los demás los vas sumando sobre la marcha.
+            {kind === "insumo"
+              ? "Lo que la clínica consume y nunca vende: batas, espéculos, papel camilla, algodón."
+              : "Empieza por los que más rotan. Los demás los vas sumando sobre la marcha."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Tipo: decide si el ítem va al POS (venta) o solo se cuenta (insumo). */}
+          <div className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1 text-sm">
+            {([
+              { key: "venta", label: "Producto de venta" },
+              { key: "insumo", label: "Insumo (uso interno)" },
+            ] as { key: ProductKind; label: string }[]).map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => setKind(o.key)}
+                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+                  kind === o.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+
           <div>
             <label className={labelCls} htmlFor="prod-name">
               Nombre
@@ -167,7 +198,7 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="PERGOVERIS 450"
+              placeholder={kind === "insumo" ? "BATA DESCARTABLE" : "PERGOVERIS 450"}
             />
           </div>
 
@@ -261,6 +292,7 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
                 Sin IGV si compras con factura; si es boleta, lo que pagaste.
               </p>
             </div>
+            {kind === "venta" && (
             <div>
               <label className={labelCls} htmlFor="prod-price">
                 Precio venta
@@ -280,8 +312,10 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
                 Con IGV, tal como lo cobras al paciente.
               </p>
             </div>
+            )}
           </div>
 
+          {kind === "venta" && (
           <div>
             <label className={labelCls} htmlFor="prod-igv">
               Afectación IGV
@@ -301,6 +335,7 @@ export function ProductModal({ open, onOpenChange, categories, onSubmit }: Props
               gravados. Consulta con tu contador cuáles están exonerados.
             </p>
           </div>
+          )}
 
           <div className="grid grid-cols-3 gap-3">
             <div>
