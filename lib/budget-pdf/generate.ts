@@ -375,6 +375,7 @@ export async function generateBudgetPdf(
   const props: BudgetPdfProps = {
     org: {
       name: org.legal_name ?? org.name,
+      commercialName: org.name,
       ruc: org.ruc,
       logoDataUrl: org.logo_url,
       address: org.address,

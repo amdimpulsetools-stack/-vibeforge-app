@@ -5215,6 +5215,15 @@ Tras la primera prueba del fundador en el editor y una auditoría contra ManyCha
 - **Badge de saldo.** Al pasar el mouse, desglosa qué citas cargan el saldo: "Deuda de citas pasadas" y "Por cobrar en citas próximas", más lo devuelto en Caja. Los pagos se aplican de la cita más antigua a la más nueva; la cifra sigue siendo `patientPendingBalance`.
 - **Pruebas:** `supabase/tests/pharmacy/50_money_refunds_void_test.sql` sobre la Caja real (migs 213-217, 272) con stub `06_prelude_money_stub.sql`: 7 casos de la 283 y 13 de la 284. El runner ahora muestra también ERROR/CONTEXT.
 
+
+### Presupuestos PDF (Dra. Patricia y genérico) y firma de recetas — PR #397
+
+- **Cabecera sin razón social (Patricia).** El título del documento y el bloque de la esquina superior imprimen el nombre comercial de la org (`org.commercialName`, nuevo en `BudgetPdfProps`) en vez de "REPROFERTILIDAD E.I.R.L.". Las plantillas genéricas (Vitra) siguen con la razón social.
+- **Barra Total.** Solo "Total": fuera "Total en soles · pago en efectivo o transferencia". También se quitó la línea "Pago en efectivo o transferencia bancaria" bajo cada fila de honorarios de las 12 plantillas de Patricia (22 apariciones).
+- **Vigencia única.** "Términos y condiciones" decía 90 días fijos mientras la rejilla calculaba con `vigencia_days` de Ajustes (Patricia: 30). Ahora el texto imprime `{{budget.vigencia_days}}` en las plantillas de Patricia y en las 7 genéricas: una sola cifra, la de Ajustes → Presupuestos.
+- **DUO STIM.** La página 1 desbordaba 17 mm sobre el pie (tres fases + total). Hoja `dense` solo para esa plantilla (menos aire en meta, grupos, cabeceras de fase y filas): todo cabe con margen. Verificado renderizando las 12 plantillas de Patricia con Chromium local; ninguna otra desbordaba.
+- **Recetas y órdenes de exámenes.** La línea de firma pasa de 62 % a 44 % del ancho.
+
 ### Pendiente
 - Migs 280 y 281 aplicadas y verificadas el 2-oct (Consulta 1 igual, Consulta 2 con una FK por par, health `ok: true`). Merge del #396 (sin migración) y QA con el número de prueba.
 - Hoja de ruta aprobada (1-oct): ✅ rendimiento (#392) → ✅ pulgar + Agendó/Asistió (#393) → ✅ casos candidatos con aprobación (#394, mig 279) → ✅ panel de medición (#395, mig 280) → ✅ Flows (#395, mig 281): motor, editor React Flow y Probar. Pendiente: QA con el número de prueba, V1.5 (nodo de Yendy, proponer huecos) y V2 (disparadores por cita) (React Flow, 60 fps; el motor corre en el servidor).
