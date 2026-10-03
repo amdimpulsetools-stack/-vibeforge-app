@@ -88,6 +88,7 @@ import {
 import { formatSoles } from "@/lib/appointments/reschedule-context";
 import { PrereservaStrip } from "./prereserva-strip";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { VoidPaymentButton } from "@/components/payments/void-payment-button";
 import { useCurrentDoctor } from "@/hooks/use-current-doctor";
 import { useFertilityAddon } from "@/hooks/use-fertility-addon";
 import { OPEN_FOLLOWUP_STATUSES } from "@/types/followups";
@@ -112,6 +113,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  appointmentBilledAmount,
+  netClinicalPaid,
   patientPendingBalance,
   totalClinicalPaid,
   type BillableAppointment,
@@ -737,6 +740,15 @@ export function AppointmentSidebar({
 
   // ── Patient-level debt ──────────────────────────────────────────────────
   const [patientDebt, setPatientDebt] = useState<number>(0);
+  // Desglose del saldo para el hover del badge (mig 283 / 02-oct-2026):
+  // qué citas lo cargan, separando pasadas de futuras. Los pagos se
+  // aplican de la más antigua a la más nueva; es solo explicación, la
+  // cifra sigue siendo patientPendingBalance.
+  const [debtBreakdown, setDebtBreakdown] = useState<{
+    past: { label: string; amount: number }[];
+    future: { label: string; amount: number }[];
+    refunded: number;
+  }>({ past: [], future: [], refunded: 0 });
 
   // ── Informed consent quick-access ─────────────────────────────────────
   // Shows a compact upload card when the cita's service requires consent.
@@ -918,10 +930,10 @@ export function AppointmentSidebar({
       // Misma fórmula que el RPC get_patient_summary (mig 219) y que el filtro
       // "con deuda" de la lista: precio real de la cita con fallback a
       // services.base_price, y solo pagos clínicos cancelan deuda clínica.
-      const [apptRes, payRes] = await Promise.all([
+      const [apptRes, payRes, refundRes] = await Promise.all([
         supabase
           .from("appointments")
-          .select("price_snapshot, discount_amount, status, services(base_price)")
+          .select("id, appointment_date, price_snapshot, discount_amount, status, services(name, base_price)")
           .eq("patient_id", appointment.patient_id)
           .neq("status", "cancelled"),
         // treatment_id: los cobros de un TRATAMIENTO (mig 242/243) viven en
@@ -930,13 +942,38 @@ export function AppointmentSidebar({
           .from("patient_payments")
           .select("amount, source, treatment_id")
           .eq("patient_id", appointment.patient_id),
+        // Mig 283: lo devuelto en Caja ya no cuenta como pagado. Si la mig
+        // no está, la RPC no existe y se asume 0 (misma cifra que antes).
+        supabase.rpc("patient_refunds_total", { p_patient_id: appointment.patient_id }),
       ]);
-      setPatientDebt(
-        patientPendingBalance(
-          (apptRes.data ?? []) as unknown as BillableAppointment[],
-          (payRes.data ?? []) as unknown as ClinicalPayment[]
-        )
-      );
+      const refunded = refundRes.error ? 0 : Number(refundRes.data ?? 0) || 0;
+      const debtAppts = (apptRes.data ?? []) as unknown as (BillableAppointment & {
+        id: string;
+        appointment_date: string;
+        services?: { name?: string | null; base_price?: number | null } | null;
+      })[];
+      const debtPays = (payRes.data ?? []) as unknown as ClinicalPayment[];
+      setPatientDebt(patientPendingBalance(debtAppts, debtPays, refunded));
+
+      // Desglose para el hover: pagado neto se aplica de la cita más antigua
+      // a la más nueva; lo que no alcanza a cubrir es lo que "carga" cada cita.
+      let remainingPaid = netClinicalPaid(debtPays, refunded);
+      const today = orgToday();
+      const past: { label: string; amount: number }[] = [];
+      const future: { label: string; amount: number }[] = [];
+      [...debtAppts]
+        .sort((a, b) => a.appointment_date.localeCompare(b.appointment_date))
+        .forEach((a) => {
+          const billed = appointmentBilledAmount(a);
+          const covered = Math.min(billed, remainingPaid);
+          remainingPaid -= covered;
+          const owed = billed - covered;
+          if (owed <= 0) return;
+          const [y, m, d] = a.appointment_date.split("-");
+          const label = `${d}/${m}${a.services?.name ? ` · ${a.services.name}` : ""}`;
+          (a.appointment_date < today ? past : future).push({ label, amount: owed });
+        });
+      setDebtBreakdown({ past, future, refunded });
     }
   }, [appointment.id, appointment.patient_id]);
 
@@ -2057,9 +2094,62 @@ export function AppointmentSidebar({
 
                   {/* Patient total debt badge */}
                   {patientDebt > 0 && (
-                    <span className="flex items-center gap-1 shrink-0 rounded-lg bg-red-500/10 border border-red-500/30 px-2 py-1 text-[11px] font-bold text-red-600 dark:text-red-400" title="Deuda total del paciente">
-                      <AlertTriangle className="h-3 w-3" />
-                      S/. {patientDebt.toFixed(2)}
+                    <span className="group relative inline-flex">
+                      <span
+                        className="flex items-center gap-1 shrink-0 rounded-lg bg-red-500/10 border border-red-500/30 px-2 py-1 text-[11px] font-bold text-red-600 dark:text-red-400 cursor-help"
+                        aria-describedby={`debt-breakdown-${appointment.id}`}
+                      >
+                        <AlertTriangle className="h-3 w-3" />
+                        S/. {patientDebt.toFixed(2)}
+                      </span>
+                      {/* Hover: qué carga el saldo. Solo al pasar el mouse (o
+                          foco), para no sobrecargar el panel. Sin librería:
+                          group-hover + posición absoluta. */}
+                      <span
+                        id={`debt-breakdown-${appointment.id}`}
+                        role="tooltip"
+                        className="pointer-events-none invisible absolute left-0 top-full z-30 mt-1.5 w-64 rounded-lg border border-border bg-popover p-2.5 text-left text-[11px] font-normal text-popover-foreground shadow-lg opacity-0 transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+                      >
+                        <span className="block text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          Saldo total de la paciente
+                        </span>
+                        {debtBreakdown.past.length > 0 && (
+                          <span className="mt-1.5 block">
+                            <span className="block font-semibold text-red-600 dark:text-red-400">
+                              Deuda de citas pasadas
+                            </span>
+                            {debtBreakdown.past.map((r) => (
+                              <span key={r.label} className="flex justify-between gap-2">
+                                <span className="truncate">{r.label}</span>
+                                <span className="shrink-0 font-semibold">S/. {r.amount.toFixed(2)}</span>
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                        {debtBreakdown.future.length > 0 && (
+                          <span className="mt-1.5 block">
+                            <span className="block font-semibold text-amber-600 dark:text-amber-400">
+                              Por cobrar en citas próximas
+                            </span>
+                            {debtBreakdown.future.map((r) => (
+                              <span key={r.label} className="flex justify-between gap-2">
+                                <span className="truncate">{r.label}</span>
+                                <span className="shrink-0 font-semibold">S/. {r.amount.toFixed(2)}</span>
+                              </span>
+                            ))}
+                          </span>
+                        )}
+                        {debtBreakdown.past.length === 0 && debtBreakdown.future.length === 0 && (
+                          <span className="mt-1 block text-muted-foreground">
+                            Citas no canceladas menos pagos clínicos.
+                          </span>
+                        )}
+                        {debtBreakdown.refunded > 0 && (
+                          <span className="mt-1.5 block text-muted-foreground">
+                            Incluye S/. {debtBreakdown.refunded.toFixed(2)} devueltos en Caja, que ya no cuentan como pagados.
+                          </span>
+                        )}
+                      </span>
                     </span>
                   )}
                 </div>
@@ -3079,8 +3169,22 @@ export function AppointmentSidebar({
                         })}
                       </p>
                     </div>
-                    <span className="ml-2 shrink-0 text-sm font-bold text-success-600 dark:text-success-400">
-                      S/. {Number(p.amount).toFixed(2)}
+                    <span className="ml-2 flex shrink-0 items-center">
+                      <span className="text-sm font-bold text-success-600 dark:text-success-400">
+                        S/. {Number(p.amount).toFixed(2)}
+                      </span>
+                      {/* Mig 284: solo dirección, con motivo y rastro. */}
+                      {!readOnly && (
+                        <VoidPaymentButton
+                          paymentId={p.id}
+                          amount={Number(p.amount)}
+                          canVoid={isAdmin}
+                          onVoided={() => {
+                            fetchPayments();
+                            onUpdate();
+                          }}
+                        />
+                      )}
                     </span>
                   </div>
                 ))}

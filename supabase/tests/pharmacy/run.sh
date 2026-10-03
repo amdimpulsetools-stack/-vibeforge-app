@@ -52,11 +52,18 @@ for m in 270_inventory_lot_assignment 271_inventory_product_edit 272_caja_attach
   apply "$ROOT/supabase/migrations/$m.sql"
   echo "  aplicada  $m"
 done
+# Devoluciones netas y anular pago (migs 283/284) sobre su stub de columnas.
+apply "$HERE/06_prelude_money_stub.sql"
+for m in 283_patient_summary_net_refunds 284_patient_payment_void; do
+  apply "$ROOT/supabase/migrations/$m.sql"
+  apply "$ROOT/supabase/migrations/$m.sql"
+  echo "  aplicada  $m (x2, idempotente)"
+done
 
 echo
 # 10_ corre como superusuario (bypassa RLS): prueba aritmética y atomicidad.
 # 20_ se pone en la piel de un `authenticated`: prueba los permisos.
-for t in 10_pharmacy_invariants_test 20_pharmacy_rls_test 30_inventory_lots_and_edit_test 40_caja_attach_test; do
+for t in 10_pharmacy_invariants_test 20_pharmacy_rls_test 30_inventory_lots_and_edit_test 40_caja_attach_test 50_money_refunds_void_test; do
   psql -h $SOCK -p $PORT -U postgres -d farmacia_test -v ON_ERROR_STOP=1 -q \
-    -f "$HERE/$t.sql" 2>&1 | grep -E "PASS|FAIL|TODAS"
+    -f "$HERE/$t.sql" 2>&1 | grep -E "PASS|FAIL|TODAS|ERROR|CONTEXT|DETAIL"
 done

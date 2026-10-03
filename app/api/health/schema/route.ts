@@ -102,7 +102,7 @@ const SIDEBAR_EINVOICES_SELECT: string = "id, total, status";
 // Copiado de app/(dashboard)/scheduler/appointment-sidebar.tsx:897 y :904
 // (deuda del paciente en `fetchPayments`, fórmula de lib/patient-debt.ts),
 // mantener sincronizado.
-const SIDEBAR_DEBT_APPTS_SELECT: string = "price_snapshot, discount_amount, status, services(base_price)";
+const SIDEBAR_DEBT_APPTS_SELECT: string = "id, appointment_date, price_snapshot, discount_amount, status, services(name, base_price)";
 const SIDEBAR_DEBT_PAYMENTS_SELECT: string = "amount, source, treatment_id";
 
 // Copiado de app/api/clinical-followups/dashboard/route.ts:265-287

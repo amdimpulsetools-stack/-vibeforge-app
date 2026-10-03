@@ -35,7 +35,7 @@ import { RecurringBadge } from "@/components/patients/recurring-badge";
 import { exportToCSV, calculateAge } from "@/lib/export";
 import {
   totalBilled,
-  totalClinicalPaid,
+  netClinicalPaid,
   patientPendingBalance,
 } from "@/lib/patient-debt";
 
@@ -75,6 +75,8 @@ type PatientExtraData = {
   // treatment_id: los cobros de un TRATAMIENTO (mig 242/243) no cancelan
   // deuda de citas — lib/patient-debt.ts exige la columna en el tipo.
   patient_payments: { amount: number; source: string | null; treatment_id: string | null }[];
+  /** Mig 283: S/ devueltos en Caja (patient_refunds_totals). 0 si la mig no está. */
+  refunded: number;
 };
 
 interface PatientsClientProps {
@@ -257,7 +259,7 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
 
     setLoadingExtra(true);
     const supabase = createClient();
-    const [apptRes, payRes] = await Promise.all([
+    const [apptRes, payRes, refundRes] = await Promise.all([
       supabase
         .from("appointments")
         .select("patient_id, service_id, status, price_snapshot, discount_amount, origin, services(id, name, base_price)")
@@ -266,7 +268,16 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
         .from("patient_payments")
         .select("patient_id, amount, source, treatment_id")
         .in("patient_id", missing),
+      // Mig 283: devoluciones en Caja, en lote. Sin la mig la RPC no existe
+      // y todo queda en 0 (misma cifra que antes).
+      supabase.rpc("patient_refunds_totals", { p_patient_ids: missing }),
     ]);
+    const refundedBy = new Map<string, number>();
+    if (!refundRes.error) {
+      for (const r of (refundRes.data ?? []) as { patient_id: string; refunded: number | string }[]) {
+        refundedBy.set(r.patient_id, Number(r.refunded) || 0);
+      }
+    }
 
     const appts = (apptRes.data ?? []) as unknown as (PatientExtraData["appointments"][number] & { patient_id: string })[];
     const pays = (payRes.data ?? []) as unknown as (PatientExtraData["patient_payments"][number] & { patient_id: string })[];
@@ -276,6 +287,7 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
       updated[id] = {
         appointments: appts.filter((a) => a.patient_id === id),
         patient_payments: pays.filter((p) => p.patient_id === id),
+        refunded: refundedBy.get(id) ?? 0,
       };
     }
     setExtraData(updated);
@@ -342,7 +354,7 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
         if (!extra) return false;
         // Misma fórmula que el RPC get_patient_summary (mig 219) para que el
         // filtro "con deuda" y el badge del drawer nunca discrepen.
-        if (patientPendingBalance(extra.appointments, extra.patient_payments) <= 0) {
+        if (patientPendingBalance(extra.appointments, extra.patient_payments, extra.refunded) <= 0) {
           return false;
         }
       }
@@ -405,7 +417,8 @@ export function PatientsClient({ initialFirstPage }: PatientsClientProps) {
       const extra = allExtra[p.id];
       // Mismos números que el badge del drawer (RPC get_patient_summary, mig 219).
       const billed = totalBilled(extra?.appointments);
-      const paid = totalClinicalPaid(extra?.patient_payments);
+      // Mig 283: pagado neto de devoluciones, igual que el RPC.
+      const paid = netClinicalPaid(extra?.patient_payments, extra?.refunded);
       const age = calculateAge(p.birth_date);
       return [
         p.last_name, p.first_name, p.dni, p.document_type, p.phone, p.email,
