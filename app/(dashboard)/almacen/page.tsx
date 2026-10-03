@@ -37,7 +37,9 @@ import { ProductTable } from "./product-table";
 import { MovementList } from "./movement-list";
 import { ExpiryList } from "./expiry-list";
 import { ProfitTab } from "./profit-tab";
+import { SuppliesTab, type SupplyCountInput, type SupplyWithdrawInput } from "./supplies-tab";
 import { DiscountModal, type DiscountPayload } from "./discount-modal";
+import type { ProductKind } from "./product-modal";
 import { EntryModal, type EntryPayload } from "./entry-modal";
 import { ProductModal, type ProductPayload } from "./product-modal";
 import { LotsModal } from "./lots-modal";
@@ -68,8 +70,8 @@ import {
   type InventorySettings,
 } from "./types";
 
-type TabKey = "productos" | "movimientos" | "vencimientos" | "rentabilidad";
-const TABS: TabKey[] = ["productos", "movimientos", "vencimientos", "rentabilidad"];
+type TabKey = "productos" | "insumos" | "movimientos" | "vencimientos" | "rentabilidad";
+const TABS: TabKey[] = ["productos", "insumos", "movimientos", "vencimientos", "rentabilidad"];
 
 /**
  * Tope defensivo del kardex traído a memoria. F1 arranca en cero movimientos
@@ -111,6 +113,8 @@ export default function AlmacenPage() {
   const [entryOpen, setEntryOpen] = useState(false);
   const [entryFor, setEntryFor] = useState<string | null>(null);
   const [productOpen, setProductOpen] = useState(false);
+  // Con qué tipo abre "Nuevo": la pestaña Insumos abre en "insumo".
+  const [productKind, setProductKind] = useState<ProductKind>("venta");
   const [lotsFor, setLotsFor] = useState<InventoryProduct | null>(null);
   const [priceFor, setPriceFor] = useState<InventoryProduct | null>(null);
   const [editFor, setEditFor] = useState<InventoryProduct | null>(null);
@@ -217,6 +221,16 @@ export default function AlmacenPage() {
   const archivedProducts = useMemo(
     () => products.filter((p) => p.is_discontinued),
     [products]
+  );
+  // Insumos (is_sellable = false, mig 213) viven en su pestaña; "Productos"
+  // muestra solo lo que se vende. Ausente ⇒ venta (filas anteriores a la UI).
+  const sellableProducts = useMemo(
+    () => activeProducts.filter((p) => p.is_sellable !== false),
+    [activeProducts]
+  );
+  const supplyProducts = useMemo(
+    () => activeProducts.filter((p) => p.is_sellable === false),
+    [activeProducts]
   );
   const stockByProduct = useMemo(() => computeStock(movements), [movements]);
   const stockByLot = useMemo(() => computeStockByLot(movements), [movements]);
@@ -545,6 +559,121 @@ export default function AlmacenPage() {
         description: reason ?? undefined,
       });
       return true;
+    },
+    []
+  );
+
+  // ── Insumos (v1): retiro, conteo y conversión ──────────────────────────
+  // Mismo kardex que todo Almacén. El retiro es una salida (o merma) con
+  // costo = CPP vigente, sin paciente ni cita; el conteo es un ajuste por la
+  // diferencia con motivo conteo_fisico. Nunca UPDATE/DELETE de movimientos.
+  const insertSupplyMovement = useCallback(
+    async (
+      row: Omit<InventoryMovement, "id" | "created_at" | "cost_total" | "revenue_total" | "unit_sale_price" | "lot_id" | "patient_id" | "reverses_movement_id">,
+    ): Promise<InventoryMovement | null> => {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("inventory_movements")
+        .insert({
+          organization_id: row.organization_id,
+          product_id: row.product_id,
+          lot_id: null,
+          movement_type: row.movement_type,
+          quantity: row.quantity,
+          unit_cost: row.unit_cost,
+          movement_date: row.movement_date,
+          reason_code: row.reason_code,
+          notes: row.notes,
+          created_by: row.created_by,
+        })
+        .select(MOVEMENT_COLUMNS)
+        .single();
+      if (error || !data) {
+        toast.error("No se pudo registrar el movimiento", {
+          description: error?.message ?? "Revisa tu conexión e intenta de nuevo.",
+        });
+        return null;
+      }
+      const saved = data as unknown as InventoryMovement;
+      setMovements((prev) => [saved, ...prev]);
+      return saved;
+    },
+    []
+  );
+
+  const registerSupplyWithdrawal = useCallback(
+    async (input: SupplyWithdrawInput) => {
+      if (!organizationId || !user?.id) return;
+      const p = input.product;
+      const isMerma = input.reasonCode !== "uso_interno" && input.reasonCode !== "otro";
+      const saved = await insertSupplyMovement({
+        organization_id: organizationId,
+        product_id: p.id,
+        movement_type: isMerma ? "merma" : "salida",
+        quantity: -Math.abs(input.quantity),
+        unit_cost: avgCosts[p.id] ?? lastCosts[p.id] ?? null,
+        movement_date: today(),
+        reason_code: input.reasonCode,
+        notes: input.note,
+        created_by: user.id,
+      });
+      if (!saved) return;
+      const remaining = (stockByProduct[p.id] ?? 0) - Math.abs(input.quantity);
+      toast.success(`Salieron ${fmtQty(input.quantity)} de ${p.name}`, {
+        description: `Quedan ${fmtQty(remaining)} ${p.base_unit.toLowerCase()}`,
+        action: { label: "Deshacer", onClick: () => void undoMovement(saved, p.name, p.base_unit) },
+      });
+    },
+    [organizationId, user?.id, avgCosts, lastCosts, stockByProduct, insertSupplyMovement, undoMovement]
+  );
+
+  const registerSupplyCount = useCallback(
+    async (input: SupplyCountInput) => {
+      if (!organizationId || !user?.id) return;
+      const p = input.product;
+      const current = stockByProduct[p.id] ?? 0;
+      const diff = Number((input.counted - current).toFixed(3));
+      if (diff === 0) {
+        toast.success(`${p.name} cuadra exacto`, { description: `${fmtQty(current)} ${p.base_unit.toLowerCase()}` });
+        return;
+      }
+      const saved = await insertSupplyMovement({
+        organization_id: organizationId,
+        product_id: p.id,
+        movement_type: "ajuste",
+        quantity: diff,
+        unit_cost: avgCosts[p.id] ?? lastCosts[p.id] ?? null,
+        movement_date: today(),
+        reason_code: "conteo_fisico",
+        notes: `Conteo físico: sistema ${fmtQty(current)}, contado ${fmtQty(input.counted)}${input.note ? ` · ${input.note}` : ""}`,
+        created_by: user.id,
+      });
+      if (!saved) return;
+      toast.success(`${p.name}: ajustado ${diff > 0 ? "+" : ""}${fmtQty(diff)}`, {
+        description: `Ahora hay ${fmtQty(input.counted)} ${p.base_unit.toLowerCase()}`,
+        action: { label: "Deshacer", onClick: () => void undoMovement(saved, p.name, p.base_unit) },
+      });
+    },
+    [organizationId, user?.id, avgCosts, lastCosts, stockByProduct, insertSupplyMovement, undoMovement]
+  );
+
+  // Producto de venta ↔ insumo. Solo cambia la bandera: stock, lotes e
+  // historial se conservan. La RLS (editor de almacén, mig 266/267) decide.
+  const setProductSellable = useCallback(
+    async (p: InventoryProduct, toSupply: boolean) => {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("inventory_products")
+        .update({ is_sellable: !toSupply })
+        .eq("id", p.id);
+      if (error) {
+        toast.error("No se pudo cambiar el tipo", { description: error.message });
+        return;
+      }
+      setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, is_sellable: !toSupply } : x)));
+      toast.success(toSupply ? `${p.name} ahora es un insumo` : `${p.name} vuelve a Productos`, {
+        description: toSupply ? "Ya no sale en el POS de Farmacia." : "Vuelve a poder venderse.",
+      });
     },
     []
   );
@@ -927,6 +1056,7 @@ export default function AlmacenPage() {
         <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0 print:hidden">
           <TabsList>
             <TabsTrigger value="productos">Productos</TabsTrigger>
+            <TabsTrigger value="insumos">Insumos</TabsTrigger>
             <TabsTrigger value="movimientos">Movimientos</TabsTrigger>
             <TabsTrigger value="vencimientos">Vencimientos</TabsTrigger>
             <TabsTrigger value="rentabilidad">Rentabilidad</TabsTrigger>
@@ -938,7 +1068,7 @@ export default function AlmacenPage() {
             <TableSkeleton />
           ) : (
             <ProductTable
-              products={activeProducts}
+              products={sellableProducts}
               archivedProducts={archivedProducts}
               stockByProduct={stockByProduct}
               lotByProduct={lotByProduct}
@@ -959,7 +1089,38 @@ export default function AlmacenPage() {
               onEdit={(p) => setEditFor(p)}
               onArchive={(p) => setArchiveFor(p)}
               onRestore={(p) => void restoreProduct(p)}
-              onNewProduct={() => setProductOpen(true)}
+              onNewProduct={() => {
+                setProductKind("venta");
+                setProductOpen(true);
+              }}
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="insumos" className="mt-4">
+          {loading ? (
+            <TableSkeleton />
+          ) : (
+            <SuppliesTab
+              supplies={supplyProducts}
+              sellableCandidates={sellableProducts}
+              movements={movements}
+              stockByProduct={stockByProduct}
+              canEdit={canEditProducts}
+              canMove={!!user}
+              onNewSupply={() => {
+                setProductKind("insumo");
+                setProductOpen(true);
+              }}
+              onEntry={(p) => {
+                setEntryFor(p.id);
+                setEntryOpen(true);
+              }}
+              onWithdraw={registerSupplyWithdrawal}
+              onCount={registerSupplyCount}
+              onEdit={(p) => setEditFor(p)}
+              onArchive={(p) => setArchiveFor(p)}
+              onConvert={setProductSellable}
             />
           )}
         </TabsContent>
@@ -1094,6 +1255,7 @@ export default function AlmacenPage() {
         onOpenChange={setProductOpen}
         categories={categories}
         onSubmit={createProduct}
+        defaultKind={productKind}
       />
     </div>
   );
